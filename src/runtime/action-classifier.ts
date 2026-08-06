@@ -10,7 +10,7 @@
  *   - arithmetic            → answer directly from the parsed expression
  *   - workspace_action      → run a workspace agent (read / write the repo)
  *   - external_retrieval    → run a grounded chat (web / docs search)
- *   - standalone_generation → answer directly via model generation
+ *   - generation → answer directly via model generation
  *   - ambiguous             → no decisive signal; caller picks the default
  *
  * The classifier is pure:
@@ -35,7 +35,7 @@
 /**
  * The six mutually-exclusive intents this classifier can return.
  *
- * `arithmetic` and `standalone_generation` route to direct answers;
+ * `arithmetic` and `generation` route to direct answers;
  * `workspace_action` (state) and `workspace_mutation` (mutation) both
  *   route to a workspace-capable agent — the split is surfaced at
  *   Layer 1 for auditability per `docs/intent-contracts/canonical-taxonomy.md`
@@ -45,7 +45,7 @@
  */
 export type ActionIntent =
   | "arithmetic"
-  | "standalone_generation"
+  | "generation"
   | "workspace_action"
   | "workspace_mutation"
   | "external_retrieval"
@@ -323,7 +323,7 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
   /\bfind\s+(?:all\s+)?(?:usages?|references?|occurrences?)\b/i,
   // Shell-state probes — these prompts semantically require local shell
   // tool access (`which X`, `pgrep X`, `lsof -i :PORT`). Left as ambiguous,
-  // the model fallback could label them `standalone_generation`, sending
+  // the model fallback could label them `generation`, sending
   // them through the `direct` executor — a one-line system prompt with no
   // tool manifest — and the model answered "I don't have direct access to
   // your system" instead of calling `alix_shell_run`. Anchoring them here
@@ -438,7 +438,7 @@ const READ_ONLY_ANALYSIS_ANCHORS: readonly RegExp[] = [
  * NOT to inspect current state, execute a command, mutate a file, or
  * read-only explain existing text.
  *
- * Trigger precedence: planning fires AFTER `standalone_generation` (so
+ * Trigger precedence: planning fires AFTER `generation` (so
  * "write a plan for X" routes to generation via the write-noun pattern)
  * and BEFORE ambiguous. Planning dominates `read_only_analysis`.
  *
@@ -618,7 +618,7 @@ export function classifyAction(input: string): ActionClassification {
   // 5. Standalone generation — answer directly via the model.
   if (hasAny(trimmed, GENERATION_SIGNALS)) {
     return {
-      intent: "standalone_generation",
+      intent: "generation",
       reason: "prompt asks for direct model generation",
     };
   }
@@ -694,7 +694,7 @@ function confidenceForIntent(intent: ActionIntent): number {
     case "workspace_action": return 0.95;
     case "workspace_mutation": return 0.95;
     case "shell_execution": return 0.9;
-    case "standalone_generation": return 0.85;
+    case "generation": return 0.85;
     case "read_only_analysis": return 0.85;
     case "planning": return 0.85;
     case "external_retrieval": return 0.75;
@@ -736,7 +736,7 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nread_only_analysis\nplanning\nambiguous\n\n" +
+        "arithmetic\nworkspace_action\nworkspace_mutation\ngeneration\nexternal_retrieval\nshell_execution\nread_only_analysis\nplanning\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
@@ -744,7 +744,7 @@ export async function modelClassifyAction(
     const label = (response.text ?? "").trim().toLowerCase();
     const VALID: ActionIntent[] = [
       "arithmetic", "workspace_action", "workspace_mutation",
-      "standalone_generation", "external_retrieval", "shell_execution",
+      "generation", "external_retrieval", "shell_execution",
       "read_only_analysis", "planning", "ambiguous",
     ];
     const intent = VALID.find((v) => label === v);

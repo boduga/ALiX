@@ -222,7 +222,7 @@ describe("LocalRuntimeExecutor.executeDirect", () => {
     assert.equal(result, "4");
   });
 
-  it("makes a single provider call for standalone_generation direct routes", async () => {
+  it("makes a single provider call for generation direct routes", async () => {
     const ctx = makeCtx();
     const executor = new LocalRuntimeExecutor();
     const result = await executor.executeDirect(
@@ -230,7 +230,7 @@ describe("LocalRuntimeExecutor.executeDirect", () => {
         kind: "direct",
         prompt: "Write Fibonacci function in Python",
         diagnostic: {
-          classification: "standalone_generation",
+          classification: "generation",
           route: "direct",
           reason: "test",
         },

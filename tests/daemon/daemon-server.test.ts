@@ -254,7 +254,7 @@ describe("Daemon direct protocol fast path (Task 3)", { timeout: 30000 }, () => 
     assert.equal(messages[1].text, "4");
   });
 
-  it("standalone_generation direct request emits exactly [request.received, direct.completed] in order", async () => {
+  it("generation direct request emits exactly [request.received, direct.completed] in order", async () => {
     const messages = await submitRequest(
       socketPath,
       {
@@ -274,10 +274,10 @@ describe("Daemon direct protocol fast path (Task 3)", { timeout: 30000 }, () => 
     const text: string = messages[1].text;
     const occurrences = text.split("Write Fibonacci function in Python").length - 1;
     assert.equal(occurrences, 1, `expected prompt to appear exactly once, got ${occurrences}`);
-    assert.match(text, /Write Fibonacci function in Python/, "direct standalone_generation must call the provider once with the prompt");
+    assert.match(text, /Write Fibonacci function in Python/, "direct generation must call the provider once with the prompt");
   });
 
-  it("standalone_generation makes exactly one provider call (no tool loop)", async () => {
+  it("generation makes exactly one provider call (no tool loop)", async () => {
     // The mock provider's `complete()` returns the prompt in its body;
     // a single occurrence is the proof. If a tool loop were running,
     // we'd see multiple provider invocations and the prompt would appear

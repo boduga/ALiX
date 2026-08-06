@@ -55,7 +55,7 @@ relabels others to match the canonical vocabulary:
 | Canonical intent | Current `ActionIntent` | Notes |
 |---|---|---|
 | `arithmetic` | `arithmetic` | 1:1 |
-| `generation` | `standalone_generation` | 1:1 |
+| `generation` | `generation` | 1:1 (graduated from `standalone_generation` at T12, PR #389) |
 | `external_retrieval` | `external_retrieval` | 1:1 |
 | `workspace_state` ∪ `workspace_mutation` | `workspace_action` | **currently conflated** — the agent loop distinguishes read-only vs write via `isShellTask` / `isReadOnlyTask`. T7 (workspace-state) and T8 (workspace-mutation) graduate the Layer 1 recognizers so the split surfaces at Layer 1, not inside the agent loop |
 | (no canonical label — model fallback) | `ambiguous` | Layer 1 emits `ambiguous` when no signal dominates. Model fallback at `task-router.ts:435` may emit a different label |

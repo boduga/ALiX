@@ -335,7 +335,7 @@ function toDiagnostic(
  *  5. Natural-language file operations ("write X to Y") → tool
  *  6. Action classifier (with optional model fallback):
  *       - external_retrieval → grounded_chat
- *       - standalone_generation → direct (one model call)
+ *       - generation → direct (one model call)
  *       - ambiguous → (may reclassify via model) then legacy fallback
  *  7. Legacy fallback: research → chat, else → agent.
  *
@@ -431,7 +431,7 @@ export async function taskRouter(
         diagnostic: toDiagnostic(classification, "grounded_chat"),
       };
     }
-    if (classification.intent === "standalone_generation") {
+    if (classification.intent === "generation") {
       return {
         kind: "direct",
         prompt: task,
@@ -464,7 +464,7 @@ export async function taskRouter(
           diagnostic: toDiagnostic(modelResult, "grounded_chat"),
         };
       }
-      if (modelResult.intent === "standalone_generation") {
+      if (modelResult.intent === "generation") {
         return {
           kind: "direct",
           prompt: task,

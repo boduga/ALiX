@@ -1,66 +1,8 @@
 # Workspace-state intent — recognition contract
 
-**Status**: Active — T1 + T7 binding on wayfinder map #376
+**Status**: Active (PR delivering T1 on wayfinder map #376)
 **Owner**: `src/runtime/action-classifier.ts` (`WORKSPACE_ANCHORS`)
 **Test corpus**: `tests/runtime/action-classifier.test.ts → describe("classifyAction — workspace-state recognition contract")`
-
-## Taxonomy binding
-
-This document **IS** the Layer-1 recognition contract for the canonical
-`workspace_state` intent defined in
-`docs/intent-contracts/canonical-taxonomy.md`. The recognizer patterns below
-are the workspace-state subset of `WORKSPACE_ANCHORS`; any change here must
-reconcile against the ownership matrix in the taxonomy doc.
-
-Ownership matrix row (quoted from `canonical-taxonomy.md §Ownership matrix`):
-
-> | `workspace_state` | `classifyAction` + `WORKSPACE_ANCHORS` (workspace-state subset) | `taskRouter` (`task-router.ts:439`) | agent loop → `isReadOnlyTask` carve-out | **Recognition contract pending T7** |
-
-T7 (#383) binds this contract to that row: the recognizer, the Layer-1 owner,
-and the Layer-3 consumer are now aligned. After T7 ships, the row's status
-flips from "pending T7" to "Active" — pending T14's (#386) sweep across all
-eight canonical intents on main.
-
-### Chain position
-
-The runtime canonical-intent chain is four layers. Each layer consumes the
-previous layer's label; no layer re-derives intent from raw prompt text once
-a canonical label is in scope:
-
-```
-CanonicalIntent (top-level taxonomy, semantic) ← Layer 1
-  ↓
-TaskType (planning lens: bugfix | feature |        ← Layer 2 (orthogonal)
- refactor | docs | research | unknown)
-  ↓
-ExecutionRoute (dispatch: direct | tool | chat |  ← Layer 3
- grounded_chat | agent)
-  ↓
-Prompt (exact text + tool manifest +              ← Layer 4
- permissions sent to model)
-```
-
-This recognizer sits at **Layer 1**. The chain position binding is:
-
-- **Layer 1 (this contract)**: `classifyAction` + `WORKSPACE_ANCHORS`
-  (workspace-state subset) emits `intent: "workspace_action"` when patterns
-  match; confidence 0.95 short-circuits the model fallback at
-  `task-router.ts:352`.
-- **Layer 2 (orthogonal planning lens)**: `classifyTask(prompt)` lives in
-  `src/kernel/task-classifier.ts`. It is *not* re-derived from canonical
-  intent — `TaskType` is an orthogonal planning label consumed inside the
-  agent loop (e.g. `agents/delegate-tool.ts:28`).
-- **Layer 3 (this chain's downstream consumer)**: `taskRouter` reads the
-  Layer-1 label at `task-router.ts:439` and produces `kind: "agent"` (see
-  `docs/intent-contracts/canonical-taxonomy.md §Ownership matrix` row for
-  `workspace_state`).
-- **Layer 4**: agent loop downstream — `isReadOnlyTask` carve-out
-  (`agent-loop.ts:145`) caps iterations and picks the read-only vs. mutation
-  mode without re-classifying the prompt.
-
-Layer 2 is **orthogonal**, not in the routing chain. Layers 1 → 3 → 4 form
-the closed-world invariant pinned by
-`tests/runtime/action-classifier.test.ts → describe("canonical-intent chain — closed-world invariant")`.
 
 ## Intent definition
 
@@ -140,7 +82,7 @@ Each test in `describe("no-overlap with adjacent intent families")`:
 |---|---|---|
 | **shell-execution** | `ls`, `cat package.json`, `npm test` | These do NOT classify `workspace_action` (route to `tool.shell.run` upstream via `isShellTask` and `NATURAL_SHELL_MAP`). |
 | **workspace-mutation** | `install curl`, `create a file called notes.md`, `rename foo.ts to bar.ts` | These do NOT classify `workspace_action`. (Currently `ambiguous`; belongs to T8 = workspace-mutation recognition contract.) |
-| **generation** | `write a script that checks if curl is installed` | Does NOT classify `workspace_action`. (Currently `standalone_generation`; belongs to T12.) |
+| **generation** | `write a script that checks if curl is installed` | Does NOT classify `workspace_action`. (Currently `generation`; T12 closed, PR #389.) |
 
 ## Done checklist
 
@@ -156,8 +98,6 @@ For every canonical intent, the artifact must include (per wayfinder map #376 §
 
 ## Provenance
 
-- T1 (#377) on wayfinder map #376. Shipped the recognizer patterns, test corpus (positive / negative / ambiguous), and closed-world invariant scaffold for `workspace_state`.
-- T7 (#383) on wayfinder map #376. Doc-only binding of this contract to `docs/intent-contracts/canonical-taxonomy.md §Ownership matrix` row for `workspace_state`; the canonical taxonomy doc is the single source of truth for the 8-intent taxonomy, the Layer-1 → Layer-3 → Layer-4 ownership matrix, and the re-classification audit. This file is now the Layer-1 recognition contract cited by the matrix row.
-- T14 (#386) on wayfinder map #376. Owns the canonical taxonomy doc and the closed-world invariant; this contract's matrix row transitions from "Recognition contract pending T7" to "Active" once T14's sweep lands. No code change here.
+- T1 (#377) on wayfinder map #376
 - Bug history: shell-state probes returning `ambiguous` → model fallback non-deterministic → routed to `direct` executor with one-line system prompt → user-visible "I don't have direct access to your system" refusal pattern.
 - Recognition contract format anchored here is the template for T7-T13 (workspace-mutation, shell-execution, read-only-analysis, planning, generation, agent-loop-mode).

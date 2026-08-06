@@ -137,21 +137,21 @@ describe("classifyAction — external retrieval", () => {
 // ── Classification: standalone generation ────────────────────────────
 
 describe("classifyAction — standalone generation", () => {
-  it("routes a 'write code in language X' prompt (no workspace anchor) to standalone_generation", () => {
+  it("routes a 'write code in language X' prompt (no workspace anchor) to generation", () => {
     const result = classifyAction("Write Fibonacci function in Python");
-    assert.equal(result.intent, "standalone_generation");
+    assert.equal(result.intent, "generation");
   });
 
-  it("does NOT route 'Add ... to my repo' to standalone_generation", () => {
+  it("does NOT route 'Add ... to my repo' to generation", () => {
     const result = classifyAction("Add Fibonacci implementation to my repo");
-    assert.notEqual(result.intent, "standalone_generation");
+    assert.notEqual(result.intent, "generation");
   });
 });
 
 // ── Classification: shell-state probes (bug-fix regression + contract) ──
 //
 // Bug history: "is llama.cpp installed" was returning `ambiguous` so the
-// model fallback could label it `standalone_generation`, routing the prompt
+// model fallback could label it `generation`, routing the prompt
 // through the `direct` executor — a one-line system prompt with no tool
 // manifest. The model then answered "I don't have direct access to your
 // system" instead of running `alix_shell_run`. Shell-state probes must
@@ -409,9 +409,9 @@ describe("classifyAction — workspace-mutation recognition contract", () => {
       const result = classifyAction("ls");
       assert.notEqual(result.intent, "workspace_mutation");
     });
-    it("generation: 'write a poem' classifies as standalone_generation, not workspace_mutation", () => {
+    it("generation: 'write a poem' classifies as generation, not workspace_mutation", () => {
       const result = classifyAction("write a poem about X");
-      assert.equal(result.intent, "standalone_generation");
+      assert.equal(result.intent, "generation");
     });
   });
 });
@@ -594,9 +594,9 @@ describe("classifyAction — read-only-analysis recognition contract", () => {
       const result = classifyAction("is curl installed");
       assert.equal(result.intent, "workspace_action");
     });
-    it("generation: 'write a poem about X' classifies as standalone_generation", () => {
+    it("generation: 'write a poem about X' classifies as generation", () => {
       const result = classifyAction("write a poem about X");
-      assert.equal(result.intent, "standalone_generation");
+      assert.equal(result.intent, "generation");
     });
   });
 });
@@ -726,11 +726,11 @@ describe("classifyAction — planning recognition contract", () => {
   });
 
   describe("ambiguous corpus (mixed-intent routing policy)", () => {
-    it("routes 'write a plan for X' to standalone_generation (noun-after-determiner form)", () => {
+    it("routes 'write a plan for X' to generation (noun-after-determiner form)", () => {
       // The noun "plan" after the verb "write" is generation, not planning.
       // The planning regex \bplan\s+ requires the verb form.
       const result = classifyAction("write a plan for X");
-      assert.equal(result.intent, "standalone_generation");
+      assert.equal(result.intent, "generation");
     });
   });
 
@@ -776,7 +776,7 @@ describe("classifyAction — ambiguous / defaults", () => {
 // one of these tests if the route diverged from the canonical intent.
 
 const CANONICAL_CASES: ReadonlyArray<{
-  intent: "arithmetic" | "standalone_generation" | "workspace_action" |
+  intent: "arithmetic" | "generation" | "workspace_action" |
           "workspace_mutation" | "external_retrieval" | "shell_execution" |
           "read_only_analysis" | "ambiguous";
   kind: "direct" | "tool" | "chat" | "grounded_chat" | "agent";
@@ -792,7 +792,7 @@ const CANONICAL_CASES: ReadonlyArray<{
   },
   // generation → direct (single model call)
   {
-    intent: "standalone_generation",
+    intent: "generation",
     kind: "direct",
     prompt: "Write a Fibonacci function in Python that returns the sequence",
     note: "canonical: generation (GENERATION_SIGNALS 'in Python' hit)",

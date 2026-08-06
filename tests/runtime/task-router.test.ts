@@ -137,15 +137,15 @@ describe("taskRouter", async () => {
     assert.equal(r.kind, "chat");
   });
 
-  it("routes 'write a story about AI' to direct (standalone_generation beats docs)", async () => {
-    // The classifier's standalone_generation patterns match "write a
+  it("routes 'write a story about AI' to direct (generation beats docs)", async () => {
+    // The classifier's generation patterns match "write a
     // story" before the legacy `classifyTask` DOCS bucket does. The new
     // `direct` route absorbs what `chat` used to handle for generation
     // requests.
     const r = await taskRouter("write a story about AI");
     assert.equal(r.kind, "direct");
     if (r.kind === "direct") {
-      assert.equal(r.diagnostic.classification, "standalone_generation");
+      assert.equal(r.diagnostic.classification, "generation");
     }
   });
 
@@ -230,22 +230,22 @@ describe("taskRouter — direct routes (action classifier)", async () => {
     }
   });
 
-  it("routes 'Write Fibonacci function in Python' to direct (standalone_generation)", async () => {
+  it("routes 'Write Fibonacci function in Python' to direct (generation)", async () => {
     const r = await taskRouter("Write Fibonacci function in Python");
     assert.equal(r.kind, "direct");
     if (r.kind === "direct") {
       assert.equal(r.prompt, "Write Fibonacci function in Python");
-      assert.equal(r.answer, undefined, "standalone_generation does not carry a pre-computed answer");
-      assert.equal(r.diagnostic.classification, "standalone_generation");
+      assert.equal(r.answer, undefined, "generation does not carry a pre-computed answer");
+      assert.equal(r.diagnostic.classification, "generation");
       assert.equal(r.diagnostic.route, "direct");
     }
   });
 
-  it("routes 'Explain SQL to me' to direct (standalone_generation via 'explain X to me')", async () => {
+  it("routes 'Explain SQL to me' to direct (generation via 'explain X to me')", async () => {
     const r = await taskRouter("Explain SQL to me");
     assert.equal(r.kind, "direct");
     if (r.kind === "direct") {
-      assert.equal(r.diagnostic.classification, "standalone_generation");
+      assert.equal(r.diagnostic.classification, "generation");
     }
   });
 });
@@ -296,7 +296,7 @@ describe("taskRouter — direct route invariants", async () => {
     }
   });
 
-  it("standalone_generation direct routes do NOT have `answer` (one model call)", async () => {
+  it("generation direct routes do NOT have `answer` (one model call)", async () => {
     const r = await taskRouter("Write Fibonacci function in Python");
     assert.equal(r.kind, "direct");
     if (r.kind === "direct") {

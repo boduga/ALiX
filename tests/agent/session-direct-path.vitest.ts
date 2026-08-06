@@ -210,7 +210,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
 
   // ---- standalone generation route ---------------------------------------
 
-  it("standalone_generation prompt uses exactly one provider call and skips workflow", async () => {
+  it("generation prompt uses exactly one provider call and skips workflow", async () => {
     const complete = vi.fn(async () => ({ text: "fib helper", toolCalls: [] }));
     const session = createAgentSession({
       cwd: directTestCwd,
@@ -234,7 +234,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(mocks.readAll).not.toHaveBeenCalled();
   });
 
-  it("standalone_generation with no provider returns the [chat:no-provider] response shape without falling through", async () => {
+  it("generation with no provider returns the [chat:no-provider] response shape without falling through", async () => {
     const session = createAgentSession({
       cwd: directTestCwd,
       task: "",
@@ -257,7 +257,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(mocks.readAll).not.toHaveBeenCalled();
   });
 
-  it("standalone_generation passes user prompt verbatim and asks for concise reply", async () => {
+  it("generation passes user prompt verbatim and asks for concise reply", async () => {
     const complete = vi.fn(async () => ({ text: "r", toolCalls: [] }));
     const session = createAgentSession({
       cwd: directTestCwd,
@@ -286,7 +286,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
   // The fix: when streaming is enabled (default), use streamToResponse so
   // tokens arrive through the events.onToken sink the in-process TUI wires
   // up in src/cli/commands/tui.ts.
-  it("standalone_generation streams tokens when provider supports streaming and streaming is enabled (default)", async () => {
+  it("generation streams tokens when provider supports streaming and streaming is enabled (default)", async () => {
     const complete = vi.fn(async () => ({ text: "should not be called", toolCalls: [] }));
     const stream = vi.fn(async function* () {
       yield { type: "text_delta", text: "Hello " };
@@ -311,7 +311,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(result.reason).toBe("direct");
   });
 
-  it("standalone_generation uses complete() (no streaming) when config.streaming === false", async () => {
+  it("generation uses complete() (no streaming) when config.streaming === false", async () => {
     const complete = vi.fn(async () => ({ text: "blocking", toolCalls: [] }));
     const stream = vi.fn(async function* () {
       yield { type: "text_delta", text: "should not stream" };
@@ -354,7 +354,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(recorded[0].route).toBe("direct");
   });
 
-  it("fires onRouteDiagnostic for standalone_generation prompts", async () => {
+  it("fires onRouteDiagnostic for generation prompts", async () => {
     const recorded: RouteDiagnostic[] = [];
     const complete = vi.fn(async () => ({ text: "ok", toolCalls: [] }));
     const session = createAgentSession({
@@ -371,7 +371,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(result.reason).toBe("direct");
     expect(complete).toHaveBeenCalledTimes(1);
     expect(recorded).toHaveLength(1);
-    expect(recorded[0].classification).toBe("standalone_generation");
+    expect(recorded[0].classification).toBe("generation");
     expect(recorded[0].route).toBe("direct");
   });
 
