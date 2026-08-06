@@ -18,10 +18,12 @@ import type { TerminalCanvas } from '../canvas.js';
  *     and event counts at a glance
  *
  * The input panel + slash strip are bottom-anchored (Claude-Code style):
- * the panel sits one row above the 3-row footer, and the slash strip
- * renders directly below the panel. The scrollback fills rows 6
- * through panelRow-1 (1 row above the panel), pinned by default to
- * the most recent content; the view branches on `pinnedBottom`:
+ * the panel sits inside the 5-row footer (topBorderRow, panelRow,
+ * bottomBorderRow, status row) framed by a dim-grey horizontal rule
+ * above and below the prompt. The slash strip renders directly below
+ * the panel. The scrollback fills rows 6 through panelRow-1 (1 row
+ * above the panel), pinned by default to the most recent content;
+ * the view branches on `pinnedBottom`:
  *
  *   pinned:    effectiveOffset = max(0, allLines.length - scrollbackRows)
  *   unpinned:  effectiveOffset = scrollOffset (absolute window-start index)
@@ -82,6 +84,15 @@ export class AgentView implements TuiView {
     c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
     c.write(vp.promptCol, vp.panelRow, buf);
     c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
+
+    // Frame the input panel: full-width dim-grey horizontal rules above
+    // and below the prompt (Claude-Code style chrome). Drawn AFTER the
+    // prompt so the rules read as part of the panel; on a tall terminal
+    // the slash strip overlays the bottom rule's first row — acceptable
+    // because the strip is intentionally visually loud.
+    const border = `\x1b[90m${'─'.repeat(ctx.dimensions.columns)}\x1b[0m`;
+    c.write(0, vp.topBorderRow, border);
+    c.write(0, vp.bottomBorderRow, border);
 
     // Slash strip directly BELOW the panel.
     if (ctx.slash) {

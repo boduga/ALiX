@@ -12,8 +12,10 @@ import type { TerminalCanvas } from '../canvas.js';
  * a bottom-anchored input panel.
  *
  * Layout mirrors AgentView (sans status row, slash strip, plan/approval
- * rendering): header (rows 0-2), blank (3), scrollback (4..panelRow-1),
- * panel (panelRow). pinnedBottom=true recomputes the bottom anchor on
+ * rendering): header (rows 0-2), blank (3), scrollback
+ * (SCROLLBACK_TOP_CHAT..panelRow-1), then the 5-row footer
+ * (topBorderRow, panelRow, bottomBorderRow, status row).
+ * pinnedBottom=true recomputes the bottom anchor on
  * each paint; pinnedBottom=false uses the absolute window-start index
  * captured by app.ts on scroll-up.
  *
@@ -52,6 +54,13 @@ export class ChatView implements TuiView {
     c.write(0, vp.panelRow, `\x1b[33m alix>${RESET} `);
     c.write(vp.promptCol, vp.panelRow, buf);
     c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
+
+    // Frame the input panel: full-width dim-grey horizontal rules above
+    // and below the prompt (Claude-Code style chrome). Reuses the same
+    // \x1b[90m/\x1b[0m styling as the agent view's status text.
+    const border = `\x1b[90m${'─'.repeat(ctx.dimensions.columns)}\x1b[0m`;
+    c.write(0, vp.topBorderRow, border);
+    c.write(0, vp.bottomBorderRow, border);
 
     return { rows: [] };
   }

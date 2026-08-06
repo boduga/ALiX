@@ -58,7 +58,8 @@ describe('computeBottomAnchor', () => {
     const ctx30 = ctx(Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const })));
     // 100 turns × 1 line each + 99 blank-line separators (agent-view adds a
     // separator before every turn after the first) = 199 allLines. With rows=30,
-    // scrollbackTop=6, panelRow=26 → scrollbackRows=20 → bottomAnchor=199-20=179.
+    // scrollbackTop=6, FOOTER_H=5 → topBorderRow=26, scrollbackBottom=25,
+    // scrollbackRows=25-6+1=20 → bottomAnchor=199-20=179.
     // (Brief expected 80, but that ignored the blank-line separator rule.)
     expect(computeBottomAnchor(ctx30, 'agent')).toBe(179);
   });

@@ -6,11 +6,17 @@ import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
- *  and scroll-math all compute panelRow/scrollbackTop/textWidth from these.
- *  FOOTER_H = 3 (tabs row + status row + padding). PANEL_H is the future
- *  multi-line input-panel knob (0 today — single-line prompt). */
+ *  and scroll-math all compute panelRow/scrollbackTop/textWidth
+ *  (plus topBorderRow/bottomBorderRow for the chrome frame)
+ *  from these.
+ *  FOOTER_H = 5 (tab row + top border + prompt row + bottom border +
+ *  status row). BELOW_PROMPT_ROWS decouples the prompt's row position
+ *  from the footer height so future footer additions don't drift the
+ *  prompt outside the footer. PANEL_H is the future multi-line
+ *  input-panel knob (0 today — single-line prompt). */
 export const HEADER_H = 3;
-export const FOOTER_H = 3;
+export const FOOTER_H = 5;
+export const BELOW_PROMPT_ROWS = 3;
 export const PANEL_H = 0;
 /** Scrollback starts below the agent tab's status row (agent=6: header rows
  *  0-2, blank 3, status 4, blank 5). Chat has no status row, so 5. */
@@ -21,7 +27,12 @@ export interface Viewport {
   headerRows: number;
   footerRows: number;
   panelRows: number;
+  /** Row of the prompt itself, inside the footer. */
   panelRow: number;
+  /** Row of the horizontal rule above the prompt (tab row + 1). */
+  topBorderRow: number;
+  /** Row of the horizontal rule below the prompt (status row - 1). */
+  bottomBorderRow: number;
   scrollbackTop: number;
   scrollbackBottom: number;
   scrollbackRows: number;
@@ -34,15 +45,18 @@ export function computeViewport(
   dims: { columns: number; rows: number },
   kind: 'agent' | 'chat',
 ): Viewport {
-  const footerRows = FOOTER_H;
-  const panelRow = Math.max(0, dims.rows - FOOTER_H - PANEL_H - 1);
+  const topBorderRow = dims.rows - FOOTER_H + 1;
+  const bottomBorderRow = dims.rows - BELOW_PROMPT_ROWS + 1;
+  const panelRow = dims.rows - BELOW_PROMPT_ROWS;
   const scrollbackTop = kind === 'agent' ? SCROLLBACK_TOP_AGENT : SCROLLBACK_TOP_CHAT;
-  const scrollbackBottom = panelRow - 1;
+  const scrollbackBottom = topBorderRow - 1;
   return {
     headerRows: HEADER_H,
-    footerRows,
+    footerRows: FOOTER_H,
     panelRows: PANEL_H,
     panelRow,
+    topBorderRow,
+    bottomBorderRow,
     scrollbackTop,
     scrollbackBottom,
     scrollbackRows: Math.max(0, scrollbackBottom - scrollbackTop + 1),

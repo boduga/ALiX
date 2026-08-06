@@ -12,10 +12,17 @@
  *   text wrapping → long lines word-wrap within textWidth
  *   task cap → plan capped at 20 tasks
  *
- * Canvas sizing (controlled by PANEL_H=14, FOOTER_H=3):
- *   80×24  → startY=7, scrollbackBottom=6, 1 scrollback row (row 6 only)
- *   80×40  → startY=23, scrollbackBottom=22, 17 scrollback rows (6–22)
- *   80×100 → startY=83, scrollbackBottom=82, 77 scrollback rows (6–82)
+ * Canvas sizing (agent tab, SCROLLBACK_TOP_AGENT=6):
+ *   80×24  → topBorderRow=20, panelRow=21, scrollbackBottom=19, 14 scrollback rows (6–19)
+ *   80×40  → topBorderRow=36, panelRow=37, scrollbackBottom=35, 30 scrollback rows (6–35)
+ *   80×100 → topBorderRow=96, panelRow=97, scrollbackBottom=95, 90 scrollback rows (6–95)
+ *
+ * Derived from computeViewport() with FOOTER_H=5, BELOW_PROMPT_ROWS=3:
+ *   topBorderRow    = rows - FOOTER_H + 1
+ *   bottomBorderRow = rows - BELOW_PROMPT_ROWS + 1
+ *   panelRow        = rows - BELOW_PROMPT_ROWS
+ *   scrollbackBottom = topBorderRow - 1
+ *   scrollbackRows  = scrollbackBottom - SCROLLBACK_TOP_AGENT + 1
  */
 import { describe, it, expect, vi } from 'vitest';
 import { TerminalCanvas } from '../src/tui/canvas.js';
@@ -27,23 +34,25 @@ import type { PlanTask } from '../src/planning/plan-task.js';
 
 /* ─── Constants ─────────────────────────────────────────────── */
 
-/** Canvas height that yields 17 scrollback rows (rows 6–22). */
+/** Canvas height that yields 30 scrollback rows (rows 6–35). */
 const TALL = 40;
-/** Canvas height that yields 1 scrollback row (row 6 only). */
+/** Canvas height that yields 14 scrollback rows (rows 6–19). */
 const COMPACT = 24;
-/** Canvas height that yields 77 scrollback rows — for big tests. */
+/** Canvas height that yields 90 scrollback rows (rows 6–95) — for big tests. */
 const DEEP = 100;
 /** Default canvas width. */
 const W = 80;
 
 /**
- * Bottom-anchored prompt row: one above the 3-row footer.
- * Mirrors the formula in `AgentView.render` so the formatting
- * tests can assert the prompt's absolute position regardless
- * of canvas height.
+ * Bottom-anchored prompt row: one above the 5-row footer.
+ * Mirrors the formula in `AgentView.render` (via `computeViewport`)
+ * so the formatting tests can assert the prompt's absolute
+ * position regardless of canvas height.
+ *
+ * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
-  return Math.max(0, height - 3 - 0 - 1);
+  return Math.max(0, height - 3);
 }
 
 /* ─── Helpers ───────────────────────────────────────────────── */
@@ -188,7 +197,7 @@ interface CanvasCell {
 describe('AgentView — empty state', () => {
   it('renders prompt on the panel row and nothing in scrollback', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab());
-    // Prompt sits at panelRow (one above the 3-row footer).
+    // Prompt sits at panelRow (rows - BELOW_PROMPT_ROWS), inside the 5-row footer.
     expect(rowText(c, panelRow(COMPACT))).toContain('alix-agent>');
     expect(rowHasStyle(c, panelRow(COMPACT), '33m')).toBe(true);
     // Status row 4 stays empty when no runtime snapshot is wired.
