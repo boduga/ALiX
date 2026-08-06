@@ -85,40 +85,86 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   const progressLedger = ctx.perTab.progressLedger;
   const ledgerExpanded = ctx.perTab.ledgerExpanded;
 
-  // Plan task checklist (verbatim from agent-view.ts:109-128).
-  if (planTasks && planTasks.length > 0) {
-    const statusSymbol: Record<string, string> = { pending: '[ ]', in_progress: '[~]', completed: '[x]', skipped: '[-]' };
-    const tasks = planTasks.slice(0, 20);
-    out.push({ kind: 'plan', text: 'PLAN TASKS', isFirst: false });
-    for (const task of tasks) {
-      const marker = statusSymbol[task.status] ?? '[ ]';
-      const line = `${marker} ${task.index}. ${task.title}`;
-      const wrapped = wrapText(line, textWidth);
-      for (let i = 0; i < wrapped.length; i++) out.push({ kind: 'plan', text: wrapped[i]!, isFirst: false });
+  // Group timeline entries by turn. A turn starts with a user `agent.message`
+  // and contains every subsequent agent entry until the next user message.
+  // The plan (planTasks/planContent) belongs to the CURRENT turn — the one in
+  // flight or just completed — so it renders AFTER that turn's user prompt,
+  // not at the top of the scrollback where it would visually float above
+  // every previous turn.
+  const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
+    .filter((e: any) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response');
+
+  type Turn = { userText: string | null; agentTexts: string[]; startIndex: number };
+  const turns: Turn[] = [];
+  let current: Turn = { userText: null, agentTexts: [], startIndex: timelineEntries.length };
+  for (let i = 0; i < timelineEntries.length; i++) {
+    const e: any = timelineEntries[i];
+    const isUserMsg = e.kind === 'agent.message' && e.actor === 'user';
+    if (isUserMsg) {
+      if (current.userText !== null || current.agentTexts.length > 0) turns.push(current);
+      current = { userText: e.text ?? '', agentTexts: [], startIndex: i };
+    } else if (e.text) {
+      current.agentTexts.push(e.text);
     }
-    out.push({ kind: 'plan', text: '', isFirst: false });
   }
+  if (current.userText !== null || current.agentTexts.length > 0) turns.push(current);
 
-  // Plan content (verbatim from agent-view.ts:132-139).
-  if (planContent) {
-    const planLines = wrapText(planContent, textWidth);
-    for (let i = 0; i < planLines.length; i++) out.push({ kind: 'plan', text: planLines[i]!, isFirst: i === 0 });
-    out.push({ kind: 'plan', text: '', isFirst: false });
-  }
+  // Render planTasks / planContent. Placement depends on timeline state:
+  //   - no user message yet (plan-review-only state) → plan at top
+  //   - at least one user message → plan inline after the LAST turn's user prompt
+  // The previous behavior floated the plan at the top regardless of state,
+  // which made it visually float above every prior turn's prompt + response.
+  const renderPlanLines = (): void => {
+    if (planTasks && planTasks.length > 0) {
+      const statusSymbol: Record<string, string> = { pending: '[ ]', in_progress: '[~]', completed: '[x]', skipped: '[-]' };
+      const tasks = planTasks.slice(0, 20);
+      out.push({ kind: 'plan', text: 'PLAN TASKS', isFirst: false });
+      for (const task of tasks) {
+        const marker = statusSymbol[task.status] ?? '[ ]';
+        const line = `${marker} ${task.index}. ${task.title}`;
+        const wrapped = wrapText(line, textWidth);
+        for (let i = 0; i < wrapped.length; i++) out.push({ kind: 'plan', text: wrapped[i]!, isFirst: false });
+      }
+      out.push({ kind: 'plan', text: '', isFirst: false });
+    }
+    if (planContent) {
+      const planLines = wrapText(planContent, textWidth);
+      for (let i = 0; i < planLines.length; i++) out.push({ kind: 'plan', text: planLines[i]!, isFirst: i === 0 });
+      out.push({ kind: 'plan', text: '', isFirst: false });
+    }
+  };
 
-  // Turns (verbatim from agent-view.ts:86-95, 141-153).
-  const turns = (ctx.runtime?.agent?.timeline ?? [])
-    .filter((e: any) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response')
-    .map((e: any) => {
-      const operator = e.kind === 'agent.message' && e.actor === 'user';
-      return { kind: operator ? 'user' : 'agent', text: e.text ?? '' };
-    });
+  const hasUserMessage = turns.some((t) => t.userText !== null);
+
+  // Render each turn. Within a turn, push a blank separator between the user
+  // prompt and each agent response so consecutive turns read top-to-bottom
+  // (matches the old behavior where every timeline entry was rendered with
+  // its own separator).
+  const theme = ctx.themeName ? getTheme(ctx.themeName) : undefined;
   for (let ti = 0; ti < turns.length; ti++) {
     const t = turns[ti]!;
-    if (ti > 0) out.push({ kind: t.kind, text: '', isFirst: false });
-    const theme = ctx.themeName ? getTheme(ctx.themeName) : undefined;
-    const rendered = renderResponse(t.text, textWidth, theme).map((row: any) => ({ kind: t.kind, text: row.text, isFirst: row.isFirst }));
-    for (const line of rendered) out.push(line);
+    if (ti > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    if (t.userText !== null) {
+      const rendered = renderResponse(t.userText, textWidth, theme).map((row: any) => ({ kind: 'user', text: row.text, isFirst: row.isFirst }));
+      for (const line of rendered) out.push(line);
+      // Separator between user prompt and agent response(s) of the same turn.
+      if (t.agentTexts.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    }
+    // Inject the plan immediately after the LAST turn's user prompt (or at
+    // the top if no user message exists yet).
+    if (ti === turns.length - 1) renderPlanLines();
+    for (let ai = 0; ai < t.agentTexts.length; ai++) {
+      const agentText = t.agentTexts[ai]!;
+      const rendered = renderResponse(agentText, textWidth, theme).map((row: any) => ({ kind: 'agent', text: row.text, isFirst: row.isFirst }));
+      for (const line of rendered) out.push(line);
+      // Separator between consecutive agent responses within the same turn.
+      if (ai < t.agentTexts.length - 1) out.push({ kind: 'user', text: '', isFirst: false });
+    }
+  }
+  // No turns at all but a plan exists (plan-review-only state): render plan
+  // at the top so the operator can review it.
+  if (turns.length === 0 && (planContent || (planTasks && planTasks.length > 0))) {
+    renderPlanLines();
   }
 
   // Pending approvals (verbatim from agent-view.ts:159-173).

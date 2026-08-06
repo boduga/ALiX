@@ -33,6 +33,26 @@ describe('buildAgentScrollbackLines', () => {
     expect(lines[0]!.isFirst).toBe(true);
     expect(lines[1]!.isFirst).toBe(false);
   });
+
+  // Regression: alix-init-test 1785998769198 had the plan rendered ABOVE the
+  // user prompt. After the fix, plan content sits between the user prompt and
+  // the first agent response of the current turn.
+  it('renders planContent AFTER the user prompt of the current turn (not above)', () => {
+    const c = ctx([
+      { kind: 'agent.message' as const, text: 'is llama.cpp installed', actor: 'user' as const },
+      { kind: 'agent.message' as const, text: 'Yes, it is', actor: 'agent' as const },
+    ]) as any;
+    c.perTab.planContent = '## Summary\nCheck installed.';
+    const lines = buildAgentScrollbackLines(c, 200);
+    const userIdx = lines.findIndex((l: any) => l.text.includes('is llama.cpp'));
+    const planIdx = lines.findIndex((l: any) => l.kind === 'plan');
+    const agentIdx = lines.findIndex((l: any) => l.text.includes('Yes, it is'));
+    expect(userIdx).toBeGreaterThanOrEqual(0);
+    expect(planIdx).toBeGreaterThanOrEqual(0);
+    expect(agentIdx).toBeGreaterThanOrEqual(0);
+    expect(userIdx).toBeLessThan(planIdx);
+    expect(planIdx).toBeLessThan(agentIdx);
+  });
 });
 
 describe('buildAgentScrollbackLines — live streaming line', () => {
