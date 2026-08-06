@@ -69,12 +69,21 @@ const SYNTHETIC_APPROVER = "governor";
  * `read_only_analysis`. These are deterministic kind→label mappings — never
  * a re-derivation from prompt text.
  */
-function actionForRoute(route: TaskRoute): string {
-  const diagnostic: RouteDiagnostic | undefined =
-    "diagnostic" in route ? route.diagnostic : undefined;
-  if (diagnostic?.classification) {
-    return diagnostic.classification;
-  }
+
+/** The canonical-intent taxonomy labels (wayfinder T14, 8 intents). */
+const CANONICAL_ACTIONS = new Set([
+  "arithmetic",
+  "generation",
+  "workspace_action",
+  "workspace_mutation",
+  "external_retrieval",
+  "shell_execution",
+  "read_only_analysis",
+  "planning",
+]);
+
+/** Canonical label for a route kind that carries no usable diagnostic. */
+function kindAction(route: TaskRoute): string {
   switch (route.kind) {
     case "tool":
       return "shell_execution";
@@ -87,6 +96,19 @@ function actionForRoute(route: TaskRoute): string {
     case "agent":
       return "workspace_action";
   }
+}
+
+function actionForRoute(route: TaskRoute): string {
+  const diagnostic: RouteDiagnostic | undefined =
+    "diagnostic" in route ? route.diagnostic : undefined;
+  // The action is the canonical label, never a re-derivation from raw
+  // prompt text. A non-canonical classification (e.g. "ambiguous", or the
+  // legacy agent fallback) is clamped to the route-kind canonical label so
+  // `action` always belongs to the canonical taxonomy (spec #404, c1).
+  if (diagnostic?.classification && CANONICAL_ACTIONS.has(diagnostic.classification)) {
+    return diagnostic.classification;
+  }
+  return kindAction(route);
 }
 
 /** Risk class derived from the route kind. */

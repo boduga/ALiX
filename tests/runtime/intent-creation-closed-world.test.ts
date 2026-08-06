@@ -72,6 +72,12 @@ const CANONICAL_CASES: Array<{
     prompt: "what is dependency injection",
     note: "read_only_analysis",
   },
+  {
+    intent: "planning",
+    kind: "agent",
+    prompt: "should I use X or Y",
+    note: "planning",
+  },
 ];
 
 describe("canonical-intent chain — closed-world intent-creation invariant", () => {
@@ -88,10 +94,17 @@ describe("canonical-intent chain — closed-world intent-creation invariant", ()
     });
   }
 
-  it("never uses raw prompt text as the action (ambiguous fallback)", async () => {
+  it("never uses raw prompt text as the action, and clamps ambiguous to a canonical label", async () => {
     const route = await taskRouter("some completely unrelated thing");
     const intent = createExecutionIntent(route, { now: FIXED_NOW });
     assert.notEqual(intent.action, "some completely unrelated thing");
+    // The action must always belong to the canonical taxonomy — even when
+    // the classifier returns "ambiguous" (spec c1).
+    const CANONICAL = new Set([
+      "arithmetic", "generation", "workspace_action", "workspace_mutation",
+      "external_retrieval", "shell_execution", "read_only_analysis", "planning",
+    ]);
+    assert.ok(CANONICAL.has(intent.action), `action "${intent.action}" must be a canonical intent`);
   });
 
   it("two prompts with different canonical intents produce structurally different intents", async () => {
