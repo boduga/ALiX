@@ -84,6 +84,7 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
     runtimeTraceFilter: 'all',
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
+    streamingActive: false,
     ...overrides,
   };
 }

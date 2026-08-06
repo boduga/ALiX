@@ -4,6 +4,12 @@ export interface ScrollbackLine {
   kind: string;
   text: string;
   isFirst: boolean;
+  /**
+   * True only for the last row of a multi-row group (e.g. the tail of a
+   * wrapped live-streaming line). Optional — most lines omit it; renderers
+   * use it to draw a trailing liveness cursor on the final row.
+   */
+  isLast?: boolean;
 }
 
 export type KindStyleMap = Record<string, (line: ScrollbackLine, rowY: number, canvas: TerminalCanvas) => void>;

@@ -67,6 +67,7 @@ export class AgentView implements TuiView {
       toolCall: (l, rowY) => this.renderToolCallLine(l, rowY, c),
       user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c),
       agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c),
+      streaming: (l, rowY) => this.renderStreamingLine(l, rowY, c),
     };
 
     renderBottomAnchoredSlice({
@@ -135,6 +136,18 @@ export class AgentView implements TuiView {
       const marker = kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
       c.write(0, rowY, marker);
       c.write(2, rowY, l.text);
+    } else {
+      c.write(2, rowY, l.text);
+    }
+  }
+
+  /** Live-streaming assistant line: same `← ` marker as a completed agent
+   *  turn, plus a dim trailing cursor on the last row so the operator can
+   *  tell "growing live" from "frozen partial". */
+  private renderStreamingLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
+    if (l.isFirst) c.write(0, rowY, `\x1b[36m← ${RESET}`);
+    if (l.isLast) {
+      c.write(2, rowY, `${l.text}\x1b[90m▍${RESET}`);
     } else {
       c.write(2, rowY, l.text);
     }

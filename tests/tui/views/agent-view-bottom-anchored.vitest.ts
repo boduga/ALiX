@@ -13,12 +13,12 @@ function canvas(columns: number, rows: number): TerminalCanvas {
   return new MockCanvas(columns, rows) as unknown as TerminalCanvas;
 }
 
-function ctx(opts: Partial<ViewRenderContext> & { rows?: number; pinnedBottom?: boolean; inputBuffer?: string; slashEntries?: Array<{ name: string; label: string; description: string }>; timeline?: any[] }): ViewRenderContext {
+function ctx(opts: Partial<ViewRenderContext> & { rows?: number; pinnedBottom?: boolean; inputBuffer?: string; streamingText?: string; slashEntries?: Array<{ name: string; label: string; description: string }>; timeline?: any[] }): ViewRenderContext {
   const rows = opts.rows ?? 30;
   return {
     snap: {} as never,
     dimensions: { columns: 80, rows },
-    perTab: { ...createInitialPerTabState(), pinnedBottom: opts.pinnedBottom ?? true, inputBuffer: opts.inputBuffer ?? '' },
+    perTab: { ...createInitialPerTabState(), pinnedBottom: opts.pinnedBottom ?? true, inputBuffer: opts.inputBuffer ?? '', streamingText: opts.streamingText },
     canvas: canvas(80, rows),
     runtime: opts.timeline
       ? { chat: null, agent: { timeline: opts.timeline, totalEventCount: opts.timeline.length, workflow: undefined, session: {} as never } as never }
@@ -121,5 +121,25 @@ describe('AgentView bottom-anchored render', () => {
     const firstAfter = writesAfter[0]!;
 
     expect(firstAfter.text).toBe(firstBefore.text);
+  });
+
+  it('renders the live streaming line with the agent marker and a trailing cursor', () => {
+    const c = ctx({ streamingText: 'tok one' });
+    view.render(c);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
+    // The streamed text is written (marker at col 0, text at col 2).
+    expect(scrollbackWrites.some((w) => w.text.includes('tok one'))).toBe(true);
+    expect(scrollbackWrites.some((w) => w.text.includes('←'))).toBe(true);
+    // Trailing liveness cursor on the last streaming row.
+    expect(scrollbackWrites.some((w) => w.text.includes('▍'))).toBe(true);
+  });
+
+  it('renders no streaming line when streamingText is empty', () => {
+    const c = ctx({ streamingText: '' });
+    view.render(c);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
+    expect(scrollbackWrites.some((w) => w.text.includes('▍'))).toBe(false);
   });
 });

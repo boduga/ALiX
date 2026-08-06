@@ -152,6 +152,19 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     for (const line of sliced) out.push({ kind: 'plan', text: line, isFirst: false });
   }
 
+  // Live-streaming assistant response for the in-flight agent turn. One
+  // growing line pinned at the bottom, plain-wrapped (NOT block-rendered —
+  // growth must stay smooth as tokens arrive); the last row carries a
+  // liveness cursor. Folds into a normal scrollback entry on completion,
+  // when `streamingText` is cleared and the completed turn renders above.
+  const streaming = ctx.perTab.streamingText;
+  if (streaming && streaming.length > 0) {
+    const wrapped = wrapText(streaming, textWidth);
+    for (let i = 0; i < wrapped.length; i++) {
+      out.push({ kind: 'streaming', text: wrapped[i]!, isFirst: i === 0, isLast: i === wrapped.length - 1 });
+    }
+  }
+
   return out;
 }
 
