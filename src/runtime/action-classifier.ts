@@ -740,6 +740,12 @@ export async function modelClassifyAction(
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
+      // T22 (#400): deterministic classification — the same prompt must
+      // classify identically across calls. temperature:0 removes sampling
+      // variance so Layer-1-uncertain prompts near a decision boundary are
+      // stable. Provider defaults (non-deterministic) previously made the
+      // model fallback vary run-to-run.
+      temperature: 0,
     });
     const label = (response.text ?? "").trim().toLowerCase();
     const VALID: ActionIntent[] = [

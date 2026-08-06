@@ -22,9 +22,43 @@ import {
   classifyActionWithConfidence,
   CONFIDENCE_THRESHOLD,
   evaluateArithmetic,
+  modelClassifyAction,
   type ActionClassification,
 } from "../../src/runtime/action-classifier.js";
 import { taskRouter } from "../../src/runtime/task-router.js";
+import type { ModelAdapter, NormalizedRequest } from "../../src/providers/types.js";
+
+// ── T22 #400 — Layer 2 temperature determinism ────────────────────
+
+/**
+ * Build a mock ModelAdapter that records the NormalizedRequest and returns a
+ * fixed label. `complete` is the only required member for modelClassifyAction.
+ */
+function recordingProvider(
+  label: string,
+): { adapter: ModelAdapter; requests: NormalizedRequest[] } {
+  const requests: NormalizedRequest[] = [];
+  const adapter: ModelAdapter = {
+    id: "mock",
+    capabilities: {
+      provider: "mock",
+      model: "mock-model",
+      inputTokenLimit: 1000,
+      outputTokenLimit: 1000,
+      supportsTools: false,
+      supportsStreaming: false,
+      supportsStructuredOutput: false,
+      supportsVision: false,
+    },
+    editFormatPreference: "structured_patch",
+    longContextStrategy: "trimmed_context",
+    complete: async (request: NormalizedRequest) => {
+      requests.push(request);
+      return { text: label, toolCalls: [] };
+    },
+  };
+  return { adapter, requests };
+}
 
 // ── Pure arithmetic parsing ─────────────────────────────────────────
 
@@ -947,6 +981,66 @@ describe("classifyAction — determinism and purity", () => {
       const result = classifyAction(input);
       assert.equal(typeof result.reason, "string");
       assert.ok(result.reason.length > 0, `empty reason for ${JSON.stringify(input)}`);
+    }
+  });
+});
+
+describe("modelClassifyAction — Layer 2 temperature determinism (T22 #400)", () => {
+  it("sets temperature: 0 on the provider request", async () => {
+    const { adapter, requests } = recordingProvider("generation");
+    const result = await modelClassifyAction("Write a poem", adapter);
+    assert.equal(result.intent, "generation");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0]!.temperature, 0);
+  });
+
+  it("same input + fixed model output → identical classification across calls", async () => {
+    const { adapter } = recordingProvider("planning");
+    const a = await modelClassifyAction("how should I approach this?", adapter);
+    const b = await modelClassifyAction("how should I approach this?", adapter);
+    assert.deepEqual(a, b);
+  });
+
+  it("still returns ambiguous on provider error (must never block routing)", async () => {
+    const adapter: ModelAdapter = {
+      id: "mock-error",
+      capabilities: {
+        provider: "mock",
+        model: "mock-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 1000,
+        supportsTools: false,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+      },
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      complete: async () => {
+        throw new Error("connection refused");
+      },
+    };
+    const result = await modelClassifyAction("write a test", adapter);
+    assert.equal(result.intent, "ambiguous");
+    assert.equal(result.reason, "model classifier unavailable");
+  });
+
+  it("recognizes each valid label from the mock", async () => {
+    const labels = [
+      "arithmetic",
+      "workspace_action",
+      "workspace_mutation",
+      "generation",
+      "external_retrieval",
+      "shell_execution",
+      "read_only_analysis",
+      "planning",
+      "ambiguous",
+    ];
+    for (const label of labels) {
+      const { adapter } = recordingProvider(label);
+      const result = await modelClassifyAction("some prompt", adapter);
+      assert.equal(result.intent, label, `expected intent for label ${label}`);
     }
   });
 });
