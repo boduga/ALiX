@@ -128,13 +128,14 @@ beforeEach(() => {
   });
 });
 
-function makeMockProvider(complete: ReturnType<typeof vi.fn>) {
+function makeMockProvider(complete: ReturnType<typeof vi.fn>, stream?: ReturnType<typeof vi.fn>) {
   return {
     id: "mock",
     capabilities: {},
     editFormatPreference: "unified_diff",
     longContextStrategy: "trimmed_context",
     complete: complete as unknown as ModelAdapter["complete"],
+    ...(stream ? { stream: stream as unknown as ModelAdapter["stream"] } : {}),
   } as unknown as ModelAdapter;
 }
 
@@ -275,6 +276,60 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(req!.messages).toHaveLength(1);
     expect(req!.messages[0]).toEqual({ role: "user", content: "Write a joke about cats" });
     expect(req!.maxOutputTokens).toBeGreaterThan(0);
+  });
+
+  // Regression: PR #371's loader default made model.streaming=true the
+  // resolution, but the chat/direct route in processTurn called
+  // genProvider.complete() unconditionally — bypassing the streaming pipe.
+  // alix-init-test session 1786001303999 reproduced this: 1 user prompt,
+  // 1 agent.response, no streaming events, no tokens observed live.
+  // The fix: when streaming is enabled (default), use streamToResponse so
+  // tokens arrive through the events.onToken sink the in-process TUI wires
+  // up in src/cli/commands/tui.ts.
+  it("standalone_generation streams tokens when provider supports streaming and streaming is enabled (default)", async () => {
+    const complete = vi.fn(async () => ({ text: "should not be called", toolCalls: [] }));
+    const stream = vi.fn(async function* () {
+      yield { type: "text_delta", text: "Hello " };
+      yield { type: "text_delta", text: "world" };
+      yield { type: "usage", usage: { inputTokens: 1, outputTokens: 2 } };
+    });
+    const tokens: string[] = [];
+    const session = createAgentSession({
+      cwd: directTestCwd,
+      task: "",
+      sessionId: "direct-test-session",
+      chatProvider: makeMockProvider(complete, stream),
+      events: { onToken: (t) => tokens.push(t) },
+    });
+    // streaming defaults to true; not passing it explicitly.
+    const result = await session.processTurn("Write a poem about the sea");
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(complete).not.toHaveBeenCalled();
+    expect(tokens.join("")).toBe("Hello world");
+    expect(result.summary).toBe("Hello world");
+    expect(result.streamed).toBe(true);
+    expect(result.reason).toBe("direct");
+  });
+
+  it("standalone_generation uses complete() (no streaming) when config.streaming === false", async () => {
+    const complete = vi.fn(async () => ({ text: "blocking", toolCalls: [] }));
+    const stream = vi.fn(async function* () {
+      yield { type: "text_delta", text: "should not stream" };
+    });
+    const tokens: string[] = [];
+    const session = createAgentSession({
+      cwd: directTestCwd,
+      task: "",
+      sessionId: "direct-test-session",
+      chatProvider: makeMockProvider(complete, stream),
+      events: { onToken: (t) => tokens.push(t) },
+      streaming: false,
+    });
+    const result = await session.processTurn("Write a joke about cats");
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(stream).not.toHaveBeenCalled();
+    expect(tokens).toEqual([]);
+    expect(result.streamed).toBe(false);
   });
 
   // ---- diagnostic callback ------------------------------------------------
