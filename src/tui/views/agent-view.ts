@@ -18,10 +18,12 @@ import type { TerminalCanvas } from '../canvas.js';
  *     and event counts at a glance
  *
  * The input panel + slash strip are bottom-anchored (Claude-Code style):
- * the panel sits one row above the 3-row footer, and the slash strip
- * renders directly below the panel. The scrollback fills rows 6
- * through panelRow-1 (1 row above the panel), pinned by default to
- * the most recent content; the view branches on `pinnedBottom`:
+ * the panel sits inside the 5-row footer (topBorderRow, panelRow,
+ * bottomBorderRow, status row) framed by a dim-grey horizontal rule
+ * above and below the prompt. The slash strip renders directly below
+ * the panel. The scrollback fills rows 6 through panelRow-1 (1 row
+ * above the panel), pinned by default to the most recent content;
+ * the view branches on `pinnedBottom`:
  *
  *   pinned:    effectiveOffset = max(0, allLines.length - scrollbackRows)
  *   unpinned:  effectiveOffset = scrollOffset (absolute window-start index)

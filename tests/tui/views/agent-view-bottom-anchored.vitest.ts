@@ -36,22 +36,24 @@ describe('AgentView bottom-anchored render', () => {
   it('renders input panel at panelRow (one above the footer)', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesAtPanel = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 28);
+    const writesAtPanel = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 27);
     expect(writesAtPanel.some((w) => w.text.includes('alix-agent>'))).toBe(true);
   });
 
   it('renders the slash strip directly below the panel when slash mode is active', () => {
     const c = ctx({ rows: 30, slashEntries: [{ name: 'foo', label: '/foo', description: 'foo skill' }, { name: 'bar', label: '/bar', description: 'bar skill' }] });
     view.render(c);
-    const writesBelowPanel = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 29);
+    const writesBelowPanel = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 28);
     expect(writesBelowPanel.some((w) => w.text.includes('/foo'))).toBe(true);
   });
 
   it('does NOT render the slash strip when slash mode is inactive', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesAt27 = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 27);
-    expect(writesAt27.length).toBe(0);
+    const writesAtBottomBorder = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 28);
+    // Row 28 is the bottom-border row (full-width `─` rule), which always
+    // paints; the slash strip should NOT add any extra writes here.
+    expect(writesAtBottomBorder.some((w) => !w.text.includes('─'))).toBe(false);
   });
 
   it('renders the most recent lines when pinnedBottom=true (default)', () => {

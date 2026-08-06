@@ -6,7 +6,9 @@ import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
- *  and scroll-math all compute panelRow/scrollbackTop/textWidth from these.
+ *  and scroll-math all compute panelRow/scrollbackTop/textWidth
+ *  (plus topBorderRow/bottomBorderRow for the chrome frame)
+ *  from these.
  *  FOOTER_H = 5 (tab row + top border + prompt row + bottom border +
  *  status row). BELOW_PROMPT_ROWS decouples the prompt's row position
  *  from the footer height so future footer additions don't drift the
@@ -14,7 +16,7 @@ import type { ViewRenderContext } from './types.js';
  *  input-panel knob (0 today — single-line prompt). */
 export const HEADER_H = 3;
 export const FOOTER_H = 5;
-export const BELOW_PROMPT_ROWS = 2;
+export const BELOW_PROMPT_ROWS = 3;
 export const PANEL_H = 0;
 /** Scrollback starts below the agent tab's status row (agent=6: header rows
  *  0-2, blank 3, status 4, blank 5). Chat has no status row, so 5. */

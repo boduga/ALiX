@@ -13,10 +13,10 @@ import type { ScrollbackLine } from '../../../src/tui/views/bottom-anchored-view
  * so the tests can assert the prompt's absolute position
  * regardless of canvas height.
  *
- * `panelRow = rows - BELOW_PROMPT_ROWS(2)` (see src/tui/views/scroll-math.ts)
+ * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
-  return Math.max(0, height - 2);
+  return Math.max(0, height - 3);
 }
 
 // Cast factory: MockCanvas is intentionally minimal (only captures write()).

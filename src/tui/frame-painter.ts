@@ -128,8 +128,8 @@ export class FramePainter {
     // Plan approval card — drawn into the same canvas as the active view.
     // Visible from any tab; the gate's keyboard handler makes the keys
     // available globally. Renders last so it overlays the view's
-    // scrollback area (sits at rows-7..rows-4, which is inside the
-    // expanded scrollback now — the card wins because it paints last).
+    // scrollback area (the card sits inside the expanded 5-row footer
+    // region — the card wins because it paints last).
     const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
     this.paintPlanApprovalCard(rect);
     this.deps.palette.paint(rect);

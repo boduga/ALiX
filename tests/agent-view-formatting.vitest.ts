@@ -13,11 +13,11 @@
  *   task cap → plan capped at 20 tasks
  *
  * Canvas sizing (agent tab, SCROLLBACK_TOP_AGENT=6):
- *   80×24  → topBorderRow=20, scrollbackBottom=19, 14 scrollback rows (6–19)
- *   80×40  → topBorderRow=36, scrollbackBottom=35, 30 scrollback rows (6–35)
- *   80×100 → topBorderRow=96, scrollbackBottom=95, 90 scrollback rows (6–95)
+ *   80×24  → topBorderRow=20, panelRow=21, scrollbackBottom=19, 14 scrollback rows (6–19)
+ *   80×40  → topBorderRow=36, panelRow=37, scrollbackBottom=35, 30 scrollback rows (6–35)
+ *   80×100 → topBorderRow=96, panelRow=97, scrollbackBottom=95, 90 scrollback rows (6–95)
  *
- * Derived from computeViewport() with FOOTER_H=5, BELOW_PROMPT_ROWS=2:
+ * Derived from computeViewport() with FOOTER_H=5, BELOW_PROMPT_ROWS=3:
  *   topBorderRow    = rows - FOOTER_H + 1
  *   bottomBorderRow = rows - BELOW_PROMPT_ROWS + 1
  *   panelRow        = rows - BELOW_PROMPT_ROWS
@@ -49,10 +49,10 @@ const W = 80;
  * so the formatting tests can assert the prompt's absolute
  * position regardless of canvas height.
  *
- * `panelRow = rows - BELOW_PROMPT_ROWS(2)` (see src/tui/views/scroll-math.ts)
+ * `panelRow = rows - BELOW_PROMPT_ROWS(3)` (see src/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
-  return Math.max(0, height - 2);
+  return Math.max(0, height - 3);
 }
 
 /* ─── Helpers ───────────────────────────────────────────────── */

@@ -12,8 +12,10 @@ import type { TerminalCanvas } from '../canvas.js';
  * a bottom-anchored input panel.
  *
  * Layout mirrors AgentView (sans status row, slash strip, plan/approval
- * rendering): header (rows 0-2), blank (3), scrollback (4..panelRow-1),
- * panel (panelRow). pinnedBottom=true recomputes the bottom anchor on
+ * rendering): header (rows 0-2), blank (3), scrollback
+ * (SCROLLBACK_TOP_CHAT..panelRow-1), then the 5-row footer
+ * (topBorderRow, panelRow, bottomBorderRow, status row).
+ * pinnedBottom=true recomputes the bottom anchor on
  * each paint; pinnedBottom=false uses the absolute window-start index
  * captured by app.ts on scroll-up.
  *
