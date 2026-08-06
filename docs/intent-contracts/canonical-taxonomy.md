@@ -109,6 +109,7 @@ T13 owns its recognition contract.
 | `agents/delegate-tool.ts:28` | `classifyTask(prompt)` | Layer 2 planning lens — auto-selects subagent role |
 | `run/task-loop.ts:315` | `IntentClassifier` (AgentIntent) | Layer 4 agent-loop-mode, orthogonal |
 | `run/intent-classifier.ts` | (defines) `AgentIntent` | Layer 4, orthogonal |
+| `runtime/execution-intent-factory.ts` | consumes `TaskRoute.diagnostic.classification` (Layer 1 label via Layer 3) | governed execution lifecycle (X1/X4, spec #404): consumes the canonical label to populate the ExecutionIntent `action`; for routes without a diagnostic it applies a deterministic kind→canonical-label mapping. Never re-derives from raw prompt text. |
 
 ## Re-classification audit
 
