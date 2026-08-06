@@ -51,6 +51,7 @@ export type ActionIntent =
   | "external_retrieval"
   | "shell_execution"
   | "read_only_analysis"
+  | "planning"
   | "ambiguous";
 
 /**
@@ -431,6 +432,45 @@ const READ_ONLY_ANALYSIS_ANCHORS: readonly RegExp[] = [
 ];
 
 /**
+ * Decision-question recognizers (T11 on wayfinder map #376).
+ * A prompt matches `planning` when it asks the runtime to make a choice,
+ * propose an approach, recommend a library, or compare alternatives —
+ * NOT to inspect current state, execute a command, mutate a file, or
+ * read-only explain existing text.
+ *
+ * Trigger precedence: planning fires AFTER `standalone_generation` (so
+ * "write a plan for X" routes to generation via the write-noun pattern)
+ * and BEFORE ambiguous. Planning dominates `read_only_analysis`.
+ *
+ * Per `docs/intent-contracts/planning.md`:
+ *   - Confidence: 0.85
+ *   - Test corpus: `tests/runtime/action-classifier.test.ts →
+ *     describe("classifyAction — planning recognition contract")`
+ */
+const PLANNING_ANCHORS: readonly RegExp[] = [
+  // "should I use X", "should I adopt Y" — first-person decision question.
+  /\bshould\s+I\s+/i,
+  // "should we adopt Z" — first-person-plural decision question.
+  /\bshould\s+we\s+/i,
+  // "decide between A and B" — explicit decision verb.
+  /\bdecide\s+/i,
+  // "choose between X and Y" — explicit decision verb.
+  /\bchoose\s+between\b/i,
+  // "plan the migration", "plan a refactor" — imperative planning verb.
+  /\bplan\s+/i,
+  // "design a cache layer", "design an API" — imperative design verb.
+  /\bdesign\s+a?\s+/i,
+  // "propose an architecture" — imperative propose verb.
+  /\bpropose\s+/i,
+  // "recommend a library" — imperative recommend verb.
+  /\brecommend\s+/i,
+  // "what's the best way to X" — decision question disguised as question.
+  /\bwhat's\s+the\s+best\s+/i,
+  // "compare options", "compare alternatives", "compare approaches".
+  /\bcompare\s+(?:options|alternatives|approaches)\b/i,
+];
+
+/**
  * Tokens / patterns that imply current external information. Evaluated
  * only when no workspace anchor is present.
  */
@@ -505,7 +545,7 @@ const GENERATION_SIGNALS: readonly RegExp[] = [
   // Programming-language context — clearly generating code, not editing repo.
   /\bin\s+(?:python|javascript|typescript|js|ts|go|rust|java|c\+\+|c#|ruby|php|kotlin|swift|haskell|scala|elixir|clojure|lua|r|matlab|sql|html|css|bash|shell|zig)\b/i,
   // "write a poem / story / function / script" — generation.
-  /\bwrite\s+(?:a|an|the|me|some)\s+(?:poem|story|essay|function|script|snippet|example|joke|email|letter|song|haiku|limerick|paragraph|biography|summary)\b/i,
+  /\bwrite\s+(?:a|an|the|me|some)\s+(?:poem|story|essay|function|script|snippet|example|joke|email|letter|song|haiku|limerick|paragraph|biography|summary|plan)\b/i,
   // "generate / compose a …"
   /\bgenerate\s+(?:a|an|the|me|some)\b/i,
   /\bcompose\s+(?:a|an|the|me|some)\b/i,
@@ -606,7 +646,17 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
-  // 7. Fall back to ambiguous — caller decides the default route.
+  // 7. Planning — decide / propose / recommend / should-I-use-X.
+  //    (T11 on wayfinder map #376). Dominates read_only_analysis.
+  //    See `docs/intent-contracts/planning.md`.
+  if (hasAny(trimmed, PLANNING_ANCHORS)) {
+    return {
+      intent: "planning",
+      reason: "prompt asks for a decision or proposal",
+    };
+  }
+
+  // 8. Fall back to ambiguous — caller decides the default route.
   return {
     intent: "ambiguous",
     reason: "no decisive signal; default route applies",
@@ -646,6 +696,7 @@ function confidenceForIntent(intent: ActionIntent): number {
     case "shell_execution": return 0.9;
     case "standalone_generation": return 0.85;
     case "read_only_analysis": return 0.85;
+    case "planning": return 0.85;
     case "external_retrieval": return 0.75;
     case "ambiguous": return 0.5;
   }
@@ -685,7 +736,7 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nread_only_analysis\nambiguous\n\n" +
+        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nread_only_analysis\nplanning\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
@@ -694,7 +745,7 @@ export async function modelClassifyAction(
     const VALID: ActionIntent[] = [
       "arithmetic", "workspace_action", "workspace_mutation",
       "standalone_generation", "external_retrieval", "shell_execution",
-      "read_only_analysis", "ambiguous",
+      "read_only_analysis", "planning", "ambiguous",
     ];
     const intent = VALID.find((v) => label === v);
     if (intent) {

@@ -677,6 +677,72 @@ describe("classifyAction — read-only-analysis recognition contract", () => {
   });
 });
 
+// ── Classification: planning recognition contract (T11 #391) ─────────
+
+describe("classifyAction — planning recognition contract", () => {
+  describe("positive corpus (must classify planning)", () => {
+    it("routes 'should I use X or Y' to planning", () => {
+      assert.equal(classifyAction("should I use X or Y").intent, "planning");
+    });
+    it("routes 'should we adopt X' to planning", () => {
+      assert.equal(classifyAction("should we adopt X").intent, "planning");
+    });
+    it("routes 'design a cache layer' to planning", () => {
+      assert.equal(classifyAction("design a cache layer").intent, "planning");
+    });
+    it("routes 'plan the migration' to planning", () => {
+      assert.equal(classifyAction("plan the migration").intent, "planning");
+    });
+    it("routes 'propose an architecture' to planning", () => {
+      assert.equal(classifyAction("propose an architecture").intent, "planning");
+    });
+    it("routes 'recommend a library' to planning", () => {
+      assert.equal(classifyAction("recommend a library").intent, "planning");
+    });
+    it("routes 'decide between A and B' to planning", () => {
+      assert.equal(classifyAction("decide between A and B").intent, "planning");
+    });
+    it("routes 'what's the best way to X' to planning", () => {
+      assert.equal(classifyAction("what's the best way to do X").intent, "planning");
+    });
+  });
+
+  describe("negative corpus (must NOT classify planning)", () => {
+    it("rejects 'is curl installed' (workspace-state)", () => {
+      assert.notEqual(classifyAction("is curl installed").intent, "planning");
+    });
+    it("rejects 'create foo.ts' (workspace-mutation)", () => {
+      assert.notEqual(classifyAction("create foo.ts").intent, "planning");
+    });
+    it("rejects 'ls' (shell-execution)", () => {
+      assert.notEqual(classifyAction("ls").intent, "planning");
+    });
+    it("rejects 'explain the install process' (read-only-analysis)", () => {
+      assert.notEqual(classifyAction("explain the install process").intent, "planning");
+    });
+    it("rejects 'write a poem about X' (generation)", () => {
+      assert.notEqual(classifyAction("write a poem about X").intent, "planning");
+    });
+  });
+
+  describe("ambiguous corpus (mixed-intent routing policy)", () => {
+    it("routes 'write a plan for X' to standalone_generation (noun-after-determiner form)", () => {
+      // The noun "plan" after the verb "write" is generation, not planning.
+      // The planning regex \bplan\s+ requires the verb form.
+      const result = classifyAction("write a plan for X");
+      assert.equal(result.intent, "standalone_generation");
+    });
+  });
+
+  describe("no-overlap with adjacent intent families", () => {
+    it("planning dominates read_only_analysis", () => {
+      // "should I do X" is decision (planning), not analysis.
+      const result = classifyAction("should I use a different framework");
+      assert.equal(result.intent, "planning");
+    });
+  });
+});
+
 // ── Classification: ambiguous ────────────────────────────────────────
 
 describe("classifyAction — ambiguous / defaults", () => {
