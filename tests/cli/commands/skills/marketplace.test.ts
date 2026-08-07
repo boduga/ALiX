@@ -216,6 +216,33 @@ describe("listRepoSkills", () => {
     assert.equal(skills[0].repoUrl, REPO);
   });
 
+  it("finds skills in a 2-deep category layout (mattpocock #344)", async () => {
+    // #344: `alix skills available` showed blank for mattpocock/skills because
+    // its layout is skills/<category>/<name>/SKILL.md (e.g.
+    // skills/engineering/wayfinder/SKILL.md). The recursive-tree walk must
+    // surface any path ending in /SKILL.md, regardless of depth.
+    mockFetch(
+      [
+        { path: "skills/engineering/wayfinder/SKILL.md" },
+        { path: "skills/engineering/code-reviewer/SKILL.md" },
+        { path: "skills/engineering/test-driven-development/SKILL.md" },
+        { path: "skills/alpha/SKILL.md" },
+      ],
+      {
+        "skills/engineering/wayfinder/SKILL.md": skillBody("wayfinder"),
+        "skills/engineering/code-reviewer/SKILL.md": skillBody("code-reviewer"),
+        "skills/engineering/test-driven-development/SKILL.md": skillBody("test-driven-development"),
+        "skills/alpha/SKILL.md": skillBody("alpha"),
+      },
+    );
+    const skills = await listRepoSkills(REPO);
+    assert.equal(skills.length, 4);
+    const names = skills.map((s) => s.name).sort();
+    assert.deepEqual(names, ["alpha", "code-reviewer", "test-driven-development", "wayfinder"]);
+    const wayfinder = skills.find((s) => s.name === "wayfinder");
+    assert.equal(wayfinder?.path, "skills/engineering/wayfinder/SKILL.md");
+  });
+
   it("skips a raw-fetch/manifest failure and keeps the other skills", async () => {
     mockFetch(
       [
