@@ -96,13 +96,26 @@ export function computeViewport(
  * turns keep flat rendering against the blank gutter. A stage that
  * completes having produced no output drops out entirely; a running stage
  * with no content yet renders a bare gutter row carrying its ticker.
+ *
+ * #434 — tool calls in the stream with outcomes. The bottom-pinned
+ * pending-tool-call section is gone. Each tool lifecycle event is
+ * rendered inline at the moment it happens, in chronological order:
+ *   - `tool.started`  → `→ toolname` invocation line (first of stage if
+ *     no other content has claimed the gutter for this stage).
+ *   - `tool.completed` → `✓ toolname — <detail>` result line.
+ *   - `tool.failed`   → `✗ toolname — <detail>` result line.
+ * Both invocation and result render under the same stage's gutter —
+ * the invocation gets the gutter label, the result is a continuation.
+ * Result lines never insert mid-stream because tool calls execute
+ * strictly sequentially (assumption pinned by an append-only invariant
+ * test). The `perTab.pendingToolCalls` data flow still arrives from
+ * the snapshot but is no longer rendered; #435 will subsume it.
  */
 export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: number): ScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const planTasks = ctx.perTab.planTasks;
   const planContent = ctx.perTab.planContent;
   const pendingApprovals = ctx.perTab.pendingApprovals;
-  const pendingToolCalls = ctx.perTab.pendingToolCalls;
   const progressLedger = ctx.perTab.progressLedger;
   const ledgerExpanded = ctx.perTab.ledgerExpanded;
 
@@ -112,6 +125,12 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // flight or just completed — so it renders AFTER that turn's user prompt,
   // not at the top of the scrollback where it would visually float above
   // every previous turn.
+  //
+  // #434: tool.started / tool.completed / tool.failed are admitted here so
+  // the line builder can render them chronologically. tool.requested and
+  // tool.output are admitted to the timeline projection (whitelist
+  // vocabulary) but rejected by this render-layer filter — they are
+  // internal lifecycle events that the scrollback does not display.
   const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
     .filter((e: any) =>
       e.kind === 'agent.message' ||
@@ -119,12 +138,21 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       e.kind === 'agent.decision' ||
       e.kind === 'agent.response' ||
       e.kind === 'agent.session.phase_changed' ||
-      e.kind === 'agent.session.turn.completed');
+      e.kind === 'agent.session.turn.completed' ||
+      e.kind === 'tool.started' ||
+      e.kind === 'tool.completed' ||
+      e.kind === 'tool.failed');
 
   // Stage tracking (#432). A stage is the interval between two consecutive
   // phase_changed events; the final stage of a turn is terminated by
   // turn_completed. A re-entered phase renders as a separate occurrence
   // because each phase_changed emits a fresh StageState instance.
+  //
+  // #434: tool events are treated as CONTENT events for stage attribution.
+  // A tool.started that arrives under a running stage is the first content
+  // of that stage if no other content has yet claimed the gutter. This
+  // makes the invocation line the first content row of the stage, which
+  // is what the "tool under stage" pattern from spec #429 calls for.
   type StageState = {
     name: string;          // phase name as it appeared in the timeline entry's `text`
     startedAt: number;     // ms timestamp of the phase_changed event
@@ -136,6 +164,13 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     text: string;
     stage: StageState | null;  // null when content arrived before any stage in the turn
     isFirstOfStage: boolean;
+    // #434: tool events are content, but the line builder distinguishes
+    // them so it can pick the right marker and the right
+    // first-line-of-stage behaviour. `kind: 'toolCall'` for tool events
+    // (the existing 'toolCall' ScrollbackLine kind) and 'agent' for
+    // prose responses. The kind is passed through to the ScrollbackLine
+    // so the view's existing renderToolCallLine can pick them up.
+    lineKind: 'agent' | 'toolCall';
   };
   type TurnBuild = {
     userText: string | null;
@@ -189,16 +224,77 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         currentStage.closedAt = ts;
         currentStage.isRunning = false;
       }
+    } else if (e.kind === 'tool.started') {
+      // #434: invocation line. Render as content attributed to the
+      // current stage. If a stage is running, the invocation may be
+      // the first content of that stage (gutter label) — but only
+      // when the stage has not yet produced any content.
+      const toolName = typeof e.text === 'string' ? e.text : '';
+      const detail = typeof e.detail === 'string' ? e.detail : '';
+      const text = detail ? `→ ${toolName} ${detail}` : `→ ${toolName}`;
+      if (currentStage) {
+        const isFirstOfStage = !currentStage.hasContent;
+        current.contents.push({ text, stage: currentStage, isFirstOfStage, lineKind: 'toolCall' });
+        currentStage.hasContent = true;
+      } else {
+        current.contents.push({ text, stage: null, isFirstOfStage: false, lineKind: 'toolCall' });
+      }
+    } else if (e.kind === 'tool.completed' || e.kind === 'tool.failed') {
+      // #434: result line. Success uses `✓`; failure uses `✗`. The
+      // toolName comes from `text` (mapped by TimelineBuilder.build for
+      // tool.* events); the outcome detail comes from `detail` (error
+      // for failed, outputPreview for completed). A result line is
+      // ALWAYS a continuation within the same stage as its invocation,
+      // because tool execution is strictly sequential and the result
+      // arrives after the started event under the same running stage.
+      const isFailure = e.kind === 'tool.failed';
+      const marker = isFailure ? '✗' : '✓';
+      const toolName = typeof e.text === 'string' ? e.text : '';
+      const outcome = typeof e.detail === 'string' ? e.detail : '';
+      const text = outcome ? `${marker} ${toolName} — ${outcome}` : `${marker} ${toolName}`;
+      if (currentStage) {
+        // Result line is a continuation of the stage — not first-of-stage
+        // even if no other content was attributed (the invocation has
+        // already claimed that slot). The result renders under the same
+        // gutter label as the invocation.
+        //
+        // The `hasContent = true` mutation below looks redundant (the
+        // invocation already set it), but it is INTENTIONAL: a tool
+        // completion is still content arriving in the stage. The flag
+        // is correctly carrying the "any content has been attributed to
+        // this stage" invariant, not "the gutter slot has been claimed."
+        // Do NOT move this assignment later — it is the load-bearing
+        // signal that a subsequent tool.started in this stage is NOT
+        // first-of-stage and therefore does not steal the gutter from
+        // this result's invocation.
+        //
+        // Edge case: a tool.completed / tool.failed that arrives WITHOUT
+        // a preceding tool.started will still flow through this branch
+        // (the timeline is permissive). In that case `hasContent` was
+        // false, `isFirstOfStage` becomes true, and the result becomes
+        // first-of-stage — which means the result carries the gutter
+        // label. This is rare (the executor emits started before
+        // completed) but is exercised by the regression test
+        // "tool.completed without preceding tool.started".
+        const isFirstOfStage = !currentStage.hasContent;
+        current.contents.push({ text, stage: currentStage, isFirstOfStage, lineKind: 'toolCall' });
+        currentStage.hasContent = true;
+      } else {
+        // Tool result with no active stage (e.g. pre-stage turn). Render
+        // with a blank gutter; the result still goes here so the
+        // outcome isn't lost.
+        current.contents.push({ text, stage: null, isFirstOfStage: false, lineKind: 'toolCall' });
+      }
     } else if (e.text) {
       // Content event. If a stage is active, attribute to it. Content
       // arriving before any phase_changed in a turn (pre-stage) has no
       // stage attribution — it renders with a blank gutter.
       if (currentStage) {
         const isFirstOfStage = !currentStage.hasContent;
-        current.contents.push({ text: e.text, stage: currentStage, isFirstOfStage });
+        current.contents.push({ text: e.text, stage: currentStage, isFirstOfStage, lineKind: 'agent' });
         currentStage.hasContent = true;
       } else {
-        current.contents.push({ text: e.text, stage: null, isFirstOfStage: false });
+        current.contents.push({ text: e.text, stage: null, isFirstOfStage: false, lineKind: 'agent' });
       }
     }
   }
@@ -327,15 +423,39 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
           (preRows[0] as any).gutter = formatGutter(stage.name);
         }
       } else {
-        const rendered = renderResponse(item.text, textWidth, theme).map((row: any) => ({ text: row.text, isFirst: row.isFirst }));
-        preRows = rendered;
+        // #434: tool events carry their own pre-formatted text with the
+        // →/✓/✗ marker already in `item.text` — they should not pass
+        // through `renderResponse` (which is markdown-aware and would
+        // mangle the marker characters). Render verbatim with a single
+        // wrap to textWidth.
+        //
+        // wrapText vs renderResponse divergence: tool lines use plain
+        // wrapText so the leading marker survives as a literal character.
+        // renderResponse is markdown-aware for agent prose — it would
+        // interpret `→` as text (fine) but `✓`/`✗` could be misread as
+        // list items or otherwise mutated. Keep the paths separate; do
+        // not unify them without re-testing both surface areas.
+        if (item.lineKind === 'toolCall') {
+          const wrapped = wrapText(item.text, textWidth);
+          preRows = wrapped.map((t, i) => ({ text: t, isFirst: i === 0 }));
+        } else {
+          const rendered = renderResponse(item.text, textWidth, theme).map((row: any) => ({ text: row.text, isFirst: row.isFirst }));
+          preRows = rendered;
+        }
       }
       for (const row of preRows) {
-        const line: ScrollbackLine = { kind: 'agent', text: row.text, isFirst: row.isFirst };
+        // #434: toolCall items emit ScrollbackLine.kind = 'toolCall' so
+        // the view's existing renderToolCallLine can paint them with the
+        // right styling. Other content uses 'agent' as before.
+        const line: ScrollbackLine = {
+          kind: item.lineKind === 'toolCall' ? 'toolCall' : 'agent',
+          text: row.text,
+          isFirst: row.isFirst,
+        };
         if ((row as any).gutter) line.gutter = (row as any).gutter;
         out.push(line);
       }
-      // Separator between consecutive agent responses within the same turn.
+      // Separator between consecutive content items within the same turn.
       if (ai < t.contents.length - 1) out.push({ kind: 'user', text: '', isFirst: false });
     }
     // Live-streaming line: pinned inline at the bottom of the CURRENT turn's
@@ -433,16 +553,6 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       const wrapped = wrapText(card, textWidth);
       for (let i = 0; i < wrapped.length; i++) out.push({ kind: 'approval', text: wrapped[i]!, isFirst: i === 0 });
     }
-  }
-
-  // Pending tool calls (verbatim from agent-view.ts:177-186).
-  if (pendingToolCalls && pendingToolCalls.length > 0) {
-    out.push({ kind: 'toolCall', text: 'PENDING TOOL CALLS', isFirst: false });
-    for (const tc of pendingToolCalls) {
-      out.push({ kind: 'toolCall', text: `→ ${tc.name}`, isFirst: true });
-      if (tc.summary) out.push({ kind: 'toolCall', text: `  ${tc.summary}`, isFirst: false });
-    }
-    out.push({ kind: 'toolCall', text: '', isFirst: false });
   }
 
   // Progress ledger (verbatim from agent-view.ts:192-199).

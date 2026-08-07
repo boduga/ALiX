@@ -421,3 +421,250 @@ describe('buildAgentScrollbackLines — #432 stage labels and durations', () => 
     expect((gutterLine as any).gutter.length).toBe(GUTTER_WIDTH);
   });
 });
+
+// ─── #434 — render tool calls in the stream with outcomes ───────────────
+// Tool invocations and results render chronologically (not bottom-pinned).
+// Success and failure are visually distinct. Result lines render under the
+// stage in which the call occurred, and the append-only invariant pins the
+// assumption that tool calls execute strictly sequentially — if parallel
+// tool execution is introduced, this test fails loudly. See spec #429,
+// slice #5, and ticket #434.
+// ───────────────────────────────────────────────────────────────────────
+describe('buildAgentScrollbackLines — #434 tool calls in the stream with outcomes', () => {
+  /** Build a tool.started entry at the given timestamp (ms). */
+  function toolStartedAt(t: number, toolName: string, detail?: string): any {
+    return {
+      kind: 'tool.started', text: toolName, startedAt: t, actor: 'agent',
+      ...(detail !== undefined ? { detail } : {}),
+    };
+  }
+  /** Build a tool.completed entry at the given timestamp (ms). */
+  function toolCompletedAt(t: number, toolName: string, detail?: string): any {
+    return {
+      kind: 'tool.completed', text: toolName, startedAt: t, actor: 'agent',
+      ...(detail !== undefined ? { detail } : {}),
+    };
+  }
+  /** Build a tool.failed entry at the given timestamp (ms). */
+  function toolFailedAt(t: number, toolName: string, detail?: string): any {
+    return {
+      kind: 'tool.failed', text: toolName, startedAt: t, actor: 'agent',
+      ...(detail !== undefined ? { detail } : {}),
+    };
+  }
+
+  it('a tool.started event renders an invocation line with → marker', () => {
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'edit_file'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    // Invocation line is present and uses the → marker.
+    const invLine = lines.find((l: any) => l.text.includes('→ edit_file'));
+    expect(invLine).toBeDefined();
+    // Invocation is the first line of its stage — it carries the gutter.
+    expect((invLine as any).gutter).toBe('  EXECUTING'.padEnd(GUTTER_WIDTH));
+    // Invocation is the first row (isFirst=true) of its content group.
+    expect((invLine as any).isFirst).toBe(true);
+  });
+
+  it('a tool.completed event renders a result line with ✓ marker (success)', () => {
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'edit_file'),
+      toolCompletedAt(t0 + 1500, 'edit_file', '3 lines changed'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    // Result line is present and uses the ✓ marker for success.
+    const resultLine = lines.find((l: any) => l.text.includes('✓ edit_file'));
+    expect(resultLine).toBeDefined();
+    // Success marker: ✓ (U+2713) is the visual signal that distinguishes success
+    // from failure. The detail surfaces in the result line.
+    expect(resultLine!.text).toContain('3 lines changed');
+  });
+
+  it('a tool.failed event renders a result line with ✗ marker (failure)', () => {
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'run_tests'),
+      toolFailedAt(t0 + 1500, 'run_tests', '2 failing'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    // Result line is present and uses the ✗ marker for failure.
+    const resultLine = lines.find((l: any) => l.text.includes('✗ run_tests'));
+    expect(resultLine).toBeDefined();
+    // Failure marker: ✗ (U+2717) — visually distinct from the success ✓.
+    expect(resultLine!.text).toContain('2 failing');
+  });
+
+  it('tool.completed without a preceding tool.started renders as first-of-stage (regression for orphan-result edge case)', () => {
+    // The executor never emits tool.completed without first emitting
+    // tool.started, so this case should not occur in practice. But the
+    // timeline is permissive and the line builder handles it: the result
+    // becomes first-of-stage (carries the gutter) because no content has
+    // yet been attributed to the running stage. Pin this behavior so a
+    // future tightening of the line builder does not silently drop
+    // orphan results.
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolCompletedAt(t0 + 500, 'orphan_tool', 'made it through somehow'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const resultLine = lines.find((l: any) => l.text.includes('✓ orphan_tool'));
+    expect(resultLine).toBeDefined();
+    // No invocation preceded this completion, so the result is the stage's
+    // first content — it carries the gutter label.
+    expect((resultLine as any).gutter).toBe('  EXECUTING'.padEnd(GUTTER_WIDTH));
+    expect(resultLine!.text).toContain('made it through somehow');
+  });
+
+  it('success and failure markers are visually distinct (✓ vs ✗)', () => {
+    // The whole point of slice #5: an operator can tell at a glance
+    // which calls worked. Same tool, two outcomes — markers differ.
+    const t0 = Date.now() - 10_000;
+    const successTimeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'shell'),
+      toolCompletedAt(t0 + 500, 'shell', 'ok'),
+    ];
+    const failureTimeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'shell'),
+      toolFailedAt(t0 + 500, 'shell', 'exit 1'),
+    ];
+    const succLines = buildAgentScrollbackLines(ctx(successTimeline), 200);
+    const failLines = buildAgentScrollbackLines(ctx(failureTimeline), 200);
+    const succResult = succLines.find((l: any) => l.text.includes('shell') && l.text.includes('ok'));
+    const failResult = failLines.find((l: any) => l.text.includes('shell') && l.text.includes('exit 1'));
+    expect(succResult).toBeDefined();
+    expect(failResult).toBeDefined();
+    expect(succResult!.text).toMatch(/✓/);
+    expect(failResult!.text).toMatch(/✗/);
+    // And the same tool name appears in both — only the marker differentiates.
+    expect(succResult!.text).not.toBe(failResult!.text);
+  });
+
+  it('invocation and result render under the stage the call occurred in (gutter alignment)', () => {
+    // Executing stage wraps the entire tool lifecycle. Both lines fall under
+    // the EXECUTING gutter (the first line of the content group, which is
+    // the invocation, decorates; the result line is a continuation and
+    // leaves the gutter blank).
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'edit_file'),
+      toolCompletedAt(t0 + 1500, 'edit_file', 'done'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const invLine = lines.find((l: any) => l.text.includes('→ edit_file'));
+    const resultLine = lines.find((l: any) => l.text.includes('✓ edit_file'));
+    expect(invLine).toBeDefined();
+    expect(resultLine).toBeDefined();
+    // Invocation: first of stage → gutter present.
+    expect((invLine as any).gutter).toBe('  EXECUTING'.padEnd(GUTTER_WIDTH));
+    // Result: continuation within the same stage → no gutter (blank).
+    expect((resultLine as any).gutter).toBeUndefined();
+  });
+
+  it('the bottom-pinned pending-tool-call section is removed (no PENDING TOOL CALLS line)', () => {
+    // #435 will subsume the data flow too. For now the rendering of
+    // `perTab.pendingToolCalls` (snapshot-derived) is gone — only timeline
+    // events drive the tool-call display.
+    const c = ctx([]);
+    (c.perTab as any).pendingToolCalls = [
+      { name: 'edit_file', summary: 'src/foo.ts' },
+      { name: 'run_tests' },
+    ];
+    const lines = buildAgentScrollbackLines(c, 200);
+    // No "PENDING TOOL CALLS" header line — that whole section is gone.
+    expect(lines.some((l: any) => l.text === 'PENDING TOOL CALLS')).toBe(false);
+    // And no toolCall kind lines either (the section's kind was 'toolCall').
+    expect(lines.some((l: any) => l.kind === 'toolCall')).toBe(false);
+  });
+
+  // ─── THE append-only invariant test (#434 acceptance criterion) ───
+  // "An already-rendered prefix does not change as the stream grows."
+  // This pins the design contract that the scrollback's offset is stable
+  // across tail-appends. The property currently holds for four reasons;
+  // one of them — sequential tool execution — is an assumption a future
+  // parallel-execution change would break with no obvious link to
+  // scrolling. This test turns that from silent corruption into a failure.
+  // ─────────────────────────────────────────────────────────────────
+  it('append-only invariant: an already-rendered prefix does not change as tool calls run to completion', () => {
+    // Phase 1: user prompt + Executing stage + tool.started edit_file.
+    // This produces an invocation line and is the "early prefix" — every
+    // line the operator can already see when the tool is in flight.
+    const t0 = Date.now() - 30_000;
+    const earlyTimeline: any[] = [
+      { kind: 'agent.message' as const, text: 'fix the login redirect', actor: 'user' as const, startedAt: t0 },
+      phaseAt(t0 + 100, 'Executing'),
+      toolStartedAt(t0 + 200, 'edit_file'),
+    ];
+    const earlyLines = buildAgentScrollbackLines(ctx(earlyTimeline), 200);
+    const earlyPrefixLen = earlyLines.length;
+
+    // Phase 2: the SAME prefix plus the rest of the tool's lifecycle, plus
+    // a SECOND tool (run_tests) that fails. Each of these events MUST
+    // append at the tail — none may shift an earlier line.
+    const fullTimeline: any[] = [
+      ...earlyTimeline,
+      toolCompletedAt(t0 + 1500, 'edit_file', '3 lines changed'),
+      toolStartedAt(t0 + 1700, 'run_tests'),
+      toolFailedAt(t0 + 3000, 'run_tests', '2 failing'),
+    ];
+    const fullLines = buildAgentScrollbackLines(ctx(fullTimeline), 200);
+
+    // The exact-content assertion: every early line survives byte-for-byte.
+    // If tool.completed retroactively mutated the invocation line, this
+    // fails. If a parallel tool arrived between started and completed,
+    // the early line count would be wrong and the splice would fail.
+    expect(fullLines.length).toBeGreaterThan(earlyPrefixLen);
+    for (let i = 0; i < earlyPrefixLen; i++) {
+      expect(fullLines[i]).toEqual(earlyLines[i]);
+    }
+
+    // The tail must contain the expected new lines in order.
+    const tail = fullLines.slice(earlyPrefixLen);
+    // Result line for edit_file (success) appears in the tail.
+    expect(tail.some((l: any) => l.text.includes('✓ edit_file'))).toBe(true);
+    // Invocation line for run_tests appears after edit_file's result.
+    expect(tail.some((l: any) => l.text.includes('→ run_tests'))).toBe(true);
+    // Result line for run_tests (failure) appears at the end.
+    expect(tail.some((l: any) => l.text.includes('✗ run_tests'))).toBe(true);
+
+    // Strict-ordering invariant: edit_file's result precedes run_tests's
+    // invocation, which precedes run_tests's result. Anything else means
+    // a tool result has been inserted mid-stream — the property broken.
+    const succIdx = fullLines.findIndex((l: any) => l.text.includes('✓ edit_file'));
+    const inv2Idx = fullLines.findIndex((l: any) => l.text.includes('→ run_tests'));
+    const failIdx = fullLines.findIndex((l: any) => l.text.includes('✗ run_tests'));
+    expect(succIdx).toBeGreaterThan(0);
+    expect(inv2Idx).toBeGreaterThan(succIdx);
+    expect(failIdx).toBeGreaterThan(inv2Idx);
+  });
+
+  it('append-only invariant: inserting a tool.completed between two timeline snapshots does not mutate the prefix', () => {
+    // A second variant of the invariant: drive the same builder with two
+    // snapshots of the same growing timeline and assert identity. This is
+    // the test the ticket pins — it MUST fail if a tool result retro-
+    // decorates the matching invocation (e.g. by replacing its text).
+    const t0 = Date.now() - 60_000;
+    const base: any[] = [
+      { kind: 'agent.message' as const, text: 'run a command', actor: 'user' as const, startedAt: t0 },
+      phaseAt(t0 + 100, 'Executing'),
+      toolStartedAt(t0 + 200, 'shell'),
+    ];
+    const a = buildAgentScrollbackLines(ctx(base), 200);
+    const b = buildAgentScrollbackLines(ctx([...base, toolCompletedAt(t0 + 800, 'shell', 'ok')]), 200);
+    // Strictly longer — at least one new line (the result).
+    expect(b.length).toBeGreaterThan(a.length);
+    // And the prefix is identical, line-for-line.
+    for (let i = 0; i < a.length; i++) {
+      expect(b[i]).toEqual(a[i]);
+    }
+  });
+});

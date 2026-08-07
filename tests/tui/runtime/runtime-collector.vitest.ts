@@ -334,7 +334,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     });
     await chat.start();
     const snap = await chat.snapshot();
-    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message', 'tool.started']);
     expect(snap?.sessionId).toBe('chat-1');
     chat.stop();
   });
@@ -366,7 +366,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     expect(snap?.trace[0]!.kind).toBe('tool');
     expect(snap?.trace[0]!.status).toBe('completed');
     // Sub-session chat/agent events are NOT projected into the outer timeline.
-    expect(snap?.timeline.map(e => e.kind)).toEqual([]);
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['tool.started', 'tool.completed']);
     outer.stop();
   });
 
@@ -380,11 +380,11 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     });
     await c.start();
     const snap = await c.snapshot();
-    expect(snap?.timeline).toHaveLength(1);
-    expect(snap?.timeline[0]!.kind).toBe('chat.message');
+    // #434: tool.* events project into the timeline alongside chat/agent kinds.
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message', 'tool.started', 'tool.completed']);
     expect(snap?.trace).toHaveLength(1);
-    expect(snap?.trace[0]!.kind).toBe('tool');          // lifecycle kind
-    expect(snap?.trace[0]!.status).toBe('completed');   // terminal status
+    expect(snap?.trace[0]!.kind).toBe('tool');
+    expect(snap?.trace[0]!.status).toBe('completed');
     c.stop();
   });
 
@@ -413,7 +413,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
 
     // The timeline is REBUILT from beginningCursor (chat.message present),
     // and the trace is REBUILT too (completed tool present) — NOT stale/empty.
-    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message', 'tool.started', 'tool.completed']);
     expect(snap?.trace).toHaveLength(1);
     expect(snap?.trace[0]!.kind).toBe('tool');          // lifecycle kind
     expect(snap?.trace[0]!.status).toBe('completed');   // terminal status

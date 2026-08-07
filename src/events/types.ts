@@ -165,6 +165,19 @@ export const AGENT_EVENT_TYPES = {
  *      events (TimelineBuilder extracts it as `text: \`turn ${n}\``). */
 export type TimelinePayload = {
   text?: string;
+  // #434 — tool lifecycle events project their name and outcome:
+  //   - `toolName` on every `tool.*` event (the projection extracts it
+  //     into `text` so the scrollback line builder can read it like
+  //     a stage name).
+  //   - `error` on `tool.failed` events (the projection extracts it
+  //     into `detail` for the result line).
+  //   - `outputPreview` on `tool.completed` events (same path).
+  //   These fields are optional on the timeline payload type because
+  //  they are absent on non-tool events; the `build()` method reads
+  //  them only when the kind matches.
+  toolName?: string;
+  error?: string;
+  outputPreview?: string;
   detail?: string;
   phase?: string;
   turn?: number;

@@ -4,7 +4,27 @@ import type { DurableProjectionBuilder } from './durable-projection-builder.js';
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
   | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.response'
-  | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested';
+  | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested'
+  // #434 — tool lifecycle events project into the timeline so the agent
+  // scrollback can render invocation + result lines in chronological
+  // order (slice #5 of the stage-decorated scrollback). The started
+  // event drives the `→ tool` line; the completed/failed event drives
+  // the `✓` / `✗` line right below it. `tool.requested` and
+  // `tool.output` are admitted for completeness but the agent
+  // scrollback's render filter is what decides which to display.
+  //
+  // NOTE — projection vs. render-filter split:
+  // All five `tool.*` kinds are admitted to the timeline projection so
+  // the projection's vocabulary is complete (any consumer can read the
+  // timeline and reconstruct the lifecycle). The agent scrollback's
+  // render filter in `scroll-math.ts` then re-filters to display only
+  // `tool.started`, `tool.completed`, and `tool.failed`. This is the
+  // double-filter trap from #430: any future render path that reads
+  // `timeline` directly without re-filtering will surface
+  // `tool.requested` and `tool.output` as raw content. If that
+  // becomes a problem, either reject them at the projection boundary
+  // here, or add a shared filter helper that every render path uses.
+  | 'tool.requested' | 'tool.started' | 'tool.output' | 'tool.completed' | 'tool.failed';
 
 /** The timeline projection's supported vocabulary. A builder must own the
  *  kinds it projects — unrelated event types must not pollute the timeline. */
@@ -12,8 +32,8 @@ export const TIMELINE_TYPES = new Set<TimelineKind>([
   'chat.message', 'chat.response',
   'agent.message', 'agent.reasoning', 'agent.decision', 'agent.response',
   'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
+  'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed',
 ]);
-
 /** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
  *  detached shape. */
 export interface TimelineEntry {
@@ -148,13 +168,31 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
     // carries the phase name without adding a new TimelineEntry column.
     // Same shape extension for turn_completed → "turn N" so any consumer
     // that wants a textual terminator has one.
+    //
+    // #434: tool.* events carry `toolName` and (for completed/failed)
+    // `error` / `outputPreview` / `durationMs` in the payload. The
+    // agent scrollback's line builder reads `text` to know which tool
+    // ran and `detail` to carry the outcome message. Map here so the
+    // builder does not need to know the raw payload shape.
     let text: string | undefined = typeof p.text === 'string' ? p.text : undefined;
     if (text === undefined && typeof p.phase === 'string' && kind === 'agent.session.phase_changed') {
       text = p.phase;
     } else if (text === undefined && typeof p.turn === 'number' && kind === 'agent.session.turn.completed') {
       text = `turn ${p.turn}`;
+    } else if (text === undefined && typeof p.toolName === 'string' &&
+        (kind === 'tool.requested' || kind === 'tool.started' ||
+         kind === 'tool.completed' || kind === 'tool.failed')) {
+      text = p.toolName;
     }
-    const detail = typeof p.detail === 'string' ? p.detail : undefined;
+    // Tool outcome detail (for completed/failed) — error message for
+    // failures, a short summary for successes. The line builder
+    // appends this verbatim to the `✓` / `✗` line.
+    let detail: string | undefined = typeof p.detail === 'string' ? p.detail : undefined;
+    if (detail === undefined && kind === 'tool.failed' && typeof p.error === 'string') {
+      detail = p.error;
+    } else if (detail === undefined && kind === 'tool.completed' && typeof p.outputPreview === 'string') {
+      detail = p.outputPreview;
+    }
     const ts = Date.parse(e.timestamp) || 0;
     return {
       id: `tl-${e.seq ?? 0}-${kind}`,
