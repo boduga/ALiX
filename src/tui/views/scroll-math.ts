@@ -22,6 +22,14 @@ export const PANEL_H = 0;
  *  0-2, blank 3, status 4, blank 5). Chat has no status row, so 5. */
 export const SCROLLBACK_TOP_AGENT = 6;
 export const SCROLLBACK_TOP_CHAT = 5;
+/** Fixed left gutter reserved on every agent scrollback line (slice #2 of
+ *  the stage-decorated scrollback plan). Width is the longest stage label
+ *  (UNDERSTANDING = 13) + separator + space = 15. The gutter is blank under
+ *  slice #2; slice #3 fills it with stage labels. This is the single source
+ *  of truth — `computeViewport` shrinks `textWidth` here, and the agent view
+ *  offsets its content column by the same amount. Chat view does not reserve
+ *  this gutter. */
+export const GUTTER_WIDTH = 15;
 
 export interface Viewport {
   headerRows: number;
@@ -50,6 +58,12 @@ export function computeViewport(
   const panelRow = dims.rows - BELOW_PROMPT_ROWS;
   const scrollbackTop = kind === 'agent' ? SCROLLBACK_TOP_AGENT : SCROLLBACK_TOP_CHAT;
   const scrollbackBottom = topBorderRow - 1;
+  // Wrap width = terminal width − existing side margin (4) − reserved gutter
+  // (GUTTER_WIDTH, agent only). GUTTER_WIDTH is the single source of truth;
+  // the agent view's content column is offset by the same amount. Chat view
+  // does not reserve the gutter, so its textWidth keeps the pre-#431 shape.
+  const sideMargin = 4;
+  const gutter = kind === 'agent' ? GUTTER_WIDTH : 0;
   return {
     headerRows: HEADER_H,
     footerRows: FOOTER_H,
@@ -60,7 +74,7 @@ export function computeViewport(
     scrollbackTop,
     scrollbackBottom,
     scrollbackRows: Math.max(0, scrollbackBottom - scrollbackTop + 1),
-    textWidth: Math.max(0, dims.columns - 4),
+    textWidth: Math.max(0, dims.columns - sideMargin - gutter),
     promptCol: kind === 'agent' ? 13 : 7,
   };
 }
@@ -92,7 +106,13 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // not at the top of the scrollback where it would visually float above
   // every previous turn.
   const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
-    .filter((e: any) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response');
+    .filter((e: any) =>
+      e.kind === 'agent.message' ||
+      e.kind === 'agent.reasoning' ||
+      e.kind === 'agent.decision' ||
+      e.kind === 'agent.response' ||
+      e.kind === 'agent.session.phase_changed' ||
+      e.kind === 'agent.session.turn.completed');
 
   type Turn = { userText: string | null; agentTexts: string[]; startIndex: number };
   const turns: Turn[] = [];

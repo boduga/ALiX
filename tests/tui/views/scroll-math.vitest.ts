@@ -158,3 +158,36 @@ describe('computeBottomAnchor', () => {
     expect(computeBottomAnchor(ctx3, 'agent')).toBe(0);
   });
 });
+
+// ─── #430 — render-layer filter must admit agent.session.phase_changed and
+//          agent.session.turn.completed alongside the agent.message/reasoning/
+//          decision/response kinds. ──────────────────────────────────────
+describe('buildAgentScrollbackLines — #430 render filter vocabulary', () => {
+  it('admits agent.session.phase_changed entries through the timeline filter', () => {
+    // #430 trap: the scrollback filters twice — the projection whitelist,
+    // then this render-layer filter. An entry admitted by the first and
+    // rejected by the second vanishes with no error. Pin both halves:
+    // this test exercises the render-layer half.
+    //
+    // The actual phase_changed events carry no `text` payload, so they
+    // produce no rendered line. To prove the filter admits them rather
+    // than silently rejecting them, we synthesize an entry with text —
+    // if the filter passed it, the text appears in the output; if the
+    // filter dropped it, the output omits that text.
+    const timeline = [
+      { kind: 'agent.session.phase_changed' as const, text: 'STAGE-MARKER' },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    expect(lines.some((l: any) => l.text === 'STAGE-MARKER')).toBe(true);
+  });
+
+  it('admits agent.session.turn.completed entries through the timeline filter', () => {
+    // Same trap, second kind. If the filter dropped turn_completed, the
+    // marker text would not appear in the rendered scrollback.
+    const timeline = [
+      { kind: 'agent.session.turn.completed' as const, text: 'TURN-MARKER' },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    expect(lines.some((l: any) => l.text === 'TURN-MARKER')).toBe(true);
+  });
+});
