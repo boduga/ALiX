@@ -309,7 +309,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
     expect(frame).toContain('a/d: write_file guard.ts');
   });
 
-  it('AC#2 — banner renders from a non-agent tab when approvals are pending', async () => {
+  it('AC#2 — banner renders from a non-agent tab when approvals are pending (no a/d hint)', async () => {
     const metrics = { start: () => {}, stop: async () => {} };
     const approvals = {
       pending: [
@@ -331,14 +331,18 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
 
     const it = internals(app);
     // Active tab is daemon, NOT agent — the banner is shared status-row
-    // chrome and must surface pending approvals on any tab (spec AC#2).
+    // chrome and must surface pending approvals on any tab (spec AC#2), but
+    // the a/d keys only resolve on the agent tab (app.ts handleRaw), so the
+    // non-agent banner names the approval without advertising keys that
+    // won't respond.
     it.setActiveTabForTest('daemon');
     await it.refresh();
 
     const frame = captured.join('');
     expect(frame).toContain('⏸');
     expect(frame).toContain('1 pending');
-    expect(frame).toContain('a/d: write_file guard.ts');
+    expect(frame).toContain('write_file guard.ts');
+    expect(frame).not.toContain('a/d:');
   });
 
   it('marks the oldest target explicitly when multiple approvals are queued', async () => {

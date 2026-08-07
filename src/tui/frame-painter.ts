@@ -248,10 +248,10 @@ export class FramePainter {
     // approvals are pending, on ANY active tab — the status row is shared
     // chrome, and a pending approval is a global operator signal. Reads the
     // agent tab's snapshot-derived pending list (the oldest entry is the same
-    // one the agent tab's `a`/`d` keys resolve — the banner names what those
-    // keys will act on). With multiple queued, the banner shows the oldest
-    // explicitly. Disappears when the list is empty. On a terminal too narrow
-    // for both, the banner is kept and the pipeline counters yield.
+    // one the agent tab's `a`/`d` keys resolve). With multiple queued, the
+    // banner shows the oldest explicitly. Disappears when the list is empty.
+    // On a terminal too narrow for both, the banner is kept and the pipeline
+    // counters yield.
     const pending = s.views.agent.pendingApprovals ?? [];
     if (pending.length > 0) {
       const oldest = pending[0]!;
@@ -259,7 +259,12 @@ export class FramePainter {
         ? `${oldest.toolName} ${oldest.target}`
         : oldest.toolName || oldest.target || oldest.id;
       const oldestPrefix = pending.length > 1 ? 'oldest — ' : '';
-      const banner = `⏸ ${pending.length} pending — a/d: ${oldestPrefix}${oldestLabel}`;
+      // The `a`/`d` hint is only shown on the agent tab — the keys only
+      // resolve there (app.ts handleRaw `if (tab === 'agent')`). On other
+      // tabs the banner is informational only, so advertising keys that
+      // won't respond would be misleading.
+      const keyHint = s.activeTab === 'agent' ? `a/d: ${oldestPrefix}${oldestLabel}` : `${oldestPrefix}${oldestLabel}`;
+      const banner = `⏸ ${pending.length} pending — ${keyHint}`;
       const bannerText = `\x1b[33m${banner}\x1b[0m`;
       const bannerLen = visibleLen(bannerText);
       c.write(2, dims.rows - 1, bannerText);
