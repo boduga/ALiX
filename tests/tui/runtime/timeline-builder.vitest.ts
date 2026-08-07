@@ -112,3 +112,45 @@ describe('TimelineBuilder', () => {
     expect(snap.map((e) => e.kind)).toEqual(['chat.message', 'chat.response']);
   });
 });
+
+// ─── #430 — admit phase-changed and turn-completed; drop dead tool.invocation ─
+describe('TimelineBuilder — #430 timeline vocabulary extension', () => {
+  it('admits agent.session.phase_changed events (stage boundary arrives)', () => {
+    // #430: phase_changed events are admitted so the agent scrollback's
+    // line builder can attribute output to stages downstream.
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'agent.session.phase_changed', 's1', { phase: 'understanding' }),
+      evt(2, 'agent.session.phase_changed', 's1', { phase: 'planning' }),
+    ]);
+    const snap = b.snapshot();
+    expect(snap).toHaveLength(2);
+    expect(snap[0]!.kind).toBe('agent.session.phase_changed');
+    expect(snap[1]!.kind).toBe('agent.session.phase_changed');
+    expect(snap[0]!.sessionId).toBe('s1');
+  });
+
+  it('admits agent.session.turn.completed events (turn boundary arrives)', () => {
+    // #430: turn_completed events are admitted so the agent scrollback's
+    // line builder can terminate the final stage of a turn downstream.
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'agent.session.turn.completed', 's1', { turn: 1 }),
+    ]);
+    const snap = b.snapshot();
+    expect(snap).toHaveLength(1);
+    expect(snap[0]!.kind).toBe('agent.session.turn.completed');
+  });
+
+  it('drops tool.invocation (dead whitelist entry — emitted by nothing)', () => {
+    // #430: tool.invocation was advertised in TIMELINE_TYPES but nothing in
+    // the codebase ever emits a `tool.invocation` event. The real tool
+    // lifecycle types are tool.requested/started/output/completed/failed
+    // (see execution-trace-builder.ts). The dead entry is removed.
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'tool.invocation', 's1', { toolName: 'fake', argsPreview: {} }),
+    ]);
+    expect(b.snapshot()).toEqual([]);
+  });
+});
