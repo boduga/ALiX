@@ -38,6 +38,18 @@ describe('buildAgentScrollbackLines', () => {
     expect(lines.length).toBeGreaterThan(1);
   });
 
+  it('does not render the snapshot-derived progress ledger', () => {
+    const c = ctx([]) as any;
+    c.perTab.progressLedger = '✓ edit_file — 3 lines changed\n✗ run_tests — 2 failing';
+    c.perTab.ledgerExpanded = true;
+
+    const lines = buildAgentScrollbackLines(c, 200);
+
+    expect(lines).toEqual([]);
+    expect(lines.some((line: any) => line.text.includes('edit_file'))).toBe(false);
+    expect(lines.some((line: any) => line.text.includes('run_tests'))).toBe(false);
+  });
+
   it('marks the first line of each turn with isFirst=true and subsequent lines with isFirst=false', () => {
     const timeline = [
       { kind: 'agent.message' as const, text: 'first turn\nsecond line', actor: 'user' as const },

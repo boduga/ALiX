@@ -82,7 +82,7 @@ export function computeViewport(
 /**
  * Build the scrollback line array for the agent view. Pure function over
  * `ctx.runtime.agent` + `ctx.perTab` (planTasks, planContent, pendingApprovals,
- * pendingToolCalls, progressLedger, ledgerExpanded, currentIntent) — same
+ * currentIntent) — same
  * inputs the view's `render` consumes, so the array length matches what the
  * next paint will slice.
  *
@@ -116,8 +116,6 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   const planTasks = ctx.perTab.planTasks;
   const planContent = ctx.perTab.planContent;
   const pendingApprovals = ctx.perTab.pendingApprovals;
-  const progressLedger = ctx.perTab.progressLedger;
-  const ledgerExpanded = ctx.perTab.ledgerExpanded;
 
   // Group timeline entries by turn. A turn starts with a user `agent.message`
   // and contains every subsequent agent entry until the next user message.
@@ -460,9 +458,9 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     }
     // Live-streaming line: pinned inline at the bottom of the CURRENT turn's
     // agent response section, NOT at the absolute bottom of the scrollback.
-    // The previous behavior rendered it as a separate slot after all turns +
-    // ledger, which made streamed tokens appear visually disconnected from the
-    // turn they belong to (especially when intermediate agent.message /
+    // The previous behavior rendered it as a separate slot after all turns,
+    // which made streamed tokens appear visually disconnected from the turn
+    // they belong to (especially when intermediate agent.message /
     // agent.decision events arrive in the timeline mid-stream).
     if (ti === turns.length - 1 && streaming && streaming.length > 0) {
       // Only add a separator when an agent response exists above to separate
@@ -553,14 +551,6 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       const wrapped = wrapText(card, textWidth);
       for (let i = 0; i < wrapped.length; i++) out.push({ kind: 'approval', text: wrapped[i]!, isFirst: i === 0 });
     }
-  }
-
-  // Progress ledger (verbatim from agent-view.ts:192-199).
-  if (progressLedger) {
-    const ledgerLines = progressLedger.split("\n");
-    const cap = ledgerExpanded ? ledgerLines.length : Math.min(3, ledgerLines.length);
-    const sliced = ledgerLines.slice(-cap);
-    for (const line of sliced) out.push({ kind: 'plan', text: line, isFirst: false });
   }
 
   return out;
