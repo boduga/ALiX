@@ -80,10 +80,11 @@ export function computeViewport(
 
 /**
  * Build the scrollback line array for the agent view. Pure function over
- * `ctx.runtime.agent` + `ctx.perTab` (planTasks, planContent, pendingApprovals,
- * currentIntent) — same
- * inputs the view's `render` consumes, so the array length matches what the
- * next paint will slice.
+ * `ctx.runtime.agent` + `ctx.perTab` (planTasks, planContent, currentIntent)
+ * — same inputs the view's `render` consumes, so the array length matches
+ * what the next paint will slice. The pending-approval banner is owned by
+ * `frame-painter.ts` (it surfaces pendingApprovals on the status row),
+ * not by the scrollback builder.
  *
  * Single source of truth shared by the view (rendering) and app.ts
  * (offset-capture on scroll-up). Do not duplicate this logic — copy it.
@@ -114,7 +115,6 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   const out: ScrollbackLine[] = [];
   const planTasks = ctx.perTab.planTasks;
   const planContent = ctx.perTab.planContent;
-  const pendingApprovals = ctx.perTab.pendingApprovals;
 
   // Group timeline entries by turn. A turn starts with a user `agent.message`
   // and contains every subsequent agent entry until the next user message.
@@ -132,10 +132,17 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // and chronologically like every other content event. The pending
   // banner that names tool/target is painted in frame-painter.ts on the
   // status row, separately.
-  const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
+  const rawEntries = (ctx.runtime?.agent?.timeline ?? [])
     .filter((e: any) =>
+      // `agent.reasoning` is intentionally NOT in this filter. The task-loop
+      // emits a `agent.reasoning` event per iteration whose `text` is the
+      // first 500 chars of the same model output that just landed in
+      // `agent.message` — it is a metadata breadcrumb (iteration + tool
+      // names), not prose content. Admitting it here rendered every
+      // response twice (and three times when the final summary's
+      // `agent.response` matched). Reasoning still appears in the EventLog
+      // audit trail; the scrollback just doesn't show it.
       e.kind === 'agent.message' ||
-      e.kind === 'agent.reasoning' ||
       e.kind === 'agent.decision' ||
       e.kind === 'agent.response' ||
       e.kind === 'agent.session.phase_changed' ||
@@ -144,6 +151,61 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       e.kind === 'tool.completed' ||
       e.kind === 'tool.failed' ||
       e.kind === 'approval.requested');
+
+  // Final-summary / last-iteration prose dedup. The TUI's final `agent.response`
+  // (app.ts:822 emitTimelineLog) carries the same text as the last iteration's
+  // `agent.message` (task-loop.ts:462-464 emitAgent). Without this dedup the
+  // final answer renders twice — once as the last iteration's prose, once as
+  // the per-turn summary. We drop the trailing `agent.response` only when its
+  // text equals the most recent *prose* `agent.message` *within the same
+  // turn*; intervening metadata entries (`agent.decision`,
+  // `agent.session.phase_changed`, `agent.session.turn.completed`, tool
+  // lifecycle) are skipped over. The scan stops at any user `agent.message`
+  // (turn boundary — a new user prompt is a fresh turn with its own summary)
+  // or any prior `agent.response` (per-turn boundary — earlier turn's
+  // summary). Direct-route turns (no preceding in-turn `agent.message`) keep
+  // their `agent.response` because nothing would dedup it — and the
+  // text-comparison guard means summaries that diverge from the iteration
+  // prose (e.g. `(no response)` sentinels) survive.
+  const timelineEntries: any[] = [];
+  for (const e of rawEntries) {
+    if (
+      e.kind === 'agent.response' &&
+      typeof e.text === 'string' &&
+      e.text.length > 0
+    ) {
+      let lastProseIdx = -1;
+      for (let j = timelineEntries.length - 1; j >= 0; j--) {
+        const prev = timelineEntries[j]!;
+        // Turn boundary: a user prompt starts a fresh turn — its
+        // `agent.response` must NEVER dedup against prose from a previous
+        // turn even if the text happens to match.
+        if (prev.kind === 'agent.message' && prev.actor === 'user') break;
+        // Per-turn boundary: a prior `agent.response` closed an earlier
+        // turn; further back entries belong to that turn.
+        if (prev.kind === 'agent.response') break;
+        // Only `agent.message` from the agent (not user prompts) is prose
+        // for this purpose. Tool.* entries carry text (the tool name) but
+        // they aren't agent prose; if we compared against them we'd dedup
+        // legitimate summaries that happen to match a tool name by
+        // coincidence — vanishingly unlikely with real data but worth
+        // pinning.
+        if (
+          prev.kind === 'agent.message' &&
+          prev.actor === 'agent' &&
+          typeof prev.text === 'string' &&
+          prev.text.length > 0
+        ) {
+          lastProseIdx = j;
+          break;
+        }
+      }
+      if (lastProseIdx >= 0 && timelineEntries[lastProseIdx]!.text === e.text) {
+        continue;
+      }
+    }
+    timelineEntries.push(e);
+  }
 
   // Stage tracking (#432). A stage is the interval between two consecutive
   // phase_changed events; the final stage of a turn is terminated by
@@ -473,12 +535,8 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         // (33m) — the lineBuilder owns the prompt text, the view owns
         // the styling. Without this routing, approvals would render in
         // the agent cyan palette and the yellow marker would be lost.
-        const lineKind: ScrollbackLine['kind'] =
-          item.lineKind === 'toolCall' ? 'toolCall'
-          : item.lineKind === 'approval' ? 'approval'
-          : 'agent';
         const line: ScrollbackLine = {
-          kind: lineKind,
+          kind: item.lineKind,
           text: row.text,
           isFirst: row.isFirst,
         };
@@ -573,13 +631,9 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   }
 
   // #436 — the bottom "X approval requests pending — press 'a' to approve"
-  // callout block is retired. Approvals now render inline and
-  // chronologically via the timeline `approval.requested` branch above,
-  // and the pending banner in frame-painter.ts surfaces any pending
-  // approval on the status row, naming the toolName/target the keys
-  // will act on. Pending approvals still come from `perTab.pendingApprovals`
-  // (drives the banner); this builder no longer reads it.
-  void pendingApprovals;
+// callout block is retired. Approvals render inline and chronologically via
+// the timeline `approval.requested` branch above; the pending banner in
+// frame-painter.ts surfaces any pending approval on the status row.
 
   return out;
 }

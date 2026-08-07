@@ -235,7 +235,7 @@ describe('renderDashboard — APPROVALS panel', () => {
     const mk = (tool: string): any => ({
       id: tool,
       toolName: tool,
-      targetPath: `targets/${tool}.txt`,
+      target: `targets/${tool}.txt`,
       args: {},
       requestedAt: Date.now() - 18_000,
       requestedBy: 'test',
@@ -705,7 +705,7 @@ describe('paintApprovalsPanel — scroll / focus options', () => {
     const mk = (tool: string) => ({
       id: tool,
       toolName: tool,
-      targetPath: `targets/${tool}.txt`,
+      target: `targets/${tool}.txt`,
       args: {},
       requestedAt: Date.now() - 18_000,
       requestedBy: 'test',

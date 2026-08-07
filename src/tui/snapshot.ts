@@ -85,7 +85,7 @@ export interface ApprovalSnapshot {
 export interface ApprovalRecordSnapshot {
   readonly id: string;
   readonly toolName: string;
-  readonly targetPath: string;
+  readonly target: string;
   readonly args: Record<string, unknown>;
   readonly requestedAt: number;
   readonly requestedBy: string;

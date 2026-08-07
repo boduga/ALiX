@@ -10,7 +10,7 @@ function toRecord(e: import('./approval-projection.js').ApprovalProjectionEntry)
   return {
     id: e.approvalId,
     toolName: e.toolName ?? 'unknown',
-    targetPath: extractTarget(e.prompt) ?? e.prompt ?? '',
+    target: extractTarget(e.prompt) ?? e.prompt ?? '',
     args: {},
     requestedAt: e.requestedAt,
     requestedBy: 'system',

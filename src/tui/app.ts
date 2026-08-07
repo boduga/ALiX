@@ -393,8 +393,7 @@ export class TuiApp {
       perTab.pendingApprovals = pending.map((p) => ({
         id: p.id,
         toolName: p.toolName,
-        // Reuse the targetPath that extractTarget populated.
-        target: p.targetPath,
+        target: p.target,
         requestedAt: p.requestedAt,
       }));
       // Keep 'stillPending' reference so the linter doesn't complain — it

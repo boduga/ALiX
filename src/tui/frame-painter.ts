@@ -228,8 +228,14 @@ export class FramePainter {
     const sopCount = snap.sops?.totalLoaded ?? 0;
     const ruleCount = snap.policy?.rules.length ?? 0;
     const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
+    // Tokens flow task-loop's `model.usage` events → outer RuntimeCollector →
+    // MetricsProjection → snap.runtime.metrics.tokensUsed (same path EVENTS
+    // rides). Used-only: there is no live per-session max source — the store's
+    // 62000 is a hardcoded default, and config tokenBudget is a per-tool
+    // ToolConfig, not a session context limit.
+    const tokensUsed = (snap.runtime?.metrics?.tokensUsed ?? 0).toLocaleString('en-US');
     const fields = [
-      'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
+      `TOKENS: ${tokensUsed}`,
       `FILES: ${snap.session?.filesTouched ?? 0}`,
       `DAEMON: ${daemonLabel}`,
       `SOPS: ${sopCount}`,
@@ -248,11 +254,11 @@ export class FramePainter {
     const pending = s.activeTab === 'agent' ? (s.views.agent.pendingApprovals ?? []) : [];
     if (pending.length > 0) {
       const oldest = pending[0]!;
-      const oldestBit = oldest.toolName && oldest.target
+      const oldestLabel = oldest.toolName && oldest.target
         ? `${oldest.toolName} ${oldest.target}`
         : oldest.toolName || oldest.target || oldest.id;
-      const oldestMark = pending.length > 1 ? 'oldest — ' : '';
-      const banner = `⏸ ${pending.length} pending — a/d: ${oldestMark}${oldestBit}`;
+      const oldestPrefix = pending.length > 1 ? 'oldest — ' : '';
+      const banner = `⏸ ${pending.length} pending — a/d: ${oldestPrefix}${oldestLabel}`;
       const bannerText = `\x1b[33m${banner}\x1b[0m`;
       const bannerLen = visibleLen(bannerText);
       c.write(2, dims.rows - 1, bannerText);

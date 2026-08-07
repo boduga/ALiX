@@ -136,6 +136,79 @@ describe('FramePainter status row — phase radio strip (#433)', () => {
     expect(frame).toContain('EVENTS');
     expect(frame).toContain('1,204');
   });
+
+  // ─── TOKENS live data (Task #5) ────────────────────────────────────────
+  // The status row TOKENS field rides the same transport as EVENTS: task-loop
+  // `model.usage` events → outer RuntimeCollector → MetricsProjection →
+  // snap.runtime.metrics.tokensUsed. Locale-formatted, used-only.
+  it('renders live tokensUsed from snap.runtime.metrics into the TOKENS field', async () => {
+    const builder = {
+      build: vi.fn(async () => ({
+        generatedAt: Date.now(),
+        session: {
+          mode: 'auto' as const,
+          phase: 'Idle',
+          version: '0.3.1',
+          startedAt: Date.now(),
+          turns: 0,
+        },
+        daemon: null,
+        approvals: null,
+        runtime: {
+          totalEventCount: 1204,
+          metrics: { tokensUsed: 3918 },
+          chat: null,
+          agent: null,
+        } as any,
+        sops: null,
+        policy: null,
+      })),
+      buildSync: vi.fn(() => null),
+    };
+    const metrics = { start: () => {}, stop: async () => {} };
+
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+
+    const it = internals(app);
+    it.setActiveTabForTest('agent');
+    await it.refresh();
+
+    const frame = captured.join('');
+    expect(frame).toContain('TOKENS: 3,918');
+  });
+
+  it('defaults TOKENS to 0 when no usage has been projected', async () => {
+    const builder = {
+      build: vi.fn(async () => ({
+        generatedAt: Date.now(),
+        session: {
+          mode: 'auto' as const,
+          phase: 'Idle',
+          version: '0.3.1',
+          startedAt: Date.now(),
+          turns: 0,
+        },
+        daemon: null,
+        approvals: null,
+        runtime: null,
+        sops: null,
+        policy: null,
+      })),
+      buildSync: vi.fn(() => null),
+    };
+    const metrics = { start: () => {}, stop: async () => {} };
+
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+
+    const it = internals(app);
+    it.setActiveTabForTest('agent');
+    await it.refresh();
+
+    const frame = captured.join('');
+    expect(frame).toContain('TOKENS: 0');
+  });
 });
 
 // ─── #436 — pending-approval banner on the agent status row ─────
@@ -212,7 +285,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-1',
           toolName: 'write_file',
-          targetPath: 'guard.ts',
+          target: 'guard.ts',
           args: {},
           requestedAt: Date.now(),
           requestedBy: 'test',
@@ -245,7 +318,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-oldest',
           toolName: 'write_file',
-          targetPath: 'guard.ts',
+          target: 'guard.ts',
           args: {},
           requestedAt: Date.now() - 1000,
           requestedBy: 'test',
@@ -253,7 +326,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-newer',
           toolName: 'edit_file',
-          targetPath: 'login.ts',
+          target: 'login.ts',
           args: {},
           requestedAt: Date.now(),
           requestedBy: 'test',
@@ -317,7 +390,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
           {
             id: 'ap-1',
             toolName: 'write_file',
-            targetPath: 'guard.ts',
+            target: 'guard.ts',
             args: {},
             requestedAt: Date.now(),
             requestedBy: 'test',
