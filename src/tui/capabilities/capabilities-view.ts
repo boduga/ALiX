@@ -5,6 +5,7 @@ import type { TerminalCanvas } from '../canvas.js';
 import { truncate } from '../box.js';
 import { getCapabilityService, type CapabilityService } from './capability-service.js';
 import type { Capability } from '../../capability/types.js';
+import { renderSchemaShape } from './schema-renderer.js';
 
 /** Search state is carried in PerTabState.searchQuery (already present). */
 
@@ -84,7 +85,14 @@ export class CapabilitiesView implements TuiView {
     lines.push(`permissions: ${(detail.requiredPermissions ?? []).join(', ')}`);
     const ex = detail.execution;
     lines.push(`strategy: ${ex.strategy}   timeout: ${ex.timeout ?? '—'}   cancellable: ${ex.cancellable ?? false}`);
-    if (detail.argsSchema) lines.push(`args: ${JSON.stringify(detail.argsSchema)}`);
+    if (detail.argsSchema) {
+      lines.push(`args:`);
+      lines.push(...renderSchemaShape(detail.argsSchema).map((l) => `  ${l}`));
+    }
+    if (detail.resultSchema) {
+      lines.push(`result:`);
+      lines.push(...renderSchemaShape(detail.resultSchema).map((l) => `  ${l}`));
+    }
     if (detail.examples?.length) lines.push(`examples: ${detail.examples.join(' · ')}`);
     if (detail.dependencies?.length) lines.push(`depends on: ${detail.dependencies.join(', ')}`);
     // Activity block (Increment A): per-capability runtime stats from the

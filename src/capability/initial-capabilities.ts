@@ -13,6 +13,12 @@ export function registerInitialCapabilities(reg: CapabilityRegistry, _native: Na
       title: "List sessions", description: "List all ALiX sessions",
       tags: ["session", "list"], category: "session", risk: "low",
       requiredPermissions: ["operator"],
+      // Phase 2 (#308): resultSchema powers structured rendering — the
+      // presenter itemizes the returned session list instead of JSON.stringify.
+      resultSchema: {
+        type: "array",
+        items: { type: "object", properties: { sessionId: { type: "string" }, createdAt: { type: "string" } } },
+      },
       execution: { strategy: "native", timeout: 5_000, cancellable: true },
     },
     {
@@ -21,6 +27,7 @@ export function registerInitialCapabilities(reg: CapabilityRegistry, _native: Na
       tags: ["session", "show"], category: "session", risk: "low",
       requiredPermissions: ["operator"],
       argsSchema: { type: "object", properties: { sessionId: { type: "string" } }, required: ["sessionId"] },
+      resultSchema: { type: "object", properties: { sessionId: { type: "string" }, state: { type: "string" } } },
       execution: { strategy: "native", timeout: 5_000, cancellable: true },
     },
     {
@@ -29,6 +36,7 @@ export function registerInitialCapabilities(reg: CapabilityRegistry, _native: Na
       tags: ["file", "read"], category: "file", risk: "low",
       requiredPermissions: ["developer"],
       argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      resultSchema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } },
       execution: { strategy: "tool", timeout: 10_000, cancellable: false },
       extensions: { toolName: "file.read" },
     },

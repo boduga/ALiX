@@ -148,6 +148,28 @@ describe('CapabilitiesView', () => {
     expect(out).not.toContain('activity:');
   });
 
+  it('renders argsSchema and resultSchema as structured shape lines, not raw JSON (#414)', () => {
+    setup();
+    const view = new CapabilitiesView();
+    const state = createInitialTuiAppState();
+    const perTab = state.views.capabilities;
+    // tool.file.read declares both argsSchema (path) and resultSchema
+    // (path, content) in initial-capabilities.ts (Phase 2, #415).
+    (perTab as PerTabState).capabilitiesSelectedId = 'tool.file.read';
+    const canvas = new TerminalCanvas(120, 24);
+    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 120, rows: 24 }, perTab, canvas };
+    view.render(ctx as never);
+    const out = canvas.renderFrame();
+
+    // Structured shape lines replace raw JSON.stringify(argsSchema).
+    expect(out).toContain('args:');
+    expect(out).toMatch(/path: string/);          // args shape
+    expect(out).toContain('result:');
+    expect(out).toContain('content: string');      // result shape
+    // No raw JSON-schema object string is dumped.
+    expect(out).not.toContain('"required"');
+  });
+
   it('guards when no CapabilityService is wired', () => {
     clearCapabilityService();
     const view = new CapabilitiesView();
