@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor, GUTTER_WIDTH } from '../../../src/tui/views/scroll-math.js';
+import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor, GUTTER_WIDTH, trimStreamedTextToLanded } from '../../../src/tui/views/scroll-math.js';
+import type { TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
 import { createInitialPerTabState } from '../../../src/tui/state.js';
 import type { ViewRenderContext } from '../../../src/tui/views/types.js';
 
@@ -146,6 +147,81 @@ describe('buildAgentScrollbackLines — live streaming line', () => {
     const timeline = Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const }));
     const withStream = { ...ctx(timeline), perTab: { ...createInitialPerTabState(), streamingText: 'x' } };
     expect(computeBottomAnchor(withStream, 'agent')).toBe(180);
+  });
+});
+
+describe('trimStreamedTextToLanded', () => {
+  let seq = 0;
+  const msg = (kind: string, text: string | undefined, actor: string): TimelineEntry => ({
+    id: `tl-trim-${seq++}`,
+    kind: kind as TimelineEntry['kind'],
+    sessionId: 's',
+    startedAt: seq,
+    text,
+    actor,
+    sourceEvents: { firstSequence: seq },
+  });
+
+  it('returns streaming text unchanged when empty or undefined', () => {
+    expect(trimStreamedTextToLanded([], undefined)).toBeUndefined();
+    expect(trimStreamedTextToLanded([], '')).toBe('');
+  });
+
+  it('returns streaming text unchanged while the first iteration is still in flight (nothing landed)', () => {
+    const timeline = [msg('agent.message', 'go', 'user')];
+    expect(trimStreamedTextToLanded(timeline, 'in flight')).toBe('in flight');
+  });
+
+  it('trims prose that has already landed as an agent.message, keeping the in-flight suffix', () => {
+    // Iteration 1 landed ("First pass"), iteration 2 still streaming.
+    const timeline = [
+      msg('agent.message', 'go', 'user'),
+      msg('agent.message', 'First pass complete.', 'agent'),
+    ];
+    expect(trimStreamedTextToLanded(timeline, 'First pass complete.Second pass is half-do')).toBe('Second pass is half-do');
+  });
+
+  it('trims every landed iteration in the current turn (multi-iteration overlap)', () => {
+    const timeline = [
+      msg('agent.message', 'go', 'user'),
+      msg('agent.message', 'One.', 'agent'),
+      msg('agent.message', 'Two.', 'agent'),
+    ];
+    expect(trimStreamedTextToLanded(timeline, 'One.Two.Three.')).toBe('Three.');
+  });
+
+  it('skips metadata entries (agent.decision) between landed messages', () => {
+    const timeline = [
+      msg('agent.message', 'go', 'user'),
+      msg('agent.message', 'One.', 'agent'),
+      msg('agent.decision', undefined, 'agent'),
+      msg('agent.message', 'Two.', 'agent'),
+    ];
+    expect(trimStreamedTextToLanded(timeline, 'One.Two.Fin.')).toBe('Fin.');
+  });
+
+  it('does not trim prose from past turns (only after the last user prompt)', () => {
+    const timeline = [
+      msg('agent.message', 'Old turn prose.', 'agent'),
+      msg('agent.message', 'New turn start', 'user'),
+      msg('agent.message', 'Landed new.', 'agent'),
+    ];
+    // streamingText belongs to the new turn; old-turn prose is not a candidate.
+    expect(trimStreamedTextToLanded(timeline, 'Landed new.still going')).toBe('still going');
+  });
+
+  it('does not trim when the streaming text does not start with a landed message (already trimmed)', () => {
+    const timeline = [msg('agent.message', 'Landed.', 'agent')];
+    // Already-trimmed line (suffix only) must not be re-trimmed on the next sample.
+    expect(trimStreamedTextToLanded(timeline, 'still going')).toBe('still going');
+  });
+
+  it('collapses to undefined when the whole streaming line has landed', () => {
+    const timeline = [
+      msg('agent.message', 'go', 'user'),
+      msg('agent.message', 'Done.', 'agent'),
+    ];
+    expect(trimStreamedTextToLanded(timeline, 'Done.')).toBeUndefined();
   });
 });
 

@@ -20,7 +20,7 @@ import type { IInput, IOutput } from './io.js';
 import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
-import { computeBottomAnchor, HEADER_H, FOOTER_H } from './views/scroll-math.js';
+import { computeBottomAnchor, HEADER_H, FOOTER_H, trimStreamedTextToLanded } from './views/scroll-math.js';
 import { createTimelineEmitter, type TimelineEmitter } from './timeline-emitter.js';
 import { SlashController } from './slash-controller.js';
 import { PaletteController } from './palette-controller.js';
@@ -334,6 +334,17 @@ export class TuiApp {
   private async sampleRuntimeCollectors(): Promise<void> {
     this.chatRuntime = (await this.opts.runtimeCollectors?.chat.snapshot()) ?? null;
     this.agentRuntime = (await this.opts.runtimeCollectors?.agent.snapshot()) ?? null;
+    // In-flight streaming overlap: the agent timeline and the live streaming
+    // line are sampled together here, so trim the streaming line the instant
+    // new prose lands. Without this, `streamingText` accumulates across all
+    // iterations of a turn (only cleared in dispatchToSession's finally),
+    // re-showing already-landed `agent.message` prose beside its permanent
+    // entry. Same 1s cadence as the collector, so never more than one tick
+    // stale.
+    const agentPer = this.state.views.agent;
+    if (this.agentRuntime && agentPer.streamingText) {
+      agentPer.streamingText = trimStreamedTextToLanded(this.agentRuntime.timeline, agentPer.streamingText);
+    }
   }
 
   /**
@@ -563,9 +574,10 @@ export class TuiApp {
       // Inline approval resolution — when there are pending approvals and
       // the user presses `a`/`d`, resolve the OLDEST pending one and
       // surface the result inline. This avoids the "I have to switch to
-      // the approvals tab just to press one key" friction. The interceptor
-      // is keyed on the agent tab ONLY — the approvals tab has its own
-      // view.handleKey that processes `a`/`d` via the dedicated handler.
+      // the approvals tab just to press one key" friction. Keyed on the
+      // agent tab (AC#7: works from any scroll position within it) — the
+      // banner it resolves is the shared status-row banner (frame-painter),
+      // and the approvals tab's own view.handleKey only moves the cursor.
       if ((key === 'a' || key === 'd') && perTab.pendingApprovals.length > 0) {
         const target = perTab.pendingApprovals[0]!;
         // Mark the approval as resolved in our local UI state immediately

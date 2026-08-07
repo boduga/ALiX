@@ -244,14 +244,15 @@ export class FramePainter {
     ];
     const fieldsText = fields.join(` ${sep} `);
     const fieldsLen = visibleLen(fieldsText);
-    // #436 — pending-approval banner. Reads from perTab.pendingApprovals
-    // (the snapshot-derived pending list). The first entry is the OLDEST
-    // — the same one the `a`/`d` key handler resolves — so the banner
-    // names what the keys will actually act on. With multiple queued, the
-    // banner shows the oldest explicitly. Disappears when the list is
-    // empty. On a terminal too narrow for both, the banner is kept and
-    // the pipeline counters yield.
-    const pending = s.activeTab === 'agent' ? (s.views.agent.pendingApprovals ?? []) : [];
+    // #436 — pending-approval banner. AC#2: renders whenever one or more
+    // approvals are pending, on ANY active tab — the status row is shared
+    // chrome, and a pending approval is a global operator signal. Reads the
+    // agent tab's snapshot-derived pending list (the oldest entry is the same
+    // one the agent tab's `a`/`d` keys resolve — the banner names what those
+    // keys will act on). With multiple queued, the banner shows the oldest
+    // explicitly. Disappears when the list is empty. On a terminal too narrow
+    // for both, the banner is kept and the pipeline counters yield.
+    const pending = s.views.agent.pendingApprovals ?? [];
     if (pending.length > 0) {
       const oldest = pending[0]!;
       const oldestLabel = oldest.toolName && oldest.target
