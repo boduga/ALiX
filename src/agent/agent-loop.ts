@@ -26,7 +26,11 @@ import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
 
-export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
+/** Internal core — the original runTask body, wrapped by the governed
+ *  `runTask` export below. Kept as a separate function so the governed
+ *  wrapper (ExecutionIntent + terminal evidence) surrounds it without
+ *  changing the agent-loop's internal behavior. */
+async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
   const metrics = new MinimalMetrics();
   metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
 
@@ -440,6 +444,81 @@ ${approvedPlanContent}`);
   }
 
   return { ...result, runId };
+}
+
+/**
+ * Governed entry point for running a task (spec #404).
+ *
+ * Wraps the internal `runTaskCore` with the ExecutionIntent lifecycle:
+ *   - Creates an immutable ExecutionIntent for the task BEFORE execution.
+ *   - Runs the core (unchanged behavior).
+ *   - Emits terminal evidence (SUCCESS or FAILED) to the X3b evidence store
+ *     in a `finally`, so success AND failure both persist a record.
+ *
+ * The signature is unchanged from the original `runTask` — all callers
+ * (research, daemon, session, route-executor) are unaffected. Evidence
+ * persistence is fire-and-forget and never stalls the task.
+ */
+export async function runTask(
+  cwd: string,
+  task: string,
+  opts?: RunOpts,
+  onStream?: StreamHandler,
+): Promise<RunResult> {
+  // Create the canonical ExecutionIntent BEFORE execution begins.
+  const { createExecutionIntent } = await import("../runtime/execution-intent-factory.js");
+  const { createIntentId } = await import("../runtime/contracts/execution-intent-contract.js");
+  const { PersistenceEvidenceEmitter } = await import("../runtime/execution-persistence.js");
+  const { ExecutionEvidenceStore } = await import("../runtime/execution-evidence-store.js");
+
+  const now = new Date().toISOString();
+  const intent = createExecutionIntent(
+    { kind: "agent", task, diagnostic: { classification: "workspace_action", route: "agent", reason: "runTask" } },
+    { actor: "system", now },
+  );
+  // Evidence store lives under the working dir, like the session path.
+  const store = new ExecutionEvidenceStore(join(cwd, ".alix", "governance"));
+  const emitter = new PersistenceEvidenceEmitter(store);
+
+  // CREATED evidence.
+  emitRunEvidence(intent.intentId, "ExecutionCreated", "SUCCESS", `Execution created for task: ${task.slice(0, 80)}`, emitter, now);
+
+  try {
+    const result = await runTaskCore(cwd, task, opts, onStream);
+    // SUCCESS terminal evidence.
+    emitRunEvidence(intent.intentId, "ExecutionCompleted", "SUCCESS", (result.summary ?? task).slice(0, 200), emitter, now);
+    return result;
+  } catch (err) {
+    // FAILED terminal evidence.
+    emitRunEvidence(intent.intentId, "ExecutionFailed", "FAILED", err instanceof Error ? err.message : String(err), emitter, now);
+    throw err;
+  }
+}
+
+/** Emit one governed run evidence record (fire-and-forget, never throws). */
+export function emitRunEvidence(
+  intentId: string,
+  eventType: "ExecutionCreated" | "ExecutionCompleted" | "ExecutionFailed",
+  outcome: "SUCCESS" | "FAILED",
+  summary: string,
+  emitter: { emit(type: unknown, evidence: unknown): void },
+  startedAt: string,
+): void {
+  try {
+    emitter.emit(eventType, {
+      evidenceId: `ev_${intentId}_${eventType}`,
+      intentId,
+      startedAt,
+      completedAt: new Date().toISOString(),
+      outcome,
+      summary,
+      artifacts: [],
+      verificationPassed: outcome === "SUCCESS",
+      evidenceHash: "",
+    });
+  } catch {
+    // Evidence must never stall a task run.
+  }
 }
 
 export type { RunOpts, RunResult } from "../run.js";
