@@ -212,11 +212,13 @@ export class FramePainter {
     const hintsLen = tabHintsVisible.length;
     c.write(Math.max(0, dims.columns - hintsLen), 0, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
-    // Status row — pipeline fields (right-aligned). The phase radio strip
-    // (spec #429, ticket #433) was retired: stage information now lives in
-    // the agent scrollback gutter (slice #432), and the strip's session-phase
-    // scalar never reset to Idle, so the row went stale after every turn.
-    // Left side of the row is intentionally empty when nothing is pending.
+    // Status row — pipeline fields (right-aligned) + pending-approval banner
+    // (left) when the agent tab has one or more pending approvals. The
+    // phase radio strip (spec #429, ticket #433) was retired; stage
+    // information now lives in the agent scrollback gutter (slice #432).
+    // The pending banner (slice #7, ticket #436) takes the vacated left
+    // side and names the tool/target the approve/deny keys act on, so
+    // the operator is never asked to act blind.
     const sep = `\x1b[90m|\x1b[0m`;
     const daemonLabel = snap.daemon === null
       ? `\x1b[90m○ stopped\x1b[0m`
@@ -234,13 +236,39 @@ export class FramePainter {
       `RULES: ${ruleCount}`,
       `EVENTS: ${eventsCount}`,
     ];
-    // Right-align the pipeline fields at the right edge of the status row.
-    // Pipeline fields are right-aligned; with the strip retired the left side
-    // stays empty when nothing is pending.
     const fieldsText = fields.join(` ${sep} `);
     const fieldsLen = visibleLen(fieldsText);
-    c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
-    // Deliberately no left-side write: ticket #433 retired the strip.
+    // #436 — pending-approval banner. Reads from perTab.pendingApprovals
+    // (the snapshot-derived pending list). The first entry is the OLDEST
+    // — the same one the `a`/`d` key handler resolves — so the banner
+    // names what the keys will actually act on. With multiple queued, the
+    // banner shows the oldest explicitly. Disappears when the list is
+    // empty. On a terminal too narrow for both, the banner is kept and
+    // the pipeline counters yield.
+    const pending = s.activeTab === 'agent' ? (s.views.agent.pendingApprovals ?? []) : [];
+    if (pending.length > 0) {
+      const oldest = pending[0]!;
+      const oldestBit = oldest.toolName && oldest.target
+        ? `${oldest.toolName} ${oldest.target}`
+        : oldest.toolName || oldest.target || oldest.id;
+      const oldestMark = pending.length > 1 ? 'oldest — ' : '';
+      const banner = `⏸ ${pending.length} pending — a/d: ${oldestMark}${oldestBit}`;
+      const bannerText = `\x1b[33m${banner}\x1b[0m`;
+      const bannerLen = visibleLen(bannerText);
+      c.write(2, dims.rows - 1, bannerText);
+      // Place pipeline fields to the right of the banner, but yield if
+      // there isn't room. The banner is actionable; the counters are
+      // ambient.
+      const fieldsStart = 2 + bannerLen + 2; // 2-col gutter + banner + 2-col gap
+      const fieldsEnd = dims.columns - 2;
+      if (fieldsEnd - fieldsStart >= fieldsLen) {
+        c.write(fieldsStart, dims.rows - 1, fieldsText);
+      }
+    } else {
+      // No approvals pending — right-align the pipeline fields as before.
+      // Left side stays empty (ticket #433); row is quiet by default.
+      c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
+    }
 
     // Write the complete frame — cursor home + canvas render.
     this.deps.output.write('\x1b[H' + c.renderFrame());

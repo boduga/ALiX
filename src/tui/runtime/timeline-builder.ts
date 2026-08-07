@@ -183,6 +183,12 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
         (kind === 'tool.requested' || kind === 'tool.started' ||
          kind === 'tool.completed' || kind === 'tool.failed')) {
       text = p.toolName;
+    } else if (text === undefined && typeof p.prompt === 'string' && kind === 'approval.requested') {
+      // #436 — the inline approval line carries the human-readable prompt
+      // ("Approve write_file on guard.ts?"). The pending banner separately
+      // surfaces toolName/target from `perTab.pendingApprovals[0]` so the
+      // keys always name their target.
+      text = p.prompt;
     }
     // Tool outcome detail (for completed/failed) — error message for
     // failures, a short summary for successes. The line builder

@@ -181,6 +181,10 @@ export type TimelinePayload = {
   detail?: string;
   phase?: string;
   turn?: number;
+  // #436 — `prompt` on `approval.requested` events (TimelineBuilder
+  // extracts it into `text` so the inline approval line in the agent
+  // scrollback can carry the human-readable prompt).
+  prompt?: string;
 };
 
 export const MCP_EVENT_TYPES = {

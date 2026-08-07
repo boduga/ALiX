@@ -1,6 +1,5 @@
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
-import { callout } from '../ui-helpers.js';
 import { getTheme } from '../blocks/theme.js';
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
@@ -129,6 +128,10 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // tool.output are admitted to the timeline projection (whitelist
   // vocabulary) but rejected by this render-layer filter — they are
   // internal lifecycle events that the scrollback does not display.
+  // #436: `approval.requested` is admitted so approvals render inline
+  // and chronologically like every other content event. The pending
+  // banner that names tool/target is painted in frame-painter.ts on the
+  // status row, separately.
   const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
     .filter((e: any) =>
       e.kind === 'agent.message' ||
@@ -139,7 +142,8 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       e.kind === 'agent.session.turn.completed' ||
       e.kind === 'tool.started' ||
       e.kind === 'tool.completed' ||
-      e.kind === 'tool.failed');
+      e.kind === 'tool.failed' ||
+      e.kind === 'approval.requested');
 
   // Stage tracking (#432). A stage is the interval between two consecutive
   // phase_changed events; the final stage of a turn is terminated by
@@ -168,7 +172,10 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     // (the existing 'toolCall' ScrollbackLine kind) and 'agent' for
     // prose responses. The kind is passed through to the ScrollbackLine
     // so the view's existing renderToolCallLine can pick them up.
-    lineKind: 'agent' | 'toolCall';
+    // #436: approvals render inline with the same pattern. They use
+    // the existing 'approval' ScrollbackLine kind painted by
+    // AgentView.renderApprovalLine (yellow text + gutter when present).
+    lineKind: 'agent' | 'toolCall' | 'approval';
   };
   type TurnBuild = {
     userText: string | null;
@@ -282,6 +289,22 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         // with a blank gutter; the result still goes here so the
         // outcome isn't lost.
         current.contents.push({ text, stage: null, isFirstOfStage: false, lineKind: 'toolCall' });
+      }
+    } else if (e.kind === 'approval.requested') {
+      // #436 — inline approval. Render chronologically under the
+      // running stage; the text comes from `payload.prompt` (mapped to
+      // `text` by TimelineBuilder.build). The pending banner surfaces
+      // toolName/target separately on the status row so the keys always
+      // name their target, even if the operator has scrolled past the
+      // inline line.
+      const prompt = typeof e.text === 'string' ? e.text : 'approval requested';
+      const text = `⏸ ${prompt}`;
+      if (currentStage) {
+        const isFirstOfStage = !currentStage.hasContent;
+        current.contents.push({ text, stage: currentStage, isFirstOfStage, lineKind: 'approval' });
+        currentStage.hasContent = true;
+      } else {
+        current.contents.push({ text, stage: null, isFirstOfStage: false, lineKind: 'approval' });
       }
     } else if (e.text) {
       // Content event. If a stage is active, attribute to it. Content
@@ -445,8 +468,17 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         // #434: toolCall items emit ScrollbackLine.kind = 'toolCall' so
         // the view's existing renderToolCallLine can paint them with the
         // right styling. Other content uses 'agent' as before.
+        // #436: approval items emit ScrollbackLine.kind = 'approval' so
+        // the view's existing renderApprovalLine paints them yellow
+        // (33m) — the lineBuilder owns the prompt text, the view owns
+        // the styling. Without this routing, approvals would render in
+        // the agent cyan palette and the yellow marker would be lost.
+        const lineKind: ScrollbackLine['kind'] =
+          item.lineKind === 'toolCall' ? 'toolCall'
+          : item.lineKind === 'approval' ? 'approval'
+          : 'agent';
         const line: ScrollbackLine = {
-          kind: item.lineKind === 'toolCall' ? 'toolCall' : 'agent',
+          kind: lineKind,
           text: row.text,
           isFirst: row.isFirst,
         };
@@ -540,18 +572,14 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     });
   }
 
-  // Pending approvals (verbatim from agent-view.ts:159-173).
-  if (pendingApprovals && pendingApprovals.length > 0) {
-    const aps = pendingApprovals;
-    const body = `${aps.length} approval request${aps.length === 1 ? '' : 's'} pending — press 'a' to approve, 'd' to deny`;
-    const calloutRows = callout('WARNING', body, textWidth);
-    for (let i = 0; i < calloutRows.length; i++) out.push({ kind: 'approval', text: calloutRows[i]!.text, isFirst: i === 0 });
-    for (const a of aps) {
-      const card = `  ▸ ${a.toolName}  ${a.target || '(no target)'}  ·  ${a.id.slice(-5)}`;
-      const wrapped = wrapText(card, textWidth);
-      for (let i = 0; i < wrapped.length; i++) out.push({ kind: 'approval', text: wrapped[i]!, isFirst: i === 0 });
-    }
-  }
+  // #436 — the bottom "X approval requests pending — press 'a' to approve"
+  // callout block is retired. Approvals now render inline and
+  // chronologically via the timeline `approval.requested` branch above,
+  // and the pending banner in frame-painter.ts surfaces any pending
+  // approval on the status row, naming the toolName/target the keys
+  // will act on. Pending approvals still come from `perTab.pendingApprovals`
+  // (drives the banner); this builder no longer reads it.
+  void pendingApprovals;
 
   return out;
 }

@@ -680,3 +680,146 @@ describe('buildAgentScrollbackLines — #434 tool calls in the stream with outco
     }
   });
 });
+
+// ─── #436 — render approvals inline + pending-approval banner ─────
+// Slice #7 of the stage-decorated scrollback plan (#429). Approvals
+// render inline and chronologically, under the stage in which they
+// occurred. The bottom callout block is gone: the pending banner now
+// surfaces a pending approval at the bottom of the agent tab (status
+// row, painted by frame-painter.ts), and the inline line gives the
+// audit/history surface.
+// ───────────────────────────────────────────────────────────────────────
+describe('buildAgentScrollbackLines — #436 approvals inline', () => {
+  /** Build a tool.started entry at the given timestamp (ms). */
+  function toolStartedAt(t: number, toolName: string, detail?: string): any {
+    return { kind: 'tool.started', text: toolName, detail, startedAt: t, actor: 'agent' };
+  }
+  /** Build a tool.completed entry at the given timestamp (ms). */
+  function toolCompletedAt(t: number, toolName: string, detail?: string): any {
+    return { kind: 'tool.completed', text: toolName, detail, startedAt: t, actor: 'agent' };
+  }
+  /** Build an approval.requested entry at the given timestamp (ms). */
+  function approvalRequestedAt(t: number, prompt: string): any {
+    return {
+      kind: 'approval.requested',
+      text: prompt,
+      startedAt: t,
+      actor: 'agent',
+    };
+  }
+
+  it('renders an approval.requested event inline under the running stage', () => {
+    const t0 = Date.now() - 5_000;
+    // Place a tool invocation first so the Executing stage's gutter
+    // label is claimed by the tool line; the approval is then a
+    // continuation line under the same stage.
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolStartedAt(t0 + 100, 'write_file'),
+      approvalRequestedAt(t0 + 500, 'Approve write_file on guard.ts'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    // Inline approval line is present.
+    const approvalLine = lines.find((l: any) => l.text && l.text.includes('Approve write_file'));
+    expect(approvalLine).toBeDefined();
+    // The approval line itself is a continuation — no gutter label
+    // (one gutter per stage, on the first content line of that stage).
+    expect((approvalLine as any).gutter).toBeUndefined();
+    // The gutter label sits on the stage's first content line above it
+    // (the tool invocation). Confirms the approval is attributed to
+    // that stage.
+    const invocation = lines.find((l: any) => l.text && l.text.includes('write_file') && l.text.startsWith('→'));
+    expect(invocation).toBeDefined();
+    const expectedGutter = '  ' + 'EXECUTING'.padEnd(GUTTER_WIDTH - 2);
+    expect((invocation as any).gutter).toBe(expectedGutter);
+    // The approval line appears AFTER the invocation (chronological).
+    expect(lines.indexOf(approvalLine as any)).toBeGreaterThan(lines.indexOf(invocation as any));
+  });
+
+  it('renders an approval.requested with no prior content as the first-of-stage (carries gutter)', () => {
+    const t0 = Date.now() - 5_000;
+    // Approval arrives under Executing with no preceding content.
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      approvalRequestedAt(t0 + 200, 'approval without prior content'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const approvalLine = lines.find((l: any) => l.text && l.text.includes('approval without prior'));
+    expect(approvalLine).toBeDefined();
+    // No prior content means the approval IS the first content of the
+    // stage — it gets the gutter label.
+    const expectedGutter = '  ' + 'EXECUTING'.padEnd(GUTTER_WIDTH - 2);
+    expect((approvalLine as any).gutter).toBe(expectedGutter);
+  });
+
+  it('renders multiple approval.requested events chronologically across stage transitions', () => {
+    const t0 = Date.now() - 5_000;
+    // First approval under Executing (it claims the gutter for that
+    // stage). Second approval under Verifying (claims its own gutter).
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      approvalRequestedAt(t0 + 200, 'first approval prompt'),
+      phaseAt(t0 + 500, 'Verifying'),
+      approvalRequestedAt(t0 + 800, 'second approval prompt'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const first = lines.find((l: any) => l.text && l.text.includes('first approval'));
+    const second = lines.find((l: any) => l.text && l.text.includes('second approval'));
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    // First approval is the first content of Executing — gutter label.
+    const execGutter = '  ' + 'EXECUTING'.padEnd(GUTTER_WIDTH - 2);
+    const verGutter = '  ' + 'VERIFYING'.padEnd(GUTTER_WIDTH - 2);
+    expect((first as any).gutter).toBe(execGutter);
+    expect((second as any).gutter).toBe(verGutter);
+    // Chronological order preserved.
+    const firstIdx = lines.indexOf(first as any);
+    const secondIdx = lines.indexOf(second as any);
+    expect(firstIdx).toBeLessThan(secondIdx);
+  });
+
+  it('does NOT render the bottom callout block (replaced by inline + banner)', () => {
+    // The bottom block used to render when perTab.pendingApprovals was
+    // populated; ticket #436 retires it. Pending list is non-empty
+    // here; no "X approval requests pending" callout should appear.
+    const c = ctx([]);
+    (c.perTab as any).pendingApprovals = [
+      { id: 'a1', toolName: 'write_file', target: 'guard.ts', requestedAt: Date.now() },
+    ];
+    const lines = buildAgentScrollbackLines(c, 200);
+    expect(lines.some((l: any) => l.text && l.text.includes('approval request'))).toBe(false);
+    expect(lines.some((l: any) => l.text && l.text.includes('press'))).toBe(false);
+  });
+
+  it('append-only invariant: an arriving approval.requested does not mutate prior lines', () => {
+    // The append-only property pinned by #434 must hold across the new
+    // approval rendering: a newly arrived approval.requested appends to
+    // the tail; it does not re-decorate any prior line. The banner
+    // itself lives on the status row (outside the scrollback content),
+    // so it is irrelevant to this test.
+    const t0 = Date.now() - 30_000;
+    const earlyTimeline: any[] = [
+      { kind: 'agent.message' as const, text: 'fix the bug', actor: 'user' as const, startedAt: t0 },
+      phaseAt(t0 + 100, 'Executing'),
+      toolStartedAt(t0 + 200, 'edit_file'),
+      toolCompletedAt(t0 + 1500, 'edit_file', '3 lines changed'),
+    ];
+    const earlyLines = buildAgentScrollbackLines(ctx(earlyTimeline), 200);
+    const earlyPrefixLen = earlyLines.length;
+
+    const fullTimeline: any[] = [
+      ...earlyTimeline,
+      approvalRequestedAt(t0 + 1700, 'approve the next edit'),
+    ];
+    const fullLines = buildAgentScrollbackLines(ctx(fullTimeline), 200);
+
+    expect(fullLines.length).toBeGreaterThan(earlyPrefixLen);
+    // Prefix identical, line-for-line — same assertion #434 uses.
+    for (let i = 0; i < earlyPrefixLen; i++) {
+      expect(fullLines[i]).toEqual(earlyLines[i]);
+    }
+    // Tail contains the new inline approval.
+    const tail = fullLines.slice(earlyPrefixLen);
+    expect(tail.some((l: any) => l.text && l.text.includes('approve the next edit'))).toBe(true);
+  });
+});
