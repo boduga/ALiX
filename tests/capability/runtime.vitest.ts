@@ -274,4 +274,33 @@ describe('CapabilityRuntime', () => {
     expect(result.error).toMatch(/dep failed/);
     expect(composedRan).toBe(false);
   });
+
+  it('mirrors core.session.summary: a composed capability consumes its dependency array output (#418)', async () => {
+    const { reg, runtime, native } = setup();
+    // core.session.list → returns an array of sessions.
+    reg.register({
+      id: 'core.session.list', version: '1.0', kind: 'core', title: 'List', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      execution: { strategy: 'native' },
+    });
+    // core.session.summary depends on the list.
+    reg.register({
+      id: 'core.session.summary', version: '1.0', kind: 'core', title: 'Summary', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      dependencies: ['core.session.list'],
+      execution: { strategy: 'native' },
+    });
+    native.registerHandler('core.session.list', async () => ({
+      output: [{ sessionId: 's1', createdAt: '2026' }, { sessionId: 's2', createdAt: '2026' }],
+    }));
+    native.registerHandler('core.session.summary', async (args) => {
+      // The dependency's array output arrives as this step's input.
+      const sessions = Array.isArray(args) ? args : [];
+      return { output: { total: sessions.length, first: (sessions[0] as { sessionId?: string })?.sessionId ?? 'none' } };
+    });
+
+    const result = await runtime.invoke('core.session.summary', {}, { actor: 'op', cwd: '/', workspace: '/' }).wait();
+    expect(result.status).toBe('completed');
+    expect(result.output).toEqual({ total: 2, first: 's1' });
+  });
 });

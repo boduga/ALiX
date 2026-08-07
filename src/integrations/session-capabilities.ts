@@ -19,4 +19,28 @@ export async function registerSessionCapabilities(reg: CapabilityRegistry, nativ
     if (!info) return { error: `Session not found: ${sessionId}` };
     return { output: info };
   });
+
+  // Phase 3 (#308): a composed capability. `core.session.summary` depends on
+  // `core.session.list` — the runtime runs the dependency first, and its
+  // output (the session array) becomes this handler's input. Observable in
+  // the TUI palette like any other capability.
+  reg.register({
+    id: "core.session.summary", version: "1.0", kind: "core",
+    title: "Session summary", description: "Count sessions by listing them (composition demo)",
+    tags: ["session", "summary", "composed"], category: "session", risk: "low",
+    requiredPermissions: ["operator"],
+    dependencies: ["core.session.list"],
+    resultSchema: {
+      type: "object",
+      properties: { total: { type: "number" }, first: { type: "string" } },
+    },
+    execution: { strategy: "native", timeout: 10_000, cancellable: true },
+  });
+  native.registerHandler("core.session.summary", async (args) => {
+    // args is the dependency's output (the session list array).
+    const sessions = Array.isArray(args) ? args : [];
+    const total = sessions.length;
+    const first = total > 0 ? (sessions[0] as { sessionId?: string })?.sessionId ?? "n/a" : "none";
+    return { output: { total, first } };
+  });
 }
