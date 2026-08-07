@@ -377,4 +377,133 @@ describe('TuiApp pinnedBottom transitions', () => {
     const offset2 = per.scrollOffset;
     expect(offset2).toBeGreaterThan(offset1); // ArrowDown moves window toward newer content
   });
+
+  // T437 (spec #429 slice 8): operator-initiated submission re-pins the
+  // scrollback to bottom so the new prompt and any subsequent agent output
+  // are immediately visible. Arriving approvals, tool results, and other
+  // system events MUST NOT re-pin — only submission does.
+  // The re-pin is a state mutation (offset zeroed to bottomAnchor), NOT a
+  // render mutation — the scrollback's append-only property is unchanged.
+  it('agent tab Enter while scrolled up re-pins to bottom (T437)', () => {
+    const seeded: Array<{ id: string; kind: 'agent.response'; sessionId: string; startedAt: number; text: string; sourceEvents: { firstSequence: number } }> = [];
+    for (let i = 0; i < 60; i++) {
+      seeded.push({
+        id: `tl-${i}`,
+        kind: 'agent.response',
+        sessionId: 'sess-agent',
+        startedAt: i,
+        text: `seeded line ${i}`,
+        sourceEvents: { firstSequence: i },
+      });
+    }
+    (internal as unknown as { agentRuntime: unknown }).agentRuntime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
+    };
+    // Activate so scrollOffset is the bottom anchor baseline.
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
+
+    const per = internal.getStateForTest().views.agent;
+    // Scroll-up: explicitly unpin so the next submit has work to do.
+    internal.handleRaw(ARROW_UP);
+    expect(per.pinnedBottom).toBe(false);
+    expect(per.scrollOffset).toBeGreaterThan(0);
+
+    // Submit a prompt.
+    for (const c of 'fix it') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+
+    // Submit must re-pin: pinnedBottom true, scrollOffset == bottomAnchor.
+    expect(per.pinnedBottom).toBe(true);
+    const expected = computeBottomAnchor(
+      (app as unknown as { framePainter: { buildViewRenderContext(tab: string): ViewRenderContext } }).framePainter.buildViewRenderContext('agent'),
+      'agent',
+    );
+    expect(per.scrollOffset).toBe(expected);
+  });
+
+  it('chat tab Enter while scrolled up re-pins to bottom (T437)', () => {
+    const seeded: Array<{ id: string; kind: 'chat.response'; sessionId: string; startedAt: number; text: string; sourceEvents: { firstSequence: number } }> = [];
+    for (let i = 0; i < 60; i++) {
+      seeded.push({
+        id: `tl-${i}`,
+        kind: 'chat.response',
+        sessionId: 'sess-chat',
+        startedAt: i,
+        text: `seeded chat ${i}`,
+        sourceEvents: { firstSequence: i },
+      });
+    }
+    (internal as unknown as { chatRuntime: unknown }).chatRuntime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-chat',
+    };
+    internal.setActiveTabForTest('agent');
+    internal.setActiveTabForTest('chat');
+
+    const per = internal.getStateForTest().views.chat;
+    internal.handleRaw(ARROW_UP);
+    expect(per.pinnedBottom).toBe(false);
+    expect(per.scrollOffset).toBeGreaterThan(0);
+
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+
+    expect(per.pinnedBottom).toBe(true);
+    const expected = computeBottomAnchor(
+      (app as unknown as { framePainter: { buildViewRenderContext(tab: string): ViewRenderContext } }).framePainter.buildViewRenderContext('chat'),
+      'chat',
+    );
+    expect(per.scrollOffset).toBe(expected);
+  });
+
+  it('after submit re-pin, scrolling up preserves the parked window and the next submit re-pins (T437)', () => {
+    const seeded: Array<{ id: string; kind: 'agent.response'; sessionId: string; startedAt: number; text: string; sourceEvents: { firstSequence: number } }> = [];
+    for (let i = 0; i < 80; i++) {
+      seeded.push({
+        id: `tl-${i}`,
+        kind: 'agent.response',
+        sessionId: 'sess-agent',
+        startedAt: i,
+        text: `seeded line ${i}`,
+        sourceEvents: { firstSequence: i },
+      });
+    }
+    (internal as unknown as { agentRuntime: unknown }).agentRuntime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
+    };
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
+
+    const per = internal.getStateForTest().views.agent;
+
+    // 1. Scroll up (unpin).
+    internal.handleRaw(ARROW_UP);
+    expect(per.pinnedBottom).toBe(false);
+    const offsetAfterScrollUp = per.scrollOffset;
+    expect(offsetAfterScrollUp).toBeGreaterThan(0);
+
+    // 2. Submit → re-pin.
+    for (const c of 'first') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    expect(per.pinnedBottom).toBe(true);
+
+    // 3. Scroll up again — the user's position must be preserved (no auto-re-pin on new events).
+    internal.handleRaw(ARROW_UP);
+    expect(per.pinnedBottom).toBe(false);
+    const parkedOffset = per.scrollOffset;
+    expect(parkedOffset).toBeGreaterThan(0);
+
+    // 4. Next submit → re-pins again.
+    for (const c of 'second') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    expect(per.pinnedBottom).toBe(true);
+    const expected = computeBottomAnchor(
+      (app as unknown as { framePainter: { buildViewRenderContext(tab: string): ViewRenderContext } }).framePainter.buildViewRenderContext('agent'),
+      'agent',
+    );
+    expect(per.scrollOffset).toBe(expected);
+  });
 });
