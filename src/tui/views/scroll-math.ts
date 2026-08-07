@@ -92,7 +92,13 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // not at the top of the scrollback where it would visually float above
   // every previous turn.
   const timelineEntries = (ctx.runtime?.agent?.timeline ?? [])
-    .filter((e: any) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response');
+    .filter((e: any) =>
+      e.kind === 'agent.message' ||
+      e.kind === 'agent.reasoning' ||
+      e.kind === 'agent.decision' ||
+      e.kind === 'agent.response' ||
+      e.kind === 'agent.session.phase_changed' ||
+      e.kind === 'agent.session.turn.completed');
 
   type Turn = { userText: string | null; agentTexts: string[]; startIndex: number };
   const turns: Turn[] = [];
