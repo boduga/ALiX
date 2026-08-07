@@ -195,12 +195,6 @@ export class AgentView implements TuiView {
         const offset = Math.max(0, ctx.perTab.scrollOffset - SCROLL_STEP);
         return { type: 'scroll', offset };
       }
-      case 'e':
-      case 'E':
-        // Toggle ledger expand/collapse — when expanded all ledger lines
-        // are shown; when collapsed only the last 3 lines are visible.
-        ctx.perTab.ledgerExpanded = !ctx.perTab.ledgerExpanded;
-        return { type: 'handled' };
       default:
         return { type: 'handled' };
     }

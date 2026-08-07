@@ -85,8 +85,8 @@ export interface PerTabState {
    */
   resolvedApprovals: ResolvedApproval[];
   /**
-   * Progress ledger text rendered by the agent loop. Displayed in the agent
-   * view scrollback after the approval section.
+   * Progress ledger text produced by the agent loop. It remains mirrored in
+   * per-tab state for non-render consumers, but is no longer displayed here.
    */
   progressLedger?: string;
   /**
@@ -97,8 +97,8 @@ export interface PerTabState {
    */
   pendingToolCalls?: Array<{ name: string; summary?: string }>;
   /**
-   * Whether the progress ledger is expanded (shows all lines) or collapsed
-   * (shows only the last 3 lines). Toggled by pressing `e` in the agent view.
+   * Retained for snapshot compatibility; the agent tab no longer exposes a
+   * ledger toggle, so this field is intentionally inert.
    */
   ledgerExpanded?: boolean;
   /**

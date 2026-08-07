@@ -755,6 +755,19 @@ describe('AgentView — key handling', () => {
     expect(view.handleKey('ArrowDown', ctx as any)).toEqual({ type: 'scroll', offset: 0 });
   });
 
+  it('does not toggle the retired progress ledger with e', () => {
+    const view = new AgentView();
+    const perTab = makePerTab({ ledgerExpanded: false });
+    const ctx = {
+      snap: MINIMAL_SNAPSHOT,
+      dimensions: { columns: W, rows: COMPACT },
+      perTab,
+    };
+
+    expect(view.handleKey('e', ctx as any)).toEqual({ type: 'handled' });
+    expect(perTab.ledgerExpanded).toBe(false);
+  });
+
   it('non-arrow keys return handled', () => {
     const view = new AgentView();
     const ctx = {
