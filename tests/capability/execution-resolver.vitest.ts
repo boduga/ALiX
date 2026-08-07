@@ -44,4 +44,51 @@ describe('ExecutionResolver', () => {
     const resolver = new ExecutionResolver(new CapabilityRegistry());
     expect(() => resolver.resolve('nope.missing', ctx())).toThrow(CapabilityNotFoundError);
   });
+
+  // ── Phase 3 (#308): composition pipelines ─────────────────────────
+
+  it('resolves a capability with dependencies into a multi-step plan (deps first, then self)', () => {
+    const reg = new CapabilityRegistry();
+    reg.register({
+      id: 'dep.a', version: '1.0', kind: 'core', title: 'A', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      execution: { strategy: 'native', timeout: 5000, cancellable: true },
+    });
+    reg.register({
+      id: 'dep.b', version: '1.0', kind: 'core', title: 'B', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      execution: { strategy: 'native', timeout: 5000, cancellable: true },
+    });
+    reg.register({
+      id: 'core.composed', version: '1.0', kind: 'core', title: 'Composed', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      dependencies: ['dep.a', 'dep.b'],
+      execution: { strategy: 'native', timeout: 5000, cancellable: true },
+    });
+
+    const plans = new ExecutionResolver(reg).resolve('core.composed', ctx());
+    expect(plans).toHaveLength(1);
+    // 2 dependency steps + the composed capability's own step = 3 steps.
+    expect(plans[0]!.steps).toHaveLength(3);
+    // Dependencies run first, each carrying its own capabilityId + executor.
+    expect(plans[0]!.steps[0]).toMatchObject({ executor: 'native', capabilityId: 'dep.a' });
+    expect(plans[0]!.steps[1]).toMatchObject({ executor: 'native', capabilityId: 'dep.b' });
+    // The final step is the composed capability itself.
+    expect(plans[0]!.steps[2]).toMatchObject({ capabilityId: 'core.composed' });
+  });
+
+  it('rejects a cyclic dependency graph', () => {
+    const reg = new CapabilityRegistry();
+    reg.register({
+      id: 'cyc.a', version: '1.0', kind: 'core', title: 'A', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      dependencies: ['cyc.b'], execution: { strategy: 'native' },
+    });
+    reg.register({
+      id: 'cyc.b', version: '1.0', kind: 'core', title: 'B', description: 'x',
+      tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
+      dependencies: ['cyc.a'], execution: { strategy: 'native' },
+    });
+    expect(() => new ExecutionResolver(reg).resolve('cyc.a', ctx())).toThrow(/cycle|circular/i);
+  });
 });
