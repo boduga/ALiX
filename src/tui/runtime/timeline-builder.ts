@@ -141,8 +141,19 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
     // Guarded upstream by TIMELINE_TYPES; the cast is safe here. Never cast
     // an unverified e.type directly — the whitelist is the vocabulary gate.
     const kind = e.type as TimelineKind;
-    const p = (e.payload ?? {}) as TimelinePayload;
-    const text = typeof p.text === 'string' ? p.text : undefined;
+    const p = (e.payload ?? {}) as TimelinePayload & { phase?: unknown; turn?: unknown };
+    // #432: phase_changed events carry the phase in `payload.phase` (no
+    // `text`), but the agent scrollback's line builder reads `text` to
+    // attribute content to stages. Extract here so the existing field
+    // carries the phase name without adding a new TimelineEntry column.
+    // Same shape extension for turn_completed → "turn N" so any consumer
+    // that wants a textual terminator has one.
+    let text: string | undefined = typeof p.text === 'string' ? p.text : undefined;
+    if (text === undefined && typeof p.phase === 'string' && kind === 'agent.session.phase_changed') {
+      text = p.phase;
+    } else if (text === undefined && typeof p.turn === 'number' && kind === 'agent.session.turn.completed') {
+      text = `turn ${p.turn}`;
+    }
     const detail = typeof p.detail === 'string' ? p.detail : undefined;
     const ts = Date.parse(e.timestamp) || 0;
     return {
