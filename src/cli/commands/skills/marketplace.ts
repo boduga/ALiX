@@ -442,7 +442,9 @@ export async function resolveSkillInMarketplaces(
     }
   }
   throw new Error(
-    `Could not find skill '${name}' in ${marketplaces.length} registered marketplaces.\n${failures.join("\n")}`,
+    `Could not find skill '${name}' in ${marketplaces.length} registered marketplaces.\n${failures.join("\n")}\n` +
+      `\nThe skill name may be misspelled. Check it with: alix skills available\n` +
+      `Or install by explicit repo path: alix skills install <name> --from <repo-url>`,
   );
 }
 
