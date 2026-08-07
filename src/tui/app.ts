@@ -489,6 +489,11 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
+          // T437 (spec #429 slice 8): operator-initiated submission re-pins
+          // the scrollback to bottom so the new prompt + response are visible.
+          // Distinct from auto-re-pin on system events (rejected in #436).
+          perTab.pinnedBottom = true;
+          this.resetScrollOffsetToBottom('chat');
           this.timelineEmitter.emitTimelineLog('user', perTab.inputBuffer, this.opts.chatSessionId);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
@@ -535,6 +540,11 @@ export class TuiApp {
           return;
         }
         if (perTab.inputBuffer.trim().length > 0) {
+          // T437 (spec #429 slice 8): operator-initiated submission re-pins
+          // the scrollback to bottom so the new prompt + response are visible.
+          // Distinct from auto-re-pin on system events (rejected in #436).
+          perTab.pinnedBottom = true;
+          this.resetScrollOffsetToBottom('agent');
           this.timelineEmitter.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
@@ -661,6 +671,12 @@ export class TuiApp {
     const text = parsed.rest.trim() || selected.name;
     this.slash.hint = null;
     perTab.inputBuffer = '';
+    // T437 (spec #429 slice 8): slash-command submission re-pins the
+    // scrollback to bottom. Distinct from auto-re-pin on system events
+    // (rejected in #436). `/clear` re-pins below too — the state mutation
+    // is idempotent.
+    perTab.pinnedBottom = true;
+    this.resetScrollOffsetToBottom(this.state.activeTab as 'agent' | 'chat');
     // `/clear` resets the scrollback — re-pin to bottom. Spec invariant:
     // `scrollOffset` must equal `bottomAnchor` (not literal 0). With the
     // timeline cleared by the same handler, `allLines.length === 0`, so
