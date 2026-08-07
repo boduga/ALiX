@@ -60,6 +60,44 @@ describe('ChatInvocationPresenter', () => {
   // text carries the capability status line (capabilityStatusText). All
   // assertions below are on that emitted text.
 
+  it('renders completed output through the schema renderer when a resultSchema is supplied (#413)', async () => {
+    const log = await makeLog();
+    const presenter = new ChatInvocationPresenter({ eventLog: log, sessionId: 'sess-chat' });
+    const inv = makeInvocation({
+      terminal: { type: 'InvocationCompleted', invocationId: 'inv_1', at: 2 },
+      waitResult: completed('inv_1', ['session-1', 'session-2']),
+    });
+    const flushed = flushedAfter(log, 1);
+    await presenter.present({
+      invocation: inv,
+      capabilityId: 'core.session.list',
+      // An array resultSchema → itemized rendering, not JSON.stringify.
+      resultSchema: { type: 'array', items: { type: 'string' } },
+    });
+    await flushed;
+    const events = await log.readAll();
+    const text = (events[0]!.payload as { text?: string }).text!;
+    // Structured itemized lines replace the raw JSON array.
+    expect(text).toContain('- session-1');
+    expect(text).toContain('- session-2');
+    expect(text).not.toContain('["session-1","session-2"]');
+  });
+
+  it('keeps JSON.stringify output when no resultSchema is supplied (#413)', async () => {
+    const log = await makeLog();
+    const presenter = new ChatInvocationPresenter({ eventLog: log, sessionId: 'sess-chat' });
+    const inv = makeInvocation({
+      terminal: { type: 'InvocationCompleted', invocationId: 'inv_1', at: 2 },
+      waitResult: completed('inv_1', ['session-1', 'session-2']),
+    });
+    const flushed = flushedAfter(log, 1);
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
+    await flushed;
+    const events = await log.readAll();
+    const text = (events[0]!.payload as { text?: string }).text!;
+    expect(text).toContain(JSON.stringify(['session-1', 'session-2']));
+  });
+
   it('drives completion through the event path and merges output from wait() into the emitted text', async () => {
     const log = await makeLog();
     const presenter = new ChatInvocationPresenter({ eventLog: log, sessionId: 'sess-chat' });

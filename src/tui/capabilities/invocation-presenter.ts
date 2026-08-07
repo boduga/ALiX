@@ -1,10 +1,15 @@
 import type { EventLog } from '../../events/event-log.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 import { appendLogEntry } from '../log-emit.js';
+import { renderSchemaResult } from './schema-renderer.js';
 
 export interface InvocationInput {
   invocation: Invocation;
   capabilityId: string;
+  /** The invoked capability's declared resultSchema, if any. When present,
+   *  completed output renders as structured lines instead of JSON.stringify
+   *  (Phase 2, #308). */
+  resultSchema?: Record<string, unknown>;
 }
 
 export interface InvocationPresenter {
@@ -37,14 +42,23 @@ export interface CapabilityStatus {
 }
 
 /** Status suffix for a capability event — "core.session.list [completed ✓]". */
-export function capabilityStatusText(event: CapabilityStatus): string {
+export function capabilityStatusText(
+  event: CapabilityStatus,
+  resultSchema?: Record<string, unknown>,
+): string {
   let text = event.capabilityId;
   if (event.status === 'running') text += ' [running]';
   else if (event.status === 'completed') {
     text += ' [completed ✓]';
     // Review fix: append output ONLY when present — avoids "[completed ✓] """
     // for empty output and "undefined" for absent output.
-    if (event.output !== undefined && event.output !== '') text += ` ${JSON.stringify(event.output)}`;
+    if (event.output !== undefined && event.output !== '') {
+      // Phase 2 (#308): when the capability declares a resultSchema, render
+      // the output as structured lines instead of raw JSON.stringify.
+      text += resultSchema
+        ? `\n  ${renderSchemaResult(event.output, resultSchema).join('\n  ')}`
+        : ` ${JSON.stringify(event.output)}`;
+    }
   } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
   else text += ' [cancelled]';
   return text.trim();
@@ -63,7 +77,7 @@ export function capabilityStatusText(event: CapabilityStatus): string {
 export class ChatInvocationPresenter implements InvocationPresenter {
   constructor(private readonly emitCtx?: CapabilityEmitContext) {}
 
-  async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
+  async present({ invocation, capabilityId, resultSchema }: InvocationInput): Promise<void> {
     // Track the capability status locally (never in per-tab state). The
     // terminal status text is what the log projection displays.
     const event: CapabilityStatus = { capabilityId, status: 'running' };
@@ -99,7 +113,7 @@ export class ChatInvocationPresenter implements InvocationPresenter {
         sessionId: this.emitCtx.sessionId,
         actor: 'agent',
         type: 'chat.response',
-        payload: { text: capabilityStatusText(event) },
+        payload: { text: capabilityStatusText(event, resultSchema) },
       });
     }
   }
