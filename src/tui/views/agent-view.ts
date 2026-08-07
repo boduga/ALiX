@@ -138,8 +138,12 @@ export class AgentView implements TuiView {
       if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
       c.write(gutter, rowY, `\x1b[90m│${RESET}`);
     }
-    // Tool call text already includes its own `→ ` / `✓ ` / `✗ ` prefix —
-    // render the full text at `gutter + 2`, no marker slicing.
+    // Tool call text already includes its own `→ ` prefix (produced by
+    // scroll-math.ts when rendering the toolCalls block). Render the full
+    // text at `gutter + 2` — no marker slicing; the line builder owns the
+    // prefix. Pre-#432 this method sliced off the first 2 chars because the
+    // old marker was the same `→ `; the new universal `│` separator makes
+    // the slicing unnecessary.
     c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
   }
 

@@ -141,7 +141,7 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
     // Guarded upstream by TIMELINE_TYPES; the cast is safe here. Never cast
     // an unverified e.type directly — the whitelist is the vocabulary gate.
     const kind = e.type as TimelineKind;
-    const p = (e.payload ?? {}) as TimelinePayload & { phase?: unknown; turn?: unknown };
+    const p = (e.payload ?? {}) as TimelinePayload;
     // #432: phase_changed events carry the phase in `payload.phase` (no
     // `text`), but the agent scrollback's line builder reads `text` to
     // attribute content to stages. Extract here so the existing field

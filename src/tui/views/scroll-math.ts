@@ -152,7 +152,11 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
 
   for (let i = 0; i < timelineEntries.length; i++) {
     const e: any = timelineEntries[i];
-    const ts: number = typeof e.startedAt === 'number' ? e.startedAt : Date.parse(e.timestamp) || 0;
+    // TimelineEntry.startedAt is a required number per the projection contract.
+    // Earlier drafts fell back to Date.parse(e.timestamp) for defensive
+    // robustness, but the fallback masked missing-startedAt bugs and produced
+    // zero-duration stages that were hard to debug. Trust the type.
+    const ts: number = e.startedAt;
     const isUserMsg = e.kind === 'agent.message' && e.actor === 'user';
     if (isUserMsg) {
       // Close the active stage at the user message's timestamp; a new turn
@@ -232,9 +236,16 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // completed stages, `· Xs…` for running ones. Appended to the FIRST wrap
   // line of the first content event in a stage; subsequent wrap lines and
   // subsequent content events leave the gutter blank.
+  //
+  // Stage attribution is applied to the LAST turn only — earlier turns keep
+  // flat rendering against the blank gutter. Rationale: stages are a
+  // forward-looking signal (the in-flight run); older turns' stages are
+  // historical record and don't need to be re-rendered for the operator.
+  // The scrollback remains append-only: the gutter is decoration, not a
+  // header line; no extra rows are inserted.
   const formatGutter = (phaseName: string): string => {
     const upper = (phaseName || '').toUpperCase();
-    return '  ' + upper.padEnd(GUTTER_WIDTH - 2).slice(0, GUTTER_WIDTH - 2);
+    return '  ' + upper.slice(0, GUTTER_WIDTH - 2).padEnd(GUTTER_WIDTH - 2);
   };
   const formatCompletedDuration = (startedAt: number, closedAt: number): string => {
     const sec = Math.max(0, (closedAt - startedAt) / 1000);
@@ -245,11 +256,14 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     return `· ${sec}s…`;
   };
   /** Append a duration string to the right of the FIRST wrap line of `text`,
-   *  right-aligned to `width`. If the text would overflow after appending
-   *  the duration, the duration is hard-truncated so the row still ends
-   *  with the duration marker — the rest of the text still occupies its
-   *  natural wrap. The duration never crosses to subsequent lines: it is
-   *  the last token on the first wrap line. */
+   *  right-aligned to `width`. Behaviour:
+   *    - If the first wrap line has room for `text + duration`, the duration
+   *      sits at the right edge of the first wrap line and the rest of the
+   *      text occupies its natural wrap.
+   *    - If the first wrap line is already at width, the duration is appended
+   *      after the text and `wrapText` is reapplied — the duration may then
+   *      end up on a subsequent wrap line. The duration is never truncated;
+   *      visibility is the priority over anchoring to the first line. */
   const appendDurationToFirstLine = (
     text: string,
     duration: string,
