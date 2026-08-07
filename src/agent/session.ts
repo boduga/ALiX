@@ -1078,8 +1078,20 @@ export class AgentSessionBuilder {
         // Governed execution (#404): every routed task flows through the
         // ExecutionIntent lifecycle (created→approved→running→terminal) via
         // executeRouteGoverned, which composes the unchanged executeRoute
-        // dispatcher. The route result is returned as before.
-        const governed = await executeRouteGoverned(route, runtimeCtx, executor);
+        // dispatcher. Governed evidence is persisted to the X3b
+        // ExecutionEvidenceStore (fire-and-forget; a store failure never
+        // stalls the route). The route result is returned as before.
+        const { PersistenceEvidenceEmitter } = await import(
+          "../runtime/execution-persistence.js"
+        );
+        const { ExecutionEvidenceStore } = await import(
+          "../runtime/execution-evidence-store.js"
+        );
+        const governed = await executeRouteGoverned(route, runtimeCtx, executor, {
+          emitter: new PersistenceEvidenceEmitter(
+            new ExecutionEvidenceStore(join(config.cwd, ".alix", "governance")),
+          ),
+        });
         const summary = governed.result;
         return {
           summary,
