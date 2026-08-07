@@ -500,6 +500,28 @@ describe('buildAgentScrollbackLines — #434 tool calls in the stream with outco
     expect(resultLine!.text).toContain('2 failing');
   });
 
+  it('tool.completed without a preceding tool.started renders as first-of-stage (regression for orphan-result edge case)', () => {
+    // The executor never emits tool.completed without first emitting
+    // tool.started, so this case should not occur in practice. But the
+    // timeline is permissive and the line builder handles it: the result
+    // becomes first-of-stage (carries the gutter) because no content has
+    // yet been attributed to the running stage. Pin this behavior so a
+    // future tightening of the line builder does not silently drop
+    // orphan results.
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      phaseAt(t0, 'Executing'),
+      toolCompletedAt(t0 + 500, 'orphan_tool', 'made it through somehow'),
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const resultLine = lines.find((l: any) => l.text.includes('✓ orphan_tool'));
+    expect(resultLine).toBeDefined();
+    // No invocation preceded this completion, so the result is the stage's
+    // first content — it carries the gutter label.
+    expect((resultLine as any).gutter).toBe('  EXECUTING'.padEnd(GUTTER_WIDTH));
+    expect(resultLine!.text).toContain('made it through somehow');
+  });
+
   it('success and failure markers are visually distinct (✓ vs ✗)', () => {
     // The whole point of slice #5: an operator can tell at a glance
     // which calls worked. Same tool, two outcomes — markers differ.

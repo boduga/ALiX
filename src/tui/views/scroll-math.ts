@@ -257,6 +257,25 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         // even if no other content was attributed (the invocation has
         // already claimed that slot). The result renders under the same
         // gutter label as the invocation.
+        //
+        // The `hasContent = true` mutation below looks redundant (the
+        // invocation already set it), but it is INTENTIONAL: a tool
+        // completion is still content arriving in the stage. The flag
+        // is correctly carrying the "any content has been attributed to
+        // this stage" invariant, not "the gutter slot has been claimed."
+        // Do NOT move this assignment later — it is the load-bearing
+        // signal that a subsequent tool.started in this stage is NOT
+        // first-of-stage and therefore does not steal the gutter from
+        // this result's invocation.
+        //
+        // Edge case: a tool.completed / tool.failed that arrives WITHOUT
+        // a preceding tool.started will still flow through this branch
+        // (the timeline is permissive). In that case `hasContent` was
+        // false, `isFirstOfStage` becomes true, and the result becomes
+        // first-of-stage — which means the result carries the gutter
+        // label. This is rare (the executor emits started before
+        // completed) but is exercised by the regression test
+        // "tool.completed without preceding tool.started".
         const isFirstOfStage = !currentStage.hasContent;
         current.contents.push({ text, stage: currentStage, isFirstOfStage, lineKind: 'toolCall' });
         currentStage.hasContent = true;
@@ -409,6 +428,13 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         // through `renderResponse` (which is markdown-aware and would
         // mangle the marker characters). Render verbatim with a single
         // wrap to textWidth.
+        //
+        // wrapText vs renderResponse divergence: tool lines use plain
+        // wrapText so the leading marker survives as a literal character.
+        // renderResponse is markdown-aware for agent prose — it would
+        // interpret `→` as text (fine) but `✓`/`✗` could be misread as
+        // list items or otherwise mutated. Keep the paths separate; do
+        // not unify them without re-testing both surface areas.
         if (item.lineKind === 'toolCall') {
           const wrapped = wrapText(item.text, textWidth);
           preRows = wrapped.map((t, i) => ({ text: t, isFirst: i === 0 }));

@@ -12,6 +12,18 @@ export type TimelineKind =
   // the `✓` / `✗` line right below it. `tool.requested` and
   // `tool.output` are admitted for completeness but the agent
   // scrollback's render filter is what decides which to display.
+  //
+  // NOTE — projection vs. render-filter split:
+  // All five `tool.*` kinds are admitted to the timeline projection so
+  // the projection's vocabulary is complete (any consumer can read the
+  // timeline and reconstruct the lifecycle). The agent scrollback's
+  // render filter in `scroll-math.ts` then re-filters to display only
+  // `tool.started`, `tool.completed`, and `tool.failed`. This is the
+  // double-filter trap from #430: any future render path that reads
+  // `timeline` directly without re-filtering will surface
+  // `tool.requested` and `tool.output` as raw content. If that
+  // becomes a problem, either reject them at the projection boundary
+  // here, or add a shared filter helper that every render path uses.
   | 'tool.requested' | 'tool.started' | 'tool.output' | 'tool.completed' | 'tool.failed';
 
 /** The timeline projection's supported vocabulary. A builder must own the
