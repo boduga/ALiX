@@ -1,7 +1,7 @@
 import { TerminalCanvas, type CanvasRect } from './canvas.js';
 import { visibleLen } from './box.js';
 import { computeViewport, HEADER_H, FOOTER_H } from './views/scroll-math.js';
-import { SessionPhase, TAB_ORDER, type TabId, type TuiAppState } from './state.js';
+import { TAB_ORDER, type TabId, type TuiAppState } from './state.js';
 import type { ViewRenderContext, SlashStrip, TerminalDimensions, TuiView } from './views/types.js';
 import type { RuntimeSnapshot, DashboardSnapshot } from './snapshot.js';
 import type { IOutput } from './io.js';
@@ -212,25 +212,11 @@ export class FramePainter {
     const hintsLen = tabHintsVisible.length;
     c.write(Math.max(0, dims.columns - hintsLen), 0, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
-    // Status row — phase radios (left) | pipeline fields (right).
-    // Phase radios are workflow-lifecycle signals — they only make sense
-    // on the agent tab. On chat and dashboard, skip the phase segment
-    // so the operator doesn't see stale workflow phase from a previous
-    // processTurn run.
-    const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
-      { phase: SessionPhase.Understanding, label: 'UNDERSTANDING' },
-      { phase: SessionPhase.Planning, label: 'PLANNING' },
-      { phase: SessionPhase.Executing, label: 'EXECUTING' },
-      { phase: SessionPhase.Verifying, label: 'VERIFYING' },
-      { phase: SessionPhase.Summarizing, label: 'SUMMARIZING' },
-    ];
-    const activePhase = session?.phase ?? SessionPhase.Idle;
-    let phaseLine = '';
-    for (const p of phaseDefs) {
-      const active = activePhase === p.phase;
-      if (active) phaseLine += `\x1b[32m● ${p.label}\x1b[0m   `;
-      else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
-    }
+    // Status row — pipeline fields (right-aligned). The phase radio strip
+    // (spec #429, ticket #433) was retired: stage information now lives in
+    // the agent scrollback gutter (slice #432), and the strip's session-phase
+    // scalar never reset to Idle, so the row went stale after every turn.
+    // Left side of the row is intentionally empty when nothing is pending.
     const sep = `\x1b[90m|\x1b[0m`;
     const daemonLabel = snap.daemon === null
       ? `\x1b[90m○ stopped\x1b[0m`
@@ -249,14 +235,12 @@ export class FramePainter {
       `EVENTS: ${eventsCount}`,
     ];
     // Right-align the pipeline fields at the right edge of the status row.
-    // Phase radios (agent tab only) keep the left side; if they don't fit
-    // alongside the fields, drop the radios so the fields can fill the row.
+    // Pipeline fields are right-aligned; with the strip retired the left side
+    // stays empty when nothing is pending.
     const fieldsText = fields.join(` ${sep} `);
     const fieldsLen = visibleLen(fieldsText);
     c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
-    if (s.activeTab === 'agent' && visibleLen(phaseLine) + 1 + fieldsLen <= dims.columns) {
-      c.write(0, dims.rows - 1, phaseLine);
-    }
+    // Deliberately no left-side write: ticket #433 retired the strip.
 
     // Write the complete frame — cursor home + canvas render.
     this.deps.output.write('\x1b[H' + c.renderFrame());
