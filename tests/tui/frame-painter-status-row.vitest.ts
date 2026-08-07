@@ -212,7 +212,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-1',
           toolName: 'write_file',
-          targetPath: 'guard.ts',
+          target: 'guard.ts',
           args: {},
           requestedAt: Date.now(),
           requestedBy: 'test',
@@ -245,7 +245,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-oldest',
           toolName: 'write_file',
-          targetPath: 'guard.ts',
+          target: 'guard.ts',
           args: {},
           requestedAt: Date.now() - 1000,
           requestedBy: 'test',
@@ -253,7 +253,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
         {
           id: 'ap-newer',
           toolName: 'edit_file',
-          targetPath: 'login.ts',
+          target: 'login.ts',
           args: {},
           requestedAt: Date.now(),
           requestedBy: 'test',
@@ -317,7 +317,7 @@ describe('FramePainter status row — pending-approval banner (#436)', () => {
           {
             id: 'ap-1',
             toolName: 'write_file',
-            targetPath: 'guard.ts',
+            target: 'guard.ts',
             args: {},
             requestedAt: Date.now(),
             requestedBy: 'test',

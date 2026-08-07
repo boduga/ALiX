@@ -24,7 +24,7 @@ function mkFakes() {
 
   const approvals = {
     snapshot: async () => ({
-      pending: [{ id: 'a1', toolName: 'write_file', targetPath: '/x', args: {}, requestedAt: 1, requestedBy: 'agent' }],
+      pending: [{ id: 'a1', toolName: 'write_file', target: '/x', args: {}, requestedAt: 1, requestedBy: 'agent' }],
       recentlyResolved: [],
       totalPending: 1,
       totalResolved: 0,

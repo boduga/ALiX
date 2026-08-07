@@ -149,6 +149,91 @@ describe('buildAgentScrollbackLines — live streaming line', () => {
   });
 });
 
+// Regression: alix-init-test session 1786125623902. The task-loop emits a
+// `agent.message` per iteration and a final `agent.response` whose text
+// equals the last iteration's text; the old scrollback filter admitted both
+// (plus a now-removed `agent.reasoning` for 3x). The fix scans BACKWARDS over
+// admitted entries to find the most recent prose `agent.message` (skipping
+// metadata like `agent.decision` / `agent.session.phase_changed` /
+// `agent.session.turn.completed` / tool lifecycle) and drops the trailing
+// `agent.response` only when its text matches. Direct-route turns (no
+// preceding `agent.message`) and summaries whose text diverges from the
+// iteration prose both survive.
+describe('buildAgentScrollbackLines — final-response dedup (regression for alix-init-test 1786125623902)', () => {
+  it('renders the agent final response exactly once even when intervening metadata entries are present', () => {
+    const t0 = Date.parse('2026-08-07T18:00:39.928Z');
+    const finalText = 'Yes, llama.cpp is installed on this system.\n\n## Summary\n\nI investigated whether llama.cpp is installed in the environment.';
+    // Mirror the actual session: user prompt, intro iteration, tool-decision
+    // metadata, final iteration prose, phase/turn lifecycle metadata, then
+    // the trailing `agent.response` with the same final text. Without the
+    // backwards-scan, the dedup would compare against the immediately
+    // preceding `agent.session.turn.completed` (no text) and miss the
+    // duplicate.
+    const timeline: any[] = [
+      { kind: 'agent.message', text: 'is llama.cpp installed', actor: 'user', startedAt: t0 - 5_000 },
+      { kind: 'agent.message', text: "I'll investigate whether llama.cpp is installed in the environment.", actor: 'agent', startedAt: t0 },
+      // Decision metadata between the last prose iteration and the final summary.
+      { kind: 'agent.decision', text: undefined, actor: 'agent', startedAt: t0 + 100 },
+      { kind: 'agent.message', text: finalText, actor: 'agent', startedAt: t0 + 9_000 },
+      { kind: 'agent.session.phase_changed', text: 'Finalizing', startedAt: t0 + 9_100 },
+      { kind: 'agent.session.turn.completed', text: 'turn 0', startedAt: t0 + 9_150 },
+      { kind: 'agent.response', text: finalText, actor: 'agent', startedAt: t0 + 9_200 },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const introCount = lines.filter((l: any) => l.text === "I'll investigate whether llama.cpp is installed in the environment.").length;
+    const finalCount = lines.filter((l: any) => l.text && l.text.startsWith('Yes, llama.cpp is installed')).length;
+    expect(introCount).toBe(1);
+    expect(finalCount).toBe(1);
+  });
+
+  it('keeps the agent.response when its text differs from the last agent.message', () => {
+    const t0 = Date.parse('2026-08-07T18:00:39.928Z');
+    const timeline = [
+      { kind: 'agent.message' as const, text: 'hi', actor: 'user' as const, startedAt: t0 - 100 },
+      { kind: 'agent.message' as const, text: 'tool call output', actor: 'agent' as const, startedAt: t0 },
+      { kind: 'agent.response' as const, text: '(no response)', actor: 'agent' as const, startedAt: t0 + 100 },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    expect(lines.some((l: any) => l.text === 'tool call output')).toBe(true);
+    expect(lines.some((l: any) => l.text === '(no response)')).toBe(true);
+  });
+
+  it('keeps the agent.response when there is no preceding agent.message (direct route)', () => {
+    const t0 = Date.parse('2026-08-07T18:00:39.928Z');
+    const timeline = [
+      { kind: 'agent.message' as const, text: 'hi', actor: 'user' as const, startedAt: t0 - 100 },
+      { kind: 'agent.response' as const, text: 'echo from chat path', actor: 'agent' as const, startedAt: t0 },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    expect(lines.some((l: any) => l.text === 'echo from chat path')).toBe(true);
+  });
+
+  it('does NOT dedup an agent.response against agent.message from a previous turn', () => {
+    const t0 = Date.parse('2026-08-07T18:00:39.928Z');
+    const sharedText = 'identical prose';
+    // Two turns back-to-back. The first turn is workflow (message + response).
+    // The second turn is direct-route: user prompt immediately followed by an
+    // `agent.response` whose text happens to equal the first turn's
+    // `agent.message`. The backwards scan must stop at the user-prompt
+    // turn boundary, not find the previous turn's prose and dedup.
+    const timeline: any[] = [
+      // Turn 1 (workflow)
+      { kind: 'agent.message', text: 'q1', actor: 'user', startedAt: t0 },
+      { kind: 'agent.message', text: sharedText, actor: 'agent', startedAt: t0 + 100 },
+      { kind: 'agent.response', text: sharedText, actor: 'agent', startedAt: t0 + 200 },
+      // Turn 2 (direct) — new user prompt, response text happens to match.
+      { kind: 'agent.message', text: 'q2', actor: 'user', startedAt: t0 + 1000 },
+      { kind: 'agent.response', text: sharedText, actor: 'agent', startedAt: t0 + 1100 },
+    ];
+    const lines = buildAgentScrollbackLines(ctx(timeline), 200);
+    const sharedCount = lines.filter((l: any) => l.text === sharedText).length;
+    // Both turns must render their shared prose (no cross-turn dedup).
+    // Within each turn, the workflow's message+response are deduped, so
+    // the workflow contributes 1 copy and the direct contributes 1 copy.
+    expect(sharedCount).toBe(2);
+  });
+});
+
 describe('buildChatScrollbackLines', () => {
   it('returns an empty array for an empty timeline', () => {
     const emptyCtx = { ...ctx([]), runtime: { chat: { timeline: [], totalEventCount: 0, workflow: undefined, session: {} as never } as never, agent: null } } as unknown as ViewRenderContext;

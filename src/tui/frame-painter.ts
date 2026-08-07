@@ -248,11 +248,11 @@ export class FramePainter {
     const pending = s.activeTab === 'agent' ? (s.views.agent.pendingApprovals ?? []) : [];
     if (pending.length > 0) {
       const oldest = pending[0]!;
-      const oldestBit = oldest.toolName && oldest.target
+      const oldestLabel = oldest.toolName && oldest.target
         ? `${oldest.toolName} ${oldest.target}`
         : oldest.toolName || oldest.target || oldest.id;
-      const oldestMark = pending.length > 1 ? 'oldest — ' : '';
-      const banner = `⏸ ${pending.length} pending — a/d: ${oldestMark}${oldestBit}`;
+      const oldestPrefix = pending.length > 1 ? 'oldest — ' : '';
+      const banner = `⏸ ${pending.length} pending — a/d: ${oldestPrefix}${oldestLabel}`;
       const bannerText = `\x1b[33m${banner}\x1b[0m`;
       const bannerLen = visibleLen(bannerText);
       c.write(2, dims.rows - 1, bannerText);

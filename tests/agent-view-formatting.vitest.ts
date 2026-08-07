@@ -101,11 +101,14 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
  * aligned with the real emission path (Phase 6 final fix): the operator's
  * typed prompt lands as `agent.message` and the agent's final summary as
  * `agent.response`. AgentView reads `ctx.runtime.agent.timeline` filtered to
- * agent-authored kinds (`agent.message` | `agent.reasoning` | `agent.decision`
- * | `agent.response`) — NOT the legacy `perTab.timelineEvents`. Entries are
- * interleaved exactly as the pre-projection fixture did (prompt_i before
- * summary_i). Direction comes from the actor: prompts (actor 'user') render
- * with the → operator marker, summaries (actor 'agent') with the ← marker.
+ * agent-authored kinds (`agent.message` | `agent.decision` | `agent.response`)
+ * — NOT the legacy `perTab.timelineEvents`. `agent.reasoning` events still
+ * land in the projection (TIMELINE_TYPES) but the scrollback render filter
+ * intentionally excludes them — they're metadata breadcrumbs (iteration +
+ * tool names), not prose. Entries are interleaved exactly as the
+ * pre-projection fixture did (prompt_i before summary_i). Direction comes
+ * from the actor: prompts (actor 'user') render with the → operator
+ * marker, summaries (actor 'agent') with the ← marker.
  */
 function seedTurns(user: string[], agent: string[]): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
@@ -294,7 +297,9 @@ describe('AgentView — agent turns', () => {
     // Phase 6 final-fix regression: the agent tab's own conversation emits
     // `agent.message` for the prompt and `agent.response` for the summary;
     // the agent view filter must render both (previously the filter excluded
-    // everything but the task-loop's agent.message/reasoning/decision trace).
+    // everything but the task-loop's agent.message/decision trace —
+    // `agent.reasoning` is also excluded now per the alix-init-test 1786125623902
+    // duplication regression).
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['summarize the run'], ['The run completed: 3 steps.'])));
     const all = allText(c, 12);
     expect(all).toContain('summarize the run');

@@ -61,15 +61,15 @@ describe('ApprovalProjectionCollector', () => {
     expect(runtime2.snapshotOf<import('../../../src/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!.completed[0]!.status).toBe('expired');
   });
 
-  it('targetPath is derived from prompt via extractTarget; falls back to raw prompt', async () => {
+  it('target is derived from prompt via extractTarget; falls back to raw prompt', async () => {
     const runtime = createProjectionRuntime([[ProjectionIds.approval, new ApprovalProjection()]]);
     runtime.updateAll([
       evt('approval.created', { approvalId: 'a1', reason: 'Path protected: /tmp/foo' }, 1),
       evt('approval.created', { approvalId: 'a2', reason: 'plain request' }, 2),
     ]);
     const snap = await new ApprovalProjectionCollector(runtime).snapshot();
-    expect(snap!.pending[0]!.targetPath).toBe('/tmp/foo');
-    expect(snap!.pending[1]!.targetPath).toBe('plain request');
+    expect(snap!.pending[0]!.target).toBe('/tmp/foo');
+    expect(snap!.pending[1]!.target).toBe('plain request');
   });
 
   it('requestedAt comes from the projection entry timestamp only', async () => {
@@ -107,13 +107,13 @@ describe('ApprovalProjectionCollector', () => {
     const projSnap = await new ApprovalProjectionCollector(runtime).snapshot();
 
     // --- store path (the pre-migration behavior) ---
-    // ApprovalManager.snapshot() mapped: id, toolName=capability[0], targetPath=extractTarget(reason)||reason, args:{}, requestedAt, requestedBy:'system'
+    // ApprovalManager.snapshot() mapped: id, toolName=capability[0], target=extractTarget(reason)||reason, args:{}, requestedAt, requestedBy:'system'
     const pending = store.listPending();
     const storeSnap = {
       pending: pending.map(r => ({
         id: r.id,
         toolName: r.capabilities?.[0] ?? 'unknown',
-        targetPath: extractTarget(r.reason) ?? r.reason ?? '',
+        target: extractTarget(r.reason) ?? r.reason ?? '',
         args: {},
         requestedAt: Date.parse(r.createdAt) || Date.now(),
         requestedBy: 'system',
@@ -127,9 +127,9 @@ describe('ApprovalProjectionCollector', () => {
     // intentionally diverges on `recentlyResolved`/`totalResolved` (old path:
     // always `[]`/0; new path: real projection history). Normalize the comparison:
     // assert the fields that must match (ids, pending ordering, timestamps,
-    // targetPath, toolName) with per-field equality, and assert the intentional
+    // target, toolName) with per-field equality, and assert the intentional
     // divergence explicitly.
-    expect(projSnap!.pending).toEqual(storeSnap.pending); // ids, ordering, timestamps, targetPath, toolName
+    expect(projSnap!.pending).toEqual(storeSnap.pending); // ids, ordering, timestamps, target, toolName
     // RESOLVED side — assert the completed entry's mapped fields (not just
     // length), so the adapter's completed→recentlyResolved mapping is genuinely
     // proven and the oracle can't pass with a wrong completed-entry mapping.
@@ -137,7 +137,7 @@ describe('ApprovalProjectionCollector', () => {
     const resolved = projSnap!.recentlyResolved[0]!;
     expect(resolved.id).toBe(a1.id);
     expect(resolved.toolName).toBe('filesystem.write'); // capabilities[0]
-    expect(resolved.targetPath).toBe('/tmp/foo');        // extractTarget(reason)
+    expect(resolved.target).toBe('/tmp/foo');        // extractTarget(reason)
     expect(resolved.requestedAt).toBe(Date.parse(a1.createdAt)); // payload.timestamp = record.createdAt
     expect(resolved.args).toEqual({});
     expect(resolved.requestedBy).toBe('system');

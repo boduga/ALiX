@@ -530,7 +530,7 @@ function formatRelative(requestedAt: number, now: number): string {
 
 interface DisplayApprovalItem {
   readonly toolName: string;
-  readonly targetPath: string;
+  readonly target: string;
   readonly requestedAt: number;
   readonly kind: "pending" | "resolved";
 }
@@ -551,8 +551,8 @@ function collectDisplayItems(
     .slice()
     .sort((a, b) => b.requestedAt - a.requestedAt);
   const all: DisplayApprovalItem[] = [
-    ...pendingSorted.map((a) => ({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "pending" as const })),
-    ...resolvedSorted.map((a) => ({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "resolved" as const })),
+    ...pendingSorted.map((a) => ({ toolName: a.toolName, target: a.target, requestedAt: a.requestedAt, kind: "pending" as const })),
+    ...resolvedSorted.map((a) => ({ toolName: a.toolName, target: a.target, requestedAt: a.requestedAt, kind: "resolved" as const })),
   ];
   const totalItems = all.length;
   const clampedOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, totalItems - max)));
@@ -582,7 +582,7 @@ function paintApprovalItemRow(
   // Pending: right-align the target path within remaining cols.
   const prefix = `● ${item.toolName} `;
   const pathBudget = Math.max(0, contentW - prefix.length);
-  const path = truncate(item.targetPath, pathBudget);
+  const path = truncate(item.target, pathBudget);
   canvas.write(x + contentW - path.length, y, path);
 }
 
