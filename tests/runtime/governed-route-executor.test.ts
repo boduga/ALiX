@@ -33,6 +33,10 @@ import type { RuntimeContext, RuntimeExecutor } from "../../src/runtime/route-ex
 import { taskRouter, type TaskRoute } from "../../src/runtime/task-router.js";
 
 const FIXED_NOW = "2026-08-06T00:00:00.000Z";
+// Far-future intent lifetime so the governor's real-clock expiration check
+// (execution-governor.ts validate: `new Date(intent.expiration) < new Date()`)
+// never expires an intent created at the historical FIXED_NOW.
+const FAR_FUTURE_EXPIRATION_MS = 365 * 24 * 60 * 60 * 1000;
 
 function makeCtx(): RuntimeContext {
   return {
@@ -85,7 +89,10 @@ describe("executeRouteGoverned — lifecycle sequence + evidence per transition"
 
   for (const [kind, route, expected] of cases) {
     it(`governs ${kind} routes: created→approved→running→succeeded with evidence per transition`, async () => {
-      const out = await executeRouteGoverned(route, makeCtx(), makeFakeExecutor(), { now: FIXED_NOW });
+      const out = await executeRouteGoverned(route, makeCtx(), makeFakeExecutor(), {
+        now: FIXED_NOW,
+        expirationMs: FAR_FUTURE_EXPIRATION_MS,
+      });
 
       // Executor's original behavior preserved.
       assert.equal(out.result, expected);
@@ -115,7 +122,10 @@ describe("executeRouteGoverned — lifecycle sequence + evidence per transition"
   it("routes a real taskRouter route through the governed boundary", async () => {
     const route = await taskRouter("2 + 2");
     assert.equal(route.kind, "direct");
-    const out = await executeRouteGoverned(route, makeCtx(), makeFakeExecutor(), { now: FIXED_NOW });
+    const out = await executeRouteGoverned(route, makeCtx(), makeFakeExecutor(), {
+        now: FIXED_NOW,
+        expirationMs: FAR_FUTURE_EXPIRATION_MS,
+      });
     assert.equal(out.intent.action, "arithmetic");
     assert.equal(out.result, "direct:2 + 2");
   });
@@ -212,13 +222,16 @@ describe("executeRouteGoverned — executor failure produces FAILED lifecycle", 
     };
 
     await assert.rejects(
-      executeRouteGoverned(DIRECT_ROUTE, makeCtx(), executor, { now: FIXED_NOW }),
+      executeRouteGoverned(DIRECT_ROUTE, makeCtx(), executor, {
+        now: FIXED_NOW,
+        expirationMs: FAR_FUTURE_EXPIRATION_MS,
+      }),
       /provider down/,
     );
 
     // Re-run with a capturing collector to assert the FAILED terminal evidence.
     const collector = new CollectingEvidenceEmitter();
-    const deps = { now: FIXED_NOW, emitter: collector };
+    const deps = { now: FIXED_NOW, emitter: collector, expirationMs: FAR_FUTURE_EXPIRATION_MS };
     await assert.rejects(
       executeRouteGoverned(DIRECT_ROUTE, makeCtx(), executor, deps),
       /provider down/,

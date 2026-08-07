@@ -105,6 +105,12 @@ export interface GovernedExecutionDeps {
   actor?: string;
   /** ISO timestamp; injectable for deterministic tests. */
   now?: string;
+  /**
+   * Intent lifetime from creation, in ms. Defaults to 24h. Callers that
+   * inject a historical `now` should set this far enough out that the
+   * governor's real-clock expiration check cannot expire the intent.
+   */
+  expirationMs?: number;
 }
 
 export interface GovernedRouteResult {
@@ -147,7 +153,11 @@ export async function executeRouteGoverned(
   deps: GovernedExecutionDeps = {},
 ): Promise<GovernedRouteResult> {
   const now = deps.now ?? new Date().toISOString();
-  const intent = createExecutionIntent(route, { actor: deps.actor, now });
+  const intent = createExecutionIntent(route, {
+    actor: deps.actor,
+    now,
+    expirationMs: deps.expirationMs,
+  });
 
   // Seed the X1 lifecycle with ONLY the CREATED event (intent creator).
   // APPROVED is authored by the governor below (D3 ownership).
