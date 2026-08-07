@@ -37,9 +37,26 @@ describe('MetricsProjection', () => {
       toolFailures: 0,
       toolDuration: { count: 0, totalMs: 0, minMs: null, maxMs: null, averageMs: null },
       capabilityInvocations: 0,
+      tokensUsed: 0,
       startedAt: null,
       lastEventAt: null,
     });
+  });
+
+  it('accumulates tokensUsed from model.usage input+output, skipping non-finite counts', () => {
+    const p = new MetricsProjection();
+    p.update([
+      evt('model.usage', { provider: 'deepseek', model: 'deepseek-chat', inputTokens: 1200, outputTokens: 300 }, 1, 1000),
+      evt('model.usage', { provider: 'deepseek', model: 'deepseek-chat', inputTokens: 800, outputTokens: 150 }, 2, 2000),
+      // Non-finite / missing counts are skipped, never trusted (durationMs guard).
+      evt('model.usage', { provider: 'deepseek', model: 'deepseek-chat', inputTokens: Number.NaN, outputTokens: 'oops' }, 3, 3000),
+    ]);
+    const s = p.snapshot();
+    expect(s.tokensUsed).toBe(1200 + 300 + 800 + 150);
+    // Every model.usage still counts toward eventsProcessed even when its
+    // token fields are malformed.
+    expect(s.eventsProcessed).toBe(3);
+    expect(s.toolCalls).toBe(0);
   });
 
   it('is idempotent on an at-least-once replay of already-seen seqs (D5)', () => {

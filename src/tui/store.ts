@@ -13,12 +13,6 @@ export interface SubagentNode {
   endedAt?: number;
 }
 
-export interface TokenBudget {
-  used: number;
-  max: number;
-  files: number;
-}
-
 export interface Diff {
   path: string;
   before: string;
@@ -70,7 +64,6 @@ export interface TuiState {
   agentState: AgentState;
   agentReasoning: string;
   subagents: SubagentNode[];
-  tokenBudget: TokenBudget;
   diffs: Diff[];
   pendingApproval: ApprovalRequest | null;
   inputMode: "command" | "multi-line" | "confirm";
@@ -128,7 +121,6 @@ export class TuiStore {
       agentState: initialState?.agentState ?? "idle",
       agentReasoning: initialState?.agentReasoning ?? "",
       subagents: initialState?.subagents ?? [],
-      tokenBudget: initialState?.tokenBudget ?? { used: 0, max: 62000, files: 0 },
       diffs: initialState?.diffs ?? [],
       pendingApproval: initialState?.pendingApproval ?? null,
       inputMode: initialState?.inputMode ?? "command",
@@ -184,11 +176,6 @@ export class TuiStore {
 
   setAgentReasoning(reasoning: string): void {
     this.state.agentReasoning = reasoning;
-    this.notify();
-  }
-
-  setTokenBudget(budget: Partial<TokenBudget>): void {
-    this.state.tokenBudget = { ...this.state.tokenBudget, ...budget };
     this.notify();
   }
 

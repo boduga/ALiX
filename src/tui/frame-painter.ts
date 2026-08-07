@@ -228,8 +228,14 @@ export class FramePainter {
     const sopCount = snap.sops?.totalLoaded ?? 0;
     const ruleCount = snap.policy?.rules.length ?? 0;
     const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
+    // Tokens flow task-loop's `model.usage` events → outer RuntimeCollector →
+    // MetricsProjection → snap.runtime.metrics.tokensUsed (same path EVENTS
+    // rides). Used-only: there is no live per-session max source — the store's
+    // 62000 is a hardcoded default, and config tokenBudget is a per-tool
+    // ToolConfig, not a session context limit.
+    const tokensUsed = (snap.runtime?.metrics?.tokensUsed ?? 0).toLocaleString('en-US');
     const fields = [
-      'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
+      `TOKENS: ${tokensUsed}`,
       `FILES: ${snap.session?.filesTouched ?? 0}`,
       `DAEMON: ${daemonLabel}`,
       `SOPS: ${sopCount}`,

@@ -14,6 +14,13 @@ export interface MetricsProjectionSnapshot {
     readonly averageMs: number | null;
   };
   readonly capabilityInvocations: number;
+  /**
+   * Cumulative tokens billed across this session's model calls, summed from
+   * `model.usage` events (input + output). O(1) counter, same as every other
+   * field here. The split is kept internally so a used/max or input/output
+   * display can be added without re-plumbing the transport.
+   */
+  readonly tokensUsed: number;
   readonly startedAt: number | null;
   readonly lastEventAt: number | null;
 }
@@ -30,6 +37,7 @@ export interface MetricsProjectionSnapshot {
  *     payload durationMs (finite-validated on write; non-finite durations are
  *     skipped, never trusted).
  *   - capabilityInvocations: every capability.InvocationStarted.
+ *   - tokensUsed: every model.usage input+output sum (split kept internally).
  *   - startedAt / lastEventAt: FIRST / LAST applied event's strict timestamp.
  * No arrays, no maps — every counter is O(1) and derived purely from the batch
  * (D11). Deliberately NOT durable: it exposes no exportState/importState, so
@@ -45,6 +53,8 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
   private durationMinMs: number | null = null;
   private durationMaxMs: number | null = null;
   private capabilityInvocations = 0;
+  private tokenInput = 0;
+  private tokenOutput = 0;
   private startedAt: number | null = null;
   private lastEventAt: number | null = null;
   private lastSeq = 0;   // in-memory idempotency guard (not durable)
@@ -65,6 +75,14 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
         continue;
       }
       if (e.type === 'capability.InvocationStarted') { this.capabilityInvocations++; continue; }
+      // model.usage — the live token counter. Non-finite token counts are
+      // skipped, never trusted (same guard as tool durations).
+      if (e.type === 'model.usage') {
+        const p = (e.payload ?? {}) as { inputTokens?: unknown; outputTokens?: unknown };
+        if (typeof p.inputTokens === 'number' && Number.isFinite(p.inputTokens)) this.tokenInput += p.inputTokens;
+        if (typeof p.outputTokens === 'number' && Number.isFinite(p.outputTokens)) this.tokenOutput += p.outputTokens;
+        continue;
+      }
     }
   }
 
@@ -82,6 +100,7 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
         averageMs: this.durationCount ? this.durationTotalMs / this.durationCount : null,
       },
       capabilityInvocations: this.capabilityInvocations,
+      tokensUsed: this.tokenInput + this.tokenOutput,
       startedAt: this.startedAt,
       lastEventAt: this.lastEventAt,
     };
@@ -96,6 +115,8 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
     this.durationMinMs = null;
     this.durationMaxMs = null;
     this.capabilityInvocations = 0;
+    this.tokenInput = 0;
+    this.tokenOutput = 0;
     this.startedAt = null;
     this.lastEventAt = null;
     this.lastSeq = 0;
