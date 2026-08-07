@@ -38,10 +38,17 @@ export class CapabilityRuntime {
     if (!capability) throw new CapabilityNotFoundError(capabilityId);
     const plans = this.resolver.resolve(capabilityId, this.makeContext(capabilityId, overrides));
     const plan = plans[0];
-    const step = plan?.steps[0];
-    if (!step) throw new CapabilityNotFoundError(capabilityId);
-    const executor = this.executors.get(step.executor);
-    if (!executor) throw new ExecutorNotFoundError(step.executor);
+    const steps = plan?.steps;
+    if (!steps || steps.length === 0) throw new CapabilityNotFoundError(capabilityId);
+
+    // Backward-compatible synchronous error for the single-step case: a
+    // missing executor on the sole step throws immediately (existing
+    // contract). Multi-step plans resolve executors per-step in the async
+    // body and fail the composite instead.
+    if (steps.length === 1) {
+      const singleExecutor = this.executors.get(steps[0]!.executor);
+      if (!singleExecutor) throw new ExecutorNotFoundError(steps[0]!.executor);
+    }
 
     const invocationId = `inv_${randomUUID().slice(0, 8)}`;
     const startedAt = Date.now();
@@ -127,16 +134,32 @@ export class CapabilityRuntime {
         this.bus.emit({ type: "InvocationStarted", invocationId, capabilityId, at: Date.now() });
         queue.push({ type: "InvocationStarted", invocationId, capabilityId, at: Date.now() });
         await hooks?.beforeInvoke?.(ctx);
-        let runResult: ExecutorRunResult;
-        try {
-          runResult = await executor.run(capability, ctx, args);
-        } catch (e) {
-          return fail(e instanceof Error ? e.message : String(e));
+
+        // Phase 3 (#308): execute the multi-step composition plan in order.
+        // Each dependency step runs first (its output feeding the next step),
+        // and the capability's own step runs last. A failed dependency fails
+        // the whole composite.
+        let stepArgs = args;
+        for (const step of steps) {
+          if (abort.signal.aborted) { inv.cancel(); return; }
+          const stepExecutor = this.executors.get(step.executor);
+          if (!stepExecutor) return fail(`No executor for strategy '${step.executor}'`);
+          const stepCap = this.registry.find(step.capabilityId);
+          if (!stepCap) return fail(`Unknown capability '${step.capabilityId}'`);
+          let runResult: ExecutorRunResult;
+          try {
+            runResult = await stepExecutor.run(stepCap, ctx, stepArgs);
+          } catch (e) {
+            return fail(e instanceof Error ? e.message : String(e));
+          }
+          if (abort.signal.aborted) { inv.cancel(); return; }
+          if (runResult.error) return fail(runResult.error);
+          // The dependency's output becomes the next step's input.
+          stepArgs = (runResult.output ?? {}) as Record<string, unknown>;
         }
-        if (abort.signal.aborted) { inv.cancel(); return; }
-        if (runResult.error) return fail(runResult.error);
+
         emitTerminal({ type: "InvocationCompleted", invocationId, at: Date.now() });
-        const r = finish("completed", { output: runResult.output });
+        const r = finish("completed", { output: stepArgs });
         await hooks?.afterInvoke?.(r, ctx);
       } catch (e) {
         fail(e instanceof Error ? e.message : String(e));

@@ -220,4 +220,58 @@ describe('CapabilityRuntime', () => {
     });
     expect(() => runtime.invoke('core.missing', {}, { actor: 'op', cwd: '/', workspace: '/' })).toThrow(ExecutorNotFoundError);
   });
+
+  // ── Phase 3 (#308): composition pipelines ─────────────────────────
+
+  function registerComposed(reg: CapabilityRegistry) {
+    reg.register({
+      id: 'core.dep', version: '1.0', kind: 'core', title: 'Dep', description: 'dep',
+      tags: [], category: 'core', risk: 'low', requiredPermissions: ['operator'],
+      execution: { strategy: 'native', timeout: 5000, cancellable: true },
+    });
+    reg.register({
+      id: 'core.composed', version: '1.0', kind: 'core', title: 'Composed', description: 'composed',
+      tags: [], category: 'core', risk: 'low', requiredPermissions: ['operator'],
+      dependencies: ['core.dep'],
+      execution: { strategy: 'native', timeout: 5000, cancellable: true },
+    });
+  }
+
+  it('runs dependency steps before the capability step (composition)', async () => {
+    const { reg, runtime, native } = setup();
+    registerComposed(reg);
+    const order: string[] = [];
+    native.registerHandler('core.dep', async (args) => {
+      order.push('dep');
+      return { output: { fromDep: args.input } };
+    });
+    native.registerHandler('core.composed', async (args) => {
+      order.push('composed');
+      // The dependency's output is available to the composed step.
+      return { output: { saw: (args as { fromDep?: string }).fromDep } };
+    });
+
+    const inv = runtime.invoke('core.composed', { input: 'hello' }, { actor: 'op', cwd: '/', workspace: '/' });
+    const result = await inv.wait();
+    expect(result.status).toBe('completed');
+    expect(order).toEqual(['dep', 'composed']);
+    // The composed step received the dependency's output as input.
+    expect(result.output).toEqual({ saw: 'hello' });
+  });
+
+  it('a failed dependency fails the whole composite', async () => {
+    const { reg, runtime, native } = setup();
+    registerComposed(reg);
+    native.registerHandler('core.dep', async () => ({ error: 'dep failed' }));
+    let composedRan = false;
+    native.registerHandler('core.composed', async () => {
+      composedRan = true;
+      return { output: 'should not run' };
+    });
+
+    const result = await runtime.invoke('core.composed', {}, { actor: 'op', cwd: '/', workspace: '/' }).wait();
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/dep failed/);
+    expect(composedRan).toBe(false);
+  });
 });
