@@ -2,6 +2,22 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { taskRouter } from "../../src/runtime/task-router.js";
 
+/**
+ * Assert a prompt routes to the governed agent path as a workspace mutation
+ * (wayfinder T8: workspace_mutation → agent via Layer 1 MUTATION_ANCHORS).
+ * Mutations deliberately do NOT route to a raw `shell.run` — they go through
+ * the governed ExecutionIntent / agent lifecycle instead.
+ */
+function assertMutation(route: unknown, prompt: string): void {
+  assert.equal(
+    (route as { kind: string }).kind,
+    "agent",
+    `"${prompt}" must route to agent (workspace_mutation), not tool`,
+  );
+  const r = route as { kind: "agent"; diagnostic?: { classification?: string } };
+  assert.equal(r.diagnostic?.classification, "workspace_mutation");
+}
+
 describe("router hardening — false positives", () => {
   // --- Conceptual/help prompts must NOT route to tool ---
 
@@ -57,43 +73,43 @@ describe("router hardening — false positives", () => {
     assert.notEqual(route.kind, "tool");
   });
 
-  // --- Real file operations still route to tool ---
+  // --- File mutations route to the governed agent path (not raw shell) ---
 
-  it('"write hello to test.txt" still routes to tool', async () => {
+  it('"write hello to test.txt" routes to agent (workspace_mutation), not raw shell', async () => {
     const route = await taskRouter("write hello to test.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "write hello to test.txt");
   });
 
-  it('"append hello to test.txt" still routes to tool', async () => {
+  it('"append hello to test.txt" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("append hello to test.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "append hello to test.txt");
   });
 
-  it('"read test.txt" still routes to tool', async () => {
+  it('"read test.txt" still routes to tool (read-only stays tool)', async () => {
     const route = await taskRouter("read test.txt");
     assert.equal(route.kind, "tool");
   });
 
-  it('"delete test.txt" still routes to tool', async () => {
+  it('"delete test.txt" routes to agent (workspace_mutation), not rm via shell', async () => {
     const route = await taskRouter("delete test.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "delete test.txt");
   });
 
-  it('"show notes.txt" still routes to tool', async () => {
+  it('"show notes.txt" still routes to tool (read-only stays tool)', async () => {
     const route = await taskRouter("show notes.txt");
     assert.equal(route.kind, "tool");
   });
 
   // --- Path variants ---
 
-  it('"write hello to ./notes/test.txt" routes to tool', async () => {
+  it('"write hello to ./notes/test.txt" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("write hello to ./notes/test.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "write hello to ./notes/test.txt");
   });
 
-  it('"write hello to /tmp/output.txt" routes to tool', async () => {
+  it('"write hello to /tmp/output.txt" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("write hello to /tmp/output.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "write hello to /tmp/output.txt");
   });
 
   it("write with semicolon injection is rejected by guardrail (not a valid file path)", async () => {
@@ -113,26 +129,18 @@ describe("router hardening — false positives", () => {
 
   // --- Additional path/target variants ---
 
-  it('"create README.md with hello" routes to tool', async () => {
+  it('"create README.md with hello" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("create README.md with hello");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "create README.md with hello");
   });
 
-  it('"delete directory ./tmp" routes to rm -rf with quoted path', async () => {
+  it('"delete directory ./tmp" routes to agent (workspace_mutation), not rm -rf via shell', async () => {
     const route = await taskRouter("delete directory ./tmp");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      assert.ok((route.args.command as string).includes("-rf"), "directory delete must use -rf");
-      assert.ok((route.args.command as string).includes("'./tmp'"), "path must be quoted");
-    }
+    assertMutation(route, "delete directory ./tmp");
   });
 
-  it('"remove ./tmp/cache" routes to tool with specific path', async () => {
+  it('"remove ./tmp/cache" routes to agent (workspace_mutation), not rm via shell', async () => {
     const route = await taskRouter("remove ./tmp/cache");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      assert.ok((route.args.command as string).startsWith("rm"), "must use rm");
-      assert.ok((route.args.command as string).includes("'./tmp/cache'"), "path must be quoted");
-    }
+    assertMutation(route, "remove ./tmp/cache");
   });
 });

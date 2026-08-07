@@ -7,44 +7,49 @@ function toolCmd(route: unknown): string {
   return r.args.command;
 }
 
+/**
+ * Assert a prompt routes to the governed agent path as a workspace mutation
+ * (wayfinder T8: workspace_mutation → agent via Layer 1 MUTATION_ANCHORS).
+ * Mutations deliberately do NOT route to a raw `shell.run` — they go through
+ * the governed ExecutionIntent / agent lifecycle instead.
+ */
+function assertMutation(route: unknown, prompt: string): void {
+  assert.equal(
+    (route as { kind: string }).kind,
+    "agent",
+    `"${prompt}" must route to agent (workspace_mutation), not tool`,
+  );
+  const r = route as {
+    kind: "agent";
+    diagnostic?: { classification?: string };
+  };
+  assert.equal(r.diagnostic?.classification, "workspace_mutation");
+}
+
 describe("natural-language file operation routing", () => {
-  it('"write hello to test.txt" routes to tool (not chat)', async () => {
+  it('"write hello to test.txt" routes to agent (workspace_mutation), not chat or raw shell', async () => {
     const route = await taskRouter("write hello to test.txt");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      assert.equal(route.tool, "shell.run");
-      const cmd = toolCmd(route);
-      assert.ok(cmd.includes("printf"));
-      assert.ok(cmd.includes("test.txt"));
-    }
+    assertMutation(route, "write hello to test.txt");
   });
 
-  it('"save X to Y" routes to tool', async () => {
+  it('"save X to Y" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("save data to output.txt");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "save data to output.txt");
   });
 
-  it('"create Y with X" routes to tool', async () => {
+  it('"create Y with X" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("create test.txt with hello world");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "create test.txt with hello world");
   });
 
-  it('"append X to Y" routes to tool', async () => {
+  it('"append X to Y" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("append hello to test.txt");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      assert.ok(toolCmd(route).includes(">>"));
-    }
+    assertMutation(route, "append hello to test.txt");
   });
 
-  it('"delete test.txt" routes to tool with rm', async () => {
+  it('"delete test.txt" routes to agent (workspace_mutation), not rm via shell', async () => {
     const route = await taskRouter("delete test.txt");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      const cmd = toolCmd(route);
-      assert.ok(cmd.startsWith("rm"));
-      assert.ok(!cmd.includes("-rf"));
-    }
+    assertMutation(route, "delete test.txt");
   });
 
   it('"delete directory temp" is rejected by guardrail', async () => {
@@ -52,7 +57,7 @@ describe("natural-language file operation routing", () => {
     assert.notEqual(route.kind, "tool");
   });
 
-  it('"show test.txt" routes to tool with cat', async () => {
+  it('"show test.txt" routes to tool with cat (read-only stays tool)', async () => {
     const route = await taskRouter("show test.txt");
     assert.equal(route.kind, "tool");
     if (route.kind === "tool") {
@@ -60,7 +65,7 @@ describe("natural-language file operation routing", () => {
     }
   });
 
-  it('"read config.json" routes to tool', async () => {
+  it('"read config.json" routes to tool (read-only stays tool)', async () => {
     const route = await taskRouter("read config.json");
     assert.equal(route.kind, "tool");
   });
@@ -72,6 +77,8 @@ describe("natural-language file operation routing", () => {
 
   it("content with quotes is properly handled", async () => {
     const route = await taskRouter('write "hello world" to test.txt');
+    // The quoted content form falls through to the legacy natural-file
+    // path and routes to the shell.run tool.
     assert.equal(route.kind, "tool");
     if (route.kind === "tool") {
       const cmd = toolCmd(route);
@@ -89,24 +96,19 @@ describe("natural-language file operation routing", () => {
     assert.notEqual(route.kind, "tool");
   });
 
-  it('"create a file called test.txt with hello" routes to tool', async () => {
+  it('"create a file called test.txt with hello" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("create a file called test.txt with hello");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      const cmd = toolCmd(route);
-      assert.ok(cmd.includes("printf"));
-      assert.ok(cmd.includes("'test.txt'"));
-    }
+    assertMutation(route, "create a file called test.txt with hello");
   });
 
-  it('"make a file named foo.txt with content bar" routes to tool', async () => {
+  it('"make a file named foo.txt with content bar" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("make a file named foo.txt with content bar");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "make a file named foo.txt with content bar");
   });
 
-  it('"create file output.txt with hello world" routes to tool', async () => {
+  it('"create file output.txt with hello world" routes to agent (workspace_mutation)', async () => {
     const route = await taskRouter("create file output.txt with hello world");
-    assert.equal(route.kind, "tool");
+    assertMutation(route, "create file output.txt with hello world");
   });
 
   it('"create a file called readme with notes" rejected (no extension)', async () => {
