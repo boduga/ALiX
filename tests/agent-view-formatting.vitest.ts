@@ -188,6 +188,20 @@ function rowHasStyle(c: TerminalCanvas, y: number, ansiFragment: string): boolea
   return row.some((cell: { ansiPrefix: string }) => cell.ansiPrefix.includes(ansiFragment));
 }
 
+/**
+ * #436 — search the canvas for any row whose rendered text contains
+ * `needle` AND whose cells carry the given ANSI fragment (e.g. '33m'
+ * for yellow approval text). The approval prompt text spans wrap lines
+ * so we cannot pin it to one absolute row.
+ */
+function rowHasStyleContaining(c: TerminalCanvas, needle: string, ansiFragment: string, maxY = 30): boolean {
+  for (let y = 0; y < maxY; y++) {
+    const text = rowText(c, y);
+    if (text.includes(needle) && rowHasStyle(c, y, ansiFragment)) return true;
+  }
+  return false;
+}
+
 /** Collect canvas rows 0..maxY-1 as a single joined string (useful for multi-line assertions). */
 function allText(c: TerminalCanvas, maxY = 30): string {
   return Array.from({ length: maxY }, (_, y) => rowText(c, y)).join('\n');
@@ -559,92 +573,115 @@ describe('AgentView — plan content', () => {
 
 /* ─────────────────────────────────────────────────────────────── */
 /*  APPROVAL REQUESTS                                                */
+/*  #436 — approvals render inline + chronologically under the      */
+/*  stage in which they occurred, driven by timeline `approval.    */
+/*  requested` events. The pending banner that names the tool/target */
+/*  the keys will act on lives on the status row (frame-painter.ts)  */
+/*  and is tested separately.                                       */
 /* ─────────────────────────────────────────────────────────────── */
 
-describe('AgentView — approval cards', () => {
-  it('renders approval card with tool, target and short ID (compact)', () => {
-    // With a COMPACT canvas the scrollback has room for both the card
-    // header and the card entry — header at row 6, entry at row 7.
-    // Find the row containing the tool name (layout-agnostic).
-    const perTab = makePerTab({
-      pendingApprovals: [
-        { id: 'ap_abc123', toolName: 'write_file', target: 'src/main.ts', requestedAt: 1000 },
-      ],
-    });
-    const c = renderOnCanvas(W, COMPACT, perTab);
+/** Build an approval.requested timeline entry at the given startedAt (ms). */
+function approvalTimelineEvent(t: number, prompt: string): TimelineEntry {
+  return {
+    id: `tl-${t}-approval`,
+    kind: 'approval.requested',
+    actor: 'agent',
+    sessionId: 'agent-1',
+    startedAt: t,
+    text: prompt,
+    sourceEvents: { firstSequence: t },
+  };
+}
+
+describe('AgentView — inline approvals (#436)', () => {
+  it('renders an approval.requested event inline under the running stage', () => {
+    // Approval arrives during a stage that already has content (a tool
+    // invocation), so the approval is a continuation line — no gutter
+    // label on the approval itself, but it inherits the stage via the
+    // tool line above.
+    const t = 1000;
+    const timeline: TimelineEntry[] = [
+      { id: 'p', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 100, text: 'Executing', sourceEvents: { firstSequence: 1 } },
+      { id: 'ts', kind: 'tool.started', actor: 'agent', sessionId: 'agent-1', startedAt: t - 50, text: 'write_file', detail: 'guard.ts', sourceEvents: { firstSequence: 2 } },
+      approvalTimelineEvent(t, 'Approve write_file on guard.ts?'),
+    ];
+    const perTab = makePerTab();
+    const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(timeline));
     const all = allText(c, 20);
-    expect(all).toContain('write_file');
-    expect(all).toContain('src/main.ts');
-    expect(all).toContain('bc123');
+    // Inline approval line carries the prompt.
+    expect(all).toContain('⏸');
+    expect(all).toContain('Approve write_file on guard.ts?');
   });
 
-  it('shows plural "requests" for multiple approvals', () => {
-    const perTab = makePerTab({
-      pendingApprovals: [
-        { id: 'ap_001', toolName: 'write', target: 'a.ts', requestedAt: 1000 },
-        { id: 'ap_002', toolName: 'exec', target: 'b.ts', requestedAt: 1001 },
-      ],
-    });
-    const c = renderOnCanvas(W, TALL, perTab);
-    // The approval header is wrapped in a callout box: row 6 = WARNING label,
-    // row 7 = body text.
-    expect(rowText(c, 6)).toContain('WARNING');
-    expect(rowText(c, 7)).toContain('2 approval requests pending');
+  it('approval.requested is the first content of a stage → carries the gutter label', () => {
+    const t = 1000;
+    const timeline: TimelineEntry[] = [
+      { id: 'p', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 100, text: 'Executing', sourceEvents: { firstSequence: 1 } },
+      approvalTimelineEvent(t, 'Approve edit_file'),
+    ];
+    const perTab = makePerTab();
+    const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(timeline));
+    // The approval line is the first content of Executing, so its row
+    // carries the EXECUTING gutter label.
+    const all = allText(c, 20);
+    expect(all).toContain('EXECUTING');
+    expect(all).toContain('Approve edit_file');
   });
 
-  it('renders approval cards with tool, target, and short ID', () => {
-    const perTab = makePerTab({
-      pendingApprovals: [
-        { id: 'ap_deadbeef', toolName: 'write_file', target: 'src/main.ts', requestedAt: 1000 },
-      ],
-    });
-    const c = renderOnCanvas(W, COMPACT, perTab);
-    const all = allText(c, 10);
-    expect(all).toContain('write_file');
-    expect(all).toContain('src/main.ts');
-    expect(all).toContain('beef');
-  });
-
-  it('shows fallback target when target is empty', () => {
-    const perTab = makePerTab({
-      pendingApprovals: [
-        { id: 'ap_001', toolName: 'run', target: '', requestedAt: 1000 },
-      ],
-    });
-    const c = renderOnCanvas(W, TALL, perTab);
-    const all = allText(c, 10);
-    expect(all).toContain('(no target)');
-  });
-
-  it('renders approval in yellow (33m) style', () => {
-    // #432: the `⏸` approval marker is replaced by the universal dim `│`
-    // separator. The yellow styling now lives on the text content (the
-    // WARNING callout and per-approval cards), not on the column marker.
-    const perTab = makePerTab({
-      pendingApprovals: [
-        { id: 'ap_001', toolName: 'write', target: 'x.ts', requestedAt: 1000 },
-      ],
-    });
-    const c = renderOnCanvas(W, COMPACT, perTab);
-    const separator = cellAt(c, GUTTER_WIDTH, 6);
-    expect(separator.char).toBe('│');
-    expect(separator.style).toContain('90m');
-    expect(rowHasStyle(c, 6, '33m')).toBe(true);
-  });
-
-  it('renders multiple approval cards in order', () => {
+  it('does NOT render any approval lines from perTab.pendingApprovals (banner-driven)', () => {
+    // The old inline approval cards rendered from perTab.pendingApprovals.
+    // #436 retired that path: pendingApprovals only drives the banner,
+    // which is painted by frame-painter.ts and is not visible in this
+    // view-only canvas. The scrollback itself shows nothing approval-
+    // related when only perTab data is set.
     const perTab = makePerTab({
       pendingApprovals: [
         { id: 'ap_001', toolName: 'write', target: 'a.ts', requestedAt: 1000 },
         { id: 'ap_002', toolName: 'read', target: 'b.ts', requestedAt: 1001 },
-        { id: 'ap_003', toolName: 'exec', target: 'c.ts', requestedAt: 1002 },
       ],
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 12);
-    expect(all).toContain('a.ts');
-    expect(all).toContain('b.ts');
-    expect(all).toContain('c.ts');
+    expect(all).not.toContain('a.ts');
+    expect(all).not.toContain('b.ts');
+    expect(all).not.toContain('approval request');
+    expect(all).not.toContain('WARNING');
+  });
+
+  it('renders multiple approval.requested events in chronological order', () => {
+    const t = 1000;
+    const timeline: TimelineEntry[] = [
+      { id: 'p1', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 200, text: 'Executing', sourceEvents: { firstSequence: 1 } },
+      approvalTimelineEvent(t - 100, 'first approval'),
+      { id: 'p2', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 50, text: 'Verifying', sourceEvents: { firstSequence: 2 } },
+      approvalTimelineEvent(t, 'second approval'),
+    ];
+    const perTab = makePerTab();
+    const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(timeline));
+    const all = allText(c, 20);
+    const firstIdx = all.indexOf('first approval');
+    const secondIdx = all.indexOf('second approval');
+    expect(firstIdx).toBeGreaterThanOrEqual(0);
+    expect(secondIdx).toBeGreaterThan(firstIdx);
+  });
+
+  it('renders the approval line in yellow (33m) style when yellow styling is used', () => {
+    // The renderApprovalLine path applies yellow (33m) to the text.
+    // Even when the approval line is a continuation (no gutter label),
+    // its text should still be painted yellow.
+    const t = 1000;
+    const timeline: TimelineEntry[] = [
+      { id: 'p', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 100, text: 'Executing', sourceEvents: { firstSequence: 1 } },
+      { id: 'ts', kind: 'tool.started', actor: 'agent', sessionId: 'agent-1', startedAt: t - 50, text: 'write_file', sourceEvents: { firstSequence: 2 } },
+      approvalTimelineEvent(t, 'approve the next edit'),
+    ];
+    const perTab = makePerTab();
+    const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(timeline));
+    // The approval text appears at the column past the gutter+separator.
+    // At least one row in the canvas must have 33m styling on the
+    // approval prompt text. Without the ScrollbackLine.kind = 'approval'
+    // routing in scroll-math, the agent cyan palette would swallow this.
+    expect(rowHasStyleContaining(c, 'approve the next edit', '33m')).toBe(true);
   });
 });
 
@@ -653,9 +690,13 @@ describe('AgentView — approval cards', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — combined rendering order', () => {
-  it('renders plan → agent turns → approval in scrollback order', () => {
-    // Actual order in allLines: plan tasks → plan content → separator
-    // → turns (agent) → approval cards
+  it('renders plan → agent turns in scrollback order (approvals no longer inline from perTab)', () => {
+    // #436 — approvals no longer render inline from perTab.pendingApprovals.
+    // They render inline from TIMELINE events (approval.requested). The
+    // banner that names tool/target is on the status row and is painted
+    // by frame-painter, not this view. This test asserts the
+    // scrollback still orders plan → turns correctly and that NO
+    // approval-render-from-perTab text leaks into the view.
     const perTab = makePerTab({
       planContent: '# Implementation Plan\n\nDo the work.',
       pendingApprovals: [
@@ -666,13 +707,14 @@ describe('AgentView — combined rendering order', () => {
     const all = allText(c, 20);
     const planIdx = all.indexOf('# Implementation Plan');
     const doneIdx = all.indexOf('Done!');
-    const approvalIdx = all.indexOf('approval request');
     expect(planIdx).toBeGreaterThanOrEqual(0);
     expect(doneIdx).toBeGreaterThan(planIdx);
-    expect(approvalIdx).toBeGreaterThan(doneIdx);
+    // Approval-target text from perTab must NOT appear in the view.
+    expect(all).not.toContain('x.ts');
+    expect(all).not.toContain('approval request');
   });
 
-  it('renders user → tasks → content → agent response → approvals in order', () => {
+  it('renders user → tasks → content → agent response in order (approvals via timeline)', () => {
     const tasks: readonly PlanTask[] = [
       { id: 't:1', index: 1, title: 'Setup', status: 'completed' },
     ];
@@ -689,12 +731,39 @@ describe('AgentView — combined rendering order', () => {
     const taskIdx = all.indexOf('PLAN TASKS');
     const planIdx = all.indexOf('## Plan');
     const responseIdx = all.indexOf('ok');
-    const approvalIdx = all.indexOf('approval');
     expect(userIdx).toBeGreaterThanOrEqual(0);
     expect(taskIdx).toBeGreaterThan(userIdx);
     expect(planIdx).toBeGreaterThan(taskIdx);
     expect(responseIdx).toBeGreaterThan(planIdx);
-    expect(approvalIdx).toBeGreaterThan(responseIdx);
+    // The approval target text from perTab does not appear inline; the
+    // banner drives that surface.
+    expect(all).not.toContain('approval request');
+  });
+
+  it('approvals from TIMELINE events render inline under their stage (combined with plan and turns)', () => {
+    // The combined surface: plan tasks, plan content, a user/agent turn,
+    // and an approval.requested event during the Executing stage. All
+    // appear in the scrollback; only the banner (frame-painter) names
+    // tool/target for the keys.
+    const t = 1000;
+    const tasks: readonly PlanTask[] = [
+      { id: 't:1', index: 1, title: 'Setup', status: 'completed' },
+    ];
+    const timeline: TimelineEntry[] = [
+      ...seedTurns(['build it'], ['Done!']),
+      { id: 'p', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t, text: 'Executing', sourceEvents: { firstSequence: 100 } },
+      approvalTimelineEvent(t + 100, 'Approve write_file on x.ts'),
+    ];
+    const perTab = makePerTab({
+      planTasks: tasks,
+      planContent: '## Plan',
+    });
+    const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(timeline));
+    const all = allText(c, 20);
+    expect(all).toContain('PLAN TASKS');
+    expect(all).toContain('## Plan');
+    expect(all).toContain('Done!');
+    expect(all).toContain('Approve write_file on x.ts');
   });
 });
 
@@ -820,7 +889,11 @@ describe('AgentView — edge cases', () => {
     expect(() => renderOnCanvas(W, 10, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['hello'], ['world'])))).not.toThrow();
   });
 
-  it('plan and approvals with no user/agent turns', () => {
+  it('plan and approvals (perTab) with no user/agent turns — approval does not render inline', () => {
+    // #436 — the bottom-callout block is gone; pendingApprovals from
+    // perTab no longer renders inline. The banner surfaces pending
+    // approvals on the status row (frame-painter.ts). The plan
+    // content still renders at the top.
     const perTab = makePerTab({
       planContent: '## Plan',
       pendingApprovals: [
@@ -830,20 +903,42 @@ describe('AgentView — edge cases', () => {
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 14);
     expect(all).toContain('## Plan');
-    expect(all).toContain('approval request');
+    expect(all).not.toContain('approval request');
+    expect(all).not.toContain('x.ts');
   });
 
-  it('approvals-only with no plan or responses', () => {
+  it('approvals-only with no plan or responses — nothing inline, banner is the affordance', () => {
+    // #436 — with no plan or responses and only perTab.pendingApprovals
+    // populated, the view canvas itself shows no approval-render
+    // content. The pending banner that names the tool/target lives on
+    // the status row and is painted by frame-painter.ts (not visible
+    // here). Approvals from the timeline (approval.requested events)
+    // are the only inline surface.
     const perTab = makePerTab({
       pendingApprovals: [
         { id: 'ap_001', toolName: 'write', target: 'x.ts', requestedAt: 1000 },
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    // Layout-agnostic: find the card entry in the rendered output.
     const all = allText(c, 20);
-    expect(all).toContain('write');
-    expect(all).toContain('x.ts');
+    expect(all).not.toContain('write');
+    expect(all).not.toContain('x.ts');
+    expect(all).not.toContain('approval request');
+  });
+
+  it('approvals-only via timeline events — first approval carries the gutter label', () => {
+    // With approval.requested as the only content and no prior content
+    // for the stage, the approval is the first content of its stage
+    // and gets the gutter label.
+    const t = 1000;
+    const timeline: TimelineEntry[] = [
+      { id: 'p', kind: 'agent.session.phase_changed', actor: 'agent', sessionId: 'agent-1', startedAt: t - 100, text: 'Executing', sourceEvents: { firstSequence: 1 } },
+      approvalTimelineEvent(t, 'Approve write_file on x.ts'),
+    ];
+    const c = renderOnCanvas(W, TALL, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(timeline));
+    const all = allText(c, 20);
+    expect(all).toContain('EXECUTING');
+    expect(all).toContain('Approve write_file on x.ts');
   });
 });
 
