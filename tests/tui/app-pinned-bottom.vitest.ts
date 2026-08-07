@@ -507,3 +507,58 @@ describe('TuiApp pinnedBottom transitions', () => {
     expect(per.scrollOffset).toBe(expected);
   });
 });
+
+// ─── AC#7 (ticket #436): approve/deny keys keep working from any scroll ─────
+// The inline a/d resolver (app.ts) is not gated on scroll position — it shifts
+// the oldest pending approval and unshifts a resolved record regardless of
+// whether the scrollback is pinned to bottom. This proves the keys act from a
+// scrolled-up position too (the #436 diff shipped without this test).
+describe('TuiApp approve/deny from scrolled-up position (AC#7)', () => {
+  let app: TuiApp;
+  let internal: any;
+
+  beforeEach(async () => {
+    const m = await makeApp();
+    app = m.app;
+    internal = m.internal;
+    internal.setActiveTabForTest('agent');
+  });
+  afterEach(async () => { await app.stop().catch(() => {}); });
+
+  const seedPending = () => {
+    const per = internal.getStateForTest().views.agent;
+    per.pendingApprovals = [{
+      id: 'a1',
+      toolName: 'write_file',
+      target: 'src/x.ts',
+      args: {},
+      requestedAt: Date.now(),
+      requestedBy: 'test',
+    }];
+  };
+
+  it('approve (a) resolves the oldest pending approval from a scrolled-up position', () => {
+    seedPending();
+    internal.handleRaw(ARROW_UP); // scrolled away from bottom anchor
+    const per = internal.getStateForTest().views.agent;
+    expect(per.pinnedBottom).toBe(false);
+    expect(per.pendingApprovals).toHaveLength(1);
+
+    internal.handleRaw(Buffer.from('a'));
+
+    expect(per.pendingApprovals).toHaveLength(0);
+    expect(per.resolvedApprovals[0]).toMatchObject({ id: 'a1', status: 'approved' });
+  });
+
+  it('deny (d) resolves the oldest pending approval from a scrolled-up position', () => {
+    seedPending();
+    internal.handleRaw(ARROW_UP);
+    const per = internal.getStateForTest().views.agent;
+    expect(per.pinnedBottom).toBe(false);
+
+    internal.handleRaw(Buffer.from('d'));
+
+    expect(per.pendingApprovals).toHaveLength(0);
+    expect(per.resolvedApprovals[0]).toMatchObject({ id: 'a1', status: 'denied' });
+  });
+});

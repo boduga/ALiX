@@ -3,6 +3,7 @@ import { renderResponse } from '../blocks/render.js';
 import { getTheme } from '../blocks/theme.js';
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
+import type { TimelineEntry } from '../runtime/timeline-builder.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
  *  and scroll-math all compute panelRow/scrollbackTop/textWidth
@@ -76,6 +77,52 @@ export function computeViewport(
     textWidth: Math.max(0, dims.columns - sideMargin - gutter),
     promptCol: kind === 'agent' ? 13 : 7,
   };
+}
+
+/**
+ * Trim a live-streamed line down to its still-in-flight suffix by stripping
+ * any prose that has already landed as a permanent `agent.message` entry in
+ * the projected timeline.
+ *
+ * During a multi-iteration turn, task-loop emits one `agent.message` per
+ * iteration as each completes, while the TUI's `streamingText` accumulates
+ * every streamed token until the turn folds (app.ts dispatchToSession
+ * finally). Without trimming, the live line re-shows iterations that have
+ * already landed beside their permanent entries — the in-flight overlap.
+ *
+ * Only current-turn agent-prose messages (after the last user prompt) are
+ * candidates. Text is stripped as a prefix, so the remainder is exactly the
+ * current iteration's still-streaming tokens. Pure and re-derived every call
+ * from the timeline — no tracking state, safe to run on every sample.
+ */
+export function trimStreamedTextToLanded(
+  timeline: readonly TimelineEntry[],
+  streamingText: string | undefined,
+): string | undefined {
+  if (!streamingText || streamingText.length === 0) return streamingText;
+  // The current turn starts at the last user-prompt `agent.message`. Prose
+  // before it belongs to past turns and is already fully rendered. Scanned
+  // backwards so both passes here are O(current turn), not O(full session) —
+  // this runs on the 1s refresh cadence.
+  let startIdx = 0;
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    const e = timeline[i]!;
+    if (e.kind === 'agent.message' && e.actor === 'user') { startIdx = i + 1; break; }
+  }
+  let rest = streamingText;
+  for (let i = startIdx; i < timeline.length; i++) {
+    const e = timeline[i]!;
+    if (
+      e.kind === 'agent.message' &&
+      e.actor === 'agent' &&
+      typeof e.text === 'string' &&
+      e.text.length > 0 &&
+      rest.startsWith(e.text)
+    ) {
+      rest = rest.slice(e.text.length);
+    }
+  }
+  return rest.length > 0 ? rest : undefined;
 }
 
 /**
