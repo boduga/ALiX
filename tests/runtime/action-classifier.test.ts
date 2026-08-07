@@ -1160,6 +1160,35 @@ describe("modelClassifyAction — JSON contract + robust parse (T23 #401)", () =
     assert.match(requests[0]!.systemPrompt, /"intent"/);
   });
 
+  it("system prompt includes 1–2 minimal few-shot examples (Option C, #411)", async () => {
+    const { adapter, requests } = recordingProvider("ambiguous");
+    await modelClassifyAction("write a test", adapter);
+    const prompt = requests[0]!.systemPrompt;
+
+    // The examples must target decision-boundary cases, not obvious ones:
+    // a workspace_action vs read_only_analysis probe, and a generation vs
+    // ambiguous request.
+    const examples = [
+      { input: "is curl installed on this machine", intent: "workspace_action" },
+      { input: "write a haiku about the moon", intent: "generation" },
+    ];
+
+    for (const ex of examples) {
+      assert.ok(
+        prompt.includes(`User: ${JSON.stringify(ex.input)}`),
+        `prompt must show the '${ex.intent}' example input`,
+      );
+      assert.ok(
+        prompt.includes(`{"intent": "${ex.intent}"`),
+        `prompt must show the '${ex.intent}' example output`,
+      );
+    }
+
+    // Scoped to Option C: exactly 2 examples, no more (avoid prompt bloat).
+    const exampleCount = (prompt.match(/User: "/g) ?? []).length;
+    assert.ok(exampleCount >= 1 && exampleCount <= 2, `expected 1–2 examples, got ${exampleCount}`);
+  });
+
   it("still returns ambiguous on provider error (must never block routing)", async () => {
     const adapter: ModelAdapter = {
       id: "mock-error",

@@ -883,6 +883,12 @@ export async function modelClassifyAction(
         "one of these labels:\n\n" +
         MODEL_VALID_INTENTS.join("\n") +
         "\n\n" +
+        "Few-shot examples (boundary cases):\n" +
+        'User: "is curl installed on this machine"\n' +
+        'Assistant: {"intent": "workspace_action", "confidence": 0.9}\n' +
+        'User: "write a haiku about the moon"\n' +
+        'Assistant: {"intent": "generation", "confidence": 0.95}\n' +
+        "\n" +
         'Reply with ONLY a JSON object: {"intent": "<label>", "confidence": <0-1>}. ' +
         "No explanation. No markdown. No prose.",
       messages: [{ role: "user", content: input }],
