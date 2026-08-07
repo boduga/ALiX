@@ -108,20 +108,24 @@ export class AgentView implements TuiView {
   }
 
   private renderPlanLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
-    // Marker at gutter, text at gutter + 2 (mirrors pre-#431 col 0/2 layout).
+    // #432 — gutter label at column 0 (when set), dim `│` separator at
+    // column `gutter`, dim text at column `gutter + 2`. The gutter +
+    // separator only paint on the first line of a group; continuation lines
+    // stay blank so the existing test contracts ("blank separator rows are
+    // truly empty", "exactly one marker per response") still hold.
     const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(gutter, rowY, `\x1b[2m◆ ${RESET}`);
-      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
-    } else if (l.text) {
-      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
     }
+    if (l.text) c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
   }
 
   private renderApprovalLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
     const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(gutter, rowY, `\x1b[33m⏸ ${RESET}`);
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
       c.write(textCol, rowY, `\x1b[33m${l.text}${RESET}`);
     } else {
       c.write(textCol, rowY, `\x1b[33m${l.text}${RESET}`);
@@ -131,30 +135,46 @@ export class AgentView implements TuiView {
   private renderToolCallLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
     const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(gutter, rowY, `\x1b[2m→ ${RESET}`);
-      c.write(textCol, rowY, `\x1b[2m${l.text.slice(2)}${RESET}`);
-    } else {
-      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
     }
+    // Tool call text already includes its own `→ ` prefix (produced by
+    // scroll-math.ts when rendering the toolCalls block). Render the full
+    // text at `gutter + 2` — no marker slicing; the line builder owns the
+    // prefix. Pre-#432 this method sliced off the first 2 chars because the
+    // old marker was the same `→ `; the new universal `│` separator makes
+    // the slicing unnecessary.
+    c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
   }
 
   private renderTurnLine(kind: 'user' | 'agent', l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
     const textCol = gutter + 2;
     if (l.isFirst) {
-      const marker = kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
-      c.write(gutter, rowY, marker);
-      c.write(textCol, rowY, l.text);
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
+      if (kind === 'user') {
+        c.write(textCol, rowY, l.text);
+      } else {
+        c.write(textCol, rowY, `\x1b[36m${l.text}${RESET}`);
+      }
     } else {
-      c.write(textCol, rowY, l.text);
+      if (kind === 'user') {
+        c.write(textCol, rowY, l.text);
+      } else {
+        c.write(textCol, rowY, `\x1b[36m${l.text}${RESET}`);
+      }
     }
   }
 
-  /** Live-streaming assistant line: same `← ` marker as a completed agent
-   *  turn, plus a dim trailing cursor on the last row so the operator can
-   *  tell "growing live" from "frozen partial". */
+  /** Live-streaming assistant line: dim trailing cursor on the last row so
+   *  the operator can tell "growing live" from "frozen partial". The gutter
+   *  + separator carry the current stage attribution. */
   private renderStreamingLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
     const textCol = gutter + 2;
-    if (l.isFirst) c.write(gutter, rowY, `\x1b[36m← ${RESET}`);
+    if (l.isFirst) {
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
+    }
     if (l.isLast) {
       c.write(textCol, rowY, `${l.text}\x1b[90m▍${RESET}`);
     } else {

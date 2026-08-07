@@ -126,14 +126,19 @@ describe('AgentView bottom-anchored render', () => {
     expect(firstAfter.text).toBe(firstBefore.text);
   });
 
-  it('renders the live streaming line with the agent marker and a trailing cursor', () => {
+  it('renders the live streaming line with the gutter separator and a trailing cursor', () => {
+    // #432: the previous `← ` agent marker is replaced by the universal
+    // `│` gutter separator. The streaming line carries it the same way
+    // every other agent scrollback line does — the visual identity of
+    // a streaming line is now the trailing liveness cursor, not a kind
+    // marker.
     const c = ctx({ streamingText: 'tok one' });
     view.render(c);
     const writes = (c.canvas as unknown as MockCanvas).writes;
     const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
-    // The streamed text is written (marker at col 0, text at col 2).
+    // The streamed text is written (gutter at col 0, separator at col 15, text at col 17).
     expect(scrollbackWrites.some((w) => w.text.includes('tok one'))).toBe(true);
-    expect(scrollbackWrites.some((w) => w.text.includes('←'))).toBe(true);
+    expect(scrollbackWrites.some((w) => w.text.includes('│'))).toBe(true);
     // Trailing liveness cursor on the last streaming row.
     expect(scrollbackWrites.some((w) => w.text.includes('▍'))).toBe(true);
   });

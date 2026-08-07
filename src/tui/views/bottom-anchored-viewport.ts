@@ -10,6 +10,15 @@ export interface ScrollbackLine {
    * use it to draw a trailing liveness cursor on the final row.
    */
   isLast?: boolean;
+  /**
+   * Stage label to paint in the agent scrollback's reserved 15-char
+   * left gutter (#432 stage-decorated scrollback). Set on the FIRST wrap
+   * line of each stage's first content event; continuation lines of the
+   * same stage leave it undefined so the view paints a blank gutter.
+   * Undefined for non-stage rows (pre-stage turns, blank separators).
+   * Padded to GUTTER_WIDTH by the line builder.
+   */
+  gutter?: string;
 }
 
 export type KindStyleMap = Record<string, (line: ScrollbackLine, rowY: number, canvas: TerminalCanvas) => void>;

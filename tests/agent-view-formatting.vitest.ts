@@ -2,15 +2,21 @@
  * AgentView response formatting — covers every render kind and combination.
  *
  * Kinds tested:
- *   user    → dim gray '→ ' marker, text in column 2
- *   agent   → cyan '← ' marker, text in column 2
- *   plan    → dim '◆ ' marker (first line), dim text; blank separator skipped
- *   approval → yellow '⏸ ' header + yellow cards
+ *   user    → dim gray '│ ' separator at column gutter, text at gutter+2
+ *   agent   → cyan '│ ' separator at column gutter, cyan text at gutter+2
+ *   plan    → dim '│ ' separator at column gutter, dim text; first line may carry a stage gutter
+ *   approval → yellow '│ ' separator at column gutter, yellow cards
  *   runtime status → gray "events: N | step M/N" on row 5
  *   prompt row → yellow "alix-agent>" on row 4
  *   scroll offset → ArrowUp/ArrowDown scroll the scrollback
  *   text wrapping → long lines word-wrap within textWidth
  *   task cap → plan capped at 20 tasks
+ *
+ * #432: the previous kind-specific markers (→ user, ← agent, ◆ plan,
+ * ⏸ approval) are replaced by a universal dim `│ ` separator at column
+ * GUTTER_WIDTH so the 15-char reserved gutter has a consistent right edge.
+ * Stage attribution, when present, paints the stage label into the gutter
+ * at column 0 and the `│` separator at GUTTER_WIDTH stays put.
  *
  * Canvas sizing (agent tab, SCROLLBACK_TOP_AGENT=6):
  *   80×24  → topBorderRow=20, panelRow=21, scrollbackBottom=19, 14 scrollback rows (6–19)
@@ -222,28 +228,32 @@ describe('AgentView — empty state', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — agent turns', () => {
-  it('renders the operator prompt as a dim gray user marker (→)', () => {
-    // The operator's typed prompt lands agent.message with actor 'user' — it
-    // must render as a USER turn (→), not as agent-authored (←).
+  it('renders the operator prompt with the gutter separator (│)', () => {
+    // The operator's typed prompt lands as agent.message with actor 'user' —
+    // it must render with the universal dim `│` separator at column gutter,
+    // #432 replaced the kind-specific `→` marker with this column anchor.
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['what is the meaning of life?'], [])));
     expect(rowText(c, 6)).toContain('what is the meaning of life?');
-    const marker = cellAt(c, GUTTER_WIDTH,6);
-    expect(marker.char).toBe('→');
-    expect(marker.style).toContain('90m');
+    const separator = cellAt(c, GUTTER_WIDTH, 6);
+    expect(separator.char).toBe('│');
+    expect(separator.style).toContain('90m');
   });
 
-  it('renders the task-loop agent.message narration (actor agent) as an agent turn (←)', () => {
+  it('renders the task-loop agent.message narration (actor agent) with the gutter separator (│)', () => {
     // The task-loop emits its own running narration as agent.message with
     // actor 'agent' — distinct from the operator's prompt (actor 'user').
+    // Both render with the universal `│` separator; the agent response's
+    // text itself carries the cyan styling.
     const narration: TimelineEntry[] = [{
       id: 'tl-1', kind: 'agent.message', actor: 'agent', sessionId: 'agent-1',
       startedAt: 1, text: 'working through the steps', sourceEvents: { firstSequence: 1 },
     }];
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(narration));
     expect(rowText(c, 6)).toContain('working through the steps');
-    const marker = cellAt(c, GUTTER_WIDTH,6);
-    expect(marker.char).toBe('←');
-    expect(marker.style).toContain('36m');
+    const separator = cellAt(c, GUTTER_WIDTH, 6);
+    expect(separator.char).toBe('│');
+    // Separator is dim; the agent text itself is cyan.
+    expect(rowHasStyle(c, 6, '36m')).toBe(true);
   });
 
   it('wraps long operator prompts onto continuation lines', () => {
@@ -251,10 +261,10 @@ describe('AgentView — agent turns', () => {
     const c = renderOnCanvas(40, TALL, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([long], [])));
     const line1 = rowText(c, 6);
     expect(line1.length).toBeLessThanOrEqual(40);
-    // Continuation line exists and has no marker
+    // Continuation line exists and has a blank gutter (no separator)
     const line2 = rowText(c, 7);
     expect(line2.length).toBeGreaterThan(0);
-    expect(cellAt(c, GUTTER_WIDTH,7).char).toBe(' '); // indented, no arrow
+    expect(cellAt(c, GUTTER_WIDTH, 7).char).toBe(' '); // blank gutter on continuation
   });
 
   it('renders multiple operator prompts in order (top to bottom)', () => {
@@ -275,12 +285,11 @@ describe('AgentView — agent turns', () => {
     const all = allText(c, 12);
     expect(all).toContain('summarize the run');
     expect(all).toContain('The run completed: 3 steps.');
-    // Direction by actor: the prompt (agent.message, actor user) renders as the
-    // operator's turn (→), the summary (agent.response, actor agent) as ←.
-    expect(cellAt(c, GUTTER_WIDTH,6).char).toBe('→');
-    expect(cellAt(c, GUTTER_WIDTH,6).style).toContain('90m');
-    expect(cellAt(c, GUTTER_WIDTH,8).char).toBe('←');
-    expect(cellAt(c, GUTTER_WIDTH,8).style).toContain('36m');
+    // Both rows use the universal `│` separator; the summary row's text is
+    // cyan, the prompt row's text is plain (default style).
+    expect(cellAt(c, GUTTER_WIDTH, 6).char).toBe('│');
+    expect(cellAt(c, GUTTER_WIDTH, 8).char).toBe('│');
+    expect(rowHasStyle(c, 8, '36m')).toBe(true); // agent text is cyan
   });
 });
 
@@ -289,12 +298,15 @@ describe('AgentView — agent turns', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — agent responses', () => {
-  it('renders a single agent response with cyan arrow marker', () => {
+  it('renders a single agent response with the universal gutter separator', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([], ['Here is my answer.'])));
     expect(rowText(c, 6)).toContain('Here is my answer.');
-    const marker = cellAt(c, GUTTER_WIDTH,6);
-    expect(marker.char).toBe('←');
-    expect(marker.style).toContain('36m');
+    // #432: `← ` is gone — replaced by the dim `│` gutter separator. The
+    // cyan styling now belongs to the agent text itself, not the marker.
+    const separator = cellAt(c, GUTTER_WIDTH, 6);
+    expect(separator.char).toBe('│');
+    expect(separator.style).toContain('90m');
+    expect(rowHasStyle(c, 6, '36m')).toBe(true);
   });
 
   it('wraps long agent responses onto continuation lines', () => {
@@ -304,7 +316,8 @@ describe('AgentView — agent responses', () => {
     expect(line1.length).toBeLessThanOrEqual(30);
     const line2 = rowText(c, 7);
     expect(line2.length).toBeGreaterThan(0);
-    expect(cellAt(c, GUTTER_WIDTH,7).char).toBe(' '); // no marker on continuation
+    // Continuation line: blank gutter column (no separator).
+    expect(cellAt(c, GUTTER_WIDTH, 7).char).toBe(' ');
   });
 });
 
@@ -325,16 +338,16 @@ describe('AgentView — multi-turn scrollback', () => {
     //   row 12 = a2
     const rows = [6, 7, 8, 9, 10, 11, 12].map((y) => rowText(c, y));
     expect(rows[0]).toContain('q1');
-    expect(cellAt(c, GUTTER_WIDTH,6).char).toBe('→'); // operator prompt
+    expect(cellAt(c, GUTTER_WIDTH, 6).char).toBe('│'); // universal separator
     expect(rows[1]).toBe('');
     expect(rows[2]).toContain('a1');
-    expect(cellAt(c, GUTTER_WIDTH,8).char).toBe('←'); // agent summary
+    expect(cellAt(c, GUTTER_WIDTH, 8).char).toBe('│');
     expect(rows[3]).toBe('');
     expect(rows[4]).toContain('q2');
-    expect(cellAt(c, GUTTER_WIDTH,10).char).toBe('→'); // operator prompt
+    expect(cellAt(c, GUTTER_WIDTH, 10).char).toBe('│');
     expect(rows[5]).toBe('');
     expect(rows[6]).toContain('a2');
-    expect(cellAt(c, GUTTER_WIDTH,12).char).toBe('←'); // agent summary
+    expect(cellAt(c, GUTTER_WIDTH, 12).char).toBe('│');
   });
 
   it('handles unequal numbers of turns', () => {
@@ -503,14 +516,17 @@ describe('AgentView — plan tasks', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — plan content', () => {
-  it('renders plan markdown content with diamond marker on first line', () => {
+  it('renders plan markdown content with the universal gutter separator on first line', () => {
+    // #432: the `◆ ` diamond marker is replaced by the dim `│` separator;
+    // the plan-task prefix (`[ ]`, `[x]`, etc.) is now embedded in the
+    // text content itself. Plan rows are not stage-attributed, so the
+    // gutter stays blank and the separator sits at column GUTTER_WIDTH.
     const perTab = makePerTab({ planContent: '# My Plan\n\nStep 1: do the thing' });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 12);
     expect(all).toContain('# My Plan');
     expect(all).toContain('Step 1: do the thing');
-    // Diamond marker on first plan line
-    expect(cellAt(c, GUTTER_WIDTH,6).char).toBe('◆');
+    expect(cellAt(c, GUTTER_WIDTH, 6).char).toBe('│');
   });
 
   it('renders plan in dim (2m) style', () => {
@@ -601,14 +617,19 @@ describe('AgentView — approval cards', () => {
   });
 
   it('renders approval in yellow (33m) style', () => {
+    // #432: the `⏸` approval marker is replaced by the universal dim `│`
+    // separator. The yellow styling now lives on the text content (the
+    // WARNING callout and per-approval cards), not on the column marker.
     const perTab = makePerTab({
       pendingApprovals: [
         { id: 'ap_001', toolName: 'write', target: 'x.ts', requestedAt: 1000 },
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    expect(cellAt(c, GUTTER_WIDTH,6).char).toBe('⏸');
-    expect(cellAt(c, GUTTER_WIDTH,6).style).toContain('33m');
+    const separator = cellAt(c, GUTTER_WIDTH, 6);
+    expect(separator.char).toBe('│');
+    expect(separator.style).toContain('90m');
+    expect(rowHasStyle(c, 6, '33m')).toBe(true);
   });
 
   it('renders multiple approval cards in order', () => {
@@ -837,22 +858,24 @@ describe('AgentView — list rendering', () => {
     expect(() => renderOnCanvas(40, TALL, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([], ['- ' + 'a '.repeat(80)])))).not.toThrow();
   });
 
-  it('renders exactly one turn marker per response, regardless of block count', () => {
+  it('renders exactly one separator per agent response, regardless of block count', () => {
     // Regression test: a response with text + code + list should show
-    // exactly one ← marker (at the very first line of the response),
-    // not one per block. Earlier versions set isFirst: true for the
-    // first line of every block, which produced duplicate markers.
+    // exactly one `│` separator at the gutter column (at the very first
+    // line of the response), not one per block. Earlier versions set
+    // isFirst: true for the first line of every block, which produced
+    // duplicate markers. #432 keeps that contract — only the first
+    // wrap-line of the response owns the gutter separator.
     const c = renderOnCanvas(80, 40, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([], [
       'Here is some prose.\n\n```python\nx = 1\n```\n\n- item 1\n- item 2',
     ])));
-    let markerCount = 0;
-    // Scan all rows for the cyan ← marker (agent response)
+    let separatorCount = 0;
+    // Scan all rows for the dim `│` separator at the gutter column.
     for (let y = 0; y < 40; y++) {
-      const char = cellAt(c, GUTTER_WIDTH,y).char;
-      const style = cellAt(c, GUTTER_WIDTH,y).style;
-      if (char === '←' && style.includes('36m')) markerCount++;
+      const char = cellAt(c, GUTTER_WIDTH, y).char;
+      const style = cellAt(c, GUTTER_WIDTH, y).style;
+      if (char === '│' && style.includes('90m')) separatorCount++;
     }
-    expect(markerCount).toBe(1);
+    expect(separatorCount).toBe(1);
   });
 });
 

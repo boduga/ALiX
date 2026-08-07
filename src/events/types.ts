@@ -157,8 +157,18 @@ export const AGENT_EVENT_TYPES = {
 /** Timeline projection payload (Phase 6 D7/D8): narrative entries carry
  *  optional display `text` and a longer `detail`. The typed home for the
  *  `payload` of the chat.* / agent.* timeline kinds so consumers read a
- *  named shape instead of an untyped record. */
-export type TimelinePayload = { text?: string; detail?: string };
+ *  named shape instead of an untyped record.
+ *  Stage-attribution fields:
+ *    - `phase` carries the phase name on `agent.session.phase_changed`
+ *      events (TimelineBuilder extracts it into `text` for the line builder).
+ *    - `turn` carries the turn number on `agent.session.turn.completed`
+ *      events (TimelineBuilder extracts it as `text: \`turn ${n}\``). */
+export type TimelinePayload = {
+  text?: string;
+  detail?: string;
+  phase?: string;
+  turn?: number;
+};
 
 export const MCP_EVENT_TYPES = {
   TOOL_INVOKED: "mcp.tool_invoked",
