@@ -226,7 +226,7 @@ describe('AgentView — agent turns', () => {
     // must render as a USER turn (→), not as agent-authored (←).
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['what is the meaning of life?'], [])));
     expect(rowText(c, 6)).toContain('what is the meaning of life?');
-    const marker = cellAt(c, 0, 6);
+    const marker = cellAt(c, 15,6);
     expect(marker.char).toBe('→');
     expect(marker.style).toContain('90m');
   });
@@ -240,7 +240,7 @@ describe('AgentView — agent turns', () => {
     }];
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(narration));
     expect(rowText(c, 6)).toContain('working through the steps');
-    const marker = cellAt(c, 0, 6);
+    const marker = cellAt(c, 15,6);
     expect(marker.char).toBe('←');
     expect(marker.style).toContain('36m');
   });
@@ -253,7 +253,7 @@ describe('AgentView — agent turns', () => {
     // Continuation line exists and has no marker
     const line2 = rowText(c, 7);
     expect(line2.length).toBeGreaterThan(0);
-    expect(cellAt(c, 0, 7).char).toBe(' '); // indented, no arrow
+    expect(cellAt(c, 15,7).char).toBe(' '); // indented, no arrow
   });
 
   it('renders multiple operator prompts in order (top to bottom)', () => {
@@ -276,10 +276,10 @@ describe('AgentView — agent turns', () => {
     expect(all).toContain('The run completed: 3 steps.');
     // Direction by actor: the prompt (agent.message, actor user) renders as the
     // operator's turn (→), the summary (agent.response, actor agent) as ←.
-    expect(cellAt(c, 0, 6).char).toBe('→');
-    expect(cellAt(c, 0, 6).style).toContain('90m');
-    expect(cellAt(c, 0, 8).char).toBe('←');
-    expect(cellAt(c, 0, 8).style).toContain('36m');
+    expect(cellAt(c, 15,6).char).toBe('→');
+    expect(cellAt(c, 15,6).style).toContain('90m');
+    expect(cellAt(c, 15,8).char).toBe('←');
+    expect(cellAt(c, 15,8).style).toContain('36m');
   });
 });
 
@@ -291,7 +291,7 @@ describe('AgentView — agent responses', () => {
   it('renders a single agent response with cyan arrow marker', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([], ['Here is my answer.'])));
     expect(rowText(c, 6)).toContain('Here is my answer.');
-    const marker = cellAt(c, 0, 6);
+    const marker = cellAt(c, 15,6);
     expect(marker.char).toBe('←');
     expect(marker.style).toContain('36m');
   });
@@ -303,7 +303,7 @@ describe('AgentView — agent responses', () => {
     expect(line1.length).toBeLessThanOrEqual(30);
     const line2 = rowText(c, 7);
     expect(line2.length).toBeGreaterThan(0);
-    expect(cellAt(c, 0, 7).char).toBe(' '); // no marker on continuation
+    expect(cellAt(c, 15,7).char).toBe(' '); // no marker on continuation
   });
 });
 
@@ -324,16 +324,16 @@ describe('AgentView — multi-turn scrollback', () => {
     //   row 12 = a2
     const rows = [6, 7, 8, 9, 10, 11, 12].map((y) => rowText(c, y));
     expect(rows[0]).toContain('q1');
-    expect(cellAt(c, 0, 6).char).toBe('→'); // operator prompt
+    expect(cellAt(c, 15,6).char).toBe('→'); // operator prompt
     expect(rows[1]).toBe('');
     expect(rows[2]).toContain('a1');
-    expect(cellAt(c, 0, 8).char).toBe('←'); // agent summary
+    expect(cellAt(c, 15,8).char).toBe('←'); // agent summary
     expect(rows[3]).toBe('');
     expect(rows[4]).toContain('q2');
-    expect(cellAt(c, 0, 10).char).toBe('→'); // operator prompt
+    expect(cellAt(c, 15,10).char).toBe('→'); // operator prompt
     expect(rows[5]).toBe('');
     expect(rows[6]).toContain('a2');
-    expect(cellAt(c, 0, 12).char).toBe('←'); // agent summary
+    expect(cellAt(c, 15,12).char).toBe('←'); // agent summary
   });
 
   it('handles unequal numbers of turns', () => {
@@ -509,7 +509,7 @@ describe('AgentView — plan content', () => {
     expect(all).toContain('# My Plan');
     expect(all).toContain('Step 1: do the thing');
     // Diamond marker on first plan line
-    expect(cellAt(c, 0, 6).char).toBe('◆');
+    expect(cellAt(c, 15,6).char).toBe('◆');
   });
 
   it('renders plan in dim (2m) style', () => {
@@ -606,8 +606,8 @@ describe('AgentView — approval cards', () => {
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    expect(cellAt(c, 0, 6).char).toBe('⏸');
-    expect(cellAt(c, 0, 6).style).toContain('33m');
+    expect(cellAt(c, 15,6).char).toBe('⏸');
+    expect(cellAt(c, 15,6).style).toContain('33m');
   });
 
   it('renders multiple approval cards in order', () => {
@@ -847,8 +847,8 @@ describe('AgentView — list rendering', () => {
     let markerCount = 0;
     // Scan all rows for the cyan ← marker (agent response)
     for (let y = 0; y < 40; y++) {
-      const char = cellAt(c, 0, y).char;
-      const style = cellAt(c, 0, y).style;
+      const char = cellAt(c, 15,y).char;
+      const style = cellAt(c, 15,y).style;
       if (char === '←' && style.includes('36m')) markerCount++;
     }
     expect(markerCount).toBe(1);

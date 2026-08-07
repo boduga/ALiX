@@ -2,7 +2,7 @@ import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
 import { renderSlashOverlay } from './slash-overlay.js';
-import { buildAgentScrollbackLines, computeViewport } from './scroll-math.js';
+import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 
@@ -37,6 +37,10 @@ export class AgentView implements TuiView {
     const c = ctx.canvas!;
     const vp = computeViewport(ctx.dimensions, 'agent');
     const STATUS_ROW = 4;              // status line + intent badge row
+    // Stage-gutter left column: blank under slice #2; stage labels in slice #3.
+    // Marker sits at column `gutter`, content text starts at `gutter + 2`. The
+    // status row and prompt row are NOT scrollback and stay at column 0.
+    const gutter = GUTTER_WIDTH;
 
     // Status line + intent badge — pinned at row 4, always visible.
     const r = ctx.snap.runtime;
@@ -62,12 +66,12 @@ export class AgentView implements TuiView {
       : ctx.perTab.scrollOffset;
 
     const kindStyles: KindStyleMap = {
-      plan:     (l, rowY) => this.renderPlanLine(l, rowY, c),
-      approval: (l, rowY) => this.renderApprovalLine(l, rowY, c),
-      toolCall: (l, rowY) => this.renderToolCallLine(l, rowY, c),
-      user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c),
-      agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c),
-      streaming: (l, rowY) => this.renderStreamingLine(l, rowY, c),
+      plan:     (l, rowY) => this.renderPlanLine(l, rowY, c, gutter),
+      approval: (l, rowY) => this.renderApprovalLine(l, rowY, c, gutter),
+      toolCall: (l, rowY) => this.renderToolCallLine(l, rowY, c, gutter),
+      user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c, gutter),
+      agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),
+      streaming: (l, rowY) => this.renderStreamingLine(l, rowY, c, gutter),
     };
 
     renderBottomAnchoredSlice({
@@ -103,53 +107,58 @@ export class AgentView implements TuiView {
     return { rows: [] };
   }
 
-  private renderPlanLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
-    // Verbatim from agent-view.ts:209-215 (the `kind === 'plan'` branch).
+  private renderPlanLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    // Marker at gutter, text at gutter + 2 (mirrors pre-#431 col 0/2 layout).
+    const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(0, rowY, `\x1b[2m◆ ${RESET}`);
-      c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
+      c.write(gutter, rowY, `\x1b[2m◆ ${RESET}`);
+      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
     } else if (l.text) {
-      c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
+      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
     }
   }
 
-  private renderApprovalLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
+  private renderApprovalLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(0, rowY, `\x1b[33m⏸ ${RESET}`);
-      c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
+      c.write(gutter, rowY, `\x1b[33m⏸ ${RESET}`);
+      c.write(textCol, rowY, `\x1b[33m${l.text}${RESET}`);
     } else {
-      c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
+      c.write(textCol, rowY, `\x1b[33m${l.text}${RESET}`);
     }
   }
 
-  private renderToolCallLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
+  private renderToolCallLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    const textCol = gutter + 2;
     if (l.isFirst) {
-      c.write(0, rowY, `\x1b[2m→ ${RESET}`);
-      c.write(2, rowY, `\x1b[2m${l.text.slice(2)}${RESET}`);
+      c.write(gutter, rowY, `\x1b[2m→ ${RESET}`);
+      c.write(textCol, rowY, `\x1b[2m${l.text.slice(2)}${RESET}`);
     } else {
-      c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
+      c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
     }
   }
 
-  private renderTurnLine(kind: 'user' | 'agent', l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
+  private renderTurnLine(kind: 'user' | 'agent', l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    const textCol = gutter + 2;
     if (l.isFirst) {
       const marker = kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
-      c.write(0, rowY, marker);
-      c.write(2, rowY, l.text);
+      c.write(gutter, rowY, marker);
+      c.write(textCol, rowY, l.text);
     } else {
-      c.write(2, rowY, l.text);
+      c.write(textCol, rowY, l.text);
     }
   }
 
   /** Live-streaming assistant line: same `← ` marker as a completed agent
    *  turn, plus a dim trailing cursor on the last row so the operator can
    *  tell "growing live" from "frozen partial". */
-  private renderStreamingLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
-    if (l.isFirst) c.write(0, rowY, `\x1b[36m← ${RESET}`);
+  private renderStreamingLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    const textCol = gutter + 2;
+    if (l.isFirst) c.write(gutter, rowY, `\x1b[36m← ${RESET}`);
     if (l.isLast) {
-      c.write(2, rowY, `${l.text}\x1b[90m▍${RESET}`);
+      c.write(textCol, rowY, `${l.text}\x1b[90m▍${RESET}`);
     } else {
-      c.write(2, rowY, l.text);
+      c.write(textCol, rowY, l.text);
     }
   }
 

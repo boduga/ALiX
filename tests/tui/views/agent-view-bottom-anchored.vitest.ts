@@ -90,8 +90,11 @@ describe('AgentView bottom-anchored render', () => {
     };
     view.render(c);
     const writes = (c.canvas as unknown as MockCanvas).writes;
-    // Skip the user-turn marker write at col 0 (text contains ANSI but no line content).
-    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25 && w.x >= 2 && w.text.length > 0);
+    // Skip the user-turn marker write (#431: marker now sits at gutter
+    // column, text follows at gutter + 2). The filter selects writes that
+    // started past the marker so the first text-cell is found.
+    const GUTTER_WIDTH = 15;
+    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25 && w.x >= GUTTER_WIDTH + 2 && w.text.length > 0);
     const firstScrollbackWrite = scrollbackWrites[0];
     expect(firstScrollbackWrite).toBeDefined();
     expect(firstScrollbackWrite!.text).toMatch(/line 5/);
@@ -111,13 +114,13 @@ describe('AgentView bottom-anchored render', () => {
       themeName: 'dark',
     };
     view.render(c);
-    const writesBefore = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.x >= 2 && w.text.length > 0);
+    const writesBefore = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.x >= 17 && w.text.length > 0);
     const firstBefore = writesBefore[0]!;
 
     const grownTimeline = [...initialTimeline, ...Array.from({ length: 5 }, (_, i) => ({ kind: 'agent.message' as const, text: `appended ${i}`, actor: 'user' as const }))];
     const c2: ViewRenderContext = { ...c, runtime: { chat: null, agent: { timeline: grownTimeline, totalEventCount: grownTimeline.length, workflow: undefined, session: {} as never } as never } };
     view.render(c2);
-    const writesAfter = (c2.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.x >= 2 && w.text.length > 0);
+    const writesAfter = (c2.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.x >= 17 && w.text.length > 0);
     const firstAfter = writesAfter[0]!;
 
     expect(firstAfter.text).toBe(firstBefore.text);
