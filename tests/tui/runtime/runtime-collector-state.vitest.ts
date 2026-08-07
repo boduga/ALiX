@@ -86,7 +86,8 @@ describe('RuntimeCollectorImpl durable projection state (Phase 6.5)', () => {
     const second = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', makeTimeline(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     await second.start();
     const snap = await second.snapshot();
-    expect(snap?.timeline).toHaveLength(1);
+    expect(snap?.timeline).toHaveLength(2);
+    expect(snap?.timeline[0]!.text).toBe('hi');
     expect(snap?.timeline[0]!.text).toBe('hi');
     expect(snap?.trace).toHaveLength(1);
     expect(snap?.trace[0]!.status).toBe('running');

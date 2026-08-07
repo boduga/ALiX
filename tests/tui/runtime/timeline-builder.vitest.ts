@@ -72,13 +72,46 @@ describe('TimelineBuilder', () => {
     const b = new TimelineBuilder('s1');
     b.update([
       evt(1, 'workflow.step_started', 's1', { step: 1, totalSteps: 3 }),
-      evt(2, 'tool.started', 's1', { toolCallId: 'tc1', toolName: 'search' }),
+      evt(2, 'capability.invoked', 's1', { capability: 'file.read' }),
       evt(3, 'runtime.tick', 's1', { tick: 1 }),
     ]);
     // None of these unrelated event types belong to the timeline projection —
     // the whitelist must reject them rather than casting blindly.
     expect(b.snapshot()).toEqual([]);
   });
+  it('admits tool.started events to the timeline (slice #5 of the stage-decorated plan)', () => {
+    // #434: tool.started is admitted to the projection whitelist so the
+    // agent scrollback can render invocation lines. The text field
+    // carries the tool name (extracted from payload.toolName).
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'tool.started', 's1', { toolCallId: 'tc1', toolName: 'search' }),
+    ]);
+    const snap = b.snapshot();
+    expect(snap).toHaveLength(1);
+    expect(snap[0]!.kind).toBe('tool.started');
+    expect(snap[0]!.text).toBe('search');
+  });
+
+  it('admits tool.completed and tool.failed events to the timeline (slice #5)', () => {
+    // #434: tool.completed/failed project so the agent scrollback can
+    // render the result line right after the invocation. The detail
+    // field carries the error or output preview.
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'tool.completed', 's1', { toolCallId: 'tc1', toolName: 'edit', outputPreview: '3 lines changed' }),
+      evt(2, 'tool.failed', 's1', { toolCallId: 'tc2', toolName: 'test', error: '2 failing' }),
+    ]);
+    const snap = b.snapshot();
+    expect(snap).toHaveLength(2);
+    expect(snap[0]!.kind).toBe('tool.completed');
+    expect(snap[0]!.text).toBe('edit');
+    expect((snap[0] as any).detail).toBe('3 lines changed');
+    expect(snap[1]!.kind).toBe('tool.failed');
+    expect(snap[1]!.text).toBe('test');
+    expect((snap[1] as any).detail).toBe('2 failing');
+  });
+
 
   it('drops foreign-session events AND non-whitelisted events in the same update', () => {
     const b = new TimelineBuilder('s1');

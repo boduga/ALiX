@@ -144,7 +144,7 @@ describe('runTui bootstrap (thin)', () => {
       const runtimeSnap = await runtimeCollector.snapshot();
       expect(runtimeSnap?.sessionId).toBe(outerSessionId);
       expect(runtimeSnap?.trace).toHaveLength(1);      // the outer tool.started
-      expect(runtimeSnap?.timeline).toHaveLength(0);   // no chat/agent timeline entries leak in
+      expect(runtimeSnap?.timeline).toHaveLength(1);   // the outer tool.started projects into the timeline (#434)
 
       const chatSnap = await chatCollector.snapshot();
       expect(chatSnap?.sessionId).toBe(chatSessionId);
