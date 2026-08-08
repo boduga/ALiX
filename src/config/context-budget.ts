@@ -39,6 +39,20 @@ export const MANDATORY_CATEGORIES: readonly ContextCategory[] = [
   "current_task",
 ];
 
+export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance";
+
+/** Explicit per-tier ordering policy (§4 Part B). Only 'recency' is
+ *  implemented this cycle; 'recency-dedup' is declared and admits newest-first
+ *  like 'recency' (its dedup pass is additive); 'relevance' is declared and
+ *  falls back to chronological order until gated on §3 evidence. */
+export type TierOrderingConfig = Partial<Record<ContextCategory, TierOrderingStrategy>>;
+
+export const DEFAULT_TIER_ORDERING: TierOrderingConfig = {
+  recent_conversation: "recency",
+  recent_tool_results: "recency-dedup",
+  older_context: "recency",
+};
+
 // Shipped reservation defaults (B): 0.20 / 4,096 / 32,768 — all config-overridable.
 export const DEFAULT_OUTPUT_RATIO = 0.2;
 export const DEFAULT_OUTPUT_FLOOR = 4_096;
@@ -56,6 +70,10 @@ export interface ContextBudgetConfig {
   /** §5: requested max output tokens sent to the provider (clamped ≤
    *  budgetReservation). Defaults to budgetReservation (behavior preserved). */
   maxOutputTokens?: number;
+  /** §4 Part B: explicit per-tier admission ordering policy. When omitted,
+   *  {@link DEFAULT_TIER_ORDERING} preserves the Part A behavior (recency for
+   *  T4/T5, chronological for T6). */
+  tierOrdering?: TierOrderingConfig;
 }
 
 /** Options for {@link createContextBudget}: the config knobs plus the optional

@@ -110,6 +110,27 @@ describe("assembleContext — tier ordering and whole-item admission", () => {
     expect(result.dropped.map((d) => d.item.id)).toEqual(["a"]);
   });
 
+  it("applies recency ordering to T4/T5 when the strategy is explicit recency (default)", () => {
+    const candidate = [
+      item("recent_conversation", 10, { id: "oldest" }),
+      item("recent_conversation", 10, { id: "newest" }),
+    ];
+    const result = assembleContext(candidate, budget(15));
+    expect(result.admitted.map((i) => i.id)).toEqual(["newest"]);
+  });
+
+  it("reverts to chronological order when ordering is explicitly 'relevance' for T4 (declared, unimplemented → non-recency fallback)", () => {
+    // Only 'recency'/'recency-dedup' admit newest-first. Any other strategy —
+    // e.g. 'relevance' — preserves source order (chronological) until a gated
+    // algorithm ships. This test pins the fallback.
+    const candidate = [
+      item("recent_conversation", 10, { id: "oldest" }),
+      item("recent_conversation", 10, { id: "newest" }),
+    ];
+    const result = assembleContext(candidate, budget(15), { recent_conversation: "relevance" });
+    expect(result.admitted.map((i) => i.id)).toEqual(["oldest"]);
+  });
+
   it("never admits a partial item", () => {
     const candidate = [item("older_context", 100, { id: "big" })];
     const result = assembleContext(candidate, budget(50));
