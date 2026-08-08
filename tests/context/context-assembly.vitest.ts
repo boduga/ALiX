@@ -45,6 +45,7 @@ function item(
   overrides: {
     id?: string;
     kind?: string;
+    rawTokens?: number;
     provenance?: Partial<ContextItemProvenance>;
   } = {}
 ): CandidateContextItem {
@@ -55,6 +56,7 @@ function item(
     kind,
     category,
     tokens,
+    rawTokens: overrides.rawTokens ?? tokens,
     provenance: {
       category,
       kind,
@@ -356,6 +358,16 @@ describe("assembleContext — one deterministic pass; preflight stays the final 
     const result = assembleContext(candidate, b);
     expect(result.admittedTokens).toBeLessThanOrEqual(b.availableInputTokens);
     expect(result.remainingTokens).toBe(b.availableInputTokens - result.admittedTokens);
+  });
+
+  it("tracks admittedRawTokens separately from padded admittedTokens", () => {
+    const candidate = [
+      item("recent_conversation", 60, { id: "conv", rawTokens: 50 }),
+      item("recent_tool_results", 30, { id: "tools", rawTokens: 25 }),
+    ];
+    const result = assembleContext(candidate, budget(100));
+    expect(result.admittedTokens).toBe(90);
+    expect(result.admittedRawTokens).toBe(75);
   });
 
   it("handles an empty candidate", () => {

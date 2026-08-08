@@ -52,7 +52,7 @@ import {
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
-import { CONTEXT_EVENT_TYPES } from "../events/types.js";
+import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload } from "../events/types.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -438,22 +438,24 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// item so they are token-accounted before best-effort tiers are admitted.
 
 	if (providerTools.length > 0) {
-	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
+	  const providerToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer);
 	  candidateItems.unshift({
 	    id: "provider-tool-schema",
 	    kind: "tool_schema",
 	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: providerToolSchemaTokens,
+	    tokens: providerToolSchemaMeta.budgetEstimate,
+	    rawTokens: providerToolSchemaMeta.rawEstimate,
 	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
 	  });
 	}
 	if (mcpToolIndex.length > 0) {
-	  const mcpToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer)).budgetEstimate;
+	  const mcpToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer);
 	  candidateItems.unshift({
 	    id: "mcp-tool-schema",
 	    kind: "tool_schema",
 	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: mcpToolSchemaTokens,
+	    tokens: mcpToolSchemaMeta.budgetEstimate,
+	    rawTokens: mcpToolSchemaMeta.rawEstimate,
 	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
 	  });
 	}
@@ -670,6 +672,19 @@ await log.append({
 
 if (usage) {
   await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
+  // §1 — compare our estimated raw+padded against the provider's actual input
+  // tokens. Keyed by the same invocationId as context.snapshot.created.
+  await log.append({
+    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.TOKEN_CALIBRATION,
+    payload: {
+      invocationId,
+      provider: config.model.provider,
+      model: config.model.name,
+      estimated_raw: assembled.admittedRawTokens,
+      estimated_padded: assembled.admittedTokens,
+      actual: usage.inputTokens,
+    } satisfies TokenCalibrationPayload,
+  });
 }
 
 // Emit reasoning trail
@@ -1397,6 +1412,7 @@ async function classifyCandidateContext(
     kind: "system_prompt",
     category: "mandatory_system_governance",
     tokens: sysMeta.budgetEstimate,
+    rawTokens: sysMeta.rawEstimate,
     provenance: { category: "mandatory_system_governance", kind: "system_prompt", createdAt: Date.now(), source: "runTaskLoop" },
   });
   contentMap.set("system-prompt", { type: "system_prompt", text: systemPrompt });
@@ -1431,7 +1447,7 @@ async function classifyCandidateContext(
       : category === "recent_tool_results" ? "tool_result"
       : msg.role === "user" ? "user_turn" : "assistant_turn";
     candidateItems.push({
-      id: msgId, kind, category, tokens: meta.budgetEstimate,
+      id: msgId, kind, category, tokens: meta.budgetEstimate, rawTokens: meta.rawEstimate,
       provenance: { category, kind, createdAt: Date.now(), source: "runTaskLoop" },
     });
     contentMap.set(msgId, msg);

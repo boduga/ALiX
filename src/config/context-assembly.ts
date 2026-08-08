@@ -58,6 +58,9 @@ export interface CandidateContextItem {
   readonly category: ContextCategory;
   /** Padded budget-admission token cost (E1: ceil(base × 1.20)). */
   readonly tokens: number;
+  /** Unpadded base tokenizer estimate. Admission reads only `tokens`;
+   * `rawTokens` is calibration telemetry for the token.calibration event. */
+  readonly rawTokens: number;
   readonly provenance: ContextItemProvenance;
 }
 
@@ -80,6 +83,9 @@ export interface AssembledContext {
   readonly dropped: readonly DroppedContextItem[];
   readonly admittedTokens: number;
   readonly droppedTokens: number;
+  /** Sum of `item.rawTokens` over admitted items — calibration telemetry for
+   * the token.calibration event. NOT an admission figure. */
+  readonly admittedRawTokens: number;
   /** Admitted mandatory core (Tier 1 + Tier 2) — always ALL mandatory items
    * (an irreducible error is raised before any admission when they cannot all
    * fit). */
@@ -164,9 +170,13 @@ export function assembleContext(
   const dropped: DroppedContextItem[] = [];
   let remaining = budget.availableInputTokens;
   let protectedTokens = 0;
+  let admittedRawTokens = 0;
 
   // Admit the entire mandatory core (it fits by construction).
-  for (const item of mandatoryItems) admitted.push(item);
+  for (const item of mandatoryItems) {
+    admitted.push(item);
+    admittedRawTokens += item.rawTokens;
+  }
   remaining -= mandatoryTokens;
 
   // Best-effort + protected tiers, in tier order (skip the already-admitted
@@ -180,7 +190,10 @@ export function assembleContext(
       // Tier 3 protected unit: all-or-nothing, fully token-accounted.
       const tierTokens = sumTokens(items);
       if (tierTokens <= remaining) {
-        for (const item of items) admitted.push(item);
+        for (const item of items) {
+          admitted.push(item);
+          admittedRawTokens += item.rawTokens;
+        }
         remaining -= tierTokens;
         protectedTokens = tierTokens;
       } else {
@@ -202,6 +215,7 @@ export function assembleContext(
     for (const item of itemsInAdmissionOrder) {
       if (item.tokens <= remaining) {
         admitted.push(item);
+        admittedRawTokens += item.rawTokens;
         remaining -= item.tokens;
       } else {
         dropped.push({ item, reason: "budget_exhausted" });
@@ -217,6 +231,7 @@ export function assembleContext(
     dropped: Object.freeze(dropped),
     admittedTokens,
     droppedTokens,
+    admittedRawTokens,
     mandatoryTokens,
     protectedTokens,
     remainingTokens: remaining,

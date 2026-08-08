@@ -394,6 +394,8 @@ export const CONTEXT_EVENT_TYPES = {
   ASSEMBLED: "context.assembled",
   PREFLIGHT_FAILED: "context.preflight.failed",
   IRREDUCIBLE: "context.irreducible",
+  // §1 — estimated vs actual token calibration (per model-facing request).
+  TOKEN_CALIBRATION: "token.calibration",
 } as const;
 
 // T6 — C1 observability: payload types for the five lifecycle events.
@@ -429,6 +431,18 @@ export type ContextPreflightFailedPayload = {
   invocationId: string;
   overageTokens: number;
   byCategory: Record<string, number>;
+};
+
+export type TokenCalibrationPayload = {
+  invocationId: string;
+  provider: string;
+  model: string;
+  /** Unpadded base tokenizer estimate of the admitted request. */
+  estimated_raw: number;
+  /** Padded budget-admission estimate of the admitted request. */
+  estimated_padded: number;
+  /** Actual provider-reported input tokens (usage.inputTokens). */
+  actual: number;
 };
 
 export type ContextIrreduciblePayload = {
