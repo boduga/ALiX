@@ -6,4 +6,5 @@ export const ProjectionIds = {
   approval: 'approval',
   capability: 'capability',
   metrics: 'metrics',
+  context: 'context',
 } as const;
