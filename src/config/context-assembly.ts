@@ -190,7 +190,16 @@ export function assembleContext(
     }
 
     // Tiers 4–6 best-effort: skip-and-continue within the tier.
-    for (const item of items) {
+    // §4 Part A: T4 (recent_conversation) and T5 (recent_tool_results) admit
+    // NEWEST-first — reverse the bucket so the most recent items survive budget
+    // pressure. T6 (older_context) stays chronological. Wire order is preserved
+    // by reconstructRequest's source-index re-sort, so only admission priority
+    // changes (never conversation chronology).
+    const itemsInAdmissionOrder =
+      category === "recent_conversation" || category === "recent_tool_results"
+        ? [...items].reverse()
+        : items;
+    for (const item of itemsInAdmissionOrder) {
       if (item.tokens <= remaining) {
         admitted.push(item);
         remaining -= item.tokens;
