@@ -92,6 +92,7 @@ export const FAILURE_REASONS = new Set<string>([
   "max_iterations",
   "max_repairs",
   "rejected_scope_expansion",
+  "context_budget_overflow",
 ]);
 
 /** Shell-task mode instruction appended when the user gave a direct shell command. */
