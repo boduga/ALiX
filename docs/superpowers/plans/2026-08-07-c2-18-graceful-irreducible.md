@@ -10,11 +10,12 @@
 
 ## Global Constraints
 
-- **GitNexus gates** (repo CLAUDE.md + user memory): run `impact` on every symbol you edit BEFORE editing; run `detect_changes` before committing; surface HIGH/CRITICAL risk to the user. Repo name is **ALiX**.
+- **GitNexus gates** (repo CLAUDE.md + user memory): run `impact` on the SPECIFIC symbol you are about to edit BEFORE editing it — each task lists its symbols (e.g. `impact runTaskLoop`, `impact processTurn`). Run `detect_changes({scope: "compare", base_ref: "main"})` before committing. If GitNexus reports HIGH/CRITICAL risk, STOP and surface it to the user before proceeding or pushing. Repo name is **ALiX**. The index may be stale for recently-added files — fall back to `grep`/`context` and note the fallback.
 - **Branch:** all work happens on `c2-18-graceful-irreducible` (already checked out).
 - **Suite before push:** `pnpm build` FIRST (dist is gitignored), then `pnpm test:vitest` + `pnpm test:node` + `npx tsc --noEmit`.
 - **Node-lane pre-existing failures:** exactly **10 leaf** failures (9× `streamSSE` + 1× `agent-view`) — byte-identical to fork base `e5396602`. NEVER attribute them to this branch.
-- **Payload guardrail:** `contextBudgetOverflow` is in-process diagnostic data. Consumers MUST read the typed readonly fields only — never `Error` methods, stack traces, or `instanceof`. The Error instance is never serialized as JSON; the daemon serializes the *fields* into a string.
+- **Payload guardrail:** `contextBudgetOverflow` is in-process diagnostic data. Consumers of the payload (daemon, CLI, TUI, route-executor) MUST read the typed readonly fields only — never `Error` methods, stack traces, or `instanceof`. The Error instance is never serialized as JSON; the daemon serializes the *fields* into a string. Inside `runTaskLoop` (the producer that constructed and threw the error), the catch discriminates on the class's `kind` literal via a local guard — **not** `instanceof` — so no new error-class coupling is introduced anywhere, including at the throw site.
+- **`streamed` semantics:** the new failure returns `streamed: config.model.streaming` for consistency with every other `runTaskLoop` return site. An irreducible overflow occurs before any provider call, but changing `streamed` semantics is OUT OF SCOPE for C2 #18 (scope discipline) — do not "improve" it.
 - **Scope discipline:** do NOT introduce a shared reason-constants module. Do NOT introduce a serializable DTO. Add the reason inline to the `RunResult` union + `FAILURE_REASONS` exactly as the existing three failure reasons are handled.
 
 ---
@@ -95,6 +96,16 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `RunResult` union + `contextBudgetOverflow` field from Task 1.
 - Produces: `runTaskLoop` now returns `RunResult` with `reason: "context_budget_overflow"` + `contextBudgetOverflow` when irreducible; still throws for reducible and all other errors. Local helper `buildContextBudgetOverflowSummary(err): string` (module-private).
+
+- [ ] **Step 0: GitNexus impact + verify the error definition (before ANY edit)**
+
+Run `impact({target: "runTaskLoop", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius (direct callers, affected processes, risk level) to the user. If risk is HIGH/CRITICAL, STOP and surface it. Then confirm the five pre-verified facts against the code (all already confirmed during planning — spot-check, don't re-derive):
+
+1. `ContextBudgetOverflowError` carries a discriminating literal `readonly kind = "context_budget_overflow" as const` — confirmed at `src/config/context-budget.ts:207`.
+2. `reducible` is reliably present on every thrown instance — confirmed: both throw sites construct `new ContextBudgetOverflowError({...})` with `reducible` set (`context-assembly.ts:153`, `task-loop.ts:518`), and the inner catch re-throws the same instance (`task-loop.ts:453-468`).
+3. `overageTokens`, `availableInputTokens`, `mandatoryTokens` are readonly on the class — confirmed (`context-budget.ts:209-213`).
+4. `session.ended` is the correct terminal event — confirmed: every other terminal reason return in `runTaskLoop` appends `session.ended` (max_repairs line 839, max_iterations 1267, rejected_scope_expansion 920).
+5. There is no existing overflow-summary helper — confirmed via grep; `buildContextBudgetOverflowSummary` is new.
 
 - [ ] **Step 1: Rewrite test 1 to expect the graceful return (RED)**
 
@@ -179,11 +190,30 @@ Replace the entire `it('throws irreducible when mandatory core plus tool schema 
 Run: `node_modules/.bin/vitest run tests/run/task-loop-context-budget.vitest.ts --config vitest.config.mts`
 Expected: the two rewritten tests FAIL — `runTaskLoop` still throws `ContextBudgetOverflowError`, so the `await runTaskLoop(deps)` call rejects and the test errors out. The other tests in the file still PASS.
 
-- [ ] **Step 4: Add the summary helper to `src/run/task-loop.ts`**
+- [ ] **Step 4: Add the overflow guard + summary helper to `src/run/task-loop.ts`**
 
-Insert after the `completeSession` function (ends ~line 79):
+Insert after the `completeSession` function (ends ~line 79). Both are module-private. The guard follows the codebase's established `isX(value: unknown): value is X` pattern (e.g. `isCredentialReference` in `src/security/credentials/credential-reference.ts:38`) and discriminates on the class's `kind` literal — no `instanceof`, per the guardrail:
 
 ```ts
+/**
+ * True when `err` is an IRREDUCIBLE context-budget overflow. Discriminates
+ * on the class's `kind` literal rather than `instanceof`, so no consumer
+ * coupling to the error class leaks past the producer boundary (guardrail:
+ * `contextBudgetOverflow` is diagnostic data; consumers use typed fields
+ * only). Reducible overflows (kind matches but reducible === true) return
+ * false — they are programming/validation failures that still throw.
+ */
+function isIrreducibleContextBudgetOverflow(err: unknown): err is ContextBudgetOverflowError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "kind" in err &&
+    (err as { kind?: unknown }).kind === "context_budget_overflow" &&
+    "reducible" in err &&
+    (err as { reducible?: unknown }).reducible === false
+  );
+}
+
 /**
  * Human-readable summary for an irreducible context-budget overflow.
  * Used as the RunResult.summary so every surface (CLI, REPL, TUI, daemon,
@@ -212,9 +242,10 @@ with:
     // C2 #18: irreducible context-budget overflow is a graceful RunResult
     // failure, not a throw. Returning here preserves the structured fields —
     // a re-throw through runTaskCore/processTurn would flatten them via
-    // String(err). Reducible overflows (programming/validation failures) still
-    // throw; only reducible === false is a runtime condition the loop bails on.
-    if (err instanceof ContextBudgetOverflowError && err.reducible === false) {
+    // String(err). The kind-literal guard (not instanceof) matches ONLY
+    // reducible === false; reducible overflows (programming/validation
+    // failures) and all other errors fall through to `throw err`.
+    if (isIrreducibleContextBudgetOverflow(err)) {
       const summary = buildContextBudgetOverflowSummary(err);
       await log.append({
         ...session, actor: "system", type: "session.ended",
@@ -233,12 +264,12 @@ with:
 // Cleanup EnhancedVerifier
 ```
 
-Keep the existing `finally` body (the `EnhancedVerifier` cleanup) unchanged — it runs on both the catch and the return paths.
+Keep the existing `finally` body (the `EnhancedVerifier` cleanup) unchanged — it runs on both the catch and the return paths. Note: `streamed: config.model.streaming` is intentionally consistent with every other return site — do NOT change it (see Global Constraints).
 
 - [ ] **Step 6: Run the test file to confirm GREEN**
 
 Run: `node_modules/.bin/vitest run tests/run/task-loop-context-budget.vitest.ts --config vitest.config.mts`
-Expected: ALL tests in the file PASS, including the two rewritten return-assertion tests and the four existing sentinel tests (lines ~584, 640, 852) that still assert reducible scenarios do not produce a `context_budget_overflow` result.
+Expected: ALL tests in the file PASS, including the two rewritten return-assertion tests and the three existing sentinel tests (lines ~584, 640, 852) that still assert reducible scenarios do not produce a `context_budget_overflow` result.
 
 - [ ] **Step 7: Verify the broader type surface**
 
@@ -270,6 +301,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `RunResult.contextBudgetOverflow` from Task 1/2.
 - Produces: `AgentTurnResult.contextBudgetOverflow?: ContextBudgetOverflowError` (the CLI + TUI read `AgentTurnResult`, not `RunResult`); CLI renders the friendly diagnostic and returns generic exit `1`.
+
+- [ ] **Step 0: GitNexus impact (before ANY edit)**
+
+Run `impact({target: "processTurn", direction: "upstream"})`, `impact({target: "AgentTurnResult", direction: "upstream"})`, and `impact({target: "handler", file_path: "src/cli/commands/run.ts", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius to the user. If risk is HIGH/CRITICAL, STOP and surface it before editing.
 
 - [ ] **Step 1: Extend the import in `src/agent/session.ts`**
 
@@ -378,6 +413,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `RunResult.contextBudgetOverflow` (flowed untouched through `runTaskCore` → `runTask` → daemon; verified `runTask` returns `result` as-is).
 - Produces: `task.failed` error string that carries the numbers when the reason is `context_budget_overflow`. No crash — the overflow never reaches the daemon's uncaught throw path.
+
+- [ ] **Step 0: GitNexus impact (before ANY edit)**
+
+Run `impact({target: "handleRun", direction: "upstream"})` (GitNexus MCP, repo ALiX). The failure branch is inside `handleRun` (daemon-server.ts:451). Report the blast radius to the user. If risk is HIGH/CRITICAL, STOP and surface it before editing.
 
 - [ ] **Step 1: Serialize the fields in the failure branch**
 

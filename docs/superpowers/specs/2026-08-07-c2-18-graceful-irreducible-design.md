@@ -50,11 +50,13 @@ observability is fine; the throw→user path is the gap.
 
 Catch at the loop, return instead of throw.
 
-`runTaskLoop` (task-loop.ts:256) gets a `catch` that matches
-`err instanceof ContextBudgetOverflowError && err.reducible === false` and
-**returns** a failed `RunResult` instead of re-throwing. Because the return
-happens inside `runTaskLoop`, the structured error fields survive intact — no
-`String(err)` flattening through the `runTaskCore`/`processTurn` re-throw chain.
+`runTaskLoop` (task-loop.ts:256) gets a `catch` that matches an irreducible
+overflow — discriminated on the class's `kind` literal
+(`kind === "context_budget_overflow" && reducible === false`), **not**
+`instanceof`, consistent with the guardrail below — and **returns** a failed
+`RunResult` instead of re-throwing. Because the return happens inside
+`runTaskLoop`, the structured error fields survive intact — no `String(err)`
+flattening through the `runTaskCore`/`processTurn` re-throw chain.
 
 - Both existing throw sites inside the loop (preflight backstop ~518; budget-gate
   re-throw 450-468) are covered by this single catch.
