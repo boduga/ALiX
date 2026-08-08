@@ -745,12 +745,12 @@ if (toolCalls.length === 0) {
     if (taskType === "research") {
       const limits = RESEARCH_LIMITS[depth];
       if (searchCalls >= limits.maxSearchCalls) {
-        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls` } });
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
         return { sessionId, summary: text || "Research completed (max search calls)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
       }
       if (i >= limits.maxIterations) {
-        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations` } });
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
         return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
       }
@@ -823,7 +823,7 @@ if (toolCalls.length === 0) {
       }
 
       const reason: RunResult["reason"] = trustworthy ? "completed" : "completed_unverified";
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated } });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
       return { sessionId, summary: text, streamed: config.model.streaming, reason, contextPressure: contextPressure.snapshot() };
     }
@@ -842,7 +842,7 @@ if (toolCalls.length === 0) {
 
     if (allPassed && modelSaysDone) {
       // Success — verification passed and model signals done
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
 
       // Record successful resolution if we have files that were changed
       if (enhancedVerifier && sessionState.changed.size > 0) {
@@ -961,7 +961,7 @@ if (toolCalls.length === 0) {
           } else {
             // Non-TTY mode - scope was denied, return early
             const summary = buildScopeRejectionSummary(pathsToCheck);
-            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
             return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
           }
         }
@@ -1242,7 +1242,7 @@ if (toolCalls.length === 0) {
         });
         stateMachine.recordRepair();
         if (repairCount > maxRepairs) {
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
           const { skillFactory } = await import("../skills/dispatcher.js");
           void skillFactory.process({
             sessionId,
@@ -1322,7 +1322,7 @@ config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
       const summary = buildContextBudgetOverflowSummary(err);
       await log.append({
         ...session, actor: "system", type: "session.ended",
-        payload: { reason: "context_budget_overflow", summary },
+        payload: { reason: "context_budget_overflow", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) },
       });
       return {
         sessionId,

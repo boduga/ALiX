@@ -523,7 +523,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       { role: 'user', content: '<tool_result id="1">\n' + longText(500) + '\n</tool_result>' }, // Tier 5
       { role: 'user', content: longText(500) },                               // Tier 4 (last user = mandatory)
     ];
-    const { deps } = await makeTestDeps({
+    const { deps, log } = await makeTestDeps({
       provider: mockProvider,
       contextBudget: budget,
       messages,
@@ -538,6 +538,17 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // At least one drop across T4/T5/T6 for a tight-budget run:
     const agg = result.contextPressure!.aggregate;
     expect(agg.tier4Dropped + agg.tier5Dropped + agg.tier6Dropped).toBeGreaterThan(0);
+
+    // Spec §3 item 2: persist contextPressure in the durable EventLog
+    // alongside the reason, in EVERY terminal session.ended record.
+    const { events } = await log.readSince(log.beginningCursor());
+    const terminal = events.filter((e) => e.type === 'session.ended');
+    expect(terminal.length).toBeGreaterThan(0);
+    for (const ev of terminal) {
+      const payload = ev.payload as Record<string, unknown>;
+      expect(payload.contextPressure).toBeDefined();
+      expect((payload.contextPressure as { totalIterations: number }).totalIterations).toBeGreaterThanOrEqual(1);
+    }
   });
 
   // ── C1 regression: non-streaming path MUST populate text/toolCalls/usage ──
