@@ -1,5 +1,10 @@
 import { homedir } from "node:os";
 import type { AlixConfig } from "./schema.js";
+import {
+  DEFAULT_OUTPUT_RATIO,
+  DEFAULT_OUTPUT_FLOOR,
+  DEFAULT_OUTPUT_CAP,
+} from "./context-budget.js";
 
 export const DEFAULT_CONFIG: AlixConfig = {
   version: 1,
@@ -23,7 +28,12 @@ export const DEFAULT_CONFIG: AlixConfig = {
     maxRepoMapTokens: 4000,
     semanticSearch: false,
     includeGitStatus: true,
-    pinnedFiles: []
+    pinnedFiles: [],
+    budget: {
+      outputRatio: DEFAULT_OUTPUT_RATIO,
+      outputFloor: DEFAULT_OUTPUT_FLOOR,
+      outputCap: DEFAULT_OUTPUT_CAP,
+    }
   },
   runtime: {
     provider: "process",
