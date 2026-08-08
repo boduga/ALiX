@@ -857,7 +857,7 @@ output length no longer changes the input budget. (spec §5)"
 - Consumes: `ContextBudgetConfig` (context-budget.ts).
 - Produces: `TierOrderingStrategy = 'recency' | 'recency-dedup' | 'relevance'`; `DEFAULT_TIER_ORDERING`; `assembleContext` accepts an optional `ordering` param.
 
-**Context.** §4 Part B makes the ordering policy explicit/config-driven, preserving the Part A behavior by default. Only `recency` is implemented this cycle — `recency-dedup` (T5 superseded-result dedup) and `relevance` (T6 keyword overlap) are declared but **fall back to recency** until §3 evidence justifies them. This is "documentation + explicit-config first, algorithm change second (gated on §3 evidence)."
+**Context.** §4 Part B makes the ordering policy explicit/config-driven, preserving the Part A behavior by default. Only `recency` (newest-first T4/T5) is implemented this cycle. `recency-dedup` is declared and behaves like recency (its T5 dedup pass is additive **on top of** newest-first ordering); `relevance` is declared but **falls back to chronological order** (not recency) until §3 evidence justifies it — the Step 1 tests pin these fallbacks exactly. This is "documentation + explicit-config first, algorithm change second (gated on §3 evidence)."
 
 - [ ] **Step 1: Write failing tests**
 
@@ -873,9 +873,10 @@ it("applies recency ordering to T4/T5 when the strategy is explicit recency (def
   expect(result.admitted.map((i) => i.id)).toEqual(["newest"]);
 });
 
-it("reverts to chronological order when ordering is explicitly 'relevance' for T4 (declared, unimplemented → recency fallback documented)", () => {
-  // With only 'recency' implemented, any other strategy preserves source order
-  // (chronological) until a gated algorithm ships. This test pins the fallback.
+it("reverts to chronological order when ordering is explicitly 'relevance' for T4 (declared, unimplemented → non-recency fallback)", () => {
+  // Only 'recency'/'recency-dedup' admit newest-first. Any other strategy —
+  // e.g. 'relevance' — preserves source order (chronological) until a gated
+  // algorithm ships. This test pins the fallback.
   const candidate = [
     item("recent_conversation", 10, { id: "oldest" }),
     item("recent_conversation", 10, { id: "newest" }),
@@ -898,8 +899,9 @@ In `src/config/context-budget.ts`:
 export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance";
 
 /** Explicit per-tier ordering policy (§4 Part B). Only 'recency' is
- *  implemented this cycle; 'recency-dedup' and 'relevance' are declared and
- *  fall back to chronological order until gated on §3 evidence. */
+ *  implemented this cycle; 'recency-dedup' is declared and admits newest-first
+ *  like 'recency' (its dedup pass is additive); 'relevance' is declared and
+ *  falls back to chronological order until gated on §3 evidence. */
 export type TierOrderingConfig = Partial<Record<ContextCategory, TierOrderingStrategy>>;
 
 export const DEFAULT_TIER_ORDERING: TierOrderingConfig = {
@@ -917,9 +919,13 @@ In `src/config/context-assembly.ts`, change `assembleContext` signature to `(can
 const strategyFor = (category: ContextCategory): TierOrderingStrategy =>
   ordering[category] ?? DEFAULT_TIER_ORDERING[category] ?? "recency";
 
-// T4/T5: 'recency' (or the declared-but-unimplemented 'recency-dedup'/'relevance'
-// fallback) admits newest-first. T6 'recency' is chronological (older_context).
-const recencyFirst = strategyFor(category) !== undefined && category !== "older_context";
+// T4/T5: ONLY 'recency' (and the declared 'recency-dedup', whose dedup pass is
+// additive on top of newest-first) admit newest-first. 'relevance' is declared
+// but falls back to CHRONOLOGICAL admission until gated on §3 evidence — the
+// Step 1 test pins this. T6 (older_context) is always chronological regardless
+// of its resolved strategy.
+const strategy = strategyFor(category);
+const recencyFirst = category !== "older_context" && (strategy === "recency" || strategy === "recency-dedup");
 const itemsInAdmissionOrder = recencyFirst ? [...items].reverse() : items;
 ```
 
@@ -1081,7 +1087,15 @@ In `runTaskLoop`, after `providerTools`/`mcpToolIndex` are available but **befor
 
 ```ts
 const { scopeToolsByTask } = await import("../config/tool-scoping.js");
+// Full registry — every tool the model COULD name (provider + MCP). Consumed
+// by Task 8's shed-tool handler to re-admit a scoped-out schema on call.
+const fullToolRegistry = [...providerTools, ...mcpToolIndex];
 const { core: coreTools, extended: extendedTools, fallbackFull } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+// Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
+// the wire; a model call to one is a shed-tool call → Task 8 re-scope.
+const scopedOutNames = new Set(
+  fullToolRegistry.map((t) => t.name).filter((n) => !coreTools.some((c) => c.name === n) && !extendedTools.some((e) => e.name === n))
+);
 if (fallbackFull) {
   await log.append({
     ...session, actor: "system", type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_FALLBACK_FULL,
@@ -1090,7 +1104,9 @@ if (fallbackFull) {
 }
 ```
 
-Replace the two tool-schema reservation `unshift` blocks (lines 429-448) so they reserve **core + extended only** (the scoped set), not all tools. The `tools` array sent to the provider (lines 593, 604) becomes `[...coreTools, ...extendedTools, ...mcpToolIndex]` — but see the shed-tool note in Task 8: shed tools are excluded from the wire, and a model call to one triggers re-scope.
+(`fallbackFull` ⇒ `scopedOutNames` is empty — everything non-core was admitted.)
+
+Replace the two tool-schema reservation `unshift` blocks (lines 429-448) so they reserve **core + extended only** (the scoped set), not all tools. The `tools` array sent to the provider (lines 593, 604) becomes `[...coreTools, ...extendedTools]` — the scoped set. Do NOT append `...mcpToolIndex` wholesale: it would both re-admit scoped-out MCP tools and duplicate matching ones. (`scopeToolsByTask` already flattens MCP entries to `ToolDef` shape — `name`/`description`/`input_schema` — which `ProviderRequest.tools?: (ToolDef | DeferredToolEntry)[]` accepts; verify against unified-complete.ts during the commit.) Shed-tool exclusion from `selectedTools` is Task 8's concern — the shed check there must precede the executor path.
 
 - [ ] **Step 5: Add the event types**
 
@@ -1169,13 +1185,15 @@ Expected: FAIL — no shed-tool handling; the shed call falls into the invalid-t
 
 - [ ] **Step 3: Implement the shed-tool handler**
 
+> **Dependencies (from Task 7):** `scopedOutNames: Set<string>` and `fullToolRegistry: Array<ToolDef | DeferredToolEntry>` are defined in Task 7's wiring block — do not re-derive them here. `scopedOutNames` is empty when Task 7's filter fell back to full admission (`fallbackFull`), in which case no shed-tool path can trigger.
+
 In `src/run/event-handlers.ts`, add a sibling to `handleScopeExpansion`:
 
 ```ts
 /** §2 shed-tool contract: a tool scoped OUT of T1b is called by the model.
  *  Re-admit that ONE tool's schema (additive-only) so the call can be retried.
- *  Returns { handled, reintroduce, tool } — the caller re-adds the schema to
- *  the wire tools and retries the call once. */
+ *  Returns { handled, reintroduce } — the caller re-adds the schema to the
+ *  wire tools and lets the model retry the call once. */
 export function handleShedToolCall(
   toolCall: ToolCall,
   scopedOutNames: Set<string>,
@@ -1188,7 +1206,7 @@ export function handleShedToolCall(
 }
 ```
 
-In `task-loop.ts`, inside the tool-execution loop (before/around `handleScopeExpansion` at line 928):
+In `task-loop.ts`, inside the tool-execution loop — **before** `handleScopeExpansion` (line 928) and after `handleMcpToolSearch` (line 921), so a scoped-out tool never reaches the scope/executor path:
 
 ```ts
 // §2 shed-tool contract: a scoped-out tool was called. Re-introduce its
@@ -1207,7 +1225,7 @@ if (shedResult.handled && shedResult.reintroduce && !shedToolsRetried.has(toolCa
 }
 ```
 
-Maintain `const shedToolsRetried = new Set<string>()` and `let reintroducedTools: Array<ToolDef|DeferredToolEntry> = []` in `runTaskLoop`, and append `reintroducedTools` to the `tools` array at lines 593/604 **for the retry iteration** (additive-only: never a full re-classification, never drops previously-admitted tools).
+Declare `const shedToolsRetried = new Set<string>()` and `let reintroducedTools: Array<ToolDef|DeferredToolEntry> = []` in `runTaskLoop` (new local state, near the other loop-state vars), and append `reintroducedTools` to the `tools` array at lines 593/604 **for the retry iteration** (additive-only: never a full re-classification, never drops previously-admitted tools).
 
 **If the shed tool is retried a second time** (the model calls it again), it falls through to the normal invalid-tool/error path — that's a normal tool-use failure, not a scoping failure (guardrail: retry once, not per-call).
 
@@ -1298,7 +1316,19 @@ export type ContextRotThreshold = {
 // CalibrationData.contextRotThreshold?: ContextRotThreshold;
 ```
 
-In `task-loop.ts`, after the pressure tracker records the final iteration and before the terminal return, evaluate the advisory:
+In `task-loop.ts`:
+
+1. **Load calibration once per run** — independent of Task 4's deferred wiring. Task 4 defers resolving the §1 padding FACTOR into the estimators, but loading the file to read `contextRotThreshold` is separate and required here:
+
+```ts
+import { loadCalibration } from "../config/calibration-store.js";
+// near the top of runTaskLoop (after the deps destructure):
+const calibration = await loadCalibration();
+```
+
+(`loadCalibration` returns `{}` on a missing/unreadable file, so `calibration?.contextRotThreshold` is `undefined` in the default state → no emission. Test 1 below relies on this.)
+
+2. After the pressure tracker records the final iteration and before the terminal return, evaluate the advisory:
 
 ```ts
 const threshold = calibration?.contextRotThreshold;
@@ -1362,10 +1392,11 @@ any number is hardcoded. Advisory only, never a hard gate. (spec §6)"
 - `ContextPressure` (Task 2) shape matches Task 9's consumer (`aggregate.tier5Dropped`, `minRemainingTokens`, `availableInputTokens`). ✅
 - `CandidateContextItem.rawTokens` + `AssembledContext.admittedRawTokens` (Task 3) consumed by `token.calibration` emission in the same task. ✅
 - `budgetReservation`/`requestedMaxOutputTokens` (Task 5) replace `reservedOutputTokens` everywhere (fixtures, metrics-projection, payload type). ✅
-- `scopedTools` (`core`/`extended`/`fallbackFull`) produced by Task 7, consumed by Task 8 (`scopedOutNames` from extended-exclusion). ✅
-- `contextRotThreshold` typed in Task 4's `CalibrationData`, tightened in Task 9 — same field name. ✅
+- `core`/`extended`/`fallbackFull` **plus** `scopedOutNames` + `fullToolRegistry` produced by Task 7 (defined in Task 7 Step 4), consumed by Task 8's `handleShedToolCall`. ✅
+- `contextRotThreshold` typed in Task 4's `CalibrationData`, tightened in Task 9 — same field name; Task 9 loads calibration itself (`loadCalibration()` at loop start), independent of Task 4's deferred §1 factor wiring. ✅
 
 **4. Cross-task test hazards flagged:**
 - Task 1 inverts 4 existing tests in `context-assembly.vitest.ts` — the fixture is centralized (`item()`), so Task 3's `rawTokens` addition is one edit + one new assertion.
 - Task 5 updates the shared `budget()` fixture — Task 1/3 tests depend on it; do Task 5 last in its commit group, or run the assembly suite after.
 - The `context.irreducible` event gains a `kind` field in Task 8 — Task 2's `contextPressure` emission and Task 9's `rot_risk` don't conflict, but the TUI `scroll-math.ts` renders `context.irreducible` (lines 169) — verify it tolerates the new field (it reads `e.kind`, unaffected).
+- Task 7 changes the wire `tools` from `[...providerTools, ...mcpToolIndex]` to the scoped `[...coreTools, ...extendedTools]` — after that commit, run the task-loop tool tests and verify the provider accepts flattened MCP `ToolDef`s (unified-complete.ts) before proceeding to Task 8.
