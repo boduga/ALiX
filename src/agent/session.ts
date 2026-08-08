@@ -124,6 +124,7 @@ import {
   buildMemoryStats,
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
+import { createContextBudget, type ContextBudget } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -593,7 +594,7 @@ export class AgentSessionBuilder {
     // Explicit skills injected by the caller for this turn (slash commands).
     // Agent-tab only — the chat path (processChat) never sets this.
     let explicitSkills: string[] | undefined;
-    let MAX_CONTEXT_TOKENS = 0;
+    let contextBudget: ContextBudget | undefined;
     let tokenizer: TokenizerName = "cl100k_base";
     let taskType: TaskType = "unknown";
     let depth: "quick" | "deep" = "quick";
@@ -739,7 +740,7 @@ export class AgentSessionBuilder {
         currentTask,
         config.readOnly,
       );
-      MAX_CONTEXT_TOKENS = p5.MAX_CONTEXT_TOKENS;
+      contextBudget = p5.contextBudget;
       tokenizer = p5.tokenizer;
       taskType = p5.taskType;
       depth = p5.depth;
@@ -752,7 +753,7 @@ export class AgentSessionBuilder {
         const p6 = await setupContextAndPlan(
           ctx,
           config.cwd,
-          MAX_CONTEXT_TOKENS,
+          contextBudget!,
           currentTask,
           taskType,
           ctx.sessionId,
@@ -1234,7 +1235,7 @@ export class AgentSessionBuilder {
           selectedTools,
           hooks,
           maxIterations: cappedIterations,
-          MAX_CONTEXT_TOKENS,
+          contextBudget: contextBudget!,
           tokenizer,
           task: currentTask,
           taskType,
@@ -2000,7 +2001,7 @@ async function setupContextLimits(
   task?: string,
   readOnly?: boolean,
 ): Promise<{
-  MAX_CONTEXT_TOKENS: number;
+  contextBudget: ContextBudget;
   tokenizer: TokenizerName;
   taskType: TaskType;
   depth: "quick" | "deep";
@@ -2009,10 +2010,10 @@ async function setupContextLimits(
   cappedIterations: number;
 }> {
   const userOverride = modelConfig.maxContextTokens;
-  let MAX_CONTEXT_TOKENS: number;
+  let contextBudget: ContextBudget;
   let tokenizer: TokenizerName;
   if (userOverride !== undefined) {
-    MAX_CONTEXT_TOKENS = userOverride;
+    contextBudget = createContextBudget({ contextWindowTokens: userOverride });
     tokenizer = getEncoding(modelConfig.provider);
   } else {
     const { resolveModelDescriptor } = await import("../config/context-limits.js");
@@ -2021,8 +2022,8 @@ async function setupContextLimits(
       modelConfig.name,
       apiKeys,
     );
-    MAX_CONTEXT_TOKENS = descriptor.contextWindowTokens;
     tokenizer = descriptor.tokenizer;
+    contextBudget = createContextBudget(descriptor);
   }
 
   // Ensure the tiktoken encoder is genuinely loaded before any admission /
@@ -2043,7 +2044,7 @@ async function setupContextLimits(
       : maxIter;
 
   return {
-    MAX_CONTEXT_TOKENS,
+    contextBudget,
     tokenizer,
     taskType,
     depth,
@@ -2059,7 +2060,7 @@ async function setupContextLimits(
 async function setupContextAndPlan(
   ctx: AgentContext,
   cwd: string,
-  maxTokens: number,
+  contextBudget: ContextBudget,
   task: string,
   taskType: TaskType,
   sessionId: string,
@@ -2077,7 +2078,7 @@ async function setupContextAndPlan(
 }> {
   const contextCompiler = new ContextCompiler({
     root: cwd,
-    maxTokens,
+    maxTokens: contextBudget.availableInputTokens,
     eventLog: ctx.log,
     sessionId,
   });
