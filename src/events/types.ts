@@ -396,6 +396,12 @@ export const CONTEXT_EVENT_TYPES = {
   IRREDUCIBLE: "context.irreducible",
   // §1 — estimated vs actual token calibration (per model-facing request).
   TOKEN_CALIBRATION: "token.calibration",
+  // §2 — tool-scoping admission-control events
+  TOOLING_SCOPE_FALLBACK_FULL: "tooling.scope.fallback_full",
+  TOOLING_SCOPE_REINTRODUCED: "tooling.scope.reintroduced",
+  // §2 — irreducible tooling overflow (tool bloat distinct from content overflow)
+  IRREDUCIBLE_TOOLING: "context.irreducible.tooling",
+  IRREDUCIBLE_CONTENT: "context.irreducible.content",
 } as const;
 
 // T6 — C1 observability: payload types for the five lifecycle events.
@@ -455,6 +461,19 @@ export type ContextIrreduciblePayload = {
   availableInputTokens: number;
   mandatoryTokens: number;
   contextWindowTokens: number;
+};
+
+// §2 — Tool-scoping event payload types
+export type ToolingScopeFallbackFullPayload = {
+  provider: string;
+  model: string;
+  reason: string;
+};
+
+export type ToolingScopeReintroducedPayload = {
+  invocationId: string;
+  toolName: string;
+  reason: "shed_tool_called";
 };
 
 // Policy event payload types

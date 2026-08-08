@@ -52,7 +52,7 @@ import {
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
-import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload } from "../events/types.js";
+import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload } from "../events/types.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -317,6 +317,29 @@ systemPrompt,
 onStream,
   } = deps;
 
+  // ── T7: Tool scoping (§2 admission-control) ─────────────────────────
+  const { scopeToolsByTask } = await import("../config/tool-scoping.js");
+  // Full registry — every tool the model COULD name (provider + MCP). Consumed
+  // by Task 8's shed-tool handler to re-admit a scoped-out schema on call.
+  const fullToolRegistry = [...providerTools, ...mcpToolIndex];
+  const { core: coreTools, extended: extendedTools, fallbackFull } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
+  // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
+  const scopedOutNames = new Set(
+    fullToolRegistry.map((t) => t.name).filter((n) => !coreTools.some((c) => c.name === n) && !extendedTools.some((e) => e.name === n))
+  );
+  if (fallbackFull) {
+    await log.append({
+      sessionId: `${session.sessionId}-agent`, actor: "system",
+      type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_FALLBACK_FULL,
+      payload: {
+        provider: config.model.provider,
+        model: config.model.name,
+        reason: "no_relevance_signal",
+      } satisfies ToolingScopeFallbackFullPayload,
+    });
+  }
+
   // Aggregate + peak context pressure across the run (spec §3). Pure
   // observability — records per-iteration assembly drops; consumed only at
   // terminal returns. No admission behavior change.
@@ -430,35 +453,24 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  effectiveSystemPrompt, messages, tokenizer
 	);
 
-	// ── Reserve tool schema tokens inside the assembly budget ──────────
-	// Both providerTools AND mcpToolIndex are sent as a structured `tools`
-	// array alongside the system prompt + messages. That array is a separate
-	// wire payload from the tool-manifest text embedded in the system prompt
-	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
-	// item so they are token-accounted before best-effort tiers are admitted.
+		// ── T7: Reserve scoped tool schemas inside the assembly budget ────
+		// Only coreTools + extendedTools (the scoped set) reach the wire.
+		// Reserving the scoped set — not all providerTools + mcpToolIndex — is
+		// the whole point: scoped-out tools are not sent, so they must not
+		// consume budget. The combined scoped array is the exact wire payload.
 
-	if (providerTools.length > 0) {
-	  const providerToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer);
-	  candidateItems.unshift({
-	    id: "provider-tool-schema",
-	    kind: "tool_schema",
-	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: providerToolSchemaMeta.budgetEstimate,
-	    rawTokens: providerToolSchemaMeta.rawEstimate,
-	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
-	  });
-	}
-	if (mcpToolIndex.length > 0) {
-	  const mcpToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer);
-	  candidateItems.unshift({
-	    id: "mcp-tool-schema",
-	    kind: "tool_schema",
-	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: mcpToolSchemaMeta.budgetEstimate,
-	    rawTokens: mcpToolSchemaMeta.rawEstimate,
-	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
-	  });
-	}
+		const wireTools = [...coreTools, ...extendedTools];
+		if (wireTools.length > 0) {
+		  const wireToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(wireTools), tokenizer);
+		  candidateItems.unshift({
+		    id: "tool-schema",
+		    kind: "tool_schema",
+		    category: "mandatory_system_governance" as ContextCategory,
+		    tokens: wireToolSchemaMeta.budgetEstimate,
+		    rawTokens: wireToolSchemaMeta.rawEstimate,
+		    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+		  });
+		}
 
 	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
 	// Stamped on the `${sessionId}-agent` domain so the agent timeline
@@ -607,7 +619,7 @@ let usage: TokenUsage | undefined;
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...providerTools, ...mcpToolIndex],
+	    tools: [...coreTools, ...extendedTools],
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  }, { onStream });
@@ -618,7 +630,7 @@ let usage: TokenUsage | undefined;
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...providerTools, ...mcpToolIndex],
+	    tools: [...coreTools, ...extendedTools],
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  });
