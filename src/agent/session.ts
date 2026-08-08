@@ -124,7 +124,7 @@ import {
   buildMemoryStats,
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
-import { createContextBudget, type ContextBudget, type ContextBudgetConfig } from "../config/context-budget.js";
+import { createContextBudget, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -197,6 +197,12 @@ export interface AgentTurnResult {
   readonly toolCalls: readonly ToolCall[];
   readonly streamed?: boolean;
   readonly reason?: string;
+  /**
+   * Diagnostic payload for an irreducible context-budget overflow (C2 #18).
+   * In-process only — consumers must use the typed readonly fields, never
+   * Error methods/stack/instanceof. Omitted on any other outcome.
+   */
+  readonly contextBudgetOverflow?: ContextBudgetOverflowError;
   /**
    * Plan markdown content from the most recent plan phase (Task 6). Populated
    * when the run included a plan phase; omitted when the session was resumed
@@ -1446,6 +1452,9 @@ export class AgentSessionBuilder {
         toolCalls: turnToolCalls,
         streamed: result.streamed,
         reason: result.reason,
+        ...(result.contextBudgetOverflow
+          ? { contextBudgetOverflow: result.contextBudgetOverflow }
+          : {}),
         ...(approvedPlanContent !== undefined
           ? { planContent: approvedPlanContent }
           : {}),
