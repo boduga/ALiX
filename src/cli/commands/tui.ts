@@ -155,6 +155,13 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     projectionRuntime: createProjectionRuntime([
       [ProjectionIds.timeline, new TimelineBuilder(agentSessionId)],
       [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+      // T6 review fix: context lifecycle events route to the agent domain.
+      // MetricsProjection on the agent collector derives the six context
+      // counters (contextWindowTokens, availableInputTokens, etc.) from
+      // agent-domain events. The outer collector's MetricsProjection
+      // handles model.usage → live TOKENS status bar (outer-stamped events,
+      // unaffected by this addition).
+      [ProjectionIds.metrics, new MetricsProjection()],
     ]),
   });
   const sopCollector = new SopCollectorImpl();

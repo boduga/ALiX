@@ -398,8 +398,11 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// item so they are token-accounted before best-effort tiers are admitted.
 
 	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
+	// Stamped on the `${sessionId}-agent` domain so the agent timeline
+	// (TimelineBuilder) admits it — context events describe the agent's
+	// model-loop behavior, matching the emitAgent routing pattern.
 	await log.append({
-	  ...session, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
+	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
 	  payload: {
 	    invocationId,
 	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
@@ -429,7 +432,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 
 	// ── T6: emit context.budget.computed ───────────────────────────────
 	await log.append({
-	  ...session, actor: "system", type: CONTEXT_EVENT_TYPES.BUDGET_COMPUTED,
+	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.BUDGET_COMPUTED,
 	  payload: {
 	    invocationId,
 	    contextWindowTokens: contextBudget.contextWindowTokens,
@@ -449,7 +452,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	} catch (err) {
 	  if (err instanceof ContextBudgetOverflowError) {
 	    await log.append({
-	      ...session, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	      sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
 	      payload: {
 	        invocationId,
 	        overageTokens: err.overageTokens,
@@ -474,7 +477,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    reason: d.reason,
 	  }));
 	  await log.append({
-	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
 	    payload: {
 	      invocationId,
 	      admittedItems: assembled.admitted.length,
@@ -502,7 +505,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	if (!pfResult.fits) {
 	  // ── T6: emit context.preflight.failed BEFORE throwing irreducible ─
 	  await log.append({
-	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.PREFLIGHT_FAILED,
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.PREFLIGHT_FAILED,
 	    payload: {
 	      invocationId,
 	      overageTokens: pfResult.overflow.overageTokens,
@@ -521,7 +524,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  });
 	  // ── T6: emit context.irreducible ──────────────────────────────
 	  await log.append({
-	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
 	    payload: {
 	      invocationId,
 	      overageTokens: overflowErr.overageTokens,
