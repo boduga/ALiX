@@ -282,6 +282,41 @@ describe('ContextProjectionBuilder', () => {
     expect(() => new ContextProjectionBuilder().importState({ version: 1 } as never)).toThrow();
   });
 
+  it('importState validates ALL fields BEFORE mutating — malformed toolNames/string-array throws with snapshot unchanged', () => {
+    // Build a valid, populated state, then corrupt a copy. Every corrupt
+    // variant must throw DURING validation, before ANY field is assigned —
+    // the builder must be byte-for-byte unchanged (snapshot equality).
+    const p = new ContextProjectionBuilder();
+    p.update([
+      evt('user.message', { text: 'hi' }, 1, 1000),
+      evt('task.started', { task: 'T4' }, 2, 2000),
+      evt('file.created', { path: 'a.ts' }, 3, 3000),
+      evt('tool.completed', { toolCallId: 't1', toolName: 'read', status: 'success', durationMs: 10 }, 4, 4000),
+    ]);
+    const base = p.exportState() as Record<string, unknown>;
+
+    const attempt = (mutate: (s: Record<string, unknown>) => void) => {
+      const copy = JSON.parse(JSON.stringify(base)) as Record<string, unknown>;
+      mutate(copy);
+      const q = new ContextProjectionBuilder();
+      const before = q.snapshot();
+      expect(() => q.importState(copy)).toThrow(/context projection state/);
+      // The throw happened during validation, before ANY field was assigned.
+      expect(q.snapshot()).toEqual(before);
+    };
+
+    // Malformed toolNames tuple structures.
+    attempt((s) => { (s.toolNames as unknown[]).push(['only-one-string']); });
+    attempt((s) => { s.toolNames = [[123, 'x']]; });
+    attempt((s) => { s.toolNames = [['a', 'b'], ['c']]; });
+    // Malformed string-array elements.
+    attempt((s) => { (s.createdFiles as unknown[]).push(42); });
+    attempt((s) => { s.ledgerLines = ['ok', { bad: true }]; });
+    attempt((s) => { s.errors = ['ok', null]; });
+    attempt((s) => { s.changedFiles = ['ok', undefined]; });
+    attempt((s) => { s.deletedFiles = ['ok', 0]; });
+  });
+
   it('is registered under ProjectionIds.context and snapshotOf returns it via the runtime', () => {
     expect(ProjectionIds.context).toBe('context');
     const runtime = createProjectionRuntime([[ProjectionIds.context, new ContextProjectionBuilder()]]);

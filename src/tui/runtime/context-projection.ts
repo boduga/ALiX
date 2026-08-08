@@ -19,8 +19,15 @@ import type { ProjectionState } from './projection-state.js';
  *   - assembling from a snapshot never mutates it — a small-budget invocation
  *     cannot destroy context a later larger-budget invocation could use.
  *
- * Retention caps (MAX_*_LIMIT) are FIXED, budget-independent constants — a
- * retention policy, deliberately distinct from the per-invocation budget.
+ * "Never evicts" is about INVOCATION BUDGET, not storage. Projection retention
+ * is an independent, bounded-storage policy: the MAX_*_LIMIT caps below bound
+ * how much historical candidate state ALiX keeps (a fixed retention limit,
+ * unrelated to any model's context window). A projection MAY evict its own
+ * oldest entries when it exceeds its own retention limit, but it must NEVER
+ * evict merely because a particular model invocation has insufficient context
+ * budget — that decision belongs to the T5 budget-aware assembly. The two
+ * policies are orthogonal: retention bounds the candidate, budget bounds the
+ * request.
  *
  * Deltas derive from the event itself, never by re-reading state:
  *   - `tool.completed` → appends a tool result AND folds file-mutation/errors
@@ -35,6 +42,12 @@ import type { ProjectionState } from './projection-state.js';
  * candidate context). Heartbeats / phase ticks / internal hooks / unknown event
  * types are ignored by default — the whitelist is an explicit, extensible
  * promotion point (spec F).
+ *
+ * "Phase ticks" = INTERNAL heartbeat / phase-tick / telemetry noise (e.g.
+ * `hook.*`, `embedder.*`, `queue.position`, daemon heartbeats) — these never
+ * mutate the candidate. This is distinct from `runtime.phase.started` /
+ * `runtime.phase.completed` (and `agent.session.phase_changed`), which ARE
+ * context-relevant execution-state transitions and map to ledger lines.
  *
  * Durability: DURABLE (exportState/importState). Unlike MetricsProjection's
  * O(1) session telemetry counters, this candidate must survive a checkpoint
@@ -87,8 +100,10 @@ const GOVERNANCE_TYPES = new Set<string>([
 
 /** The explicit promotion point — an event belongs in the projection only if it
  *  changes the candidate context presented to the model. Anything NOT here is
- *  ignored by default (model.usage, heartbeats, phase ticks, internal hooks,
- *  unknown types). */
+ *  ignored by default (model.usage, internal heartbeat/phase-tick/telemetry
+ *  noise, internal hooks, unknown types). NOTE: `runtime.phase.started` /
+ *  `runtime.phase.completed` ARE here (LEDGER_TYPES) — execution-state phase
+ *  transitions are context-relevant; only INTERNAL tick noise is excluded. */
 const CONTEXT_TYPES = new Set<string>([
   ...CONVERSATION_TYPES, ...TOOL_RESULT_TYPES, ...TOOL_LIFECYCLE_TYPES,
   ...FILE_DIGEST_TYPES, ...LEDGER_TYPES, ...GOVERNANCE_TYPES,
@@ -304,8 +319,11 @@ export class ContextProjectionBuilder implements DurableProjectionBuilder<Contex
     ) {
       throw new Error('context projection state: invalid or unsupported version');
     }
-    // Untrusted persisted data — validate BEFORE mutating so a corrupt
-    // checkpoint can never half-corrupt the runtime candidate.
+    // Untrusted persisted data — validate EVERYTHING before mutating so a
+    // corrupt checkpoint can never half-corrupt the runtime candidate. The
+    // shape checks below all run to completion BEFORE any field is assigned;
+    // a throw from any one of them leaves the builder byte-for-byte unchanged
+    // (snapshot() before === snapshot() after).
     for (const t of s.turns) {
       if (
         t == null || typeof t !== 'object' ||
@@ -330,6 +348,30 @@ export class ContextProjectionBuilder implements DurableProjectionBuilder<Contex
         throw new Error('context projection state: malformed tool result');
       }
     }
+    // String-array fields (ledgerLines, createdFiles, changedFiles,
+    // deletedFiles, errors) — every element must be a string. A Set/array
+    // built from mixed or non-string elements would corrupt digest/ledger
+    // assembly downstream, so reject before constructing anything.
+    const stringArrays: readonly unknown[][] = [
+      s.ledgerLines, s.createdFiles, s.changedFiles, s.deletedFiles, s.errors,
+    ];
+    for (const arr of stringArrays) {
+      for (const el of arr) {
+        if (typeof el !== 'string') {
+          throw new Error('context projection state: malformed string-array entry');
+        }
+      }
+    }
+    // toolNames — every element must be a [string, string] tuple. `new Map`
+    // would throw on an odd-shaped pair AFTER mutation, so validate the tuple
+    // structure here, before anything is assigned.
+    for (const pair of s.toolNames as readonly unknown[]) {
+      if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') {
+        throw new Error('context projection state: malformed toolNames entry');
+      }
+    }
+    // ALL validation passed — now mutate. Construct Maps/Sets from the
+    // already-validated arrays; none of these can throw.
     this.lastSeq = s.lastSeq;
     this.contextEventCount = s.contextEventCount;
     this.updatedAt = s.updatedAt ?? null;
@@ -340,7 +382,7 @@ export class ContextProjectionBuilder implements DurableProjectionBuilder<Contex
     this.changedFiles = new Set(s.changedFiles);
     this.deletedFiles = new Set(s.deletedFiles);
     this.errors = [...s.errors];
-    this.toolNames = new Map(s.toolNames);
+    this.toolNames = new Map(s.toolNames as ReadonlyArray<readonly [string, string]>);
   }
 
   // ─── Conversation / governance turns ─────────────────────────────────
