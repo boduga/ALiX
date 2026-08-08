@@ -30,6 +30,10 @@
 - Consumes: nothing (foundation task).
 - Produces: `RunResult["reason"]` now includes `"context_budget_overflow"`; `RunResult` gains optional `contextBudgetOverflow?: ContextBudgetOverflowError`. Later tasks rely on both.
 
+- [ ] **Step 0: GitNexus impact (before ANY edit)**
+
+Run `impact({target: "RunResult", direction: "upstream"})` and `impact({target: "FAILURE_REASONS", direction: "upstream"})` (GitNexus MCP, repo ALiX). Report the blast radius (direct callers, affected processes, risk level) to the user. If risk is HIGH/CRITICAL, STOP and surface it before editing.
+
 - [ ] **Step 1: Add the type-only import to `src/run.ts`**
 
 Add `import type { ContextBudgetOverflowError } from "./config/context-budget.js";` after the existing type imports (lines 6-7). Do NOT touch the value imports on lines 1-4.
