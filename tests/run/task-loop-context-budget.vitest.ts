@@ -506,6 +506,40 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     expect(req.messages.length).toBeLessThan(messages.length);
   });
 
+  it('returns contextPressure on the RunResult when the run drops context items', async () => {
+    // Tight budget (available ≈ 2000) forces T4/T5 drops from a conversation
+    // that overflows it, but stays REDUCIBLE (mandatory core fits), so the run
+    // completes and returns a RunResult — with contextPressure attached.
+    const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
+    const budget = createContextBudget(
+      { contextWindowTokens: 2_500 },
+      { outputFloor: 500, outputCap: 500, outputRatio: 0.2 },
+    );
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'Fix the bug. ' },                            // Tier 2
+      { role: 'assistant', content: longText(500) },                          // Tier 4
+      { role: 'user', content: longText(500) },                               // Tier 4
+      { role: 'assistant', content: longText(500) },                          // Tier 4
+      { role: 'user', content: '<tool_result id="1">\n' + longText(500) + '\n</tool_result>' }, // Tier 5
+      { role: 'user', content: longText(500) },                               // Tier 4 (last user = mandatory)
+    ];
+    const { deps } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages,
+      systemPrompt: 'Helpful. ',
+      maxIterations: 1,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.contextPressure).toBeDefined();
+    expect(result.contextPressure!.totalIterations).toBeGreaterThanOrEqual(1);
+    // At least one drop across T4/T5/T6 for a tight-budget run:
+    const agg = result.contextPressure!.aggregate;
+    expect(agg.tier4Dropped + agg.tier5Dropped + agg.tier6Dropped).toBeGreaterThan(0);
+  });
+
   // ── C1 regression: non-streaming path MUST populate text/toolCalls/usage ──
   it('non-streaming path captures provider response (C1 regression)', async () => {
     // The C1 bug: the non-streaming `else` branch called provider.complete()
