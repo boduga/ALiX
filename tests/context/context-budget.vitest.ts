@@ -28,70 +28,75 @@ function descriptor(windowTokens: number, outputTokenLimit?: number): ModelDescr
 describe("createContextBudget (B contract — reserved output)", () => {
   it("64k window → 12,800 reserved (20%)", () => {
     const b = createContextBudget(descriptor(64_000));
-    expect(b.reservedOutputTokens).toBe(12_800);
+    expect(b.budgetReservation).toBe(12_800);
+    expect(b.requestedMaxOutputTokens).toBe(12_800); // §5: defaults to reservation
     expect(b.availableInputTokens).toBe(64_000 - 12_800);
   });
 
   it("200k window → 32,768 reserved (capped)", () => {
     const b = createContextBudget(descriptor(200_000));
-    expect(b.reservedOutputTokens).toBe(32_768);
+    expect(b.budgetReservation).toBe(32_768);
     expect(b.availableInputTokens).toBe(200_000 - 32_768);
   });
 
   it("1M window → 32,768 reserved (capped)", () => {
     const b = createContextBudget(descriptor(1_000_000));
-    expect(b.reservedOutputTokens).toBe(32_768);
+    expect(b.budgetReservation).toBe(32_768);
   });
 
   it("4,096 floor applies to small windows (16k → 4,096, not 3,200)", () => {
     const b = createContextBudget(descriptor(16_000));
-    expect(b.reservedOutputTokens).toBe(4_096);
+    expect(b.budgetReservation).toBe(4_096);
     expect(b.availableInputTokens).toBe(16_000 - 4_096);
   });
 
-  it("exposes the immutable 3-field shape", () => {
+  it("exposes the immutable 5-field shape", () => {
     const b = createContextBudget(descriptor(64_000));
     expect(b.contextWindowTokens).toBe(64_000);
-    expect(typeof b.reservedOutputTokens).toBe("number");
+    expect(typeof b.budgetReservation).toBe("number");
+    expect(typeof b.requestedMaxOutputTokens).toBe("number");
     expect(typeof b.availableInputTokens).toBe("number");
+    expect(typeof b.policyReservation).toBe("number");
   });
 
   it("is immutable (frozen) — the object never mutates", () => {
-    const b = createContextBudget(descriptor(64_000)) as ContextBudget & { reservedOutputTokens: number };
+    const b = createContextBudget(descriptor(64_000)) as ContextBudget & { budgetReservation: number };
     expect(Object.isFrozen(b)).toBe(true);
-    const before = b.reservedOutputTokens;
+    const before = b.budgetReservation;
     try {
-      b.reservedOutputTokens = 1;
+      b.budgetReservation = 1;
     } catch {
       /* frozen: strict-mode assignment throws; value stays */
     }
-    expect(b.reservedOutputTokens).toBe(before);
+    expect(b.budgetReservation).toBe(before);
   });
 
   it("clamps reservedOutput to model.outputTokenLimit when known", () => {
     const b = createContextBudget(descriptor(64_000), { outputTokenLimit: 10_000 });
-    expect(b.reservedOutputTokens).toBe(10_000);
+    expect(b.budgetReservation).toBe(10_000);
+    expect(b.requestedMaxOutputTokens).toBe(10_000); // §5: still defaults to reservation
     expect(b.availableInputTokens).toBe(64_000 - 10_000);
   });
 
   it("does not clamp below policy reservation when outputTokenLimit is large", () => {
     const b = createContextBudget(descriptor(200_000), { outputTokenLimit: 100_000 });
-    expect(b.reservedOutputTokens).toBe(32_768);
+    expect(b.budgetReservation).toBe(32_768);
+    expect(b.requestedMaxOutputTokens).toBe(32_768);
   });
 
   it("config-overridable ratio", () => {
     const b = createContextBudget(descriptor(64_000), { outputRatio: 0.5 });
-    expect(b.reservedOutputTokens).toBe(32_000);
+    expect(b.budgetReservation).toBe(32_000);
   });
 
   it("config-overridable floor", () => {
     const b = createContextBudget(descriptor(16_000), { outputFloor: 8_000 });
-    expect(b.reservedOutputTokens).toBe(8_000);
+    expect(b.budgetReservation).toBe(8_000);
   });
 
   it("config-overridable cap", () => {
     const b = createContextBudget(descriptor(1_000_000), { outputCap: 16_000 });
-    expect(b.reservedOutputTokens).toBe(16_000);
+    expect(b.budgetReservation).toBe(16_000);
   });
 
   it("ships default knob constants 0.20 / 4,096 / 32,768", () => {
@@ -111,20 +116,20 @@ describe("createContextBudget (B contract — reserved output)", () => {
   it("guard: a window below the floor never yields negative available input", () => {
     const b = createContextBudget(descriptor(2_000));
     // floor (4,096) > window (2,000): reservation clamps to the window itself.
-    expect(b.reservedOutputTokens).toBe(2_000);
+    expect(b.budgetReservation).toBe(2_000);
     expect(b.availableInputTokens).toBe(0);
   });
 
   it("guard: an explicit floor above the window also clamps to non-negative available", () => {
     const b = createContextBudget(descriptor(2_000), { outputFloor: 8_000, outputCap: 16_000 });
-    expect(b.reservedOutputTokens).toBe(2_000);
+    expect(b.budgetReservation).toBe(2_000);
     expect(b.availableInputTokens).toBe(0);
   });
 
   it("partial config object falls back to defaults for unset knobs", () => {
     // Only outputRatio is overridden; floor/cap must keep their defaults.
     const b = createContextBudget(descriptor(16_000), { outputRatio: 0.5 });
-    expect(b.reservedOutputTokens).toBe(8_000); // floor(16k*0.5)=8k, above floor 4,096, below cap
+    expect(b.budgetReservation).toBe(8_000); // floor(16k*0.5)=8k, above floor 4,096, below cap
     expect(b.availableInputTokens).toBe(8_000);
   });
 });

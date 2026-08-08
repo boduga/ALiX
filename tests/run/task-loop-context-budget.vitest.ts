@@ -303,7 +303,40 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
 
     // The provider should be called for a simple single-turn conversation.
     expect(mockProvider.requests.length).toBeGreaterThan(0);
-    expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.reservedOutputTokens);
+    expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
+  });
+
+  // §5: the split decouples the input reservation (budgetReservation) from the
+  // maxOutputTokens actually sent to the provider (requestedMaxOutputTokens).
+  // When no maxOutputTokens is configured, requestedMaxOutputTokens defaults to
+  // budgetReservation — behavior preserved, and the wire value is defined.
+  it('sends requestedMaxOutputTokens (defaults to budgetReservation) as maxOutputTokens', async () => {
+    const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
+    const budget = createContextBudget(
+      { contextWindowTokens: 64_000 },
+      { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
+    );
+    const { deps } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages: [{ role: 'user', content: 'hello' }],
+      maxIterations: 1,
+    });
+
+    try {
+      await runTaskLoop(deps);
+    } catch {
+      // If the budget path throws, the test still checks the recorded request
+    }
+
+    // The provider recorded the request it received.
+    expect(mockProvider.requests.length).toBeGreaterThan(0);
+    const req = mockProvider.requests[0]!;
+    expect(req.maxOutputTokens).toBeDefined();
+    expect(req.maxOutputTokens).toBeGreaterThan(0);
+    // §5 invariant: requestedMaxOutputTokens defaults to budgetReservation.
+    expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
+    expect(budget.requestedMaxOutputTokens).toBe(budget.budgetReservation);
   });
 
   it('guarantees the request the provider receives never exceeds the budget (money invariant)', async () => {
@@ -343,7 +376,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     expect(mockProvider.requests.length).toBeGreaterThan(0);
 
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       // R3: measure the full wire payload including any structured tool schema
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
@@ -382,7 +415,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // The provider was called (or not, if irreducible).
     // Every request must fit within the budget INCLUDING tool schema tokens.
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
     }
@@ -426,7 +459,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
 
     // Every streamed request must fit within the budget INCLUDING tool schemas.
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
     }
@@ -500,7 +533,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // Provider was called (reducible)
     expect(mockProvider.requests.length).toBeGreaterThan(0);
     const req = mockProvider.requests[0]!;
-    expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+    expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
     // The request the provider received should have fewer messages than
     // the original (some were dropped by assembly).
     expect(req.messages.length).toBeLessThan(messages.length);

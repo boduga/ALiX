@@ -205,7 +205,8 @@ describe('context lifecycle events — integration', () => {
     expect(typeof p.invocationId).toBe('string');
     expect(typeof p.contextWindowTokens).toBe('number');
     expect(typeof p.availableInputTokens).toBe('number');
-    expect(typeof p.reservedOutputTokens).toBe('number');
+    expect(typeof p.budgetReservation).toBe('number');
+    expect(typeof p.requestedMaxOutputTokens).toBe('number');
   });
 
   it('emits context.assembled with invocationId and category breakdown', async () => {

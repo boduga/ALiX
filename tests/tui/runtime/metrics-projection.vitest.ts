@@ -42,7 +42,7 @@ describe('MetricsProjection', () => {
       lastEventAt: null,
       contextWindowTokens: 0,
       availableInputTokens: 0,
-      reservedOutputTokens: 0,
+      budgetReservation: 0,
       admittedTokens: 0,
       droppedTokens: 0,
       contextUtilization: null,

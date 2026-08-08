@@ -411,7 +411,10 @@ export type ContextBudgetComputedPayload = {
   invocationId: string;
   contextWindowTokens: number;
   availableInputTokens: number;
-  reservedOutputTokens: number;
+  /** §5: safety-margin reservation (feeds availableInputTokens). */
+  budgetReservation: number;
+  /** §5: maxOutputTokens sent to the provider (≤ budgetReservation). */
+  requestedMaxOutputTokens: number;
   policyReservation: number;
 };
 

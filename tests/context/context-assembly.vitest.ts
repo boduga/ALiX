@@ -17,9 +17,11 @@ import type { ModelDescriptor } from "../../src/config/context-limits.js";
 /** Exact-availableInput budget: reserve exactly 8,000 so availableInput is
  *  fully controlled. Same immutable shape the factory produces. */
 function budget(availableInputTokens: number): ContextBudget {
+  const budgetReservation = 8_000;
   return Object.freeze({
-    contextWindowTokens: availableInputTokens + 8_000,
-    reservedOutputTokens: 8_000,
+    contextWindowTokens: availableInputTokens + budgetReservation,
+    budgetReservation,
+    requestedMaxOutputTokens: budgetReservation,
     availableInputTokens,
     policyReservation: 8_000,
   });

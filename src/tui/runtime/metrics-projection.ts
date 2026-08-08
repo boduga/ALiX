@@ -26,7 +26,8 @@ export interface MetricsProjectionSnapshot {
   /** T6 — C1 observability: context budget counters */
   readonly contextWindowTokens: number;
   readonly availableInputTokens: number;
-  readonly reservedOutputTokens: number;
+  /** §5: safety-margin reservation from context.budget.computed. */
+  readonly budgetReservation: number;
   readonly admittedTokens: number;
   readonly droppedTokens: number;
   /** admittedTokens / availableInputTokens, or null when availableInputTokens = 0 */
@@ -68,7 +69,7 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
   // T6 — C1 observability: context budget counters
   private ctxWindowTokens = 0;
   private ctxAvailableInput = 0;
-  private ctxReservedOutput = 0;
+  private ctxBudgetReservation = 0;
   private ctxAdmittedTokens = 0;
   private ctxDroppedTokens = 0;
   private lastSeq = 0;   // in-memory idempotency guard (not durable)
@@ -100,10 +101,10 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
       // T6 — C1 observability: context budget counters. Same finite-value guard
       // pattern as model.usage; non-finite values are skipped, never trusted.
       if (e.type === 'context.budget.computed') {
-        const p = (e.payload ?? {}) as { contextWindowTokens?: unknown; availableInputTokens?: unknown; reservedOutputTokens?: unknown };
+        const p = (e.payload ?? {}) as { contextWindowTokens?: unknown; availableInputTokens?: unknown; budgetReservation?: unknown };
         if (typeof p.contextWindowTokens === 'number' && Number.isFinite(p.contextWindowTokens)) this.ctxWindowTokens = p.contextWindowTokens;
         if (typeof p.availableInputTokens === 'number' && Number.isFinite(p.availableInputTokens)) this.ctxAvailableInput = p.availableInputTokens;
-        if (typeof p.reservedOutputTokens === 'number' && Number.isFinite(p.reservedOutputTokens)) this.ctxReservedOutput = p.reservedOutputTokens;
+        if (typeof p.budgetReservation === 'number' && Number.isFinite(p.budgetReservation)) this.ctxBudgetReservation = p.budgetReservation;
         continue;
       }
       if (e.type === 'context.assembled') {
@@ -134,7 +135,7 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
       lastEventAt: this.lastEventAt,
       contextWindowTokens: this.ctxWindowTokens,
       availableInputTokens: this.ctxAvailableInput,
-      reservedOutputTokens: this.ctxReservedOutput,
+      budgetReservation: this.ctxBudgetReservation,
       admittedTokens: this.ctxAdmittedTokens,
       droppedTokens: this.ctxDroppedTokens,
       contextUtilization: this.ctxAvailableInput > 0
@@ -158,7 +159,7 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
     this.lastEventAt = null;
     this.ctxWindowTokens = 0;
     this.ctxAvailableInput = 0;
-    this.ctxReservedOutput = 0;
+    this.ctxBudgetReservation = 0;
     this.ctxAdmittedTokens = 0;
     this.ctxDroppedTokens = 0;
     this.lastSeq = 0;

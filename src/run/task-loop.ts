@@ -481,7 +481,8 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    invocationId,
 	    contextWindowTokens: contextBudget.contextWindowTokens,
 	    availableInputTokens: contextBudget.availableInputTokens,
-	    reservedOutputTokens: contextBudget.reservedOutputTokens,
+	    budgetReservation: contextBudget.budgetReservation,
+	    requestedMaxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    policyReservation: contextBudget.policyReservation,
 	  },
 	});
@@ -607,7 +608,7 @@ let usage: TokenUsage | undefined;
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
 	    tools: [...providerTools, ...mcpToolIndex],
-	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  }, { onStream });
 	  text = result.text;
@@ -618,7 +619,7 @@ let usage: TokenUsage | undefined;
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
 	    tools: [...providerTools, ...mcpToolIndex],
-	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  });
 	  // C1 fix: restore assignments — the non-streaming path MUST

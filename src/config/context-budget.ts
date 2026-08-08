@@ -53,6 +53,9 @@ export interface ContextBudgetConfig {
   outputFloor?: number;
   /** Maximum reserved output tokens (default 32,768). */
   outputCap?: number;
+  /** §5: requested max output tokens sent to the provider (clamped ≤
+   *  budgetReservation). Defaults to budgetReservation (behavior preserved). */
+  maxOutputTokens?: number;
 }
 
 /** Options for {@link createContextBudget}: the config knobs plus the optional
@@ -76,9 +79,11 @@ export interface ContextBudgetOptions extends ContextBudgetConfig {
  */
 export interface ContextBudget {
   readonly contextWindowTokens: number;
-  readonly reservedOutputTokens: number;
+  /** Safety-margin reservation: availableInputTokens = window − budgetReservation. */
+  readonly budgetReservation: number;
+  /** maxOutputTokens sent to the provider (≤ budgetReservation invariant). */
+  readonly requestedMaxOutputTokens: number;
   readonly availableInputTokens: number;
-  /** Policy reservation before the `model.outputTokenLimit` clamp (B). */
   readonly policyReservation: number;
 }
 
@@ -86,10 +91,15 @@ export interface ContextBudget {
  * Derive the authoritative per-turn budget:
  * ```
  * policyReservation    = clamp(floor(window × ratio), floor, cap)
- * reservedOutputTokens = min(policyReservation, outputTokenLimit)  // when known
- * availableInputTokens = window − reservedOutputTokens
+ * budgetReservation    = min(policyReservation, outputTokenLimit)  // when known
+ * availableInputTokens = window − budgetReservation
+ * requestedMaxOutputTokens = clamp(maxOutputTokens, ≤ budgetReservation) // §5
  * ```
- * The returned object is frozen: the budget never mutates.
+ * `budgetReservation` (the safety margin feeding `availableInputTokens`) is
+ * decoupled from `requestedMaxOutputTokens` (the `maxOutputTokens` sent to the
+ * provider): tuning output length no longer changes the input budget. The
+ * `requestedMaxOutputTokens ≤ budgetReservation` invariant is asserted at
+ * construction. The returned object is frozen: the budget never mutates.
  */
 export function createContextBudget(
   descriptor: Pick<ModelDescriptor, "contextWindowTokens">,
@@ -103,20 +113,21 @@ export function createContextBudget(
     Math.max(Math.floor(contextWindowTokens * ratio), floor),
     cap
   );
-  // Guard degenerate windows (a config override or a tiny model could set a
-  // window below the floor): never let the output reservation exceed the
-  // window itself, so `availableInputTokens` is never negative. No shipped
-  // provider is below 64k, but the invariant must hold structurally.
-  const reservedOutputTokens = Math.min(
+  const budgetReservation = Math.min(
     options.outputTokenLimit === undefined
       ? policyReservation
       : Math.min(policyReservation, options.outputTokenLimit),
     contextWindowTokens,
   );
+  const requestedMaxOutputTokens = Math.min(
+    options.maxOutputTokens ?? budgetReservation,
+    budgetReservation, // invariant: never exceeds the reservation (can't cause overflow)
+  );
   return Object.freeze({
     contextWindowTokens,
-    reservedOutputTokens,
-    availableInputTokens: contextWindowTokens - reservedOutputTokens,
+    budgetReservation,
+    requestedMaxOutputTokens,
+    availableInputTokens: contextWindowTokens - budgetReservation,
     policyReservation,
   });
 }
