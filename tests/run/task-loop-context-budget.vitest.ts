@@ -16,7 +16,6 @@ import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ContextBudgetOverflowError } from '../../src/config/context-budget.js';
 import type { ContextBudget } from '../../src/config/context-budget.js';
-import { assembleContext } from '../../src/config/context-assembly.js';
 import {
   ensureEncoder,
   estimateBudgetTokens,
@@ -442,70 +441,35 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     expect(usageEvents.length).toBe(1);
   });
 
-  // ── I3: last user message MUST be classified as mandatory (never dropped) ──
-  it('keeps the last user turn as mandatory current_task (I3)', async () => {
-    const mockProvider = createMockProvider({
-      responseText: 'done.',
-      usage: { inputTokens: 100, outputTokens: 50 },
-    });
-    // Budget tight enough that best-effort tiers get dropped.
-    const budget = createContextBudget(
-      { contextWindowTokens: 4_000 },
-      { outputRatio: 0.5, outputFloor: 2000, outputCap: 2000 },
-    );
-    // Multi-turn: first user message is a long-ago instruction, last user
-    // message is the actual current request.
-    const messages: NormalizedMessage[] = [
-      { role: 'user', content: 'Initial task: ' + longText(300) },
-      { role: 'assistant', content: longText(300) },
-      { role: 'user', content: 'Quick follow-up request' }, // LAST user turn — mandatory
-    ];
-    const { deps } = await makeTestDeps({
-      provider: mockProvider,
-      contextBudget: budget,
-      messages,
-      systemPrompt: 'Helpful. ',
-      maxIterations: 1,
-    });
-
-    await runTaskLoop(deps);
-
-    expect(mockProvider.requests.length).toBe(1);
-    const req = mockProvider.requests[0]!;
-
-    // The last user message ("Quick follow-up request") MUST be present
-    // in the request — it is the current instruction and is not droppable.
-    const lastUserContent = messages[2]!.content;
-    const hasLastUser = req.messages.some(
-      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Quick follow-up'),
-    );
-    expect(hasLastUser).toBe(true);
-  });
-
-  // ── I3 regression: ledger must NOT claim the last-user slot ──
-  // R3 discriminating test: single iteration with a pre-seeded ledger-style
-  // message avoids synthesis re-prompt displacement. A tight budget + provider
-  // tools makes the test FAIL on round-2 code (tools unaccounted) and PASS on
-  // round-3 code (tools reserved in mandatory core).
+  // ── I3: the real last user turn is never dropped when a ledger is present ──
+  // R4 genuinely discriminating: the real last user turn is large enough (~370
+  // padded tokens) that when MISCLASSIFIED as Tier-4 (droppable) by a reverted
+  // classifyMessageToCategory ordering, it is genuinely dropped by the greedy
+  // selector. The ledger, correctly classified as Tier-3 (current_execution_state),
+  // must NOT claim the last-user slot.
+  //
+  // Budget: window=1600, outputFloor/Cap=200, outputRatio=0.125 → available=1400.
+  //   With fix: mandatory = sys(~240)+tools(~180)+msg0(~370)+msg2(~370) ≈ 1160 fits.
+  //   Tier-3 ledger(~35) fits all-or-nothing. msg1(~365) dropped. msg2 SURVIVES.
+  //   Without fix: mandatory = sys(~240)+tools(~180)+msg0(~370)+ledger(~35) ≈ 825.
+  //   remaining = 1400−825=575. msg1(~365) fits → remaining=210. msg2(~370)>210 → DROPPED.
   it('classifies the real last user turn as mandatory when ledger is present (I3 regression)', async () => {
     const mockProvider = createMockProvider({ responseText: 'done.', usage: { inputTokens: 100, outputTokens: 50 } });
     await ensureEncoder('cl100k_base');
 
-    // window=1300, reserved=200, available=1100. 3 tools (sys=239, tools=177).
-    // Round-2 admitted=1019,+tools=1196>1100 FAIL. Round-3 mandatory=798,PASS.
+    // window=1600, outputFloor/Cap=200, outputRatio=0.125 → available=1400.
     const budget = createContextBudget(
-      { contextWindowTokens: 1_300 },
-      { outputFloor: 200, outputCap: 200, outputRatio: 0.15 },
+      { contextWindowTokens: 1_600 },
+      { outputFloor: 200, outputCap: 200, outputRatio: 0.125 },
     );
 
-    // Pre-seed a ledger-style message to test the I3 classification contract:
-    // content starting with "[Progress Ledger]" MUST be Tier-3
-    // (current_execution_state), NOT Tier-2 (current_task). The real last user
-    // turn (msg2) must be classified as Tier-2 and survive the budget gate.
+    // Pre-seed a ledger-style message to test the I3 classification contract.
+    // msg2 is the REAL last user turn (large — would genuinely drop if misclassified).
+    // msg3 starts with "[Progress Ledger]" → must be Tier-3 (current_execution_state).
     const messages: NormalizedMessage[] = [
-      { role: 'user', content: 'First: ' + longText(300) },           // ~370 padded, Tier-2 (index 0)
-      { role: 'assistant', content: longText(300) },                   // ~365 padded, Tier-4
-      { role: 'user', content: 'Current request: fix this bug' },     // ~15 padded, Tier-2 (real last user)
+      { role: 'user', content: 'First: ' + longText(300) },                    // ~370 padded, Tier-2 (index 0)
+      { role: 'assistant', content: longText(300) },                            // ~365 padded, Tier-4
+      { role: 'user', content: 'Current request: ' + longText(300) },          // ~370 padded, Tier-2 (REAL last user)
       { role: 'user', content: '[Progress Ledger]\nStep 1: called read — done\n---\nProgress: step 1/2' }, // Tier-3
     ];
 
@@ -525,23 +489,21 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     expect(mockProvider.requests.length).toBe(1);
     const req = mockProvider.requests[0]!;
 
-    // The real last user turn MUST be present (I3: Tier-2, mandatory).
+    // The REAL last user turn MUST be present (I3: Tier-2, mandatory).
+    // When the I3 fix is regressed, msg2 is classified as Tier-4 and dropped.
     const hasRealLastUser = req.messages.some(
-      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Current request: fix this bug'),
+      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Current request'),
     );
     expect(hasRealLastUser).toBe(true);
 
-    // The ledger MUST be present (Tier-3, protected). If the I3 fix is
-    // regressed, the ledger claims the last-user slot and the real
-    // instruction becomes Tier-4 (droppable).
+    // The ledger MUST be present (Tier-3, protected, correct classification).
     const hasLedger = req.messages.some(
       (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').startsWith('[Progress Ledger]'),
     );
     expect(hasLedger).toBe(true);
 
     // Money invariant: total request tokens (including structured tool schema)
-    // must not exceed available. On round-2 code (no tool reservation) this
-    // assertion FAILS because the unaccounted tool tokens push the total over.
+    // must not exceed available.
     const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
     expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
   });
