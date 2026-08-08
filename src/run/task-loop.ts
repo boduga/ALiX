@@ -41,6 +41,8 @@ import {
 import { ProgressLedger } from "./progress-ledger.js";
 import { IntentClassifier, type AgentIntent } from "./intent-classifier.js";
 import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../agent/system-prompt.js";
+import { estimateMessageTokens } from "../utils/tokens.js";
+import type { TokenizerName } from "../config/context-limits.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -215,7 +217,7 @@ post_task?: { command: string; reason: string }[];
   };
   maxIterations: number;
   MAX_CONTEXT_TOKENS: number;
-  encoding: "cl100k_base" | "o200k_base" | "char4";
+  tokenizer: TokenizerName;
   task: string;
   taskType: string;
   depth: "quick" | "deep";
@@ -259,7 +261,7 @@ selectedTools,
 hooks,
 maxIterations,
 MAX_CONTEXT_TOKENS,
-encoding,
+tokenizer,
 task,
 taskType,
 depth,
@@ -339,14 +341,16 @@ stateMachine.tick(0);
 // Track if any mutations occurred in this iteration
 const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
 
-// Truncate messages if token budget exceeded before streaming/completion
+// Truncate messages if token budget exceeded before streaming/completion.
+// Detection and truncation share the same tokenizer-based estimator — the
+// char/4 detection is gone (E1).
 const msgTokens = messages.reduce(
-  (sum, m) => sum + estimateMessageTokens(m),
+  (sum, m) => sum + estimateMessageTokens(m, tokenizer),
   0
 );
 if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
   const { truncateToTokenBudget } = await import("../utils/tokens.js");
-  const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
+  const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, tokenizer);
   if (dropped.length > 0) {
     // Remove all [State] messages before truncation, then re-inject one rolling summary
     messages = messages.filter(m => !String(m.content).startsWith("[Session Digest]"));
@@ -367,7 +371,7 @@ if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
       droppedCount: dropped.length,
       provider: config.model.provider,
       maxTokens: MAX_CONTEXT_TOKENS,
-      encoding
+      tokenizer
     }});
   }
 }
@@ -1123,15 +1127,6 @@ if (enhancedVerifier) {
 }
 
 // Helper functions used by the task loop
-
-/**
- * Estimates token count for a message using character-based approximation.
- * For production use, replace with tiktoken or similar library.
- */
-function estimateMessageTokens(m: NormalizedMessage): number {
-  const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-  return Math.ceil(content.length / 4);
-}
 
 /**
  * Builds a session digest from the event log directory.

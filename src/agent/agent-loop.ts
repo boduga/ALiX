@@ -14,7 +14,7 @@ import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js"
 import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import type { NormalizedMessage } from "../providers/types.js";
-import { getEncoding } from "../config/context-limits.js";
+import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -125,19 +125,19 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     evict(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
   }
 
-  // Resolve context limit and encoding from config or API
+  // Resolve context window and tokenizer from config or API
   const userOverride = ctx.config.model.maxContextTokens;
   let maxTokens: number;
-  let encoding: "cl100k_base" | "o200k_base" | "char4";
+  let tokenizer: TokenizerName;
 
   if (userOverride !== undefined) {
     maxTokens = userOverride;
-    encoding = getEncoding(ctx.config.model.provider);
+    tokenizer = getEncoding(ctx.config.model.provider);
   } else {
-    const { resolveContextLimit, getEncoding: getEnc } = await import("../config/context-limits.js");
-    const resolved = await resolveContextLimit(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
-    maxTokens = resolved.maxTokens;
-    encoding = resolved.encoding;
+    const { resolveModelDescriptor } = await import("../config/context-limits.js");
+    const descriptor = await resolveModelDescriptor(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
+    maxTokens = descriptor.contextWindowTokens;
+    tokenizer = descriptor.tokenizer;
   }
 
   const MAX_CONTEXT_TOKENS = maxTokens;
@@ -364,7 +364,7 @@ ${approvedPlanContent}`);
     hooks,
     maxIterations: cappedIterations,
     MAX_CONTEXT_TOKENS,
-    encoding,
+    tokenizer,
     task,
     taskType,
     depth,

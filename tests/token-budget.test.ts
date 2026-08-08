@@ -67,10 +67,9 @@ test("truncateToTokenBudget returns empty kept when budget too small", async () 
   assert.ok(kept.length <= 1);
 });
 
-test("estimateTokens falls back to char/4 for char4 encoding", async () => {
-  await ensureEncoder("char4");
-  const text = "hello world";
-  const tokens = estimateTokens(text, "char4");
-  // "hello world" is 11 chars, 11/4 = 2.75 → ceil = 3
-  assert.equal(tokens, 3);
+test("estimateTokens counts tokens with the o200k_base tokenizer", async () => {
+  await ensureEncoder("o200k_base");
+  const text = "hello world this is a test";
+  const tokens = estimateTokens(text, "o200k_base");
+  assert.ok(tokens > 0);
 });

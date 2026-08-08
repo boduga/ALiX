@@ -123,7 +123,7 @@ import {
   buildMemoryContext,
   buildMemoryStats,
 } from "../utils/memory/recall.js";
-import { getEncoding } from "../config/context-limits.js";
+import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
 import type { SkillEntry } from "../skills/catalog.js";
@@ -593,7 +593,7 @@ export class AgentSessionBuilder {
     // Agent-tab only — the chat path (processChat) never sets this.
     let explicitSkills: string[] | undefined;
     let MAX_CONTEXT_TOKENS = 0;
-    let encoding: "cl100k_base" | "o200k_base" | "char4" = "cl100k_base";
+    let tokenizer: TokenizerName = "cl100k_base";
     let taskType: TaskType = "unknown";
     let depth: "quick" | "deep" = "quick";
     let shellTask = false;
@@ -739,7 +739,7 @@ export class AgentSessionBuilder {
         config.readOnly,
       );
       MAX_CONTEXT_TOKENS = p5.MAX_CONTEXT_TOKENS;
-      encoding = p5.encoding;
+      tokenizer = p5.tokenizer;
       taskType = p5.taskType;
       depth = p5.depth;
       shellTask = p5.shellTask;
@@ -1234,7 +1234,7 @@ export class AgentSessionBuilder {
           hooks,
           maxIterations: cappedIterations,
           MAX_CONTEXT_TOKENS,
-          encoding,
+          tokenizer,
           task: currentTask,
           taskType,
           depth,
@@ -2000,7 +2000,7 @@ async function setupContextLimits(
   readOnly?: boolean,
 ): Promise<{
   MAX_CONTEXT_TOKENS: number;
-  encoding: "cl100k_base" | "o200k_base" | "char4";
+  tokenizer: TokenizerName;
   taskType: TaskType;
   depth: "quick" | "deep";
   shellTask: boolean;
@@ -2009,19 +2009,19 @@ async function setupContextLimits(
 }> {
   const userOverride = modelConfig.maxContextTokens;
   let MAX_CONTEXT_TOKENS: number;
-  let encoding: "cl100k_base" | "o200k_base" | "char4";
+  let tokenizer: TokenizerName;
   if (userOverride !== undefined) {
     MAX_CONTEXT_TOKENS = userOverride;
-    encoding = getEncoding(modelConfig.provider);
+    tokenizer = getEncoding(modelConfig.provider);
   } else {
-    const { resolveContextLimit } = await import("../config/context-limits.js");
-    const resolved = await resolveContextLimit(
+    const { resolveModelDescriptor } = await import("../config/context-limits.js");
+    const descriptor = await resolveModelDescriptor(
       modelConfig.provider,
       modelConfig.name,
       apiKeys,
     );
-    MAX_CONTEXT_TOKENS = resolved.maxTokens;
-    encoding = resolved.encoding;
+    MAX_CONTEXT_TOKENS = descriptor.contextWindowTokens;
+    tokenizer = descriptor.tokenizer;
   }
 
   const effectiveTask = task || "Interactive coding session";
@@ -2038,7 +2038,7 @@ async function setupContextLimits(
 
   return {
     MAX_CONTEXT_TOKENS,
-    encoding,
+    tokenizer,
     taskType,
     depth,
     shellTask,

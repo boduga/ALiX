@@ -1,52 +1,101 @@
 import { get_encoding } from "tiktoken";
-import type { EncodingName } from "../config/context-limits.js";
+import { SAFETY_FACTOR } from "../config/context-limits.js";
+import type { TokenizerName } from "../config/context-limits.js";
 
-// Cache: encoding name → loaded encoder (WASM parsed once, reused)
-const encoderCache: Map<EncodingName, ReturnType<typeof get_encoding>> = new Map();
+/** Estimation metadata recorded for future C2 analysis (E1). */
+export interface EstimationMetadata {
+  tokenizer: TokenizerName;
+  /** Unpadded base tokenizer estimate. */
+  rawEstimate: number;
+  /** 1.20 — the padding applied for admission (E1). */
+  safetyFactor: number;
+  /** ceil(rawEstimate × safetyFactor) — the budget-admission number. */
+  budgetEstimate: number;
+}
 
-export async function ensureEncoder(encoding: EncodingName): Promise<void> {
-  if (encoding === "char4") return;
-  if (encoderCache.has(encoding)) return;
+// Cache: tokenizer name → loaded encoder (WASM parsed once, reused)
+const encoderCache: Map<TokenizerName, ReturnType<typeof get_encoding>> = new Map();
+
+export async function ensureEncoder(tokenizer: TokenizerName): Promise<void> {
+  if (encoderCache.has(tokenizer)) return;
   try {
-    const enc = get_encoding(encoding as "cl100k_base" | "o200k_base");
-    encoderCache.set(encoding, enc);
+    const enc = get_encoding(tokenizer);
+    encoderCache.set(tokenizer, enc);
   } catch (err) {
-    console.warn(`[tokens] Failed to load tiktoken encoder '${encoding}': ${err instanceof Error ? err.message : String(err)} — falling back to char/4`);
+    console.warn(`[tokens] Failed to load tiktoken encoder '${tokenizer}': ${err instanceof Error ? err.message : String(err)} — falling back to char/4`);
   }
 }
 
-function countTokens(text: string, encoding: EncodingName): number {
-  if (encoding === "char4") return Math.ceil(text.length / 4);
-  const enc = encoderCache.get(encoding);
+function countTokens(text: string, tokenizer: TokenizerName): number {
+  const enc = encoderCache.get(tokenizer);
+  // Fail-soft last resort only: char/4 is never chosen as an admission
+  // estimator (E1) — it is reachable only when the encoder has not been
+  // loaded and tiktoken cannot be used at all.
   if (!enc) return Math.ceil(text.length / 4);
   return enc.encode(text).length;
 }
 
-export function estimateTokens(text: string | unknown[], encoding: EncodingName): number {
+export function estimateTokens(text: string | unknown[], tokenizer: TokenizerName): number {
   const str = Array.isArray(text) ? JSON.stringify(text) : text;
-  return countTokens(str, encoding);
+  return countTokens(str, tokenizer);
 }
 
 export function estimateMessageTokens(
   msg: { role: string; name?: string; content: string | unknown[] },
-  encoding: EncodingName
+  tokenizer: TokenizerName
 ): number {
   const roleOverhead = 5;
-  const nameOverhead = msg.name ? estimateTokens(msg.name, encoding) + 6 : 0;
+  const nameOverhead = msg.name ? estimateTokens(msg.name, tokenizer) + 6 : 0;
   const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
-  return roleOverhead + nameOverhead + estimateTokens(content, encoding);
+  return roleOverhead + nameOverhead + estimateTokens(content, tokenizer);
+}
+
+/**
+ * Padded admission estimator (E1): `ceil(baseTokenizerTokens × SAFETY_FACTOR)`.
+ * The estimate is the budget-admission number, and the full estimation
+ * metadata is returned for C2 analysis. The tokenizer encoder is ensured
+ * before counting, so the estimate is tokenizer-based, not char/4.
+ */
+export async function estimateBudgetTokens(
+  text: string | unknown[],
+  tokenizer: TokenizerName
+): Promise<EstimationMetadata> {
+  await ensureEncoder(tokenizer);
+  const rawEstimate = estimateTokens(text, tokenizer);
+  return {
+    tokenizer,
+    rawEstimate,
+    safetyFactor: SAFETY_FACTOR,
+    budgetEstimate: Math.ceil(rawEstimate * SAFETY_FACTOR),
+  };
+}
+
+/** Padded admission estimator over a message, preserving the 5-token role /
+ * 6-token name overheads (E1, Further Notes). */
+export async function estimateMessageBudgetTokens(
+  msg: { role: string; name?: string; content: string | unknown[] },
+  tokenizer: TokenizerName
+): Promise<EstimationMetadata> {
+  await ensureEncoder(tokenizer);
+  const rawEstimate = estimateMessageTokens(msg, tokenizer);
+  return {
+    tokenizer,
+    rawEstimate,
+    safetyFactor: SAFETY_FACTOR,
+    budgetEstimate: Math.ceil(rawEstimate * SAFETY_FACTOR),
+  };
 }
 
 export function truncateToTokenBudget(
   messages: Array<{ role: string; name?: string; content: string | unknown[] }>,
   maxTokens: number,
-  encoding: EncodingName
+  tokenizer: TokenizerName
 ): { kept: typeof messages; dropped: typeof messages } {
   const result: typeof messages = [];
   let totalTokens = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    const cost = estimateMessageTokens(msg, encoding);
+    const cost = estimateMessageTokens(msg, tokenizer);
     if (totalTokens + cost > maxTokens && result.length > 0) break;
     result.unshift(msg);
     totalTokens += cost;
