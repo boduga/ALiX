@@ -39,18 +39,21 @@ export const MANDATORY_CATEGORIES: readonly ContextCategory[] = [
   "current_task",
 ];
 
-export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance";
+export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance" | "chronological";
 
 /** Explicit per-tier ordering policy (§4 Part B). Only 'recency' is
  *  implemented this cycle; 'recency-dedup' is declared and admits newest-first
  *  like 'recency' (its dedup pass is additive); 'relevance' is declared and
- *  falls back to chronological order until gated on §3 evidence. */
+ *  falls back to chronological order until gated on §3 evidence.
+ *  'chronological' is the honest default for T6 (older_context) — the
+ *  assembly gate forces older_context chronological regardless of the
+ *  resolved strategy. */
 export type TierOrderingConfig = Partial<Record<ContextCategory, TierOrderingStrategy>>;
 
 export const DEFAULT_TIER_ORDERING: TierOrderingConfig = {
   recent_conversation: "recency",
   recent_tool_results: "recency-dedup",
-  older_context: "recency",
+  older_context: "chronological",
 };
 
 // Shipped reservation defaults (B): 0.20 / 4,096 / 32,768 — all config-overridable.

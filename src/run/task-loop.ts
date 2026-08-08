@@ -45,7 +45,7 @@ import { IntentClassifier, type AgentIntent } from "./intent-classifier.js";
 import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../agent/system-prompt.js";
 import { estimateMessageBudgetTokens, estimateBudgetTokens, ensureEncoder } from "../utils/tokens.js";
 import type { TokenizerName } from "../config/context-limits.js";
-import type { ContextBudget, ContextCategory } from "../config/context-budget.js";
+import type { ContextBudget, ContextCategory, TierOrderingConfig } from "../config/context-budget.js";
 import { ContextBudgetOverflowError, preflight } from "../config/context-budget.js";
 import {
   assembleContext,
@@ -242,6 +242,11 @@ permissions: {
 };
 skills?: {
   factory?: typeof DEFAULT_FACTORY_CONFIG;
+};
+context?: {
+  budget?: {
+    tierOrdering?: TierOrderingConfig;
+  };
 };
   };
   provider: ModelAdapter;
@@ -505,7 +510,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// ── T6: catch -> emit context.irreducible -> re-throw ────────────
 	let assembled: ReturnType<typeof assembleContext>;
 	try {
-	  assembled = assembleContext(candidateItems, contextBudget);
+	  assembled = assembleContext(candidateItems, contextBudget, config.context?.budget?.tierOrdering);
 	  // Pure observability (spec §3): feed this iteration's assembly result
 	  // into the run-level contextPressure tracker.
 	  contextPressure.record(i, assembled);

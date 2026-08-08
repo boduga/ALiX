@@ -157,6 +157,7 @@ async function makeTestDeps(overrides: {
   selectedTools?: TaskLoopDeps['selectedTools'];
   providerTools?: TaskLoopDeps['providerTools'];
   mcpToolIndex?: TaskLoopDeps['mcpToolIndex'];
+  configContext?: TaskLoopDeps['config']['context'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
   const tmpRoot = makeTempDir('alix-t5-');
   const sessionId = 't5-test';
@@ -191,6 +192,7 @@ async function makeTestDeps(overrides: {
     config: {
       model: { provider: 'mock', name: 'mock', streaming: overrides.streaming ?? false },
       permissions: {},
+      context: overrides.configContext,
     },
     provider: overrides.provider,
     providerTools: overrides.providerTools ?? [],
@@ -943,5 +945,62 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // Money invariant still holds (incl. structured tool schema).
     const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
     expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
+  });
+
+  // ── tierOrdering wiring: config.context.budget.tierOrdering reaches assembly ──
+  // Dead-config review-fix: `tierOrdering` existed on ContextBudgetConfig but
+  // NOTHING read it — runTaskLoop called assembleContext(candidate, budget)
+  // with 2 args, so a user setting context.budget.tierOrdering changed nothing.
+  // This test proves the config actually reaches assembly: admission ORDER for
+  // the recent_conversation tier (Tier 4) flips when 'relevance' is configured,
+  // which under budget pressure changes WHICH assistant turns survive.
+  //   - default (recency): newest-first → the NEWEST assistant turn is admitted,
+  //     the OLDEST is dropped;
+  //   - 'relevance' (chronological admission): the OLDEST is admitted, the
+  //     NEWEST is dropped.
+  // Wire order is always source-chronological (reconstructRequest), so the
+  // discriminator is which distinct assistant turn is present/absent.
+  it('wires config.context.budget.tierOrdering into admission (relevance = chronological, default = newest-first)', async () => {
+    await ensureEncoder('cl100k_base');
+
+    // window=1000, budgetReservation=200 → available=800. Mandatory core
+    // (system+supplement, msg0, last-user msg3) ≈ 230; two Tier-4 assistant
+    // turns ≈ 370 each — exactly ONE fits, the other must drop. Which one
+    // survives is the admission-order discriminator.
+    const budget = createContextBudget(
+      { contextWindowTokens: 1_000 },
+      { outputFloor: 200, outputCap: 200, outputRatio: 0.2 },
+    );
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'First: start the task' },                    // Tier 2 (index 0, mandatory)
+      { role: 'assistant', content: 'OLD-turn ' + longText(300) },           // Tier 4
+      { role: 'assistant', content: 'NEW-turn ' + longText(300) },           // Tier 4
+      { role: 'user', content: 'Current: latest instruction' },              // Tier 2 (last user, mandatory)
+    ];
+
+    // Scenario 1: NO tierOrdering configured → DEFAULT_TIER_ORDERING
+    // recency for recent_conversation → NEWEST assistant turn survives.
+    const recencyProvider = createMockProvider({ responseText: 'done.' });
+    const recencyDeps = await makeTestDeps({
+      provider: recencyProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+    });
+    await runTaskLoop(recencyDeps.deps);
+    const recencyLabels = recencyProvider.requests[0]!.messages.map((m) => String(m.content));
+    expect(recencyLabels.some((c) => c.startsWith('NEW-turn'))).toBe(true);
+    expect(recencyLabels.some((c) => c.startsWith('OLD-turn'))).toBe(false);
+
+    // Scenario 2: context.budget.tierOrdering.recent_conversation = 'relevance'
+    // → chronological admission → OLDEST assistant turn survives.
+    const relevanceProvider = createMockProvider({ responseText: 'done.' });
+    const relevanceDeps = await makeTestDeps({
+      provider: relevanceProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+      configContext: { budget: { tierOrdering: { recent_conversation: 'relevance' } } },
+    });
+    await runTaskLoop(relevanceDeps.deps);
+    const relevanceLabels = relevanceProvider.requests[0]!.messages.map((m) => String(m.content));
+    expect(relevanceLabels.some((c) => c.startsWith('OLD-turn'))).toBe(true);
+    expect(relevanceLabels.some((c) => c.startsWith('NEW-turn'))).toBe(false);
   });
 });
