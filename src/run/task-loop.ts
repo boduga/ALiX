@@ -79,6 +79,36 @@ async function completeSession(
 }
 
 /**
+ * True when `err` is an IRREDUCIBLE context-budget overflow. Discriminates
+ * on the class's `kind` literal rather than `instanceof`, so no consumer
+ * coupling to the error class leaks past the producer boundary (guardrail:
+ * `contextBudgetOverflow` is diagnostic data; consumers use typed fields
+ * only). Reducible overflows (kind matches but reducible === true) return
+ * false — they are programming/validation failures that still throw.
+ */
+function isIrreducibleContextBudgetOverflow(err: unknown): err is ContextBudgetOverflowError {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "kind" in err &&
+    (err as { kind?: unknown }).kind === "context_budget_overflow" &&
+    "reducible" in err &&
+    (err as { reducible?: unknown }).reducible === false
+  );
+}
+
+/**
+ * Human-readable summary for an irreducible context-budget overflow.
+ * Used as the RunResult.summary so every surface (CLI, REPL, TUI, daemon,
+ * route-executor) degrades to a meaningful diagnostic instead of a raw
+ * error string.
+ */
+function buildContextBudgetOverflowSummary(err: ContextBudgetOverflowError): string {
+  return `Context budget overflow: needs ${err.overageTokens} more input tokens ` +
+    `(${err.availableInputTokens} available, mandatory core ${err.mandatoryTokens})`;
+}
+
+/**
  * Emit an agent-conversation event (agent.message / agent.reasoning /
  * agent.decision). The task-loop runs in the OUTER runtime but emits ON BEHALF
  * of the agent conversation — its events belong in the `${sessionId}-agent`
@@ -1265,6 +1295,28 @@ filesChanged: [...sessionState.changed],
 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
   return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", config.model.streaming, "session.ended", "max_iterations");
+  } catch (err) {
+    // C2 #18: irreducible context-budget overflow is a graceful RunResult
+    // failure, not a throw. Returning here preserves the structured fields —
+    // a re-throw through runTaskCore/processTurn would flatten them via
+    // String(err). The kind-literal guard (not instanceof) matches ONLY
+    // reducible === false; reducible overflows (programming/validation
+    // failures) and all other errors fall through to `throw err`.
+    if (isIrreducibleContextBudgetOverflow(err)) {
+      const summary = buildContextBudgetOverflowSummary(err);
+      await log.append({
+        ...session, actor: "system", type: "session.ended",
+        payload: { reason: "context_budget_overflow", summary },
+      });
+      return {
+        sessionId,
+        summary,
+        streamed: config.model.streaming,
+        reason: "context_budget_overflow" as const,
+        contextBudgetOverflow: err,
+      };
+    }
+    throw err;
   } finally {
 // Cleanup EnhancedVerifier
 if (enhancedVerifier) {
