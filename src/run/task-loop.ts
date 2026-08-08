@@ -380,40 +380,48 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  effectiveSystemPrompt, messages, tokenizer
 	);
 
+	// ── Reserve MCP tool schema tokens inside the assembly budget ──────
+	// providerTools are already rendered into the effective system prompt
+	// via renderToolManifest and token-accounted as part of the Tier-1
+	// system-prompt item. Only mcpToolIndex tools are NOT in the manifest
+	// and need separate budget reservation.
+	if (mcpToolIndex.length > 0) {
+	  const mcpToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer)).budgetEstimate;
+	  candidateItems.unshift({
+	    id: "mcp-tool-schema",
+	    kind: "tool_schema",
+	    category: "mandatory_system_governance" as ContextCategory,
+	    tokens: mcpToolSchemaTokens,
+	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+	  });
+	}
+
 	// One deterministic assembly pass over the candidate.
 	// Throws ContextBudgetOverflowError (irreducible) when mandatory core
-	// alone exceeds available input.
+	// alone exceeds available input (including MCP tool schemas if any).
 	const assembled = assembleContext(candidateItems, contextBudget);
 
 	// Reconstruct the provider request from admitted items.
+	// MCP tool-schema items (not in contentMap) are silently skipped.
 	const { admittedSystemPrompt, admittedMessages } = reconstructRequest(
 	  assembled.admitted, contentMap
 	);
 
-	// ── I2: Final safety gate — preflight the FULL reconstructed request
-	// (system + admitted messages + tool schema estimate). After assembly
-	// only mandatory components remain; an overflow here is IRREDUCIBLE.
-	// The reducible-reduction path is at the assembly stage (the selector
-	// reduces deterministically); this backstop throws when the mandatory
-	// remainder genuinely cannot fit.
-	const allTools = [...providerTools, ...mcpToolIndex];
-	const toolSchemaTokens = allTools.length > 0
-	  ? (await estimateBudgetTokens(JSON.stringify(allTools), tokenizer)).budgetEstimate
-	  : 0;
-	const fullPayloadItems = [...toBudgetedItems(assembled.admitted)];
-	if (toolSchemaTokens > 0) {
-	  fullPayloadItems.push({ category: "mandatory_system_governance" as ContextCategory, tokens: toolSchemaTokens });
-	}
-	const pfResult = preflight(contextBudget, fullPayloadItems);
+	// ── Final safety gate (backstop only) ───────────────────────────────
+	// The system prompt already includes the provider tool manifest;
+	// MCP tool schemas (if any) were reserved as a Tier-1 item above.
+	// This gate catches genuine assembly bugs — it must NOT fire on
+	// reducible cases because the selector already properly reduced.
+	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
 	if (!pfResult.fits) {
-	  // Irreducible: the mandatory core + tools cannot fit in the budget.
-	  // Throw BEFORE any provider call — do NOT send an oversized request.
+	  // Genuinely irreducible (or an assembly bug): the mandatory core
+	  // exceeds available input.
 	  throw new ContextBudgetOverflowError({
 	    reducible: false,
 	    overageTokens: pfResult.overflow.overageTokens,
 	    byCategory: pfResult.overflow.byCategory,
 	    availableInputTokens: contextBudget.availableInputTokens,
-	    mandatoryTokens: assembled.admittedTokens + toolSchemaTokens,
+	    mandatoryTokens: assembled.mandatoryTokens,
 	    contextWindowTokens: contextBudget.contextWindowTokens,
 	  });
 	}
@@ -1174,12 +1182,16 @@ function classifyMessageToCategory(
   isLastUserMessage: boolean,
 ): ContextCategory {
   const content = typeof msg.content === "string" ? msg.content : "";
+  // Ledger/digest content checks MUST come BEFORE the last-user check.
+  // The I1 fix injects the ledger as a user-role message at the end;
+  // without this ordering, the ledger claims the "last user" slot and
+  // the real current instruction gets demoted to Tier-4 (droppable).
+  if (content.startsWith("[Progress Ledger]")) return "current_execution_state";
+  if (content.startsWith("[Session Digest]")) return "current_execution_state";
   // I3 fix: the LAST user-role message is the actual current instruction
   // and MUST be classified as current_task (Tier 2, mandatory) so it is
   // never droppable. The first user message (index 0) is also mandatory.
   if (msg.role === "user" && (index === 0 || isLastUserMessage)) return "current_task";
-  if (content.startsWith("[Progress Ledger]")) return "current_execution_state";
-  if (content.startsWith("[Session Digest]")) return "current_execution_state";
   if (content.startsWith("<tool_result")) return "recent_tool_results";
   return "recent_conversation";
 }
@@ -1205,12 +1217,18 @@ async function classifyCandidateContext(
 
   // I3: find the index of the LAST user-role message so it can be
   // classified as mandatory current_task (never droppable).
+  // CRITICAL: exclude ledger/digest-injected messages so the REAL last
+  // user turn is never displaced. Without this filter, the I1 ledger
+  // injection (a user-role message at the end) claims the slot and
+  // the genuine current instruction becomes droppable Tier-4.
   let lastUserIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]!.role === "user") {
-      lastUserIndex = i;
-      break;
-    }
+    const m = messages[i]!;
+    if (m.role !== "user") continue;
+    const c = typeof m.content === "string" ? m.content : "";
+    if (c.startsWith("[Progress Ledger]") || c.startsWith("[Session Digest]")) continue;
+    lastUserIndex = i;
+    break;
   }
 
   for (let i = 0; i < messages.length; i++) {

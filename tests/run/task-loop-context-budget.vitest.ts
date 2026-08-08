@@ -92,6 +92,10 @@ async function makeTestDeps(overrides: {
   systemPrompt?: string;
   task?: string;
   maxIterations?: number;
+  executor?: TaskLoopDeps['executor'];
+  selectedTools?: TaskLoopDeps['selectedTools'];
+  providerTools?: TaskLoopDeps['providerTools'];
+  mcpToolIndex?: TaskLoopDeps['mcpToolIndex'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
   const tmpRoot = makeTempDir('alix-t5-');
   const sessionId = 't5-test';
@@ -128,17 +132,17 @@ async function makeTestDeps(overrides: {
       permissions: {},
     },
     provider: overrides.provider,
-    providerTools: [],
-    mcpToolIndex: [],
+    providerTools: overrides.providerTools ?? [],
+    mcpToolIndex: overrides.mcpToolIndex ?? [],
     messages: overrides.messages,
     sessionState,
     stateMachine,
     scope,
     session: { sessionId, actor: 'system' as const },
     log,
-    executor: {} as any, // not used in no-tool-calls path
+    executor: overrides.executor ?? ({} as any),
     mcpDiscovery: null,
-    selectedTools: [],
+    selectedTools: overrides.selectedTools ?? [],
     hooks: {},
     maxIterations: overrides.maxIterations ?? 2,
     contextBudget: overrides.contextBudget,
@@ -399,5 +403,209 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Quick follow-up'),
     );
     expect(hasLastUser).toBe(true);
+  });
+
+  // ── I3 regression (real): ledger must NOT claim the last-user slot ──
+  it('keeps the real last user turn as mandatory when ledger is present (I3 regression)', async () => {
+    // Drive a tool call so the progress ledger is non-empty on iteration 2.
+    // Without the fix, lastUserIndex points at the injected ledger (which
+    // has role==="user"), and the real last user turn becomes droppable Tier-4.
+    const mockExecutor = {
+      execute: async (_req: any) => ({ kind: 'success' as const, output: 'ok\n' }),
+      getApproval: (_id: string) => undefined,
+    };
+
+    let callCount = 0;
+    const requests: RecordedRequest[] = [];
+    const statefulProvider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock', capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
+        supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false,
+      },
+      editFormatPreference: 'search_replace' as const, longContextStrategy: 'trimmed_context' as const,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], maxOutputTokens: req.maxOutputTokens });
+        callCount++;
+        if (callCount === 1) {
+          return { text: '', toolCalls: [{ id: 't1', name: 'alix_file_read', args: { path: '/tmp/x' }, summary: 'reading' }], usage: { inputTokens: 500, outputTokens: 50 }, finishReason: 'tool_calls' };
+        }
+        return { text: 'done.', toolCalls: [], usage: { inputTokens: 100, outputTokens: 50 }, finishReason: 'stop' };
+      },
+      requests,
+    };
+
+    // Tight budget: available small enough that Tier-4 long messages get
+    // dropped. Without the fix, the real last user turn is Tier-4 and would
+    // be dropped. With the fix, it stays Tier-2 mandatory.
+    // The system prompt includes the tool manifest (~188 padded).
+    // window=2600, reserved=600, available=2000.
+    const budget = createContextBudget(
+      { contextWindowTokens: 2_600 },
+      { outputRatio: 0.25, outputFloor: 600, outputCap: 600 },
+    );
+
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'Initial setup instruction: ' + longText(400) },  // msg0, Tier-2 (index 0)
+      { role: 'assistant', content: longText(400) },                               // msg1, Tier-4 (droppable)
+      { role: 'user', content: 'Current task: fix the bug' },                      // msg2, REAL last user
+    ];
+
+    const { deps } = await makeTestDeps({
+      provider: statefulProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 2,
+      executor: mockExecutor as any,
+      providerTools: [{ name: 'alix_file_read', description: 'Read a file', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } }],
+      selectedTools: [{ name: 'alix_file_read', execName: 'file.read' }],
+    });
+
+    await runTaskLoop(deps);
+
+    expect(requests.length).toBeGreaterThanOrEqual(1);
+    const iter2Req = requests[requests.length - 1]!;
+
+    // The REAL last user turn MUST be present.
+    const hasRealLastUser = iter2Req.messages.some(
+      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Current task: fix the bug'),
+    );
+    expect(hasRealLastUser).toBe(true);
+
+    // The ledger MUST NOT be classified as current_task (it starts with
+    // "[Progress Ledger]" and should be current_execution_state, Tier-3).
+    // The fact that the real last user turn is present proves the fix —
+    // pre-fix, the ledger claims the last-user slot (role==="user" at end),
+    // demoting the real instruction to Tier-4 where it gets dropped.
+  });
+
+  // ── Tool-schema gate: reducible overflow must NOT throw irreducible ──
+  it('fits mandatory+tools by dropping best-effort (tool-schema reducible)', async () => {
+    // CRITICAL 1: providerTools are rendered into the effective system
+    // prompt via renderToolManifest — they are already token-accounted as
+    // part of the Tier-1 system-prompt item. A case where mandatory core
+    // (including the tool-laden system prompt) fits but best-effort gets
+    // dropped is REDUCIBLE. The session must NOT die with irreducible.
+    const mockProvider = createMockProvider({ responseText: 'done.', usage: { inputTokens: 100, outputTokens: 50 } });
+
+    // window=2000, reserved=1000, available=1000.
+    // System prompt (with tool manifest): ~188 padded.
+    // msg0 (~9) + msg2 (~368) = ~377. Mandatory = ~565 < 1000 → fits.
+    // msg1 (~488) best-effort: remaining=435 → dropped.
+    const budget = createContextBudget(
+      { contextWindowTokens: 2_000 },
+      { outputRatio: 0.5, outputFloor: 1000, outputCap: 1000 },
+    );
+
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'Fix.' },
+      { role: 'assistant', content: longText(400) },
+      { role: 'user', content: longText(300) },
+    ];
+
+    const { deps } = await makeTestDeps({
+      provider: mockProvider, contextBudget: budget, messages,
+      systemPrompt: 'H. ', maxIterations: 1,
+      providerTools: [{ name: 'read', description: 'Read a file from the filesystem. Access any file directly.\n\nUsage:\n- Specify offset and limit for long files.\n- You can call multiple tools.', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } }],
+    });
+
+    let threwIrreducible = false;
+    try { await runTaskLoop(deps); } catch (e) {
+      if (e instanceof ContextBudgetOverflowError && !e.reducible) threwIrreducible = true;
+    }
+
+    expect(threwIrreducible).toBe(false);
+    expect(mockProvider.requests.length).toBe(1);
+  });
+
+  // ── Tool-schema gate: genuinely irreducible when mandatory core > available ──
+  it('throws irreducible when mandatory core (incl. tool manifest) exceeds available', async () => {
+    const mockProvider = createMockProvider({ responseText: 'done.', usage: { inputTokens: 100, outputTokens: 50 } });
+
+    // window=500, reserved=200, available=300.
+    // System prompt (with tool manifest): ~200 padded.
+    // msg0 longText(200): ~246 padded. Total mandatory ~446 > 300 → irreducible.
+    const budget = createContextBudget(
+      { contextWindowTokens: 500 },
+      { outputRatio: 0.4, outputFloor: 200, outputCap: 200 },
+    );
+
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: longText(200) },
+    ];
+
+    const { deps } = await makeTestDeps({
+      provider: mockProvider, contextBudget: budget, messages,
+      systemPrompt: 'You are an assistant.', maxIterations: 1,
+      providerTools: [{ name: 'read', description: 'Read a file', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } }],
+    });
+
+    let error: unknown;
+    try { await runTaskLoop(deps); } catch (e) { error = e; }
+
+    expect(error).toBeInstanceOf(ContextBudgetOverflowError);
+    if (error instanceof ContextBudgetOverflowError) {
+      expect(error.reducible).toBe(false);
+      expect(error.kind).toBe('context_budget_overflow');
+    }
+    expect(mockProvider.requests.length).toBe(0);
+  });
+
+  // ── I1 coverage: ledger is token-accounted in the admitted request ──
+  it('counts the progress ledger in the admitted request (I1 token accounting)', async () => {
+    const mockExecutor = {
+      execute: async (_req: any) => ({ kind: 'success' as const, output: 'ok\n' }),
+      getApproval: (_id: string) => undefined,
+    };
+
+    let callCount = 0;
+    const requests: RecordedRequest[] = [];
+    const statefulProvider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock', capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
+        supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false,
+      },
+      editFormatPreference: 'search_replace' as const, longContextStrategy: 'trimmed_context' as const,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], maxOutputTokens: req.maxOutputTokens });
+        callCount++;
+        if (callCount === 1) {
+          return { text: '', toolCalls: [{ id: 't1', name: 'alix_file_read', args: { path: '/tmp/x' }, summary: 'reading' }], usage: { inputTokens: 500, outputTokens: 50 }, finishReason: 'tool_calls' };
+        }
+        return { text: 'done.', toolCalls: [], usage: { inputTokens: 100, outputTokens: 50 }, finishReason: 'stop' };
+      },
+      requests,
+    };
+
+    const budget = createContextBudget(
+      { contextWindowTokens: 100_000 },
+      { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
+    );
+
+    const { deps } = await makeTestDeps({
+      provider: statefulProvider, contextBudget: budget,
+      messages: [{ role: 'user', content: 'Do a task' }],
+      systemPrompt: 'Helpful. ', maxIterations: 2,
+      executor: mockExecutor as any,
+      providerTools: [{ name: 'alix_file_read', description: 'Read a file', parameters: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] } }],
+      selectedTools: [{ name: 'alix_file_read', execName: 'file.read' }],
+    });
+
+    await ensureEncoder('cl100k_base');
+    await runTaskLoop(deps);
+
+    // Iteration 2's request should include the ledger in messages.
+    const iter2Req = requests[requests.length - 1]!;
+    const ledgerMsg = iter2Req.messages.find(
+      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').startsWith('[Progress Ledger]'),
+    );
+    expect(ledgerMsg).toBeDefined();
+
+    // Money invariant: the padded token estimate of system + messages
+    // (including the ledger) must not exceed the budget.
+    const sysMeta = await estimateBudgetTokens(iter2Req.systemPrompt, 'cl100k_base');
+    let totalTokens = sysMeta.budgetEstimate;
+    for (const msg of iter2Req.messages) {
+      const meta = await estimateMessageBudgetTokens({ role: msg.role, content: msg.content }, 'cl100k_base');
+      totalTokens += meta.budgetEstimate;
+    }
+    expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
   });
 });
