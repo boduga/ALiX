@@ -380,11 +380,22 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  effectiveSystemPrompt, messages, tokenizer
 	);
 
-	// ── Reserve MCP tool schema tokens inside the assembly budget ──────
-	// providerTools are already rendered into the effective system prompt
-	// via renderToolManifest and token-accounted as part of the Tier-1
-	// system-prompt item. Only mcpToolIndex tools are NOT in the manifest
-	// and need separate budget reservation.
+	// ── Reserve tool schema tokens inside the assembly budget ──────────
+	// Both providerTools AND mcpToolIndex are sent as a structured `tools`
+	// array alongside the system prompt + messages. That array is a separate
+	// wire payload from the tool-manifest text embedded in the system prompt
+	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
+	// item so they are token-accounted before best-effort tiers are admitted.
+	if (providerTools.length > 0) {
+	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
+	  candidateItems.unshift({
+	    id: "provider-tool-schema",
+	    kind: "tool_schema",
+	    category: "mandatory_system_governance" as ContextCategory,
+	    tokens: providerToolSchemaTokens,
+	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+	  });
+	}
 	if (mcpToolIndex.length > 0) {
 	  const mcpToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer)).budgetEstimate;
 	  candidateItems.unshift({
@@ -408,10 +419,10 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	);
 
 	// ── Final safety gate (backstop only) ───────────────────────────────
-	// The system prompt already includes the provider tool manifest;
-	// MCP tool schemas (if any) were reserved as a Tier-1 item above.
-	// This gate catches genuine assembly bugs — it must NOT fire on
-	// reducible cases because the selector already properly reduced.
+	// Tool schema tokens (both provider and MCP) were reserved as Tier-1
+	// mandatory items above. This gate catches genuine assembly bugs — it
+	// must NOT fire on reducible cases because the selector already properly
+	// reduced.
 	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
 	if (!pfResult.fits) {
 	  // Genuinely irreducible (or an assembly bug): the mandatory core
