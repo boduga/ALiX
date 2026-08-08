@@ -7,7 +7,7 @@ export interface EstimationMetadata {
   tokenizer: TokenizerName;
   /** Unpadded base tokenizer estimate. */
   rawEstimate: number;
-  /** 1.20 — the padding applied for admission (E1). */
+  /** The padding applied for admission (E1); defaults to SAFETY_FACTOR (1.2). */
   safetyFactor: number;
   /** ceil(rawEstimate × safetyFactor) — the budget-admission number. */
   budgetEstimate: number;
@@ -51,22 +51,25 @@ export function estimateMessageTokens(
 }
 
 /**
- * Padded admission estimator (E1): `ceil(baseTokenizerTokens × SAFETY_FACTOR)`.
- * The estimate is the budget-admission number, and the full estimation
- * metadata is returned for C2 analysis. The tokenizer encoder is ensured
- * before counting, so the estimate is tokenizer-based, not char/4.
+ * Padded admission estimator (E1): `ceil(baseTokenizerTokens × safetyFactor)`.
+ * `safetyFactor` defaults to SAFETY_FACTOR (1.2); callers may pass a
+ * per-provider calibration factor once burn-in data lands (spec §1). The
+ * estimate is the budget-admission number, and the full estimation metadata
+ * is returned for C2 analysis. The tokenizer encoder is ensured before
+ * counting, so the estimate is tokenizer-based, not char/4.
  */
 export async function estimateBudgetTokens(
   text: string | unknown[],
-  tokenizer: TokenizerName
+  tokenizer: TokenizerName,
+  safetyFactor: number = SAFETY_FACTOR
 ): Promise<EstimationMetadata> {
   await ensureEncoder(tokenizer);
   const rawEstimate = estimateTokens(text, tokenizer);
   return {
     tokenizer,
     rawEstimate,
-    safetyFactor: SAFETY_FACTOR,
-    budgetEstimate: Math.ceil(rawEstimate * SAFETY_FACTOR),
+    safetyFactor,
+    budgetEstimate: Math.ceil(rawEstimate * safetyFactor),
   };
 }
 
@@ -74,15 +77,16 @@ export async function estimateBudgetTokens(
  * 6-token name overheads (E1, Further Notes). */
 export async function estimateMessageBudgetTokens(
   msg: { role: string; name?: string; content: string | unknown[] },
-  tokenizer: TokenizerName
+  tokenizer: TokenizerName,
+  safetyFactor: number = SAFETY_FACTOR
 ): Promise<EstimationMetadata> {
   await ensureEncoder(tokenizer);
   const rawEstimate = estimateMessageTokens(msg, tokenizer);
   return {
     tokenizer,
     rawEstimate,
-    safetyFactor: SAFETY_FACTOR,
-    budgetEstimate: Math.ceil(rawEstimate * SAFETY_FACTOR),
+    safetyFactor,
+    budgetEstimate: Math.ceil(rawEstimate * safetyFactor),
   };
 }
 

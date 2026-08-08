@@ -60,6 +60,10 @@ export interface ContextBudgetConfig {
  * `min(policyReservation, outputTokenLimit)` clamp (B). */
 export interface ContextBudgetOptions extends ContextBudgetConfig {
   outputTokenLimit?: number;
+  /** Per-provider admission safety factor (spec §1). UNSET this cycle — full
+   * wiring into the reserved math is deferred until calibration burn-in data
+   * lands; callers still see the SAFETY_FACTOR (1.2) default behavior. */
+  safetyFactor?: number;
 }
 
 /**
