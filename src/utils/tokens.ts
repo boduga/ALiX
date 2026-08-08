@@ -86,19 +86,3 @@ export async function estimateMessageBudgetTokens(
   };
 }
 
-export function truncateToTokenBudget(
-  messages: Array<{ role: string; name?: string; content: string | unknown[] }>,
-  maxTokens: number,
-  tokenizer: TokenizerName
-): { kept: typeof messages; dropped: typeof messages } {
-  const result: typeof messages = [];
-  let totalTokens = 0;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    const cost = estimateMessageTokens(msg, tokenizer);
-    if (totalTokens + cost > maxTokens && result.length > 0) break;
-    result.unshift(msg);
-    totalTokens += cost;
-  }
-  return { kept: result, dropped: messages.slice(0, messages.length - result.length) };
-}

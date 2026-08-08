@@ -149,7 +149,10 @@ function tally(items: ReadonlyArray<BudgetedContextItem>): {
   for (const item of items) {
     total += item.tokens;
     if (MANDATORY_CATEGORIES.includes(item.category)) mandatory += item.tokens;
-    byCategory[item.category] += item.tokens;
+    // `?? 0` guards against an unknown category string at runtime (a JS
+    // consumer or deserialized payload) producing NaN that would otherwise
+    // propagate into preflight totals and overflow payloads.
+    byCategory[item.category] = (byCategory[item.category] ?? 0) + item.tokens;
   }
   return { total, mandatory, byCategory };
 }

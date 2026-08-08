@@ -5,7 +5,6 @@ import {
   estimateBudgetTokens,
   estimateMessageBudgetTokens,
   ensureEncoder,
-  truncateToTokenBudget,
 } from "../../src/utils/tokens.js";
 import {
   resolveModelDescriptor,
@@ -80,21 +79,6 @@ describe("run-path encoder loading (E1: truncation measures with tiktoken, not c
     expect(estimateTokens("hello world", d.tokenizer)).toBe(2); // char/4 would be 3
   });
 
-  it("truncation over a loaded encoder drops by tiktoken, not char/4", async () => {
-    await ensureEncoder("cl100k_base");
-    const messages = [
-      { role: "user", content: "hello world" }, // 5 + 2 = 7 tokens
-      { role: "assistant", content: "const x = () => foo({ bar: 1 });" }, // 5 + 12 = 17
-    ];
-    // cl100k total = 24; char/4 total = (5+3)+(5+8) = 21. A budget of 22
-    // therefore discriminates: tiktoken drops the older message, char/4 would
-    // keep both.
-    const { kept, dropped } = truncateToTokenBudget(messages, 22, "cl100k_base");
-    expect(dropped).toHaveLength(1);
-    expect(dropped[0].content).toBe("hello world");
-    expect(kept).toHaveLength(1);
-    expect(kept[0].content).toBe("const x = () => foo({ bar: 1 });");
-  });
 });
 
 describe("estimateMessageBudgetTokens", () => {
