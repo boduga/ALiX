@@ -124,6 +124,7 @@ import {
   buildMemoryStats,
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
+import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
 import type { SkillEntry } from "../skills/catalog.js";
@@ -2023,6 +2024,11 @@ async function setupContextLimits(
     MAX_CONTEXT_TOKENS = descriptor.contextWindowTokens;
     tokenizer = descriptor.tokenizer;
   }
+
+  // Ensure the tiktoken encoder is genuinely loaded before any admission /
+  // truncation call in the task loop — the tokenizer-based estimators fall
+  // back to char/4 only when the encoder was never loaded (E1).
+  await ensureEncoder(tokenizer);
 
   const effectiveTask = task || "Interactive coding session";
   const taskType = classifyTask(effectiveTask);
