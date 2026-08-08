@@ -23,6 +23,14 @@ export interface MetricsProjectionSnapshot {
   readonly tokensUsed: number;
   readonly startedAt: number | null;
   readonly lastEventAt: number | null;
+  /** T6 — C1 observability: context budget counters */
+  readonly contextWindowTokens: number;
+  readonly availableInputTokens: number;
+  readonly reservedOutputTokens: number;
+  readonly admittedTokens: number;
+  readonly droppedTokens: number;
+  /** admittedTokens / availableInputTokens, or null when availableInputTokens = 0 */
+  readonly contextUtilization: number | null;
 }
 
 /**
@@ -57,6 +65,12 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
   private tokenOutput = 0;
   private startedAt: number | null = null;
   private lastEventAt: number | null = null;
+  // T6 — C1 observability: context budget counters
+  private ctxWindowTokens = 0;
+  private ctxAvailableInput = 0;
+  private ctxReservedOutput = 0;
+  private ctxAdmittedTokens = 0;
+  private ctxDroppedTokens = 0;
   private lastSeq = 0;   // in-memory idempotency guard (not durable)
 
   update(events: readonly AlixEvent[]): void {
@@ -83,6 +97,21 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
         if (typeof p.outputTokens === 'number' && Number.isFinite(p.outputTokens)) this.tokenOutput += p.outputTokens;
         continue;
       }
+      // T6 — C1 observability: context budget counters. Same finite-value guard
+      // pattern as model.usage; non-finite values are skipped, never trusted.
+      if (e.type === 'context.budget.computed') {
+        const p = (e.payload ?? {}) as { contextWindowTokens?: unknown; availableInputTokens?: unknown; reservedOutputTokens?: unknown };
+        if (typeof p.contextWindowTokens === 'number' && Number.isFinite(p.contextWindowTokens)) this.ctxWindowTokens = p.contextWindowTokens;
+        if (typeof p.availableInputTokens === 'number' && Number.isFinite(p.availableInputTokens)) this.ctxAvailableInput = p.availableInputTokens;
+        if (typeof p.reservedOutputTokens === 'number' && Number.isFinite(p.reservedOutputTokens)) this.ctxReservedOutput = p.reservedOutputTokens;
+        continue;
+      }
+      if (e.type === 'context.assembled') {
+        const p = (e.payload ?? {}) as { admittedTokens?: unknown; droppedTokens?: unknown };
+        if (typeof p.admittedTokens === 'number' && Number.isFinite(p.admittedTokens)) this.ctxAdmittedTokens = p.admittedTokens;
+        if (typeof p.droppedTokens === 'number' && Number.isFinite(p.droppedTokens)) this.ctxDroppedTokens = p.droppedTokens;
+        continue;
+      }
     }
   }
 
@@ -103,6 +132,14 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
       tokensUsed: this.tokenInput + this.tokenOutput,
       startedAt: this.startedAt,
       lastEventAt: this.lastEventAt,
+      contextWindowTokens: this.ctxWindowTokens,
+      availableInputTokens: this.ctxAvailableInput,
+      reservedOutputTokens: this.ctxReservedOutput,
+      admittedTokens: this.ctxAdmittedTokens,
+      droppedTokens: this.ctxDroppedTokens,
+      contextUtilization: this.ctxAvailableInput > 0
+        ? this.ctxAdmittedTokens / this.ctxAvailableInput
+        : null,
     };
   }
 
@@ -119,6 +156,11 @@ export class MetricsProjection implements ProjectionBuilder<MetricsProjectionSna
     this.tokenOutput = 0;
     this.startedAt = null;
     this.lastEventAt = null;
+    this.ctxWindowTokens = 0;
+    this.ctxAvailableInput = 0;
+    this.ctxReservedOutput = 0;
+    this.ctxAdmittedTokens = 0;
+    this.ctxDroppedTokens = 0;
     this.lastSeq = 0;
   }
 

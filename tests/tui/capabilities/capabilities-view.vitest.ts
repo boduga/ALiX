@@ -39,6 +39,7 @@ function snapshotWithCapabilityStat(): DashboardSnapshot {
         activeInvocations: 1,
       },
       metrics: null,
+      context: null,
     },
     sops: null,
     policy: null,

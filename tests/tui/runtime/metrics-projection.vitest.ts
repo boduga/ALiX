@@ -40,6 +40,12 @@ describe('MetricsProjection', () => {
       tokensUsed: 0,
       startedAt: null,
       lastEventAt: null,
+      contextWindowTokens: 0,
+      availableInputTokens: 0,
+      reservedOutputTokens: 0,
+      admittedTokens: 0,
+      droppedTokens: 0,
+      contextUtilization: null,
     });
   });
 

@@ -14,7 +14,9 @@ import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js"
 import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import type { NormalizedMessage } from "../providers/types.js";
-import { getEncoding } from "../config/context-limits.js";
+import { getEncoding, type TokenizerName } from "../config/context-limits.js";
+import { ensureEncoder } from "../utils/tokens.js";
+import { createContextBudget, type ContextBudget } from "../config/context-budget.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -125,22 +127,27 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     evict(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
   }
 
-  // Resolve context limit and encoding from config or API
-  const userOverride = ctx.config.model.maxContextTokens;
-  let maxTokens: number;
-  let encoding: "cl100k_base" | "o200k_base" | "char4";
+  	// Resolve context window and tokenizer from config or API, then
+	// derive the authoritative per-turn ContextBudget (B).
+	const userOverride = ctx.config.model.maxContextTokens;
+	let contextBudget: ContextBudget;
+	let tokenizer: TokenizerName;
 
-  if (userOverride !== undefined) {
-    maxTokens = userOverride;
-    encoding = getEncoding(ctx.config.model.provider);
-  } else {
-    const { resolveContextLimit, getEncoding: getEnc } = await import("../config/context-limits.js");
-    const resolved = await resolveContextLimit(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
-    maxTokens = resolved.maxTokens;
-    encoding = resolved.encoding;
-  }
+	if (userOverride !== undefined) {
+	  tokenizer = getEncoding(ctx.config.model.provider);
+	  contextBudget = createContextBudget({ contextWindowTokens: userOverride }, ctx.config.context?.budget);
+	} else {
+	  const { resolveModelDescriptor } = await import("../config/context-limits.js");
+	  const descriptor = await resolveModelDescriptor(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
+	  tokenizer = descriptor.tokenizer;
+	  contextBudget = createContextBudget(descriptor, ctx.config.context?.budget);
+	}
 
-  const MAX_CONTEXT_TOKENS = maxTokens;
+	// Ensure the tiktoken encoder is genuinely loaded before any admission /
+	// truncation call — the tokenizer-based estimators fall back to char/4 only
+	// when the encoder was never loaded (E1). Loading here guarantees the run
+	// path measures with the same estimator the assembly uses.
+	await ensureEncoder(tokenizer);
   const taskType = classifyTask(task);
   const depth = detectResearchDepth(task);
   const maxIterations = ctx.config.model.maxIterations ?? 10;
@@ -204,7 +211,7 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     if (!skipContext) {
       const contextCompiler = new ContextCompiler({
         root: cwd,
-        maxTokens: MAX_CONTEXT_TOKENS,
+        maxTokens: contextBudget.availableInputTokens,
         eventLog: ctx.log,
         sessionId: ctx.sessionId,
       });
@@ -363,8 +370,8 @@ ${approvedPlanContent}`);
     selectedTools,
     hooks,
     maxIterations: cappedIterations,
-    MAX_CONTEXT_TOKENS,
-    encoding,
+    contextBudget,
+    tokenizer,
     task,
     taskType,
     depth,

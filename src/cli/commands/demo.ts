@@ -27,8 +27,8 @@ export async function runDemo(): Promise<void> {
   await mkdir(sessionDir, { recursive: true });
 
   const config = await loadConfig(cwd);
-  const { resolveContextLimit } = await import("../../config/context-limits.js");
-  const contextInfo = await resolveContextLimit(config.model.provider, config.model.name, config.apiKeys);
+  const { resolveModelDescriptor } = await import("../../config/context-limits.js");
+  const descriptor = await resolveModelDescriptor(config.model.provider, config.model.name, config.apiKeys);
   const { EventLog } = await import("../../events/event-log.js");
   const tuiLog = new EventLog(sessionDir);
   await tuiLog.init();
@@ -36,7 +36,7 @@ export async function runDemo(): Promise<void> {
   console.log(`Task:       ${task}`);
   console.log(`Provider:   ${config.model.provider}`);
   console.log(`Model:      ${config.model.name}`);
-  console.log(`Context:    ${(contextInfo.maxTokens ?? 0).toLocaleString()} tokens`);
+  console.log(`Context:    ${descriptor.contextWindowTokens.toLocaleString()} tokens`);
   console.log();
 
   try {

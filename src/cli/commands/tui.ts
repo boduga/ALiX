@@ -15,6 +15,7 @@ import { ApprovalProjection } from "../../tui/runtime/approval-projection.js";
 import { ApprovalProjectionCollector } from "../../tui/runtime/approval-projection-collector.js";
 import { CapabilityProjection } from "../../tui/runtime/capability-projection.js";
 import { MetricsProjection } from "../../tui/runtime/metrics-projection.js";
+import { ContextProjectionBuilder } from "../../tui/runtime/context-projection.js";
 import { createProjectionRuntime } from "../../tui/runtime/projection-runtime.js";
 import { ProjectionIds } from "../../tui/runtime/projection-ids.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
@@ -130,6 +131,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     [ProjectionIds.approval, new ApprovalProjection()],
     [ProjectionIds.capability, new CapabilityProjection()],
     [ProjectionIds.metrics, new MetricsProjection()],
+    [ProjectionIds.context, new ContextProjectionBuilder()],
   ]);
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
@@ -153,6 +155,13 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     projectionRuntime: createProjectionRuntime([
       [ProjectionIds.timeline, new TimelineBuilder(agentSessionId)],
       [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+      // T6 review fix: context lifecycle events route to the agent domain.
+      // MetricsProjection on the agent collector derives the six context
+      // counters (contextWindowTokens, availableInputTokens, etc.) from
+      // agent-domain events. The outer collector's MetricsProjection
+      // handles model.usage → live TOKENS status bar (outer-stamped events,
+      // unaffected by this addition).
+      [ProjectionIds.metrics, new MetricsProjection()],
     ]),
   });
   const sopCollector = new SopCollectorImpl();

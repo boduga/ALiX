@@ -24,7 +24,10 @@ export type TimelineKind =
   // `tool.requested` and `tool.output` as raw content. If that
   // becomes a problem, either reject them at the projection boundary
   // here, or add a shared filter helper that every render path uses.
-  | 'tool.requested' | 'tool.started' | 'tool.output' | 'tool.completed' | 'tool.failed';
+  | 'tool.requested' | 'tool.started' | 'tool.output' | 'tool.completed' | 'tool.failed'
+  // T6 — C1 observability: context lifecycle events
+  | 'context.snapshot.created' | 'context.budget.computed' | 'context.assembled'
+  | 'context.preflight.failed' | 'context.irreducible';
 
 /** The timeline projection's supported vocabulary. A builder must own the
  *  kinds it projects — unrelated event types must not pollute the timeline. */
@@ -33,6 +36,9 @@ export const TIMELINE_TYPES = new Set<TimelineKind>([
   'agent.message', 'agent.reasoning', 'agent.decision', 'agent.response',
   'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
   'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed',
+  // T6 — C1 observability: context lifecycle events
+  'context.snapshot.created', 'context.budget.computed', 'context.assembled',
+  'context.preflight.failed', 'context.irreducible',
 ]);
 /** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
  *  detached shape. */
@@ -189,6 +195,28 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       // surfaces toolName/target from `perTab.pendingApprovals[0]` so the
       // keys always name their target.
       text = p.prompt;
+    }
+    // ── T6: context lifecycle event text mappings ─────────────────────
+    if (kind === 'context.snapshot.created') {
+      const cand = typeof (p as any).candidateTokens === 'number' ? (p as any).candidateTokens : '--';
+      text = `context snapshot created — candidate: ${typeof cand === 'number' ? cand.toLocaleString() : cand} tokens`;
+    } else if (kind === 'context.budget.computed') {
+      const cwt = typeof (p as any).contextWindowTokens === 'number' ? (p as any).contextWindowTokens : 0;
+      const ait = typeof (p as any).availableInputTokens === 'number' ? (p as any).availableInputTokens : 0;
+      text = `context budget — window ${cwt.toLocaleString()} | available input ${ait.toLocaleString()}`;
+    } else if (kind === 'context.assembled') {
+      const admitted = typeof (p as any).admittedItems === 'number' ? (p as any).admittedItems : 0;
+      const dropped = typeof (p as any).droppedItems === 'number' ? (p as any).droppedItems : 0;
+      const aTok = typeof (p as any).admittedTokens === 'number' ? (p as any).admittedTokens : 0;
+      const dTok = typeof (p as any).droppedTokens === 'number' ? (p as any).droppedTokens : 0;
+      text = `context assembled — ${admitted} items (${aTok.toLocaleString()} tokens) admitted | ${dropped} items (${dTok.toLocaleString()} tokens) dropped`;
+    } else if (kind === 'context.preflight.failed') {
+      const overage = typeof (p as any).overageTokens === 'number' ? (p as any).overageTokens : 0;
+      text = `context preflight FAILED — ${overage.toLocaleString()} tokens over budget`;
+    } else if (kind === 'context.irreducible') {
+      const overage = typeof (p as any).overageTokens === 'number' ? (p as any).overageTokens : 0;
+      const mand = typeof (p as any).mandatoryTokens === 'number' ? (p as any).mandatoryTokens : 0;
+      text = `context IRREDUCIBLE — mandatory core ${mand.toLocaleString()} tokens exceeds budget by ${overage.toLocaleString()}`;
     }
     // Tool outcome detail (for completed/failed) — error message for
     // failures, a short summary for successes. The line builder

@@ -72,6 +72,9 @@ export class AgentView implements TuiView {
       user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c, gutter),
       agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),
       streaming: (l, rowY) => this.renderStreamingLine(l, rowY, c, gutter),
+      // T6 — C1 observability: LOW-value context lifecycle events
+      // (snapshot.created / budget.computed) render as dim grey text.
+      context:  (l, rowY) => this.renderContextLine(l, rowY, c, gutter),
     };
 
     renderBottomAnchoredSlice({
@@ -145,6 +148,20 @@ export class AgentView implements TuiView {
     // old marker was the same `→ `; the new universal `│` separator makes
     // the slicing unnecessary.
     c.write(textCol, rowY, `\x1b[2m${l.text}${RESET}`);
+  }
+
+  /** T6 — C1 observability: LOW-value context lifecycle events
+   *  (snapshot.created / budget.computed) render as dim grey text with
+   *  the stage-gutter separator. Matches the existing toolCall/plan dim
+   *  styling convention. */
+  private renderContextLine(l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {
+    const textCol = gutter + 2;
+    if (l.isFirst) {
+      if (l.gutter) c.write(0, rowY, `\x1b[36m${l.gutter}${RESET}`);
+      c.write(gutter, rowY, `\x1b[90m│${RESET}`);
+    }
+    // Dim grey — the context line text is pre-formatted by TimelineBuilder.
+    c.write(textCol, rowY, `\x1b[2m\x1b[37m${l.text}${RESET}`);
   }
 
   private renderTurnLine(kind: 'user' | 'agent', l: ScrollbackLine, rowY: number, c: TerminalCanvas, gutter: number): void {

@@ -62,6 +62,28 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     issues.push({ path: "context.maxRepoMapTokens", level: "error", message: "maxRepoMapTokens must be a positive integer" });
   }
 
+  // context.budget output-reservation knobs (C0/C1)
+  const budget = config.context.budget;
+  if (budget) {
+    // Each knob is optional and defaults in createContextBudget; only a
+    // DEFINED-and-invalid knob is an error (undefined → default later →
+    // valid). This matters because mergeConfig shallow-merges `context`, so a
+    // partial `budget: { outputFloor: 8192 }` legitimately leaves outputRatio
+    // undefined and must not be flagged.
+    if (budget.outputRatio !== undefined && (typeof budget.outputRatio !== "number" || !(budget.outputRatio > 0 && budget.outputRatio < 1))) {
+      issues.push({ path: "context.budget.outputRatio", level: "error", message: "outputRatio must be a number strictly between 0 and 1" });
+    }
+    if (budget.outputFloor !== undefined && (!Number.isInteger(budget.outputFloor) || budget.outputFloor <= 0)) {
+      issues.push({ path: "context.budget.outputFloor", level: "error", message: "outputFloor must be a positive integer" });
+    }
+    if (budget.outputCap !== undefined && (!Number.isInteger(budget.outputCap) || budget.outputCap <= 0)) {
+      issues.push({ path: "context.budget.outputCap", level: "error", message: "outputCap must be a positive integer" });
+    }
+    if (budget.outputFloor !== undefined && budget.outputCap !== undefined && budget.outputFloor > budget.outputCap) {
+      issues.push({ path: "context.budget.outputFloor", level: "error", message: "outputFloor cannot exceed outputCap" });
+    }
+  }
+
   // runtime.commandTimeoutMs must be positive
   if (config.runtime.commandTimeoutMs <= 0) {
     issues.push({ path: "runtime.commandTimeoutMs", level: "error", message: "commandTimeoutMs must be positive" });

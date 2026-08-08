@@ -28,6 +28,7 @@ import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
+import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -99,6 +100,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       sessionId: opts.sessionId,
       capabilities: null,
       metrics: null,
+      context: null,
     };
   }
 
@@ -244,6 +246,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         timeline: this.projectionRuntime.snapshotOf<readonly TimelineEntry[]>(ProjectionIds.timeline) ?? [],
         capabilities: this.projectionRuntime.snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null,
         metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null,
+        context: this.projectionRuntime.snapshotOf<ContextProjectionSnapshot>(ProjectionIds.context) ?? null,
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,
         lastEventAt: sessionLast ? Date.parse(sessionLast.timestamp) || Date.now() : this.cache.lastEventAt,

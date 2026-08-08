@@ -4,6 +4,7 @@ import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
+import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -120,6 +121,12 @@ export interface RuntimeSnapshot {
    * tool/capability events).
    */
   readonly metrics: MetricsProjectionSnapshot | null;
+  /**
+   * Candidate-context projection (ContextProjectionBuilder — Task 4, spec
+   * #456 F). Immutable budget-agnostic snapshot the assembler consumes; null
+   * when the projection isn't registered (e.g. older collectors).
+   */
+  readonly context: ContextProjectionSnapshot | null;
   /**
    * Experimental extension boundary only.
    * Runtime consumers MUST NOT depend on keys here.

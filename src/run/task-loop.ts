@@ -10,6 +10,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { EventLog } from "../events/event-log.js";
@@ -41,6 +42,16 @@ import {
 import { ProgressLedger } from "./progress-ledger.js";
 import { IntentClassifier, type AgentIntent } from "./intent-classifier.js";
 import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../agent/system-prompt.js";
+import { estimateMessageBudgetTokens, estimateBudgetTokens, ensureEncoder } from "../utils/tokens.js";
+import type { TokenizerName } from "../config/context-limits.js";
+import type { ContextBudget, ContextCategory } from "../config/context-budget.js";
+import { ContextBudgetOverflowError, preflight } from "../config/context-budget.js";
+import {
+  assembleContext,
+  type CandidateContextItem,
+  type ContextItemProvenance,
+} from "../config/context-assembly.js";
+import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -214,8 +225,8 @@ pre_task?: { command: string; reason: string }[];
 post_task?: { command: string; reason: string }[];
   };
   maxIterations: number;
-  MAX_CONTEXT_TOKENS: number;
-  encoding: "cl100k_base" | "o200k_base" | "char4";
+  contextBudget: ContextBudget;
+  tokenizer: TokenizerName;
   task: string;
   taskType: string;
   depth: "quick" | "deep";
@@ -258,8 +269,8 @@ mcpDiscovery,
 selectedTools,
 hooks,
 maxIterations,
-MAX_CONTEXT_TOKENS,
-encoding,
+contextBudget,
+tokenizer,
 task,
 taskType,
 depth,
@@ -339,38 +350,197 @@ stateMachine.tick(0);
 // Track if any mutations occurred in this iteration
 const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
 
-// Truncate messages if token budget exceeded before streaming/completion
-const msgTokens = messages.reduce(
-  (sum, m) => sum + estimateMessageTokens(m),
-  0
-);
-if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
-  const { truncateToTokenBudget } = await import("../utils/tokens.js");
-  const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
-  if (dropped.length > 0) {
-    // Remove all [State] messages before truncation, then re-inject one rolling summary
-    messages = messages.filter(m => !String(m.content).startsWith("[Session Digest]"));
+// Truncate messages if token budget exceeded before streaming/completion.
+// Detection and truncation share the same tokenizer-based estimator — the
+// char/4 detection is gone (E1).
+	// ── T6: context.snapshot.created — once per model-facing invocation ──
+	// Globally-unique invocation id (C2 #21): a per-call counter is not
+	// unique across separate runTaskLoop invocations on the same session
+	// (e.g. resume, sub-tasks). A UUID keeps timeline correlation unambiguous
+	// across re-entry; the sessionId is already on the event itself.
+	const invocationId = `inv-${randomUUID()}`;
 
-    // Build digest from session log — authoritative source of truth
-    const logDir = log.path.replace(/\/events\.jsonl$/, "");
-    const digest = await buildSessionDigest(logDir);
-    if (digest) {
-      messages.push({ role: "user", content: digest });
-    } else {
-      // Fallback to rolling sessionState summary when log isn't available
-      const summary = buildStateSummary(sessionState);
-      if (summary) messages.push({ role: "user", content: summary });
-    }
+	// Build intent-specific system prompt (moved up — budget assembly needs it).
+	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
+	  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
+	  : VALIDATION_SUPPLEMENT;
+	const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
+	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
 
-    messages = [...(kept as NormalizedMessage[])];
-    await log.append({ ...session, actor: "system", type: "context.truncated", payload: {
-      droppedCount: dropped.length,
-      provider: config.model.provider,
-      maxTokens: MAX_CONTEXT_TOKENS,
-      encoding
-    }});
-  }
-}
+	// ── I1: Inject progress ledger BEFORE budget admission so it is
+	// token-accounted (Tier 3, protected). The ledger is rendered and
+	// pushed into messages so classifyCandidateContext picks it up.
+	const ledgerText = progressLedger.render(10);
+	if (ledgerText) {
+	  messages.push({
+	    role: "user",
+	    content: `[Progress Ledger]\n${ledgerText}`,
+	  });
+	}
+	// Expose rendered ledger text to the AgentSession for TUI consumption
+	if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
+
+	// ── Context Budget admission gate (C0) ─────────────────────────────
+	// Replace the dead half-window truncation + digest re-injection with the
+	// authoritative budget → assembly → preflight path (T5). No oversized
+	// request ever reaches a provider.
+	await ensureEncoder(tokenizer);
+	const { candidateItems, contentMap } = await classifyCandidateContext(
+	  effectiveSystemPrompt, messages, tokenizer
+	);
+
+	// ── Reserve tool schema tokens inside the assembly budget ──────────
+	// Both providerTools AND mcpToolIndex are sent as a structured `tools`
+	// array alongside the system prompt + messages. That array is a separate
+	// wire payload from the tool-manifest text embedded in the system prompt
+	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
+	// item so they are token-accounted before best-effort tiers are admitted.
+
+	if (providerTools.length > 0) {
+	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
+	  candidateItems.unshift({
+	    id: "provider-tool-schema",
+	    kind: "tool_schema",
+	    category: "mandatory_system_governance" as ContextCategory,
+	    tokens: providerToolSchemaTokens,
+	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+	  });
+	}
+	if (mcpToolIndex.length > 0) {
+	  const mcpToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer)).budgetEstimate;
+	  candidateItems.unshift({
+	    id: "mcp-tool-schema",
+	    kind: "tool_schema",
+	    category: "mandatory_system_governance" as ContextCategory,
+	    tokens: mcpToolSchemaTokens,
+	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+	  });
+	}
+
+	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
+	// Stamped on the `${sessionId}-agent` domain so the agent timeline
+	// (TimelineBuilder) admits it — context events describe the agent's
+	// model-loop behavior, matching the emitAgent routing pattern. Emitted
+	// AFTER the tool-schema reservations so candidateTokens is truthful
+	// (includes both provider and MCP structured `tools` payloads).
+	await log.append({
+	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
+	  payload: {
+	    invocationId,
+	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
+	  },
+	});
+
+	// ── T6: emit context.budget.computed ───────────────────────────────
+	await log.append({
+	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.BUDGET_COMPUTED,
+	  payload: {
+	    invocationId,
+	    contextWindowTokens: contextBudget.contextWindowTokens,
+	    availableInputTokens: contextBudget.availableInputTokens,
+	    reservedOutputTokens: contextBudget.reservedOutputTokens,
+	    policyReservation: contextBudget.policyReservation,
+	  },
+	});
+
+	// One deterministic assembly pass over the candidate.
+	// Throws ContextBudgetOverflowError (irreducible) when mandatory core
+	// alone exceeds available input (including MCP tool schemas if any).
+	// ── T6: catch -> emit context.irreducible -> re-throw ────────────
+	let assembled: ReturnType<typeof assembleContext>;
+	try {
+	  assembled = assembleContext(candidateItems, contextBudget);
+	} catch (err) {
+	  if (err instanceof ContextBudgetOverflowError) {
+	    await log.append({
+	      sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	      payload: {
+	        invocationId,
+	        overageTokens: err.overageTokens,
+	        byCategory: err.byCategory,
+	        availableInputTokens: err.availableInputTokens,
+	        mandatoryTokens: err.mandatoryTokens,
+	        contextWindowTokens: err.contextWindowTokens,
+	      },
+	    });
+	  }
+	  throw err;
+	}
+
+	// ── T6: emit context.assembled with category breakdown + drop reasons ──
+	{
+	  const admittedByCategory: Record<string, number> = {};
+	  for (const item of assembled.admitted) {
+	    admittedByCategory[item.category] = (admittedByCategory[item.category] ?? 0) + item.tokens;
+	  }
+	  const droppedReasons = assembled.dropped.map((d) => ({
+	    kind: d.item.kind,
+	    reason: d.reason,
+	  }));
+	  await log.append({
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
+	    payload: {
+	      invocationId,
+	      admittedItems: assembled.admitted.length,
+	      droppedItems: assembled.dropped.length,
+	      admittedTokens: assembled.admittedTokens,
+	      droppedTokens: assembled.droppedTokens,
+	      admittedByCategory,
+	      droppedReasons,
+	    },
+	  });
+	}
+
+	// Reconstruct the provider request from admitted items.
+	// MCP tool-schema items (not in contentMap) are silently skipped.
+	const { admittedSystemPrompt, admittedMessages } = reconstructRequest(
+	  assembled.admitted, contentMap
+	);
+
+	// ── Final safety gate (backstop only) ───────────────────────────────
+	// Tool schema tokens (both provider and MCP) were reserved as Tier-1
+	// mandatory items above. This gate catches genuine assembly bugs — it
+	// must NOT fire on reducible cases because the selector already properly
+	// reduced.
+	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
+	if (!pfResult.fits) {
+	  // ── T6: emit context.preflight.failed BEFORE throwing irreducible ─
+	  await log.append({
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.PREFLIGHT_FAILED,
+	    payload: {
+	      invocationId,
+	      overageTokens: pfResult.overflow.overageTokens,
+	      byCategory: pfResult.overflow.byCategory,
+	    },
+	  });
+	  // Genuinely irreducible (or an assembly bug): the mandatory core
+	  // exceeds available input.
+	  const overflowErr = new ContextBudgetOverflowError({
+	    reducible: false,
+	    overageTokens: pfResult.overflow.overageTokens,
+	    byCategory: pfResult.overflow.byCategory,
+	    availableInputTokens: contextBudget.availableInputTokens,
+	    mandatoryTokens: assembled.mandatoryTokens,
+	    contextWindowTokens: contextBudget.contextWindowTokens,
+	  });
+	  // ── T6: emit context.irreducible ──────────────────────────────
+	  await log.append({
+	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	    payload: {
+	      invocationId,
+	      overageTokens: overflowErr.overageTokens,
+	      byCategory: overflowErr.byCategory,
+	      availableInputTokens: overflowErr.availableInputTokens,
+	      mandatoryTokens: overflowErr.mandatoryTokens,
+	      contextWindowTokens: overflowErr.contextWindowTokens,
+	    },
+	  });
+	  throw overflowErr;
+	}
+
+	// Replace the loop's mutable messages with the assembled subset.
+	messages = admittedMessages;
+
 
 // Run pre_task hooks at the start of each iteration
 const { runHook } = await import("../hooks/runner.js");
@@ -384,47 +554,32 @@ let text = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
 
-// Inject progress ledger context for the model
-const ledgerText = progressLedger.render(10);
-if (ledgerText) {
-  messages.push({
-	role: "user",
-	content: `[Progress Ledger]\n${ledgerText}`,
-  });
-}
-// Expose rendered ledger text to the AgentSession for TUI consumption
-if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
-
-// Build intent-specific system prompt supplement
-const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
-  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
-  : VALIDATION_SUPPLEMENT;
-// Anchor the model to the exact tool names + text-fallback format. Without
-// this, models drift into foreign conventions (exec_command, <<DSML>>) and
-// their calls never parse, stalling the turn.
-const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
-const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
-
-if (config.model.streaming && provider.stream) {
-  const result = await streamToResponse(provider, {
-    systemPrompt: effectiveSystemPrompt,
-    messages,
-    tools: [...providerTools, ...mcpToolIndex],
-    context: deps.context,
-  }, { onStream });
-  text = result.text;
-  toolCalls = result.toolCalls;
-  usage = result.usage;
-} else {
-  const resp = await provider.complete({
-    systemPrompt: effectiveSystemPrompt,
-    messages,
-    tools: [...providerTools, ...mcpToolIndex],
-    context: deps.context,
-  });
-  text = resp.text ?? "";
-  toolCalls = resp.toolCalls ?? [];
-  usage = resp.usage;
+	// System prompt was built above (before budget assembly). Use the
+	// assembly-admitted system prompt that survived the budget gate.
+	if (config.model.streaming && provider.stream) {
+	  const result = await streamToResponse(provider, {
+	    systemPrompt: admittedSystemPrompt,
+	    messages,
+	    tools: [...providerTools, ...mcpToolIndex],
+	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    context: deps.context,
+	  }, { onStream });
+	  text = result.text;
+	  toolCalls = result.toolCalls;
+	  usage = result.usage;
+	} else {
+	  const resp = await provider.complete({
+	    systemPrompt: admittedSystemPrompt,
+	    messages,
+	    tools: [...providerTools, ...mcpToolIndex],
+	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    context: deps.context,
+	  });
+	  // C1 fix: restore assignments — the non-streaming path MUST
+	  // populate text/toolCalls/usage from the provider response.
+	  text = resp.text ?? "";
+	  toolCalls = resp.toolCalls ?? [];
+	  usage = resp.usage;
 }
 
   // Fallback: model emitted XML-style tool calls as raw text instead of
@@ -1125,37 +1280,148 @@ if (enhancedVerifier) {
 // Helper functions used by the task loop
 
 /**
- * Estimates token count for a message using character-based approximation.
- * For production use, replace with tiktoken or similar library.
- */
-function estimateMessageTokens(m: NormalizedMessage): number {
-  const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-  return Math.ceil(content.length / 4);
-}
-
-/**
  * Builds a session digest from the event log directory.
  * Returns null if digest generation fails.
  */
-async function buildSessionDigest(logDir: string): Promise<string | null> {
-  try {
-const { buildSessionDigest: build } = await import("../utils/session-digest.js");
-return await build(logDir);
-  } catch {
-return null;
+// ── T5: Context Budget helper functions ────────────────────────────────────
+
+/**
+ * Classify a single message into a ContextCategory for the budget assembly.
+ */
+function classifyMessageToCategory(
+  msg: NormalizedMessage,
+  index: number,
+  isLastUserMessage: boolean,
+): ContextCategory {
+  const content = typeof msg.content === "string" ? msg.content : "";
+  // Ledger/digest content checks MUST come BEFORE the last-user check.
+  // The I1 fix injects the ledger as a user-role message at the end;
+  // without this ordering, the ledger claims the "last user" slot and
+  // the real current instruction gets demoted to Tier-4 (droppable).
+  if (content.startsWith("[Progress Ledger]")) return "current_execution_state";
+  if (content.startsWith("[Session Digest]")) return "current_execution_state";
+  // Tool results MUST be excluded from the "last user" slot BEFORE the
+  // last-user check. A tool result is a `user`-role message on the wire, but
+  // it is execution evidence, NOT a user instruction — letting it claim
+  // current_task would demote the real current instruction to Tier-4
+  // (droppable), which under budget pressure gets dropped.
+  if (content.startsWith("<tool_result")) return "recent_tool_results";
+  // I3 fix: the LAST user-role message is the actual current instruction
+  // and MUST be classified as current_task (Tier 2, mandatory) so it is
+  // never droppable. The first user message (index 0) is also mandatory.
+  if (msg.role === "user" && (index === 0 || isLastUserMessage)) return "current_task";
+  return "recent_conversation";
+}
+
+/** Builds CandidateContextItem[] from the system prompt and messages. */
+async function classifyCandidateContext(
+  systemPrompt: string,
+  messages: NormalizedMessage[],
+  tokenizer: TokenizerName
+): Promise<{ candidateItems: CandidateContextItem[]; contentMap: Map<string, NormalizedMessage | { type: "system_prompt"; text: string }> }> {
+  const candidateItems: CandidateContextItem[] = [];
+  const contentMap = new Map<string, NormalizedMessage | { type: "system_prompt"; text: string }>();
+
+  const sysMeta = await estimateBudgetTokens(systemPrompt, tokenizer);
+  candidateItems.push({
+    id: "system-prompt",
+    kind: "system_prompt",
+    category: "mandatory_system_governance",
+    tokens: sysMeta.budgetEstimate,
+    provenance: { category: "mandatory_system_governance", kind: "system_prompt", createdAt: Date.now(), source: "runTaskLoop" },
+  });
+  contentMap.set("system-prompt", { type: "system_prompt", text: systemPrompt });
+
+  // I3: find the index of the LAST user-role message so it can be
+  // classified as mandatory current_task (never droppable).
+  // CRITICAL: exclude ledger/digest-injected messages AND tool results so the
+  // REAL last user instruction is never displaced. Without this filter, the
+  // I1 ledger injection (or a trailing <tool_result>) claims the slot and
+  // the genuine current instruction becomes droppable Tier-4.
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.role !== "user") continue;
+    const c = typeof m.content === "string" ? m.content : "";
+    if (c.startsWith("[Progress Ledger]") || c.startsWith("[Session Digest]")) continue;
+    if (c.startsWith("<tool_result")) continue;
+    lastUserIndex = i;
+    break;
   }
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]!;
+    const category = classifyMessageToCategory(msg, i, i === lastUserIndex);
+    const msgId = `msg-${i}`;
+    const meta = await estimateMessageBudgetTokens(
+      { role: msg.role, content: msg.content },
+      tokenizer
+    );
+    const kind = category === "current_task" ? "task"
+      : category === "current_execution_state" ? (typeof msg.content === "string" && msg.content.startsWith("[Progress Ledger]") ? "ledger" : "digest")
+      : category === "recent_tool_results" ? "tool_result"
+      : msg.role === "user" ? "user_turn" : "assistant_turn";
+    candidateItems.push({
+      id: msgId, kind, category, tokens: meta.budgetEstimate,
+      provenance: { category, kind, createdAt: Date.now(), source: "runTaskLoop" },
+    });
+    contentMap.set(msgId, msg);
+  }
+
+  return { candidateItems, contentMap };
 }
 
 /**
- * Builds a summary string of files created, changed, and deleted in this session.
+ * Converts admitted CandidateContextItems back into system prompt + messages.
+ *
+ * Invariant: ADMISSION ORDER ≠ CONVERSATION ORDER. The tier selector may
+ * reorder items by *priority* during admission, but it must never reorder the
+ * resulting conversation. Reconstruction therefore sorts admitted messages by
+ * their SOURCE position (`msg-<index>`) so the provider sees the conversation
+ * in the exact chronological order it was built — the tier structure must
+ * never leak into conversational chronology on the wire. The ledger (injected
+ * last) keeps its source position at the end of the conversation.
  */
-function buildStateSummary(state: MutationSessionState): string {
-  const parts: string[] = [];
-  if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
-  if (state.changed.size) parts.push(`Changed: ${[...state.changed].join(", ")}`);
-  if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
-  if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
-  return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
+function reconstructRequest(
+  admitted: readonly CandidateContextItem[],
+  contentMap: Map<string, NormalizedMessage | { type: "system_prompt"; text: string }>
+): { admittedSystemPrompt: string; admittedMessages: NormalizedMessage[] } {
+  let admittedSystemPrompt = "";
+  const admittedMessages: NormalizedMessage[] = [];
+  // Sort by source index: `msg-<i>` items by i; non-message items (system
+  // prompt, tool schemas — not in contentMap) sink to the end harmlessly.
+  const ordered = [...admitted].sort((a, b) => {
+    const ia = sourceIndexOf(a.id);
+    const ib = sourceIndexOf(b.id);
+    if (ia === -1 && ib === -1) return 0;
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  for (const item of ordered) {
+    const content = contentMap.get(item.id);
+    if (!content) continue;
+    if ("type" in content && content.type === "system_prompt") {
+      admittedSystemPrompt = content.text;
+    } else {
+      admittedMessages.push(content as NormalizedMessage);
+    }
+  }
+  return { admittedSystemPrompt, admittedMessages };
+}
+
+/** Source position of a candidate item id (`msg-<i>`), or -1 for
+ * non-message items (system-prompt, tool schemas). */
+function sourceIndexOf(id: string): number {
+  const m = /^msg-(\d+)$/.exec(id);
+  return m ? Number(m[1]) : -1;
+}
+
+/** Converts CandidateContextItem[] to preflight-compatible BudgetedContextItem[]. */
+function toBudgetedItems(
+  items: readonly CandidateContextItem[]
+): Array<{ category: ContextCategory; tokens: number }> {
+  return items.map(i => ({ category: i.category, tokens: i.tokens }));
 }
 
 /**

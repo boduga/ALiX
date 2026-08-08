@@ -70,4 +70,47 @@ describe("validateConfig", () => {
     const result = validateConfig(config);
     assert.ok(result.issues.some(i => i.path === "runtime.provider" && i.level === "error"));
   });
+
+  it("accepts valid context.budget knobs", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.25, outputFloor: 8192, outputCap: 16384 };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+  });
+
+  it("reports error when context.budget.outputRatio is not in (0,1)", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 1.5, outputFloor: 4096, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputRatio" && i.level === "error"));
+  });
+
+  it("reports error when context.budget.outputFloor is not a positive integer", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.2, outputFloor: -1, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputFloor" && i.level === "error"));
+  });
+
+  it("reports error when outputFloor exceeds outputCap", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.2, outputFloor: 40000, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputFloor" && i.level === "error"));
+  });
+
+  it("accepts a PARTIAL context.budget config (undefined knobs default later)", () => {
+    // mergeConfig shallow-merges `context`, so `budget: { outputFloor: 8192 }`
+    // legitimately leaves outputRatio/outputCap undefined — they are optional
+    // and default in createContextBudget. Only a DEFINED-and-invalid knob is
+    // an error; an undefined knob must not be flagged.
+    const config = makeValidConfig();
+    config.context.budget = { outputFloor: 8192 };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+    assert.equal(
+      result.issues.some(i => i.path === "context.budget.outputRatio" && i.level === "error"),
+      false,
+    );
+  });
 });

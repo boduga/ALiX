@@ -1,3 +1,5 @@
+import type { ContextBudgetConfig } from "./context-budget.js";
+
 export type SessionMode = "auto" | "ask" | "bypass";
 
 export type Decision = "ask" | "allow" | "deny";
@@ -33,6 +35,8 @@ export type ContextConfig = {
   semanticSearch: boolean;
   includeGitStatus: boolean;
   pinnedFiles: string[];
+  /** C0/C1 reserved-output reservation knobs (B; defaults 0.20 / 4,096 / 32,768). */
+  budget?: ContextBudgetConfig;
 };
 
 export type RuntimeConfig = {
