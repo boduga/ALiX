@@ -50,6 +50,7 @@ import {
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
+import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -342,6 +343,11 @@ let explicitDoneCalled = false;
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 
+// ── T6: invocationId counter for C1 observability correlation ─────
+// Only increments on model-facing invocations (provider calls), never on
+// internal projection updates or throttled polls.
+let invocationCount = 0;
+
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
 
@@ -351,6 +357,10 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 // Truncate messages if token budget exceeded before streaming/completion.
 // Detection and truncation share the same tokenizer-based estimator — the
 // char/4 detection is gone (E1).
+	// ── T6: context.snapshot.created — once per model-facing invocation ──
+	invocationCount++;
+	const invocationId = `inv-${sessionId}-${invocationCount}`;
+
 	// Build intent-specific system prompt (moved up — budget assembly needs it).
 	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
 	  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
@@ -386,6 +396,16 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// wire payload from the tool-manifest text embedded in the system prompt
 	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
 	// item so they are token-accounted before best-effort tiers are admitted.
+
+	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
+	await log.append({
+	  ...session, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
+	  payload: {
+	    invocationId,
+	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
+	  },
+	});
+
 	if (providerTools.length > 0) {
 	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
 	  candidateItems.unshift({
@@ -407,10 +427,65 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  });
 	}
 
+	// ── T6: emit context.budget.computed ───────────────────────────────
+	await log.append({
+	  ...session, actor: "system", type: CONTEXT_EVENT_TYPES.BUDGET_COMPUTED,
+	  payload: {
+	    invocationId,
+	    contextWindowTokens: contextBudget.contextWindowTokens,
+	    availableInputTokens: contextBudget.availableInputTokens,
+	    reservedOutputTokens: contextBudget.reservedOutputTokens,
+	    policyReservation: contextBudget.policyReservation,
+	  },
+	});
+
 	// One deterministic assembly pass over the candidate.
 	// Throws ContextBudgetOverflowError (irreducible) when mandatory core
 	// alone exceeds available input (including MCP tool schemas if any).
-	const assembled = assembleContext(candidateItems, contextBudget);
+	// ── T6: catch -> emit context.irreducible -> re-throw ────────────
+	let assembled: ReturnType<typeof assembleContext>;
+	try {
+	  assembled = assembleContext(candidateItems, contextBudget);
+	} catch (err) {
+	  if (err instanceof ContextBudgetOverflowError) {
+	    await log.append({
+	      ...session, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	      payload: {
+	        invocationId,
+	        overageTokens: err.overageTokens,
+	        byCategory: err.byCategory,
+	        availableInputTokens: err.availableInputTokens,
+	        mandatoryTokens: err.mandatoryTokens,
+	        contextWindowTokens: err.contextWindowTokens,
+	      },
+	    });
+	  }
+	  throw err;
+	}
+
+	// ── T6: emit context.assembled with category breakdown + drop reasons ──
+	{
+	  const admittedByCategory: Record<string, number> = {};
+	  for (const item of assembled.admitted) {
+	    admittedByCategory[item.category] = (admittedByCategory[item.category] ?? 0) + item.tokens;
+	  }
+	  const droppedReasons = assembled.dropped.map((d) => ({
+	    kind: d.item.kind,
+	    reason: d.reason,
+	  }));
+	  await log.append({
+	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
+	    payload: {
+	      invocationId,
+	      admittedItems: assembled.admitted.length,
+	      droppedItems: assembled.dropped.length,
+	      admittedTokens: assembled.admittedTokens,
+	      droppedTokens: assembled.droppedTokens,
+	      admittedByCategory,
+	      droppedReasons,
+	    },
+	  });
+	}
 
 	// Reconstruct the provider request from admitted items.
 	// MCP tool-schema items (not in contentMap) are silently skipped.
@@ -425,9 +500,18 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// reduced.
 	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
 	if (!pfResult.fits) {
+	  // ── T6: emit context.preflight.failed BEFORE throwing irreducible ─
+	  await log.append({
+	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.PREFLIGHT_FAILED,
+	    payload: {
+	      invocationId,
+	      overageTokens: pfResult.overflow.overageTokens,
+	      byCategory: pfResult.overflow.byCategory,
+	    },
+	  });
 	  // Genuinely irreducible (or an assembly bug): the mandatory core
 	  // exceeds available input.
-	  throw new ContextBudgetOverflowError({
+	  const overflowErr = new ContextBudgetOverflowError({
 	    reducible: false,
 	    overageTokens: pfResult.overflow.overageTokens,
 	    byCategory: pfResult.overflow.byCategory,
@@ -435,6 +519,19 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    mandatoryTokens: assembled.mandatoryTokens,
 	    contextWindowTokens: contextBudget.contextWindowTokens,
 	  });
+	  // ── T6: emit context.irreducible ──────────────────────────────
+	  await log.append({
+	    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
+	    payload: {
+	      invocationId,
+	      overageTokens: overflowErr.overageTokens,
+	      byCategory: overflowErr.byCategory,
+	      availableInputTokens: overflowErr.availableInputTokens,
+	      mandatoryTokens: overflowErr.mandatoryTokens,
+	      contextWindowTokens: overflowErr.contextWindowTokens,
+	    },
+	  });
+	  throw overflowErr;
 	}
 
 	// Replace the loop's mutable messages with the assembled subset.

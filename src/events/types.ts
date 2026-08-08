@@ -388,7 +388,57 @@ export const CONTEXT_EVENT_TYPES = {
   FILE_PINNED: "context.file_pinned",
   FILE_UNPINNED: "context.file_unpinned",
   PATTERN_EVALUATED: "context.pattern_evaluated",
+  // T6 — C1 observability: five lifecycle events for the context budget path.
+  SNAPSHOT_CREATED: "context.snapshot.created",
+  BUDGET_COMPUTED: "context.budget.computed",
+  ASSEMBLED: "context.assembled",
+  PREFLIGHT_FAILED: "context.preflight.failed",
+  IRREDUCIBLE: "context.irreducible",
 } as const;
+
+// T6 — C1 observability: payload types for the five lifecycle events.
+
+export type ContextSnapshotCreatedPayload = {
+  invocationId: string;
+  /** Approximate candidate token count at snapshot time (from the projection or
+   *  classified candidate). Observability metadata — NOT an admission figure. */
+  candidateTokens?: number;
+};
+
+export type ContextBudgetComputedPayload = {
+  invocationId: string;
+  contextWindowTokens: number;
+  availableInputTokens: number;
+  reservedOutputTokens: number;
+  policyReservation: number;
+};
+
+export type ContextAssembledPayload = {
+  invocationId: string;
+  admittedItems: number;
+  droppedItems: number;
+  admittedTokens: number;
+  droppedTokens: number;
+  /** Token tally by ContextCategory for admitted items. */
+  admittedByCategory: Record<string, number>;
+  /** Drop reasons for each dropped item (pairing reason with kind). */
+  droppedReasons: Array<{ kind: string; reason: string }>;
+};
+
+export type ContextPreflightFailedPayload = {
+  invocationId: string;
+  overageTokens: number;
+  byCategory: Record<string, number>;
+};
+
+export type ContextIrreduciblePayload = {
+  invocationId: string;
+  overageTokens: number;
+  byCategory: Record<string, number>;
+  availableInputTokens: number;
+  mandatoryTokens: number;
+  contextWindowTokens: number;
+};
 
 // Policy event payload types
 export type PolicyDecisionPayload = {

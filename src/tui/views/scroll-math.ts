@@ -158,6 +158,24 @@ export function trimStreamedTextToLanded(
  * test). The `perTab.pendingToolCalls` data flow still arrives from
  * the snapshot but is no longer rendered; #435 will subsume it.
  */
+/** T6 — C1 observability: classify context lifecycle events by display signal.
+ *  HIGH — assembled / preflight.failed / irreducible — always shown.
+ *  LOW  — snapshot.created / budget.computed — lower-signal, filterable by the
+ *         operator (future filter toggle; always shown for now). */
+export function classifyContextEventSignal(kind: string): 'HIGH' | 'LOW' | null {
+  switch (kind) {
+    case 'context.assembled':
+    case 'context.preflight.failed':
+    case 'context.irreducible':
+      return 'HIGH';
+    case 'context.snapshot.created':
+    case 'context.budget.computed':
+      return 'LOW';
+    default:
+      return null;
+  }
+}
+
 export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: number): ScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const planTasks = ctx.perTab.planTasks;
@@ -197,7 +215,14 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       e.kind === 'tool.started' ||
       e.kind === 'tool.completed' ||
       e.kind === 'tool.failed' ||
-      e.kind === 'approval.requested');
+      e.kind === 'approval.requested' ||
+      // T6 — C1 observability: context lifecycle events (all five admitted;
+      // HIGH-value always shown, LOW-value can be filtered by the operator).
+      e.kind === 'context.snapshot.created' ||
+      e.kind === 'context.budget.computed' ||
+      e.kind === 'context.assembled' ||
+      e.kind === 'context.preflight.failed' ||
+      e.kind === 'context.irreducible');
 
   // Final-summary / last-iteration prose dedup. The TUI's final `agent.response`
   // (app.ts:822 emitTimelineLog) carries the same text as the last iteration's
@@ -284,7 +309,7 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     // #436: approvals render inline with the same pattern. They use
     // the existing 'approval' ScrollbackLine kind painted by
     // AgentView.renderApprovalLine (yellow text + gutter when present).
-    lineKind: 'agent' | 'toolCall' | 'approval';
+    lineKind: 'agent' | 'toolCall' | 'approval' | 'context';
   };
   type TurnBuild = {
     userText: string | null;
@@ -414,6 +439,24 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
         currentStage.hasContent = true;
       } else {
         current.contents.push({ text, stage: null, isFirstOfStage: false, lineKind: 'approval' });
+      }
+    } else if (e.kind.startsWith('context.')) {
+      // T6 — C1 observability: context lifecycle events. Render as
+      // informational lines with the 'context' lineKind so the view can
+      // style them differently (HIGH = prominent, LOW = muted).
+      // Text is pre-formatted by TimelineBuilder.build.
+      const cText = typeof e.text === 'string' ? e.text : e.kind;
+      // HIGH-value events get the 'agent' lineKind so they appear in
+      // the normal content flow; LOW-value events use a new 'context'
+      // lineKind that the agent-view paints subtly (grey).
+      const signal = classifyContextEventSignal(e.kind);
+      const lk: 'agent' | 'context' = signal === 'LOW' ? 'context' : 'agent';
+      if (currentStage) {
+        const isFirstOfStage = !currentStage.hasContent;
+        current.contents.push({ text: cText, stage: currentStage, isFirstOfStage, lineKind: lk });
+        currentStage.hasContent = true;
+      } else {
+        current.contents.push({ text: cText, stage: null, isFirstOfStage: false, lineKind: lk });
       }
     } else if (e.text) {
       // Content event. If a stage is active, attribute to it. Content
