@@ -163,6 +163,39 @@ describe('context lifecycle events — integration', () => {
     expect(typeof (snapshots[0]!.payload as any).invocationId).toBe('string');
   });
 
+  it('invocationId is globally unique across separate runTaskLoop invocations (C2 #21)', async () => {
+    // Two invocations on the SAME session must not collide on invocationId —
+    // the per-call counter alone would reset to `inv-s1-1` for both. Each
+    // model-facing call gets a distinct id so timeline correlation is
+    // unambiguous across resume / sub-task re-entry.
+    const { events: first } = await runOneInvocation({});
+    const { events: second } = await runOneInvocation({});
+    const ids = [...first, ...second]
+      .filter((e) => e.type === 'context.snapshot.created')
+      .map((e) => (e.payload as any).invocationId as string);
+    expect(ids.length).toBe(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('context.snapshot.created candidateTokens includes tool-schema reservations', async () => {
+    // Snapshot is emitted AFTER the tool-schema unshift, so the candidate
+    // token count is truthful (includes MCP structured `tools` payloads).
+    // We use mcpToolIndex (NOT providerTools) because providerTools ALSO
+    // inflate effectiveSystemPrompt via the rendered tool manifest — using
+    // mcpToolIndex isolates the unshift reservation as the ONLY variable:
+    // a run with MCP tools must report a HIGHER candidateTokens than the
+    // identical run without; pre-fix (emit before unshift) both were equal.
+    const mcpToolIndex: DeferredToolEntry[] = [
+      { name: 'mcp_github_repos_list', execName: 'mcp.github.repos.list', serverName: 'github', toolName: 'repos_list', description: 'List repositories' },
+    ];
+    const candidateTokens = (events: Awaited<ReturnType<EventLog['readAll']>>) =>
+      (events.find((e) => e.type === 'context.snapshot.created')!.payload as any).candidateTokens as number;
+
+    const { events: withTools } = await runOneInvocation({ mcpToolIndex });
+    const { events: withoutTools } = await runOneInvocation({});
+    expect(candidateTokens(withTools)).toBeGreaterThan(candidateTokens(withoutTools));
+  });
+
   it('emits context.budget.computed with invocationId', async () => {
     const { events } = await runOneInvocation({});
     const budgets = events.filter((e) => e.type === 'context.budget.computed');

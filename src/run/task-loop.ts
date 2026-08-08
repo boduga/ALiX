@@ -10,6 +10,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { EventLog } from "../events/event-log.js";
@@ -359,7 +360,11 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 // char/4 detection is gone (E1).
 	// ── T6: context.snapshot.created — once per model-facing invocation ──
 	invocationCount++;
-	const invocationId = `inv-${sessionId}-${invocationCount}`;
+	// Globally-unique invocation id (C2 #21): the per-call counter alone is
+	// not unique across separate runTaskLoop invocations on the same session
+	// (e.g. resume, sub-tasks). A UUID keeps timeline correlation unambiguous
+	// across re-entry; the sessionId is already on the event itself.
+	const invocationId = `inv-${randomUUID()}`;
 
 	// Build intent-specific system prompt (moved up — budget assembly needs it).
 	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
@@ -397,18 +402,6 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
 	// item so they are token-accounted before best-effort tiers are admitted.
 
-	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
-	// Stamped on the `${sessionId}-agent` domain so the agent timeline
-	// (TimelineBuilder) admits it — context events describe the agent's
-	// model-loop behavior, matching the emitAgent routing pattern.
-	await log.append({
-	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
-	  payload: {
-	    invocationId,
-	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
-	  },
-	});
-
 	if (providerTools.length > 0) {
 	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
 	  candidateItems.unshift({
@@ -429,6 +422,20 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
 	  });
 	}
+
+	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
+	// Stamped on the `${sessionId}-agent` domain so the agent timeline
+	// (TimelineBuilder) admits it — context events describe the agent's
+	// model-loop behavior, matching the emitAgent routing pattern. Emitted
+	// AFTER the tool-schema reservations so candidateTokens is truthful
+	// (includes both provider and MCP structured `tools` payloads).
+	await log.append({
+	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
+	  payload: {
+	    invocationId,
+	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
+	  },
+	});
 
 	// ── T6: emit context.budget.computed ───────────────────────────────
 	await log.append({
