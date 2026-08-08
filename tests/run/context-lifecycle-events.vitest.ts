@@ -302,50 +302,50 @@ describe('context lifecycle events — integration', () => {
     expect(ids.size).toBe(1);
   });
 
-  it('emits context.preflight.failed and context.irreducible when the preflight gate backstop fires', async () => {
-    // The preflight backstop gate fires AFTER assembly succeeds but BEFORE
-    // the provider call. In correct operation, assembly and preflight use
-    // the same item.tokens so they agree (preflight never fires).
+  it('emits context.irreducible on assembly overflow, no preflight.failed double-emit (reconciliation invariant)', async () => {
+    // When assembly overflows (mandatory core alone exceeds available),
+    // context.irreducible is emitted at task-loop.ts:454 and the error is
+    // re-thrown — the preflight gate at task-loop.ts:505 is never reached.
     //
-    // To discriminate the emission code path: we assert the preflight
-    // function correctly detects overflow (this is the judgment that
-    // gates the emission path). The emission code itself — context.preflight.failed
-    // THEN context.irreducible, with shared invocationId — is exercised
-    // through a targeted integration run with a budget where the mandatory
-    // core fits assembly but the full set of admitted items overflows
-    // when tool schemas double-account (manifest text in system prompt
-    // PLUS separate tool-schema items).
+    // The preflight !fits branch is unreachable by construction through real
+    // inputs (assembly guarantees admittedTokens ≤ available; preflight
+    // re-sums the same item.tokens). However, if the emission code is later
+    // refactored and accidentally emits context.preflight.failed on the
+    // assembly-overflow path (double-emit regression), this test must catch
+    // it. Likewise, if context.irreducible is not emitted (removed or
+    // gated incorrectly), this test must fail.
     //
-    // Drive with generous budget + tool schemas so assembly admits
-    // mandatory core + schemas, then preflight catches the total.
+    // Discriminating power: RED when context.irreducible missing on
+    // assembly-overflow OR context.preflight.failed IS emitted (double-emit).
+    //
+    // The system-prompt item and the tool-schema items are distinct,
+    // non-overlapping budget items (there is no "double-accounting").
+    // The overflow is driven by many verbose tool schemas whose tokens,
+    // when summed with the mandatory core, exceed available input.
+
     const messages: NormalizedMessage[] = [{ role: 'user', content: 'test' }];
     const descriptor = await resolveModelDescriptor('local', 'test');
     const tokenizer: TokenizerName = 'cl100k_base';
     await ensureEncoder(tokenizer);
 
-    // Use a budget that's large for the system prompt but tight enough
-    // that the tool-schema reservation pushes the total past available.
+    // Tight budget: available = 4096 - 512 = 3584. Forty verbose tools
+    // (~9,027 tokens) plus mandatory core exceed available → assembly throws.
     const budget = createContextBudget(
       { contextWindowTokens: 4096 },
       { outputFloor: 512, outputCap: 512, outputRatio: 0.125 },
     );
-    // available = 4096 - 512 = 3584
 
-    // Many tool schemas so the manifest+JSON double-accounting creates a
-    // discrepancy: the system prompt item includes the manifest text, and
-    // the separate tool-schema items also carry token counts. Assembly
-    // admits both (per-item budget checks pass), but preflight re-sums
-    // all admitted items and may find the total exceeds available.
+    // Verbose tool schemas so their token cost drives assembly overflow.
     const providerTools: ToolDef[] = Array.from({ length: 40 }, (_, i) => ({
       name: `tool_${i}_consuming_tokens_for_test`,
       description: `Tool ${i} with a verbose description to consume tokens for testing. `.repeat(10),
-      parameters: {
+      input_schema: {
         type: 'object',
         properties: { input: { type: 'string', description: `input for tool ${i}`.repeat(5) } },
       },
     }));
 
-    const tmpDir = mkdtempSync(join(tmpdir(), 'alix-t6-pf-'));
+    const tmpDir = mkdtempSync(join(tmpdir(), 'alix-t6-ao-'));
     const log = new EventLog(join(tmpDir, 'events'));
     await log.init();
 
@@ -393,8 +393,9 @@ describe('context lifecycle events — integration', () => {
     try {
       await runTaskLoop(deps);
     } catch {
-      // Either assembly overflow or preflight backstop — both are valid
-      // error paths.
+      // Expected: assembly overflow (irreducible). The catch prevents the
+      // test from crashing; the event log assertions below validate the
+      // exact emission path.
     }
 
     const events = await log.readAll();
@@ -406,47 +407,30 @@ describe('context lifecycle events — integration', () => {
     const budgets = events.filter((e) => e.type === 'context.budget.computed');
     expect(budgets.length).toBe(1);
 
-    // Either assembly threw (context.irreducible only) OR preflight fired
-    // (context.preflight.failed + context.irreducible). Assert at least one
-    // error path was taken — the invocation should NOT reach the provider.
+    // Assembly-overflow path: context.irreducible emitted, preflight NEVER
+    // reached (assembly throws before the preflight gate). The reconciliation
+    // invariant: no context.preflight.failed double-emit regression.
     const pfEvents = events.filter((e) => e.type === 'context.preflight.failed');
     const irrEvents = events.filter((e) => e.type === 'context.irreducible');
     const assembledEvents = events.filter((e) => e.type === 'context.assembled');
 
-    if (pfEvents.length > 0) {
-      // Preflight backstop path: preflight.failed THEN irreducible
-      expect(pfEvents.length).toBe(1);
-      expect(irrEvents.length).toBe(1);
-      const pfPayload = pfEvents[0]!.payload as any;
-      const irrPayload = irrEvents[0]!.payload as any;
-      expect(pfPayload).toHaveProperty('invocationId');
-      expect(typeof pfPayload.overageTokens).toBe('number');
-      expect(pfPayload.overageTokens).toBeGreaterThan(0);
-      expect(pfPayload).toHaveProperty('byCategory');
-      expect(irrPayload).toHaveProperty('invocationId');
-      expect(typeof irrPayload.overageTokens).toBe('number');
-      // Both share invocationId
-      expect(pfPayload.invocationId).toBe(irrPayload.invocationId);
-    } else if (irrEvents.length > 0) {
-      // Assembly overflow path: irreducible only (no preflight.failed)
-      expect(irrEvents.length).toBe(1);
-      expect(pfEvents.length).toBe(0);
-      expect(assembledEvents.length).toBe(0);
-      const irrPayload = irrEvents[0]!.payload as any;
-      expect(typeof irrPayload.overageTokens).toBe('number');
-      expect(irrPayload.overageTokens).toBeGreaterThan(0);
-      expect(typeof irrPayload.mandatoryTokens).toBe('number');
-      expect(irrPayload.mandatoryTokens).toBeGreaterThan(0);
-    } else {
-      // Neither path taken? Should not happen with the tool-schema load.
-      // Provider was called — the context events still carry correlation.
-      expect(assembledEvents.length).toBeGreaterThanOrEqual(1);
-    }
+    // Primary assertions: exactly one context.irreducible, zero preflight.failed,
+    // zero context.assembled (assembly threw before emitting).
+    expect(irrEvents.length).toBe(1);
+    expect(pfEvents.length).toBe(0);
+    expect(assembledEvents.length).toBe(0);
+
+    const irrPayload = irrEvents[0]!.payload as any;
+    expect(typeof irrPayload.overageTokens).toBe('number');
+    expect(irrPayload.overageTokens).toBeGreaterThan(0);
+    expect(typeof irrPayload.mandatoryTokens).toBe('number');
+    expect(irrPayload.mandatoryTokens).toBeGreaterThan(0);
+    expect(irrPayload).toHaveProperty('invocationId');
 
     // All emitted context events share the same invocationId
     const allContextEvents = events.filter((e) =>
-      ['context.snapshot.created', 'context.budget.computed', 'context.assembled',
-       'context.preflight.failed', 'context.irreducible'].includes(e.type),
+      ['context.snapshot.created', 'context.budget.computed',
+       'context.irreducible'].includes(e.type),
     );
     const ids = new Set(allContextEvents.map((e) => (e.payload as any).invocationId).filter(Boolean));
     expect(ids.size).toBe(1);
