@@ -141,6 +141,15 @@ export async function handler(args: string[]): Promise<number> {
     if (result?.reason === "rejected_scope_expansion") {
       return EXIT_CODES.REJECTED_SCOPE_EXPANSION;
     }
+    if (result?.reason === "context_budget_overflow" && result.contextBudgetOverflow) {
+      const cbo = result.contextBudgetOverflow;
+      console.error(
+        `\n⚠️  Context budget overflow — the mandatory context core cannot fit.` +
+        `\n    Needs ${cbo.overageTokens} more input tokens (${cbo.availableInputTokens} available, core is ${cbo.mandatoryTokens}).` +
+        `\n\nFix: raise context.budget, or shrink mandatory context components.`
+      );
+      return 1;
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (err instanceof ApiError) {

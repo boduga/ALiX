@@ -432,7 +432,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     }
   });
 
-  it('throws ContextBudgetOverflowError for irreducible mandatory overflow', async () => {
+  it('returns context_budget_overflow RunResult for irreducible mandatory overflow', async () => {
     const mockProvider = createMockProvider({ responseText: 'done.' });
     // Extremely small budget: 200 window, 100 reserved, 100 available
     // Even the mandatory core (system prompt + task) won't fit in 100 tokens.
@@ -448,19 +448,18 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       maxIterations: 1,
     });
 
-    let error: unknown;
-    try {
-      await runTaskLoop(deps);
-    } catch (e) {
-      error = e;
-    }
+    // C2 #18: irreducible overflow is a graceful RunResult failure, not a throw.
+    const result = await runTaskLoop(deps);
 
-    expect(error).toBeInstanceOf(ContextBudgetOverflowError);
-    if (error instanceof ContextBudgetOverflowError) {
-      expect(error.reducible).toBe(false);
-      expect(error.kind).toBe('context_budget_overflow');
-      expect(error.overageTokens).toBeGreaterThan(0);
-    }
+    expect(result.reason).toBe('context_budget_overflow');
+    expect(result.contextBudgetOverflow).toBeDefined();
+    expect(result.contextBudgetOverflow?.reducible).toBe(false);
+    expect(result.contextBudgetOverflow?.kind).toBe('context_budget_overflow');
+    expect(result.contextBudgetOverflow?.overageTokens).toBeGreaterThan(0);
+    expect(result.contextBudgetOverflow?.availableInputTokens).toBeGreaterThan(0);
+    expect(result.contextBudgetOverflow?.mandatoryTokens).toBeGreaterThan(0);
+    // Summary is a human-readable diagnostic, not a raw error string.
+    expect(result.summary).toContain('more input tokens');
 
     // Money invariant: provider was NEVER called
     expect(mockProvider.requests.length).toBe(0);
@@ -656,7 +655,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
   });
 
   // ── Tool-schema gate: genuinely irreducible when mandatory core + tools > available ──
-  it('throws irreducible when mandatory core plus tool schema exceeds available', async () => {
+  it('returns context_budget_overflow when mandatory core plus tool schema exceeds available', async () => {
     // R3 discriminating: mandatory+tools > available. 1 tool (sys=194, tools=62).
     // longText(200) msg=247. Round-2 mand=441, Round-3 mand=503.
     // available=470: Round-2 fits (441≤470), Round-3 irreducible (503>470).
@@ -678,15 +677,13 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       providerTools: makeProviderTools(1),
     });
 
-    let error: unknown;
-    try { await runTaskLoop(deps); } catch (e) { error = e; }
+    // C2 #18: graceful RunResult failure, not a throw.
+    const result = await runTaskLoop(deps);
 
-    // Must throw ContextBudgetOverflowError with reducible:false.
-    expect(error).toBeInstanceOf(ContextBudgetOverflowError);
-    if (error instanceof ContextBudgetOverflowError) {
-      expect(error.reducible).toBe(false);
-      expect(error.kind).toBe('context_budget_overflow');
-    }
+    expect(result.reason).toBe('context_budget_overflow');
+    expect(result.contextBudgetOverflow?.reducible).toBe(false);
+    expect(result.contextBudgetOverflow?.kind).toBe('context_budget_overflow');
+    expect(result.contextBudgetOverflow?.overageTokens).toBeGreaterThan(0);
     // Money invariant: provider was NEVER called (irreducible → no request sent).
     expect(mockProvider.requests.length).toBe(0);
   });

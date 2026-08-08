@@ -5,6 +5,7 @@ export { extractMutationPaths, validMutationPaths, recordMutationInSessionState,
 
 import type { EventLog } from "./events/event-log.js";
 import type { NormalizedMessage } from "./providers/types.js";
+import type { ContextBudgetOverflowError } from "./config/context-budget.js";
 export interface SharedSession {
   sessionId: string;
   sessionDir: string;
@@ -15,9 +16,16 @@ export type RunResult = {
   sessionId: string;
   summary: string;
   streamed?: boolean;
-  reason?: "completed" | "completed_unverified" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
+  reason?: "completed" | "completed_unverified" | "max_repairs" | "max_iterations" | "rejected_scope_expansion" | "context_budget_overflow";
   /** Unique run identifier for diagnostic correlation. */
   runId?: string;
+  /**
+   * Diagnostic data for an irreducible context-budget overflow (C2 #18).
+   * In-process only — consumers must read the typed readonly fields and must
+   * NOT depend on Error methods, stack traces, or instanceof. This field is
+   * intentionally NOT a serializable wire contract.
+   */
+  contextBudgetOverflow?: ContextBudgetOverflowError;
 };
 
 export type RunOpts = {

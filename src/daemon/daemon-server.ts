@@ -558,8 +558,13 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
       client.write(JSON.stringify({ type: "task.completed", sessionId, status: "completed" } satisfies DaemonResponse) + "\n");
     } else {
-      registry.update(taskId, { status: "failed", error: result.reason });
-      client.write(JSON.stringify({ type: "task.failed", sessionId, error: result.reason } satisfies DaemonResponse) + "\n");
+      let error: string = result.reason;
+      if (result.reason === "context_budget_overflow" && result.contextBudgetOverflow) {
+        const cbo = result.contextBudgetOverflow;
+        error = `context_budget_overflow: needs ${cbo.overageTokens} more tokens (avail ${cbo.availableInputTokens}, core ${cbo.mandatoryTokens})`;
+      }
+      registry.update(taskId, { status: "failed", error });
+      client.write(JSON.stringify({ type: "task.failed", sessionId, error } satisfies DaemonResponse) + "\n");
     }
   } catch (err: any) {
     const error = err instanceof Error ? (err.stack ?? err.message) : String(err);
