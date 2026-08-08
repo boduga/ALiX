@@ -107,6 +107,26 @@ describe("createContextBudget (B contract — reserved output)", () => {
       outputCap: 32_768,
     });
   });
+
+  it("guard: a window below the floor never yields negative available input", () => {
+    const b = createContextBudget(descriptor(2_000));
+    // floor (4,096) > window (2,000): reservation clamps to the window itself.
+    expect(b.reservedOutputTokens).toBe(2_000);
+    expect(b.availableInputTokens).toBe(0);
+  });
+
+  it("guard: an explicit floor above the window also clamps to non-negative available", () => {
+    const b = createContextBudget(descriptor(2_000), { outputFloor: 8_000, outputCap: 16_000 });
+    expect(b.reservedOutputTokens).toBe(2_000);
+    expect(b.availableInputTokens).toBe(0);
+  });
+
+  it("partial config object falls back to defaults for unset knobs", () => {
+    // Only outputRatio is overridden; floor/cap must keep their defaults.
+    const b = createContextBudget(descriptor(16_000), { outputRatio: 0.5 });
+    expect(b.reservedOutputTokens).toBe(8_000); // floor(16k*0.5)=8k, above floor 4,096, below cap
+    expect(b.availableInputTokens).toBe(8_000);
+  });
 });
 
 describe("preflight (pure gate)", () => {

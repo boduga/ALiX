@@ -124,7 +124,7 @@ import {
   buildMemoryStats,
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
-import { createContextBudget, type ContextBudget } from "../config/context-budget.js";
+import { createContextBudget, type ContextBudget, type ContextBudgetConfig } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -739,6 +739,7 @@ export class AgentSessionBuilder {
         ctx.config.apiKeys,
         currentTask,
         config.readOnly,
+        ctx.config.context?.budget,
       );
       contextBudget = p5.contextBudget;
       tokenizer = p5.tokenizer;
@@ -2000,6 +2001,7 @@ async function setupContextLimits(
   apiKeys?: any,
   task?: string,
   readOnly?: boolean,
+  budgetConfig?: ContextBudgetConfig,
 ): Promise<{
   contextBudget: ContextBudget;
   tokenizer: TokenizerName;
@@ -2013,7 +2015,7 @@ async function setupContextLimits(
   let contextBudget: ContextBudget;
   let tokenizer: TokenizerName;
   if (userOverride !== undefined) {
-    contextBudget = createContextBudget({ contextWindowTokens: userOverride });
+    contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetConfig);
     tokenizer = getEncoding(modelConfig.provider);
   } else {
     const { resolveModelDescriptor } = await import("../config/context-limits.js");
@@ -2023,7 +2025,7 @@ async function setupContextLimits(
       apiKeys,
     );
     tokenizer = descriptor.tokenizer;
-    contextBudget = createContextBudget(descriptor);
+    contextBudget = createContextBudget(descriptor, budgetConfig);
   }
 
   // Ensure the tiktoken encoder is genuinely loaded before any admission /

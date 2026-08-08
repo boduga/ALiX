@@ -70,4 +70,32 @@ describe("validateConfig", () => {
     const result = validateConfig(config);
     assert.ok(result.issues.some(i => i.path === "runtime.provider" && i.level === "error"));
   });
+
+  it("accepts valid context.budget knobs", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.25, outputFloor: 8192, outputCap: 16384 };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+  });
+
+  it("reports error when context.budget.outputRatio is not in (0,1)", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 1.5, outputFloor: 4096, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputRatio" && i.level === "error"));
+  });
+
+  it("reports error when context.budget.outputFloor is not a positive integer", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.2, outputFloor: -1, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputFloor" && i.level === "error"));
+  });
+
+  it("reports error when outputFloor exceeds outputCap", () => {
+    const config = makeValidConfig();
+    config.context.budget = { outputRatio: 0.2, outputFloor: 40000, outputCap: 32768 };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "context.budget.outputFloor" && i.level === "error"));
+  });
 });

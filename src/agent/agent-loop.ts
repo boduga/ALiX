@@ -135,12 +135,12 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
 
 	if (userOverride !== undefined) {
 	  tokenizer = getEncoding(ctx.config.model.provider);
-	  contextBudget = createContextBudget({ contextWindowTokens: userOverride });
+	  contextBudget = createContextBudget({ contextWindowTokens: userOverride }, ctx.config.context?.budget);
 	} else {
 	  const { resolveModelDescriptor } = await import("../config/context-limits.js");
 	  const descriptor = await resolveModelDescriptor(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
 	  tokenizer = descriptor.tokenizer;
-	  contextBudget = createContextBudget(descriptor);
+	  contextBudget = createContextBudget(descriptor, ctx.config.context?.budget);
 	}
 
 	// Ensure the tiktoken encoder is genuinely loaded before any admission /

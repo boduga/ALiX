@@ -99,10 +99,16 @@ export function createContextBudget(
     Math.max(Math.floor(contextWindowTokens * ratio), floor),
     cap
   );
-  const reservedOutputTokens =
+  // Guard degenerate windows (a config override or a tiny model could set a
+  // window below the floor): never let the output reservation exceed the
+  // window itself, so `availableInputTokens` is never negative. No shipped
+  // provider is below 64k, but the invariant must hold structurally.
+  const reservedOutputTokens = Math.min(
     options.outputTokenLimit === undefined
       ? policyReservation
-      : Math.min(policyReservation, options.outputTokenLimit);
+      : Math.min(policyReservation, options.outputTokenLimit),
+    contextWindowTokens,
+  );
   return Object.freeze({
     contextWindowTokens,
     reservedOutputTokens,
