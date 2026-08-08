@@ -26,6 +26,7 @@ import type {
   NormalizedRequest,
   NormalizedResponse,
   NormalizedMessage,
+  StreamChunk,
   ToolCall,
   ToolDef,
   TokenUsage,
@@ -84,6 +85,61 @@ function createMockProvider(opts?: {
   };
 }
 
+// Streaming variant: implements BOTH `stream` (recording the request) and
+// `complete` (the streamToResponse fail-soft fallback path). The money
+// invariant must hold on the streaming path exactly as on the blocking path.
+function createMockStreamingProvider(opts?: {
+  responseText?: string;
+  usage?: TokenUsage;
+}): ModelAdapter & { requests: RecordedRequest[]; streamCalls: number; completeCalls: number } {
+  const requests: RecordedRequest[] = [];
+  let streamCalls = 0;
+  let completeCalls = 0;
+  const record = (req: NormalizedRequest) => {
+    requests.push({
+      systemPrompt: req.systemPrompt,
+      messages: [...req.messages],
+      maxOutputTokens: req.maxOutputTokens,
+      tools: req.tools ? [...req.tools] : undefined,
+    });
+  };
+  return {
+    id: 'mock-stream',
+    capabilities: {
+      provider: 'mock',
+      model: 'mock',
+      inputTokenLimit: 100_000,
+      outputTokenLimit: 16_384,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsStructuredOutput: false,
+      supportsVision: false,
+    },
+    editFormatPreference: 'search_replace',
+    longContextStrategy: 'trimmed_context',
+    async *stream(req: NormalizedRequest): AsyncGenerator<StreamChunk> {
+      streamCalls++;
+      record(req);
+      yield { type: 'text_delta', text: opts?.responseText ?? 'done. Task completed.' };
+      yield { type: 'usage', usage: opts?.usage ?? { inputTokens: 100, outputTokens: 50 } };
+      yield { type: 'done' };
+    },
+    async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+      completeCalls++;
+      record(req);
+      return {
+        text: opts?.responseText ?? 'done. Task completed.',
+        toolCalls: [],
+        usage: opts?.usage ?? { inputTokens: 100, outputTokens: 50 },
+        finishReason: 'stop',
+      };
+    },
+    requests,
+    get streamCalls() { return streamCalls; },
+    get completeCalls() { return completeCalls; },
+  };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────
 function makeTempDir(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -96,6 +152,7 @@ async function makeTestDeps(overrides: {
   systemPrompt?: string;
   task?: string;
   maxIterations?: number;
+  streaming?: boolean;
   executor?: TaskLoopDeps['executor'];
   selectedTools?: TaskLoopDeps['selectedTools'];
   providerTools?: TaskLoopDeps['providerTools'];
@@ -132,7 +189,7 @@ async function makeTestDeps(overrides: {
 
   const deps: TaskLoopDeps = {
     config: {
-      model: { provider: 'mock', name: 'mock', streaming: false },
+      model: { provider: 'mock', name: 'mock', streaming: overrides.streaming ?? false },
       permissions: {},
     },
     provider: overrides.provider,
@@ -324,6 +381,50 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
 
     // The provider was called (or not, if irreducible).
     // Every request must fit within the budget INCLUDING tool schema tokens.
+    for (const req of mockProvider.requests) {
+      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
+      expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
+    }
+  });
+
+  // ── Streaming path (C2 #20): the money invariant must hold there too ──
+  // The streaming branch (streamToResponse → provider.stream) is symmetric to
+  // the blocking branch but was untested under a tight budget with tools.
+  it('guarantees the budget fits on the STREAMING path with tools (money invariant + tools)', async () => {
+    const mockProvider = createMockStreamingProvider({ responseText: 'done. Task completed.' });
+    // window=1300, reserved=200, available=1100 — identical to the blocking
+    // path test above: tools must be reserved and best-effort tiers dropped.
+    const budget = createContextBudget(
+      { contextWindowTokens: 1_300 },
+      { outputFloor: 200, outputCap: 200, outputRatio: 0.15 },
+    );
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'First: ' + longText(300) },     // ~369 padded
+      { role: 'assistant', content: longText(300) },              // ~367 padded, Tier-4
+      { role: 'user', content: 'Current request: fix this bug' }, // ~13 padded, last user
+    ];
+    const { deps } = await makeTestDeps({
+      provider: mockProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+      providerTools: makeProviderTools(3),
+      streaming: true,
+    });
+
+    await ensureEncoder('cl100k_base');
+
+    try {
+      await runTaskLoop(deps);
+    } catch {
+      // If irreducible, the provider should never have been called.
+    }
+
+    // Prove the STREAMING branch actually ran (via streamToResponse), not a
+    // silent fallback to the blocking complete() path.
+    expect(mockProvider.streamCalls).toBe(1);
+    expect(mockProvider.completeCalls).toBe(0);
+
+    // Every streamed request must fit within the budget INCLUDING tool schemas.
     for (const req of mockProvider.requests) {
       expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
