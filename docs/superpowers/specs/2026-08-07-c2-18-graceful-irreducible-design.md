@@ -174,11 +174,15 @@ observability through the daemon surface while honoring the guardrail.
 
 ## Test changes
 
-- `tests/run/task-loop-context-budget.vitest.ts:435` — currently expects the
-  throw (`error.reducible === false`). **Changes:** `runTaskLoop` now returns
-  `reason: "context_budget_overflow"` + `contextBudgetOverflow.reducible ===
-  false`, asserting the structured fields (`overageTokens`, `byCategory`,
-  `availableInputTokens`, `mandatoryTokens`, `contextWindowTokens`).
+- `tests/run/task-loop-context-budget.vitest.ts` — **two** tests assert the
+  throw from `runTaskLoop` and both change:
+  - line 435 `throws ContextBudgetOverflowError for irreducible mandatory
+    overflow` — becomes a return assertion
+    (`reason: "context_budget_overflow"` + `contextBudgetOverflow.reducible ===
+    false` + structured fields).
+  - line 659 `throws irreducible when mandatory core plus tool schema exceeds
+    available` — same change (was missed in the first pass; it also wraps
+    `runTaskLoop` and asserts the throw).
 - `tests/context/context-assembly.vitest.ts`, `tests/context/context-budget.vitest.ts`
   — test `assembleContext` / `createContextBudget` / `assertFits` directly and
   **keep asserting the throw**. Unchanged.
@@ -193,6 +197,7 @@ observability through the daemon surface while honoring the guardrail.
 | `src/run/task-loop.ts` | Add `catch` for irreducible overflow → return failed `RunResult` |
 | `src/run.ts` | Extend `reason` union + add `contextBudgetOverflow?` field |
 | `src/agent/system-prompt.ts` | Add `"context_budget_overflow"` to `FAILURE_REASONS` |
+| `src/agent/session.ts` | Pass `contextBudgetOverflow` through `AgentTurnResult` (the CLI + TUI read this type, not `RunResult`) |
 | `src/cli/commands/run.ts` | Explicit branch for `context_budget_overflow` → friendly diagnostic + generic exit 1 |
 | `src/daemon/daemon-server.ts` | Serialize overflow numbers into task.failed `error` string |
 | `tests/run/task-loop-context-budget.vitest.ts` | Reconcile throw assertion → return assertion |
