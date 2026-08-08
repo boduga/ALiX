@@ -358,6 +358,19 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
 	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
 
+	// ── I1: Inject progress ledger BEFORE budget admission so it is
+	// token-accounted (Tier 3, protected). The ledger is rendered and
+	// pushed into messages so classifyCandidateContext picks it up.
+	const ledgerText = progressLedger.render(10);
+	if (ledgerText) {
+	  messages.push({
+	    role: "user",
+	    content: `[Progress Ledger]\n${ledgerText}`,
+	  });
+	}
+	// Expose rendered ledger text to the AgentSession for TUI consumption
+	if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
+
 	// ── Context Budget admission gate (C0) ─────────────────────────────
 	// Replace the dead half-window truncation + digest re-injection with the
 	// authoritative budget → assembly → preflight path (T5). No oversized
@@ -377,17 +390,31 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  assembled.admitted, contentMap
 	);
 
-	// Preflight final safety gate (must fit by construction after assembly).
-	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
+	// ── I2: Final safety gate — preflight the FULL reconstructed request
+	// (system + admitted messages + tool schema estimate). After assembly
+	// only mandatory components remain; an overflow here is IRREDUCIBLE.
+	// The reducible-reduction path is at the assembly stage (the selector
+	// reduces deterministically); this backstop throws when the mandatory
+	// remainder genuinely cannot fit.
+	const allTools = [...providerTools, ...mcpToolIndex];
+	const toolSchemaTokens = allTools.length > 0
+	  ? (await estimateBudgetTokens(JSON.stringify(allTools), tokenizer)).budgetEstimate
+	  : 0;
+	const fullPayloadItems = [...toBudgetedItems(assembled.admitted)];
+	if (toolSchemaTokens > 0) {
+	  fullPayloadItems.push({ category: "mandatory_system_governance" as ContextCategory, tokens: toolSchemaTokens });
+	}
+	const pfResult = preflight(contextBudget, fullPayloadItems);
 	if (!pfResult.fits) {
-	  // Hard invariant signal — assembly let an over-budget request through.
-	  await log.append({
-	    ...session, actor: "system", type: "context.preflight.failed",
-	    payload: {
-	      overageTokens: pfResult.overflow.overageTokens,
-	      byCategory: pfResult.overflow.byCategory,
-	      sessionId,
-	    },
+	  // Irreducible: the mandatory core + tools cannot fit in the budget.
+	  // Throw BEFORE any provider call — do NOT send an oversized request.
+	  throw new ContextBudgetOverflowError({
+	    reducible: false,
+	    overageTokens: pfResult.overflow.overageTokens,
+	    byCategory: pfResult.overflow.byCategory,
+	    availableInputTokens: contextBudget.availableInputTokens,
+	    mandatoryTokens: assembled.admittedTokens + toolSchemaTokens,
+	    contextWindowTokens: contextBudget.contextWindowTokens,
 	  });
 	}
 
@@ -406,17 +433,6 @@ for (const hook of hooks.pre_task ?? []) {
 let text = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
-
-// Inject progress ledger context for the model
-const ledgerText = progressLedger.render(10);
-if (ledgerText) {
-  messages.push({
-	role: "user",
-	content: `[Progress Ledger]\n${ledgerText}`,
-  });
-}
-// Expose rendered ledger text to the AgentSession for TUI consumption
-if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
@@ -439,6 +455,11 @@ if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 	    maxOutputTokens: contextBudget.reservedOutputTokens,
 	    context: deps.context,
 	  });
+	  // C1 fix: restore assignments — the non-streaming path MUST
+	  // populate text/toolCalls/usage from the provider response.
+	  text = resp.text ?? "";
+	  toolCalls = resp.toolCalls ?? [];
+	  usage = resp.usage;
 }
 
   // Fallback: model emitted XML-style tool calls as raw text instead of
@@ -1150,9 +1171,13 @@ if (enhancedVerifier) {
 function classifyMessageToCategory(
   msg: NormalizedMessage,
   index: number,
+  isLastUserMessage: boolean,
 ): ContextCategory {
   const content = typeof msg.content === "string" ? msg.content : "";
-  if (index === 0 && msg.role === "user") return "current_task";
+  // I3 fix: the LAST user-role message is the actual current instruction
+  // and MUST be classified as current_task (Tier 2, mandatory) so it is
+  // never droppable. The first user message (index 0) is also mandatory.
+  if (msg.role === "user" && (index === 0 || isLastUserMessage)) return "current_task";
   if (content.startsWith("[Progress Ledger]")) return "current_execution_state";
   if (content.startsWith("[Session Digest]")) return "current_execution_state";
   if (content.startsWith("<tool_result")) return "recent_tool_results";
@@ -1178,9 +1203,19 @@ async function classifyCandidateContext(
   });
   contentMap.set("system-prompt", { type: "system_prompt", text: systemPrompt });
 
+  // I3: find the index of the LAST user-role message so it can be
+  // classified as mandatory current_task (never droppable).
+  let lastUserIndex = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.role === "user") {
+      lastUserIndex = i;
+      break;
+    }
+  }
+
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]!;
-    const category = classifyMessageToCategory(msg, i);
+    const category = classifyMessageToCategory(msg, i, i === lastUserIndex);
     const msgId = `msg-${i}`;
     const meta = await estimateMessageBudgetTokens(
       { role: msg.role, content: msg.content },

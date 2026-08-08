@@ -17,6 +17,11 @@ import { createContextBudget } from '../../src/config/context-budget.js';
 import { ContextBudgetOverflowError } from '../../src/config/context-budget.js';
 import type { ContextBudget } from '../../src/config/context-budget.js';
 import { assembleContext } from '../../src/config/context-assembly.js';
+import {
+  ensureEncoder,
+  estimateBudgetTokens,
+  estimateMessageBudgetTokens,
+} from '../../src/utils/tokens.js';
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -175,7 +180,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       { contextWindowTokens: 100_000 },
       { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
     );
-    const { deps, sessionDir } = await makeTestDeps({
+    const { deps } = await makeTestDeps({
       provider: mockProvider,
       contextBudget: budget,
       messages: [{ role: 'user', content: 'hello' }],
@@ -188,21 +193,20 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       // If the budget path throws, the test still checks the recorded request
     }
 
-    // At least one provider call should have maxOutputTokens set correctly
-    if (mockProvider.requests.length > 0) {
-      expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.reservedOutputTokens);
-    }
-    // If no provider calls were made, the test is inconclusive (irreducible, etc.)
+    // The provider should be called for a simple single-turn conversation.
+    expect(mockProvider.requests.length).toBeGreaterThan(0);
+    expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.reservedOutputTokens);
   });
 
-  it('guarantees the request the provider receives never exceeds the budget', async () => {
+  it('guarantees the request the provider receives never exceeds the budget (money invariant)', async () => {
     const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
-    // Small budget: 10k window, 2k reserved, 8k available
+    // Budget where mandatory core fits but full conversation does not.
+    // 2k reserved, 10k available input.
     const budget = createContextBudget(
-      { contextWindowTokens: 10_000 },
-      { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
+      { contextWindowTokens: 12_000 },
+      { outputRatio: 0.1667, outputFloor: 2000, outputCap: 2000 },
     );
-    // Messages that would easily overflow 8k input tokens
+    // Messages that overflow 2k available input tokens.
     const overflowMessages: NormalizedMessage[] = [
       { role: 'user', content: 'Long task: ' + longText(2000) },
       { role: 'assistant', content: longText(2000) },
@@ -218,28 +222,33 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       maxIterations: 1,
     });
 
+    await ensureEncoder('cl100k_base');
+
     try {
       await runTaskLoop(deps);
     } catch {
-      // If irreducible, the provider should never have been called
+      // If irreducible, the provider should never have been called.
     }
 
-    // The money invariant: every request the provider received must fit the budget.
-    // System prompt + messages must have assembled tokens ≤ availableInputTokens.
+    // The money invariant: the provider was called (reducible overflow)
+    // and every request fits within the budget.
+    // I4 fix: measure actual tokens using the padded estimators.
+    expect(mockProvider.requests.length).toBeGreaterThan(0);
+
     for (const req of mockProvider.requests) {
-      // The budget is the hard invariant: the assembled items (system + messages)
-      // must have been checked and must fit.
       expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
 
-      // We can't measure exact tokens here (no tiktoken in test), but the
-      // invariant is that the provider NEVER receives an oversized request.
-      // If overflow was reducible, the assembly reduced it. If irreducible,
-      // the error was thrown before any provider call.
+      const sysMeta = await estimateBudgetTokens(req.systemPrompt, 'cl100k_base');
+      let totalTokens = sysMeta.budgetEstimate;
+      for (const msg of req.messages) {
+        const meta = await estimateMessageBudgetTokens(
+          { role: msg.role, content: msg.content },
+          'cl100k_base',
+        );
+        totalTokens += meta.budgetEstimate;
+      }
+      expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
     }
-
-    // At minimum, the output reservation was forwarded.
-    // (If the overflow was irreducible, requests.length === 0 and the error
-    // was thrown — that's tested separately.)
   });
 
   it('throws ContextBudgetOverflowError for irreducible mandatory overflow', async () => {
@@ -279,9 +288,11 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
   it('reduces a reducible overflow deterministically and re-preflights before sending', async () => {
     const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
     // Budget big enough for mandatory core + some conversation, but not all.
+    // I3 makes the last user message mandatory, so budget must accommodate
+    // system prompt + msg0 + msg5 (~1203 padded) as mandatory core.
     const budget = createContextBudget(
-      { contextWindowTokens: 800 },
-      { outputFloor: 500, outputCap: 1000, outputRatio: 0.1 },
+      { contextWindowTokens: 2_500 },
+      { outputFloor: 500, outputCap: 500, outputRatio: 0.2 },
     );
     // System prompt + task are small, but conversation messages overflow.
     const messages: NormalizedMessage[] = [
@@ -307,14 +318,86 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     }
 
     // Provider was called (reducible)
-    if (mockProvider.requests.length > 0) {
-      const req = mockProvider.requests[0]!;
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
-      // The request the provider received should have fewer messages than
-      // the original (some were dropped by assembly).
-      expect(req.messages.length).toBeLessThan(messages.length);
-    }
-    // Note: if it turned out irreducible (messages empty in request), that's
-    // also valid — the irreducible test above covers the error case.
+    expect(mockProvider.requests.length).toBeGreaterThan(0);
+    const req = mockProvider.requests[0]!;
+    expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+    // The request the provider received should have fewer messages than
+    // the original (some were dropped by assembly).
+    expect(req.messages.length).toBeLessThan(messages.length);
+  });
+
+  // ── C1 regression: non-streaming path MUST populate text/toolCalls/usage ──
+  it('non-streaming path captures provider response (C1 regression)', async () => {
+    // The C1 bug: the non-streaming `else` branch called provider.complete()
+    // and assigned to `resp` but NEVER read `resp` — text/toolCalls/usage
+    // stayed at their initial values ("" / [] / undefined). This test
+    // verifies the fix by checking that model.usage is emitted, which only
+    // happens when `usage` is populated from the response.
+    const mockProvider = createMockProvider({
+      responseText: 'done. Task completed.',
+      usage: { inputTokens: 500, outputTokens: 200 },
+    });
+    const budget = createContextBudget(
+      { contextWindowTokens: 100_000 },
+      { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
+    );
+    const { deps, log } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages: [{ role: 'user', content: 'Complete this task' }],
+      maxIterations: 1,
+    });
+
+    await runTaskLoop(deps);
+
+    // Provider MUST have been called.
+    expect(mockProvider.requests.length).toBe(1);
+
+    // C1 money assertion: model.usage MUST be emitted, proving `usage` was
+    // populated from the response. Without the C1 fix, `usage` stays undefined
+    // and this event is never emitted.
+    const { events } = await log.readSince(log.beginningCursor());
+    const usageEvents = events.filter((e) => e.type === 'model.usage');
+    expect(usageEvents.length).toBe(1);
+  });
+
+  // ── I3: last user message MUST be classified as mandatory (never dropped) ──
+  it('keeps the last user turn as mandatory current_task (I3)', async () => {
+    const mockProvider = createMockProvider({
+      responseText: 'done.',
+      usage: { inputTokens: 100, outputTokens: 50 },
+    });
+    // Budget tight enough that best-effort tiers get dropped.
+    const budget = createContextBudget(
+      { contextWindowTokens: 4_000 },
+      { outputRatio: 0.5, outputFloor: 2000, outputCap: 2000 },
+    );
+    // Multi-turn: first user message is a long-ago instruction, last user
+    // message is the actual current request.
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'Initial task: ' + longText(300) },
+      { role: 'assistant', content: longText(300) },
+      { role: 'user', content: 'Quick follow-up request' }, // LAST user turn — mandatory
+    ];
+    const { deps } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages,
+      systemPrompt: 'Helpful. ',
+      maxIterations: 1,
+    });
+
+    await runTaskLoop(deps);
+
+    expect(mockProvider.requests.length).toBe(1);
+    const req = mockProvider.requests[0]!;
+
+    // The last user message ("Quick follow-up request") MUST be present
+    // in the request — it is the current instruction and is not droppable.
+    const lastUserContent = messages[2]!.content;
+    const hasLastUser = req.messages.some(
+      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Quick follow-up'),
+    );
+    expect(hasLastUser).toBe(true);
   });
 });
