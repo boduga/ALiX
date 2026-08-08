@@ -15,6 +15,7 @@ import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import type { NormalizedMessage } from "../providers/types.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
+import { ensureEncoder } from "../utils/tokens.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -139,6 +140,12 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     maxTokens = descriptor.contextWindowTokens;
     tokenizer = descriptor.tokenizer;
   }
+
+  // Ensure the tiktoken encoder is genuinely loaded before any admission /
+  // truncation call — the tokenizer-based estimators fall back to char/4 only
+  // when the encoder was never loaded (E1). Loading here guarantees the run
+  // path measures with the same estimator truncation uses.
+  await ensureEncoder(tokenizer);
 
   const MAX_CONTEXT_TOKENS = maxTokens;
   const taskType = classifyTask(task);
