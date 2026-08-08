@@ -344,11 +344,6 @@ let explicitDoneCalled = false;
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 
-// ── T6: invocationId counter for C1 observability correlation ─────
-// Only increments on model-facing invocations (provider calls), never on
-// internal projection updates or throttled polls.
-let invocationCount = 0;
-
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
 
@@ -359,9 +354,8 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 // Detection and truncation share the same tokenizer-based estimator — the
 // char/4 detection is gone (E1).
 	// ── T6: context.snapshot.created — once per model-facing invocation ──
-	invocationCount++;
-	// Globally-unique invocation id (C2 #21): the per-call counter alone is
-	// not unique across separate runTaskLoop invocations on the same session
+	// Globally-unique invocation id (C2 #21): a per-call counter is not
+	// unique across separate runTaskLoop invocations on the same session
 	// (e.g. resume, sub-tasks). A UUID keeps timeline correlation unambiguous
 	// across re-entry; the sessionId is already on the event itself.
 	const invocationId = `inv-${randomUUID()}`;
@@ -1306,11 +1300,16 @@ function classifyMessageToCategory(
   // the real current instruction gets demoted to Tier-4 (droppable).
   if (content.startsWith("[Progress Ledger]")) return "current_execution_state";
   if (content.startsWith("[Session Digest]")) return "current_execution_state";
+  // Tool results MUST be excluded from the "last user" slot BEFORE the
+  // last-user check. A tool result is a `user`-role message on the wire, but
+  // it is execution evidence, NOT a user instruction — letting it claim
+  // current_task would demote the real current instruction to Tier-4
+  // (droppable), which under budget pressure gets dropped.
+  if (content.startsWith("<tool_result")) return "recent_tool_results";
   // I3 fix: the LAST user-role message is the actual current instruction
   // and MUST be classified as current_task (Tier 2, mandatory) so it is
   // never droppable. The first user message (index 0) is also mandatory.
   if (msg.role === "user" && (index === 0 || isLastUserMessage)) return "current_task";
-  if (content.startsWith("<tool_result")) return "recent_tool_results";
   return "recent_conversation";
 }
 
@@ -1335,9 +1334,9 @@ async function classifyCandidateContext(
 
   // I3: find the index of the LAST user-role message so it can be
   // classified as mandatory current_task (never droppable).
-  // CRITICAL: exclude ledger/digest-injected messages so the REAL last
-  // user turn is never displaced. Without this filter, the I1 ledger
-  // injection (a user-role message at the end) claims the slot and
+  // CRITICAL: exclude ledger/digest-injected messages AND tool results so the
+  // REAL last user instruction is never displaced. Without this filter, the
+  // I1 ledger injection (or a trailing <tool_result>) claims the slot and
   // the genuine current instruction becomes droppable Tier-4.
   let lastUserIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -1345,6 +1344,7 @@ async function classifyCandidateContext(
     if (m.role !== "user") continue;
     const c = typeof m.content === "string" ? m.content : "";
     if (c.startsWith("[Progress Ledger]") || c.startsWith("[Session Digest]")) continue;
+    if (c.startsWith("<tool_result")) continue;
     lastUserIndex = i;
     break;
   }
@@ -1371,14 +1371,34 @@ async function classifyCandidateContext(
   return { candidateItems, contentMap };
 }
 
-/** Converts admitted CandidateContextItems back into system prompt + messages. */
+/**
+ * Converts admitted CandidateContextItems back into system prompt + messages.
+ *
+ * Invariant: ADMISSION ORDER ≠ CONVERSATION ORDER. The tier selector may
+ * reorder items by *priority* during admission, but it must never reorder the
+ * resulting conversation. Reconstruction therefore sorts admitted messages by
+ * their SOURCE position (`msg-<index>`) so the provider sees the conversation
+ * in the exact chronological order it was built — the tier structure must
+ * never leak into conversational chronology on the wire. The ledger (injected
+ * last) keeps its source position at the end of the conversation.
+ */
 function reconstructRequest(
   admitted: readonly CandidateContextItem[],
   contentMap: Map<string, NormalizedMessage | { type: "system_prompt"; text: string }>
 ): { admittedSystemPrompt: string; admittedMessages: NormalizedMessage[] } {
   let admittedSystemPrompt = "";
   const admittedMessages: NormalizedMessage[] = [];
-  for (const item of admitted) {
+  // Sort by source index: `msg-<i>` items by i; non-message items (system
+  // prompt, tool schemas — not in contentMap) sink to the end harmlessly.
+  const ordered = [...admitted].sort((a, b) => {
+    const ia = sourceIndexOf(a.id);
+    const ib = sourceIndexOf(b.id);
+    if (ia === -1 && ib === -1) return 0;
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  for (const item of ordered) {
     const content = contentMap.get(item.id);
     if (!content) continue;
     if ("type" in content && content.type === "system_prompt") {
@@ -1388,6 +1408,13 @@ function reconstructRequest(
     }
   }
   return { admittedSystemPrompt, admittedMessages };
+}
+
+/** Source position of a candidate item id (`msg-<i>`), or -1 for
+ * non-message items (system-prompt, tool schemas). */
+function sourceIndexOf(id: string): number {
+  const m = /^msg-(\d+)$/.exec(id);
+  return m ? Number(m[1]) : -1;
 }
 
 /** Converts CandidateContextItem[] to preflight-compatible BudgetedContextItem[]. */

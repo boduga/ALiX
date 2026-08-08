@@ -98,4 +98,19 @@ describe("validateConfig", () => {
     const result = validateConfig(config);
     assert.ok(result.issues.some(i => i.path === "context.budget.outputFloor" && i.level === "error"));
   });
+
+  it("accepts a PARTIAL context.budget config (undefined knobs default later)", () => {
+    // mergeConfig shallow-merges `context`, so `budget: { outputFloor: 8192 }`
+    // legitimately leaves outputRatio/outputCap undefined — they are optional
+    // and default in createContextBudget. Only a DEFINED-and-invalid knob is
+    // an error; an undefined knob must not be flagged.
+    const config = makeValidConfig();
+    config.context.budget = { outputFloor: 8192 };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+    assert.equal(
+      result.issues.some(i => i.path === "context.budget.outputRatio" && i.level === "error"),
+      false,
+    );
+  });
 });

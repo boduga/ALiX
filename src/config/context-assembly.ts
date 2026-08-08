@@ -133,6 +133,11 @@ export function assembleContext(
   const byTier = new Map<ContextCategory, CandidateContextItem[]>();
   for (const category of CONTEXT_CATEGORIES) byTier.set(category, []);
   for (const item of candidate) {
+    // The taxonomy is a closed union, so an unknown category string only
+    // arrives from a runtime/deserialized payload. It is silently skipped
+    // (not admitted, not dropped, no error) — a deliberate choice: throwing
+    // would make assembly nondeterministic on foreign payloads, while
+    // admitting it would inject an uncounted item. Keep the silent skip.
     const bucket = byTier.get(item.category);
     if (bucket) bucket.push(item);
   }

@@ -65,7 +65,12 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   // context.budget output-reservation knobs (C0/C1)
   const budget = config.context.budget;
   if (budget) {
-    if (typeof budget.outputRatio !== "number" || !(budget.outputRatio > 0 && budget.outputRatio < 1)) {
+    // Each knob is optional and defaults in createContextBudget; only a
+    // DEFINED-and-invalid knob is an error (undefined → default later →
+    // valid). This matters because mergeConfig shallow-merges `context`, so a
+    // partial `budget: { outputFloor: 8192 }` legitimately leaves outputRatio
+    // undefined and must not be flagged.
+    if (budget.outputRatio !== undefined && (typeof budget.outputRatio !== "number" || !(budget.outputRatio > 0 && budget.outputRatio < 1))) {
       issues.push({ path: "context.budget.outputRatio", level: "error", message: "outputRatio must be a number strictly between 0 and 1" });
     }
     if (budget.outputFloor !== undefined && (!Number.isInteger(budget.outputFloor) || budget.outputFloor <= 0)) {

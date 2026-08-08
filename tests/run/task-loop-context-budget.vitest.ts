@@ -778,4 +778,95 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     const ledgerText = typeof ledgerMsg_.content === 'string' ? ledgerMsg_.content : '';
     expect(ledgerText.length).toBeGreaterThan(0);
   });
+
+  // ── Admission order ≠ conversation order (review fix) ──
+  // The tier selector may reorder PRIORITY during admission but must never
+  // reorder the resulting conversation. reconstructRequest must emit admitted
+  // messages in SOURCE order — the tier structure (system, mandatory tasks,
+  // ledger, then best-effort tiers) must not leak into conversational
+  // chronology. On the pre-fix code the latest instruction was displaced to
+  // position 2 (A, E, [ledger], B, C, D); this test pins the correct order.
+  it('preserves source conversation order on the wire (admission order ≠ conversation order)', async () => {
+    const mockProvider = createMockProvider({ responseText: 'done.' });
+    await ensureEncoder('cl100k_base');
+    // Huge budget: nothing is dropped; the test isolates ORDERING from
+    // selection.
+    const budget = createContextBudget({ contextWindowTokens: 1_000_000 }, {});
+
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'A: original task' },
+      { role: 'assistant', content: 'B: assistant turn 1' },
+      { role: 'user', content: 'C: <tool_result id="t1">\nok\n</tool_result>' },
+      { role: 'assistant', content: 'D: assistant turn 2' },
+      { role: 'user', content: 'E: latest instruction' },
+    ];
+
+    const { deps } = await makeTestDeps({
+      provider: mockProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+    });
+
+    try { await runTaskLoop(deps); } catch { /* budget path may throw */ }
+
+    expect(mockProvider.requests.length).toBe(1);
+    const req = mockProvider.requests[0]!;
+    const labels = req.messages.map((m) => String(m.content).slice(0, 1)).join('');
+    // A,B,C,D,E then the (optional, loop-injected) ledger. The five
+    // conversation messages MUST stay in source order — the buggy
+    // tier-grouped reconstruction produced A,E,[,B,C,D.
+    expect(labels.startsWith('ABCDE')).toBe(true);
+  });
+
+  // ── Tool result must not claim the mandatory current-task slot ──
+  // A trailing <tool_result> is a `user`-role message on the wire but is
+  // execution evidence, NOT a user instruction. On the pre-fix classifier the
+  // lastUserIndex scan stopped at the tool result, so the real instruction was
+  // demoted to Tier-4 (droppable) and dropped under budget pressure while the
+  // tool result survived as mandatory current_task. This test pins the
+  // discriminating invariant: the REAL instruction survives, the tool result
+  // is best-effort.
+  it('does not let a tool result occupy the mandatory current-task slot (tool-result masquerade)', async () => {
+    const mockProvider = createMockProvider({ responseText: 'done.', usage: { inputTokens: 100, outputTokens: 50 } });
+    await ensureEncoder('cl100k_base');
+    // window=1600, available=1400 (mirrors the I3 regression budget).
+    const budget = createContextBudget(
+      { contextWindowTokens: 1_600 },
+      { outputFloor: 200, outputCap: 200, outputRatio: 0.125 },
+    );
+
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'First: ' + longText(300) },                                 // ~370, Tier-2 (index 0)
+      { role: 'assistant', content: 'B: analysis ' + longText(200) },                        // ~365, Tier-4
+      { role: 'user', content: 'Current request: ' + longText(300) },                        // ~370, REAL instruction
+      { role: 'assistant', content: 'D: done reading' },                                     // small, Tier-4
+      { role: 'user', content: '<tool_result id="t1">\n' + longText(300) + '\n</tool_result>' }, // last user, tool result
+    ];
+
+    const { deps } = await makeTestDeps({
+      provider: mockProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+      providerTools: makeProviderTools(3),
+    });
+
+    let threwIrreducible = false;
+    try { await runTaskLoop(deps); } catch (e) {
+      if (e instanceof ContextBudgetOverflowError && !e.reducible) threwIrreducible = true;
+    }
+
+    // Must NOT throw irreducible — this is a reducible scenario.
+    expect(threwIrreducible).toBe(false);
+    expect(mockProvider.requests.length).toBe(1);
+    const req = mockProvider.requests[0]!;
+
+    // The REAL current instruction MUST be present (mandatory current_task).
+    // On the pre-fix code it is misclassified Tier-4 and dropped.
+    const hasRealInstruction = req.messages.some(
+      (m) => m.role === 'user' && (typeof m.content === 'string' ? m.content : '').includes('Current request'),
+    );
+    expect(hasRealInstruction).toBe(true);
+
+    // Money invariant still holds (incl. structured tool schema).
+    const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
+    expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
+  });
 });
