@@ -15,6 +15,7 @@ import { deepseekSpec } from "../../src/providers/specs/deepseek-spec.js";
 import { groqSpec } from "../../src/providers/specs/groq-spec.js";
 import { perplexitySpec } from "../../src/providers/specs/perplexity-spec.js";
 import { minimaxSpec } from "../../src/providers/specs/minimax-spec.js";
+import { minimaxTokenPlanSpec } from "../../src/providers/specs/minimax-token-plan-spec.js";
 import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
 import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
 import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
@@ -26,6 +27,7 @@ const STREAMING_SPECS: [string, ProviderSpec][] = [
   ["google", googleSpec],
   ["openai", openaiSpec],
   ["anthropic", anthropicSpec],
+  ["minimax-token-plan", minimaxTokenPlanSpec],
   ["ollama", ollamaSpec],
   ["deepseek", deepseekSpec],
   ["groq", groqSpec],
@@ -180,6 +182,7 @@ const SPEC_CASES: Record<string, ChunkTestCase[]> = {
   google: googleTestCases(),
   openai: openaiTestCases(),
   anthropic: anthropicTestCases(),
+  "minimax-token-plan": anthropicTestCases(),
   ollama: ollamaTestCases(),
   deepseek: openaiTestCases(),
   groq: openaiTestCases(),

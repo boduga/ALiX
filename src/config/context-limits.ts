@@ -36,6 +36,7 @@ const PROVIDER_DEFAULTS: Record<string, ProviderDefault> = {
   groq:       { contextWindowTokens: 128_000,  tokenizer: "cl100k_base" },
   perplexity: { contextWindowTokens: 128_000,  tokenizer: "cl100k_base" },
   minimax:    { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
+  "minimax-token-plan": { contextWindowTokens: 1_048_576, tokenizer: "cl100k_base" },
   google:     { contextWindowTokens: 1_000_000, tokenizer: "o200k_base" },
   deepseek:   { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },
   ollama:     { contextWindowTokens: 64_000,   tokenizer: "cl100k_base" },

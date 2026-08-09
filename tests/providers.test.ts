@@ -298,7 +298,7 @@ test("minimax provider returns correct capabilities", () => {
 import { createProvider, listProviders } from "../src/providers/registry.js";
 
 test("createProvider produces correct provider for all ids", async () => {
-  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "zhipuai", "grokai", "deepseek", "mock"] as const;
+  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "minimax-token-plan", "zhipuai", "grokai", "deepseek", "mock"] as const;
   for (const id of ids) {
     const p = await createProvider({ provider: id }, "fake-key");
     assert.equal(p.id, id);
@@ -313,7 +313,7 @@ test("createProvider throws for unknown provider", async () => {
 
 test("listProviders returns all providers", () => {
   const list = listProviders();
-  assert.ok(list.length >= 12);
+  assert.ok(list.length >= 13);
   assert.ok(list.find((p) => p.id === "deepseek"));
   assert.ok(list.find((p) => p.id === "grokai"));
   assert.ok(list.find((p) => p.id === "local-llama"));

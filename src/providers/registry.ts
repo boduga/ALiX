@@ -9,6 +9,7 @@ import { GroqProvider } from "./groq-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
 import { PerplexityProvider } from "./perplexity-provider.js";
 import { MiniMaxProvider } from "./minimax-provider.js";
+import { MiniMaxTokenPlanProvider } from "./minimax-token-plan-provider.js";
 import { ZhipuAIProvider } from "./zhipuai-provider.js";
 import { GrokAIProvider } from "./grokai-provider.js";
 import { DeepSeekProvider } from "./deepseek-provider.js";
@@ -25,6 +26,7 @@ const lazyProviders = {
   ollama: lazy(() => import("./ollama-provider.js").then(m => m.OllamaProvider)),
   perplexity: lazy(() => import("./perplexity-provider.js").then(m => m.PerplexityProvider)),
   minimax: lazy(() => import("./minimax-provider.js").then(m => m.MiniMaxProvider)),
+  "minimax-token-plan": lazy(() => import("./minimax-token-plan-provider.js").then(m => m.MiniMaxTokenPlanProvider)),
   zhipuai: lazy(() => import("./zhipuai-provider.js").then(m => m.ZhipuAIProvider)),
   grokai: lazy(() => import("./grokai-provider.js").then(m => m.GrokAIProvider)),
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
@@ -69,6 +71,7 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
     { id: "ollama", name: "Ollama", envKey: "OLLAMA_API_KEY" },
     { id: "perplexity", name: "Perplexity", envKey: "PERPLEXITY_API_KEY" },
     { id: "minimax", name: "MiniMax", envKey: "MINIMAX_API_KEY" },
+    { id: "minimax-token-plan", name: "MiniMax (Token Plan)", envKey: "MINIMAX_TOKEN_PLAN_KEY" },
     { id: "zhipuai", name: "ZhipuAI", envKey: "ZHIPUAI_API_KEY" },
     { id: "grokai", name: "GrokAI", envKey: "GROKAI_API_KEY" },
     { id: "deepseek", name: "DeepSeek", envKey: "DEEPSEEK_API_KEY" },
