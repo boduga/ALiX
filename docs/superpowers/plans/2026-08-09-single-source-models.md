@@ -9,6 +9,8 @@
 2. **Loader compatibility projection** — `loadConfig()` produces, in memory only: `models` (authoritative), `model := models.default` (derived), `subagents[tier] := models.<tier> ?? models.default` (derived).
 3. **Runtime resolution** — new code calls `resolveModelConfig(config, tier?)` (a **pure reader**, never mutates config); it does not touch the compatibility projections.
 
+**Strengthened invariant:** Only the loader is allowed to construct compatibility projections. No writer, command handler, profile patcher, or runtime path constructs or persists `model` / `subagents` as model-selection state. Writers persist `models` only; the compatibility layer derives the rest on load.
+
 **Tech Stack:** TypeScript strict, node:test (`*.test.ts`) + vitest (`*.vitest.ts`), conventional commits.
 
 ## Global Constraints
@@ -19,6 +21,7 @@
 - **Tier precedence:** `subagents[tier] := models.<tier> ?? models.default`.
 - `apiKeys` remains separate — never coupled to model selection.
 - **Canonical `ModelTier`** is a closed union: `default | thinking | coding | fast | critic | tiny | image`. No other tier string exists.
+- **`MODEL_SUBAGENT_TIERS`** is the selectable (non-default) subset: `thinking | coding | fast | critic | tiny | image`. Distinct from `ModelTier` — never assume it covers `default`.
 - Legacy `config set-default-model` and `config set-tier` are **removed** — tests must assert they fail as unknown commands via dispatch, not source-text grep.
 - Conventional commit prefixes: `feat:`, `fix:`, `test:`, `docs:`, `refactor:`.
 
@@ -57,7 +60,9 @@ rg 'config\.model|config\.models|subagents|modelProfile' src --glob '!**/*.test.
 rg 'writeFile|writeJson|saveConfig|save.*Config|updateConfig|mergeConfig' src
 ```
 
-Classify every hit into: `authoritative-writer` / `derived-reader` / `profile-writer` / `cli-writer` / `runtime-reader` / `migration-loader`. Record the classification in this task's notes (commit message body). This proves the Task 6 (reader) and Task 4/5 (writer) surfaces are complete before any change.
+Classify every hit into: `authoritative-writer` / `derived-reader` / `profile-writer` / `cli-writer` / `runtime-reader` / `migration-loader`. Record the classification in this task's notes (commit message body). This proves the Task 6/7 (reader) and Task 4/5/6 (writer) surfaces are complete before any change.
+
+> **Hard gate:** If this audit finds any writer — `config.model = ...`, `subagents[tier] = ...`, a `writeFile` of a derived projection — that is NOT covered by Tasks 4-6, **stop and extend the plan before proceeding**. A missed writer is an architectural defect, not incomplete cleanup.
 
 - [ ] **Step 4: Run build + typecheck**
 
@@ -82,12 +87,12 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `AlixConfig`, `ModelsConfig`, `ModelTier`.
-- Produces: `export const MODEL_TIERS: readonly ModelTier[]` and `export function normalizeModelConfig(config: Partial<AlixConfig>): void` — mutates in place; **deterministically replaces** `subagents` with a pure projection (never merges stale keys).
+- Produces: `export const MODEL_SUBAGENT_TIERS: readonly Exclude<ModelTier, "default">[]` and `export function normalizeModelConfig(config: Partial<AlixConfig>): void` — mutates in place; **deterministically replaces** `subagents` with a pure projection (never merges stale keys). **Preserves full `ModelConfig` metadata** — projections carry `temperature`/`contextWindow`/`maxOutputTokens` through, not just `{provider, name}`.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```ts
-import { normalizeModelConfig, MODEL_TIERS } from "../src/config/loader.js";
+import { normalizeModelConfig, MODEL_SUBAGENT_TIERS } from "../src/config/loader.js";
 
 test("normalizeModelConfig: legacy model seeds models.default in-memory", () => {
   const cfg: any = { model: { provider: "deepseek", name: "deepseek-chat" } };
@@ -134,6 +139,17 @@ test("normalizeModelConfig: derives subagents deterministically, replacing stale
   assert.deepEqual(Object.keys(cfg.subagents).sort(), ["coding", "thinking"].sort());
 });
 
+test("normalizeModelConfig: preserves model metadata through the projection", () => {
+  const cfg: any = {
+    models: {
+      default: { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 },
+    },
+  };
+  normalizeModelConfig(cfg);
+  assert.deepEqual(cfg.model, { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 });
+  assert.deepEqual(cfg.subagents.thinking, { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 });
+});
+
 test("normalizeModelConfig: no model and no models leaves model AND subagents unset", () => {
   const cfg: any = {};
   normalizeModelConfig(cfg);
@@ -150,29 +166,34 @@ Expected: FAIL — `normalizeModelConfig` not exported; stale subagent keys surv
 - [ ] **Step 3: Implement**
 
 ```ts
-export const MODEL_TIERS: readonly ModelTier[] = [
+export const MODEL_SUBAGENT_TIERS: readonly Exclude<ModelTier, "default">[] = [
   "thinking", "coding", "fast", "critic", "tiny", "image",
 ];
+
+/** Copy a ModelConfig carrying full metadata, not just provider/name. */
+function cloneModelConfig(m: ModelConfig): ModelConfig {
+  return { ...m };
+}
 
 export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // 1. Legacy `model` → `models.default` (only when models.default absent).
   if (!config.models?.default && config.model?.provider && config.model?.name) {
-    config.models = { ...(config.models ?? {}), default: { provider: config.model.provider, name: config.model.name } };
+    config.models = { ...(config.models ?? {}), default: cloneModelConfig(config.model) };
   }
-  // 2. models.default is authoritative → derive `model`.
+  // 2. models.default is authoritative → derive `model` with full metadata.
   const def = config.models?.default;
   if (def?.provider && def?.name) {
-    config.model = { provider: def.provider, name: def.name };
+    config.model = cloneModelConfig(def);
   }
   // 3. Deterministic subagent projection: derivedSubagents replaces subagents
-  //    wholesale. A canonical tier not in `models` falls back to default; a
-  //    stale/extra key never survives.
+  //    wholesale, preserving full ModelConfig metadata. A canonical tier not in
+  //    `models` falls back to default; a stale/extra key never survives.
   const derived: Partial<Record<ModelTier, ModelConfig>> = {};
   if (config.models) {
-    for (const tier of MODEL_TIERS) {
+    for (const tier of MODEL_SUBAGENT_TIERS) {
       const model = config.models[tier] ?? def;
       if (model?.provider && model?.name) {
-        derived[tier] = { provider: model.provider, name: model.name };
+        derived[tier] = cloneModelConfig(model);
       }
     }
   }
@@ -183,6 +204,14 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
     ? (derived as SubagentConfig)
     : undefined;
 }
+
+/**
+ * Persistence-safety note: normalizeModelConfig MUTATES the loaded object
+ * (in-memory only — it is never called from a writer). The invariant is
+ * enforced at the WRITER boundary: no writer may serialize `config.model` or
+ * `config.subagents` back to disk. Writers must persist `models` explicitly and
+ * strip `model`/`subagents` (see Tasks 4-6). The loader is the ONLY projector.
+ */
 ```
 
 - [ ] **Step 4: Wire into `loadConfig`** — call `normalizeModelConfig(result)` after `mergeConfig` produces the final result, before the `requireModel` validation at `loader.ts:205`. Update the error message:
@@ -214,7 +243,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `AlixConfig`, `ModelsConfig`, `ModelTier`.
-- Produces: `resolveModelConfig(config: AlixConfig, tier?: ModelTier): ModelConfig` — **pure**: reads `config.models` only, throws on no match, never mutates config. Takes an already-normalized config (callers get it from `loadConfig`).
+- Produces: `resolveModelConfig(config: AlixConfig, tier?: ModelTier): ModelConfig` — **pure**: reads `config.models` only, throws on no match, never mutates config. Returns the **full `ModelConfig`** (metadata included) as a **defensive copy** — consistent with the type contract, mutation-safe for callers. Takes an already-normalized config (callers get it from `loadConfig`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -248,6 +277,15 @@ test("resolveModelConfig: does NOT mutate the input config", () => {
   resolveModelConfig(cfg, "coding");
   assert.equal(JSON.stringify(cfg), before);
 });
+
+test("resolveModelConfig: returns full metadata as a defensive copy", () => {
+  const cfg: any = { models: { default: { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 } } };
+  const out = resolveModelConfig(cfg);
+  assert.deepEqual(out, { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 });
+  assert.notEqual(out, cfg.models.default);           // copy, not the stored object
+  out.temperature = 999;                              // mutating the copy...
+  assert.equal(cfg.models.default.temperature, 0.3);  // ...does not touch config
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -270,7 +308,8 @@ export function resolveModelConfig(
   if (!model?.provider || !model?.name) {
     throw new Error('No model configured. Run: alix models set-default');
   }
-  return { provider: model.provider, name: model.name };
+  // Defensive copy — callers may tweak temperature/etc. without mutating config.
+  return { ...model };
 }
 ```
 
@@ -297,7 +336,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `ProfileData`, `ProfilePatch`.
-- Produces: `buildProfilePatch(profile)` → `{ modelProfile, models }` (no `model`, no `subagents`). `applyProfilePatch(existing, patch)` → result with `modelProfile` + `models` set and **legacy `model`/`subagents` keys REMOVED** from the returned object (so a downstream writer can't accidentally serialize them).
+- Produces: `buildProfilePatch(profile)` → `{ modelProfile, models }` (no `model`, no `subagents`). `applyProfilePatch(existing, patch)` → result with `modelProfile` set, **`models` merged** (patch tiers win, pre-existing tiers preserved), and **legacy `model`/`subagents` keys REMOVED** from the returned object (so a downstream writer can't accidentally serialize them).
+
+**Merge semantics (explicit):** a profile is a *partial* preset — it patches only the tiers it defines (`default`, `coding`, etc.) and preserves all other pre-existing `models` tiers. It does NOT wipe the entire model config. `models: { ...existing.models, ...patch.models }`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -321,6 +362,20 @@ test("applyProfilePatch: strips stale model/subagents even when input has them",
   assert.ok(out.models?.default);
   assert.equal(out.model, undefined);
   assert.equal(out.subagents, undefined);
+});
+
+test("applyProfilePatch: merges tiers — patch wins, pre-existing tiers preserved", () => {
+  const existing = {
+    models: {
+      default: { provider: "deepseek", name: "deepseek-chat" },
+      fast: { provider: "existing", name: "fast-model" },  // not in the patch
+    },
+  };
+  const patch = buildProfilePatch(balancedLocalProfile);    // defines default + coding
+  const out = applyProfilePatch(existing as any, patch);
+  assert.equal(out.models.default.provider, "deepseek");    // patch default wins
+  assert.deepEqual(out.models.fast, { provider: "existing", name: "fast-model" }); // preserved
+  assert.ok(out.models.coding);                             // patch tier added
 });
 ```
 
@@ -348,11 +403,14 @@ export function buildProfilePatch(profile: ProfileData): ProfilePatch {
 }
 
 export function applyProfilePatch(existingConfig: AlixConfig, patch: ProfilePatch): AlixConfig {
-  // Start from a copy that EXCLUDES legacy model/subagents projections.
-  const { model, subagents, models: _oldModels, ...rest } = existingConfig;
+  // Start from a copy that EXCLUDES legacy model/subagents projections — they
+  // are derived by the loader, never persisted.
+  const { model, subagents, ...rest } = existingConfig;
   const result: Record<string, unknown> = { ...rest };
   result.modelProfile = patch.modelProfile;
-  if (patch.models) result.models = { ...((patch.models) as object) };
+  // Merge semantics: a profile patches only the tiers it defines. Pre-existing
+  // models tiers are preserved; patch tiers win.
+  if (patch.models) result.models = { ...((existingConfig.models as object) ?? {}), ...patch.models };
   if (patch.runtime) result.runtime = { ...(result.runtime as object), ...patch.runtime };
   return result as AlixConfig;
 }
@@ -382,8 +440,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Test: `tests/cli/models-command.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ModelsConfig`, `MODEL_TIERS`, `normalizeModelConfig`, provider-selection helpers, `setApiKey`.
-- Produces: `handleSetDefaultModel(args)` → persists `{ models: { default } }` (derives `model` only in memory for display, never persists it). `handleSetTier(args)` → persists `{ models: { tier } }`. Registered in `models.ts` HANDLERS as `"set-default"`/`"set-tier"`.
+- Consumes: `ModelsConfig`, `MODEL_SUBAGENT_TIERS`, `normalizeModelConfig`, provider-selection helpers, `setApiKey`.
+- Produces: `handleSetDefaultModel(args)` → persists `models: { ...existing.models, default: selected }` (derives `model` only in memory for display, never persists it). `handleSetTier(args)` → persists `models: { ...existing.models, [tier]: selected }` — **MERGE, never replace**: setting one tier preserves every other tier and `models.default`. Registered in `models.ts` HANDLERS as `"set-default"`/`"set-tier"`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -429,13 +487,23 @@ describe("alix models set-default persists only models", () => {
 });
 
 describe("alix models set-tier persists only models", () => {
-  it("writes models.coding, not subagents.coding", async () => {
+  it("writes models.coding merged into existing models, preserving other tiers", async () => {
     const { dir, config } = tmpCwd();
     try {
       process.chdir(dir);
+      // pre-seed a default tier + a fast tier
+      writeFileSync(config, JSON.stringify({
+        models: {
+          default: { provider: "deepseek", name: "deepseek-chat" },
+          fast: { provider: "existing", name: "fast-model" },
+        },
+      }), "utf8");
       await handleSetTier(["coding"]);
       const saved = JSON.parse(readFileSync(config, "utf8"));
       expect(saved.models.coding).toEqual({ provider: "deepseek", name: "deepseek-chat" });
+      // other tiers preserved — set-tier must NOT erase them
+      expect(saved.models.default).toEqual({ provider: "deepseek", name: "deepseek-chat" });
+      expect(saved.models.fast).toEqual({ provider: "existing", name: "fast-model" });
       expect(saved.subagents).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -451,7 +519,7 @@ Expected: FAIL — handlers not exported.
 
 - [ ] **Step 3: Implement the two handlers**
 
-Port the body of today's `set-default-model` / `set-tier` (interactive provider pick → key → `listModels` → model pick → write), but persist **only** `models.default` / `models.<tier>`. Call `normalizeModelConfig` on the in-memory object purely so a post-write `config show` reflects the derived `model`, but the **file** contains only `models` (plus preserved sections). Validate tier against `MODEL_TIERS`.
+Port the body of today's `set-default-model` / `set-tier` (interactive provider pick → key → `listModels` → model pick → write), but persist **only** `models` — merging, never replacing: `models: { ...existing.models, default: selected }` for set-default, `models: { ...existing.models, [tier]: selected }` for set-tier. Call `normalizeModelConfig` on the in-memory object purely so a post-write `config show` reflects the derived `model`, but the **file** contains only `models` (plus preserved sections). Validate tier against `MODEL_SUBAGENT_TIERS`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -479,41 +547,32 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing behavioral test**
 
-If the CLI dispatcher is testable directly (it's a chain of `if (command === ...)` at module scope — invoke the built CLI via a subprocess for a true behavioral assertion):
+The behavioral contract is: **legacy commands → unknown command; new commands → registered/dispatchable.** Test at the dispatcher level, not subprocess (deterministic, no TTY/stdio coupling). If `src/cli.ts`'s dispatch is a module-scope `if` chain, extract the command→handler resolution into an exported `COMMAND_TABLE` (or an exported `resolveCommand(command, args)` helper) so it's unit-testable without spawning the process:
 
 ```ts
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { resolveCommand } from "../../src/cli-dispatch.js";
 
-test("legacy config model commands fail as unknown commands", () => {
-  const cli = fileURLToPath(new URL("../../bin/alix.js", import.meta.url));
-  // both should exit non-zero with an unknown-command error
-  for (const args of [["config", "set-default-model"], ["config", "set-tier"]]) {
-    assert.throws(
-      () => execFileSync("node", [cli, ...args], { encoding: "utf8", stdio: "pipe" }),
-      (e: any) => e.status !== 0 && /unknown command|not a command|unrecognized/i.test(e.stderr + e.stdout),
-    );
-  }
+test("legacy config model commands are unknown", () => {
+  assert.equal(resolveCommand("config", ["set-default-model"]), null);
+  assert.equal(resolveCommand("config", ["set-tier"]), null);
 });
 
-test("models set-default and set-tier are recognized", () => {
-  const cli = fileURLToPath(new URL("../../bin/alix.js", import.meta.url));
-  for (const args of [["models", "set-default"], ["models", "set-tier"]]) {
-    // reaches the interactive picker (won't complete without stdin) but is RECOGNIZED
-    const out = execFileSync("node", [cli, ...args], { encoding: "utf8", stdio: "pipe", input: "" });
-    assert.ok(!/unknown command/i.test(out));
-  }
+test("models set-default and set-tier are registered", () => {
+  const d1 = resolveCommand("models", ["set-default"]);
+  const d2 = resolveCommand("models", ["set-tier"]);
+  assert.ok(d1, "models set-default recognized");
+  assert.ok(d2, "models set-tier recognized");
 });
 ```
 
-If `bin/alix.js` requires TTY, fall back to a unit-level dispatch test: extract the command→handler mapping into an exported `COMMAND_TABLE` (or test that `src/cli.ts` no longer registers the legacy handlers by importing its dispatch module). The **key requirement** is a behavioral assertion on the public contract, not `readFileSync(...).includes(...)`.
+The positive test asserts **registration only** (the command dispatches), NOT that the interactive picker completes — that's incidental CLI behavior and would couple the test to TTY/stdin. If the dispatch cannot be cleanly extracted, use a subprocess check that asserts only `exit !== 0` / non-unknown-command for the legacy pair, never the interactive completion.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm build && node --test dist/tests/cli/cli-commands.test.js`
 Expected: FAIL — legacy commands still recognized.
 
-- [ ] **Step 3: Remove the two blocks** from `src/cli.ts` (lines 680-733 `set-default-model`, 735-813 `set-tier`). Search `src/cli.ts` and `src/cli/commands/*` for `set-default-model` / `set-tier` references and remove from usage text.
+- [ ] **Step 3: Remove the two blocks** from `src/cli.ts` (lines 680-733 `set-default-model`, 735-813 `set-tier`). Search `src/cli.ts` and `src/cli/commands/*` for `set-default-model` / `set-tier` references and remove from usage text. Extract `resolveCommand(command, args)` (or `COMMAND_TABLE`) if it doesn't already exist, so the dispatcher is unit-testable.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -589,6 +648,19 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `normalizeModelConfig`, `resolveModelConfig`, `applyProfilePatch`, the `models` writers (via the CLI handlers or a direct writer helper).
 
+**This task is the architecture's executable contract.** It runs the persistence-invariant assertions for every model-writing path AND the final repo-wide writer audit (the hard completion gate).
+
+- [ ] **Step 0: Final repo-wide writer audit (hard completion gate)**
+
+Re-run the audit from Task 1 now that runtime migration + profile changes are done — they may have exposed writers that weren't obvious initially:
+
+```bash
+rg 'config\.model\s*=|subagents\[[^]]*\]\s*=|\.subagents\.[a-z]+\s*=' src --glob '!**/*.test.*'
+rg 'model:|subagents' src/cli/commands src/models src/config --glob '!**/*.test.*' -l
+```
+
+Every hit must be one of: (a) the loader's projection, (b) a reader, or (c) a writer that persists under `models`. **If any writer persists `model.*` or `subagents.*` as model-selection state, STOP — the invariant is violated and the plan must be extended.** The test suite below does not pass until the audit is clean.
+
 - [ ] **Step 1: Write the invariant suite**
 
 ```ts
@@ -662,23 +734,24 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Self-Review
 
-**Reviewer's 10 points → resolution:**
-1. **Never persist derived model/subagents** → Task 5 writes only `models` (test asserts `saved.model === undefined`, `saved.subagents === undefined`); Task 4 strips them from profile output; Task 8 enforces.
-2. **`resolveModelConfig` pure reader** → Task 3 drops `normalizeModelConfig` from the resolver; normalization lives only at the loader boundary (Task 2). Mutation-assertion test added.
-3. **Typed `ModelsConfig` / canonical `ModelTier`** → Task 1 defines the closed union; all later tasks use it.
-4. **`coder` vs `coding`** → Task 1 documents the profile→config tier map (coder→coding); Task 4 maps through it and asserts `models.coding`.
-5. **Deterministic projection** → Task 2 rebuilds `subagents` wholesale (stale/extra keys dropped).
-6. **Profile can't carry stale projections** → Task 4 destructures `model`/`subagents` out of the result; test proves it with non-empty input.
-7. **Behavioral CLI test** → Task 6 uses subprocess/dispatch, not source-string grep.
-8. **`subagent-cli.ts` precedence** → Task 7 documents the chain (override > models.<tier> > models.default) and adds a precedence test.
-9. **Writer/reader audit** → Task 1 step 3 is a dedicated `rg` audit before any change.
-10. **Invariant suite** → Task 8 covers persistence, load-compat, precedence, tier precedence, and in-memory-only migration.
+**Review rounds → resolution:**
+- **Round 1 (10 points):** never persist derived projections; pure `resolveModelConfig`; typed `ModelsConfig`; `coder`→`coding` map; deterministic projection; profile strips stale projections; behavioral CLI test; `subagent-cli` precedence; writer/reader audit; invariant suite.
+- **Round 2 (2 points):** in-memory-only migration pinned (file byte-compare); empty-state `subagents` stays `undefined`.
+- **Round 3 (8 points):**
+  1. **Persistence hazard** → the invariant is enforced at the WRITER boundary, not just loadConfig: `normalizeModelConfig` documents it never serializes; Tasks 4-6 strip/persist-only-`models`; Task 8 audits every writer.
+  2. **set-tier merge semantics** → `models: { ...existing.models, [tier]: selected }` (merge, never replace); test seeds other tiers and asserts preservation.
+  3. **Profile merge (not wipe)** → `applyProfilePatch` merges `{ ...existing.models, ...patch.models }`; test proves pre-existing tiers survive.
+  4. **`MODEL_SUBAGENT_TIERS` naming** → selectable subset, distinct from `ModelTier` union.
+  5. **Metadata preservation** → projections carry full `ModelConfig` (temperature/contextWindow); test pins it.
+  6. **Resolver returns full `ModelConfig`** → defensive copy, type-consistent; test asserts copy-not-shared.
+  7. **Dispatcher-level CLI test** → registration-only, no TTY/interactive coupling.
+  8. **Final audit gate** → Task 8 Step 0 re-runs the writer audit after runtime migration + profile changes; test suite does not pass until clean.
 
 **Spec coverage:** One store (T1/T2/T4/T5), loader projection (T2), resolver (T3), one writer family (T5 + T4), legacy removal (T6), runtime migration (T7), invariant (T8). apiKeys untouched. All 7 spec test categories present + migration-safety.
 
 **Placeholder scan:** no TBD/TODO; every code step has concrete code. Task 6's subprocess test notes the TTY fallback explicitly.
 
-**Type consistency:** `ModelTier`/`ModelsConfig` (T1) → `MODEL_TIERS` + `normalizeModelConfig` (T2) → `resolveModelConfig(config, tier?: ModelTier)` (T3) → `handleSetDefaultModel`/`handleSetTier` (T5). All names match across tasks.
+**Type consistency:** `ModelTier`/`ModelsConfig` (T1) → `MODEL_SUBAGENT_TIERS` + `normalizeModelConfig` (T2) → `resolveModelConfig(config, tier?: ModelTier)` (T3) → `handleSetDefaultModel`/`handleSetTier` (T5). All names match across tasks.
 
 ## Verification
 
