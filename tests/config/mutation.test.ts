@@ -546,14 +546,15 @@ test("ConfigMutationService: rejects config set subagents.<tier>.* (canonical + 
   }
 });
 
-test("ConfigMutationService: unrelated set strips stale model/subagent-tier projections from disk", async () => {
-  // Regression (§4.1/Task 11): a legacy config with `model` + `subagents.coding`
-  // on disk must not keep those projections after any mutation write — the
-  // write crosses withoutDerivedModelProjections.
+test("ConfigMutationService: unrelated set migrates legacy model to models.default and strips tier projections", async () => {
+  // Regression (§4.1/Task 11 + §5.2): a legacy config with `model` + `subagents.coding`
+  // on disk. The write crosses withoutDerivedModelProjections: the `model` projection
+  // is stripped BUT seeded into `models.default` (never deleted — the user's only
+  // assignment survives), and the stale `subagents.coding` tier key is dropped while
+  // behavior `enabled:false` survives.
   const { dir } = await setupService();
   const configDir = join(dir, ".alix", "config");
   const configPath = join(configDir, "config.json");
-  // Overwrite the fixture with a stale legacy config.
   await writeFile(
     configPath,
     JSON.stringify({
@@ -567,9 +568,11 @@ test("ConfigMutationService: unrelated set strips stale model/subagent-tier proj
   try {
     await service.set("permissions.default", "allow");
     const onDisk = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
-    assert.equal("model" in onDisk, false, "stale model projection cleaned");
+    assert.equal("model" in onDisk, false, "model projection stripped from disk");
+    // §5.2: legacy model migrated to models.default, not deleted.
+    assert.deepEqual((onDisk.models as any)?.default, { provider: "ollama", name: "legacy" });
+    // Stale tier projection dropped; behavior config survives.
     assert.equal((onDisk.subagents as any)?.coding, undefined, "stale tier projection cleaned");
-    // Behavior config survives.
     assert.equal((onDisk.subagents as any)?.enabled, false);
     assert.equal((onDisk.permissions as any)?.default, "allow");
   } finally {
@@ -614,6 +617,30 @@ test("ConfigMutationService: rejects config delete subagents", async () => {
       () => service.delete("subagents"),
       (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
     );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: delete subagents.<tier> / subagents.default rejected, delete enabled/roles allowed", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.delete("subagents.coding"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.delete("subagents.coder"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.delete("subagents.default"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // Behavior config is deletable (no error).
+    await service.set("subagents.enabled", false);
+    const del = await service.delete("subagents.enabled");
+    assert.equal(del.op, "delete");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

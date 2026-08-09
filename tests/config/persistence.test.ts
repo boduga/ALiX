@@ -146,6 +146,21 @@ test("non-default enabled/roles survive persistence", () => {
   assert.deepEqual(disabled.subagents, { enabled: false, roles: [] });
 });
 
+test("legacy model migrates to models.default before stripping (never data-loss)", () => {
+  // §5.2: a config with a legacy `model` and no `models.default` must seed
+  // models.default before the projection is stripped — otherwise stripping the
+  // projection would destroy the user's only model assignment.
+  const legacy = withoutDerivedModelProjections({
+    ...fixture,
+    model: { provider: "ollama", name: "legacy" },
+    models: undefined as any,
+    subagents: { enabled: true, roles: [], coding: { provider: "ollama", name: "old-coding" } },
+  });
+  assert.equal("model" in legacy, false);
+  assert.deepEqual((legacy.models as any)?.default, { provider: "ollama", name: "legacy" });
+  assert.equal((legacy.subagents as any)?.coding, undefined, "tier projection stripped");
+});
+
 test("writeConfig refuses a raw AlixConfig (compile-time)", async () => {
   // Type-only tripwire: writeConfig's parameter is PersistedAlixConfig, so a
   // raw AlixConfig must not be accepted without withoutDerivedModelProjections.

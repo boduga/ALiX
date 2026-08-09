@@ -1,32 +1,28 @@
 import { writeFile } from "node:fs/promises";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { isValidModelConfig } from "./schema.js";
 import type {
   AlixConfig,
+  ModelConfig,
   PersistedAlixConfig,
   PersistedSubagentConfig,
   SubagentRoleConfig,
 } from "./schema.js";
 
 /**
- * Field-wise role comparison. `JSON.stringify` is property-order-sensitive and
- * would spuriously treat two semantically-identical role lists as different.
+ * Key-stable role comparison. Each role object is serialized with its keys
+ * sorted, so comparison is order-insensitive AND automatically covers any
+ * field added to `SubagentRoleConfig` in the future (a field-wise list would
+ * silently treat two differing role objects as equal once the schema grows).
  */
 function rolesEqual(a: SubagentRoleConfig[] | undefined, b: SubagentRoleConfig[] | undefined): boolean {
   const arrA = a ?? [];
   const arrB = b ?? [];
   if (arrA.length !== arrB.length) return false;
+  const sortKeys = (o: SubagentRoleConfig): string =>
+    JSON.stringify(Object.fromEntries(Object.entries(o).sort(([ka], [kb]) => ka.localeCompare(kb))));
   for (let i = 0; i < arrA.length; i++) {
-    const x = arrA[i]!;
-    const y = arrB[i]!;
-    if (
-      x.role !== y.role ||
-      x.mode !== y.mode ||
-      x.style !== y.style ||
-      x.retryCount !== y.retryCount ||
-      x.enabled !== y.enabled
-    ) {
-      return false;
-    }
+    if (sortKeys(arrA[i]!) !== sortKeys(arrB[i]!)) return false;
   }
   return true;
 }
@@ -54,6 +50,21 @@ function rolesEqual(a: SubagentRoleConfig[] | undefined, b: SubagentRoleConfig[]
 export function withoutDerivedModelProjections(
   config: AlixConfig,
 ): PersistedAlixConfig {
+  // §5.2 legacy migration, mirrored from the loader: a legacy `model` seeds
+  // `models.default` when no canonical default exists, so stripping the
+  // projection never destroys the user's only model assignment. (The loader
+  // also does this on load; this keeps the boundary self-sufficient for raw
+  // partial inputs like ConfigMutationService's.)
+  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
+    config = {
+      ...config,
+      models: {
+        ...(config.models as Record<string, ModelConfig> | undefined),
+        default: { ...config.model },
+      },
+    };
+  }
+
   const {
     model: _model,
     subagents,

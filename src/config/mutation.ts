@@ -199,10 +199,12 @@ function resolveDotPath(
  * `subagents.enabled`/`roles` are NOT projections: they are behavior config
  * (§2.8.1/§2.8.4) and remain mutable. Every other `subagents.*` key is a model
  * tier projection (canonical tier, legacy profile vocabulary, or any other
- * string `normalizeModelConfig` would drop) and is rejected. Testing the
- * literal "enabled"/"roles" allowlist — rather than enumerating tier keys —
- * needs no tier vocabulary and catches unknown keys like `subagents.default`.
+ * string `normalizeModelConfig` would drop) and is rejected. Testing a literal
+ * behavior-key allowlist — rather than enumerating tier keys — needs no tier
+ * vocabulary and catches unknown keys like `subagents.default`.
  */
+const SUBAGENT_BEHAVIOR_KEYS = new Set(["enabled", "roles"]);
+
 function assertMutableModelPath(path: string): void {
   const [root, second] = path.split(".");
   if (root === "model") {
@@ -212,7 +214,7 @@ function assertMutableModelPath(path: string): void {
   // under it are model-selection projections.
   if (
     root === "subagents" &&
-    (second === undefined || (second !== "enabled" && second !== "roles"))
+    (second === undefined || !SUBAGENT_BEHAVIOR_KEYS.has(second))
   ) {
     throw projectionRejected(path);
   }
@@ -370,6 +372,20 @@ export class ConfigMutationService {
   // -----------------------------------------------------------------------
 
   /**
+  /**
+   * Strip projections, write atomically, and return the resulting config hash.
+   * Crossing the shared persistence boundary (`withoutDerivedModelProjections`)
+   * keeps the canonical single-source invariant: any model/subagent-tier
+   * projections in the mutated config are stripped before reaching disk, while
+   * behavior `enabled`/`roles` survive. §4.1/Task 11.
+   */
+  private async writePersisted(mutated: AlixConfig): Promise<string> {
+    const persisted = withoutDerivedModelProjections(mutated);
+    await this.atomicWrite(persisted);
+    return computeConfigHash(persisted);
+  }
+
+  /**
    * Atomically write config to disk using temp-file + rename.
    * Accepts a `PersistedAlixConfig` (already stripped of model/subagent-tier
    * projections by `withoutDerivedModelProjections`) or a full `AlixConfig`.
@@ -483,15 +499,8 @@ export class ConfigMutationService {
     // Guard against concurrent writes (check against the caller's expected hash)
     await this.checkConcurrency(expectedHash ?? undefined);
 
-    // Write atomically, crossing the shared persistence boundary so the
-    // canonical single-source invariant holds: the mutated config is stripped
-    // of any model/subagent-tier projections before it reaches disk
-    // (behavior `enabled`/`roles` survive). §4.1/Task 11.
-    const persisted = withoutDerivedModelProjections(mutated);
-    await this.atomicWrite(persisted);
-
-    // Record provenance
-    const newHash = computeConfigHash(persisted);
+    // Write atomically, crossing the shared persistence boundary.
+    const newHash = await this.writePersisted(mutated);
     const mutation: ConfigMutation = {
       path,
       op: "set",
@@ -564,15 +573,8 @@ export class ConfigMutationService {
     // Guard against concurrent writes (check against the caller's expected hash)
     await this.checkConcurrency(expectedHash ?? undefined);
 
-    // Write atomically, crossing the shared persistence boundary so the
-    // canonical single-source invariant holds: the mutated config is stripped
-    // of any model/subagent-tier projections before it reaches disk
-    // (behavior `enabled`/`roles` survive). §4.1/Task 11.
-    const persisted = withoutDerivedModelProjections(mutated);
-    await this.atomicWrite(persisted);
-
-    // Record provenance
-    const newHash = computeConfigHash(persisted);
+    // Write atomically, crossing the shared persistence boundary.
+    const newHash = await this.writePersisted(mutated);
     const mutation: ConfigMutation = {
       path,
       op: "delete",
