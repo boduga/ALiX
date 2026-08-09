@@ -3,6 +3,10 @@
  * Thin wrappers; all logic lives in src/models/*.ts and src/config/*.ts.
  */
 
+import { isModelTier, MODEL_SUBAGENT_TIERS } from "../../config/schema.js";
+import type { ModelTier } from "../../config/schema.js";
+import type { ModelInfo } from "../../providers/catalog.js";
+
 export async function handleModelsDoctor(args: string[]): Promise<void> {
   const { detectSystem } = await import("../../config/hardware-detect.js");
   const { loadConfig } = await import("../../config/loader.js");
@@ -140,6 +144,132 @@ export async function handleModelsResolve(args: string[]): Promise<void> {
   }
 }
 
+/**
+ * Persist a model selection under the canonical `models` object (§8.1/§8.3).
+ *
+ * Reads ONLY the target config file (project or user) so config layering is
+ * preserved — a loadConfig merge would bake the other layer's settings into
+ * this file. The derived `model`/`subagents` projections are stripped through
+ * the persistence boundary, the selection is MERGED into `models` (never
+ * replacing the object, so unrelated tiers survive), and the result is written
+ * through the shared writeConfig(). Never calls normalizeModelConfig (§8.4).
+ *
+ * @returns the config path that was written.
+ */
+export async function persistModelSelection(
+  cwd: string,
+  tier: ModelTier,
+  selection: { provider: string; name: string },
+): Promise<string> {
+  const { readFile, mkdir } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const { homedir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { withoutDerivedModelProjections, writeConfig } = await import("../../config/persistence.js");
+  const { projectConfigDir } = await import("../../config/loader.js");
+
+  const projectConfigPath = join(cwd, ".alix", "config.json");
+  const userConfigDir = join(homedir(), ".config", "alix");
+  const userConfigPath = join(userConfigDir, "config.json");
+  const configPath = existsSync(join(cwd, ".git")) ? projectConfigPath : userConfigPath;
+  const configDir = configPath === projectConfigPath ? projectConfigDir(cwd) : userConfigDir;
+
+  let existing: Record<string, unknown> = {};
+  try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
+
+  const persisted = withoutDerivedModelProjections(existing as unknown as import("../../config/schema.js").AlixConfig);
+  persisted.models = {
+    ...(persisted.models ?? {}),
+    [tier]: { provider: selection.provider, name: selection.name },
+  };
+
+  await mkdir(configDir, { recursive: true });
+  await writeConfig(persisted, configPath);
+  return configPath;
+}
+
+/**
+ * Resolve the `set-tier` argument against the canonical non-default tier
+ * vocabulary (§8.2). Returns undefined for anything outside
+ * MODEL_SUBAGENT_TIERS — including "default" (owned by set-default) and
+ * profile vocabulary (coder/planner/…) or arbitrary strings.
+ */
+export function resolveTierArg(name: string | undefined): (typeof MODEL_SUBAGENT_TIERS)[number] | undefined {
+  if (!name || !isModelTier(name)) return undefined;
+  return (MODEL_SUBAGENT_TIERS as readonly string[]).includes(name)
+    ? (name as (typeof MODEL_SUBAGENT_TIERS)[number])
+    : undefined;
+}
+
+/** Shared interactive flow: pick a provider (with API key) then a model. */
+async function selectProviderAndModel(): Promise<{ providerId: string; model: ModelInfo }> {
+  const { resolveProviders, getAvailableModels, selectFromList, selectModelInteractive } = await import("../helpers/provider-selection.js");
+  const { getApiKey, setApiKey } = await import("../helpers/api-keys.js");
+  const { prompt } = await import("./prompt.js");
+
+  const avail = await resolveProviders();
+  const pick = await selectFromList(
+    avail,
+    (p) => `${p.name} — ${p.apiKeySource}${p.reason ? ` (${p.reason})` : ""}`,
+    { header: "Select a provider:" },
+  );
+  if (!pick) { console.log("Cancelled."); process.exit(0); }
+
+  let apiKey = await getApiKey(pick.id);
+  if (apiKey === undefined) {
+    console.log(`\nNo API key found for ${pick.name}.`);
+    const key = await prompt(`Enter API key (${pick.hint}): `);
+    if (!key) { console.log("Cancelled."); process.exit(0); }
+    await setApiKey(pick.id, key);
+    apiKey = key;
+    process.env[pick.env] = key;
+  }
+
+  console.log(`\nFetching available models for ${pick.name}...\n`);
+  const models = await getAvailableModels(pick.id);
+  if (models.length === 0) { console.log("No models found."); process.exit(1); }
+  const selected = await selectModelInteractive(models);
+  if (!selected) { console.log("Cancelled."); process.exit(0); }
+  return { providerId: pick.id, model: selected };
+}
+
+export async function handleModelsSetDefault(_args: string[]): Promise<void> {
+  const { providerId, model } = await selectProviderAndModel();
+  const configPath = await persistModelSelection(process.cwd(), "default", { provider: providerId, name: model.id });
+  console.log(`\nDefault model set to "${model.id}" for ${providerId}.`);
+  console.log(`Saved to ${configPath}`);
+}
+
+export async function handleModelsSetTier(args: string[]): Promise<void> {
+  const { prompt } = await import("./prompt.js");
+  const TIER_DESC: Record<string, string> = {
+    thinking: "Strategic reasoning, planning, complex logic",
+    coding: "Code generation, tool execution, patches",
+    fast: "Quick classification, routing, simple tasks",
+    critic: "Verification, validation, hallucination checks",
+    tiny: "Embeddings, reranking, memory compression",
+    image: "Image generation, multimodal analysis",
+  };
+
+  let tierName = resolveTierArg(args.find((a) => !a.startsWith("--")));
+  if (!tierName) {
+    console.log("\nSelect a subagent tier to configure:");
+    for (let i = 0; i < MODEL_SUBAGENT_TIERS.length; i++) {
+      const t = MODEL_SUBAGENT_TIERS[i];
+      console.log(`  ${i + 1}. ${t} - ${TIER_DESC[t]}`);
+    }
+    const answer = await prompt(`\nSelect tier (1-${MODEL_SUBAGENT_TIERS.length}, 0 to cancel): `);
+    const num = parseInt(answer, 10);
+    if (num === 0 || isNaN(num) || num > MODEL_SUBAGENT_TIERS.length) { console.log("Cancelled."); process.exit(0); }
+    tierName = MODEL_SUBAGENT_TIERS[num - 1];
+  }
+
+  const { providerId, model } = await selectProviderAndModel();
+  const configPath = await persistModelSelection(process.cwd(), tierName, { provider: providerId, name: model.id });
+  console.log(`\nTier "${tierName}" set to ${providerId}/${model.id}.`);
+  console.log(`Saved to ${configPath}`);
+}
+
 const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "doctor": handleModelsDoctor,
   "fit": handleModelsFit,
@@ -148,13 +278,15 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "apply-profile": handleModelsApply,
   "install-profile": handleModelsInstall,
   "resolve": handleModelsResolve,
+  "set-default": handleModelsSetDefault,
+  "set-tier": handleModelsSetTier,
 };
 
 export async function handleModelsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const handler = HANDLERS[sub];
   if (!handler) {
-    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile|resolve>");
+    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile|resolve|set-default|set-tier>");
     console.error("  alix models doctor               Run system and profile diagnostic");
     console.error("  alix models fit                   Rank profiles by hardware fit");
     console.error("  alix models list-profiles         List available profiles");
@@ -163,6 +295,8 @@ export async function handleModelsCommand(args: string[]): Promise<void> {
     console.error("  alix models install-profile <id>  Pull models and apply profile");
     console.error("  alix models resolve               Show effective model per role");
     console.error("  alix models resolve <role>        Show effective model for a specific role");
+    console.error("  alix models set-default           Set the default model (interactive)");
+    console.error("  alix models set-tier <tier>       Set a subagent tier model (thinking/coding/fast/critic/tiny/image)");
     process.exit(1);
   }
   await handler(args.slice(1));
