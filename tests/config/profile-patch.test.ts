@@ -7,7 +7,9 @@ import type { ProfileData } from "../../src/config/profile-types.js";
 function makeMinimalConfig(): AlixConfig {
   return {
     version: 1,
+    // Stale loader-derived projections — applyProfilePatch must strip these.
     model: { provider: "ollama", name: "old-model" },
+    subagents: { enabled: true, roles: [], coding: { provider: "ollama", name: "old-coding" } },
     permissions: { default: "allow" as const, tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
     context: { repoMap: false, repoMapMode: "lite" as const, maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
     runtime: { provider: "process" as const, shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] },
@@ -25,50 +27,96 @@ function makeProfile(): ProfileData {
   };
 }
 
-describe("buildProfilePatch", () => {
+describe("buildProfilePatch (§5.1–§5.2)", () => {
   it("includes modelProfile", () => {
     assert.equal(buildProfilePatch(makeProfile()).modelProfile, "balanced-local");
   });
-  it("includes default model as model", () => {
+  it("profile default becomes models.default (not a top-level model)", () => {
     const p = buildProfilePatch(makeProfile());
-    assert.equal(p.model?.name, "qwen3:4b");
+    assert.equal(p.models?.default?.name, "qwen3:4b");
+    assert.equal("model" in p, false);
   });
-  it("includes per-tier mappings", () => {
-    assert.ok(buildProfilePatch(makeProfile()).models?.coder);
+  it("profile coder becomes models.coding via PROFILE_TIER_MAP", () => {
+    const p = buildProfilePatch(makeProfile());
+    assert.equal(p.models?.coding?.name, "qwen2.5-coder:7b");
+    assert.equal("coder" in p.models, false); // canonical key only, no profile vocab
   });
-  it("includes runtime limit", () => {
-    assert.equal(buildProfilePatch(makeProfile()).runtime?.maxContextTokens, 24000);
+  it("maps planner/researcher/embeddings through PROFILE_TIER_MAP", () => {
+    const profile: ProfileData = {
+      ...makeProfile(),
+      models: {
+        planner: { provider: "anthropic", name: "claude-opus" },
+        researcher: { provider: "openai", name: "gpt-4o-mini" },
+        embeddings: { provider: "ollama", name: "nomic-embed" },
+      },
+    };
+    const p = buildProfilePatch(profile);
+    assert.equal(p.models?.thinking?.name, "claude-opus");
+    assert.equal(p.models?.fast?.name, "gpt-4o-mini");
+    assert.equal(p.models?.tiny?.name, "nomic-embed");
+  });
+  it("skips profile tiers with no configuration equivalent (classifier)", () => {
+    const profile: ProfileData = {
+      ...makeProfile(),
+      models: { ...makeProfile().models, classifier: { provider: "ollama", name: "classifier-x" } },
+    };
+    const p = buildProfilePatch(profile);
+    assert.equal("classifier" in p.models, false);
+  });
+  it("produces no model or subagents on the patch", () => {
+    const p = buildProfilePatch(makeProfile());
+    assert.equal("model" in p, false);
+    assert.equal("subagents" in p, false);
   });
 });
 
-describe("applyProfilePatch", () => {
+describe("applyProfilePatch (§5.3–§5.4)", () => {
   it("updates modelProfile", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
     assert.equal(r.modelProfile, "balanced-local");
   });
-  it("preserves apiKeys", () => {
+  it("writes profile default into models.default", () => {
+    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
+    assert.equal(r.models?.default?.name, "qwen3:4b");
+  });
+  it("writes profile coder into models.coding", () => {
+    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
+    assert.equal(r.models?.coding?.name, "qwen2.5-coder:7b");
+  });
+  it("preserves apiKeys and permissions", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
     assert.equal(r.apiKeys?.anthropic, "sk-preserved");
-  });
-  it("preserves permissions", () => {
-    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
     assert.equal(r.permissions.default, "allow");
   });
-  it("writes per-tier models", () => {
-    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
-    // NOTE: `coder` is a profile-vocabulary tier; Task 5 migrates profile-patch
-    // to canonical `models.coding`. Cast keeps the current runtime assertion.
-    assert.equal((r.models as any)?.coder.name, "qwen2.5-coder:7b");
+  it("leaves runtime untouched", () => {
+    const cfg = makeMinimalConfig();
+    cfg.runtime = { ...cfg.runtime, commandTimeoutMs: 90000 };
+    const r = applyProfilePatch(cfg, buildProfilePatch(makeProfile()));
+    assert.equal(r.runtime?.commandTimeoutMs, 90000); // existing runtime survives untouched
   });
-
-  it("syncs profile coder tier into subagents.coding", () => {
+  it("strips stale model and subagents projections", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
-    assert.ok(r.subagents, "subagents should exist after patch");
-    assert.equal((r.subagents as any)?.coding?.name, "qwen2.5-coder:7b", "coder tier syncs to subagents.coding");
+    assert.equal("model" in r, false);
+    assert.equal("subagents" in r, false);
   });
-
-  it("syncs profile embeddings tier into subagents.tiny", () => {
+  it("keeps unrelated existing tiers that the patch does not specify", () => {
+    const cfg = makeMinimalConfig();
+    cfg.models = { thinking: { provider: "anthropic", name: "claude-opus" }, fast: { provider: "openai", name: "gpt-4o-mini" } };
+    const r = applyProfilePatch(cfg, buildProfilePatch(makeProfile()));
+    assert.equal(r.models?.thinking?.name, "claude-opus"); // unspecified tier survives
+    assert.equal(r.models?.fast?.name, "gpt-4o-mini");
+  });
+  it("patch tiers win over existing models", () => {
+    const cfg = makeMinimalConfig();
+    cfg.models = { default: { provider: "ollama", name: "existing-default" }, coding: { provider: "ollama", name: "existing-coding" } };
+    const r = applyProfilePatch(cfg, buildProfilePatch(makeProfile()));
+    assert.equal(r.models?.default?.name, "qwen3:4b"); // patch wins
+    assert.equal(r.models?.coding?.name, "qwen2.5-coder:7b"); // patch wins
+  });
+  it("returns a PersistedAlixConfig ready for writeConfig", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
-    assert.equal((r.subagents as any)?.tiny?.name, "test", "embeddings tier syncs to subagents.tiny");
+    const serialized = JSON.stringify(r);
+    assert.equal(serialized.includes("persistedConfigBrand"), false);
+    assert.equal(serialized.includes('"model"'), false);
   });
 });

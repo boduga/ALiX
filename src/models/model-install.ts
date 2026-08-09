@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { getProfile, listProfiles } from "../config/profile-registry.js";
 import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS, type ProfilePatch } from "../config/profile-patch.js";
 import type { ProfileData } from "../config/profile-types.js";
-import type { AlixConfig } from "../config/schema.js";
+import type { AlixConfig, PersistedAlixConfig } from "../config/schema.js";
 
 export type ApplyResult = { success: boolean; message: string; changes?: ProfilePatch; preserved?: string[] };
 export type InstallResult = { success: boolean; message: string; pulled: string[]; skipped: string[]; errors: string[] };
@@ -21,7 +21,7 @@ function readConfig(cwd: string): AlixConfig {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-function writeConfig(cwd: string, config: AlixConfig): void {
+function writeConfig(cwd: string, config: PersistedAlixConfig): void {
   writeFileSync(configPath(cwd), JSON.stringify(config, null, 2), "utf-8");
 }
 
