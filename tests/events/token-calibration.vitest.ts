@@ -2,7 +2,7 @@
  * Task 3 (§1) integration test: `token.calibration` event emission.
  *
  * Verifies the model-facing request emits token.calibration keyed by
- * invocationId, comparing our estimated_raw (unpadded base), estimated_padded
+ * invocationId, comparing our estimatedRaw (unpadded base), estimatedPadded
  * (budget-admission), and the provider's actual usage.inputTokens.
  *
  * Seam: same mock-provider harness as task-loop-context-budget.vitest.ts
@@ -181,8 +181,8 @@ describe('token.calibration — estimated vs actual per model-facing request', (
     const cal = events.find((e) => e.type === 'token.calibration');
     expect(cal).toBeDefined();
     const p = cal!.payload as Record<string, unknown>;
-    expect(typeof p.estimated_raw).toBe('number');
-    expect(typeof p.estimated_padded).toBe('number');
+    expect(typeof p.estimatedRaw).toBe('number');
+    expect(typeof p.estimatedPadded).toBe('number');
     expect(p.actual).toBe(42);
     expect(typeof p.invocationId).toBe('string');
     expect(p.provider).toBe('mock');

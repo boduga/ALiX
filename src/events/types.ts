@@ -447,9 +447,9 @@ export type TokenCalibrationPayload = {
   provider: string;
   model: string;
   /** Unpadded base tokenizer estimate of the admitted request. */
-  estimated_raw: number;
+  estimatedRaw: number;
   /** Padded budget-admission estimate of the admitted request. */
-  estimated_padded: number;
+  estimatedPadded: number;
   /** Actual provider-reported input tokens (usage.inputTokens). */
   actual: number;
 };

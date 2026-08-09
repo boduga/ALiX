@@ -50,12 +50,12 @@ so "safe" is an assumption, not a measurement.
    (`input_tokens` / `usage.prompt_tokens`). Log a `token.calibration` EventLog
    entry per model-facing request, keyed by the same `invocationId` (C2 #21)
    used for `context.snapshot.created`, carrying:
-   `{ provider, model, estimated_raw, estimated_padded, actual }`.
+   `{ provider, model, estimatedRaw, estimatedPadded, actual }`.
    Pure observation — no behavior change.
 2. **Burn-in window.** 200 requests/provider or 7 days, whichever first.
    During burn-in, `SAFETY_FACTOR = 1.2` remains the default.
 3. **Factor derivation.** After burn-in,
-   `providerCalibration[provider] = p95(actual / estimated_raw)`, clamped to
+   `providerCalibration[provider] = p95(actual / estimatedRaw)`, clamped to
    `[0.8, 2.0]` as a guardrail against pathological burn-in samples. Replace
    the single `SAFETY_FACTOR` constant with
    `providerCalibration: Record<Provider, number>` defaulted to 1.2.

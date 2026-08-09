@@ -391,9 +391,9 @@ Pure instrumentation — no admission behavior change. (spec §3)"
 
 **Interfaces:**
 - Consumes: `estimateBudgetTokens`/`estimateMessageBudgetTokens` already return `{ rawEstimate, budgetEstimate, ... }` (utils/tokens.ts). `CandidateContextItem` currently carries only padded `tokens`.
-- Produces: `CandidateContextItem.rawTokens` (unpadded base estimate); `AssembledContext.admittedRawTokens`; EventLog event `token.calibration` with `{ invocationId, provider, model, estimated_raw, estimated_padded, actual }`.
+- Produces: `CandidateContextItem.rawTokens` (unpadded base estimate); `AssembledContext.admittedRawTokens`; EventLog event `token.calibration` with `{ invocationId, provider, model, estimatedRaw, estimatedPadded, actual }`.
 
-**Context.** Every provider response already returns actual usage (`TokenUsage.inputTokens`, providers/types.ts:123), and `model.usage` is already emitted at task-loop.ts:657-659. The calibration event compares our **estimated** raw+padded against **actual** — keyed by the same `invocationId` as `context.snapshot.created`. To log `estimated_raw`, the assembly must carry the unpadded estimate (currently discarded after `budgetEstimate` is stored).
+**Context.** Every provider response already returns actual usage (`TokenUsage.inputTokens`, providers/types.ts:123), and `model.usage` is already emitted at task-loop.ts:657-659. The calibration event compares our **estimated** raw+padded against **actual** — keyed by the same `invocationId` as `context.snapshot.created`. To log `estimatedRaw`, the assembly must carry the unpadded estimate (currently discarded after `budgetEstimate` is stored).
 
 - [ ] **Step 1: Write failing tests** for raw-token tracking + event emission
 
@@ -435,8 +435,8 @@ it("emits token.calibration with estimated vs actual per request", async () => {
   const cal = events.find((e) => e.type === "token.calibration");
   expect(cal).toBeDefined();
   const p = cal!.payload as Record<string, unknown>;
-  expect(typeof p.estimated_raw).toBe("number");
-  expect(typeof p.estimated_padded).toBe("number");
+  expect(typeof p.estimatedRaw).toBe("number");
+  expect(typeof p.estimatedPadded).toBe("number");
   expect(p.actual).toBe(42);
   expect(typeof p.invocationId).toBe("string");
   expect(p.provider).toBe("mock");
@@ -473,9 +473,9 @@ export type TokenCalibrationPayload = {
   provider: string;
   model: string;
   /** Unpadded base tokenizer estimate of the admitted request. */
-  estimated_raw: number;
+  estimatedRaw: number;
   /** Padded budget-admission estimate of the admitted request. */
-  estimated_padded: number;
+  estimatedPadded: number;
   /** Actual provider-reported input tokens (usage.inputTokens). */
   actual: number;
 };
@@ -491,8 +491,8 @@ if (usage) {
       invocationId,
       provider: config.model.provider,
       model: config.model.name,
-      estimated_raw: assembled.admittedRawTokens,
-      estimated_padded: assembled.admittedTokens,
+      estimatedRaw: assembled.admittedRawTokens,
+      estimatedPadded: assembled.admittedTokens,
       actual: usage.inputTokens,
     } satisfies TokenCalibrationPayload,
   });
@@ -519,7 +519,7 @@ git add src/events/types.ts src/config/context-assembly.ts src/run/task-loop.ts 
 git commit -m "feat(context): token.calibration event logging + raw token tracking
 
 Emit token.calibration per model-facing request keyed by invocationId, logging
-estimated_raw (unpadded base), estimated_padded, and actual usage. Thread
+estimatedRaw (unpadded base), estimatedPadded, and actual usage. Thread
 rawTokens through CandidateContextItem and admittedRawTokens through
 AssembledContext. Pure observation — no admission change. (spec §1)"
 ```
@@ -635,7 +635,7 @@ export function getCalibrationFactor(provider: string, calibration?: Calibration
 }
 ```
 
-**Note on the `Math.floor(0.95 * ratios.length)` index:** with 12 samples, idx = floor(11.4) = 11 → the max. p95 by this definition = the 95th-percentile position. Verify against the spec's intent ("p95(actual / estimated_raw)") and adjust the index formula to `Math.ceil(0.95 * n) - 1` if your reading differs — document the chosen convention in a comment.
+**Note on the `Math.floor(0.95 * ratios.length)` index:** with 12 samples, idx = floor(11.4) = 11 → the max. p95 by this definition = the 95th-percentile position. Verify against the spec's intent ("p95(actual / estimatedRaw)") and adjust the index formula to `Math.ceil(0.95 * n) - 1` if your reading differs — document the chosen convention in a comment.
 
 - [ ] **Step 4: Thread the factor into the estimators**
 

@@ -698,8 +698,8 @@ if (usage) {
       invocationId,
       provider: config.model.provider,
       model: config.model.name,
-      estimated_raw: assembled.admittedRawTokens,
-      estimated_padded: assembled.admittedTokens,
+      estimatedRaw: assembled.admittedRawTokens,
+      estimatedPadded: assembled.admittedTokens,
       actual: usage.inputTokens,
     } satisfies TokenCalibrationPayload,
   });
