@@ -191,6 +191,7 @@ async function makeTestDeps(overrides: {
   const deps: TaskLoopDeps = {
     config: {
       model: { provider: 'mock', name: 'mock', streaming: overrides.streaming ?? false },
+      models: { default: { provider: 'mock', name: 'mock', streaming: overrides.streaming ?? false } },
       permissions: {},
       context: overrides.configContext,
     },

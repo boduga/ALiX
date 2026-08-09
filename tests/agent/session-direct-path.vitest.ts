@@ -100,6 +100,7 @@ const initContext = {
       maxContextTokens: 1_000,
       maxIterations: 1,
     },
+    models: { default: { provider: "anthropic", name: "test-model" } },
     permissions: { sessionMode: "auto" },
     apiKeys: {},
   },
