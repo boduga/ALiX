@@ -8,6 +8,7 @@ import { groqSpec } from "./specs/groq-spec.js";
 import { deepseekSpec } from "./specs/deepseek-spec.js";
 import { perplexitySpec } from "./specs/perplexity-spec.js";
 import { minimaxSpec } from "./specs/minimax-spec.js";
+import { minimaxTokenPlanSpec } from "./specs/minimax-token-plan-spec.js";
 import { zhipuaiSpec } from "./specs/zhipuai-spec.js";
 import { grokaiSpec } from "./specs/grokai-spec.js";
 import { openrouterSpec } from "./specs/openrouter-spec.js";
@@ -15,7 +16,7 @@ import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 
-const SPECS = new Map<string, ProviderSpec>([
+export const SPECS = new Map<string, ProviderSpec>([
   ["openai", openaiSpec],
   ["anthropic", anthropicSpec],
   ["google", googleSpec],
@@ -25,6 +26,7 @@ const SPECS = new Map<string, ProviderSpec>([
   ["deepseek", deepseekSpec],
   ["perplexity", perplexitySpec],
   ["minimax", minimaxSpec],
+  ["minimax-token-plan", minimaxTokenPlanSpec],
   ["zhipuai", zhipuaiSpec],
   ["grokai", grokaiSpec],
   ["openrouter", openrouterSpec],
@@ -40,6 +42,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
   deepseek: "DEEPSEEK_API_KEY",
   perplexity: "PERPLEXITY_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  "minimax-token-plan": "MINIMAX_TOKEN_PLAN_KEY",
   zhipuai: "ZHIPUAI_API_KEY",
   grokai: "GROKAI_API_KEY",
   openrouter: "OPENROUTER_API_KEY",

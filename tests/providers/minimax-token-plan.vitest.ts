@@ -43,4 +43,11 @@ describe("MiniMaxTokenPlanProvider", () => {
     expect(p.editFormatPreference).toBe("structured_patch");
     expect(p.longContextStrategy).toBe("expanded_context");
   });
+
+  it("is registered in unified-complete SPECS Map", async () => {
+    const { SPECS } = await import("../../src/providers/unified-complete.js");
+    const spec = SPECS.get("minimax-token-plan");
+    expect(spec).toBeDefined();
+    expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic");
+  });
 });
