@@ -212,7 +212,6 @@ export type SubagentConfig = {
   thinking?: ModelTierConfig;  // Strategic reasoning, planning, complex logic
   coding?: ModelTierConfig;     // Code generation, tool execution, patches
   fast?: ModelTierConfig;       // Quick classification, routing, simple tasks
-  classifier?: ModelTierConfig; // Prompt classification/routing fallback
   critic?: ModelTierConfig;     // Verification, validation, hallucination checks
   tiny?: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
   image?: ModelTierConfig;     // Image generation, multimodal analysis

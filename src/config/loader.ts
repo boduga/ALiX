@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
+import type { AlixConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
+import { MODEL_SUBAGENT_TIERS } from "./schema.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
 import { chooseBackend, loadCredentialStoreWithKeychainFallback } from "../security/credentials/backend-selection.js";
@@ -11,13 +12,76 @@ import { isCredentialReference, resolveCredential } from "../security/credential
 import { ConfigSigner, type TrustReport } from "./signing.js";
 import { ConfigMutationService } from "./mutation.js";
 
-function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "image"): Partial<ModelTierConfig> | undefined {
+function getEnvTier(name: (typeof MODEL_SUBAGENT_TIERS)[number]): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
   const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
   if (provider || model) {
     return { ...(provider ? { provider: provider as string } : {}), ...(model ? { name: model } : {}) };
   }
   return undefined;
+}
+
+/**
+ * Single-source model normalization (§5.2–§5.5 of the plan).
+ *
+ * Mutates the runtime config object only — it never writes to disk. The loader
+ * is the only projector; writers and resolvers must not call this.
+ *
+ * - Seeds `models.default` from the legacy `model` projection only when no
+ *   canonical default exists yet (an invalid-but-present `models.default`
+ *   still wins — legacy never replaces an existing key).
+ * - Re-derives `model` as a shallow clone of a valid `models.default`.
+ * - Re-derives ONLY the six canonical `subagents.<tier>` keys from
+ *   `models[tier] ?? models.default`, preserving `enabled`/`roles` (behavior
+ *   config) and dropping stale/non-canonical tier keys.
+ */
+export function normalizeModelConfig(config: Partial<AlixConfig>): void {
+  // §5.2 Legacy migration — legacy `model` seeds `models.default` only when no
+  // canonical default exists (key presence wins, even if the value is invalid).
+  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
+    config.models = { ...config.models, default: { ...config.model } };
+  }
+
+  // §5.3 Projection — `model` derives from a valid `models.default`.
+  const canonicalDefault = config.models?.default;
+  config.model = isValidModelConfig(canonicalDefault) ? { ...canonicalDefault } : undefined;
+
+  // §5.4 + §2.8.1 Projection — derive only the six canonical subagent tiers,
+  // preserving `enabled`/`roles` behavior config and dropping stale keys.
+  const existing = config.subagents;
+  const projectedTiers: Record<string, ModelConfig> = {};
+  let anyResolved = false;
+  for (const tier of MODEL_SUBAGENT_TIERS) {
+    const source = config.models?.[tier] ?? config.models?.default;
+    if (isValidModelConfig(source)) {
+      projectedTiers[tier] = { ...source };
+      anyResolved = true;
+    }
+  }
+  const hasBehaviorConfig =
+    existing !== undefined &&
+    (existing.enabled !== undefined || existing.roles !== undefined);
+  if (anyResolved || hasBehaviorConfig) {
+    config.subagents = {
+      enabled: existing?.enabled ?? DEFAULT_CONFIG.subagents!.enabled,
+      roles: existing?.roles ?? DEFAULT_CONFIG.subagents!.roles,
+      ...projectedTiers,
+    };
+  } else {
+    // Preserve the distinction between "no model config" and "model config
+    // exists but no valid subagent projection exists".
+    config.subagents = undefined;
+  }
+}
+
+function isValidModelConfig(model: ModelConfig | undefined): model is ModelConfig {
+  return (
+    model !== undefined &&
+    typeof model.provider === "string" &&
+    model.provider.length > 0 &&
+    typeof model.name === "string" &&
+    model.name.length > 0
+  );
 }
 
 // Test seam — allows tests to override homedir without touching the real OS module
@@ -34,12 +98,7 @@ type PartialConfig = Partial<AlixConfig> & {
   mcpServers?: Partial<AlixConfig["mcpServers"]>;
   mcpServerPaths?: string[];
   subagents?: SubagentConfig;
-  modelTiers?: {
-    thinking?: Partial<ModelTierConfig>;
-    coding?: Partial<ModelTierConfig>;
-    fast?: Partial<ModelTierConfig>;
-    classifier?: Partial<ModelTierConfig>;
-  };
+  modelTiers?: Partial<Record<Exclude<ModelTier, "default">, Partial<ModelTierConfig>>>;
 };
 
 // Load config from two sources (in order of precedence):
@@ -190,36 +249,40 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     result.apiKeys = apiKeys as Record<string, string>;
   }
 
+  // Streaming default/override lands on `models.default` (authoritative, §2.8.3)
+  // so the `model` projection below reflects it. Falls back to the legacy
+  // `model` when no canonical default exists yet — normalizeModelConfig seeds
+  // `models.default` from the legacy model, carrying the flag through.
   if (process.env.ALIX_STREAMING !== undefined) {
-    result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
-  } else if (result.model && result.model.streaming === undefined) {
+    const streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
+    if (result.models?.default) {
+      result.models.default.streaming = streaming;
+    } else if (result.model) {
+      result.model.streaming = streaming;
+    }
+  } else if (result.models?.default && result.models.default.streaming === undefined) {
     // Streaming is the default in any local context (TTY or piped); an
     // explicit config `model.streaming: false` remains the opt-out, and
     // initAgent's shouldAutoDisableStreaming() (= isCI) turns it off in CI
     // so CI logs stay deterministic. Without this default, `runTaskLoop`
     // treats undefined as `?? false` and nothing ever streams.
+    result.models.default.streaming = true;
+  } else if (result.model && result.model.streaming === undefined) {
     result.model.streaming = true;
   }
+
+  // Single-source model normalization: seed `models.default` from any legacy
+  // `model`, then re-derive the `model`/`subagents` compatibility projections
+  // from `models`. The loader is the only projector.
+  normalizeModelConfig(result);
 
   // Validate that a model is configured — no hardcoded defaults
   if (options.requireModel !== false && (!result.model?.provider || !result.model?.name)) {
     throw new Error(
-      "No model configured. Run: alix config set-default-model\n" +
-      "Example: alix config set-default-model deepseek deepseek-v4-flash\n" +
+      "No model configured. Run: alix models set-default\n" +
+      "Example: alix models set-default deepseek deepseek-v4-flash\n" +
       "Or run: alix models doctor"
     );
-  }
-
-  // Fill unset subagent tiers from the main model
-  const TIERS = ["thinking", "coding", "fast", "critic", "tiny", "image"] as const;
-  for (const tier of TIERS) {
-    if (!result.subagents?.[tier]) {
-      if (!result.subagents) (result as any).subagents = {};
-      (result.subagents as any)[tier] = {
-        provider: result.model.provider,
-        name: result.model.name,
-      };
-    }
   }
 
   const validation = validateConfig(result);
@@ -319,29 +382,33 @@ export function mergeConfig(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
+      models: { ...(result.models ?? {}), ...(override.models ?? {}) },
       subagents: { ...(result.subagents ?? DEFAULT_CONFIG.subagents) } as SubagentConfig,
     };
-    // Apply config-file modelTiers overrides to subagent tier configs
-    // This runs inside the override loop so config precedence works (later configs win)
-    const tiers: ("thinking" | "coding" | "fast" | "critic" | "tiny" | "image")[] = ["thinking", "coding", "fast", "critic", "tiny", "image"];
-    if ((override as any).modelTiers) {
-      for (const tier of tiers) {
-        const tierOverride = (override as any).modelTiers[tier];
+    // Apply config-file modelTiers overrides to the canonical `models` object
+    // (authoritative) instead of the subagents projection (§2.8.2). This runs
+    // inside the override loop so config precedence works (later configs win).
+    const modelTiers = (override as any).modelTiers as
+      | Partial<Record<Exclude<ModelTier, "default">, Partial<ModelTierConfig>>>
+      | undefined;
+    if (modelTiers) {
+      for (const tier of MODEL_SUBAGENT_TIERS) {
+        const tierOverride = modelTiers[tier];
         if (tierOverride) {
-          (result.subagents![tier] as ModelTierConfig) = {
-            ...result.subagents![tier],
-            ...tierOverride,
+          result.models = {
+            ...(result.models ?? {}),
+            [tier]: { ...result.models?.[tier], ...tierOverride },
           };
         }
       }
     }
-    // Apply env var overrides for model tiers (highest priority)
-    for (const tier of tiers) {
+    // Apply env var overrides for model tiers (highest priority) → models.<tier>
+    for (const tier of MODEL_SUBAGENT_TIERS) {
       const envOverride = getEnvTier(tier);
       if (envOverride) {
-        (result.subagents![tier] as ModelTierConfig) = {
-          ...(result.subagents![tier] ?? { provider: "", name: "" }),
-          ...envOverride,
+        result.models = {
+          ...(result.models ?? {}),
+          [tier]: { ...(result.models?.[tier] ?? { provider: "", name: "" }), ...envOverride },
         };
       }
     }

@@ -4,9 +4,10 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, _setHomedirOverride, mergeConfig } from "../src/config/loader.js";
+import { loadConfig, _setHomedirOverride, mergeConfig, normalizeModelConfig } from "../src/config/loader.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { AlixConfig, McpServerConfig } from "../src/config/schema.js";
+import { MODEL_SUBAGENT_TIERS } from "../src/config/schema.js";
 import { CredentialStore } from "../src/security/credentials/credential-store.js";
 import { makeCredentialReference } from "../src/security/credentials/credential-reference.js";
 
@@ -495,6 +496,277 @@ test("modelTiers config file override is overridden by env vars", async () => {
     restore();
     delete process.env.ALIX_THINKING_PROVIDER;
     delete process.env.ALIX_THINKING_MODEL;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+// --- Single-source model normalization tests (Task 2) ---
+// normalizeModelConfig projects legacy `model` / `modelTiers` / env overrides
+// onto the canonical `models` object and derives `model` + `subagents` from it.
+
+test("normalizeModelConfig migrates legacy model to models.default", () => {
+  const config: Partial<AlixConfig> = { model: { provider: "anthropic", name: "claude-3-5-sonnet" } };
+  normalizeModelConfig(config);
+  assert.deepEqual(config.models?.default, { provider: "anthropic", name: "claude-3-5-sonnet" });
+  assert.equal(config.model?.provider, "anthropic");
+});
+
+test("normalizeModelConfig migration is in-memory (never writes disk)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    const config: Partial<AlixConfig> = { model: { provider: "anthropic", name: "claude-3-5-sonnet" } };
+    normalizeModelConfig(config);
+    assert.equal(existsSync(join(dir, ".alix", "config.json")), false);
+    assert.equal(existsSync(join(dir, ".config", "alix", "config.json")), false);
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("normalizeModelConfig keeps existing models.default over legacy model", () => {
+  const config: Partial<AlixConfig> = {
+    model: { provider: "legacy", name: "old" },
+    models: { default: { provider: "canonical", name: "new" } },
+  };
+  normalizeModelConfig(config);
+  assert.deepEqual(config.models?.default, { provider: "canonical", name: "new" });
+  assert.equal(config.model?.provider, "canonical");
+});
+
+test("normalizeModelConfig keeps invalid-but-present models.default over legacy model", () => {
+  const config: Partial<AlixConfig> = {
+    model: { provider: "legacy", name: "old" },
+    models: { default: { provider: "", name: "" } },
+  };
+  normalizeModelConfig(config);
+  // Key presence wins — legacy must never migrate over an existing default.
+  assert.deepEqual(config.models?.default, { provider: "", name: "" });
+  // ...but the invalid default cannot back the model projection.
+  assert.equal(config.model, undefined);
+});
+
+test("normalizeModelConfig does not migrate invalid legacy model", () => {
+  const config: Partial<AlixConfig> = { model: { provider: "", name: "" } };
+  normalizeModelConfig(config);
+  assert.equal(config.models?.default, undefined);
+  assert.equal(config.model, undefined);
+});
+
+test("normalizeModelConfig derives model from models.default (clone, not reference)", () => {
+  const config: Partial<AlixConfig> = { models: { default: { provider: "openai", name: "gpt-4o" } } };
+  normalizeModelConfig(config);
+  assert.equal(config.model?.provider, "openai");
+  assert.equal(config.model?.name, "gpt-4o");
+  assert.notEqual(config.model, config.models?.default);
+});
+
+test("normalizeModelConfig derives subagent tiers from canonical models", () => {
+  const config: Partial<AlixConfig> = {
+    models: {
+      default: { provider: "openai", name: "gpt-4o" },
+      thinking: { provider: "anthropic", name: "claude-opus" },
+      coding: { provider: "openai", name: "gpt-4o-mini" },
+    },
+  };
+  normalizeModelConfig(config);
+  assert.equal(config.subagents?.thinking?.provider, "anthropic");
+  assert.equal(config.subagents?.thinking?.name, "claude-opus");
+  assert.equal(config.subagents?.coding?.provider, "openai");
+  assert.equal(config.subagents?.coding?.name, "gpt-4o-mini");
+});
+
+test("normalizeModelConfig falls back to default for missing tiers", () => {
+  const config: Partial<AlixConfig> = {
+    models: { default: { provider: "openai", name: "gpt-4o" }, thinking: { provider: "anthropic", name: "claude-opus" } },
+  };
+  normalizeModelConfig(config);
+  assert.equal(config.subagents?.thinking?.name, "claude-opus"); // explicit wins
+  for (const tier of MODEL_SUBAGENT_TIERS) {
+    if (tier === "thinking") continue;
+    assert.equal((config.subagents as any)?.[tier]?.provider, "openai"); // from default
+    assert.equal((config.subagents as any)?.[tier]?.name, "gpt-4o");
+  }
+});
+
+test("normalizeModelConfig never uses invalid default as a fallback", () => {
+  const config: Partial<AlixConfig> = {
+    models: { default: { provider: "", name: "" }, thinking: { provider: "anthropic", name: "claude-opus" } },
+  };
+  normalizeModelConfig(config);
+  assert.equal(config.model, undefined); // invalid default → no model projection
+  assert.equal(config.subagents?.thinking?.name, "claude-opus");
+  assert.equal(config.subagents?.coding, undefined); // no valid source, invalid default
+});
+
+test("normalizeModelConfig drops stale/non-canonical subagent tier keys", () => {
+  const config: Partial<AlixConfig> = {
+    models: { default: { provider: "openai", name: "gpt-4o" } },
+    subagents: {
+      enabled: true,
+      roles: [],
+      bogus: { provider: "x", name: "y" },
+      coder: { provider: "x", name: "y" },
+      oldTier: { provider: "x", name: "y" },
+      classifier: { provider: "x", name: "y" },
+    } as any,
+  };
+  normalizeModelConfig(config);
+  const sub = config.subagents as any;
+  assert.equal("bogus" in sub, false);
+  assert.equal("coder" in sub, false);
+  assert.equal("oldTier" in sub, false);
+  assert.equal("classifier" in sub, false);
+  assert.equal(sub.thinking?.provider, "openai"); // canonical tier projected
+});
+
+test("normalizeModelConfig preserves model metadata through projection", () => {
+  const config: Partial<AlixConfig> = {
+    models: {
+      default: {
+        provider: "anthropic", name: "claude-opus",
+        temperature: 0.2, maxOutputTokens: 8192, maxContextTokens: 200000, maxIterations: 8, streaming: true,
+      },
+      thinking: {
+        provider: "anthropic", name: "claude-opus",
+        temperature: 0.1, maxOutputTokens: 4096, streaming: false,
+      },
+    },
+  };
+  normalizeModelConfig(config);
+  assert.equal(config.model?.temperature, 0.2);
+  assert.equal(config.model?.maxOutputTokens, 8192);
+  assert.equal(config.model?.maxContextTokens, 200000);
+  assert.equal(config.model?.maxIterations, 8);
+  assert.equal(config.model?.streaming, true);
+  // Runtime projections carry full ModelConfig metadata even though the
+  // SubagentConfig tier type only guarantees provider/name.
+  assert.equal((config.subagents?.thinking as any)?.temperature, 0.1);
+  assert.equal((config.subagents?.thinking as any)?.maxOutputTokens, 4096);
+  assert.equal((config.subagents?.thinking as any)?.streaming, false);
+});
+
+test("normalizeModelConfig empty config leaves model and subagents unset", () => {
+  const config: Partial<AlixConfig> = {};
+  normalizeModelConfig(config);
+  assert.equal(config.model, undefined);
+  assert.equal(config.subagents, undefined);
+  assert.equal(config.models?.default, undefined);
+});
+
+test("normalizeModelConfig preserves subagents enabled/roles behavior config", () => {
+  const config: Partial<AlixConfig> = {
+    models: { default: { provider: "openai", name: "gpt-4o" } },
+    subagents: {
+      enabled: false,
+      roles: [{ role: "worker", mode: "write", style: "coding", retryCount: 0 }],
+    },
+  };
+  normalizeModelConfig(config);
+  assert.equal(config.subagents?.enabled, false);
+  assert.equal(config.subagents?.roles.length, 1);
+  assert.equal(config.subagents?.thinking?.name, "gpt-4o"); // tier still projected
+});
+
+test("loadConfig routes config modelTiers into models and projects to subagents", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({
+      model: { provider: "openai", name: "gpt-4o" },
+      modelTiers: { thinking: { provider: "anthropic", name: "claude-opus" } },
+    }));
+    const config = await loadConfig(dir);
+    assert.equal(config.models?.thinking?.provider, "anthropic"); // authoritative
+    assert.equal(config.models?.thinking?.name, "claude-opus");
+    assert.equal(config.subagents?.thinking?.provider, "anthropic"); // observable via projection
+    assert.equal(config.subagents?.thinking?.name, "claude-opus");
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ALIX_<TIER> env override lands in models and projects to subagents", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  process.env.ALIX_CODING_PROVIDER = "google";
+  process.env.ALIX_CODING_MODEL = "gemini-2.5-flash";
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { provider: "openai", name: "gpt-4o" } }));
+    const config = await loadConfig(dir);
+    assert.equal(config.models?.coding?.provider, "google"); // authoritative on models
+    assert.equal(config.models?.coding?.name, "gemini-2.5-flash");
+    assert.equal(config.subagents?.coding?.provider, "google"); // observable via projection
+    assert.equal(config.subagents?.coding?.name, "gemini-2.5-flash");
+  } finally {
+    restore();
+    delete process.env.ALIX_CODING_PROVIDER;
+    delete process.env.ALIX_CODING_MODEL;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ALIX_STREAMING lands in models.default.streaming and projects to model", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  const prev = process.env.ALIX_STREAMING;
+  process.env.ALIX_STREAMING = "false";
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { provider: "openai", name: "gpt-4o" } }));
+    const config = await loadConfig(dir);
+    assert.equal(config.models?.default?.streaming, false); // authoritative on models.default
+    assert.equal(config.model?.streaming, false); // reflected in projection
+  } finally {
+    if (prev === undefined) delete process.env.ALIX_STREAMING;
+    else process.env.ALIX_STREAMING = prev;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("default streaming:true lands in models.default.streaming", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  const prev = process.env.ALIX_STREAMING;
+  delete process.env.ALIX_STREAMING;
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { provider: "openai", name: "gpt-4o" } }));
+    const config = await loadConfig(dir);
+    assert.equal(config.models?.default?.streaming, true);
+    assert.equal(config.model?.streaming, true);
+  } finally {
+    if (prev === undefined) delete process.env.ALIX_STREAMING;
+    else process.env.ALIX_STREAMING = prev;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig merges models across config layers without dropping tiers", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".config", "alix"), { recursive: true });
+    await writeFile(join(dir, ".config", "alix", "config.json"), JSON.stringify({
+      models: { default: { provider: "openai", name: "gpt-4o" }, thinking: { provider: "anthropic", name: "claude-opus" } },
+    }));
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({
+      models: { coding: { provider: "google", name: "gemini-2.5-flash" } },
+    }));
+    const config = await loadConfig(dir);
+    assert.equal(config.models?.default?.name, "gpt-4o"); // user layer preserved
+    assert.equal(config.models?.thinking?.name, "claude-opus");
+    assert.equal(config.models?.coding?.name, "gemini-2.5-flash"); // project layer added
+    assert.equal(config.subagents?.thinking?.name, "claude-opus");
+    assert.equal(config.subagents?.coding?.name, "gemini-2.5-flash");
+  } finally {
+    restore();
     await rm(dir, { recursive: true, force: true });
   }
 });
