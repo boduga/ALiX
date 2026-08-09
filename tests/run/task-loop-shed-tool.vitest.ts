@@ -326,7 +326,16 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
   // Task 9: §6 mechanism-only — contextRotThreshold UNSET by default.
   // No threshold → no `context.rot_risk` advisory. Default state is silent.
   it('does not emit context.rot_risk when no threshold is configured', async () => {
-    const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
+    // Redirect HOME to a temp dir so loadCalibration() reads a guaranteed-empty
+    // calibration.json — a developer's real ~/.alix/calibration.json with a
+    // configured contextRotThreshold would otherwise silently activate the
+    // advisory path and break this silent-state assertion. (Test 3 below uses
+    // the same isolation pattern.)
+    const tmpHome = makeTempDir('alix-rot-home-silent-');
+    const originalHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    try {
+      const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
     const providerTools = [coreTool];
 
     const provider = createMockProvider({
@@ -351,6 +360,10 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     // Default state emits nothing — no context.rot_risk without a configured threshold
     const rotRisk = events.find((e) => e.type === 'context.rot_risk');
     expect(rotRisk).toBeUndefined();
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+    }
   });
 
   // Task 9: §6 mechanism — when threshold is configured AND pressure exceeds it,
