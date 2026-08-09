@@ -65,6 +65,7 @@ const PROVIDER_ENV_MAP: Record<string, string> = {
   groq: "GROQ_API_KEY",
   perplexity: "PERPLEXITY_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  "minimax-token-plan": "MINIMAX_TOKEN_PLAN_KEY",
   zhipuai: "ZHIPUAI_API_KEY",
   grokai: "GROKAI_API_KEY",
   deepseek: "DEEPSEEK_API_KEY",

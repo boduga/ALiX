@@ -28,6 +28,7 @@ const PROVIDER_ENV_VARS: Record<string, string> = {
   ollama: "OLLAMA_API_KEY",
   perplexity: "PERPLEXITY_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  "minimax-token-plan": "MINIMAX_TOKEN_PLAN_KEY",
   zhipuai: "ZHIPUAI_API_KEY",
   grokai: "GROKAI_API_KEY",
 };
