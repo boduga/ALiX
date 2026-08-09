@@ -89,21 +89,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Parse a single SSE `data:` line into its JSON event, or null when the line
+ * carries nothing the tool accumulators should handle (keepalives, `[DONE]`,
+ * malformed JSON). Shared by the OpenAI and Anthropic argument accumulators so
+ * the dispatch prologue is not duplicated across both.
+ */
+function tryParseSseLine(line: string): any {
+  if (!line.startsWith("data: ")) return null;
+  const data = line.slice(6).trim();
+  if (data === "[DONE]") return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build the emitted tool_call chunk for a fully-accumulated tool call,
+ * hoisting a `summary` argument (when the model supplied one) to the call.
+ */
+function makeToolCallChunk(partial: PartialToolCall, args: Record<string, unknown>): StreamChunk {
+  const summary = extractSummary(args);
+  return {
+    type: "tool_call",
+    toolCall: { id: partial.id, name: partial.name, args, ...(summary ? { summary } : {}) },
+  };
+}
+
 function parseOpenAiToolDeltaLine(
   line: string,
   partialTools: Map<number, PartialToolCall>,
 ): { handled: boolean; chunks: StreamChunk[] } {
-  if (!line.startsWith("data: ")) return { handled: false, chunks: [] };
-
-  const data = line.slice(6).trim();
-  if (data === "[DONE]") return { handled: false, chunks: [] };
-
-  let event: any;
-  try {
-    event = JSON.parse(data);
-  } catch {
-    return { handled: false, chunks: [] };
-  }
+  const event = tryParseSseLine(line);
+  if (event == null) return { handled: false, chunks: [] };
 
   const toolDeltas = event?.choices?.[0]?.delta?.tool_calls;
   if (!Array.isArray(toolDeltas)) return { handled: false, chunks: [] };
@@ -158,7 +178,8 @@ function parseOpenAiToolDeltaLine(
  *   - content_block_delta (input_json_delta) → append partial_json
  *   - content_block_stop → JSON.parse the accumulated fragments and emit the
  *     tool call; preserve `{}` when no fragments arrived; emit a stream error
- *     (never a manufactured `{}`) when the accumulated JSON is malformed.
+ *     (never a manufactured `{}`) when the accumulated JSON is malformed or
+ *     parses to a non-object.
  *
  * Mirrors `parseOpenAiToolDeltaLine` (same orchestration layer, same
  * per-index accumulator) so the pure `spec.fromStreamChunk` stays stateless.
@@ -167,17 +188,8 @@ function parseAnthropicToolDeltaLine(
   line: string,
   partialTools: Map<number, PartialToolCall>,
 ): { handled: boolean; chunks: StreamChunk[] } {
-  if (!line.startsWith("data: ")) return { handled: false, chunks: [] };
-
-  const data = line.slice(6).trim();
-  if (data === "[DONE]") return { handled: false, chunks: [] };
-
-  let event: any;
-  try {
-    event = JSON.parse(data);
-  } catch {
-    return { handled: false, chunks: [] };
-  }
+  const event = tryParseSseLine(line);
+  if (event == null) return { handled: false, chunks: [] };
 
   if (typeof event?.type !== "string") return { handled: false, chunks: [] };
   const index = typeof event.index === "number" ? event.index : 0;
@@ -194,7 +206,8 @@ function parseAnthropicToolDeltaLine(
     const partial = partialTools.get(index);
     if (!partial) return { handled: false, chunks: [] };
     const raw = event.delta.partial_json;
-    partial.argsText += typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (typeof raw === "string") partial.argsText += raw;
+    else if (raw != null) partial.argsText += JSON.stringify(raw);
     return { handled: true, chunks: [] };
   }
 
@@ -203,24 +216,32 @@ function parseAnthropicToolDeltaLine(
     if (!partial) return { handled: false, chunks: [] };
     partialTools.delete(index);
 
+    // Mirror OpenAI: a tool call without id or name is unusable — drop it.
+    if (!partial.id || !partial.name) return { handled: true, chunks: [] };
+
     const raw = partial.argsText.trim();
     if (raw === "") {
       // No fragments streamed — legitimate empty-args tool call. Preserve
       // `{}` rather than inventing an error.
-      const summary = extractSummary({});
-      return {
-        handled: true,
-        chunks: [{
-          type: "tool_call",
-          toolCall: { id: partial.id, name: partial.name, args: {}, ...(summary ? { summary } : {}) },
-        }],
-      };
+      return { handled: true, chunks: [makeToolCallChunk(partial, {})] };
     }
 
     let args: Record<string, unknown>;
     try {
       const parsed = JSON.parse(raw) as unknown;
-      args = isRecord(parsed) ? parsed : {};
+      if (!isRecord(parsed)) {
+        // Well-formed JSON that is not a tool-args object (array, primitive,
+        // null) is a protocol violation, not empty args — surface it rather
+        // than manufacturing `{}`.
+        return {
+          handled: true,
+          chunks: [{
+            type: "error",
+            error: `Tool arguments for ${partial.name} must be a JSON object, got: ${raw.slice(0, 120)}`,
+          }],
+        };
+      }
+      args = parsed;
     } catch {
       return {
         handled: true,
@@ -231,14 +252,7 @@ function parseAnthropicToolDeltaLine(
       };
     }
 
-    const summary = extractSummary(args);
-    return {
-      handled: true,
-      chunks: [{
-        type: "tool_call",
-        toolCall: { id: partial.id, name: partial.name, args, ...(summary ? { summary } : {}) },
-      }],
-    };
+    return { handled: true, chunks: [makeToolCallChunk(partial, args)] };
   }
 
   return { handled: false, chunks: [] };

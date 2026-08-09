@@ -52,9 +52,12 @@ export const anthropicSpec: ProviderSpec = {
       if (obj.type === "content_block_delta" && obj.delta?.type === "text_delta") {
         return { type: "text_delta", text: obj.delta.text };
       }
-      if (obj.type === "content_block_start" && obj.content_block?.type === "tool_use") {
-        return { type: "tool_call", toolCall: { id: obj.content_block.id, name: obj.content_block.name, args: obj.content_block.input } };
-      }
+      // NOTE: streamed tool_use is NOT emitted here. `content_block_start`
+      // carries only `input: {}` (arguments arrive later as input_json_delta
+      // fragments) — emitting it would yield an empty-args tool call. The
+      // orchestration-layer accumulator in unified-complete.ts
+      // (parseAnthropicToolDeltaLine) intercepts tool_use starts before this
+      // parser is reached and reconstructs args from the fragments.
       if (obj.type === "message_stop") return { type: "done" };
       if (obj.type === "message_delta" && obj.usage) {
         return { type: "usage", usage: { inputTokens: obj.usage.input_tokens, outputTokens: obj.usage.output_tokens } };
