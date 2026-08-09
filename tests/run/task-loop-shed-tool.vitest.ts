@@ -336,30 +336,30 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     process.env.HOME = tmpHome;
     try {
       const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
-    const providerTools = [coreTool];
+      const providerTools = [coreTool];
 
-    const provider = createMockProvider({
-      toolCalls0: [],
-      responseText1: 'done. Task completed.',
-    });
+      const provider = createMockProvider({
+        toolCalls0: [],
+        responseText1: 'done. Task completed.',
+      });
 
-    const task = 'simple task';
-    const message: NormalizedMessage = { role: 'user', content: task };
+      const task = 'simple task';
+      const message: NormalizedMessage = { role: 'user', content: task };
 
-    const { deps, log } = await makeTestDeps({
-      provider,
-      task,
-      providerTools,
-      messages: [message],
-      maxIterations: 2,
-    });
+      const { deps, log } = await makeTestDeps({
+        provider,
+        task,
+        providerTools,
+        messages: [message],
+        maxIterations: 2,
+      });
 
-    await runTaskLoop(deps);
-    const events = await log.readAll();
+      await runTaskLoop(deps);
+      const events = await log.readAll();
 
-    // Default state emits nothing — no context.rot_risk without a configured threshold
-    const rotRisk = events.find((e) => e.type === 'context.rot_risk');
-    expect(rotRisk).toBeUndefined();
+      // Default state emits nothing — no context.rot_risk without a configured threshold
+      const rotRisk = events.find((e) => e.type === 'context.rot_risk');
+      expect(rotRisk).toBeUndefined();
     } finally {
       if (originalHome === undefined) delete process.env.HOME;
       else process.env.HOME = originalHome;
