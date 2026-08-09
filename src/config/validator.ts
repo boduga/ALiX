@@ -8,9 +8,16 @@ export function isLoopbackHost(host: string): boolean {
 export function validateConfig(config: AlixConfig): ConfigValidationResult {
   const issues: ValidationIssue[] = [];
 
-  // model.name must be a non-empty string
-  if (!config.model.name || typeof config.model.name !== "string") {
-    issues.push({ path: "model.name", level: "error", message: "model.name must be a non-empty string" });
+  // models.default is the canonical persisted source; `model` is a loader-derived
+  // projection that may be absent (e.g. an invalid-but-present default). Validate
+  // the canonical entry so requireModel:false loads (models doctor/fit/list) can
+  // surface diagnostics without crashing on an absent projection. A config with
+  // NO `models` key at all (pre-migration) is left to the loader's requireModel
+  // check rather than flagged here — only an explicitly-present-but-invalid
+  // models.default is a validation error.
+  const defaultModel = config.models?.default;
+  if (config.models && (!defaultModel?.name || typeof defaultModel.name !== "string")) {
+    issues.push({ path: "models.default.name", level: "error", message: "models.default.name must be a non-empty string" });
   }
 
   // ui.port must be 1024-65535

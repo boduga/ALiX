@@ -36,6 +36,7 @@ function makeTestConfig(overrides: Partial<AlixConfig> = {}): AlixConfig {
   return {
     ...DEFAULT_CONFIG,
     model: { provider: "test", name: "test-model", temperature: 0.5 },
+    models: { default: { provider: "test", name: "test-model" } },
     ...overrides,
   };
 }
@@ -311,9 +312,9 @@ test("ConfigMutationService: detects concurrent mutations", async () => {
 test("ConfigMutationService: rejects mutation producing invalid config", async () => {
   const { service, dir } = await setupService();
   try {
-    // Setting model.name to empty string would be invalid
+    // Setting models.default.name to empty string would be invalid
     await assert.rejects(
-      () => service.set("model.name", ""),
+      () => service.set("models.default.name", ""),
       (err: any) => err.code === MUTATION_ERROR_CODES.INVALID_RESULT,
     );
   } finally {

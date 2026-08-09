@@ -84,11 +84,13 @@ test("init with Ollama fallback and no installed models writes no model at all",
       const configPath = join(dir, ".alix", "config.json");
       assert.ok(existsSync(configPath), ".alix/config.json should exist");
       const content = JSON.parse(await readFileAsync(configPath, "utf8"));
-      assert.ok(content.model, "config should have model field");
-      // If Ollama is installed with models, model.name is set; if not, model is {}
-      // The invariant: model.name must never be an empty string
-      if (content.model.name !== undefined) {
-        assert.notEqual(content.model.name, "", "model.name must not be an empty string");
+      // Canonical persistence: init writes models.default, never the model projection.
+      assert.ok(content.models?.default, "config should have models.default");
+      assert.equal(content.model, undefined, "model projection must not be persisted");
+      // If Ollama is installed with models, models.default.name is set; if not, it is {}
+      // The invariant: models.default.name must never be an empty string
+      if (content.models.default.name !== undefined) {
+        assert.notEqual(content.models.default.name, "", "models.default.name must not be an empty string");
       }
     });
   });
@@ -213,11 +215,12 @@ test("end-to-end: init then doctor then fit then install-profile --dry-run", { t
       const { runInit } = await import("../../src/cli/commands/init.js");
       await runInit(dir);
 
-      // Verify config is valid (model.name not empty if set)
+      // Verify config is valid (models.default.name not empty if set)
       const configPath = join(dir, ".alix", "config.json");
       const config = JSON.parse(await readFileAsync(configPath, "utf8"));
-      if (config.model.name !== undefined) {
-        assert.notEqual(config.model.name, "", "model.name must not be empty after init");
+      assert.ok(config.models?.default, "models.default must exist after init");
+      if (config.models.default.name !== undefined) {
+        assert.notEqual(config.models.default.name, "", "models.default.name must not be empty after init");
       }
 
       // Step 2-4: doctor, fit, apply-profile (scoped cwd so handlers read fresh fixture)

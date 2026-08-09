@@ -1220,11 +1220,7 @@ export class AgentSessionBuilder {
       try {
         result = await runTaskLoop({
           config: {
-            model: {
-              provider: ctx.config.model.provider,
-              name: ctx.config.model.name,
-              streaming: ctx.config.model.streaming ?? false,
-            },
+            // Canonical `models` only — the loop resolves via resolveModelConfig.
             models: ctx.config.models,
             permissions: {
               sessionMode: ctx.config.permissions.sessionMode,

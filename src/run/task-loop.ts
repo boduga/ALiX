@@ -326,12 +326,14 @@ const RESEARCH_LIMITS = {
 
 export interface TaskLoopDeps {
   config: {
-model: {
-  provider: string;
-  name: string;
-  streaming: boolean;
-};
-models?: ModelsConfig;
+    // `model` is vestigial — the loop resolves the effective model from the
+    // canonical `models` source only (§10). Optional for stale callers.
+    model?: {
+      provider: string;
+      name: string;
+      streaming: boolean;
+    };
+    models?: ModelsConfig;
 permissions: {
   sessionMode?: "auto" | "ask" | "bypass";
 };

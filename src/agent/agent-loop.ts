@@ -4,6 +4,7 @@ import { buildToolsForProvider, buildContextBundleEventPayload, renderContextBun
 import type { StreamHandler } from "./stream.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -335,22 +336,23 @@ ${approvedPlanContent}`);
   // Build task loop deps
   // Build execution context for diagnostic correlation
   const runId = `run-${randomUUID().slice(0, 8)}`;
+  // Resolve the effective model from the canonical `models` source (single-source
+  // invariant) — `model` is a loader projection and is never read directly.
+  const resolvedModel = resolveModelConfig(ctx.config);
   const taskContext: ExecutionContext = {
     runId,
     sessionId: ctx.sessionId,
     workflowId: wfRun.id,
-    providerId: ctx.config.model.provider,
-    model: ctx.config.model.name,
+    providerId: resolvedModel.provider,
+    model: resolvedModel.name,
     parentRunId: opts?.parentRunId,
   };
 
   const taskLoopDeps: TaskLoopDeps = {
     config: {
-      model: {
-        provider: ctx.config.model.provider,
-        name: ctx.config.model.name,
-        streaming: ctx.config.model.streaming ?? false,
-      },
+      // Forward the canonical models object so the loop resolves via
+      // resolveModelConfig(models[tier] ?? models.default), not the projection.
+      models: ctx.config.models,
       permissions: {
         sessionMode: ctx.config.permissions.sessionMode,
       },
