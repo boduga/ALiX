@@ -205,9 +205,10 @@ if (command === "graph" && args[0] === "plan") {
   await planLog.init();
 
   const wfRun = createWorkflowRun(sessionId, task);
+  const resolved = resolveModelConfig(config);
   const planner = new GraphPlanner({
-    modelName: config.model.name,
-    modelEndpoint: config.model.provider === "ollama"
+    modelName: resolved.name,
+    modelEndpoint: resolved.provider === "ollama"
       ? "http://localhost:11434/api/generate"
       : undefined,
   });

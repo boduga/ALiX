@@ -326,13 +326,8 @@ const RESEARCH_LIMITS = {
 
 export interface TaskLoopDeps {
   config: {
-    // `model` is vestigial — the loop resolves the effective model from the
-    // canonical `models` source only (§10). Optional for stale callers.
-    model?: {
-      provider: string;
-      name: string;
-      streaming: boolean;
-    };
+    // The loop resolves the effective model from the canonical `models`
+    // source only (§10) — no `model` projection is forwarded.
     models?: ModelsConfig;
 permissions: {
   sessionMode?: "auto" | "ask" | "bypass";

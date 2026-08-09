@@ -32,10 +32,15 @@ const fixture: AlixConfig = {
 
 // --- §4.1 Strip helper: projections removed, persisted fields survive ---
 
-test("withoutDerivedModelProjections strips model and subagents", () => {
+test("withoutDerivedModelProjections strips model and the subagent tier projections", () => {
   const persisted = withoutDerivedModelProjections(fixture);
   assert.equal("model" in persisted, false);
-  assert.equal("subagents" in persisted, false);
+  // The six model-tier keys never persist; `enabled`/`roles` are behavior
+  // config (§2.8.1) and survive when they differ from the defaults. The
+  // fixture's `roles: [{worker}]` is non-default, so it is preserved; the
+  // derived `coding` key is dropped.
+  assert.deepEqual(persisted.subagents, { roles: fixture.subagents?.roles });
+  assert.equal((persisted.subagents as any)?.coding, undefined);
 });
 
 test("withoutDerivedModelProjections preserves models (canonical source)", () => {
@@ -102,7 +107,7 @@ test("writeConfig writes a branded persisted config successfully", async () => {
   }
 });
 
-test("disk contains no top-level model/subagents, no brand property", async () => {
+test("disk contains no top-level model projection or tier keys, no brand property", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-persist-"));
   const configPath = join(dir, "config.json");
   try {
@@ -110,14 +115,35 @@ test("disk contains no top-level model/subagents, no brand property", async () =
     await writeConfig(persisted, configPath);
     const raw = await readFile(configPath, "utf8");
     const parsed = JSON.parse(raw);
-    // Top-level derived projections must not be persisted. (Nested keys like
-    // `factory.model` in DEFAULT_CONFIG are unrelated and legitimately survive.)
+    // Top-level `model` and the six subagent tier projections must not be
+    // persisted. (Nested keys like `factory.model` in DEFAULT_CONFIG are
+    // unrelated and legitimately survive.) Behavior config (`roles`) survives.
     assert.equal("model" in parsed, false);
-    assert.equal("subagents" in parsed, false);
+    assert.deepEqual(parsed.subagents, { roles: fixture.subagents?.roles });
+    assert.equal(parsed.subagents?.coding, undefined);
     assert.equal(raw.includes("persistedConfigBrand"), false);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("default behavior config persists no subagents at all", () => {
+  // enabled:true + DEFAULT roles match the loader defaults — nothing differs,
+  // so nothing is persisted (§2.8.1: defaults are implied by the loader).
+  const defaultBehavior: AlixConfig = {
+    ...fixture,
+    subagents: { enabled: true, roles: DEFAULT_CONFIG.subagents!.roles },
+  };
+  const persisted = withoutDerivedModelProjections(defaultBehavior);
+  assert.equal("subagents" in persisted, false);
+});
+
+test("non-default enabled/roles survive persistence", () => {
+  const disabled = withoutDerivedModelProjections({
+    ...fixture,
+    subagents: { ...fixture.subagents!, enabled: false, roles: [] },
+  });
+  assert.deepEqual(disabled.subagents, { enabled: false, roles: [] });
 });
 
 test("writeConfig refuses a raw AlixConfig (compile-time)", async () => {

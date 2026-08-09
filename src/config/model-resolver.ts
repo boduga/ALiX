@@ -1,6 +1,10 @@
 import type { AlixConfig, ModelConfig, ModelTier } from "./schema.js";
 import { isValidModelConfig } from "./schema.js";
 
+/** Canonical "no model configured" guidance — shared with the loader's richer message. */
+export const NO_MODEL_CONFIGURED_MESSAGE =
+  "No model configured. Run: alix models set-default";
+
 /**
  * Pure model resolver — the single reader runtime code uses to pick a model.
  *
@@ -34,5 +38,5 @@ export function resolveModelConfig(
   if (isValidModelConfig(source)) {
     return { ...source };
   }
-  throw new Error("No model configured. Run: alix models set-default");
+  throw new Error(NO_MODEL_CONFIGURED_MESSAGE);
 }

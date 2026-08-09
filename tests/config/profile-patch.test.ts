@@ -94,10 +94,14 @@ describe("applyProfilePatch (§5.3–§5.4)", () => {
     const r = applyProfilePatch(cfg, buildProfilePatch(makeProfile()));
     assert.equal(r.runtime?.commandTimeoutMs, 90000); // existing runtime survives untouched
   });
-  it("strips stale model and subagents projections", () => {
+  it("strips stale model and subagent tier projections, keeps behavior config", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
     assert.equal("model" in r, false);
-    assert.equal("subagents" in r, false);
+    // The `coding` tier key is a loader-derived projection and is dropped;
+    // `roles: []` is behavior config (§2.8.1) and survives. `enabled: true`
+    // matches the default and is not persisted.
+    assert.deepEqual(r.subagents, { roles: [] });
+    assert.equal((r.subagents as any)?.coding, undefined);
   });
   it("keeps unrelated existing tiers that the patch does not specify", () => {
     const cfg = makeMinimalConfig();

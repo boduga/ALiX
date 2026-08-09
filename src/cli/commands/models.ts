@@ -122,24 +122,27 @@ export async function handleModelsInstall(args: string[]): Promise<void> {
 export async function handleModelsResolve(args: string[]): Promise<void> {
   const { loadConfig } = await import("../../config/loader.js");
   const { getProfile } = await import("../../config/profile-registry.js");
+  const { PROFILE_TIER_MAP } = await import("../../config/profile-types.js");
   const role = args.find(a => !a.startsWith("--"));
   const profileId = args.indexOf("--profile") >= 0 ? args[args.indexOf("--profile") + 1] : undefined;
   const config = await loadConfig(process.cwd());
   const activeProfileId = profileId || config.modelProfile;
   const profile = activeProfileId ? getProfile(activeProfileId) : undefined;
-  const tierMap: Record<string, string> = { coder: "coding", planner: "thinking", critic: "critic", researcher: "fast", embeddings: "tiny", default: "default" };
+  // Canonical resolution: read `models.<tier>` (§2.3 — subagent projections
+  // never participate in resolution). PROFILE_TIER_MAP is the single
+  // profile-vocabulary → canonical-tier mapping (§5.2) — no local tier map.
+  const modelFor = (vocabKey: string): { provider?: string; name?: string } | undefined => {
+    const tier = PROFILE_TIER_MAP[vocabKey as keyof typeof PROFILE_TIER_MAP] ?? vocabKey;
+    return (config.models as Record<string, { provider?: string; name?: string }> | undefined)?.[tier];
+  };
   if (role) {
-    const key = tierMap[role] || role;
-    const st = (config as any).subagents?.[key];
-    const mt = (config as any).models?.[role];
-    console.log(`Role: ${role}\nProvider: ${st?.provider || mt?.provider || "unknown"}\nModel: ${st?.name || mt?.name || "unknown"}`);
+    const m = modelFor(role);
+    console.log(`Role: ${role}\nProvider: ${m?.provider || "unknown"}\nModel: ${m?.name || "unknown"}`);
     if (activeProfileId) console.log(`Source: profile ${activeProfileId}`);
   } else {
     for (const t of ["default","planner","coder","critic","researcher","embeddings"]) {
-      const k = tierMap[t] || t;
-      const s = (config as any).subagents?.[k];
-      const m = (config as any).models?.[t];
-      console.log(`${t.padEnd(12)} ${s?.provider || m?.provider || "default"}/${s?.name || m?.name || "default"}${profile ? ` (from ${profile.id})` : ""}`);
+      const m = modelFor(t);
+      console.log(`${t.padEnd(12)} ${m?.provider || "default"}/${m?.name || "default"}${profile ? ` (from ${profile.id})` : ""}`);
     }
   }
 }
@@ -174,6 +177,11 @@ export async function persistModelSelection(
   const configPath = existsSync(join(cwd, ".git")) ? projectConfigPath : userConfigPath;
   const configDir = configPath === projectConfigPath ? projectConfigDir(cwd) : userConfigDir;
 
+  // The on-disk file is a partial overlay (may lack defaulted sections), not a
+  // full runtime AlixConfig — hence the cast. `withoutDerivedModelProjections`
+  // only reads the fields it strips plus the canonical `models`, and preserves
+  // `subagents.enabled`/`roles` behavior config (§2.8.1), so a raw partial is
+  // a safe input and the cast stays isolated to this writer.
   let existing: Record<string, unknown> = {};
   try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
 
@@ -193,12 +201,14 @@ export async function persistModelSelection(
  * vocabulary (§8.2). Returns undefined for anything outside
  * MODEL_SUBAGENT_TIERS — including "default" (owned by set-default) and
  * profile vocabulary (coder/planner/…) or arbitrary strings.
+ *
+ * `MODEL_SUBAGENT_TIERS` is exactly `MODEL_TIER_VALUES` minus "default", so a
+ * single `isModelTier` membership check plus the default exclusion is
+ * equivalent to a second `includes()` lookup.
  */
 export function resolveTierArg(name: string | undefined): (typeof MODEL_SUBAGENT_TIERS)[number] | undefined {
-  if (!name || !isModelTier(name)) return undefined;
-  return (MODEL_SUBAGENT_TIERS as readonly string[]).includes(name)
-    ? (name as (typeof MODEL_SUBAGENT_TIERS)[number])
-    : undefined;
+  if (!name || !isModelTier(name) || name === "default") return undefined;
+  return name as (typeof MODEL_SUBAGENT_TIERS)[number];
 }
 
 /** Shared interactive flow: pick a provider (with API key) then a model. */

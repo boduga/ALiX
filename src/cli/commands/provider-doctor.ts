@@ -7,6 +7,7 @@
  */
 
 import { loadConfig } from "../../config/loader.js";
+import { resolveModelConfig } from "../../config/model-resolver.js";
 
 export async function handleProviderDoctor(args: string[]): Promise<void> {
   const config = await loadConfig(process.cwd());
@@ -16,11 +17,11 @@ export async function handleProviderDoctor(args: string[]): Promise<void> {
   const { PROVIDER_KEY_ENV } = await import("../../providers/unified-complete.js");
   const { checkProvider } = await import("../../providers/provider-doctor.js");
 
-  // Gather configured providers
+  // Gather configured providers — the effective default comes from the
+  // canonical `models` source (§10), never the loader projection.
   const providers: { id: string; model: string }[] = [];
-  const mainProvider = config.model.provider;
-  const mainModel = config.model.name;
-  providers.push({ id: mainProvider, model: mainModel });
+  const main = resolveModelConfig(config);
+  providers.push({ id: main.provider, model: main.name });
 
   if ((config as any).models) {
     for (const [role, m] of Object.entries((config as any).models)) {

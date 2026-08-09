@@ -336,13 +336,29 @@ export type AlixConfig = {
 declare const persistedConfigBrand: unique symbol;
 
 /**
+ * The only `subagents` content that may reach disk.
+ *
+ * §2.8.1/§2.8.4: `subagents` is a valid container of non-model subagent
+ * *behavior* configuration — `enabled`/`roles` are preserved, never replaced —
+ * but the six `<tier>` keys are loader-derived model-selection projections and
+ * must never be independently written.
+ */
+export type PersistedSubagentConfig = {
+  enabled?: boolean;
+  roles?: SubagentRoleConfig[];
+};
+
+/**
  * Persisted configuration representation.
  *
- * `model` and `subagents` (loader-derived compatibility projections) are
- * stripped; `models` is the single persistent source of model assignments.
+ * `model` and the six `subagents.<tier>` keys (loader-derived compatibility
+ * projections) are stripped; `models` is the single persistent source of model
+ * assignments. `subagents.enabled`/`roles` are behavior config and may persist.
  */
 export interface PersistedAlixConfig
   extends Omit<AlixConfig, "model" | "subagents"> {
+  /** Behavior config only (enabled/roles); model-tier projections never persist. */
+  subagents?: PersistedSubagentConfig;
   readonly [persistedConfigBrand]: true;
 }
 

@@ -515,7 +515,7 @@ test("ConfigMutationService: rejects config set model.*", async () => {
   }
 });
 
-test("ConfigMutationService: rejects config set subagents.*", async () => {
+test("ConfigMutationService: rejects config set subagents.<tier>.* (canonical + legacy vocab)", async () => {
   const { service, dir } = await setupService();
   try {
     await assert.rejects(
@@ -523,9 +523,32 @@ test("ConfigMutationService: rejects config set subagents.*", async () => {
       (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
     );
     await assert.rejects(
+      () => service.set("subagents.coding.provider", "anthropic"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // Whole-object set would clobber model-selection projections.
+    await assert.rejects(
       () => service.set("subagents", { enabled: false }),
       (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
     );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: allows subagents.enabled/roles (behavior config, §2.8.1)", async () => {
+  const { service, configDir, dir } = await setupService();
+  try {
+    const mutation = await service.set("subagents.enabled", false);
+    assert.equal(mutation.op, "set");
+    assert.equal(mutation.value, false);
+
+    const configPath = join(configDir, "config.json");
+    const onDisk = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
+    assert.equal((onDisk.subagents as any)?.enabled, false);
+
+    const del = await service.delete("subagents.enabled");
+    assert.equal(del.op, "delete");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

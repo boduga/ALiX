@@ -36,7 +36,11 @@ test("§12.1 profile application strips stale model/subagents, keeps models+mode
   const profile = getProfile("balanced-local")!;
   const persisted = applyProfilePatch(stale, buildProfilePatch(profile));
   assert.equal("model" in persisted, false, NO_PROJECTION);
-  assert.equal("subagents" in persisted, false, NO_PROJECTION);
+  // The `coding` tier key is a projection and is dropped; the behavior config
+  // `roles: []` differs from the default and survives (§2.8.1). `enabled: true`
+  // matches the default and is not persisted.
+  assert.deepEqual(persisted.subagents, { roles: [] });
+  assert.equal((persisted.subagents as any)?.coding, undefined, "tier projection dropped");
   assert.ok(persisted.models, "models retained");
   assert.equal(persisted.modelProfile, "balanced-local", "modelProfile retained");
 });
@@ -54,6 +58,27 @@ test("§12.2 set-default writes models.default with no projections", async () =>
     assert.ok(saved.models?.default, "models.default written");
     assert.equal(saved.model, undefined, NO_PROJECTION);
     assert.equal(saved.subagents, undefined, NO_PROJECTION);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("§12.2 set-default preserves subagent behavior config (regression: enabled/roles no longer wiped)", async () => {
+  const { dir, projectConfigPath, cleanup } = await withProjectDir();
+  try {
+    await mkdir(join(dir, ".git"), { recursive: true });
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    // A project whose subagents are disabled (behavior config, §2.8.1) — must
+    // survive a canonical model write.
+    await writeFile(projectConfigPath, JSON.stringify({
+      models: { default: { provider: "openai", name: "gpt-4o" } },
+      subagents: { enabled: false },
+    }));
+    await persistModelSelection(dir, "coding", { provider: "anthropic", name: "claude-3-5-sonnet" });
+    const saved = JSON.parse(await readFile(projectConfigPath, "utf8"));
+    assert.equal(saved.subagents.enabled, false, "behavior config preserved");
+    assert.equal(saved.models.coding.name, "claude-3-5-sonnet");
+    assert.equal(saved.model, undefined, NO_PROJECTION);
   } finally {
     await cleanup();
   }

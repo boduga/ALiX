@@ -195,19 +195,38 @@ function resolveDotPath(
  * mutation rooted at them, directing the user to the canonical `alix models`
  * commands. Unrelated configuration paths are unaffected.
  */
-const MODEL_PROJECTION_ROOTS = new Set(["model", "subagents"]);
+/**
+ * Model-selection keys that may appear as a `subagents.*` path and must be
+ * rejected: the six canonical subagent tiers plus the legacy role vocabulary
+ * (`coder`, `planner`, …) that maps onto them. `enabled`/`roles` are behavior
+ * config (§2.8.1/§2.8.4), not model selection, and remain mutable.
+ */
+const SUBAGENT_TIER_KEYS = new Set([
+  "thinking", "coding", "fast", "critic", "tiny", "image",
+  "coder", "planner", "researcher", "embeddings", "classifier",
+]);
 
 function assertMutableModelPath(path: string): void {
-  const root = path.split(".")[0];
-  if (MODEL_PROJECTION_ROOTS.has(root)) {
-    throw Object.assign(
-      new Error(
-        `Cannot modify "${path}": model selection is managed by the canonical 'models' object. ` +
-        `Use 'alix models set-default' or 'alix models set-tier' instead.`,
-      ),
-      { code: MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED },
-    );
+  const [root, second] = path.split(".");
+  if (root === "model") {
+    throw projectionRejected(path);
   }
+  // `subagents` root (whole-object set / delete) and any model-tier key under
+  // it are model-selection projections. `subagents.enabled`/`subagents.roles`
+  // are behavior config and pass through.
+  if (root === "subagents" && (second === undefined || SUBAGENT_TIER_KEYS.has(second))) {
+    throw projectionRejected(path);
+  }
+}
+
+function projectionRejected(path: string): Error {
+  return Object.assign(
+    new Error(
+      `Cannot modify "${path}": model selection is managed by the canonical 'models' object. ` +
+      `Use 'alix models set-default' or 'alix models set-tier' instead.`,
+    ),
+    { code: MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED },
+  );
 }
 
 // ---------------------------------------------------------------------------

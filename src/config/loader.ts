@@ -3,8 +3,9 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
+import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { isValidModelConfig, MODEL_SUBAGENT_TIERS } from "./schema.js";
+import { NO_MODEL_CONFIGURED_MESSAGE } from "./model-resolver.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
 import { chooseBackend, loadCredentialStoreWithKeychainFallback } from "../security/credentials/backend-selection.js";
@@ -49,7 +50,7 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // §5.4 + §2.8.1 Projection — derive only the six canonical subagent tiers,
   // preserving `enabled`/`roles` behavior config and dropping stale keys.
   const existing = config.subagents;
-  const projectedTiers: Record<string, ModelConfig> = {};
+  const projectedTiers: DerivedSubagentConfig = {};
   let anyResolved = false;
   for (const tier of MODEL_SUBAGENT_TIERS) {
     const source = config.models?.[tier] ?? config.models?.default;
@@ -269,7 +270,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   // Validate that a model is configured — no hardcoded defaults
   if (options.requireModel !== false && (!result.model?.provider || !result.model?.name)) {
     throw new Error(
-      "No model configured. Run: alix models set-default\n" +
+      `${NO_MODEL_CONFIGURED_MESSAGE}\n` +
       "Example: alix models set-default deepseek deepseek-v4-flash\n" +
       "Or run: alix models doctor"
     );
@@ -378,9 +379,7 @@ export function mergeConfig(
     // Apply config-file modelTiers overrides to the canonical `models` object
     // (authoritative) instead of the subagents projection (§2.8.2). This runs
     // inside the override loop so config precedence works (later configs win).
-    const modelTiers = (override as any).modelTiers as
-      | Partial<Record<Exclude<ModelTier, "default">, Partial<ModelTierConfig>>>
-      | undefined;
+    const modelTiers = override.modelTiers;
     if (modelTiers) {
       for (const tier of MODEL_SUBAGENT_TIERS) {
         const tierOverride = modelTiers[tier];

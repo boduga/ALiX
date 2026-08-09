@@ -152,7 +152,7 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
 	await ensureEncoder(tokenizer);
   const taskType = classifyTask(task);
   const depth = detectResearchDepth(task);
-  const maxIterations = ctx.config.model.maxIterations ?? 10;
+  const maxIterations = resolved.maxIterations ?? 10;
 
   // Shell tasks (bare commands like ls, cat) cap at 2 iterations
   const shellTask = isShellTask(task);
