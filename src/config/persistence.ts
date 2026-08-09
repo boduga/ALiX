@@ -4,7 +4,32 @@ import type {
   AlixConfig,
   PersistedAlixConfig,
   PersistedSubagentConfig,
+  SubagentRoleConfig,
 } from "./schema.js";
+
+/**
+ * Field-wise role comparison. `JSON.stringify` is property-order-sensitive and
+ * would spuriously treat two semantically-identical role lists as different.
+ */
+function rolesEqual(a: SubagentRoleConfig[] | undefined, b: SubagentRoleConfig[] | undefined): boolean {
+  const arrA = a ?? [];
+  const arrB = b ?? [];
+  if (arrA.length !== arrB.length) return false;
+  for (let i = 0; i < arrA.length; i++) {
+    const x = arrA[i]!;
+    const y = arrB[i]!;
+    if (
+      x.role !== y.role ||
+      x.mode !== y.mode ||
+      x.style !== y.style ||
+      x.retryCount !== y.retryCount ||
+      x.enabled !== y.enabled
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * Strip the loader-derived compatibility projections (`model`, and the six
@@ -48,7 +73,7 @@ export function withoutDerivedModelProjections(
     }
     if (
       subagents.roles !== undefined &&
-      JSON.stringify(subagents.roles) !== JSON.stringify(def?.roles ?? [])
+      !rolesEqual(subagents.roles, def?.roles)
     ) {
       behavior.roles = subagents.roles;
     }

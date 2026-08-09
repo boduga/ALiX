@@ -1429,6 +1429,8 @@ subagents
 subagents.<tier>
 ```
 
+> **Resolution (2026-08-09, review follow-up `c6fd0480`+):** `subagents.enabled` / `subagents.roles` are NOT rejected. Per §2.8.1/§2.8.4 they are behavior/configuration state ("preserved, never replaced"), not model-selection projections, so they remain mutable. The guard rejects `model.*`, the whole-`subagents` object, and every `subagents.<key>` except exactly `enabled`/`roles` — implemented as a literal allowlist, so it also catches unknown keys like `subagents.default` that `normalizeModelConfig` would silently drop. This narrows test #2 below ("config set subagents.* is rejected") to model-tier keys only.
+
 The guard must apply to both "config set" and "config delete".
 
 The rejection should provide actionable guidance directing users to the canonical "alix models" commands.

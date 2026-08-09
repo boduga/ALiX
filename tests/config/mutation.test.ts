@@ -531,6 +531,47 @@ test("ConfigMutationService: rejects config set subagents.<tier>.* (canonical + 
       () => service.set("subagents", { enabled: false }),
       (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
     );
+    // Unknown subagent keys (subagents.default, arbitrary) are projections too
+    // — normalizeModelConfig would silently drop them on reload.
+    await assert.rejects(
+      () => service.set("subagents.default.provider", "anthropic"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.set("subagents.bogus", { provider: "x", name: "y" }),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: unrelated set strips stale model/subagent-tier projections from disk", async () => {
+  // Regression (§4.1/Task 11): a legacy config with `model` + `subagents.coding`
+  // on disk must not keep those projections after any mutation write — the
+  // write crosses withoutDerivedModelProjections.
+  const { dir } = await setupService();
+  const configDir = join(dir, ".alix", "config");
+  const configPath = join(configDir, "config.json");
+  // Overwrite the fixture with a stale legacy config.
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      model: { provider: "ollama", name: "legacy" },
+      subagents: { enabled: false, coding: { provider: "ollama", name: "old-coding" } },
+      permissions: { default: "ask" },
+    }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+  const service = new ConfigMutationService(configDir);
+  try {
+    await service.set("permissions.default", "allow");
+    const onDisk = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
+    assert.equal("model" in onDisk, false, "stale model projection cleaned");
+    assert.equal((onDisk.subagents as any)?.coding, undefined, "stale tier projection cleaned");
+    // Behavior config survives.
+    assert.equal((onDisk.subagents as any)?.enabled, false);
+    assert.equal((onDisk.permissions as any)?.default, "allow");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

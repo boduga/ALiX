@@ -133,7 +133,9 @@ export async function handleModelsResolve(args: string[]): Promise<void> {
   // profile-vocabulary → canonical-tier mapping (§5.2) — no local tier map.
   const modelFor = (vocabKey: string): { provider?: string; name?: string } | undefined => {
     const tier = PROFILE_TIER_MAP[vocabKey as keyof typeof PROFILE_TIER_MAP] ?? vocabKey;
-    return (config.models as Record<string, { provider?: string; name?: string }> | undefined)?.[tier];
+    const models = config.models as Record<string, { provider?: string; name?: string }> | undefined;
+    // §3.1: models[tier] ?? models.default — a missing tier falls back to default.
+    return models?.[tier] ?? models?.default;
   };
   if (role) {
     const m = modelFor(role);
