@@ -15,6 +15,22 @@ import assert from "node:assert/strict";
 import { stream, complete, _setFetchForTesting } from "../../src/providers/unified-complete.js";
 import type { StreamChunk, ToolCall, ToolDef } from "../../src/providers/types.js";
 
+// ── SSE fixture builders ────────────────────────────────────────────────
+// Anthropic SSE events, JSON-escaped through JSON.stringify so fixtures read
+// at their logical level instead of carrying backslash soup.
+
+const toolUseStart = (index: number, id: string, name: string) =>
+  `data: ${JSON.stringify({ type: "content_block_start", index, content_block: { type: "tool_use", id, name, input: {} } })}`;
+const inputDelta = (index: number, json: string) =>
+  `data: ${JSON.stringify({ type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: json } })}`;
+const blockStop = (index: number) =>
+  `data: ${JSON.stringify({ type: "content_block_stop", index })}`;
+const textStart = (index: number) =>
+  `data: ${JSON.stringify({ type: "content_block_start", index, content_block: { type: "text", text: "" } })}`;
+const textDelta = (index: number, text: string) =>
+  `data: ${JSON.stringify({ type: "content_block_delta", index, delta: { type: "text_delta", text } })}`;
+const messageStop = () => `data: ${JSON.stringify({ type: "message_stop" })}`;
+
 // ── SSE mock helpers ─────────────────────────────────────────────────────
 
 function sseResponse(lines: string[]): Response {
@@ -65,10 +81,10 @@ const toolCallsOf = (chunks: StreamChunk[]): ToolCall[] =>
 
 test("single streamed Anthropic tool call reconstructs args", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"alix_shell_run","input":{}}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":\\"which llama-cli\\"}"}}',
-    'data: {"type":"content_block_stop","index":1}',
-    'data: {"type":"message_stop"}',
+    toolUseStart(1, "call_1", "alix_shell_run"),
+    inputDelta(1, '{"command":"which llama-cli"}'),
+    blockStop(1),
+    messageStop(),
   ]);
 
   const calls = toolCallsOf(chunks);
@@ -80,11 +96,11 @@ test("single streamed Anthropic tool call reconstructs args", async () => {
 
 test("JSON arguments split across arbitrary partial_json boundaries", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"alix_shell_run","input":{}}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"comm"}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"and\\":\\"echo h"}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"ello\\"}"}}',
-    'data: {"type":"content_block_stop","index":1}',
+    toolUseStart(1, "call_1", "alix_shell_run"),
+    inputDelta(1, '{"comm'),
+    inputDelta(1, 'and":"echo h'),
+    inputDelta(1, 'ello"}'),
+    blockStop(1),
   ]);
 
   const calls = toolCallsOf(chunks);
@@ -94,13 +110,13 @@ test("JSON arguments split across arbitrary partial_json boundaries", async () =
 
 test("multiple tool calls in one response are keyed by content-block index", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_a","name":"alix_file_read","input":{}}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\":\\"a.txt\\"}"}}',
-    'data: {"type":"content_block_stop","index":1}',
-    'data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"call_b","name":"alix_shell_run","input":{}}}',
-    'data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":\\"ls -la\\"}"}}',
-    'data: {"type":"content_block_stop","index":2}',
-    'data: {"type":"message_stop"}',
+    toolUseStart(1, "call_a", "alix_file_read"),
+    inputDelta(1, '{"path":"a.txt"}'),
+    blockStop(1),
+    toolUseStart(2, "call_b", "alix_shell_run"),
+    inputDelta(2, '{"command":"ls -la"}'),
+    blockStop(2),
+    messageStop(),
   ]);
 
   const calls = toolCallsOf(chunks);
@@ -112,13 +128,13 @@ test("multiple tool calls in one response are keyed by content-block index", asy
 
 test("text deltas interleave with tool calls unchanged", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
-    'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I\\u0027ll check."}}',
-    'data: {"type":"content_block_stop","index":0}',
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"alix_shell_run","input":{}}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":\\"which llama-cli\\"}"}}',
-    'data: {"type":"content_block_stop","index":1}',
-    'data: {"type":"message_stop"}',
+    textStart(0),
+    textDelta(0, "I'll check."),
+    blockStop(0),
+    toolUseStart(1, "call_1", "alix_shell_run"),
+    inputDelta(1, '{"command":"which llama-cli"}'),
+    blockStop(1),
+    messageStop(),
   ]);
 
   const text = chunks
@@ -139,9 +155,9 @@ test("text deltas interleave with tool calls unchanged", async () => {
 
 test("malformed accumulated JSON yields a stream error, not a manufactured {}", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"alix_shell_run","input":{}}}',
-    'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":"}}',
-    'data: {"type":"content_block_stop","index":1}',
+    toolUseStart(1, "call_1", "alix_shell_run"),
+    inputDelta(1, '{"command":'),
+    blockStop(1),
   ]);
 
   const errors = chunks.filter((c) => c.type === "error");
@@ -150,10 +166,23 @@ test("malformed accumulated JSON yields a stream error, not a manufactured {}", 
   assert.equal(toolCallsOf(chunks).length, 0, "no tool call with manufactured empty args");
 });
 
+test("valid non-object arguments yield a stream error, not a manufactured {}", async () => {
+  const chunks = await collectStream([
+    toolUseStart(1, "call_1", "alix_shell_run"),
+    inputDelta(1, "[1,2,3]"),
+    blockStop(1),
+  ]);
+
+  const errors = chunks.filter((c) => c.type === "error");
+  assert.equal(errors.length, 1, "expected a stream error chunk");
+  assert.match((errors[0] as { error: string }).error, /must be a JSON object/);
+  assert.equal(toolCallsOf(chunks).length, 0, "no tool call with manufactured empty args");
+});
+
 test("tool_use with no argument fragments preserves {} (legitimate empty args)", async () => {
   const chunks = await collectStream([
-    'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_1","name":"alix_done","input":{}}}',
-    'data: {"type":"content_block_stop","index":1}',
+    toolUseStart(1, "call_1", "alix_done"),
+    blockStop(1),
   ]);
 
   const calls = toolCallsOf(chunks);
@@ -192,11 +221,11 @@ test("non-streaming Anthropic complete() still returns full tool args", async ()
 test("MiniMax regression: content_block_start({}) + input_json_delta reconstructs args.command", async () => {
   const chunks = await collectStream(
     [
-      'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call_mm","name":"alix_shell_run","input":{}}}',
-      'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":\\"which llama-cli 2>/dev/null; ls /usr/local/bin/llama"}}',
-      'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"* 2>/dev/null\\"}"}}',
-      'data: {"type":"content_block_stop","index":1}',
-      'data: {"type":"message_stop"}',
+      toolUseStart(1, "call_mm", "alix_shell_run"),
+      inputDelta(1, '{"command":"which llama-cli 2>/dev/null; ls /usr/local/bin/llama'),
+      inputDelta(1, '* 2>/dev/null"}'),
+      blockStop(1),
+      messageStop(),
     ],
     "minimax-token-plan",
     "MiniMax-M3",
