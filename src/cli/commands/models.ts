@@ -95,7 +95,7 @@ export async function handleModelsApply(args: string[]): Promise<void> {
   const { applyProfile } = await import("../../models/model-install.js");
   const id = args.find(a => !a.startsWith("--"));
   if (!id) { console.error("Usage: alix models apply-profile <id> [--dry-run]"); process.exit(1); }
-  const result = applyProfile(id, process.cwd(), args.includes("--dry-run"));
+  const result = await applyProfile(id, process.cwd(), args.includes("--dry-run"));
   console.log(result.message);
   if (result.changes && args.includes("--dry-run")) {
     console.log("\nWould write:");
