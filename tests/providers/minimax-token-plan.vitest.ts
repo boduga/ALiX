@@ -1,5 +1,21 @@
-import { describe, it, expect } from "vitest";
+// Mock unified-complete so we can verify MiniMaxTokenPlanProvider.complete/stream
+// delegate to it with provider id "minimax-token-plan". Preserves SPECS,
+// PROVIDER_KEY_ENV, etc. via vi.importActual so the SPECS registration test
+// below continues to work.
+vi.mock("../../src/providers/unified-complete.js", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../src/providers/unified-complete.js")
+  >("../../src/providers/unified-complete.js");
+  return {
+    ...actual,
+    complete: vi.fn(),
+    stream: vi.fn(),
+  };
+});
+
+import { describe, it, expect, vi } from "vitest";
 import { MiniMaxTokenPlanProvider } from "../../src/providers/minimax-token-plan-provider.js";
+import * as unifiedComplete from "../../src/providers/unified-complete.js";
 
 describe("MiniMaxTokenPlanProvider", () => {
   it("has id 'minimax-token-plan'", () => {
@@ -9,19 +25,83 @@ describe("MiniMaxTokenPlanProvider", () => {
 
   it("defaults model to 'MiniMax-M3'", () => {
     const p = new MiniMaxTokenPlanProvider({ apiKey: "sk-cp-test" });
-    expect((p as any)._model).toBe("MiniMax-M3");
+    expect(p.capabilities.model).toBe("MiniMax-M3");
   });
 
-  it("reads apiKey from env when not provided in config", () => {
+  it("reads apiKey from MINIMAX_TOKEN_PLAN_KEY env when not provided in config", async () => {
     const saved = process.env.MINIMAX_TOKEN_PLAN_KEY;
     process.env.MINIMAX_TOKEN_PLAN_KEY = "sk-cp-from-env";
+    vi.mocked(unifiedComplete.complete).mockResolvedValue({
+      text: "ok",
+      toolCalls: [],
+      usage: { inputTokens: 1, outputTokens: 1 },
+      finishReason: "end_turn",
+    });
     try {
       const p = new MiniMaxTokenPlanProvider();
-      expect((p as any)._apiKey).toBe("sk-cp-from-env");
+      await p.complete({
+        systemPrompt: "s",
+        messages: [{ role: "user", content: "m" }],
+      });
+      expect(unifiedComplete.complete).toHaveBeenCalledWith(
+        "minimax-token-plan",
+        "MiniMax-M3",
+        expect.any(Object),
+        expect.objectContaining({ apiKey: "sk-cp-from-env" }),
+      );
     } finally {
+      vi.mocked(unifiedComplete.complete).mockReset();
       if (saved === undefined) delete process.env.MINIMAX_TOKEN_PLAN_KEY;
       else process.env.MINIMAX_TOKEN_PLAN_KEY = saved;
     }
+  });
+
+  it("complete() delegates to unified-complete with provider id 'minimax-token-plan'", async () => {
+    vi.mocked(unifiedComplete.complete).mockResolvedValue({
+      text: "delegated",
+      toolCalls: [],
+      usage: { inputTokens: 1, outputTokens: 1 },
+      finishReason: "end_turn",
+    });
+    const p = new MiniMaxTokenPlanProvider({ apiKey: "sk-cp-test" });
+    const result = await p.complete({
+      systemPrompt: "s",
+      messages: [{ role: "user", content: "m" }],
+    });
+    expect(unifiedComplete.complete).toHaveBeenCalledWith(
+      "minimax-token-plan",
+      "MiniMax-M3",
+      expect.any(Object),
+      expect.objectContaining({ apiKey: "sk-cp-test" }),
+    );
+    expect(result).toEqual({
+      text: "delegated",
+      toolCalls: [],
+      usage: { inputTokens: 1, outputTokens: 1 },
+      finishReason: "end_turn",
+    });
+  });
+
+  it("stream() delegates to unified-complete with provider id 'minimax-token-plan'", async () => {
+    async function* genStream() {
+      yield { type: "text", text: "delegated-stream" } as never;
+    }
+    vi.mocked(unifiedComplete.stream).mockImplementation(() => genStream());
+    const p = new MiniMaxTokenPlanProvider({ apiKey: "sk-cp-test" });
+    const chunks: unknown[] = [];
+    for await (const chunk of p.stream({
+      systemPrompt: "s",
+      messages: [{ role: "user", content: "m" }],
+    })) {
+      chunks.push(chunk);
+    }
+    expect(unifiedComplete.stream).toHaveBeenCalledWith(
+      "minimax-token-plan",
+      "MiniMax-M3",
+      expect.any(Object),
+      expect.objectContaining({ apiKey: "sk-cp-test" }),
+    );
+    expect(chunks).toEqual([{ type: "text", text: "delegated-stream" }]);
   });
 
   it("returns configured capabilities", () => {
