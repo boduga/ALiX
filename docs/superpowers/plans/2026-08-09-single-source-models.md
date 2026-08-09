@@ -45,9 +45,17 @@ export type ModelTier =
   | "default" | "thinking" | "coding" | "fast" | "critic" | "tiny" | "image";
 
 export type ModelsConfig = Partial<Record<ModelTier, ModelConfig>>;
+
+/** Loader-owned compatibility projection — one tier vocabulary. */
+export type DerivedSubagentConfig = Partial<Record<Exclude<ModelTier, "default">, ModelConfig>>;
 ```
 
 Change `AlixConfig.models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>` → `models?: ModelsConfig`.
+
+Document the persisted-vs-derived split on `AlixConfig`:
+- **Persisted** (written to disk): `models`, `modelProfile`, `apiKeys`, everything else.
+- **Loader-owned projections** (never persisted): `model?: ModelConfig` (derived from `models.default`), `subagents?: DerivedSubagentConfig` (derived from `models.*`).
+- The rule: **any persistence operation must operate on a persisted representation, never the fully normalized `AlixConfig`.** TypeScript can't prevent serializing a field, but `withoutDerivedModelProjections` (Task 4) + the writers' strip-before-write make the intent structural.
 
 - [ ] **Step 2: Align `profile-types.ts` `ModelTier`**
 
@@ -87,7 +95,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `AlixConfig`, `ModelsConfig`, `ModelTier`.
-- Produces: `export const MODEL_SUBAGENT_TIERS: readonly Exclude<ModelTier, "default">[]` and `export function normalizeModelConfig(config: Partial<AlixConfig>): void` — mutates in place; **deterministically replaces** `subagents` with a pure projection (never merges stale keys). **Preserves full `ModelConfig` metadata** — projections carry `temperature`/`contextWindow`/`maxOutputTokens` through, not just `{provider, name}`.
+- Produces: `export const MODEL_SUBAGENT_TIERS: readonly Exclude<ModelTier, "default">[]` and `export function normalizeModelConfig(config: Partial<AlixConfig>): void` — mutates in place; **deterministically replaces** `subagents` with a pure projection (never merges stale keys). **Preserves full `ModelConfig` metadata** — projections carry `temperature`/`contextWindow`/`maxOutputTokens` through, not just `{provider, name}`. The projection type is **derived from the canonical tier types** so there's exactly one tier vocabulary:
+
+```ts
+export type DerivedSubagentConfig = Partial<Record<Exclude<ModelTier, "default">, ModelConfig>>;
+```
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -170,6 +182,9 @@ export const MODEL_SUBAGENT_TIERS: readonly Exclude<ModelTier, "default">[] = [
   "thinking", "coding", "fast", "critic", "tiny", "image",
 ];
 
+/** Projection type derived from the canonical tier types — one tier vocabulary. */
+export type DerivedSubagentConfig = Partial<Record<Exclude<ModelTier, "default">, ModelConfig>>;
+
 /** Copy a ModelConfig carrying full metadata, not just provider/name. */
 function cloneModelConfig(m: ModelConfig): ModelConfig {
   return { ...m };
@@ -188,7 +203,7 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // 3. Deterministic subagent projection: derivedSubagents replaces subagents
   //    wholesale, preserving full ModelConfig metadata. A canonical tier not in
   //    `models` falls back to default; a stale/extra key never survives.
-  const derived: Partial<Record<ModelTier, ModelConfig>> = {};
+  const derived: DerivedSubagentConfig = {};
   if (config.models) {
     for (const tier of MODEL_SUBAGENT_TIERS) {
       const model = config.models[tier] ?? def;
@@ -201,13 +216,13 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // (subagents stays unset) and "model configuration exists but derives zero
   // tiers". Only assign subagents when at least one tier resolved.
   config.subagents = Object.keys(derived).length
-    ? (derived as SubagentConfig)
+    ? (derived as DerivedSubagentConfig)
     : undefined;
 }
 
 /**
  * Persistence-safety note: normalizeModelConfig MUTATES the loaded object
- * (in-memory only — it is never called from a writer). The invariant is
+ * (in-memory only — it is NEVER called from a writer). The invariant is
  * enforced at the WRITER boundary: no writer may serialize `config.model` or
  * `config.subagents` back to disk. Writers must persist `models` explicitly and
  * strip `model`/`subagents` (see Tasks 4-6). The loader is the ONLY projector.
@@ -278,6 +293,11 @@ test("resolveModelConfig: does NOT mutate the input config", () => {
   assert.equal(JSON.stringify(cfg), before);
 });
 
+test("resolveModelConfig: rejects unknown runtime tiers instead of defaulting", () => {
+  const cfg: any = { models: { default: { provider: "deepseek", name: "deepseek-chat" } } };
+  assert.throws(() => resolveModelConfig(cfg, "bogus" as any), /Unknown model tier/);
+});
+
 test("resolveModelConfig: returns full metadata as a defensive copy", () => {
   const cfg: any = { models: { default: { provider: "deepseek", name: "deepseek-chat", temperature: 0.3, contextWindow: 64000 } } };
   const out = resolveModelConfig(cfg);
@@ -302,6 +322,11 @@ export function resolveModelConfig(
   config: AlixConfig,
   tier?: ModelTier,
 ): ModelConfig {
+  // Reject unknown tiers at runtime — silently falling back to default on a
+  // typo can be nasty in an agent system. ModelTier is a closed union.
+  if (tier !== undefined && !MODEL_SUBAGENT_TIERS.includes(tier) && tier !== "default") {
+    throw new Error(`Unknown model tier: ${tier}`);
+  }
   const model = tier
     ? config.models?.[tier] ?? config.models?.default
     : config.models?.default;
@@ -402,16 +427,27 @@ export function buildProfilePatch(profile: ProfileData): ProfilePatch {
   return patch;
 }
 
+/**
+ * Strip loader-owned compatibility projections from a config, leaving the
+ * persisted representation. Makes the "no writer persists model/subagents"
+ * invariant structurally obvious instead of relying on convention.
+ */
+export function withoutDerivedModelProjections(
+  config: AlixConfig,
+): Omit<AlixConfig, "model" | "subagents"> {
+  const { model: _model, subagents: _subagents, ...persisted } = config;
+  return persisted;
+}
+
 export function applyProfilePatch(existingConfig: AlixConfig, patch: ProfilePatch): AlixConfig {
-  // Start from a copy that EXCLUDES legacy model/subagents projections — they
-  // are derived by the loader, never persisted.
-  const { model, subagents, ...rest } = existingConfig;
-  const result: Record<string, unknown> = { ...rest };
+  // Persisted representation only — the loader derives model/subagents.
+  const result: Omit<AlixConfig, "model" | "subagents"> =
+    withoutDerivedModelProjections(existingConfig) as Omit<AlixConfig, "model" | "subagents">;
   result.modelProfile = patch.modelProfile;
   // Merge semantics: a profile patches only the tiers it defines. Pre-existing
   // models tiers are preserved; patch tiers win.
-  if (patch.models) result.models = { ...((existingConfig.models as object) ?? {}), ...patch.models };
-  if (patch.runtime) result.runtime = { ...(result.runtime as object), ...patch.runtime };
+  if (patch.models) result.models = { ...(existingConfig.models ?? {}), ...patch.models };
+  if (patch.runtime) result.runtime = { ...(existingConfig.runtime ?? {}), ...(patch.runtime ?? {}) };
   return result as AlixConfig;
 }
 ```
@@ -491,12 +527,14 @@ describe("alix models set-tier persists only models", () => {
     const { dir, config } = tmpCwd();
     try {
       process.chdir(dir);
-      // pre-seed a default tier + a fast tier
+      // pre-seed a default tier + a fast tier + a STALE derived projection
       writeFileSync(config, JSON.stringify({
         models: {
           default: { provider: "deepseek", name: "deepseek-chat" },
           fast: { provider: "existing", name: "fast-model" },
         },
+        model: { provider: "stale", name: "stale" },           // must be stripped on write
+        subagents: { thinking: { provider: "stale", name: "stale" } },
       }), "utf8");
       await handleSetTier(["coding"]);
       const saved = JSON.parse(readFileSync(config, "utf8"));
@@ -504,6 +542,8 @@ describe("alix models set-tier persists only models", () => {
       // other tiers preserved — set-tier must NOT erase them
       expect(saved.models.default).toEqual({ provider: "deepseek", name: "deepseek-chat" });
       expect(saved.models.fast).toEqual({ provider: "existing", name: "fast-model" });
+      // on-disk invariant: derived projections never persisted
+      expect(saved.model).toBeUndefined();
       expect(saved.subagents).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -519,7 +559,11 @@ Expected: FAIL — handlers not exported.
 
 - [ ] **Step 3: Implement the two handlers**
 
-Port the body of today's `set-default-model` / `set-tier` (interactive provider pick → key → `listModels` → model pick → write), but persist **only** `models` — merging, never replacing: `models: { ...existing.models, default: selected }` for set-default, `models: { ...existing.models, [tier]: selected }` for set-tier. Call `normalizeModelConfig` on the in-memory object purely so a post-write `config show` reflects the derived `model`, but the **file** contains only `models` (plus preserved sections). Validate tier against `MODEL_SUBAGENT_TIERS`.
+Port the body of today's `set-default-model` / `set-tier` (interactive provider pick → key → `listModels` → model pick → write), but persist **only** `models` — merging, never replacing: `models: { ...existing.models, default: selected }` for set-default, `models: { ...existing.models, [tier]: selected }` for set-tier.
+
+> **Do NOT call `normalizeModelConfig()` from the writer.** The writer persists the authoritative representation only; `config show`/`models resolve` obtain compatibility projections by loading through `loadConfig()` (which normalizes). This keeps "the loader is the only projector" genuinely enforceable. If a post-write display needs derived `model`/`subagents`, it must call `loadConfig()` — not normalize the in-memory write object.
+
+Validate tier against `MODEL_SUBAGENT_TIERS`. Persist the full existing config with only `models` changed (preserving `modelProfile`, `apiKeys`, and every other section) — but with `model`/`subagents` **stripped** via `withoutDerivedModelProjections` before serialization, so a stale loaded projection can never be written back.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -609,7 +653,7 @@ The override resolves a concrete model WITHOUT mutating `config.model`.
 
 - [ ] **Step 1: Migrate `agent.ts`, `session.ts`, `task-loop.ts`**
 
-Replace `config.model.provider/name` reads with `const { provider, name } = resolveModelConfig(config);`. In `session.ts` keep `ctx.config.model.streaming` (a derived convenience, not an assignment). Do NOT mutate `config.model`.
+Replace `config.model.provider/name` reads with `const { provider, name } = resolveModelConfig(config);`. In `session.ts` keep `ctx.config.model.streaming` — **verified: `ModelConfig.streaming?: boolean` exists at `schema.ts:14`, so it is genuinely part of the derived `ModelConfig` projection, not an independent compatibility property.** Do NOT mutate `config.model`.
 
 - [ ] **Step 2: Add the precedence test for `subagent-cli.ts`**
 
@@ -646,7 +690,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Create: `tests/config/model-invariant.test.ts`
 
 **Interfaces:**
-- Consumes: `normalizeModelConfig`, `resolveModelConfig`, `applyProfilePatch`, the `models` writers (via the CLI handlers or a direct writer helper).
+- Consumes: `normalizeModelConfig`, `resolveModelConfig`, `applyProfilePatch`, `handleSetDefaultModel`, `handleSetTier` (the real CLI writers).
 
 **This task is the architecture's executable contract.** It runs the persistence-invariant assertions for every model-writing path AND the final repo-wide writer audit (the hard completion gate).
 
@@ -671,6 +715,8 @@ import { resolveModelConfig } from "../../src/config/model-resolver.js";
 import { buildProfilePatch, applyProfilePatch } from "../../src/config/profile-patch.js";
 
 // Persistence invariant: no model-writing path persists model.* or subagents.*
+// The distinction that matters is "the bytes on disk obey the invariant" — not
+// "the writer implementation looks correct." So these drive the REAL writers.
 test("invariant: profile application strips model/subagents projections", () => {
   const existing = {
     model: { provider: "old", name: "old" },
@@ -680,6 +726,39 @@ test("invariant: profile application strips model/subagents projections", () => 
   assert.equal(out.model, undefined);
   assert.equal(out.subagents, undefined);
   assert.ok(out.models?.default);
+});
+
+// On-disk invariant: the actual CLI writers persist models, never projections
+test("invariant: alix models set-default writes models only", async () => {
+  const { dir, config } = makeTmpConfig();
+  try {
+    process.chdir(dir);
+    writeFileSync(config, JSON.stringify({
+      model: { provider: "stale", name: "stale" },
+      subagents: { thinking: { provider: "stale", name: "stale" } },
+    }), "utf8");
+    await handleSetDefaultModel([]); // mocked provider-selection returns deepseek-chat
+    const saved = JSON.parse(readFileSync(config, "utf8"));
+    assert.ok(saved.models.default, "models.default present");
+    assert.equal(saved.model, undefined, "model never persisted");
+    assert.equal(saved.subagents, undefined, "subagents never persisted");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("invariant: alix models set-tier writes models only", async () => {
+  const { dir, config } = makeTmpConfig();
+  try {
+    process.chdir(dir);
+    await handleSetTier(["coding"]); // mocked selection
+    const saved = JSON.parse(readFileSync(config, "utf8"));
+    assert.ok(saved.models.coding, "models.coding present");
+    assert.equal(saved.model, undefined);
+    assert.equal(saved.subagents, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // Loader compatibility: legacy model → models.default → model + 6 subagents
@@ -746,6 +825,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
   6. **Resolver returns full `ModelConfig`** → defensive copy, type-consistent; test asserts copy-not-shared.
   7. **Dispatcher-level CLI test** → registration-only, no TTY/interactive coupling.
   8. **Final audit gate** → Task 8 Step 0 re-runs the writer audit after runtime migration + profile changes; test suite does not pass until clean.
+- **Round 4 (7 points):**
+  1. **Derived `subagents` type** → `DerivedSubagentConfig = Partial<Record<Exclude<ModelTier,"default">, ModelConfig>>` (single tier vocabulary, no independent drift).
+  2. **Typed strip helper** → `withoutDerivedModelProjections(config): Omit<AlixConfig,"model"|"subagents">`; no `as object` escapes; `runtime` merged with `?? {}` on both sides.
+  3. **Writer never normalizes** → Task 5 drops the `normalizeModelConfig()` call entirely; `config show`/`resolve` get projections via `loadConfig()`. The loader is the only projector.
+  4. **On-disk writer invariant tests** → Task 8 drives the real `handleSetDefaultModel`/`handleSetTier`/profile writer and asserts `saved.model === undefined`, `saved.subagents === undefined`, `saved.models !== undefined`.
+  5. **Runtime tier validation** → `resolveModelConfig` throws `Unknown model tier` for invalid runtime tiers (no silent default on typo).
+  6. **`streaming` verified in `ModelConfig`** → `schema.ts:14`; Task 7 keeps it as part of the derived projection, not an independent property.
+  7. **Persisted/derived type split** → documented on `AlixConfig`; "any persistence operates on persisted representation, never the normalized `AlixConfig`."
 
 **Spec coverage:** One store (T1/T2/T4/T5), loader projection (T2), resolver (T3), one writer family (T5 + T4), legacy removal (T6), runtime migration (T7), invariant (T8). apiKeys untouched. All 7 spec test categories present + migration-safety.
 
