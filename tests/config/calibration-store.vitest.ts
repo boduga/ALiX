@@ -23,4 +23,13 @@ describe("calibration store", () => {
     expect(deriveCalibrationFactor(samples)).toBeGreaterThanOrEqual(0.8);
     expect(deriveCalibrationFactor([{ actual: 50, raw: 100 }])).toBe(0.8); // clamped up to 0.8
   });
+
+  // Task 9: §6 mechanism-only — contextRotThreshold UNSET by default.
+  // No threshold → no advisory emission. Verifies the default state is silent.
+  it("stores an unset contextRotThreshold (default state is silent)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cal-rot-"));
+    await saveCalibration({}, dir); // no threshold configured
+    const loaded = await loadCalibration(dir);
+    expect(loaded.contextRotThreshold).toBeUndefined();
+  });
 });

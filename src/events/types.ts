@@ -401,6 +401,10 @@ export const CONTEXT_EVENT_TYPES = {
   TOOLING_SCOPE_REINTRODUCED: "tooling.scope.reintroduced",
   // §2 — irreducible overflow uses the existing `context.irreducible` event
   // with a `kind: "tooling" | "content"` field on the payload (see Task 8).
+  // §6 — context-rot threshold advisory (Task 9). Mechanism only: fires when
+  // configured threshold crossed. Threshold UNSET this cycle → never emitted
+  // by default. Advisory only, never a hard gate (spec §6).
+  ROT_RISK: "context.rot_risk",
 } as const;
 
 // T6 — C1 observability: payload types for the five lifecycle events.
@@ -481,6 +485,29 @@ export type ToolingScopeReintroducedPayload = {
   invocationId: string;
   toolName: string;
   reason: "shed_tool_called";
+};
+
+/**
+ * §6 — `context.rot_risk` advisory payload (Task 9).
+ *
+ * Emitted only when `calibration.contextRotThreshold` is configured AND
+ * the run's realized `contextPressure` crosses the threshold. Advisory
+ * only — never a hard gate (spec §6: "warning only — never hard failure,
+ * never another overflow gate").
+ *
+ * - `metric`: which `ContextRotThreshold.metric` was evaluated.
+ * - `measured`: the realized value of that metric at run-end.
+ * - `threshold`: the configured threshold value (for ratio computation
+ *   downstream).
+ * - `contextPressure`: the full pressure snapshot (aggregate + peak) so
+ *   consumers can render either side of the comparison.
+ */
+export type ContextRotRiskPayload = {
+  invocationId: string;
+  metric: "tier5Dropped" | "remainingTokensPct";
+  measured: number;
+  threshold: number;
+  contextPressure: import("../run.js").ContextPressure;
 };
 
 // Policy event payload types

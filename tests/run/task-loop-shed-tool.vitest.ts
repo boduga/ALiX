@@ -322,4 +322,97 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     // Run terminates normally
     expect(['completed', 'completed_unverified', 'max_iterations'].includes(result.reason ?? 'completed')).toBe(true);
   });
+
+  // Task 9: §6 mechanism-only — contextRotThreshold UNSET by default.
+  // No threshold → no `context.rot_risk` advisory. Default state is silent.
+  it('does not emit context.rot_risk when no threshold is configured', async () => {
+    const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
+    const providerTools = [coreTool];
+
+    const provider = createMockProvider({
+      toolCalls0: [],
+      responseText1: 'done. Task completed.',
+    });
+
+    const task = 'simple task';
+    const message: NormalizedMessage = { role: 'user', content: task };
+
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task,
+      providerTools,
+      messages: [message],
+      maxIterations: 2,
+    });
+
+    await runTaskLoop(deps);
+    const events = await log.readAll();
+
+    // Default state emits nothing — no context.rot_risk without a configured threshold
+    const rotRisk = events.find((e) => e.type === 'context.rot_risk');
+    expect(rotRisk).toBeUndefined();
+  });
+
+  // Task 9: §6 mechanism — when threshold is configured AND pressure exceeds it,
+  // emit the `context.rot_risk` advisory. Advisory only, never a hard gate.
+  it('emits context.rot_risk when a threshold is configured and pressure exceeds it', async () => {
+    // Seed the calibration store with a configured threshold before runTaskLoop loads it.
+    // loadCalibration() reads ~/.alix/calibration.json by default. To avoid touching the
+    // real HOME, set process.env.HOME to a temp dir for this test.
+    const tmpHome = makeTempDir('alix-rot-home-');
+    const originalHome = process.env.HOME;
+    process.env.HOME = tmpHome;
+    try {
+      const { saveCalibration } = await import('../../src/config/calibration-store.js');
+      // Use `remainingTokensPct` so we don't depend on tier drops: any pressure below
+      // 90% remaining capacity fires. The test's makeTestDeps uses 100k window with a
+      // 1k output floor (99k available); a 50k-char system prompt (~12.5k tokens) +
+      // messages leaves well under 90% remaining.
+      await saveCalibration(
+        {
+          contextRotThreshold: {
+            metric: 'remainingTokensPct',
+            value: 95, // fire when min remaining % drops below this (test's 12.5k system prompt puts remaining at ~91%)
+            sampleSize: 10,
+            lastRecalibrated: new Date().toISOString(),
+          },
+        },
+        join(tmpHome, '.alix'),
+      );
+
+      const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
+      const providerTools = [coreTool];
+
+      const provider = createMockProvider({
+        toolCalls0: [],
+        responseText1: 'done. Task completed.',
+      });
+
+      const task = 'simple task';
+      const message: NormalizedMessage = { role: 'user', content: task };
+
+      const { deps, log } = await makeTestDeps({
+        provider,
+        task,
+        providerTools,
+        messages: [message],
+        maxIterations: 1,
+        systemPrompt: 'X'.repeat(50_000), // ~12.5k tokens, fills significant budget
+      });
+
+      await runTaskLoop(deps);
+      const events = await log.readAll();
+
+      // When threshold is configured and pressure exceeds, advisory fires.
+      const rotRisk = events.find((e) => e.type === 'context.rot_risk');
+      expect(rotRisk).toBeDefined();
+      const payload = rotRisk!.payload as Record<string, unknown>;
+      expect(payload.metric).toBe('remainingTokensPct');
+      expect(typeof payload.measured).toBe('number');
+      expect(payload.threshold).toBe(95);
+    } finally {
+      if (originalHome === undefined) delete process.env.HOME;
+      else process.env.HOME = originalHome;
+    }
+  });
 });

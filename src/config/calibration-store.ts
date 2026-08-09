@@ -5,11 +5,34 @@ import { SAFETY_FACTOR } from "./context-limits.js";
 
 export const CALIBRATION_CLAMP = { min: 0.8, max: 2.0 } as const;
 
+/**
+ * §6 — Learned context-rot threshold (UNSET this cycle).
+ *
+ * Threshold at which `contextPressure.aggregate` failure rate is observed
+ * to rise (spec §3). UNSET until burn-in data exists — `loadCalibration`
+ * returns `{}` on a missing/unreadable file, so `contextRotThreshold` is
+ * `undefined` in the default state → no advisory emission.
+ *
+ * - `tier5Dropped`: threshold on aggregate tier-5 drops per run (count, ≥).
+ * - `remainingTokensPct`: threshold on `minRemainingTokens / availableInputTokens * 100`
+ *   (percent, ≤ — i.e., when remaining capacity drops below this %).
+ *
+ * Field is OPTIONAL: omitted → no emission. This is the mechanism-only ship;
+ * no number is hardcoded.
+ */
+export type ContextRotThreshold = {
+  metric: "tier5Dropped" | "remainingTokensPct";
+  value: number;
+  sampleSize: number;
+  confidenceInterval?: [number, number];
+  lastRecalibrated: string;
+};
+
 export type CalibrationData = {
   /** provider → calibration factor (p95(actual/raw), clamped). */
   providerCalibration?: Record<string, number>;
-  /** §6: learned context-rot threshold — UNSET this cycle. */
-  contextRotThreshold?: unknown;
+  /** §6: learned context-rot threshold (UNSET this cycle). */
+  contextRotThreshold?: ContextRotThreshold;
   lastRecalibrated?: string;
   sampleCounts?: Record<string, number>;
 };
