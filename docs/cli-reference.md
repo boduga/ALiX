@@ -110,4 +110,4 @@
 | `alix doctor` | Comprehensive system health check |
 | `alix config show` | Show configuration |
 | `alix config set-key` | Set API key interactively |
-| `alix config set-default-model` | Select provider and model |
+| `alix models set-default` | Interactive provider + model selection |

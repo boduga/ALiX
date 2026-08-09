@@ -29,7 +29,7 @@ ALiX configuration lives in `.alix/config.json` (per-project) and `~/.alix/confi
 alix config show
 
 # Set model
-alix config set-default-model <provider> <model>
+alix models set-default   # interactive provider + model selection
 
 # Set API key (writes to .alix/config.json)
 alix config set-key <provider> <key>

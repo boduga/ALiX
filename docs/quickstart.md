@@ -23,7 +23,7 @@ pnpm build
 # Set up your API key
 alix config set-key
 # Select your provider and model
-alix config set-default-model
+alix models set-default
 ```
 
 ## Quick Demo

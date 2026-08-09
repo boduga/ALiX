@@ -6,7 +6,7 @@ A local-first AI Agent OS. Run tasks, enforce policies, approve actions, audit e
 
 ```bash
 npm install -g alix
-alix config set-default-model
+alix models set-default
 alix run "explain the architecture of this project"
 ```
 
@@ -102,7 +102,7 @@ npm run build
 ### Set up a provider
 
 ```bash
-alix config set-default-model
+alix models set-default
 # Follow the interactive menu — picks provider, sets API key, downloads model list
 ```
 
@@ -144,7 +144,7 @@ alix serve
 | `alix registry list|agents|tools|doctor` | Agent/tool card registry |
 | `alix doctor` | Comprehensive system health check |
 | `alix config show` | Show current configuration |
-| `alix config set-default-model` | Interactive provider + model selection |
+| `alix models set-default` | Interactive provider + model selection |
 | `alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile` | Model profile management and diagnostics |
 | `alix session list|show` | Session management |
 | `alix adaptation list|show|status` | Adaptation proposal management |
@@ -304,9 +304,9 @@ Config files are loaded in priority order:
 Subagent roles use model tiers that you can set independently:
 
 ```bash
-alix config set-tier thinking   # Strategic reasoning, planning
-alix config set-tier coding     # Code generation, tool execution
-alix config set-tier fast       # Quick classification, routing
+alix models set-tier thinking   # Strategic reasoning, planning
+alix models set-tier coding     # Code generation, tool execution
+alix models set-tier fast       # Quick classification, routing
 ```
 
 Each tier inherits from the main model if not explicitly configured.

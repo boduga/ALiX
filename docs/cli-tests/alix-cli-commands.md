@@ -70,8 +70,8 @@ tested in a temporary workspace with isolated `HOME` and `.alix` directories.
 | `alix config history`, `provenance` | Show configuration versions or change origins. | `alix config history` | CLI integration with versioned fixtures. |
 | `alix config rollback <version> --force --reason "<reason>"` | Restore a prior configuration version. | `alix config rollback 2 --force --reason "bad model"` | Mutation; require reason/force and assert audit trail. |
 | `alix config set-key [provider]` | Store a provider API key interactively. | `alix config set-key openai` | Manual/TTY; automate with isolated `HOME` and stdin, never real secrets. |
-| `alix config set-default-model` | Select the default provider and model. | `alix config set-default-model` | Manual/TTY; unit-test catalog selection and persisted value. |
-| `alix config set-tier` | Configure model routing tiers. | `alix config set-tier` | Manual/TTY plus mutation assertions. |
+| `alix models set-default` | Select the default provider and model. | `alix models set-default` | Manual/TTY; unit-test catalog selection and persisted value. |
+| `alix models set-tier` | Configure model routing tiers. | `alix models set-tier` | Manual/TTY plus mutation assertions. |
 | `alix mcp list`, `add`, `remove <name>`, `discover <package>`, `test <name>` | Manage and validate MCP server registrations. | `alix mcp test filesystem` | CLI unit for config mutation; discover/test are Manual/external or use fake transports. |
 | `alix extension list`, `install <path>`, `uninstall <type/name>`, `search <query>` | Manage local extensions. | `alix extension install ./my-extension` | CLI integration in temp directories; Mutation; search may require external catalog fixtures. |
 | `alix skill list`, `show <id>`, `install <path>`, `run <id> [options]` | Manage and execute registered skills. | `alix skill run review --input "src/" --json` | `tests/cli/skill-commands.vitest.ts` and skill command suites; run with provider stubs. |

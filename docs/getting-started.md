@@ -19,19 +19,19 @@ ALiX supports 12 providers. Pick one:
 ### Google Gemini (fast, free tier available)
 ```bash
 export GEMINI_API_KEY="your-key"
-alix config set-default-model google gemini-2.5-flash
+alix models set-default   # then select Google and gemini-2.5-flash
 ```
 
 ### Anthropic Claude (recommended for coding)
 ```bash
 export ANTHROPIC_API_KEY="your-key"
-alix config set-default-model anthropic claude-opus-4-8
+alix models set-default   # then select Anthropic and claude-opus-4-8
 ```
 
 ### OpenAI
 ```bash
 export OPENAI_API_KEY="your-key"
-alix config set-default-model openai gpt-4o
+alix models set-default   # then select OpenAI and gpt-4o
 ```
 
 ### Local Ollama (no API key)
@@ -39,7 +39,7 @@ alix config set-default-model openai gpt-4o
 # Start ollama
 ollama serve &
 # Then
-alix config set-default-model ollama llama3.2
+alix models set-default   # then select Ollama and llama3.2
 ```
 
 ## 3. Initialize your project

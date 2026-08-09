@@ -56,7 +56,7 @@ Expected output shows all subsystems healthy.
 
 ```bash
 alix config set-key
-alix config set-default-model
+alix models set-default
 ```
 
 The interactive menus walk you through selecting a provider and setting your API key. Keys are saved to `~/.config/alix/config.json`.
@@ -79,16 +79,16 @@ alix config show
 Set different models for different roles:
 
 ```bash
-alix config set-tier thinking   # Strategic reasoning, planning
-alix config set-tier coding     # Code generation, tool execution
-alix config set-tier fast       # Quick classification, routing
+alix models set-tier thinking   # Strategic reasoning, planning
+alix models set-tier coding     # Code generation, tool execution
+alix models set-tier fast       # Quick classification, routing
 ```
 
 ---
 
 ## 4. Model Profiles
 
-Model profiles are built-in presets that configure provider, model, and tier mappings for each use case. Instead of manually setting every tier with `alix config set-tier`, you select a single profile that matches your hardware and preferences.
+Model profiles are built-in presets that configure provider, model, and tier mappings for each use case. Instead of manually setting every tier with `alix models set-tier`, you select a single profile that matches your hardware and preferences.
 
 ### Built-in profiles
 
@@ -133,7 +133,7 @@ When a profile is active, the effective model configuration is resolved in this 
 3. **`modelProfile`** — the selected profile's tier mappings
 4. **Built-in defaults** — fallback when nothing else is set
 
-You can apply a profile and still override individual tiers with `alix config set-tier` — your explicit settings always take precedence over the profile.
+You can apply a profile and still override individual tiers with `alix models set-tier` — your explicit settings always take precedence over the profile.
 
 ---
 
