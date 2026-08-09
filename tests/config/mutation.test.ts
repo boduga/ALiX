@@ -594,3 +594,61 @@ test("ConfigMutationService: rejected operations do not modify config.json", asy
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("ConfigMutationService: set works on a models-only fragment (no ui/context/runtime/permissions)", async () => {
+  // Regression: `alix models set-default` writes a config containing ONLY
+  // `models` (no ui/context/runtime/permissions sections). `config set` on
+  // such a file used to crash with "Cannot read properties of undefined
+  // (reading 'port')" because validateConfig assumed a defaults-merged config.
+  const dir = await mkdtemp(join(tmpdir(), "alix-mutation-test-"));
+  const configDir = join(dir, ".alix", "config");
+  await mkdir(configDir, { recursive: true, mode: 0o700 });
+  const configPath = join(configDir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({ models: { default: { provider: "deepseek", name: "deepseek-chat" } } }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const service = new ConfigMutationService(configDir);
+  try {
+    const mutation = await service.set("permissions.default", "allow");
+    assert.equal(mutation.op, "set");
+    assert.equal(mutation.value, "allow");
+
+    const onDisk = JSON.parse(await readFile(configPath, "utf-8")) as Record<string, unknown>;
+    assert.deepEqual(onDisk.permissions, { default: "allow" });
+    // The models-only file is a fragment — only the mutated path is added.
+    assert.ok(onDisk.models, "models section must survive");
+    assert.equal((onDisk.models as any).default.name, "deepseek-chat");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: delete works on a models-only fragment", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-mutation-test-"));
+  const configDir = join(dir, ".alix", "config");
+  await mkdir(configDir, { recursive: true, mode: 0o700 });
+  const configPath = join(configDir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({ models: { default: { provider: "deepseek", name: "deepseek-chat" } } }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const service = new ConfigMutationService(configDir);
+  try {
+    // Seed a mutable value first (the fragment itself only has `models`, which
+    // the model-projection guard protects).
+    await service.set("permissions.default", "allow");
+    const mutation = await service.delete("permissions.default");
+    assert.equal(mutation.op, "delete");
+
+    const onDisk = JSON.parse(await readFile(configPath, "utf-8")) as Record<string, unknown>;
+    assert.equal((onDisk.permissions as any)?.default, undefined);
+    assert.ok(onDisk.models, "models section must survive");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
