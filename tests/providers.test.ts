@@ -313,7 +313,7 @@ test("createProvider throws for unknown provider", async () => {
 
 test("listProviders returns all providers", () => {
   const list = listProviders();
-  assert.ok(list.length >= 12);
+  assert.ok(list.length >= 13);
   assert.ok(list.find((p) => p.id === "deepseek"));
   assert.ok(list.find((p) => p.id === "grokai"));
   assert.ok(list.find((p) => p.id === "local-llama"));

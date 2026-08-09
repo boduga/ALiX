@@ -50,4 +50,16 @@ describe("MiniMaxTokenPlanProvider", () => {
     expect(spec).toBeDefined();
     expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic");
   });
+
+  it("createProvider returns MiniMaxTokenPlanProvider for id 'minimax-token-plan'", async () => {
+    const { createProvider } = await import("../../src/providers/registry.js");
+    const p = await createProvider({ provider: "minimax-token-plan" }, "sk-cp-test");
+    expect(p.id).toBe("minimax-token-plan");
+  });
+
+  it("listProviders includes 'minimax-token-plan'", async () => {
+    const { listProviders } = await import("../../src/providers/registry.js");
+    const list = listProviders();
+    expect(list.find((p) => p.id === "minimax-token-plan")).toBeDefined();
+  });
 });
