@@ -399,9 +399,8 @@ export const CONTEXT_EVENT_TYPES = {
   // §2 — tool-scoping admission-control events
   TOOLING_SCOPE_FALLBACK_FULL: "tooling.scope.fallback_full",
   TOOLING_SCOPE_REINTRODUCED: "tooling.scope.reintroduced",
-  // §2 — irreducible tooling overflow (tool bloat distinct from content overflow)
-  IRREDUCIBLE_TOOLING: "context.irreducible.tooling",
-  IRREDUCIBLE_CONTENT: "context.irreducible.content",
+  // §2 — irreducible overflow uses the existing `context.irreducible` event
+  // with a `kind: "tooling" | "content"` field on the payload (see Task 8).
 } as const;
 
 // T6 — C1 observability: payload types for the five lifecycle events.
