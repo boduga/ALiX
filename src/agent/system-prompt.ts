@@ -4,6 +4,7 @@
 // defining their own copies.
 
 import type { ToolDef } from "../providers/types.js";
+import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 
 /**
  * Render the available-tool manifest into the system prompt.
@@ -16,7 +17,9 @@ import type { ToolDef } from "../providers/types.js";
  * text-fallback parser (`<alix_tool_name><param>value</param></alix_tool_name>`)
  * and the structured `tool_calls` path both rely on.
  */
-export function renderToolManifest(tools: ToolDef[]): string {
+export function renderToolManifest(
+  tools: ReadonlyArray<Pick<ToolDef, "name" | "description"> | Pick<DeferredToolEntry, "name" | "description">>,
+): string {
   const lines = [
     "## Available Tools",
     "Call tools using the structured tool_calls field when the provider supports it. " +

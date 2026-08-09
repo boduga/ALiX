@@ -17,9 +17,11 @@ import type { ModelDescriptor } from "../../src/config/context-limits.js";
 /** Exact-availableInput budget: reserve exactly 8,000 so availableInput is
  *  fully controlled. Same immutable shape the factory produces. */
 function budget(availableInputTokens: number): ContextBudget {
+  const budgetReservation = 8_000;
   return Object.freeze({
-    contextWindowTokens: availableInputTokens + 8_000,
-    reservedOutputTokens: 8_000,
+    contextWindowTokens: availableInputTokens + budgetReservation,
+    budgetReservation,
+    requestedMaxOutputTokens: budgetReservation,
     availableInputTokens,
     policyReservation: 8_000,
   });
@@ -45,6 +47,7 @@ function item(
   overrides: {
     id?: string;
     kind?: string;
+    rawTokens?: number;
     provenance?: Partial<ContextItemProvenance>;
   } = {}
 ): CandidateContextItem {
@@ -55,6 +58,7 @@ function item(
     kind,
     category,
     tokens,
+    rawTokens: overrides.rawTokens ?? tokens,
     provenance: {
       category,
       kind,
@@ -90,11 +94,11 @@ describe("assembleContext — tier ordering and whole-item admission", () => {
       item("recent_conversation", 10, { id: "c" }),
     ];
     const result = assembleContext(candidate, budget(1_000));
-    expect(result.admitted.map((i) => i.id)).toEqual(["b", "a", "c"]);
+    expect(result.admitted.map((i) => i.id)).toEqual(["c", "a", "b"]);
   });
 
-  it("admits whole items only — the fitting prefix of a tier is kept, the rest dropped", () => {
-    // available = 30; sys(10) + a(10) + b(10) fit, c(10) does not.
+  it("admits whole items only — newest T4 items kept, oldest dropped under pressure", () => {
+    // available = 30; sys(10) + newest conv c(10) + b(10) fit; oldest a(10) dropped.
     const candidate = [
       item("mandatory_system_governance", 10, { id: "sys" }),
       item("recent_conversation", 10, { id: "a" }),
@@ -102,8 +106,29 @@ describe("assembleContext — tier ordering and whole-item admission", () => {
       item("recent_conversation", 10, { id: "c" }),
     ];
     const result = assembleContext(candidate, budget(30));
-    expect(result.admitted.map((i) => i.id)).toEqual(["sys", "a", "b"]);
-    expect(result.dropped.map((d) => d.item.id)).toEqual(["c"]);
+    expect(result.admitted.map((i) => i.id)).toEqual(["sys", "c", "b"]);
+    expect(result.dropped.map((d) => d.item.id)).toEqual(["a"]);
+  });
+
+  it("applies recency ordering to T4/T5 when the strategy is explicit recency (default)", () => {
+    const candidate = [
+      item("recent_conversation", 10, { id: "oldest" }),
+      item("recent_conversation", 10, { id: "newest" }),
+    ];
+    const result = assembleContext(candidate, budget(15));
+    expect(result.admitted.map((i) => i.id)).toEqual(["newest"]);
+  });
+
+  it("reverts to chronological order when ordering is explicitly 'relevance' for T4 (declared, unimplemented → non-recency fallback)", () => {
+    // Only 'recency'/'recency-dedup' admit newest-first. Any other strategy —
+    // e.g. 'relevance' — preserves source order (chronological) until a gated
+    // algorithm ships. This test pins the fallback.
+    const candidate = [
+      item("recent_conversation", 10, { id: "oldest" }),
+      item("recent_conversation", 10, { id: "newest" }),
+    ];
+    const result = assembleContext(candidate, budget(15), { recent_conversation: "relevance" });
+    expect(result.admitted.map((i) => i.id)).toEqual(["oldest"]);
   });
 
   it("never admits a partial item", () => {
@@ -129,18 +154,20 @@ describe("assembleContext — skip-and-continue within a tier (never size-aware)
     expect(result.dropped[0].reason).toBe("budget_exhausted");
   });
 
-  it("does not skip a large earlier item that fits just because a smaller one follows", () => {
-    // available = 40; large(30) fits and is admitted; medium(20) then does not fit.
+  // line ~132-141 — under newest-first, medium (newest) is admitted, large (older) dropped:
+  it("admits the newest item first even when an older larger item fits first in source order", () => {
     const candidate = [
       item("recent_conversation", 30, { id: "large" }),
       item("recent_conversation", 20, { id: "medium" }),
     ];
     const result = assembleContext(candidate, budget(40));
-    expect(result.admitted.map((i) => i.id)).toEqual(["large"]);
-    expect(result.dropped.map((d) => d.item.id)).toEqual(["medium"]);
+    expect(result.admitted.map((i) => i.id)).toEqual(["medium"]);
+    expect(result.dropped.map((d) => d.item.id)).toEqual(["large"]);
   });
 
   it("admits the fitting source-order subsequence — never reorders by size", () => {
+    // T6 (older_context) stays chronological — §4A reverses admission only for
+    // T4/T5 (recent_conversation / recent_tool_results), never older_context.
     // available = 60: large(50) admitted, medium(30) skipped, small(10) admitted.
     // A size-aware selector would have returned [small, medium] instead.
     const candidate = [
@@ -285,22 +312,23 @@ describe("assembleContext — provenance rides along, policy ignores it", () => 
     expect(result.dropped[0].item.provenance.source).toBe("checkpoint");
   });
 
-  it("does not let provenance influence the admission decision — identical category/tokens, different provenance", () => {
+  // line ~288-305 — the admitted id now depends on recency position, not provenance;
+  // the PROVENANCE-INDIFFERENT claim still holds (same position → same id regardless of values):
+  it("does not let provenance influence the admission decision — recency position decides", () => {
     const mk = (kind: string, source: string, id: string) =>
       item("recent_conversation", 40, { id, kind, provenance: { source } });
-    // available = 50: the first 40-token item fits, the second does not.
+    // available = 50: newest item (last in source order) fits, oldest does not.
     const resultA = assembleContext(
       [mk("repair_prompt", "repair", "first"), mk("checkpoint_prompt", "checkpoint", "second")],
       budget(50)
     );
     const resultB = assembleContext(
-      [mk("checkpoint_prompt", "checkpoint", "first"), mk("repair_prompt", "repair", "second")],
+      [mk("checkpoint_prompt", "checkpoint", "second"), mk("repair_prompt", "repair", "first")],
       budget(50)
     );
-    // Same ids admitted regardless of the provenance values carried.
-    expect(resultA.admitted.map((i) => i.id)).toEqual(["first"]);
+    expect(resultA.admitted.map((i) => i.id)).toEqual(["second"]);
     expect(resultB.admitted.map((i) => i.id)).toEqual(["first"]);
-    expect(resultA.dropped.map((d) => d.item.id)).toEqual(["second"]);
+    expect(resultA.dropped.map((d) => d.item.id)).toEqual(["first"]);
     expect(resultB.dropped.map((d) => d.item.id)).toEqual(["second"]);
   });
 });
@@ -353,6 +381,16 @@ describe("assembleContext — one deterministic pass; preflight stays the final 
     const result = assembleContext(candidate, b);
     expect(result.admittedTokens).toBeLessThanOrEqual(b.availableInputTokens);
     expect(result.remainingTokens).toBe(b.availableInputTokens - result.admittedTokens);
+  });
+
+  it("tracks admittedRawTokens separately from padded admittedTokens", () => {
+    const candidate = [
+      item("recent_conversation", 60, { id: "conv", rawTokens: 50 }),
+      item("recent_tool_results", 30, { id: "tools", rawTokens: 25 }),
+    ];
+    const result = assembleContext(candidate, budget(100));
+    expect(result.admittedTokens).toBe(90);
+    expect(result.admittedRawTokens).toBe(75);
   });
 
   it("handles an empty candidate", () => {

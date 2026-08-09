@@ -11,7 +11,7 @@ describe('TimelineBuilder — context event admission', () => {
     const b = new TimelineBuilder('s1');
     b.update([
       evt('context.snapshot.created', { invocationId: 'inv1', candidateTokens: 143000 }, 1, 1000),
-      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 131072, availableInputTokens: 96000, reservedOutputTokens: 35072 }, 2, 2000),
+      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 131072, availableInputTokens: 96000, budgetReservation: 35072, requestedMaxOutputTokens: 35072 }, 2, 2000),
       evt('context.assembled', { invocationId: 'inv1', admittedItems: 45, droppedItems: 12, admittedTokens: 91000, droppedTokens: 52000, admittedByCategory: {}, droppedReasons: [] }, 3, 3000),
     ]);
 
@@ -43,7 +43,7 @@ describe('TimelineBuilder — context event admission', () => {
   it('maps context event text from payload fields', () => {
     const b = new TimelineBuilder('s1');
     b.update([
-      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 131072, availableInputTokens: 96000, reservedOutputTokens: 35072 }, 1),
+      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 131072, availableInputTokens: 96000, budgetReservation: 35072, requestedMaxOutputTokens: 35072 }, 1),
       evt('context.assembled', { invocationId: 'inv1', admittedItems: 45, droppedItems: 12, admittedTokens: 91000, droppedTokens: 52000, admittedByCategory: {}, droppedReasons: [] }, 2),
       evt('context.preflight.failed', { invocationId: 'inv1', overageTokens: 5000, byCategory: {} }, 3),
       evt('context.irreducible', { invocationId: 'inv1', overageTokens: 10000, byCategory: {}, availableInputTokens: 96000, mandatoryTokens: 106000, contextWindowTokens: 131072 }, 4),
@@ -78,7 +78,7 @@ describe('TimelineBuilder — context event admission', () => {
   it('filters out context events from other sessions', () => {
     const b = new TimelineBuilder('s1');
     b.update([
-      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 100, availableInputTokens: 80, reservedOutputTokens: 20 }, 1),
+      evt('context.budget.computed', { invocationId: 'inv1', contextWindowTokens: 100, availableInputTokens: 80, budgetReservation: 20, requestedMaxOutputTokens: 20 }, 1),
     ]);
     // Different session — must not be admitted
     const otherSession = { ...evt('context.budget.computed', { invocationId: 'inv1' }, 2, 2000), sessionId: 's2' };

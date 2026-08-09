@@ -28,7 +28,7 @@ test: add context compiler cache tests
 
 - TypeScript, strict mode
 - No classes where functions suffice (prefer pure functions for testability)
-- `node:test` for unit tests (not mocha/jest)
+- `vitest` for unit tests (`*.vitest.ts`, colocated under `tests/`; not mocha/jest)
 - Errors use `ApiError` in providers, `ToolResult` in tools
 - Events use typed payloads from `src/events/types.ts`
 

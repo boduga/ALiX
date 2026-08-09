@@ -355,6 +355,7 @@ ${approvedPlanContent}`);
         sessionMode: ctx.config.permissions.sessionMode,
       },
       skills: ctx.config.skills,
+      context: ctx.config.context,
     },
     provider: ctx.provider,
     providerTools,

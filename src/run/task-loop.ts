@@ -19,7 +19,7 @@ import type { ExecutionContext } from "../observability/execution-context.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { TaskStateMachine } from "../autonomy/state-machine.js";
 import type { TaskType } from "../task-classifier.js";
-import type { MutationSessionState, RunResult } from "../run.js";
+import type { MutationSessionState, RunResult, ContextPressure } from "../run.js";
 import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
@@ -28,6 +28,7 @@ import { shouldRunVerification, discoverVerification, runVerification, type Veri
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
+import { createContextPressureTracker } from "./context-pressure.js";
 import { renderToolManifest } from "../agent/system-prompt.js";
 import { saveSessionState } from "../session/index.js";
 import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
@@ -35,6 +36,7 @@ import {
   handleToolCall,
   handleMcpToolSearch,
   handleScopeExpansion,
+  handleShedToolCall,
   buildScopeDenialMessage,
   buildScopeRejectionSummary,
   type EventHandlerDeps,
@@ -44,14 +46,15 @@ import { IntentClassifier, type AgentIntent } from "./intent-classifier.js";
 import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../agent/system-prompt.js";
 import { estimateMessageBudgetTokens, estimateBudgetTokens, ensureEncoder } from "../utils/tokens.js";
 import type { TokenizerName } from "../config/context-limits.js";
-import type { ContextBudget, ContextCategory } from "../config/context-budget.js";
+import type { ContextBudget, ContextCategory, TierOrderingConfig } from "../config/context-budget.js";
 import { ContextBudgetOverflowError, preflight } from "../config/context-budget.js";
 import {
   assembleContext,
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
-import { CONTEXT_EVENT_TYPES } from "../events/types.js";
+import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload, type ContextRotRiskPayload } from "../events/types.js";
+import { loadCalibration, type ContextRotThreshold } from "../config/calibration-store.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -70,12 +73,80 @@ async function completeSession(
   streamed: boolean,
   eventType: string = "session.ended",
   reason?: string,
+  contextPressure?: ContextPressure,
+  rotOpts?: {
+    threshold: ContextRotThreshold | undefined;
+    contextBudget: ContextBudget;
+    lastInvocationId: string;
+  },
 ): Promise<RunResult> {
-  await log.append({ ...session, actor: "system", type: eventType, payload: { reason, summary } });
+  // Task 9 (§6): Evaluate `context.rot_risk` advisory BEFORE the terminal
+  // `session.ended` event so a single readAll() sees both. UNSET threshold →
+  // no emission (default state silent).
+  if (rotOpts) {
+    await maybeEmitRotRisk({
+      log, session, threshold: rotOpts.threshold, contextPressure, contextBudget: rotOpts.contextBudget, lastInvocationId: rotOpts.lastInvocationId,
+    });
+  }
+  await log.append({ ...session, actor: "system", type: eventType, payload: { reason, summary, ...(contextPressure ? { contextPressure } : {}) } });
   const sessionEvents = await log.readAll();
   await saveDecisionsToMemory(sessionEvents, memoryStore);
   await evaluatePattern(log, session, sessionDir, taskType);
-  return { sessionId, summary, streamed, ...(reason ? { reason: reason as RunResult["reason"] } : {}) };
+  return {
+    sessionId, summary, streamed,
+    ...(reason ? { reason: reason as RunResult["reason"] } : {}),
+    ...(contextPressure ? { contextPressure } : {}),
+  };
+}
+
+/**
+ * Task 9 (§6): emit `context.rot_risk` advisory when configured threshold
+ * is crossed. Threshold UNSET this cycle → no emission by default. Advisory
+ * only, never a hard gate (spec §6).
+ *
+ * Side effect: appends one `context.rot_risk` event when fired. No-op when:
+ *   - `threshold` is undefined (default), OR
+ *   - `contextPressure` is undefined (legacy/non-terminal return path).
+ *
+ * `tier5Dropped` measured >= threshold.value (count, ascending).
+ * `remainingTokensPct` measured <= threshold.value (percent, descending —
+ *   "below X% of available input tokens remaining").
+ */
+async function maybeEmitRotRisk(opts: {
+  log: EventLog;
+  session: { sessionId: string; actor: "system" };
+  threshold: ContextRotThreshold | undefined;
+  contextPressure: ContextPressure | undefined;
+  contextBudget: ContextBudget;
+  lastInvocationId: string;
+}): Promise<void> {
+  const { log, session, threshold, contextPressure, contextBudget, lastInvocationId } = opts;
+  if (!threshold || !contextPressure) return;
+  const aggregate = contextPressure.aggregate;
+  const measured =
+    threshold.metric === "tier5Dropped"
+      ? aggregate.tier5Dropped
+      : contextBudget.availableInputTokens === 0
+        ? 0
+        : (aggregate.minRemainingTokens / contextBudget.availableInputTokens) * 100;
+  const crossed =
+    threshold.metric === "tier5Dropped"
+      ? measured >= threshold.value
+      : measured <= threshold.value;
+  if (!crossed) return;
+  const payload: ContextRotRiskPayload = {
+    invocationId: lastInvocationId,
+    metric: threshold.metric,
+    measured,
+    threshold: threshold.value,
+    contextPressure,
+  };
+  await log.append({
+    ...session,
+    actor: "system",
+    type: CONTEXT_EVENT_TYPES.ROT_RISK,
+    payload,
+  });
 }
 
 /**
@@ -109,6 +180,24 @@ function buildContextBudgetOverflowSummary(err: ContextBudgetOverflowError): str
 }
 
 /**
+ * §2 — Classify an irreducible overflow as `tooling` (dominated by T1a/T1b
+ * tool-schema tokens under `mandatory_system_governance`) or `content`
+ * (anything else). Tool-schema bloat is actionable — shed-tool re-scope may
+ * free enough room on retry. Pure-content overflow is not.
+ */
+function classifyIrreducibleKind(byCategory: Record<string, number>): "tooling" | "content" {
+  let maxKey: string | null = null;
+  let maxVal = -Infinity;
+  for (const [k, v] of Object.entries(byCategory)) {
+    if (typeof v === "number" && Number.isFinite(v) && v > maxVal) {
+      maxVal = v;
+      maxKey = k;
+    }
+  }
+  return maxKey === "mandatory_system_governance" ? "tooling" : "content";
+}
+
+/**
  * Emit an agent-conversation event (agent.message / agent.reasoning /
  * agent.decision). The task-loop runs in the OUTER runtime but emits ON BEHALF
  * of the agent conversation — its events belong in the `${sessionId}-agent`
@@ -129,6 +218,15 @@ export function emitAgent(
   payload: object,
 ) {
   return log.append({ ...session, sessionId: `${session.sessionId}-agent`, actor: "agent", type, payload });
+}
+
+/**
+ * §2 shed-tool contract: tell the model that the previously-shaded tool
+ * is now admitted (additive-only re-scope). Mirrors buildScopeDenialMessage's
+ * tone — short, factual, no instruction leakage.
+ */
+export function buildShedToolRetryMessage(toolCall: ToolCall): string {
+  return `The tool "${toolCall.name}" was previously outside the active scope but has now been re-admitted for this call. Retry your invocation of "${toolCall.name}".`;
 }
 
 // Maps keywords that commonly appear in a model's self-reported summary to
@@ -237,6 +335,11 @@ permissions: {
 skills?: {
   factory?: typeof DEFAULT_FACTORY_CONFIG;
 };
+context?: {
+  budget?: {
+    tierOrdering?: TierOrderingConfig;
+  };
+};
   };
   provider: ModelAdapter;
   providerTools: ToolDef[];
@@ -310,6 +413,55 @@ sessionDir,
 systemPrompt,
 onStream,
   } = deps;
+
+  // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
+  // Independent of Task 4's deferred §1 factor wiring — we only need to read
+  // `contextRotThreshold` here. `loadCalibration` returns `{}` on a missing/
+  // unreadable file, so `calibration.contextRotThreshold` is `undefined` in
+  // the default state → no emission. This is the UNSET-by-default invariant.
+  const calibration = await loadCalibration();
+  const contextRotThreshold: ContextRotThreshold | undefined = calibration.contextRotThreshold;
+
+  // ── T7: Tool scoping (§2 admission-control) ─────────────────────────
+  const { scopeToolsByTask } = await import("../config/tool-scoping.js");
+  // Full registry — every tool the model COULD name (provider + MCP). Consumed
+  // by Task 8's shed-tool handler to re-admit a scoped-out schema on call.
+  const fullToolRegistry = [...providerTools, ...mcpToolIndex];
+  const { core: coreTools, extended: extendedTools, fallbackFull } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
+  // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
+  const scopedOutNames = new Set(
+    fullToolRegistry.map((t) => t.name).filter((n) => !coreTools.some((c) => c.name === n) && !extendedTools.some((e) => e.name === n))
+  );
+  if (fallbackFull) {
+    await log.append({
+      sessionId: `${session.sessionId}-agent`, actor: "system",
+      type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_FALLBACK_FULL,
+      payload: {
+        provider: config.model.provider,
+        model: config.model.name,
+        reason: "no_relevance_signal",
+      } satisfies ToolingScopeFallbackFullPayload,
+    });
+  }
+
+  // ── T8: Shed-tool reintroduce-on-call (§2 retry-once) ────────────────
+  // shedToolsRetried: names already retried this run. A second call to the
+  // same shed name falls through to the normal invalid-tool path (no infinite
+  // loop, no second reintroduced event).
+  // reintroducedTools: schemas to append to the wire tools array on subsequent
+  // iterations. Additive-only — never re-classifies, never drops core/extended.
+  const shedToolsRetried = new Set<string>();
+  const reintroducedTools: Array<ToolDef | DeferredToolEntry> = [];
+
+  // Aggregate + peak context pressure across the run (spec §3). Pure
+  // observability — records per-iteration assembly drops; consumed only at
+  // terminal returns. No admission behavior change.
+  const contextPressure = createContextPressureTracker();
+
+  // Track the latest invocationId so the §6 rot_risk advisory at terminal
+  // return can correlate with the most recent model-facing snapshot.
+  let lastInvocationId = "";
 
   // Initialize EnhancedVerifier for historical failure matching
   const embedderDbPath = deps.embedderDbPath ?? join(homedir(), ".alix", "failures.db");
@@ -389,12 +541,20 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// (e.g. resume, sub-tasks). A UUID keeps timeline correlation unambiguous
 	// across re-entry; the sessionId is already on the event itself.
 	const invocationId = `inv-${randomUUID()}`;
+	lastInvocationId = invocationId;
 
 	// Build intent-specific system prompt (moved up — budget assembly needs it).
 	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
 	  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
 	  : VALIDATION_SUPPLEMENT;
-	const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
+	// Hoist the wire-tool set so the prompt manifest and the wire payload agree.
+	// Pre-§2 both used the unconstrained `providerTools`; post-§2 the wire is
+	// scoped ([...coreTools, ...extendedTools, ...reintroducedTools]) but the
+	// manifest was still rendered from the full registry — the model saw "you
+	// may call these N tools" in the prompt while the wire admitted only the
+	// scoped subset. Reusing `wireTools` makes the invariant structural.
+	const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
+	const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
 	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
 
 	// ── I1: Inject progress ledger BEFORE budget admission so it is
@@ -419,33 +579,24 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  effectiveSystemPrompt, messages, tokenizer
 	);
 
-	// ── Reserve tool schema tokens inside the assembly budget ──────────
-	// Both providerTools AND mcpToolIndex are sent as a structured `tools`
-	// array alongside the system prompt + messages. That array is a separate
-	// wire payload from the tool-manifest text embedded in the system prompt
-	// — BOTH count against the budget. Reserve each as a Tier-1 mandatory
-	// item so they are token-accounted before best-effort tiers are admitted.
+		// ── T7: Reserve scoped tool schemas inside the assembly budget ────
+		// Only coreTools + extendedTools (the scoped set) reach the wire.
+		// Reserving the scoped set — not all providerTools + mcpToolIndex — is
+		// the whole point: scoped-out tools are not sent, so they must not
+		// consume budget. The combined scoped array is the exact wire payload.
 
-	if (providerTools.length > 0) {
-	  const providerToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(providerTools), tokenizer)).budgetEstimate;
-	  candidateItems.unshift({
-	    id: "provider-tool-schema",
-	    kind: "tool_schema",
-	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: providerToolSchemaTokens,
-	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
-	  });
-	}
-	if (mcpToolIndex.length > 0) {
-	  const mcpToolSchemaTokens = (await estimateBudgetTokens(JSON.stringify(mcpToolIndex), tokenizer)).budgetEstimate;
-	  candidateItems.unshift({
-	    id: "mcp-tool-schema",
-	    kind: "tool_schema",
-	    category: "mandatory_system_governance" as ContextCategory,
-	    tokens: mcpToolSchemaTokens,
-	    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
-	  });
-	}
+		const scopedTools = [...coreTools, ...extendedTools];
+		if (scopedTools.length > 0) {
+		  const wireToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(scopedTools), tokenizer);
+		  candidateItems.unshift({
+		    id: "tool-schema",
+		    kind: "tool_schema",
+		    category: "mandatory_system_governance" as ContextCategory,
+		    tokens: wireToolSchemaMeta.budgetEstimate,
+		    rawTokens: wireToolSchemaMeta.rawEstimate,
+		    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
+		  });
+		}
 
 	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
 	// Stamped on the `${sessionId}-agent` domain so the agent timeline
@@ -468,7 +619,8 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    invocationId,
 	    contextWindowTokens: contextBudget.contextWindowTokens,
 	    availableInputTokens: contextBudget.availableInputTokens,
-	    reservedOutputTokens: contextBudget.reservedOutputTokens,
+	    budgetReservation: contextBudget.budgetReservation,
+	    requestedMaxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    policyReservation: contextBudget.policyReservation,
 	  },
 	});
@@ -479,7 +631,10 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// ── T6: catch -> emit context.irreducible -> re-throw ────────────
 	let assembled: ReturnType<typeof assembleContext>;
 	try {
-	  assembled = assembleContext(candidateItems, contextBudget);
+	  assembled = assembleContext(candidateItems, contextBudget, config.context?.budget?.tierOrdering);
+	  // Pure observability (spec §3): feed this iteration's assembly result
+	  // into the run-level contextPressure tracker.
+	  contextPressure.record(i, assembled);
 	} catch (err) {
 	  if (err instanceof ContextBudgetOverflowError) {
 	    await log.append({
@@ -491,6 +646,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	        availableInputTokens: err.availableInputTokens,
 	        mandatoryTokens: err.mandatoryTokens,
 	        contextWindowTokens: err.contextWindowTokens,
+	        kind: classifyIrreducibleKind(err.byCategory),
 	      },
 	    });
 	  }
@@ -563,6 +719,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	      availableInputTokens: overflowErr.availableInputTokens,
 	      mandatoryTokens: overflowErr.mandatoryTokens,
 	      contextWindowTokens: overflowErr.contextWindowTokens,
+	      kind: classifyIrreducibleKind(overflowErr.byCategory),
 	    },
 	  });
 	  throw overflowErr;
@@ -590,8 +747,8 @@ let usage: TokenUsage | undefined;
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...providerTools, ...mcpToolIndex],
-	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    tools: wireTools,
+	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  }, { onStream });
 	  text = result.text;
@@ -601,8 +758,8 @@ let usage: TokenUsage | undefined;
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...providerTools, ...mcpToolIndex],
-	    maxOutputTokens: contextBudget.reservedOutputTokens,
+	    tools: wireTools,
+	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  });
 	  // C1 fix: restore assignments — the non-streaming path MUST
@@ -656,6 +813,19 @@ await log.append({
 
 if (usage) {
   await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
+  // §1 — compare our estimated raw+padded against the provider's actual input
+  // tokens. Keyed by the same invocationId as context.snapshot.created.
+  await log.append({
+    ...session, actor: "system", type: CONTEXT_EVENT_TYPES.TOKEN_CALIBRATION,
+    payload: {
+      invocationId,
+      provider: config.model.provider,
+      model: config.model.name,
+      estimatedRaw: assembled.admittedRawTokens,
+      estimatedPadded: assembled.admittedTokens,
+      actual: usage.inputTokens,
+    } satisfies TokenCalibrationPayload,
+  });
 }
 
 // Emit reasoning trail
@@ -731,14 +901,16 @@ if (toolCalls.length === 0) {
     if (taskType === "research") {
       const limits = RESEARCH_LIMITS[depth];
       if (searchCalls >= limits.maxSearchCalls) {
-        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls` } });
+        await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: config.model.streaming };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
       }
       if (i >= limits.maxIterations) {
-        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations` } });
+        await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
       }
     }
     if (modelSaysDone) {
@@ -809,9 +981,10 @@ if (toolCalls.length === 0) {
       }
 
       const reason: RunResult["reason"] = trustworthy ? "completed" : "completed_unverified";
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated } });
+      await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: config.model.streaming, reason };
+      return { sessionId, summary: text, streamed: config.model.streaming, reason, contextPressure: contextPressure.snapshot() };
     }
     // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {
@@ -828,7 +1001,8 @@ if (toolCalls.length === 0) {
 
     if (allPassed && modelSaysDone) {
       // Success — verification passed and model signals done
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+      await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
 
       // Record successful resolution if we have files that were changed
       if (enhancedVerifier && sessionState.changed.size > 0) {
@@ -846,7 +1020,7 @@ if (toolCalls.length === 0) {
       }
 
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: config.model.streaming };
+      return { sessionId, summary: text, streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
     }
 
     // Repair loop — verification failed or model didn't signal done
@@ -866,7 +1040,7 @@ if (toolCalls.length === 0) {
         filesChanged: [...sessionState.changed],
         config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
       });
-      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, `Repair limit reached: ${failureText}`, config.model.streaming, "session.ended", "max_repairs");
+      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, `Repair limit reached: ${failureText}`, config.model.streaming, "session.ended", "max_repairs", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
     }
 
     // Use Fabric-style refine strategy
@@ -924,6 +1098,31 @@ if (toolCalls.length === 0) {
       continue;
     }
 
+    // §2 shed-tool contract: a tool scoped OUT by T1a/T1b scoping was called.
+    // Re-introduce its schema (additive-only), retry once, log — mirroring
+    // scope-expansion retry semantics. Guardrail: retried ONCE per shed tool
+    // per run (second call falls through to normal tool-error path).
+    const shedResult = handleShedToolCall(toolCall, scopedOutNames, fullToolRegistry);
+    if (
+      shedResult.handled &&
+      shedResult.reintroduce &&
+      !shedToolsRetried.has(toolCall.name)
+    ) {
+      shedToolsRetried.add(toolCall.name);
+      reintroducedTools.push(shedResult.reintroduce); // appended to the wire tools for the retry
+      await log.append({
+        ...session, actor: "system",
+        type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_REINTRODUCED,
+        payload: {
+          invocationId,
+          toolName: toolCall.name,
+          reason: "shed_tool_called",
+        } satisfies ToolingScopeReintroducedPayload,
+      });
+      messages.push({ role: "user", content: buildShedToolRetryMessage(toolCall) });
+      continue; // retry the call with the tool admitted
+    }
+
     // Handle scope expansion check
     const scopeResult = await handleScopeExpansion(toolCall, eventHandlerDeps);
     if (scopeResult.handled) {
@@ -947,8 +1146,9 @@ if (toolCalls.length === 0) {
           } else {
             // Non-TTY mode - scope was denied, return early
             const summary = buildScopeRejectionSummary(pathsToCheck);
-            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
-            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion" };
+            await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
           }
         }
         continue;
@@ -1136,6 +1336,8 @@ if (toolCalls.length === 0) {
       taskType, sessionId, text,
       config.model.streaming,
       "session.ended", reason,
+      contextPressure.snapshot(),
+      { threshold: contextRotThreshold, contextBudget, lastInvocationId },
     );
   }
 
@@ -1178,6 +1380,8 @@ if (toolCalls.length === 0) {
       taskType, sessionId, shellOutput || text,
       config.model.streaming,
       "session.ended", "completed",
+      contextPressure.snapshot(),
+      { threshold: contextRotThreshold, contextBudget, lastInvocationId },
     );
   }
 
@@ -1226,7 +1430,8 @@ if (toolCalls.length === 0) {
         });
         stateMachine.recordRepair();
         if (repairCount > maxRepairs) {
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
+          await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
           const { skillFactory } = await import("../skills/dispatcher.js");
           void skillFactory.process({
             sessionId,
@@ -1237,7 +1442,7 @@ if (toolCalls.length === 0) {
             config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
           await evaluatePattern(log, session, sessionDir, taskType);
-          return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
+          return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
         }
         const failureText = failedChecks
           .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
@@ -1294,7 +1499,7 @@ filesCreated: [...sessionState.created],
 filesChanged: [...sessionState.changed],
 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
-  return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", config.model.streaming, "session.ended", "max_iterations");
+  return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", config.model.streaming, "session.ended", "max_iterations", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
   } catch (err) {
     // C2 #18: irreducible context-budget overflow is a graceful RunResult
     // failure, not a throw. Returning here preserves the structured fields —
@@ -1304,9 +1509,10 @@ config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
     // failures) and all other errors fall through to `throw err`.
     if (isIrreducibleContextBudgetOverflow(err)) {
       const summary = buildContextBudgetOverflowSummary(err);
+      await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
       await log.append({
         ...session, actor: "system", type: "session.ended",
-        payload: { reason: "context_budget_overflow", summary },
+        payload: { reason: "context_budget_overflow", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) },
       });
       return {
         sessionId,
@@ -1314,6 +1520,7 @@ config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
         streamed: config.model.streaming,
         reason: "context_budget_overflow" as const,
         contextBudgetOverflow: err,
+        contextPressure: contextPressure.snapshot(),
       };
     }
     throw err;
@@ -1380,6 +1587,7 @@ async function classifyCandidateContext(
     kind: "system_prompt",
     category: "mandatory_system_governance",
     tokens: sysMeta.budgetEstimate,
+    rawTokens: sysMeta.rawEstimate,
     provenance: { category: "mandatory_system_governance", kind: "system_prompt", createdAt: Date.now(), source: "runTaskLoop" },
   });
   contentMap.set("system-prompt", { type: "system_prompt", text: systemPrompt });
@@ -1414,7 +1622,7 @@ async function classifyCandidateContext(
       : category === "recent_tool_results" ? "tool_result"
       : msg.role === "user" ? "user_turn" : "assistant_turn";
     candidateItems.push({
-      id: msgId, kind, category, tokens: meta.budgetEstimate,
+      id: msgId, kind, category, tokens: meta.budgetEstimate, rawTokens: meta.rawEstimate,
       provenance: { category, kind, createdAt: Date.now(), source: "runTaskLoop" },
     });
     contentMap.set(msgId, msg);

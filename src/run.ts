@@ -26,6 +26,36 @@ export type RunResult = {
    * intentionally NOT a serializable wire contract.
    */
   contextBudgetOverflow?: ContextBudgetOverflowError;
+  /**
+   * Aggregate + peak context pressure observed across the task run (spec §3).
+   * Pure observability — optional, absent on non-terminal/legacy returns.
+   * iterationsSincePeak is derivable as totalIterations − peak.iteration.
+   */
+  contextPressure?: ContextPressure;
+};
+
+/**
+ * Aggregate + peak context pressure for a run (spec §3, peak-variant).
+ * aggregate = summed T4/T5/T6 drops + min remainingTokens across all
+ * iterations; peak = the single highest-drop iteration (tie → first reach)
+ * with its iteration index. Chosen over "final iteration" because for a
+ * stuck_repeating_tools run the final iteration is often cleanest.
+ */
+export type ContextPressure = {
+  aggregate: {
+    tier4Dropped: number;
+    tier5Dropped: number;
+    tier6Dropped: number;
+    minRemainingTokens: number;
+  };
+  peak: {
+    iteration: number;
+    tier4Dropped: number;
+    tier5Dropped: number;
+    tier6Dropped: number;
+    remainingTokens: number;
+  };
+  totalIterations: number; // enables iterationsSincePeak = totalIterations − peak.iteration
 };
 
 export type RunOpts = {

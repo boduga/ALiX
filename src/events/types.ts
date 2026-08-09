@@ -394,6 +394,17 @@ export const CONTEXT_EVENT_TYPES = {
   ASSEMBLED: "context.assembled",
   PREFLIGHT_FAILED: "context.preflight.failed",
   IRREDUCIBLE: "context.irreducible",
+  // §1 — estimated vs actual token calibration (per model-facing request).
+  TOKEN_CALIBRATION: "token.calibration",
+  // §2 — tool-scoping admission-control events
+  TOOLING_SCOPE_FALLBACK_FULL: "tooling.scope.fallback_full",
+  TOOLING_SCOPE_REINTRODUCED: "tooling.scope.reintroduced",
+  // §2 — irreducible overflow uses the existing `context.irreducible` event
+  // with a `kind: "tooling" | "content"` field on the payload (see Task 8).
+  // §6 — context-rot threshold advisory (Task 9). Mechanism only: fires when
+  // configured threshold crossed. Threshold UNSET this cycle → never emitted
+  // by default. Advisory only, never a hard gate (spec §6).
+  ROT_RISK: "context.rot_risk",
 } as const;
 
 // T6 — C1 observability: payload types for the five lifecycle events.
@@ -409,7 +420,10 @@ export type ContextBudgetComputedPayload = {
   invocationId: string;
   contextWindowTokens: number;
   availableInputTokens: number;
-  reservedOutputTokens: number;
+  /** §5: safety-margin reservation (feeds availableInputTokens). */
+  budgetReservation: number;
+  /** §5: maxOutputTokens sent to the provider (≤ budgetReservation). */
+  requestedMaxOutputTokens: number;
   policyReservation: number;
 };
 
@@ -431,6 +445,18 @@ export type ContextPreflightFailedPayload = {
   byCategory: Record<string, number>;
 };
 
+export type TokenCalibrationPayload = {
+  invocationId: string;
+  provider: string;
+  model: string;
+  /** Unpadded base tokenizer estimate of the admitted request. */
+  estimatedRaw: number;
+  /** Padded budget-admission estimate of the admitted request. */
+  estimatedPadded: number;
+  /** Actual provider-reported input tokens (usage.inputTokens). */
+  actual: number;
+};
+
 export type ContextIrreduciblePayload = {
   invocationId: string;
   overageTokens: number;
@@ -438,6 +464,50 @@ export type ContextIrreduciblePayload = {
   availableInputTokens: number;
   mandatoryTokens: number;
   contextWindowTokens: number;
+  /**
+   * §2 — overflow kind. `tooling` when the irreducible overflow is dominated
+   * by T1a/T1b tool-schema tokens (post-scoping, tool bloat); `content`
+   * otherwise (content bloat / mixed). Distinguishes actionable tool-bloat
+   * overflows from generic content overflows so downstream consumers can
+   * route appropriately.
+   */
+  kind?: "tooling" | "content";
+};
+
+// §2 — Tool-scoping event payload types
+export type ToolingScopeFallbackFullPayload = {
+  provider: string;
+  model: string;
+  reason: string;
+};
+
+export type ToolingScopeReintroducedPayload = {
+  invocationId: string;
+  toolName: string;
+  reason: "shed_tool_called";
+};
+
+/**
+ * §6 — `context.rot_risk` advisory payload (Task 9).
+ *
+ * Emitted only when `calibration.contextRotThreshold` is configured AND
+ * the run's realized `contextPressure` crosses the threshold. Advisory
+ * only — never a hard gate (spec §6: "warning only — never hard failure,
+ * never another overflow gate").
+ *
+ * - `metric`: which `ContextRotThreshold.metric` was evaluated.
+ * - `measured`: the realized value of that metric at run-end.
+ * - `threshold`: the configured threshold value (for ratio computation
+ *   downstream).
+ * - `contextPressure`: the full pressure snapshot (aggregate + peak) so
+ *   consumers can render either side of the comparison.
+ */
+export type ContextRotRiskPayload = {
+  invocationId: string;
+  metric: "tier5Dropped" | "remainingTokensPct";
+  measured: number;
+  threshold: number;
+  contextPressure: import("../run.js").ContextPressure;
 };
 
 // Policy event payload types

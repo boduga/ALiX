@@ -8,11 +8,11 @@ function evt(type: string, payload: Record<string, unknown>, seq: number, at = s
 }
 
 describe('MetricsProjection — context counters', () => {
-  it('starts with contextWindowTokens / availableInputTokens / reservedOutputTokens = 0 and contextUtilization = null', () => {
+  it('starts with contextWindowTokens / availableInputTokens / budgetReservation = 0 and contextUtilization = null', () => {
     const s = new MetricsProjection().snapshot();
     expect(s.contextWindowTokens).toBe(0);
     expect(s.availableInputTokens).toBe(0);
-    expect(s.reservedOutputTokens).toBe(0);
+    expect(s.budgetReservation).toBe(0);
     expect(s.admittedTokens).toBe(0);
     expect(s.droppedTokens).toBe(0);
     expect(s.contextUtilization).toBeNull();
@@ -24,13 +24,13 @@ describe('MetricsProjection — context counters', () => {
       evt('context.budget.computed', {
         contextWindowTokens: 131072,
         availableInputTokens: 113664,
-        reservedOutputTokens: 17408,
+        budgetReservation: 17408,
       }, 1),
     ]);
     const s = p.snapshot();
     expect(s.contextWindowTokens).toBe(131072);
     expect(s.availableInputTokens).toBe(113664);
-    expect(s.reservedOutputTokens).toBe(17408);
+    expect(s.budgetReservation).toBe(17408);
   });
 
   it('updates admission counters from context.assembled and derives contextUtilization', () => {
@@ -40,7 +40,7 @@ describe('MetricsProjection — context counters', () => {
       evt('context.budget.computed', {
         contextWindowTokens: 131072,
         availableInputTokens: 113664,
-        reservedOutputTokens: 17408,
+        budgetReservation: 17408,
       }, 1),
     ]);
     // Then assemble
@@ -76,19 +76,19 @@ describe('MetricsProjection — context counters', () => {
       evt('context.budget.computed', {
         contextWindowTokens: Number.NaN,
         availableInputTokens: Infinity,
-        reservedOutputTokens: -Infinity,
+        budgetReservation: -Infinity,
       }, 1),
     ]);
     const s = p.snapshot();
     expect(s.contextWindowTokens).toBe(0);
     expect(s.availableInputTokens).toBe(0);
-    expect(s.reservedOutputTokens).toBe(0);
+    expect(s.budgetReservation).toBe(0);
   });
 
   it('does NOT change context counters on non-context events', () => {
     const p = new MetricsProjection();
     p.update([
-      evt('context.budget.computed', { contextWindowTokens: 100000, availableInputTokens: 80000, reservedOutputTokens: 20000 }, 1),
+      evt('context.budget.computed', { contextWindowTokens: 100000, availableInputTokens: 80000, budgetReservation: 20000 }, 1),
       evt('tool.requested', { toolCallId: 't1', toolName: 'read' }, 2),
       evt('model.usage', { inputTokens: 1000, outputTokens: 500 }, 3),
     ]);
@@ -103,7 +103,7 @@ describe('MetricsProjection — context counters', () => {
   it('is idempotent on at-least-once replay of context events', () => {
     const p = new MetricsProjection();
     const batch = [
-      evt('context.budget.computed', { contextWindowTokens: 50000, availableInputTokens: 40000, reservedOutputTokens: 10000 }, 1),
+      evt('context.budget.computed', { contextWindowTokens: 50000, availableInputTokens: 40000, budgetReservation: 10000 }, 1),
       evt('context.assembled', { admittedTokens: 35000, droppedTokens: 15000, admittedByCategory: {}, droppedReasons: [] }, 2),
     ];
     p.update(batch);
@@ -117,7 +117,7 @@ describe('MetricsProjection — context counters', () => {
   it('snapshot() returns fresh immutable DTO — no payload references leaked', () => {
     const p = new MetricsProjection();
     p.update([
-      evt('context.budget.computed', { contextWindowTokens: 1000, availableInputTokens: 800, reservedOutputTokens: 200 }, 1),
+      evt('context.budget.computed', { contextWindowTokens: 1000, availableInputTokens: 800, budgetReservation: 200 }, 1),
     ]);
     const s1 = p.snapshot();
     const s2 = p.snapshot();

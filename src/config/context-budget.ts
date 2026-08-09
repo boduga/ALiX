@@ -39,6 +39,23 @@ export const MANDATORY_CATEGORIES: readonly ContextCategory[] = [
   "current_task",
 ];
 
+export type TierOrderingStrategy = "recency" | "recency-dedup" | "relevance" | "chronological";
+
+/** Explicit per-tier ordering policy (§4 Part B). Only 'recency' is
+ *  implemented this cycle; 'recency-dedup' is declared and admits newest-first
+ *  like 'recency' (its dedup pass is additive); 'relevance' is declared and
+ *  falls back to chronological order until gated on §3 evidence.
+ *  'chronological' is the honest default for T6 (older_context) — the
+ *  assembly gate forces older_context chronological regardless of the
+ *  resolved strategy. */
+export type TierOrderingConfig = Partial<Record<ContextCategory, TierOrderingStrategy>>;
+
+export const DEFAULT_TIER_ORDERING: TierOrderingConfig = {
+  recent_conversation: "recency",
+  recent_tool_results: "recency-dedup",
+  older_context: "chronological",
+};
+
 // Shipped reservation defaults (B): 0.20 / 4,096 / 32,768 — all config-overridable.
 export const DEFAULT_OUTPUT_RATIO = 0.2;
 export const DEFAULT_OUTPUT_FLOOR = 4_096;
@@ -53,6 +70,13 @@ export interface ContextBudgetConfig {
   outputFloor?: number;
   /** Maximum reserved output tokens (default 32,768). */
   outputCap?: number;
+  /** §5: requested max output tokens sent to the provider (clamped ≤
+   *  budgetReservation). Defaults to budgetReservation (behavior preserved). */
+  maxOutputTokens?: number;
+  /** §4 Part B: explicit per-tier admission ordering policy. When omitted,
+   *  {@link DEFAULT_TIER_ORDERING} preserves the Part A behavior (recency for
+   *  T4/T5, chronological for T6). */
+  tierOrdering?: TierOrderingConfig;
 }
 
 /** Options for {@link createContextBudget}: the config knobs plus the optional
@@ -60,6 +84,10 @@ export interface ContextBudgetConfig {
  * `min(policyReservation, outputTokenLimit)` clamp (B). */
 export interface ContextBudgetOptions extends ContextBudgetConfig {
   outputTokenLimit?: number;
+  /** Per-provider admission safety factor (spec §1). UNSET this cycle — full
+   * wiring into the reserved math is deferred until calibration burn-in data
+   * lands; callers still see the SAFETY_FACTOR (1.2) default behavior. */
+  safetyFactor?: number;
 }
 
 /**
@@ -72,9 +100,11 @@ export interface ContextBudgetOptions extends ContextBudgetConfig {
  */
 export interface ContextBudget {
   readonly contextWindowTokens: number;
-  readonly reservedOutputTokens: number;
+  /** Safety-margin reservation: availableInputTokens = window − budgetReservation. */
+  readonly budgetReservation: number;
+  /** maxOutputTokens sent to the provider (≤ budgetReservation invariant). */
+  readonly requestedMaxOutputTokens: number;
   readonly availableInputTokens: number;
-  /** Policy reservation before the `model.outputTokenLimit` clamp (B). */
   readonly policyReservation: number;
 }
 
@@ -82,10 +112,15 @@ export interface ContextBudget {
  * Derive the authoritative per-turn budget:
  * ```
  * policyReservation    = clamp(floor(window × ratio), floor, cap)
- * reservedOutputTokens = min(policyReservation, outputTokenLimit)  // when known
- * availableInputTokens = window − reservedOutputTokens
+ * budgetReservation    = min(policyReservation, outputTokenLimit)  // when known
+ * availableInputTokens = window − budgetReservation
+ * requestedMaxOutputTokens = clamp(maxOutputTokens, ≤ budgetReservation) // §5
  * ```
- * The returned object is frozen: the budget never mutates.
+ * `budgetReservation` (the safety margin feeding `availableInputTokens`) is
+ * decoupled from `requestedMaxOutputTokens` (the `maxOutputTokens` sent to the
+ * provider): tuning output length no longer changes the input budget. The
+ * `requestedMaxOutputTokens ≤ budgetReservation` invariant is asserted at
+ * construction. The returned object is frozen: the budget never mutates.
  */
 export function createContextBudget(
   descriptor: Pick<ModelDescriptor, "contextWindowTokens">,
@@ -99,20 +134,21 @@ export function createContextBudget(
     Math.max(Math.floor(contextWindowTokens * ratio), floor),
     cap
   );
-  // Guard degenerate windows (a config override or a tiny model could set a
-  // window below the floor): never let the output reservation exceed the
-  // window itself, so `availableInputTokens` is never negative. No shipped
-  // provider is below 64k, but the invariant must hold structurally.
-  const reservedOutputTokens = Math.min(
+  const budgetReservation = Math.min(
     options.outputTokenLimit === undefined
       ? policyReservation
       : Math.min(policyReservation, options.outputTokenLimit),
     contextWindowTokens,
   );
+  const requestedMaxOutputTokens = Math.min(
+    options.maxOutputTokens ?? budgetReservation,
+    budgetReservation, // invariant: never exceeds the reservation (can't cause overflow)
+  );
   return Object.freeze({
     contextWindowTokens,
-    reservedOutputTokens,
-    availableInputTokens: contextWindowTokens - reservedOutputTokens,
+    budgetReservation,
+    requestedMaxOutputTokens,
+    availableInputTokens: contextWindowTokens - budgetReservation,
     policyReservation,
   });
 }

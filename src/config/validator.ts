@@ -82,6 +82,13 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     if (budget.outputFloor !== undefined && budget.outputCap !== undefined && budget.outputFloor > budget.outputCap) {
       issues.push({ path: "context.budget.outputFloor", level: "error", message: "outputFloor cannot exceed outputCap" });
     }
+    // §5: maxOutputTokens must be a positive integer. Values above outputCap
+    // are allowed (clamped to budgetReservation ≤ policyReservation ≤ outputCap
+    // at construction), so no cross-check is needed — the invariant holds
+    // structurally in the factory.
+    if (budget.maxOutputTokens !== undefined && (!Number.isInteger(budget.maxOutputTokens) || budget.maxOutputTokens <= 0)) {
+      issues.push({ path: "context.budget.maxOutputTokens", level: "error", message: "maxOutputTokens must be positive integer" });
+    }
   }
 
   // runtime.commandTimeoutMs must be positive

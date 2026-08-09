@@ -157,6 +157,7 @@ async function makeTestDeps(overrides: {
   selectedTools?: TaskLoopDeps['selectedTools'];
   providerTools?: TaskLoopDeps['providerTools'];
   mcpToolIndex?: TaskLoopDeps['mcpToolIndex'];
+  configContext?: TaskLoopDeps['config']['context'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
   const tmpRoot = makeTempDir('alix-t5-');
   const sessionId = 't5-test';
@@ -191,6 +192,7 @@ async function makeTestDeps(overrides: {
     config: {
       model: { provider: 'mock', name: 'mock', streaming: overrides.streaming ?? false },
       permissions: {},
+      context: overrides.configContext,
     },
     provider: overrides.provider,
     providerTools: overrides.providerTools ?? [],
@@ -303,7 +305,40 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
 
     // The provider should be called for a simple single-turn conversation.
     expect(mockProvider.requests.length).toBeGreaterThan(0);
-    expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.reservedOutputTokens);
+    expect(mockProvider.requests[0]!.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
+  });
+
+  // §5: the split decouples the input reservation (budgetReservation) from the
+  // maxOutputTokens actually sent to the provider (requestedMaxOutputTokens).
+  // When no maxOutputTokens is configured, requestedMaxOutputTokens defaults to
+  // budgetReservation — behavior preserved, and the wire value is defined.
+  it('sends requestedMaxOutputTokens (defaults to budgetReservation) as maxOutputTokens', async () => {
+    const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
+    const budget = createContextBudget(
+      { contextWindowTokens: 64_000 },
+      { outputRatio: 0.2, outputFloor: 4096, outputCap: 32768 },
+    );
+    const { deps } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages: [{ role: 'user', content: 'hello' }],
+      maxIterations: 1,
+    });
+
+    try {
+      await runTaskLoop(deps);
+    } catch {
+      // If the budget path throws, the test still checks the recorded request
+    }
+
+    // The provider recorded the request it received.
+    expect(mockProvider.requests.length).toBeGreaterThan(0);
+    const req = mockProvider.requests[0]!;
+    expect(req.maxOutputTokens).toBeDefined();
+    expect(req.maxOutputTokens).toBeGreaterThan(0);
+    // §5 invariant: requestedMaxOutputTokens defaults to budgetReservation.
+    expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
+    expect(budget.requestedMaxOutputTokens).toBe(budget.budgetReservation);
   });
 
   it('guarantees the request the provider receives never exceeds the budget (money invariant)', async () => {
@@ -343,7 +378,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     expect(mockProvider.requests.length).toBeGreaterThan(0);
 
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       // R3: measure the full wire payload including any structured tool schema
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
@@ -382,7 +417,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // The provider was called (or not, if irreducible).
     // Every request must fit within the budget INCLUDING tool schema tokens.
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
     }
@@ -426,7 +461,7 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
 
     // Every streamed request must fit within the budget INCLUDING tool schemas.
     for (const req of mockProvider.requests) {
-      expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+      expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
       const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
       expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
     }
@@ -500,10 +535,55 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // Provider was called (reducible)
     expect(mockProvider.requests.length).toBeGreaterThan(0);
     const req = mockProvider.requests[0]!;
-    expect(req.maxOutputTokens).toBe(budget.reservedOutputTokens);
+    expect(req.maxOutputTokens).toBe(budget.requestedMaxOutputTokens);
     // The request the provider received should have fewer messages than
     // the original (some were dropped by assembly).
     expect(req.messages.length).toBeLessThan(messages.length);
+  });
+
+  it('returns contextPressure on the RunResult when the run drops context items', async () => {
+    // Tight budget (available ≈ 2000) forces T4/T5 drops from a conversation
+    // that overflows it, but stays REDUCIBLE (mandatory core fits), so the run
+    // completes and returns a RunResult — with contextPressure attached.
+    const mockProvider = createMockProvider({ responseText: 'done. Task completed.' });
+    const budget = createContextBudget(
+      { contextWindowTokens: 2_500 },
+      { outputFloor: 500, outputCap: 500, outputRatio: 0.2 },
+    );
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'Fix the bug. ' },                            // Tier 2
+      { role: 'assistant', content: longText(500) },                          // Tier 4
+      { role: 'user', content: longText(500) },                               // Tier 4
+      { role: 'assistant', content: longText(500) },                          // Tier 4
+      { role: 'user', content: '<tool_result id="1">\n' + longText(500) + '\n</tool_result>' }, // Tier 5
+      { role: 'user', content: longText(500) },                               // Tier 4 (last user = mandatory)
+    ];
+    const { deps, log } = await makeTestDeps({
+      provider: mockProvider,
+      contextBudget: budget,
+      messages,
+      systemPrompt: 'Helpful. ',
+      maxIterations: 1,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.contextPressure).toBeDefined();
+    expect(result.contextPressure!.totalIterations).toBeGreaterThanOrEqual(1);
+    // At least one drop across T4/T5/T6 for a tight-budget run:
+    const agg = result.contextPressure!.aggregate;
+    expect(agg.tier4Dropped + agg.tier5Dropped + agg.tier6Dropped).toBeGreaterThan(0);
+
+    // Spec §3 item 2: persist contextPressure in the durable EventLog
+    // alongside the reason, in EVERY terminal session.ended record.
+    const { events } = await log.readSince(log.beginningCursor());
+    const terminal = events.filter((e) => e.type === 'session.ended');
+    expect(terminal.length).toBeGreaterThan(0);
+    for (const ev of terminal) {
+      const payload = ev.payload as Record<string, unknown>;
+      expect(payload.contextPressure).toBeDefined();
+      expect((payload.contextPressure as { totalIterations: number }).totalIterations).toBeGreaterThanOrEqual(1);
+    }
   });
 
   // ── C1 regression: non-streaming path MUST populate text/toolCalls/usage ──
@@ -865,5 +945,62 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
     // Money invariant still holds (incl. structured tool schema).
     const totalTokens = await estimateTotalRequestTokens(req, 'cl100k_base');
     expect(totalTokens).toBeLessThanOrEqual(budget.availableInputTokens);
+  });
+
+  // ── tierOrdering wiring: config.context.budget.tierOrdering reaches assembly ──
+  // Dead-config review-fix: `tierOrdering` existed on ContextBudgetConfig but
+  // NOTHING read it — runTaskLoop called assembleContext(candidate, budget)
+  // with 2 args, so a user setting context.budget.tierOrdering changed nothing.
+  // This test proves the config actually reaches assembly: admission ORDER for
+  // the recent_conversation tier (Tier 4) flips when 'relevance' is configured,
+  // which under budget pressure changes WHICH assistant turns survive.
+  //   - default (recency): newest-first → the NEWEST assistant turn is admitted,
+  //     the OLDEST is dropped;
+  //   - 'relevance' (chronological admission): the OLDEST is admitted, the
+  //     NEWEST is dropped.
+  // Wire order is always source-chronological (reconstructRequest), so the
+  // discriminator is which distinct assistant turn is present/absent.
+  it('wires config.context.budget.tierOrdering into admission (relevance = chronological, default = newest-first)', async () => {
+    await ensureEncoder('cl100k_base');
+
+    // window=1000, budgetReservation=200 → available=800. Mandatory core
+    // (system+supplement, msg0, last-user msg3) ≈ 230; two Tier-4 assistant
+    // turns ≈ 370 each — exactly ONE fits, the other must drop. Which one
+    // survives is the admission-order discriminator.
+    const budget = createContextBudget(
+      { contextWindowTokens: 1_000 },
+      { outputFloor: 200, outputCap: 200, outputRatio: 0.2 },
+    );
+    const messages: NormalizedMessage[] = [
+      { role: 'user', content: 'First: start the task' },                    // Tier 2 (index 0, mandatory)
+      { role: 'assistant', content: 'OLD-turn ' + longText(300) },           // Tier 4
+      { role: 'assistant', content: 'NEW-turn ' + longText(300) },           // Tier 4
+      { role: 'user', content: 'Current: latest instruction' },              // Tier 2 (last user, mandatory)
+    ];
+
+    // Scenario 1: NO tierOrdering configured → DEFAULT_TIER_ORDERING
+    // recency for recent_conversation → NEWEST assistant turn survives.
+    const recencyProvider = createMockProvider({ responseText: 'done.' });
+    const recencyDeps = await makeTestDeps({
+      provider: recencyProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+    });
+    await runTaskLoop(recencyDeps.deps);
+    const recencyLabels = recencyProvider.requests[0]!.messages.map((m) => String(m.content));
+    expect(recencyLabels.some((c) => c.startsWith('NEW-turn'))).toBe(true);
+    expect(recencyLabels.some((c) => c.startsWith('OLD-turn'))).toBe(false);
+
+    // Scenario 2: context.budget.tierOrdering.recent_conversation = 'relevance'
+    // → chronological admission → OLDEST assistant turn survives.
+    const relevanceProvider = createMockProvider({ responseText: 'done.' });
+    const relevanceDeps = await makeTestDeps({
+      provider: relevanceProvider, contextBudget: budget, messages,
+      systemPrompt: 'Helpful. ', maxIterations: 1,
+      configContext: { budget: { tierOrdering: { recent_conversation: 'relevance' } } },
+    });
+    await runTaskLoop(relevanceDeps.deps);
+    const relevanceLabels = relevanceProvider.requests[0]!.messages.map((m) => String(m.content));
+    expect(relevanceLabels.some((c) => c.startsWith('OLD-turn'))).toBe(true);
+    expect(relevanceLabels.some((c) => c.startsWith('NEW-turn'))).toBe(false);
   });
 });
