@@ -133,6 +133,13 @@ test("normalizeModelConfig: derives subagents deterministically, replacing stale
   // only canonical tiers exist
   assert.deepEqual(Object.keys(cfg.subagents).sort(), ["coding", "thinking"].sort());
 });
+
+test("normalizeModelConfig: no model and no models leaves model AND subagents unset", () => {
+  const cfg: any = {};
+  normalizeModelConfig(cfg);
+  assert.equal(cfg.model, undefined);
+  assert.equal(cfg.subagents, undefined); // "no model configuration exists" ≠ "empty subagents"
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -160,14 +167,21 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // 3. Deterministic subagent projection: derivedSubagents replaces subagents
   //    wholesale. A canonical tier not in `models` falls back to default; a
   //    stale/extra key never survives.
-  const derived: Partial<Record<string, ModelConfig>> = {};
-  for (const tier of MODEL_TIERS) {
-    const model = config.models?.[tier] ?? def;
-    if (model?.provider && model?.name) {
-      derived[tier] = { provider: model.provider, name: model.name };
+  const derived: Partial<Record<ModelTier, ModelConfig>> = {};
+  if (config.models) {
+    for (const tier of MODEL_TIERS) {
+      const model = config.models[tier] ?? def;
+      if (model?.provider && model?.name) {
+        derived[tier] = { provider: model.provider, name: model.name };
+      }
     }
   }
-  config.subagents = derived as SubagentConfig;
+  // Preserve the semantic distinction between "no model configuration exists"
+  // (subagents stays unset) and "model configuration exists but derives zero
+  // tiers". Only assign subagents when at least one tier resolved.
+  config.subagents = Object.keys(derived).length
+    ? (derived as SubagentConfig)
+    : undefined;
 }
 ```
 
@@ -633,7 +647,7 @@ The `migration is in-memory only` test is the highest-value one — it proves `l
 
 - [ ] **Step 2: Run test to verify it passes**
 
-Run: `pnpm build && node --test dist/tests/config/model-invariant.test.ts`
+Run: `pnpm build && node --test dist/tests/config/model-invariant.test.js`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
