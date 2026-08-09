@@ -128,7 +128,7 @@ describe("MiniMaxTokenPlanProvider", () => {
     const { SPECS } = await import("../../src/providers/unified-complete.js");
     const spec = SPECS.get("minimax-token-plan");
     expect(spec).toBeDefined();
-    expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic");
+    expect(spec?.baseUrl).toBe("https://api.minimax.io/anthropic/v1/messages");
   });
 
   it("createProvider returns MiniMaxTokenPlanProvider for id 'minimax-token-plan'", async () => {
