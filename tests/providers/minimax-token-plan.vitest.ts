@@ -62,4 +62,42 @@ describe("MiniMaxTokenPlanProvider", () => {
     const list = listProviders();
     expect(list.find((p) => p.id === "minimax-token-plan")).toBeDefined();
   });
+
+  it("listModels calls https://api.minimax.io/anthropic/v1/models with x-api-key", async () => {
+    const { listModels } = await import("../../src/providers/catalog.js");
+    let captured: { url: string; headers: Record<string, string> } | undefined;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: any, init: any) => {
+      captured = { url: String(url), headers: init?.headers ?? {} };
+      return new Response(JSON.stringify({ data: [{ id: "MiniMax-M3", display_name: "MiniMax-M3" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as any;
+    try {
+      const models = await listModels("minimax-token-plan", "sk-cp-test");
+      expect(captured?.url).toBe("https://api.minimax.io/anthropic/v1/models");
+      expect(captured?.headers["x-api-key"]).toBe("sk-cp-test");
+      expect(captured?.headers["anthropic-version"]).toBe("2023-06-01");
+      expect(models).toEqual([{ id: "MiniMax-M3", displayName: "MiniMax-M3", maxInputTokens: undefined, maxOutputTokens: undefined }]);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("getDefaultModel returns 'MiniMax-M3'", async () => {
+    const { getDefaultModel } = await import("../../src/providers/catalog.js");
+    expect(getDefaultModel("minimax-token-plan")).toBe("MiniMax-M3");
+  });
+
+  it("PROVIDERS array includes minimax-token-plan", async () => {
+    const { PROVIDERS } = await import("../../src/providers/catalog.js");
+    const p = PROVIDERS.find((x) => x.id === "minimax-token-plan");
+    expect(p).toEqual({
+      id: "minimax-token-plan",
+      name: "MiniMax (Token Plan)",
+      env: "MINIMAX_TOKEN_PLAN_KEY",
+      hint: "sk-cp-...",
+    });
+  });
 });
