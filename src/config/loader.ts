@@ -4,7 +4,7 @@ import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
-import { MODEL_SUBAGENT_TIERS } from "./schema.js";
+import { isValidModelConfig, MODEL_SUBAGENT_TIERS } from "./schema.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
 import { chooseBackend, loadCredentialStoreWithKeychainFallback } from "../security/credentials/backend-selection.js";
@@ -72,16 +72,6 @@ export function normalizeModelConfig(config: Partial<AlixConfig>): void {
     // exists but no valid subagent projection exists".
     config.subagents = undefined;
   }
-}
-
-function isValidModelConfig(model: ModelConfig | undefined): model is ModelConfig {
-  return (
-    model !== undefined &&
-    typeof model.provider === "string" &&
-    model.provider.length > 0 &&
-    typeof model.name === "string" &&
-    model.name.length > 0
-  );
 }
 
 // Test seam — allows tests to override homedir without touching the real OS module

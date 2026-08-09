@@ -76,6 +76,28 @@ export function isModelTier(
   ).includes(value);
 }
 
+/**
+ * Validity predicate for a resolved model — a model is usable only when it
+ * names both a provider and a model.
+ *
+ * Shared by the loader projection (`normalizeModelConfig`) and
+ * `resolveModelConfig()` so both agree on what counts as "configured".
+ * Lives in schema.ts next to `isModelTier` so the resolver stays a pure,
+ * dependency-light module (runtime readers that import it do not transitively
+ * pull the loader, signing, or credential-store modules).
+ */
+export function isValidModelConfig(
+  model: ModelConfig | undefined,
+): model is ModelConfig {
+  return (
+    model !== undefined &&
+    typeof model.provider === "string" &&
+    model.provider.length > 0 &&
+    typeof model.name === "string" &&
+    model.name.length > 0
+  );
+}
+
 export type PermissionConfig = {
   default: Decision;
   tools: Record<string, Decision>;
