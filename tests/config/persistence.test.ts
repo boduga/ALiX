@@ -1,0 +1,139 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  withoutDerivedModelProjections,
+  writeConfig,
+} from "../../src/config/persistence.js";
+import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
+import type { AlixConfig, PersistedAlixConfig } from "../../src/config/schema.js";
+
+// Compile-time fixture for the brand tripwires: `declare` emits nothing at
+// runtime, so `rawConfig` is undefined when the tests execute — the bodies
+// below are type-only (erased) or guarded, never dereference it.
+declare const rawConfig: AlixConfig;
+
+// Fixture: full runtime config carrying the derived projections plus the
+// canonical `models` object and unrelated persisted fields.
+const fixture: AlixConfig = {
+  ...DEFAULT_CONFIG,
+  model: { provider: "legacy", name: "old" },
+  subagents: {
+    enabled: true,
+    roles: [{ role: "worker", mode: "write", style: "coding", retryCount: 0 }],
+    coding: { provider: "openai", name: "gpt-4o-mini" },
+  },
+  models: { default: { provider: "openai", name: "gpt-4o" } },
+  apiKeys: { openai: "sk-test" },
+};
+
+// --- §4.1 Strip helper: projections removed, persisted fields survive ---
+
+test("withoutDerivedModelProjections strips model and subagents", () => {
+  const persisted = withoutDerivedModelProjections(fixture);
+  assert.equal("model" in persisted, false);
+  assert.equal("subagents" in persisted, false);
+});
+
+test("withoutDerivedModelProjections preserves models (canonical source)", () => {
+  const persisted = withoutDerivedModelProjections(fixture);
+  assert.deepEqual(persisted.models, {
+    default: { provider: "openai", name: "gpt-4o" },
+  });
+});
+
+test("withoutDerivedModelProjections preserves apiKeys and other fields", () => {
+  const persisted = withoutDerivedModelProjections(fixture);
+  assert.deepEqual(persisted.apiKeys, { openai: "sk-test" });
+  assert.equal(persisted.version, fixture.version);
+});
+
+// --- §4.3 Brand requirements ---
+
+test("withoutDerivedModelProjections does not emit a runtime brand property", () => {
+  const persisted = withoutDerivedModelProjections(fixture);
+  assert.equal(JSON.stringify(persisted).includes("persistedConfigBrand"), false);
+});
+
+test("raw AlixConfig fails the PersistedAlixConfig type assignment", () => {
+  // Compile-time assertions: the type-only unique-symbol brand means a raw
+  // AlixConfig cannot structurally satisfy PersistedAlixConfig. If the brand
+  // tripwires below (marked with @ts-expect-error) ever stop erroring, the
+  // brand has become structural and this file fails to build. The body is
+  // inside `if (false)` — tsc still type-checks it, but the erased `declare`
+  // const never evaluates at runtime.
+  if (false) {
+    // @ts-expect-error — raw AlixConfig must not satisfy PersistedAlixConfig
+    const bad: PersistedAlixConfig = rawConfig;
+    // A hand-built Omit is not branded either.
+    const handBuilt = { ...rawConfig } as Omit<AlixConfig, "model" | "subagents">;
+    // @ts-expect-error — Omit without the brand must not satisfy PersistedAlixConfig
+    const alsoBad: PersistedAlixConfig = handBuilt;
+    void bad;
+    void alsoBad;
+  }
+});
+
+test("withoutDerivedModelProjections is the only construction path (branded OK)", () => {
+  const persisted: PersistedAlixConfig = withoutDerivedModelProjections(fixture);
+  assert.equal(persisted !== undefined, true);
+});
+
+// --- §4.2/§4.4 Shared writer ---
+
+test("writeConfig writes a branded persisted config successfully", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-persist-"));
+  const configPath = join(dir, "config.json");
+  try {
+    const persisted = withoutDerivedModelProjections(fixture);
+    await writeConfig(persisted, configPath);
+    assert.equal(existsSync(configPath), true);
+    const raw = await readFile(configPath, "utf8");
+    assert.equal(raw.endsWith("\n"), true);
+    const parsed = JSON.parse(raw);
+    assert.deepEqual(parsed.models, {
+      default: { provider: "openai", name: "gpt-4o" },
+    });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("disk contains no top-level model/subagents, no brand property", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-persist-"));
+  const configPath = join(dir, "config.json");
+  try {
+    const persisted = withoutDerivedModelProjections(fixture);
+    await writeConfig(persisted, configPath);
+    const raw = await readFile(configPath, "utf8");
+    const parsed = JSON.parse(raw);
+    // Top-level derived projections must not be persisted. (Nested keys like
+    // `factory.model` in DEFAULT_CONFIG are unrelated and legitimately survive.)
+    assert.equal("model" in parsed, false);
+    assert.equal("subagents" in parsed, false);
+    assert.equal(raw.includes("persistedConfigBrand"), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("writeConfig refuses a raw AlixConfig (compile-time)", async () => {
+  // Type-only tripwire: writeConfig's parameter is PersistedAlixConfig, so a
+  // raw AlixConfig must not be accepted without withoutDerivedModelProjections.
+  // The call is inside `if (false)` so tsc still type-checks it (consuming the
+  // ts-expect-error directive on the call line) but no runtime write occurs.
+  // NOTE: the directive below is the ONLY one of its kind in this test.
+  const dir = await mkdtemp(join(tmpdir(), "alix-persist-"));
+  const configPath = join(dir, "config.json");
+  try {
+    if (false) {
+      // @ts-expect-error — raw AlixConfig must not satisfy PersistedAlixConfig
+      await writeConfig(rawConfig, configPath);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
