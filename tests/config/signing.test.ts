@@ -120,9 +120,10 @@ test("ConfigSigner: generateAndPersistKey writes key to disk", async () => {
 test("ConfigSigner: sign creates a config.sig file", async () => {
   const { dir, configDir, signer, publicKey } = await setupWithKey();
   try {
-    // Create a provenance entry so we have a version
+    // Create a provenance entry so we have a version (model.* is guarded by
+    // the single-source invariant — use an unrelated path)
     const service = new ConfigMutationService(configDir);
-    await service.set("model.temperature", 0.7);
+    await service.set("permissions.default", "allow");
     const version = await service.getVersion();
 
     const sig = await signer.sign(configDir, version);

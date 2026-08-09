@@ -64,6 +64,8 @@ export const MUTATION_ERROR_CODES = {
   CONCURRENT_MUTATION: "CONFIG_CONCURRENT_MUTATION",
   /** The config directory does not exist and could not be created. */
   NO_CONFIG_DIR: "CONFIG_NO_CONFIG_DIR",
+  /** Mutation targets a loader-derived projection (`model`/`subagents`) that must never be persisted. */
+  MODEL_PROJECTION_REJECTED: "CONFIG_MODEL_PROJECTION_REJECTED",
 } as const;
 
 export type MutationErrorCode = (typeof MUTATION_ERROR_CODES)[keyof typeof MUTATION_ERROR_CODES];
@@ -180,6 +182,32 @@ function resolveDotPath(
   const key = segments[segments.length - 1];
   const value = current[key];
   return { parent: current, key, value };
+}
+
+// ---------------------------------------------------------------------------
+// Model-projection guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Model selection must only be persisted under the canonical `models` object.
+ * `model` and `subagents` are loader-derived compatibility projections and must
+ * never be independently written (single-source invariant). Reject any
+ * mutation rooted at them, directing the user to the canonical `alix models`
+ * commands. Unrelated configuration paths are unaffected.
+ */
+const MODEL_PROJECTION_ROOTS = new Set(["model", "subagents"]);
+
+function assertMutableModelPath(path: string): void {
+  const root = path.split(".")[0];
+  if (MODEL_PROJECTION_ROOTS.has(root)) {
+    throw Object.assign(
+      new Error(
+        `Cannot modify "${path}": model selection is managed by the canonical 'models' object. ` +
+        `Use 'alix models set-default' or 'alix models set-tier' instead.`,
+      ),
+      { code: MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +422,7 @@ export class ConfigMutationService {
     opts: MutationOptions = {},
   ): Promise<ConfigMutation> {
     const updatedBy = opts.updatedBy ?? "cli";
+    assertMutableModelPath(path);
     // Save the hash the caller expects (before our internal read resets it)
     const expectedHash = this.lastReadHash;
     const config = await this.read();
@@ -472,6 +501,7 @@ export class ConfigMutationService {
     opts: MutationOptions = {},
   ): Promise<ConfigMutation> {
     const updatedBy = opts.updatedBy ?? "cli";
+    assertMutableModelPath(path);
     // Save the hash the caller expects (before our internal read resets it)
     const expectedHash = this.lastReadHash;
     const config = await this.read();

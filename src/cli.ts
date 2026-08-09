@@ -705,7 +705,7 @@ if (command === "config" && args[0] === "set") {
   const valueStr = args[2];
   if (!path || valueStr === undefined) {
     console.error("Usage: alix config set <path> <value>");
-    console.error("Example: alix config set model.temperature 0.7");
+    console.error("Example: alix config set permissions.default allow");
     process.exit(1);
   }
   // Parse value: try JSON first, fall back to string
@@ -731,7 +731,7 @@ if (command === "config" && args[0] === "delete") {
   const path = args[1];
   if (!path) {
     console.error("Usage: alix config delete <path>");
-    console.error("Example: alix config delete model.temperature");
+    console.error("Example: alix config delete logging.level");
     process.exit(1);
   }
   const alixDir = projectConfigDir(process.cwd());

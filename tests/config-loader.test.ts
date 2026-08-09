@@ -65,13 +65,13 @@ test("ConfigMutationService writes to the flat .alix/config.json (path reconcili
     // config.json — the same file loadConfig reads.
     const service = new ConfigMutationService(join(dir, ".alix"));
     await service.read();
-    await service.set("model.provider", "openrouter");
+    await service.set("permissions.default", "allow");
 
     // The flat config.json must now contain the new value on disk.
     const onDisk = JSON.parse(
       await readFile(join(dir, ".alix", "config.json"), "utf-8"),
     );
-    assert.equal(onDisk.model.provider, "openrouter");
+    assert.equal(onDisk.permissions.default, "allow");
 
     // The nested `config/config.json` (the pre-fix write target) must
     // NOT exist — it's a phantom path, and writes to it would silently

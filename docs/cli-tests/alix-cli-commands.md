@@ -66,7 +66,7 @@ tested in a temporary workspace with isolated `HOME` and `.alix` directories.
 | `alix tui` | Start the terminal UI. | `alix tui` | `pnpm test:manual:tui` and `pnpm test:pty:tui`; requires TTY/PTY. |
 | `alix demo local` | Run the local demonstration flow. | `alix demo local` | Manual/external; smoke-test preflight failures without a local model. |
 | `alix config show`, `get <path>` | Read effective configuration or one value. | `alix config get model.name` | CLI integration with layered config fixtures; no mutation. |
-| `alix config set <path> <value>`, `delete <path>` | Change or remove a configuration value. | `alix config set model.name llama3` | Mutation; assert version, provenance, validation, and rollback safety. |
+| `alix config set <path> <value>`, `delete <path>` | Change or remove a configuration value. | `alix config set permissions.default allow` | Mutation; assert version, provenance, validation, and rollback safety. |
 | `alix config history`, `provenance` | Show configuration versions or change origins. | `alix config history` | CLI integration with versioned fixtures. |
 | `alix config rollback <version> --force --reason "<reason>"` | Restore a prior configuration version. | `alix config rollback 2 --force --reason "bad model"` | Mutation; require reason/force and assert audit trail. |
 | `alix config set-key [provider]` | Store a provider API key interactively. | `alix config set-key openai` | Manual/TTY; automate with isolated `HOME` and stdin, never real secrets. |
