@@ -461,6 +461,14 @@ export type ContextIrreduciblePayload = {
   availableInputTokens: number;
   mandatoryTokens: number;
   contextWindowTokens: number;
+  /**
+   * §2 — overflow kind. `tooling` when the irreducible overflow is dominated
+   * by T1a/T1b tool-schema tokens (post-scoping, tool bloat); `content`
+   * otherwise (content bloat / mixed). Distinguishes actionable tool-bloat
+   * overflows from generic content overflows so downstream consumers can
+   * route appropriately.
+   */
+  kind?: "tooling" | "content";
 };
 
 // §2 — Tool-scoping event payload types

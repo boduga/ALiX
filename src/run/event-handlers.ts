@@ -8,7 +8,7 @@
  */
 
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
-import type { NormalizedMessage, ToolCall } from "../providers/types.js";
+import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../run.js";
 import { extractMutationPaths } from "../run.js";
@@ -73,6 +73,26 @@ export async function handleMcpToolSearch(
     handled: true,
     message: { role: "user", content: `[Tool Result]\n${output}` },
   };
+}
+
+/**
+ * §2 shed-tool contract: a tool scoped OUT of T1b is called by the model.
+ *  Re-admit that ONE tool's schema (additive-only) so the call can be retried.
+ *  Returns { handled, reintroduce } — the caller re-adds the schema to the
+ *  wire tools and lets the model retry the call once.
+ *
+ *  Pure lookup. Does NOT log the event (the caller owns the emit so the
+ *  retry-attempt counter and the wire-tools append stay in one place).
+ */
+export function handleShedToolCall(
+  toolCall: ToolCall,
+  scopedOutNames: Set<string>,
+  fullRegistry: Array<ToolDef | DeferredToolEntry>
+): { handled: boolean; reintroduce?: ToolDef | DeferredToolEntry } {
+  if (!scopedOutNames.has(toolCall.name)) return { handled: false };
+  const tool = fullRegistry.find((t) => t.name === toolCall.name);
+  if (!tool) return { handled: false };
+  return { handled: true, reintroduce: tool };
 }
 
 /**

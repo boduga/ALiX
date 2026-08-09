@@ -36,6 +36,7 @@ import {
   handleToolCall,
   handleMcpToolSearch,
   handleScopeExpansion,
+  handleShedToolCall,
   buildScopeDenialMessage,
   buildScopeRejectionSummary,
   type EventHandlerDeps,
@@ -52,7 +53,7 @@ import {
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
-import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload } from "../events/types.js";
+import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../events/types.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -115,6 +116,24 @@ function buildContextBudgetOverflowSummary(err: ContextBudgetOverflowError): str
 }
 
 /**
+ * §2 — Classify an irreducible overflow as `tooling` (dominated by T1a/T1b
+ * tool-schema tokens under `mandatory_system_governance`) or `content`
+ * (anything else). Tool-schema bloat is actionable — shed-tool re-scope may
+ * free enough room on retry. Pure-content overflow is not.
+ */
+function classifyIrreducibleKind(byCategory: Record<string, number>): "tooling" | "content" {
+  let maxKey: string | null = null;
+  let maxVal = -Infinity;
+  for (const [k, v] of Object.entries(byCategory)) {
+    if (typeof v === "number" && Number.isFinite(v) && v > maxVal) {
+      maxVal = v;
+      maxKey = k;
+    }
+  }
+  return maxKey === "mandatory_system_governance" ? "tooling" : "content";
+}
+
+/**
  * Emit an agent-conversation event (agent.message / agent.reasoning /
  * agent.decision). The task-loop runs in the OUTER runtime but emits ON BEHALF
  * of the agent conversation — its events belong in the `${sessionId}-agent`
@@ -135,6 +154,15 @@ export function emitAgent(
   payload: object,
 ) {
   return log.append({ ...session, sessionId: `${session.sessionId}-agent`, actor: "agent", type, payload });
+}
+
+/**
+ * §2 shed-tool contract: tell the model that the previously-shaded tool
+ * is now admitted (additive-only re-scope). Mirrors buildScopeDenialMessage's
+ * tone — short, factual, no instruction leakage.
+ */
+export function buildShedToolRetryMessage(toolCall: ToolCall): string {
+  return `The tool "${toolCall.name}" was previously outside the active scope but has now been re-admitted for this call. Retry your invocation of "${toolCall.name}".`;
 }
 
 // Maps keywords that commonly appear in a model's self-reported summary to
@@ -345,6 +373,15 @@ onStream,
     });
   }
 
+  // ── T8: Shed-tool reintroduce-on-call (§2 retry-once) ────────────────
+  // shedToolsRetried: names already retried this run. A second call to the
+  // same shed name falls through to the normal invalid-tool path (no infinite
+  // loop, no second reintroduced event).
+  // reintroducedTools: schemas to append to the wire tools array on subsequent
+  // iterations. Additive-only — never re-classifies, never drops core/extended.
+  const shedToolsRetried = new Set<string>();
+  const reintroducedTools: Array<ToolDef | DeferredToolEntry> = [];
+
   // Aggregate + peak context pressure across the run (spec §3). Pure
   // observability — records per-iteration assembly drops; consumed only at
   // terminal returns. No admission behavior change.
@@ -525,6 +562,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	        availableInputTokens: err.availableInputTokens,
 	        mandatoryTokens: err.mandatoryTokens,
 	        contextWindowTokens: err.contextWindowTokens,
+	        kind: classifyIrreducibleKind(err.byCategory),
 	      },
 	    });
 	  }
@@ -597,6 +635,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	      availableInputTokens: overflowErr.availableInputTokens,
 	      mandatoryTokens: overflowErr.mandatoryTokens,
 	      contextWindowTokens: overflowErr.contextWindowTokens,
+	      kind: classifyIrreducibleKind(overflowErr.byCategory),
 	    },
 	  });
 	  throw overflowErr;
@@ -624,7 +663,7 @@ let usage: TokenUsage | undefined;
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...coreTools, ...extendedTools],
+	    tools: [...coreTools, ...extendedTools, ...reintroducedTools],
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  }, { onStream });
@@ -635,7 +674,7 @@ let usage: TokenUsage | undefined;
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...coreTools, ...extendedTools],
+	    tools: [...coreTools, ...extendedTools, ...reintroducedTools],
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  });
@@ -969,6 +1008,31 @@ if (toolCalls.length === 0) {
     if (mcpSearchResult.handled && mcpSearchResult.message) {
       messages.push(mcpSearchResult.message);
       continue;
+    }
+
+    // §2 shed-tool contract: a tool scoped OUT by T1a/T1b scoping was called.
+    // Re-introduce its schema (additive-only), retry once, log — mirroring
+    // scope-expansion retry semantics. Guardrail: retried ONCE per shed tool
+    // per run (second call falls through to normal tool-error path).
+    const shedResult = handleShedToolCall(toolCall, scopedOutNames, fullToolRegistry);
+    if (
+      shedResult.handled &&
+      shedResult.reintroduce &&
+      !shedToolsRetried.has(toolCall.name)
+    ) {
+      shedToolsRetried.add(toolCall.name);
+      reintroducedTools.push(shedResult.reintroduce); // appended to the wire tools for the retry
+      await log.append({
+        ...session, actor: "system",
+        type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_REINTRODUCED,
+        payload: {
+          invocationId,
+          toolName: toolCall.name,
+          reason: "shed_tool_called",
+        } satisfies ToolingScopeReintroducedPayload,
+      });
+      messages.push({ role: "user", content: buildShedToolRetryMessage(toolCall) });
+      continue; // retry the call with the tool admitted
     }
 
     // Handle scope expansion check
