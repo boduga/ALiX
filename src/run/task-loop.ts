@@ -547,7 +547,14 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
 	  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
 	  : VALIDATION_SUPPLEMENT;
-	const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
+	// Hoist the wire-tool set so the prompt manifest and the wire payload agree.
+	// Pre-§2 both used the unconstrained `providerTools`; post-§2 the wire is
+	// scoped ([...coreTools, ...extendedTools, ...reintroducedTools]) but the
+	// manifest was still rendered from the full registry — the model saw "you
+	// may call these N tools" in the prompt while the wire admitted only the
+	// scoped subset. Reusing `wireTools` makes the invariant structural.
+	const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
+	const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
 	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
 
 	// ── I1: Inject progress ledger BEFORE budget admission so it is
@@ -578,9 +585,9 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 		// the whole point: scoped-out tools are not sent, so they must not
 		// consume budget. The combined scoped array is the exact wire payload.
 
-		const wireTools = [...coreTools, ...extendedTools];
-		if (wireTools.length > 0) {
-		  const wireToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(wireTools), tokenizer);
+		const scopedTools = [...coreTools, ...extendedTools];
+		if (scopedTools.length > 0) {
+		  const wireToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(scopedTools), tokenizer);
 		  candidateItems.unshift({
 		    id: "tool-schema",
 		    kind: "tool_schema",
@@ -740,7 +747,7 @@ let usage: TokenUsage | undefined;
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...coreTools, ...extendedTools, ...reintroducedTools],
+	    tools: wireTools,
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  }, { onStream });
@@ -751,7 +758,7 @@ let usage: TokenUsage | undefined;
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
-	    tools: [...coreTools, ...extendedTools, ...reintroducedTools],
+	    tools: wireTools,
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
 	  });

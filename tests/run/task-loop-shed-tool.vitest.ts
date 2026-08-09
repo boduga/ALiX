@@ -238,6 +238,19 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     expect(lastRequest).toBeDefined();
     expect(lastRequest!.tools!.some((t) => t.name === 'langfuse_trace_export')).toBe(true);
 
+    // 2b. Final-review fix: the systemPrompt MUST advertise the SAME set as the
+    // wire tools. Pre-fix, the manifest was rendered from the unscoped
+    // providerTools while the wire was scoped, so the model saw "you may call
+    // these N tools" in the prompt but only the scoped set on the wire. This
+    // regression-guards the invariant. The shed tool's name MUST appear in the
+    // final system prompt's manifest (via renderToolManifest's "- <name>: <desc>" line).
+    const lastSystemPrompt = lastRequest!.systemPrompt;
+    expect(lastSystemPrompt).toContain('langfuse_trace_export');
+    // Sanity: ALL wire tools must appear in the manifest, not just the shed one.
+    for (const t of lastRequest!.tools!) {
+      expect(lastSystemPrompt).toContain(t.name);
+    }
+
     // 3. retry-once guardrail: no unbounded loop (run terminates normally)
     expect(['completed', 'completed_unverified', 'max_iterations'].includes(result.reason ?? 'completed')).toBe(true);
   });
