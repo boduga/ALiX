@@ -145,6 +145,104 @@ function parseOpenAiToolDeltaLine(
   return { handled: true, chunks };
 }
 
+/**
+ * Accumulate Anthropic-format streamed tool calls (content_block_start →
+ * input_json_delta → content_block_stop), keyed by content-block `index`.
+ *
+ * Anthropic streams tool arguments as `input_json_delta` fragments on
+ * `content_block_delta` events; the `content_block_start` event only carries
+ * `input: {}` (arguments are explicitly incomplete at that point). Naively
+ * reading `input` at block start yields an empty-args tool call. So:
+ *
+ *   - content_block_start (tool_use) → seed a partial entry, emit nothing
+ *   - content_block_delta (input_json_delta) → append partial_json
+ *   - content_block_stop → JSON.parse the accumulated fragments and emit the
+ *     tool call; preserve `{}` when no fragments arrived; emit a stream error
+ *     (never a manufactured `{}`) when the accumulated JSON is malformed.
+ *
+ * Mirrors `parseOpenAiToolDeltaLine` (same orchestration layer, same
+ * per-index accumulator) so the pure `spec.fromStreamChunk` stays stateless.
+ */
+function parseAnthropicToolDeltaLine(
+  line: string,
+  partialTools: Map<number, PartialToolCall>,
+): { handled: boolean; chunks: StreamChunk[] } {
+  if (!line.startsWith("data: ")) return { handled: false, chunks: [] };
+
+  const data = line.slice(6).trim();
+  if (data === "[DONE]") return { handled: false, chunks: [] };
+
+  let event: any;
+  try {
+    event = JSON.parse(data);
+  } catch {
+    return { handled: false, chunks: [] };
+  }
+
+  if (typeof event?.type !== "string") return { handled: false, chunks: [] };
+  const index = typeof event.index === "number" ? event.index : 0;
+
+  if (event.type === "content_block_start") {
+    const block = event.content_block;
+    if (block?.type !== "tool_use") return { handled: false, chunks: [] };
+    partialTools.set(index, { id: block.id ?? "", name: block.name ?? "", argsText: "" });
+    return { handled: true, chunks: [] };
+  }
+
+  if (event.type === "content_block_delta") {
+    if (event.delta?.type !== "input_json_delta") return { handled: false, chunks: [] };
+    const partial = partialTools.get(index);
+    if (!partial) return { handled: false, chunks: [] };
+    const raw = event.delta.partial_json;
+    partial.argsText += typeof raw === "string" ? raw : JSON.stringify(raw);
+    return { handled: true, chunks: [] };
+  }
+
+  if (event.type === "content_block_stop") {
+    const partial = partialTools.get(index);
+    if (!partial) return { handled: false, chunks: [] };
+    partialTools.delete(index);
+
+    const raw = partial.argsText.trim();
+    if (raw === "") {
+      // No fragments streamed — legitimate empty-args tool call. Preserve
+      // `{}` rather than inventing an error.
+      const summary = extractSummary({});
+      return {
+        handled: true,
+        chunks: [{
+          type: "tool_call",
+          toolCall: { id: partial.id, name: partial.name, args: {}, ...(summary ? { summary } : {}) },
+        }],
+      };
+    }
+
+    let args: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      args = isRecord(parsed) ? parsed : {};
+    } catch {
+      return {
+        handled: true,
+        chunks: [{
+          type: "error",
+          error: `Failed to parse streamed tool arguments for ${partial.name}: ${raw.slice(0, 120)}`,
+        }],
+      };
+    }
+
+    const summary = extractSummary(args);
+    return {
+      handled: true,
+      chunks: [{
+        type: "tool_call",
+        toolCall: { id: partial.id, name: partial.name, args, ...(summary ? { summary } : {}) },
+      }],
+    };
+  }
+
+  return { handled: false, chunks: [] };
+}
 export async function complete(
   provider: string,
   model: string,
@@ -237,6 +335,12 @@ export async function* stream(
         const toolDelta = parseOpenAiToolDeltaLine(trimmedLine, partialTools);
         if (toolDelta.handled) {
           for (const chunk of toolDelta.chunks) yield chunk;
+          continue;
+        }
+
+        const anthropicToolDelta = parseAnthropicToolDeltaLine(trimmedLine, partialTools);
+        if (anthropicToolDelta.handled) {
+          for (const chunk of anthropicToolDelta.chunks) yield chunk;
           continue;
         }
 
