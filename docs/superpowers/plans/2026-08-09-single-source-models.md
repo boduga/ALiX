@@ -1372,6 +1372,244 @@ No live source, test execution path, fixture, help text, or user-facing diagnost
 
 ---
 
+## Task 9.5 — Close Remaining Configuration Writers and Legacy Persistence Escape Hatches
+
+Goal: Ensure every remaining configuration writer either persists the canonical "models" structure or is explicitly prevented from persisting model-selection state outside "models".
+
+### Scope
+
+Address the additional writers and references discovered by the Task 0 pre-flight audit:
+
+- "src/config/mutation.ts"
+- "src/benchmark/cases/no-tool-task.ts"
+- "src/cli/commands/init.ts"
+- "src/models/model-install.ts"
+- "src/cli/commands/run.ts"
+- affected configuration mutation/CLI tests and fixtures
+
+### Step 1 — Guard the generic configuration mutation service
+
+Update "ConfigMutationService" so that the generic "config set" / "config delete" path cannot mutate model-selection state outside the canonical "models" object.
+
+Reject paths rooted at:
+
+```
+model
+subagents
+subagents.<tier>
+```
+
+The guard must apply to both "config set" and "config delete".
+
+The rejection should provide actionable guidance directing users to the canonical "alix models" commands.
+
+Examples that must be rejected:
+
+```
+alix config set model.provider ...
+alix config set model.temperature ...
+alix config set subagents.coder ...
+alix config delete model
+alix config delete subagents
+```
+
+The guard must not reject unrelated configuration paths.
+
+Update the CLI's configuration usage/help examples so they no longer demonstrate mutation of "model.*".
+
+Add tests proving:
+
+1. "config set model.*" is rejected.
+2. "config set subagents.*" is rejected.
+3. "config delete model" is rejected.
+4. "config delete subagents" is rejected.
+5. unrelated configuration paths continue to work.
+6. the rejected operations do not modify "config.json".
+
+### Step 2 — Migrate the benchmark fixture
+
+Update:
+
+```
+src/benchmark/cases/no-tool-task.ts
+```
+
+so its temporary configuration uses the canonical structure:
+
+```
+{
+  "models": {
+    "default": {
+      "provider": "mock"
+    }
+  }
+}
+```
+
+rather than persisting:
+
+```
+{
+  "model": {
+    "provider": "mock"
+  }
+}
+```
+
+Update any fixture assertions that depend on the legacy structure.
+
+### Step 3 — Migrate "init.ts"
+
+"alix init" is a real production configuration writer and therefore must participate in the single-source model architecture.
+
+Change initialization so it persists model selection exclusively through:
+
+```
+models.default
+```
+
+and, where tier-specific assignments are initialized, through the appropriate entries under:
+
+```
+models.<tier>
+```
+
+It must no longer directly persist:
+
+```
+model
+subagents
+```
+
+The resulting initialized configuration must satisfy the same canonical persistence invariant as every other configuration writer.
+
+Add/update tests proving that a fresh "alix init" configuration contains canonical "models" state and does not contain legacy model-selection projections.
+
+(Note: Task 7 implements the init.ts migration; this step verifies the closure and adds any missing regression coverage.)
+
+### Step 4 — Prevent persistence-brand leakage from "model-install.ts"
+
+Audit "src/models/model-install.ts", including its local "writeConfig" path.
+
+"applyProfilePatch()" may return the branded "PersistedAlixConfig", but the persistence brand is an in-memory type-level/runtime implementation detail and must never appear in "config.json".
+
+Before persistence, ensure the configuration passes through the canonical unbranding/writer path:
+
+```
+withoutDerivedModelProjections()
+```
+
+and the normal configuration writer.
+
+The final serialized JSON must never contain:
+
+```
+__persistedConfigBrand
+```
+
+Add a regression test that exercises the model-install/profile persistence path and asserts that the serialized configuration contains no persistence-brand property.
+
+(Note: Task 6 migrates model-install.ts; this step verifies the closure and adds the brand-leak regression test.)
+
+### Step 5 — Remove live references to deleted legacy commands
+
+Remove/update all live references to:
+
+```
+set-default-model
+config set-tier
+```
+
+including:
+
+```
+src/cli/commands/run.ts
+tests/manual/suite-c-config.test.ts
+tests/fixtures/security/config-writers.json
+```
+
+For executable tests, replace legacy command coverage with the canonical "alix models" interface where appropriate.
+
+For security fixtures, update the documented writer inventory so it reflects the new canonical configuration mutation model.
+
+Do not preserve obsolete commands merely as compatibility examples unless the surrounding specification explicitly requires them.
+
+(Note: Task 9 removes the commands and migrates run.ts/suite-c/config-writers; this step verifies the closure and re-scans.)
+
+### Step 6 — Repository-wide writer audit
+
+After implementing the changes, repeat the configuration-writer audit.
+
+Search production and test code for:
+
+```
+config.model
+config.subagents
+model:
+subagents:
+"model"
+"subagents"
+set-default-model
+config set-tier
+```
+
+Classify every remaining occurrence.
+
+Remaining occurrences are permitted only when they are:
+
+- derived compatibility projections,
+- migration/import handling,
+- schema/type definitions,
+- explicit legacy-input migration tests,
+- historical documentation that is intentionally retained.
+
+No remaining production configuration writer may independently persist model-selection state through "model" or "subagents".
+
+### Hard Gate
+
+STOP if any production configuration writer can still persist model-selection state outside "models".
+
+STOP if "__persistedConfigBrand" can appear in serialized configuration.
+
+STOP if any live user-facing code still directs users to the removed legacy model commands.
+
+The repository-wide audit must demonstrate:
+
+«"models" is the only persistent source of model assignments; "model" and "subagents.*" exist, if at all, only as derived compatibility projections or migration inputs.»
+
+### Verification
+
+Run:
+
+```
+pnpm build
+pnpm test:vitest
+pnpm test:node
+npx tsc --noEmit
+```
+
+Additionally run targeted tests covering:
+
+- "ConfigMutationService"
+- "alix init"
+- model installation/profile persistence
+- benchmark configuration
+- legacy command removal
+
+Then perform the repository-wide writer/reference audit again.
+
+### Commit
+
+Use a conventional commit such as:
+
+```
+fix(config): close remaining model persistence writers
+```
+
+The commit must contain only the changes required to close these newly discovered persistence surfaces.
+
+---
+
 ## Task 10 — Migrate runtime readers
 
 Files
