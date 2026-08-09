@@ -279,7 +279,7 @@ node bin/alix.js config set-key 2>&1 | head -5
 
 ```bash
 # Just verify the command launches the menu
-node bin/alix.js config set-default-model 2>&1 | head -5
+node bin/alix.js models set-default 2>&1 | head -5
 ```
 
 **Expected:**
@@ -294,7 +294,7 @@ node bin/alix.js config set-default-model 2>&1 | head -5
 ### C.4: Set tier model
 
 ```bash
-node bin/alix.js config set-tier 2>&1 | head -5
+node bin/alix.js models set-tier 2>&1 | head -5
 ```
 
 **Expected:**

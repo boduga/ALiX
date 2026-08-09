@@ -1,5 +1,5 @@
 /**
- * Suite C: Configuration — alix config show, set-key, set-default-model, set-tier.
+ * Suite C: Configuration — alix config show, set-key, models set-default/set-tier.
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -32,15 +32,37 @@ describe("Suite C: Configuration", () => {
     );
   });
 
-  // ── C.3: Set default model launches interactive menu ───────────
-  it("C.3: config set-default-model shows provider selection", () => {
+  // ── C.3: Legacy set-default-model is now unknown ──────────────
+  it("C.3: config set-default-model is an unknown command", () => {
     const r = runCli(["config", "set-default-model"], { timeoutMs: 10_000 });
-    assertOutputContains(r, "Select a provider");
+    assert.notEqual(r.exitCode, 0, "legacy command must be rejected");
+    assertOutputContains(r, "Unknown command", "stderr should report unknown command");
   });
 
-  // ── C.4: Set tier launches interactive menu ────────────────────
-  it("C.4: config set-tier shows tier selection", () => {
+  // ── C.4: Legacy set-tier is now unknown ───────────────────────
+  it("C.4: config set-tier is an unknown command", () => {
     const r = runCli(["config", "set-tier"], { timeoutMs: 5_000 });
-    assertOutputContains(r, "thinking");
+    assert.notEqual(r.exitCode, 0, "legacy command must be rejected");
+    assertOutputContains(r, "Unknown command", "stderr should report unknown command");
+  });
+
+  // ── C.5: models set-default is recognized (interactive menu) ──
+  it("C.5: models set-default is a recognized command", () => {
+    const r = runCli(["models", "set-default"], { timeoutMs: 10_000 });
+    // On EOF stdin the command prints its provider menu then cancels — it must
+    // NOT fall through to "Unknown command".
+    assert.ok(
+      !`${r.stdout}\n${r.stderr}`.includes("Unknown command"),
+      "should be a recognized command (no 'Unknown command')",
+    );
+  });
+
+  // ── C.6: models set-tier is recognized (interactive menu) ─────
+  it("C.6: models set-tier is a recognized command", () => {
+    const r = runCli(["models", "set-tier"], { timeoutMs: 5_000 });
+    assert.ok(
+      !`${r.stdout}\n${r.stderr}`.includes("Unknown command"),
+      "should be a recognized command (no 'Unknown command')",
+    );
   });
 });

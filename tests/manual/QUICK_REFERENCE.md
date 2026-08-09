@@ -37,8 +37,8 @@ Some tests skip if no API key or TTY is available.
 |----|------|----------|--------|
 | C.1 | config show | Shows model/perms/settings | `[  ]` |
 | C.2 | config set-key | Provider selection menu | `[  ]` |
-| C.3 | config set-default-model | Provider + model selection | `[  ]` |
-| C.4 | config set-tier | Tier selection menu | `[  ]` |
+| C.3 | models set-default | Provider + model selection | `[  ]` |
+| C.4 | models set-tier | Tier selection menu | `[  ]` |
 
 ### Test Suite D: Init
 

@@ -154,7 +154,7 @@ export async function handler(args: string[]): Promise<number> {
     const msg = err instanceof Error ? err.message : String(err);
     if (err instanceof ApiError) {
       if (msg.includes("credit balance") || msg.includes("upgrade")) {
-        console.error(`\n⚠️  API: Insufficient credits.\n    ${err.detail}\n\nFix: Add credits or switch providers:\n     alix config set-default-model openai gpt-4o`);
+        console.error(`\n⚠️  API: Insufficient credits.\n    ${err.detail}\n\nFix: Add credits or switch providers:\n     alix models set-default`);
       } else if (msg.includes("invalid_request_error") || err.status === 401) {
         console.error(`\n⚠️  API: Authentication failed.\n    ${err.detail}\n\nFix: Check your API key.`);
       } else {

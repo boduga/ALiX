@@ -1,6 +1,6 @@
 /**
  * Provider + model discovery and interactive selection for `alix init`
- * and `alix config set-default-model`. Mirrors spec §6–§8, §13.
+ * and `alix models set-default`. Mirrors spec §6–§8, §13.
  *
  * Public surface (extended by Tasks 3 and 5):
  *   - ProviderAvailability
@@ -312,7 +312,7 @@ export async function selectProviderInteractive(
 /**
  * Interactive model picker. Shows up to 50 models and lets the user pick by
  * number — see spec §15 for the same `MAX_SHOWN` truncation rule used by
- * `set-default-model`. Returns the chosen `ModelInfo` or `null`.
+ * `alix models set-default`. Returns the chosen `ModelInfo` or `null`.
  */
 export async function selectModelInteractive(
   models: ModelInfo[],
