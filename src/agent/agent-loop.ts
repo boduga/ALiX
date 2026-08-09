@@ -130,16 +130,17 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
 
   	// Resolve context window and tokenizer from config or API, then
 	// derive the authoritative per-turn ContextBudget (B).
-	const userOverride = ctx.config.model.maxContextTokens;
+	const resolved = resolveModelConfig(ctx.config);
+	const userOverride = resolved.maxContextTokens;
 	let contextBudget: ContextBudget;
 	let tokenizer: TokenizerName;
 
 	if (userOverride !== undefined) {
-	  tokenizer = getEncoding(ctx.config.model.provider);
+	  tokenizer = getEncoding(resolved.provider);
 	  contextBudget = createContextBudget({ contextWindowTokens: userOverride }, ctx.config.context?.budget);
 	} else {
 	  const { resolveModelDescriptor } = await import("../config/context-limits.js");
-	  const descriptor = await resolveModelDescriptor(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
+	  const descriptor = await resolveModelDescriptor(resolved.provider, resolved.name, ctx.config.apiKeys);
 	  tokenizer = descriptor.tokenizer;
 	  contextBudget = createContextBudget(descriptor, ctx.config.context?.budget);
 	}

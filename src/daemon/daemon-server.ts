@@ -23,6 +23,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
@@ -320,10 +321,7 @@ async function executeDirectRoute(
   const config = await loadConfig(cwd);
   const { createProvider } = await import("../providers/registry.js");
 
-  const provider = await createProvider({
-    provider: config.model.provider,
-    model: config.model.name,
-  });
+  const provider = await createProvider(resolveModelConfig(config));
   const response = await provider.complete({
     systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
     messages: [{ role: "user", content: route.prompt }],
@@ -368,7 +366,7 @@ async function executeChatRoute(
   const config = await loadConfig(cwd);
   const { createProvider } = await import("../providers/registry.js");
 
-  const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
+  const provider = await createProvider(resolveModelConfig(config));
   const response = await provider.complete({
     systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
     messages: [{ role: "user", content: route.prompt }],
@@ -388,7 +386,7 @@ async function executeGroundedChatRoute(
   const { ToolExecutor } = await import("../tools/executor.js");
   const { randomBytes } = await import("node:crypto");
 
-  const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
+  const provider = await createProvider(resolveModelConfig(config));
   const executor = new ToolExecutor(config, eventLog, cwd);
 
   // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.

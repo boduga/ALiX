@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG, projectConfigDir } from "./config/loader.js";
+import { resolveModelConfig } from "./config/model-resolver.js";
 import { ALIX_VERSION } from "./index.js";
 import { EXIT_CODES } from "./run.js";
 import { createAgentSession, type AgentTurnResult } from "./agent/session.js";
@@ -1394,8 +1395,9 @@ if (command === "agent" && agentRole) {
   const prompt = promptWords.join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
   const config = await loadConfig(process.cwd());
-  const provider = config.model.provider;
-  const model = config.model.name;
+  const resolved = resolveModelConfig(config);
+  const provider = resolved.provider;
+  const model = resolved.name;
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
   await SubagentCLI.main([
     "--subagent", agentRole,

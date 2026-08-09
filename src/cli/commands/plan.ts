@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { loadConfig } from "../../config/loader.js";
 import { createProvider } from "../../providers/registry.js";
+import { resolveModelConfig } from "../../config/model-resolver.js";
 import yaml from "yaml";
 
 export interface PlanOptions {
@@ -55,7 +56,7 @@ export async function runPlan(opts: PlanOptions): Promise<void> {
   console.log("Generating plan...\n");
 
   const config = await loadConfig(process.cwd());
-  const provider = await createProvider(config.model);
+  const provider = await createProvider(resolveModelConfig(config));
 
   const systemPrompt = `You are a project planner. Generate a YAML plan for the given task.
 

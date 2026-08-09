@@ -70,7 +70,7 @@ line 4
 
       const router = new PatchToolRouter(
         dir,
-        { model: { provider: "anthropic" } } as any,
+        { models: { default: { provider: "anthropic", name: "test-model" } } } as any,
         undefined,
         undefined,
         eventLog,
@@ -111,7 +111,7 @@ modified
 
       const router = new PatchToolRouter(
         dir,
-        { model: { provider: "anthropic" } } as any,
+        { models: { default: { provider: "anthropic", name: "test-model" } } } as any,
         undefined,
         undefined,
         eventLog,
