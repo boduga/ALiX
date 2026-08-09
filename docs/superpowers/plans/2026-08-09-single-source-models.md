@@ -659,6 +659,36 @@ Cover:
 11. metadata survives projection;
 12. empty config leaves "model" and "subagents" unset.
 
+### 2.8 Loader integration decisions (plan correction)
+
+These decisions reconcile the plan with the real `SubagentConfig` shape and the loader's existing override machinery. They are binding on the implementer.
+
+**2.8.1 Do not wholesale-replace `subagents`.** `SubagentConfig` (schema.ts:210) carries both model-selection state and behavior configuration:
+
+- `subagents.<tier>` (thinking/coding/fast/critic/tiny/image) → model-selection state → derived from `models`.
+- `subagents.enabled` → behavior/configuration state → preserved, never replaced.
+- `subagents.roles` → behavior/configuration state → preserved, never replaced.
+- `subagents.classifier` → non-canonical; audit confirms it is never read in runtime code → removed deliberately from `SubagentConfig` and from `PartialConfig.modelTiers` (the model-tier tests already assert `isModelTier("classifier") === false` and `PROFILE_TIER_MAP.classifier === undefined`).
+
+`normalizeModelConfig` must derive and replace ONLY the six canonical tier keys on `subagents` (from `models`), leaving `enabled`/`roles` intact. Stale/non-canonical tier keys (classifier, bogus, coder, oldTier) disappear.
+
+**2.8.2 Environment and config `modelTiers` overrides converge on `models` before projection.** `mergeConfig` currently writes config-file `modelTiers` and `ALIX_<TIER>_PROVIDER`/`ALIX_<TIER>_MODEL` env overrides into `subagents.<tier>`. Because `normalizeModelConfig` derives `subagents.<tier>` from `models`, those overrides would be silently discarded. Correct flow:
+
+```
+raw config
+   ├── preserve behavioral subagents fields (enabled, roles)
+   ├── canonicalize model assignments into models
+   ├── apply config modelTiers overrides   → models.<tier>
+   ├── apply ALIX_<TIER>_PROVIDER/MODEL    → models.<tier>   (env wins over config modelTiers, matching current precedence)
+   └── derive compatibility projection     → subagents.<tier>
+```
+
+`mergeConfig` must route `modelTiers` + env overrides into `result.models.<tier>` (authoritative) instead of `result.subagents.<tier>`, preserving current precedence (env > config modelTiers). Move the override logic — do not leave an intermediate competing representation behind. Existing loader tests (config-loader.test.ts:390-457) assert the observable outcome on `subagents.<tier>`; those assertions must keep passing via the projection.
+
+**2.8.3 Streaming default applies to `models.default`.** The `ALIX_STREAMING` / default-`streaming: true` logic (loader.ts:193-202) must set `models.default.streaming` (authoritative) and the `model` projection must reflect it, so `resolveModelConfig` (Task 3) returns the streaming flag.
+
+**2.8.4 Invariant.** All model-selection inputs converge on `models` before any compatibility projection is generated. No model assignment may be authoritative outside `models`. `subagents` remains a valid container of non-model subagent behavior configuration. `config.modelTiers.coding` → `models.coding`; `ALIX_CODING_MODEL=foo` → `models.coding.name` (observable through the projection at `subagents.coding`).
+
 ---
 
 ## Task 3 — Pure model resolver
