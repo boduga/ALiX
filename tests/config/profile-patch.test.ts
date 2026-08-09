@@ -56,7 +56,9 @@ describe("applyProfilePatch", () => {
   });
   it("writes per-tier models", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
-    assert.equal(r.models?.coder.name, "qwen2.5-coder:7b");
+    // NOTE: `coder` is a profile-vocabulary tier; Task 5 migrates profile-patch
+    // to canonical `models.coding`. Cast keeps the current runtime assertion.
+    assert.equal((r.models as any)?.coder.name, "qwen2.5-coder:7b");
   });
 
   it("syncs profile coder tier into subagents.coding", () => {

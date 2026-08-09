@@ -3,9 +3,15 @@
  *
  * validateProfile() is a type guard used at load time to reject malformed
  * JSON profiles. It checks all known fields strictly.
+ *
+ * The profile tier vocabulary (ProfileModelTier) is distinct from the
+ * configuration tier vocabulary (ModelTier in ./schema.ts). PROFILE_TIER_MAP
+ * is the only profile-to-config tier mapping.
  */
 
-export type ModelTier =
+import type { ModelTier } from "./schema.js";
+
+export type ProfileModelTier =
   | "default"
   | "planner"
   | "researcher"
@@ -55,11 +61,29 @@ export type ProfileData = {
   description: string;
   mode: ProfileMode;
   hardware: ProfileHardware;
-  models: Partial<Record<ModelTier, ProfileModel>>;
+  models: Partial<Record<ProfileModelTier, ProfileModel>>;
   fallbacks?: ProfileFallbacks;
   runtime?: ProfileRuntime;
   install?: ProfileInstall;
 };
+
+/**
+ * The only profile-to-config tier mapping.
+ *
+ * Some profile tiers have no configuration equivalent (e.g. "classifier")
+ * and map to undefined. The compiler forces this mapping to stay
+ * synchronized with the profile vocabulary (ProfileModelTier).
+ */
+export const PROFILE_TIER_MAP:
+  Record<ProfileModelTier, ModelTier | undefined> = {
+    default: "default",
+    planner: "thinking",
+    researcher: "fast",
+    coder: "coding",
+    critic: "critic",
+    embeddings: "tiny",
+    classifier: undefined,
+  };
 
 const VALID_MODES = new Set(["local-first", "cloud-first", "cloud-only"]);
 const VALID_TIERS = new Set(["default", "planner", "researcher", "coder", "critic", "embeddings", "classifier"]);
