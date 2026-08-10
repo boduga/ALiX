@@ -6,10 +6,11 @@ The A-Series sits above both M and P, consuming platform and product capabilitie
 
 ## Status
 
-**A0–A6 are complete** — a governed, evidence-driven evolution pipeline documented in
+**A0–A7 are complete** — a governed, evidence-driven evolution pipeline documented in
 ADR-0008. Completion is verified by closure checkpoints
-(`docs/architecture/checkpoints/2026-08-10-a{3,4,5,6}-*.md`) and git tags
-(`alix-a{0..6}-*-complete`). **A7–A9 are the frontier** — designed at the roadmap level only, no design specs or code.
+(`docs/architecture/checkpoints/2026-08-10-a{3,4,5,6,7}-*.md`) and git tags
+(`alix-a{0..7}-*-complete`; A7 tagged `alix-a7-capability-marketplace-complete`).
+**A8–A9 are the frontier** — designed at the roadmap level only, no design specs or code.
 
 ## Evolution Pipeline (A0–A6)
 
@@ -29,11 +30,11 @@ Observe → Discover → Verify → Govern → Execute → Observe Outcome
 | A5 | Outcome Observation — measure actual effects post-execution | ✅ Complete |
 | A6 | Knowledge Evolution — curate knowledge base, detect stale data | ✅ Complete |
 
-## Frontier Milestones (A7–A9)
+## Frontier Milestones (A8–A9)
 
 | Milestone | Focus | Status |
 |-----------|-------|--------|
-| A7 | Capability Marketplace — track capabilities, suggest new ones | 🔲 Proposed |
+| A7 | Capability Marketplace — track capabilities, suggest new ones | ✅ Complete |
 | A8 | Organizational Learning — learn from all past proposals and outcomes | 🔲 Proposed |
 | A9 | Self-Directed Engineering — autonomous plan-execute lifecycle | 🔲 Proposed |
 
