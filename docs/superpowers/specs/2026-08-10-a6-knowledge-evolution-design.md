@@ -187,8 +187,15 @@ interface CurationFinding {
 
 ### 4.3 `CurationProposal`
 
+`CurationProposal` is A6's **internal** proposal artifact. It does **not** extend
+`DecisionArtifact` — `DecisionArtifact` requires fields (`id`, `subject`,
+`outcome`, `confidence`, `reasons`, `generatedAt`) that are the A3-facing
+artifact's concern, not the curation phase's. A6 must not invent compatibility
+fields to fake the interface; the builder constructs the A3-facing artifact
+(§6) from this proposal following the existing construction pattern.
+
 ```ts
-interface CurationProposal extends DecisionArtifact {
+interface CurationProposal {
   proposalId: string;
   findings: CurationFinding[];
   summary: string;                 // one-line "N stale, M duplicate..."
@@ -247,10 +254,6 @@ A missing store dir → `{ status: "unavailable" }` in `storeStatus`, no finding
 
 A6 must not route an empty proposal to A3 (which would mint a "do nothing" governance decision and add noise to the ledger).
 
-`CurationProposal` extends the existing `DecisionArtifact` base (the same base A3's
-`GovernanceDecision` and P8's `LearningSignal` extend), so it drops straight into
-A3's `generateDecision` pipeline.
-
 ## 5. Detector Logic
 
 Each detector is pure — `detect(artifacts: KnowledgeArtifact[], config: CurationConfig): CurationFinding[]`, returns findings. Thresholds come from `config`, never hard-coded.
@@ -282,14 +285,32 @@ recommends a curation action, and A3 decides.
 ```
 CurationProposal (non-empty findings)
         ↓
-DecisionArtifact
+curation-proposal-builder
+        ↓
+GovernanceRecommendation (extends DecisionArtifact) + VerificationEvidence
         ↓
 A3 generateDecision(evidence, recommendation)
 ```
 
-- **evidence** ← finding `evidenceRefs` (A5 observed evidence) + finding rationale, wrapped to satisfy A3's `VerificationEvidence` input
-- **recommendation** ← "curate the knowledge artifacts identified by this proposal" (an explicit, bounded curation action — never "delete X" specifics)
-- A3's `GovernanceDecision` (APPROVE / REJECT / etc.) is the authority; `EvolutionStateMachine` transition happens through the **existing A-series lifecycle**, which A6 does not instantiate
+The builder transforms a `CurationProposal` into A3's two inputs, following the
+existing artifact-construction pattern (the same pattern used by
+`LearningSignal` and `GovernanceRecommendation` when they extend
+`DecisionArtifact`):
+
+- **`GovernanceRecommendation`** (the A3-facing `DecisionArtifact`) — built from
+  the proposal's findings: `id` ← proposal `proposalId`, `subject` ← summary,
+  `outcome` ← "curation_proposed", `confidence` ← aggregated finding confidence,
+  `reasons` ← finding rationales, `evidenceRefs` ← union of finding `evidenceRefs`,
+  `generatedAt` ← observation timestamp. `reportType: "governance_recommendation"`,
+  `recommendations` ← one `Recommendation` per curation dimension. A6 recommends
+  a **bounded curation action** — never "delete X" specifics.
+- **`VerificationEvidence`** — wrapped from finding `evidenceRefs` (A5 observed
+  evidence) + finding rationale, satisfying A3's `VerificationEvidence` input.
+
+A3's `GovernanceDecision` (APPROVE / REJECT / etc.) is the authority;
+`EvolutionStateMachine` transition happens through the **existing A-series
+lifecycle**, which A6 does not instantiate.
+
 - **0 findings → no proposal → no A3 call → no decision** (see §4.7)
 
 ## 7. CLI
@@ -327,7 +348,7 @@ Mirror the A5 test layout at `tests/evolution/knowledge/`:
 | `contradiction-detector.test.ts` | value clash + outcome contradiction (claims only) |
 | `compression-detector.test.ts` | low-value + long-lived |
 | `curation-engine.test.ts` | aggregation, ordering determinism, store status |
-| `curation-proposal-builder.test.ts` | findings → proposal, DecisionArtifact base |
+| `curation-proposal-builder.test.ts` | findings → proposal, and proposal → GovernanceRecommendation + VerificationEvidence (A3 mapping) |
 | `curation-cli.test.ts` | dimension filter, JSON, no-findings, exit codes |
 | `integration/a6-curation-integration.test.ts` | end-to-end: adapters → detectors → builder → A3 decision |
 
