@@ -112,4 +112,56 @@ describe("detectDuplicates", () => {
     detectDuplicates(frozen, DEFAULT_CURATION_CONFIG);
     assert.equal(JSON.stringify(frozen), snapshot);
   });
+
+  it("emits exactly one exact finding (not near) when a pair is both same-cluster and content-similar", () => {
+    const a = makeArtifact("art-A", {
+      subject: "agents",
+      content: "routing chooses the slow path when queue is deep",
+    });
+    const b = makeArtifact("art-B", {
+      subject: "agents",
+      content: "routing chooses a slow path when queue is deep",
+    });
+    const findings = detectDuplicates([a, b], DEFAULT_CURATION_CONFIG);
+    // Same (store, artifactKind, subject) AND near-identical content — exact
+    // wins, and the near pass must skip the pair so the findingId is emitted once.
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].reasonCode, "exact");
+    assert.equal(findings[0].kind, "duplicate");
+    // Every findingId is unique — nothing collapsed or duplicated.
+    const ids = new Set(findings.map((f) => f.findingId));
+    assert.equal(ids.size, findings.length);
+  });
+
+  it("does not group distinct (store, artifactKind, subject) triples that would collide without a delimiter", () => {
+    // Delimiter-less concatenation would map both (kind="X", subject="Y") and
+    // (kind="XY", subject="") to the same key "learningXY" and collapse all four
+    // artifacts into one exact cluster (6 findings). With a field separator the
+    // two real clusters stay apart: A+C and B+D → exactly two exact findings.
+    const a = makeArtifact("art-A", {
+      artifactKind: "X",
+      subject: "Y",
+      content: "alpha content",
+    });
+    const b = makeArtifact("art-B", {
+      artifactKind: "XY",
+      subject: "",
+      content: "beta content",
+    });
+    const c = makeArtifact("art-C", {
+      artifactKind: "X",
+      subject: "Y",
+      content: "gamma content",
+    });
+    const d = makeArtifact("art-D", {
+      artifactKind: "XY",
+      subject: "",
+      content: "delta content",
+    });
+    const findings = detectDuplicates([a, b, c, d], DEFAULT_CURATION_CONFIG);
+    const exact = findings.filter((f) => f.reasonCode === "exact");
+    assert.equal(exact.length, 2);
+    // Content differs enough that no near findings are emitted either.
+    assert.equal(findings.length, 2);
+  });
 });
