@@ -79,7 +79,8 @@ export type EvolutionTargetKind =
   | "runtime_config"
   | "governance_rule"
   | "evidence_filter"
-  | "execution_intent";
+  | "execution_intent"
+  | "capability";
 
 export const VALID_EVOLUTION_TARGET_KINDS: readonly EvolutionTargetKind[] = [
   "policy",
@@ -89,6 +90,7 @@ export const VALID_EVOLUTION_TARGET_KINDS: readonly EvolutionTargetKind[] = [
   "governance_rule",
   "evidence_filter",
   "execution_intent",
+  "capability",
 ];
 
 export interface EvolutionTarget {

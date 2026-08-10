@@ -171,10 +171,11 @@ describe("EvolutionOrigin", () => {
 // ---------------------------------------------------------------------------
 
 describe("EvolutionTargetKind", () => {
-  it("has 7 valid target kinds", () => {
-    assert.equal(VALID_EVOLUTION_TARGET_KINDS.length, 7);
+  it("has 8 valid target kinds", () => {
+    assert.equal(VALID_EVOLUTION_TARGET_KINDS.length, 8);
     assert.ok(VALID_EVOLUTION_TARGET_KINDS.includes("policy"));
     assert.ok(VALID_EVOLUTION_TARGET_KINDS.includes("execution_intent"));
+    assert.ok(VALID_EVOLUTION_TARGET_KINDS.includes("capability"));
   });
 });
 
