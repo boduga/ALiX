@@ -335,6 +335,38 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
 ];
 
 /**
+ * Local-machine probes — "what is my linux version", "what macos am I
+ * running", "what windows do I have". These semantically require local
+ * shell access (`uname -a`, `sw_vers`, `ver`, `systeminfo`), NOT web
+ * retrieval.
+ *
+ * OS-agnostic by design: the OS-name set is portable (linux, windows,
+ * mac/macos, plus common distros) but the real anchor is the local
+ * reference — `my` / `this` / `am I` / `do I have`. So the family
+ * catches the query regardless of which OS the user is on; pinning
+ * only `linux` would strand windows/mac users back in grounded_chat.
+ *
+ * Placed above RETRIEVAL_SIGNALS so `\bversion\b` / `\blatest\b` can't
+ * route a local-state question to the web-only grounded_chat (which has
+ * no shell tool and whose prompt forbids running commands). Same bug
+ * history as the shell-state probes above: left to the model fallback,
+ * it could label this `generation`, and the direct executor's no-tool
+ * prompt makes the model answer "I don't have direct access to your
+ * system" instead of calling `alix_shell_run`.
+ */
+const LOCAL_SYSTEM_ANCHORS: readonly RegExp[] = [
+  // Possessive/local reference + generic system noun (any OS).
+  /\b(?:my|this)\s+(?:operating\s+system|os|system|machine|computer|laptop|desktop|kernel|distro|hostname|username|platform|hardware|architecture)\b/i,
+  // Possessive/local reference + a concrete OS name (portable set).
+  /\b(?:my|this)\s+(?:linux|windows|mac|macos|mac\s+os|os\s*x|unix|ubuntu|debian|fedora|arch|manjaro|opensuse|kali|linux\s+mint|pop\s*os|freebsd|centos|rhel|alpine)\b/i,
+  // First-person + OS/system noun + running/have/on, bridging any words
+  // in between ("what version of linux am i running", "what os do i
+  // have"). The `[^.!?]*` bridge absorbs "version of" / "the" / etc.
+  // without enumerating every word order.
+  /\bwhat(?:'s|\s+is)?\s+(?:(?:my|the)\s+)?(?:operating\s+system|os|linux|windows|mac|macos|kernel|distro|platform|version)\b[^.!?]*\b(?:am\s+i\s+(?:running|on)|do\s+i\s+have|is\s+my\b)\b/i,
+];
+
+/**
  * Workspace-mutation recognizers (T8 on wayfinder map #376).
  * A prompt matches `workspace_mutation` when it asks the runtime to
  * change the local filesystem — create, edit, delete, rename, install,
@@ -592,6 +624,18 @@ export function classifyAction(input: string): ActionClassification {
     return {
       intent: "workspace_action",
       reason: "prompt references the local workspace or repository",
+    };
+  }
+
+  // 2.5 Local-machine probes — "what is my linux version", "what windows
+  //     do I have". Classifies as workspace_action so the route reaches
+  //     the full agent loop (shell + web tools both available). Must
+  //     fire BEFORE RETRIEVAL_SIGNALS (step 4) or `\bversion\b` routes
+  //     it to the web-only grounded_chat with no shell tool.
+  if (hasAny(trimmed, LOCAL_SYSTEM_ANCHORS)) {
+    return {
+      intent: "workspace_action",
+      reason: "prompt asks about the local machine's OS / system state",
     };
   }
 

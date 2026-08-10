@@ -283,6 +283,30 @@ describe("taskRouter — workspace_action dominates retrieval", async () => {
     const r = await taskRouter("Write SQL into file");
     assert.equal(r.kind, "agent");
   });
+
+  it("routes local-machine probes to agent even when they contain retrieval signals", async () => {
+    // Bug regression: "what is my linux version and what is the latest
+    // linux LTS version" matched `\blatest\b`/`\bversion\b` →
+    // external_retrieval → grounded_chat (web-only, no shell tool). The
+    // local-machine anchor must dominate so the agent loop can answer the
+    // "my linux version" half with `uname -a` and the "latest" half with
+    // web_search.
+    const r = await taskRouter(
+      "what is my linux version and what is the latest linux LTS version",
+    );
+    assert.equal(r.kind, "agent");
+    if (r.kind === "agent") {
+      assert.equal(r.diagnostic.classification, "workspace_action");
+    }
+  });
+
+  it("keeps a bare 'latest X version' question on grounded_chat (cheap web path)", async () => {
+    const r = await taskRouter("what is the latest linux LTS version");
+    assert.equal(r.kind, "grounded_chat");
+    if (r.kind === "grounded_chat") {
+      assert.deepEqual(r.allowedTools, ["web.search", "web_fetch"]);
+    }
+  });
 });
 
 // ── Direct routes must NOT carry a pre-computed answer for generation ─

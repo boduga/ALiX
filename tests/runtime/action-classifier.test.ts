@@ -341,6 +341,105 @@ describe("classifyAction — workspace-state recognition contract", () => {
   });
 });
 
+// ── Classification: local-machine probes (bug-fix regression + contract) ──────
+//
+// Bug history: "what is my linux version and what is the latest linux LTS
+// version" was returning `external_retrieval` because RETRIEVAL_SIGNALS
+// matched `\blatest\b` / `\bversion\b`. That routed the prompt to
+// `grounded_chat`, whose tool allowlist is web-only (no `alix_shell_run`)
+// and whose prompt forbids running commands — so the model answered
+// "I don't have direct access to your system" instead of running `uname -a`.
+// Local-machine probes must classify as `workspace_action` so the route
+// reaches the full agent loop (shell + web both available).
+//
+// OS-agnostic by design: the anchor is the LOCAL reference (my/this/am I/
+// do I have), so the same shape works whether the user is on linux,
+// windows, or macOS — not pinned to one OS name.
+//
+// This block is also the **local-machine probe recognition contract**:
+// positive + negative corpora. Mirrors the workspace-state contract above.
+
+describe("classifyAction — local-machine probe recognition contract", () => {
+  describe("positive corpus (must classify workspace_action, not external_retrieval)", () => {
+    it("routes 'what is my linux version' to workspace_action (not grounded_chat)", () => {
+      const result = classifyAction("what is my linux version");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes the full mixed question to workspace_action", () => {
+      const result = classifyAction(
+        "what is my linux version and what is the latest linux LTS version",
+      );
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'what is my windows version' to workspace_action", () => {
+      const result = classifyAction("what is my windows version");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'what macos am I running' to workspace_action", () => {
+      const result = classifyAction("what macos am I running");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'what version of linux am I running' to workspace_action", () => {
+      const result = classifyAction("what version of linux am I running");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'what os am I on' to workspace_action", () => {
+      const result = classifyAction("what os am I on");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'check my OS version' to workspace_action", () => {
+      const result = classifyAction("check my OS version");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'this machine' probes to workspace_action", () => {
+      const result = classifyAction("what is this machine's os");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("confidence ≥ 0.7 (gates the model fallback from being called)", () => {
+      const result = classifyActionWithConfidence(
+        "what is my linux version and what is the latest linux LTS version",
+      );
+      assert.ok(
+        (result.confidence ?? 0) >= 0.7,
+        `confidence ${result.confidence} below Layer-1 floor`,
+      );
+    });
+  });
+
+  describe("negative corpus (must NOT classify workspace_action)", () => {
+    it("leaves 'what is the latest linux LTS version' as external_retrieval", () => {
+      const result = classifyAction("what is the latest linux LTS version");
+      assert.equal(result.intent, "external_retrieval");
+    });
+
+    it("leaves bare 'linux version' (no local reference) out of workspace_action", () => {
+      const result = classifyAction("linux version history");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("does not steal workspace-mutation ('install linux')", () => {
+      const result = classifyAction("install linux");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("does not steal shell-execution ('uname -a', 'cat /etc/os-release')", () => {
+      assert.notEqual(classifyAction("uname -a").intent, "workspace_action");
+      assert.notEqual(
+        classifyAction("cat /etc/os-release").intent,
+        "workspace_action",
+      );
+    });
+  });
+});
+
 // ── Classification: workspace-mutation recognition contract (T8 #388) ─────────
 //
 // T8 — workspace_mutation recognition contract.
