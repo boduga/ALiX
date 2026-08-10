@@ -13,6 +13,9 @@ import { CapabilityEvolutionStore } from "../../../src/adaptation/capability-evo
 import type { Capability } from "../../../src/capability/types.js";
 import type { CapabilitiesCLIDeps } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-cli.js";
 
+const _origExit = process.exit;
+let exitCode: number | undefined;
+
 let dir: string;
 let deps: CapabilitiesCLIDeps;
 let ledger: JsonlCapabilityLifecycleLedger;
@@ -36,6 +39,11 @@ function capture(fn: () => Promise<void>): Promise<{ stdout: string }> {
 }
 
 beforeEach(() => {
+  exitCode = undefined;
+  process.exit = ((code?: number): never => {
+    exitCode = code ?? 0;
+    throw new Error("__TEST_EXIT__");
+  }) as typeof process.exit;
   dir = mkdtempSync(join(tmpdir(), "a7-cli-"));
   ledger = new JsonlCapabilityLifecycleLedger(join(dir, "lifecycle.jsonl"));
   registry = new CapabilityRegistry();
@@ -45,6 +53,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  process.exit = _origExit;
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -65,12 +74,16 @@ describe("handleCapabilitiesCommand", () => {
     let errOut = "";
     console.error = (m?: unknown) => { errOut = String(m); };
     try {
-      await capture(() => handleCapabilitiesCommand(["inspect", "nope.missing"], deps));
+      await assert.rejects(
+        capture(() => handleCapabilitiesCommand(["inspect", "nope.missing"], deps)),
+        /__TEST_EXIT__/,
+      );
     } finally {
       console.error = original;
       process.exitCode = 0; // reset CLI exit-1 side effect (repo convention)
     }
     assert.ok(errOut.includes("not found") || errOut.length > 0);
+    assert.equal(exitCode, 1, "exits with code 1");
   });
 
   it("reports missing P5.5 report on health without inventing data", async () => {

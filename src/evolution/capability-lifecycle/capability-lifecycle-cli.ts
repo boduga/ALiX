@@ -61,7 +61,7 @@ export async function handleCapabilitiesCommand(
     default:
       console.error(USAGE);
       process.exitCode = 1;
-      return;
+      process.exit(1);
   }
 }
 
@@ -117,14 +117,14 @@ async function renderInspect(
   if (!id) {
     console.error("Usage: alix capabilities inspect <id>");
     process.exitCode = 1;
-    return;
+    process.exit(1);
   }
   const cap = registry?.find(id);
   if (!cap) {
     if (jsonMode) console.log(JSON.stringify({ ok: false, error: `capability not found: ${id}` }));
     else console.error(`Capability not found: ${id}`);
     process.exitCode = 1;
-    return;
+    process.exit(1);
   }
   const events = await ledger.listByCapability(id);
   if (jsonMode) {
@@ -146,7 +146,7 @@ async function renderHistory(
   if (!id) {
     console.error("Usage: alix capabilities history <id>");
     process.exitCode = 1;
-    return;
+    process.exit(1);
   }
   const events = await ledger.listByCapability(id);
   if (jsonMode) {
