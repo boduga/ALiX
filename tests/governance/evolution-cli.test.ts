@@ -302,6 +302,90 @@ describe("evolution help", () => {
       cleanup();
     }
   });
+
+  it("help lists execute and observe commands", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["--help"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      const out = capture.output();
+      assert.ok(out.includes("execute <id>"));
+      assert.ok(out.includes("observe <id>"));
+    } finally {
+      capture.restore();
+      cleanup();
+    }
+  });
+});
+
+describe("evolution execute", () => {
+  it("prints usage when no id given", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["execute"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      assert.ok(capture.output().includes("Usage"));
+    } finally {
+      capture.restore();
+      cleanup();
+    }
+  });
+
+  it("errors on unknown evolution", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["execute", "evol-missing"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      assert.ok(capture.output().includes("not found"));
+    } finally {
+      process.exitCode = 0; // reset
+      capture.restore();
+      cleanup();
+    }
+  });
+
+  it("requires APPROVED state", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    addTestEvolution(sm, "evol-draft", EvolutionState.DRAFT, { targetKind: "policy", createdAt: T });
+    capture.start();
+    try {
+      await handleEvolutionCommand(["execute", "evol-draft"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      assert.ok(capture.output().includes("must be APPROVED"));
+    } finally {
+      process.exitCode = 0; // reset
+      capture.restore();
+      cleanup();
+    }
+  });
+});
+
+describe("evolution observe", () => {
+  it("prints usage when no id given", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["observe"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      assert.ok(capture.output().includes("Usage"));
+    } finally {
+      capture.restore();
+      cleanup();
+    }
+  });
+
+  it("runs observation and stores evidence", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["observe", "evol-obs"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      const out = capture.output();
+      assert.ok(out.includes("evol-obs"), `expected observe output to reference evol-obs, got: ${out}`);
+      assert.ok(out.includes("observed"), `expected observed evidence, got: ${out}`);
+    } finally {
+      process.exitCode = 0; // reset
+      capture.restore();
+      cleanup();
+    }
+  });
 });
 
 describe("listEvolutions", () => {

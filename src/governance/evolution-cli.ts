@@ -7,6 +7,8 @@
  *   alix governance evolution show <id>       — show lifecycle history
  *   alix governance evolution evidence <id>   — show evidence records
  *   alix governance evolution decide <id>     — governance decision (A3)
+ *   alix governance evolution execute <id>    — governed execution (A4)
+ *   alix governance evolution observe <id>    — outcome observation (A5)
  *
  * @module evolution-cli
  */
@@ -122,6 +124,32 @@ export async function handleEvolutionCommand(
           decisionBridge: deps.decisionBridge,
           policyConfig: deps.policyConfig,
         }, id, jsonMode, args.slice(1));
+      }
+    case "execute":
+      if (!id) {
+        console.log(red("Usage: alix governance evolution execute <evolution-id> [--dry-run] [--json]"));
+        process.exitCode = 1;
+        return;
+      }
+      {
+        const { runExecute } = await import("../evolution/execution/execution-cli.js");
+        const dryRun = args.includes("--dry-run");
+        return runExecute(id, { dryRun, jsonMode }, {
+          stateMachine: deps.stateMachine,
+          evidenceLedger: deps.evidenceLedger,
+          decisionStore: deps.decisionStore,
+        });
+      }
+    case "observe":
+      if (!id) {
+        console.log(red("Usage: alix governance evolution observe <evolution-id> [--json]"));
+        process.exitCode = 1;
+        return;
+      }
+      {
+        const { runObserve } = await import("../evolution/observation/observation-cli.js");
+        const engine = buildObservationEngine(deps);
+        await runObserve(id, { engine, evidenceStore: deps.evidenceStore }, { jsonMode });
       }
     default:
       console.log(red(`Unknown evolution command: ${sub}`));
@@ -298,10 +326,15 @@ function printHelp(): void {
   console.log("  show <id>         Show lifecycle history for an evolution");
   console.log("  evidence <id>     Show evidence records for an evolution");
   console.log("  decide <id>       Run governance decision on an evolution (A3)");
+  console.log("  execute <id>      Execute an APPROVED evolution proposal (A4)");
+  console.log("  observe <id>      Run observation providers, store evidence (A5)");
   console.log("");
   console.log("Options:");
   console.log("  --json            Machine-readable JSON output");
   console.log("");
   console.log("Decide options:");
   console.log("  --policy <name>   Named policy config (default: default)");
+  console.log("");
+  console.log("Execute options:");
+  console.log("  --dry-run         Generate plan but do not execute");
 }

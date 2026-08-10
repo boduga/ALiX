@@ -313,7 +313,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       const evidenceLedger = new InMemoryVerificationEvidenceLedger();
       const decisionStore = new InMemoryGovernanceDecisionStore();
       const decisionBridge = new GovernanceDecisionBridge(stateMachine, decisionStore);
-      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, policyConfig: DEFAULT_GOVERNANCE_POLICY };
+      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, decisionStore, policyConfig: DEFAULT_GOVERNANCE_POLICY };
       return handleEvolutionCommand(rest, deps);
     }
     case "replay": {
