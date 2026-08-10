@@ -22,6 +22,11 @@ export class MockCanvas {
     this.rows = rows;
   }
 
+  // Mirror the real TerminalCanvas surface (width/height). `rows`/`columns`
+  // remain for the mock's own ergonomics and any older callers.
+  get width(): number { return this.columns; }
+  get height(): number { return this.rows; }
+
   write(x: number, y: number, text: string): void {
     this.writes.push({ x, y, text });
   }

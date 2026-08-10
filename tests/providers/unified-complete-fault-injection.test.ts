@@ -482,3 +482,54 @@ _setFetchForTesting(mockFetchOk(okResponse));
     _setFetchForTesting(globalThis.fetch);
   }
 });
+
+// =========================================================================
+// Stream error propagation (migrated from removed BaseProvider.streamSSE)
+// =========================================================================
+
+test("stream: non-OK response yields an error chunk", async () => {
+  resetCalls();
+  _setFetchForTesting(wrap(async () => {
+    // No error.message in the body → toErrorMessage falls back to the status.
+    return new Response(JSON.stringify({ error: {} }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }));
+
+  try {
+    const chunks: any[] = [];
+    for await (const c of stream("openai", "gpt-4o", { ...completionRequest, stream: true })) {
+      chunks.push(c);
+    }
+    assert.equal(chunks.length, 1, "non-OK stream should yield exactly one error chunk");
+    assert.equal(chunks[0].type, "error");
+    assert.ok(
+      String(chunks[0].error).includes("400"),
+      `error should surface the status code, got: ${chunks[0].error}`,
+    );
+  } finally {
+    _setFetchForTesting(globalThis.fetch);
+  }
+});
+
+test("stream: null response body throws (no stream to read)", async () => {
+  resetCalls();
+  _setFetchForTesting(wrap(async () => {
+    return new Response(null, { status: 200 });
+  }));
+
+  try {
+    await assert.rejects(
+      (async () => {
+        for await (const _c of stream("openai", "gpt-4o", { ...completionRequest, stream: true })) {
+          // consume the stream
+        }
+      })(),
+      /Cannot read properties of null/,
+      "null body must not yield silent chunks — reading it throws",
+    );
+  } finally {
+    _setFetchForTesting(globalThis.fetch);
+  }
+});

@@ -97,13 +97,13 @@ describe('renderSlashOverlay', () => {
     expect(rowsWithSelected[0]!.label).toBe('/skill8');
   });
 
-  it('clamps rows when panelRow + 1 + maxRows would exceed canvas.rows', () => {
+  it('clamps rows when panelRow + 1 + maxRows would exceed canvas.height', () => {
     const m = new MockCanvas(80, 24);
     const s = strip(
       Array.from({ length: 6 }, (_, i) => ({ label: `/skill${i}`, description: `d${i}` })),
       0,
     );
-    // panelRow=22 means rows 23..28 would be needed; canvas.rows=24 → only 1 row fits.
+    // panelRow=22 means rows 23..28 would be needed; canvas.height=24 → only 1 row fits.
     const result = renderSlashOverlay({ canvas: m as unknown as TerminalCanvas, slash: s, panelRow: 22, columns: 80, maxRows: 6 });
     expect(result.rowsRendered).toBe(1);
     expect(result.selectionVisible).toBe(true);

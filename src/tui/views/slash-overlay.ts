@@ -25,7 +25,7 @@ export interface RenderSlashOverlayResult {
  */
 export function renderSlashOverlay(opts: RenderSlashOverlayOpts): RenderSlashOverlayResult {
   const { canvas, slash, panelRow, columns, maxRows = 6 } = opts;
-  const canvasRows = (canvas as unknown as { rows: number }).rows;
+  const canvasRows = canvas.height;
 
   // Hint mode: 1 row, no selection.
   if (slash && slash.hint !== null && slash.entries.length === 0) {
