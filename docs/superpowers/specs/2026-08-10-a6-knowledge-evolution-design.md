@@ -287,7 +287,7 @@ CurationProposal (non-empty findings)
         ↓
 curation-proposal-builder
         ↓
-GovernanceRecommendation (extends DecisionArtifact) + VerificationEvidence
+A2.5 GovernanceRecommendation + VerificationEvidence
         ↓
 A3 generateDecision(evidence, recommendation)
 ```
