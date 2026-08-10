@@ -109,6 +109,30 @@ export async function setApiKey(providerId: string, key: string): Promise<void> 
 }
 
 /**
+ * Remove `apiKeys[providerId]` from the user config entirely (no-op when it is
+ * not present). Unlike `setApiKey(provider, "")`, this does not leave a stale
+ * empty-string entry behind.
+ */
+export async function deleteApiKey(providerId: string): Promise<void> {
+  const userConfigPath = resolveUserConfigPath();
+  const userConfigDir = dirname(userConfigPath);
+  await mkdir(userConfigDir, { recursive: true });
+
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(await readFile(userConfigPath, "utf8")) as Record<string, unknown>;
+  } catch {
+    /* no config yet */
+  }
+
+  const apiKeys = (existing.apiKeys ?? {}) as Record<string, unknown>;
+  if (!(providerId in apiKeys)) return;
+  delete apiKeys[providerId];
+  const updated = { ...existing, apiKeys };
+  await writeFile(userConfigPath, JSON.stringify(updated, null, 2) + "\n");
+}
+
+/**
  * Resolve an API key with the spec's full precedence chain.
  * Returns `undefined` only when no key is recoverable for non-ollama
  * providers or when the provider id is unknown.

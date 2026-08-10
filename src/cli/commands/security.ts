@@ -840,8 +840,8 @@ export async function handleCredentialDelete(args: string[]): Promise<void> {
   // Best-effort: remove the apiKeys reference for this provider so CLI
   // commands stop trying to resolve a now-deleted credential.
   try {
-    const { setApiKey } = await import("../helpers/api-keys.js");
-    await setApiKey(provider, "");
+    const { deleteApiKey } = await import("../helpers/api-keys.js");
+    await deleteApiKey(provider);
   } catch {
     /* config write failure should not mask the delete */
   }
