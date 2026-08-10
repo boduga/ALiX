@@ -386,6 +386,27 @@ describe("evolution observe", () => {
       cleanup();
     }
   });
+
+  it("does NOT fall through to the curate pipeline", async () => {
+    const { sm, store, decisionStore, capture, cleanup } = setup();
+    capture.start();
+    try {
+      await handleEvolutionCommand(["observe", "evol-no-curate"], { stateMachine: sm, evidenceStore: store, decisionStore });
+      const out = capture.output();
+      // observe output is still produced...
+      assert.ok(out.includes("evol-no-curate"), `expected observe output to reference evol-no-curate, got: ${out}`);
+      // ...but NO curation-only strings may appear (observe must not fall into curate).
+      assert.ok(!out.includes("No curation findings"), `observe fell through to curate (zero-findings branch), got: ${out}`);
+      assert.ok(!out.includes("Knowledge stores:"), `observe fell through to curate (store status), got: ${out}`);
+      assert.ok(!out.includes("Curation Findings"), `observe fell through to curate (findings render), got: ${out}`);
+      assert.ok(!out.includes("Curation Proposal:"), `observe fell through to curate (proposal render), got: ${out}`);
+      assert.ok(!out.includes("Governance Decision:"), `observe fell through to curate (A3 decision render), got: ${out}`);
+    } finally {
+      process.exitCode = 0; // reset
+      capture.restore();
+      cleanup();
+    }
+  });
 });
 
 describe("listEvolutions", () => {

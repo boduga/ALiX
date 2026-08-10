@@ -152,6 +152,7 @@ export async function handleEvolutionCommand(
         const { runObserve } = await import("../evolution/observation/observation-cli.js");
         const engine = buildObservationEngine(deps);
         await runObserve(id, { engine, evidenceStore: deps.evidenceStore }, { jsonMode });
+        return;
       }
     case "curate":
       {
