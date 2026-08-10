@@ -86,6 +86,30 @@ describe("detectContradictions", () => {
     assert.deepEqual(detectContradictions([a, b]), []);
   });
 
+  it("value_clash is scoped to the same (store, artifactKind, subject) cluster", () => {
+    // Same claim subject/predicate but different stores → same-cluster rule
+    // excludes them: no value_clash (spec §5 "same subject cluster").
+    const learning = makeArtifact("art-L", {
+      store: "learning",
+      claim: { subject: "agents", predicate: "delta", value: "0.5" },
+    });
+    const chronicle = makeArtifact("art-C", {
+      store: "chronicle",
+      artifactKind: "ChronicleEntry",
+      claim: { subject: "agents", predicate: "delta", value: "0.1" },
+    });
+    assert.deepEqual(detectContradictions([learning, chronicle]), []);
+
+    // Within the same cluster, the same conflicting claims DO clash.
+    const sameCluster = makeArtifact("art-L2", {
+      store: "learning",
+      claim: { subject: "agents", predicate: "delta", value: "0.1" },
+    });
+    const findings = detectContradictions([learning, sameCluster]);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].reasonCode, "value_clash");
+  });
+
   it("is pure: does not mutate its input artifacts", () => {
     const artifacts = [
       makeArtifact("a", { claim: { subject: "s", predicate: "p", value: "1" } }),

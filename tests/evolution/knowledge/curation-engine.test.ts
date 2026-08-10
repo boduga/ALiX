@@ -9,6 +9,7 @@ import {
   type CurationConfig,
   type CurationFinding,
   type CurationFindingKind,
+  type CurationFindingReasonCode,
   type CurationFindingSeverity,
   type KnowledgeArtifact,
   type KnowledgeStore,
@@ -53,7 +54,10 @@ function unavailableAdapter(store: KnowledgeStore): () => Promise<AdapterResult>
 }
 
 /** A stub detector that emits one deterministic finding per artifact. */
-function stubDetector(kind: CurationFindingKind, reasonCode = "stub"): (artifacts: KnowledgeArtifact[], config: CurationConfig) => CurationFinding[] {
+function stubDetector(
+  kind: CurationFindingKind,
+  reasonCode: CurationFindingReasonCode = "age",
+): (artifacts: KnowledgeArtifact[], config: CurationConfig) => CurationFinding[] {
   return (artifacts: KnowledgeArtifact[]) =>
     artifacts.map((a) => findingFor(a, kind, reasonCode));
 }
@@ -61,7 +65,7 @@ function stubDetector(kind: CurationFindingKind, reasonCode = "stub"): (artifact
 function findingFor(
   artifact: KnowledgeArtifact,
   kind: CurationFindingKind,
-  reasonCode: string,
+  reasonCode: CurationFindingReasonCode,
   severity: CurationFindingSeverity = "medium",
 ): CurationFinding {
   return {
@@ -146,11 +150,11 @@ describe("CurationEngine.curateAll", () => {
       detectors: [
         (artifacts, _config) => {
           seen.push(artifacts.map((a) => a.artifactId));
-          return [findingFor(artifacts[0], "stale", "detector-a")];
+          return [findingFor(artifacts[0], "stale", "age")];
         },
         (artifacts, _config) => {
           seen.push(artifacts.map((a) => a.artifactId));
-          return [findingFor(artifacts[0], "duplicate", "detector-b")];
+          return [findingFor(artifacts[0], "duplicate", "exact")];
         },
       ],
     });
@@ -161,7 +165,7 @@ describe("CurationEngine.curateAll", () => {
     assert.deepEqual(seen[0], ["first", "second"]);
     assert.deepEqual(seen[1], ["first", "second"]);
     // Adapter phase contributes no findings; detector findings keep detector order.
-    assert.deepEqual(result.findings.map((f) => f.reasonCode), ["detector-a", "detector-b"]);
+    assert.deepEqual(result.findings.map((f) => f.reasonCode), ["age", "exact"]);
   });
 
   it("produces identical finding ids when run twice on the same input", async () => {

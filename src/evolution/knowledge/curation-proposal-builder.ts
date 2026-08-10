@@ -144,22 +144,26 @@ export function buildEvidenceFromFindings(
  *
  * A6 proposes a bounded curation action (`kind: "APPROVE"`); A3 remains
  * authoritative. The recommendation references the same evidence built by
- * `buildEvidenceFromFindings` so the evidenceId round-trips.
+ * `buildEvidenceFromFindings` so the evidenceId round-trips. An already-built
+ * evidence may be passed in to avoid a redundant (deterministic) rebuild.
  *
  * @param proposal A non-empty `CurationProposal`.
+ * @param evidence Prebuilt evidence for the same findings (optional — built
+ *   here when omitted).
  * @returns The A2.5 recommendation shape.
  */
 export function buildGovernanceRecommendation(
   proposal: CurationProposal,
+  evidence?: VerificationEvidence,
 ): GovernanceRecommendation {
-  const evidence = buildEvidenceFromFindings(proposal.findings);
+  const ev = evidence ?? buildEvidenceFromFindings(proposal.findings);
 
   return {
     recommendationId: `rec-curate-${proposal.proposalId}`,
-    evidenceId: evidence.evidenceId,
-    proposalId: evidence.proposalId,
+    evidenceId: ev.evidenceId,
+    proposalId: ev.proposalId,
     kind: "APPROVE", // A6 proposes; A3 decides
-    confidence: evidence.confidenceProfile.overallConfidence,
+    confidence: ev.confidenceProfile.overallConfidence,
     reasoning: proposal.summary,
     supportingEvidence: proposal.findings.flatMap((f) => f.evidenceRefs),
     risks: proposal.findings.map((f) => f.rationale),

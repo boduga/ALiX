@@ -21,14 +21,7 @@ import type {
   KnowledgeArtifact,
 } from "../contracts/curation-contract.js";
 import { computeFindingId } from "./finding-id.js";
-
-const DAY_MS = 86_400_000;
-
-function daysSince(iso: string, now: number): number {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return 0;
-  return (now - t) / DAY_MS;
-}
+import { daysSince } from "./shared.js";
 
 /**
  * Detect compressible (low-value, long-lived) artifacts.

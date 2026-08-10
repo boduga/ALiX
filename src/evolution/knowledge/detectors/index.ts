@@ -8,6 +8,7 @@
  */
 
 export * from "./finding-id.js";
+export * from "./shared.js";
 export * from "./staleness-detector.js";
 export * from "./dedup-detector.js";
 export * from "./contradiction-detector.js";

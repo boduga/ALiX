@@ -459,6 +459,92 @@ describe("EvidenceAdapter", () => {
     assert.equal(a.createdAt, evidence.verifiedAt);
     assert.deepEqual(a.evidenceRefs, [evidence.evidenceId]);
   });
+
+  it("projects a structured claim from the observed metric deltas", async () => {
+    const ledger = new InMemoryVerificationEvidenceLedger();
+    const evidence = createVerificationEvidence({
+      verificationId: "ver-claim",
+      proposalId: "prop-claim",
+      replayDatasetId: "dataset-1",
+      proposalSnapshotHash: "snap-1",
+      environmentHash: "env-1",
+      baselineMetrics: { accuracy: 0.8 },
+      candidateMetrics: { accuracy: 0.85 },
+      metricDeltas: { accuracy: 0.05, latency: -2 },
+      behavioralChanges: [],
+      confidenceProfile: {
+        replayFidelity: 0.9,
+        coverage: 0.8,
+        determinism: 0.9,
+        historicalSimilarity: 0.8,
+        overallConfidence: 0.85,
+      },
+      reproducibilityLevel: 2,
+      lineage: [],
+      verifiedAt: "2026-08-01T00:00:00.000Z",
+    });
+    await ledger.store(evidence);
+
+    const [a] = (await new EvidenceAdapter(ledger, ["prop-claim"]).read()).artifacts;
+    // Lexicographically-first metric delta (deterministic): accuracy → 0.05.
+    assert.deepEqual(a.claim, { subject: "accuracy", predicate: "delta", value: "0.05" });
+  });
+
+  it("enumerates every proposal when no proposal list is supplied", async () => {
+    const ledger = new InMemoryVerificationEvidenceLedger();
+    const e1 = createVerificationEvidence({
+      verificationId: "ver-1",
+      proposalId: "prop-1",
+      replayDatasetId: "dataset-1",
+      proposalSnapshotHash: "snap-1",
+      environmentHash: "env-1",
+      baselineMetrics: {},
+      candidateMetrics: {},
+      metricDeltas: {},
+      behavioralChanges: [],
+      confidenceProfile: {
+        replayFidelity: 0.9,
+        coverage: 0.8,
+        determinism: 0.9,
+        historicalSimilarity: 0.8,
+        overallConfidence: 0.85,
+      },
+      reproducibilityLevel: 2,
+      lineage: [],
+      verifiedAt: "2026-08-01T00:00:00.000Z",
+    });
+    const e2 = createVerificationEvidence({
+      verificationId: "ver-2",
+      proposalId: "prop-2",
+      replayDatasetId: "dataset-1",
+      proposalSnapshotHash: "snap-1",
+      environmentHash: "env-1",
+      baselineMetrics: {},
+      candidateMetrics: {},
+      metricDeltas: {},
+      behavioralChanges: [],
+      confidenceProfile: {
+        replayFidelity: 0.9,
+        coverage: 0.8,
+        determinism: 0.9,
+        historicalSimilarity: 0.8,
+        overallConfidence: 0.85,
+      },
+      reproducibilityLevel: 2,
+      lineage: [],
+      verifiedAt: "2026-08-01T00:00:00.000Z",
+    });
+    await ledger.store(e1);
+    await ledger.store(e2);
+
+    const result = await new EvidenceAdapter(ledger).read();
+    assert.equal(result.status.status, "available");
+    assert.equal(result.artifacts.length, 2);
+    assert.deepEqual(
+      result.artifacts.map((a) => a.artifactId).sort(),
+      [e1.evidenceId, e2.evidenceId].sort(),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

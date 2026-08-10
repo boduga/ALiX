@@ -123,7 +123,12 @@ Existing stores ──read-only adapters──▶ KnowledgeArtifact[]
 The four stores expose different shapes. To keep detectors pure (they must not know how `LearningSignal`, `ChronicleEntry`, `FailureMemory`, and `Pattern` differ), adapters project artifacts into a **small in-memory read model**. This is an internal projection, **not a new persistent store** and not a serializable DTO.
 
 ```ts
-type KnowledgeStore = "learning" | "chronicle" | "failure_memory" | "pattern_registry";
+type KnowledgeStore =
+  | "learning"
+  | "chronicle"
+  | "failure_memory"
+  | "pattern_registry"
+  | "evidence"; // A5 VerificationEvidence — a governance input, not a curated store
 
 interface KnowledgeArtifact {
   readonly store: KnowledgeStore;
@@ -153,6 +158,15 @@ Mapping to existing stores (grounded in source):
 | `chronicle` | `ChronicleEntry` | — | native `outcome` |
 | `failure_memory` | `FailureRecord` | failureType | native `failureType`/`detail` |
 | `pattern_registry` | `Pattern` | TaskType | native `PatternOutcome` |
+| `evidence` | `VerificationEvidence` | proposalId | projected from observed `metricDeltas` (`{ subject: metric, predicate: "delta", value }`) |
+
+The `evidence` store is the A5 observed-evidence projection (§3). It is **not**
+a curated knowledge store — adapters expose it so the staleness and
+contradiction detectors can compare artifact claims against observed outcomes
+(reason code `outcome_contradiction`). Its `claim` is projected from the
+evidence's observed `metricDeltas` (the lexicographically-first metric delta,
+for determinism). The detectors never produce an "age" finding for evidence
+artifacts and the compression detector never flags them.
 
 **Contradiction detection operates only on `claim`.** If a store has no structured claim, contradiction detection cannot establish incompatibility for it — A6 explicitly does **not** introduce an LLM/semantic-inference layer. Adapters expose structured claims only where the underlying store already has them.
 
@@ -260,9 +274,9 @@ Each detector is pure — `detect(artifacts: KnowledgeArtifact[], config: Curati
 
 ### StalenessDetector
 Signals an artifact is stale (`reasonCode: "age" | "superseded" | "outcome_contradiction"`) when:
-- **Age** (`age`): older than `config.staleAfterDays` with no evidence of refresh
-- **Superseded** (`superseded`): a newer artifact in the same `store + artifactKind + subject` cluster exists
-- **Contradicted by observed evidence** (`outcome_contradiction`): A5 observed evidence shows the artifact's claim no longer holds
+- **Age** (`age`): older than `config.staleAfterDays` with no evidence of refresh (an artifact with non-empty `evidenceRefs` has been validated by evidence and is not flagged; A5 evidence artifacts are never flagged by age)
+- **Superseded** (`superseded`): a newer artifact in the same `store + artifactKind + subject` cluster exists. Every non-newest artifact is flagged superseded by the cluster's **newest** artifact (ties broken by artifactId), so no artifact is simultaneously a superseder and superseded
+- **Contradicted by observed evidence** (`outcome_contradiction`): A5 observed evidence shows the artifact's claim no longer holds (a newer evidence artifact's claim disagrees on the same subject/predicate)
 
 ### DedupDetector
 - **Exact match** (`exact`): same `(store, artifactKind, subject)` — propose consolidation

@@ -87,6 +87,15 @@ export interface VerificationEvidenceLedger {
   ): Promise<VerificationEvidence[]>;
 
   /**
+   * List the distinct proposal IDs the ledger holds evidence for.
+   *
+   * Enables read-only enumeration of the ledger (e.g. the A6 evidence
+   * adapter projecting every proposal's evidence) without an arbitrary
+   * proposal list being supplied by the caller.
+   */
+  listProposals(): Promise<string[]>;
+
+  /**
    * Count evidence that has expired (for cleanup/monitoring).
    */
   countExpired(currentTimeMs?: number): Promise<number>;
@@ -158,6 +167,14 @@ export class InMemoryVerificationEvidenceLedger implements VerificationEvidenceL
     }
 
     return results;
+  }
+
+  async listProposals(): Promise<string[]> {
+    const seen = new Set<string>();
+    for (const evidence of this.entries.values()) {
+      seen.add(evidence.proposalId);
+    }
+    return [...seen].sort();
   }
 
   async countExpired(currentTimeMs?: number): Promise<number> {

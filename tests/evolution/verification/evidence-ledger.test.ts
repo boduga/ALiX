@@ -59,6 +59,20 @@ describe("InMemoryVerificationEvidenceLedger", () => {
     await assert.rejects(() => ledger.get("nonexistent"), EvidenceNotFoundError);
   });
 
+  it("lists distinct proposal IDs the ledger holds evidence for", async () => {
+    const ledger = new InMemoryVerificationEvidenceLedger();
+    await ledger.store(makeEvidence({ evidenceId: "ev-1", proposalId: "prop-a" }));
+    await ledger.store(makeEvidence({ evidenceId: "ev-2", proposalId: "prop-b" }));
+    await ledger.store(makeEvidence({ evidenceId: "ev-3", proposalId: "prop-a" }));
+
+    assert.deepEqual(await ledger.listProposals(), ["prop-a", "prop-b"]);
+  });
+
+  it("returns an empty list when the ledger has no evidence", async () => {
+    const ledger = new InMemoryVerificationEvidenceLedger();
+    assert.deepEqual(await ledger.listProposals(), []);
+  });
+
   it("rejects expired evidence on read (fail-closed)", async () => {
     const ledger = new InMemoryVerificationEvidenceLedger();
     const expired = makeEvidence({ expiresAt: "2020-01-01T00:00:00.000Z" });

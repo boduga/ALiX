@@ -26,7 +26,7 @@
 import type { PatternRegistry } from "../../../context/pattern-registry.js";
 import type { TaskType } from "../../../task-classifier.js";
 import type { KnowledgeArtifact } from "../contracts/curation-contract.js";
-import type { AdapterResult } from "./shared.js";
+import { runAdapter, type AdapterResult } from "./shared.js";
 
 /** The closed TaskType union — used to enumerate what getStats can return. */
 const TASK_TYPES: readonly TaskType[] = [
@@ -42,9 +42,9 @@ export class PatternRegistryAdapter {
   constructor(private readonly registry: PatternRegistry) {}
 
   async read(): Promise<AdapterResult> {
-    try {
-      // Single projection timestamp for all pattern artifacts (deterministic
-      // within a read; stats carry no per-row creation time).
+    // Single projection timestamp for all pattern artifacts (deterministic
+    // within a read; stats carry no per-row creation time).
+    return runAdapter("pattern_registry", async () => {
       const now = new Date().toISOString();
       const artifacts: KnowledgeArtifact[] = [];
 
@@ -74,17 +74,7 @@ export class PatternRegistryAdapter {
       }
 
       // An empty registry is still an available (empty) store.
-      return { artifacts, status: { status: "available", store: "pattern_registry" } };
-    } catch (err) {
-      // Adapters never throw — a getter failure surfaces as unavailable.
-      return {
-        artifacts: [],
-        status: {
-          status: "unavailable",
-          store: "pattern_registry",
-          reason: (err as Error).message ?? String(err),
-        },
-      };
-    }
+      return artifacts;
+    });
   }
 }

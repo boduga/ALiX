@@ -91,6 +91,22 @@ export const VALID_CURATION_FINDING_KINDS: readonly CurationFindingKind[] = [
 export type CurationFindingSeverity = "low" | "medium" | "high";
 
 /**
+ * Deterministic subtype of a curation finding — the closed reason-code set:
+ *   stale → "age" | "superseded" | "outcome_contradiction"
+ *   duplicate → "exact" | "near"
+ *   contradiction → "value_clash" | "outcome_contradiction"
+ *   compressible → "low_value_long_lived"
+ */
+export type CurationFindingReasonCode =
+  | "age"
+  | "superseded"
+  | "outcome_contradiction"
+  | "exact"
+  | "near"
+  | "value_clash"
+  | "low_value_long_lived";
+
+/**
  * A single curation finding emitted by a pure detector.
  *
  * @invariant findingId is deterministic — a hash of (store, kind, artifactId,
@@ -101,7 +117,7 @@ export interface CurationFinding {
   readonly findingId: string;
   readonly kind: CurationFindingKind;
   /** Deterministic subtype, not parsed from rationale. */
-  readonly reasonCode: string;
+  readonly reasonCode: CurationFindingReasonCode;
   readonly store: KnowledgeStore;
   /** The artifact flagged. */
   readonly artifactId: string;

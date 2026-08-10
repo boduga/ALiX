@@ -8,35 +8,29 @@
  * `KnowledgeArtifact.claim` — never free text, never semantic inference.
  * Artifacts without a `claim` produce no contradiction finding. Emits
  * "contradiction" findings:
- * - "value_clash": two non-evidence claims assert incompatible values for the
- *   same (subject, predicate).
+ * - "value_clash": two non-evidence claims in the same (store, artifactKind,
+ *   subject) cluster assert incompatible values for the same (subject,
+ *   predicate) — the design spec §5 "same subject cluster" rule.
  * - "outcome_contradiction": a claim's value disagrees with an evidence
- *   artifact's claim for the same (subject, predicate).
+ *   artifact's claim for the same (subject, predicate). Evidence is a
+ *   cross-store governance input, so this branch is not cluster-scoped.
  *
- * Pairwise findings are canonicalized like dedup (artifactId = larger id,
- * targetId = smaller id), so the finding is identical regardless of input
- * order.
+ * Pairwise findings are canonicalized (artifactId = larger id, targetId =
+ * smaller id), so the finding is identical regardless of input order.
  *
  * Pure: no I/O, no store access, no mutation of its input.
  *
  * @module contradiction-detector
  */
 
-import type {
-  CurationFinding,
-  KnowledgeArtifact,
-} from "../contracts/curation-contract.js";
+import type { CurationFinding, KnowledgeArtifact } from "../contracts/curation-contract.js";
 import { computeFindingId } from "./finding-id.js";
-
-function canonicalPair(
-  a: KnowledgeArtifact,
-  b: KnowledgeArtifact,
-): { artifactId: string; targetId: string; primary: KnowledgeArtifact; related: KnowledgeArtifact } {
-  if (a.artifactId < b.artifactId) {
-    return { artifactId: b.artifactId, targetId: a.artifactId, primary: b, related: a };
-  }
-  return { artifactId: a.artifactId, targetId: b.artifactId, primary: a, related: b };
-}
+import {
+  canonicalPair,
+  claimsConflict,
+  isEvidenceArtifact,
+  sameCluster,
+} from "./shared.js";
 
 /**
  * Detect contradictory claims.
@@ -53,15 +47,17 @@ export function detectContradictions(artifacts: KnowledgeArtifact[]): CurationFi
       const a = artifacts[i];
       const b = artifacts[j];
       if (a.artifactId === b.artifactId) continue;
-      if (!a.claim || !b.claim) continue;
-      if (a.claim.subject !== b.claim.subject) continue;
-      if (a.claim.predicate !== b.claim.predicate) continue;
-      if (a.claim.value === b.claim.value) continue;
+      if (!claimsConflict(a, b)) continue;
 
-      const involvesEvidence = a.store === "evidence" || b.store === "evidence";
+      const involvesEvidence = isEvidenceArtifact(a) || isEvidenceArtifact(b);
+      // value_clash applies only within the same subject cluster (spec §5);
+      // evidence-vs-evidence pairs are inherently cross-store and are only
+      // meaningful as outcome contradictions.
+      if (!involvesEvidence && !sameCluster(a, b)) continue;
+
       const { artifactId, targetId, primary, related } = canonicalPair(a, b);
       const evidenceRefs = involvesEvidence
-        ? [...(a.store === "evidence" ? a : b).evidenceRefs]
+        ? [...(isEvidenceArtifact(a) ? a : b).evidenceRefs]
         : [];
 
       findings.push({
@@ -74,8 +70,8 @@ export function detectContradictions(artifacts: KnowledgeArtifact[]): CurationFi
         targetId,
         severity: "high",
         rationale: involvesEvidence
-          ? `Artifact ${artifactId}'s claim (${a.claim.subject}/${a.claim.predicate}=${a.claim.value}) conflicts with observed evidence artifact ${targetId} (${related.claim?.value}).`
-          : `Artifacts ${artifactId} and ${targetId} assert conflicting values for ${a.claim.subject}/${a.claim.predicate} (${a.claim.value} vs ${b.claim.value}).`,
+          ? `Artifact ${artifactId}'s claim (${a.claim?.subject}/${a.claim?.predicate}=${a.claim?.value}) conflicts with observed evidence artifact ${targetId} (${related.claim?.value}).`
+          : `Artifacts ${artifactId} and ${targetId} assert conflicting values for ${a.claim?.subject}/${a.claim?.predicate} (${a.claim?.value} vs ${b.claim?.value}).`,
         evidenceRefs,
         confidence: 0.9,
         createdAt: new Date(now).toISOString(),

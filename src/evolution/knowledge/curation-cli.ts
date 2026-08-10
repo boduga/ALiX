@@ -46,6 +46,7 @@ import { LearningStoreAdapter } from "./adapters/learning-store-adapter.js";
 import { ChronicleAdapter } from "./adapters/chronicle-adapter.js";
 import { FailureMemoryAdapter } from "./adapters/failure-memory-adapter.js";
 import { PatternRegistryAdapter } from "./adapters/pattern-registry-adapter.js";
+import { red, bold } from "../../governance/ansi.js";
 import { EvidenceAdapter } from "./adapters/evidence-adapter.js";
 import { detectStale } from "./detectors/staleness-detector.js";
 import { detectDuplicates } from "./detectors/dedup-detector.js";
@@ -147,9 +148,9 @@ function buildCurationEngine(deps: CurationCLIDeps): CurationEngine {
   }
 
   if (deps.evidenceLedger) {
-    // The ledger cannot enumerate proposals, so evidence projection uses an
-    // empty proposal list — the store reports "available" with zero artifacts.
-    adapters.push(() => new EvidenceAdapter(deps.evidenceLedger!, []).read());
+    // The adapter enumerates the ledger's proposals (listProposals), so A5
+    // observed outcomes reach the staleness/contradiction detectors.
+    adapters.push(() => new EvidenceAdapter(deps.evidenceLedger!).read());
   }
 
   return new CurationEngine({
@@ -218,7 +219,9 @@ export async function handleCurationCommand(
   }
 
   const evidence = buildEvidenceFromFindings(proposal.findings);
-  const recommendation = buildGovernanceRecommendation(proposal);
+  // Pass the prebuilt evidence so buildGovernanceRecommendation does not
+  // rebuild it (identical deterministic result) — one construction, one id.
+  const recommendation = buildGovernanceRecommendation(proposal, evidence);
   const decide = deps.generateDecision ?? generateDecision;
   const decision = decide(evidence, recommendation, { policyConfig: deps.policyConfig });
 
@@ -280,13 +283,5 @@ function renderDecision(decision: GovernanceDecision): void {
 }
 
 // ---------------------------------------------------------------------------
-// ANSI helpers (mirrors evolution-cli.ts pattern)
+// ANSI helpers — shared with the evolution CLI dispatcher (governance/ansi.ts)
 // ---------------------------------------------------------------------------
-
-function red(msg: string): string {
-  return `\x1b[31m${msg}\x1b[0m`;
-}
-
-function bold(msg: string): string {
-  return `\x1b[1m${msg}\x1b[0m`;
-}

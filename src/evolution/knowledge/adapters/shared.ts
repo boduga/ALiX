@@ -12,8 +12,13 @@
  * @module knowledge-adapter-shared
  */
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import type { KnowledgeArtifact, StoreStatus } from "../contracts/curation-contract.js";
+import type {
+  KnowledgeArtifact,
+  KnowledgeStore,
+  StoreStatus,
+} from "../contracts/curation-contract.js";
 
 /**
  * Normalized result of a read-only adapter projection.
@@ -61,5 +66,38 @@ export async function readTextFileOrNull(path: string): Promise<string | null> {
   } catch (err) {
     if ((err as { code?: string }).code === "ENOENT") return null;
     throw err;
+  }
+}
+
+/**
+ * Run a read-only store projection with the adapter's never-throw contract.
+ *
+ * Every A6 store adapter wraps its `read()` in the same try/catch: a
+ * successful projection returns "available" with whatever artifacts were
+ * read (even zero — an empty store is still available), and any thrown error
+ * returns "unavailable" with the message as reason. This helper collapses
+ * that repeated wrapper so an adapter is just a projection function.
+ */
+export async function runAdapter(
+  store: KnowledgeStore,
+  project: () => Promise<KnowledgeArtifact[]>,
+  dir?: string,
+): Promise<AdapterResult> {
+  try {
+    // Missing store dir → unavailable (design spec §4.6) — a diagnostic
+    // storeStatus, NOT a curation finding and never a proposal.
+    if (dir !== undefined && !existsSync(dir)) {
+      return { artifacts: [], status: { status: "unavailable", store } };
+    }
+    return { artifacts: await project(), status: { status: "available", store } };
+  } catch (err) {
+    return {
+      artifacts: [],
+      status: {
+        status: "unavailable",
+        store,
+        reason: (err as Error).message ?? String(err),
+      },
+    };
   }
 }

@@ -17,11 +17,10 @@
  * @module learning-store-adapter
  */
 
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CalibrationProfile, LearningReport, LearningSignal } from "../../../learning/learning-types.js";
 import type { KnowledgeArtifact } from "../contracts/curation-contract.js";
-import { parseLines, readTextFileOrNull, type AdapterResult } from "./shared.js";
+import { parseLines, readTextFileOrNull, runAdapter, type AdapterResult } from "./shared.js";
 
 const SIGNALS_FILE = "signals.jsonl";
 const PROFILES_FILE = "profiles.jsonl";
@@ -73,11 +72,9 @@ export class LearningStoreAdapter {
   constructor(private readonly dir: string) {}
 
   async read(): Promise<AdapterResult> {
-    try {
-      if (!existsSync(this.dir)) {
-        return { artifacts: [], status: { status: "unavailable", store: "learning" } };
-      }
-
+    return runAdapter(
+      "learning",
+      async () => {
       const artifacts: KnowledgeArtifact[] = [];
 
       const signalsRaw = await readTextFileOrNull(join(this.dir, SIGNALS_FILE));
@@ -130,12 +127,9 @@ export class LearningStoreAdapter {
         }
       }
 
-      return { artifacts, status: { status: "available", store: "learning" } };
-    } catch (err) {
-      return {
-        artifacts: [],
-        status: { status: "unavailable", store: "learning", reason: (err as Error).message ?? String(err) },
-      };
-    }
+      return artifacts;
+      },
+      this.dir,
+    );
   }
 }

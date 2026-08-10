@@ -301,6 +301,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       const { GovernanceDecisionBridge } = await import("../../evolution/governance/governance-decision-bridge.js");
       const { InMemoryVerificationEvidenceLedger } = await import("../../evolution/verification/evidence/evidence-ledger.js");
       const { DEFAULT_GOVERNANCE_POLICY } = await import("../../evolution/governance/contracts/decision-contract.js");
+      const { PatternRegistry } = await import("../../context/pattern-registry.js");
       const cwd = process.cwd();
       // Use a shared state machine instance — in production this would
       // be wired through dependency injection. For the read-only CLI we
@@ -313,7 +314,11 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       const evidenceLedger = new InMemoryVerificationEvidenceLedger();
       const decisionStore = new InMemoryGovernanceDecisionStore();
       const decisionBridge = new GovernanceDecisionBridge(stateMachine, decisionStore);
-      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, decisionStore, policyConfig: DEFAULT_GOVERNANCE_POLICY };
+      // A6 curation reads the pattern registry (memory-backed) at `.alix/patterns`
+      // (the same layout task-loop.ts and context-compiler.ts use).
+      const patternRegistry = new PatternRegistry(join(cwd, ".alix", "patterns"));
+      await patternRegistry.init();
+      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, decisionStore, policyConfig: DEFAULT_GOVERNANCE_POLICY, patternRegistry };
       return handleEvolutionCommand(rest, deps);
     }
     case "replay": {

@@ -6,10 +6,14 @@
  *
  * Pure function over `KnowledgeArtifact[]` + `CurationConfig`. Emits "stale"
  * findings with three deterministic reason codes:
- * - "age": artifact older than `config.staleAfterDays`.
+ * - "age": artifact older than `config.staleAfterDays` with no evidence of
+ *   refresh (non-empty `evidenceRefs`), and not itself an A5 evidence
+ *   projection (evidence is a governance input, not a curated artifact).
  * - "superseded": a newer artifact exists in the same (store, artifactKind,
- *   subject) cluster; the older artifact is flagged with `targetId` = newer.
- * - "outcome_contradiction": the artifact's structured claim disagrees with a
+ *   subject) cluster. Every non-newest artifact is flagged superseded by the
+ *   cluster's NEWEST artifact, so no artifact is simultaneously a superseder
+ *   and superseded (no double-flag noise within a chain).
+ * - "outcome_contradiction": an artifact's structured claim disagrees with a
  *   NEWER evidence artifact's claim on the same subject/predicate.
  *
  * Pure: no I/O, no store access, no mutation of its input.
@@ -23,26 +27,12 @@ import type {
   KnowledgeArtifact,
 } from "../contracts/curation-contract.js";
 import { computeFindingId } from "./finding-id.js";
-
-const DAY_MS = 86_400_000;
-
-function daysSince(iso: string, now: number): number {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return 0;
-  return (now - t) / DAY_MS;
-}
-
-function isEvidence(a: KnowledgeArtifact): boolean {
-  return a.store === "evidence";
-}
-
-function sameCluster(a: KnowledgeArtifact, b: KnowledgeArtifact): boolean {
-  return (
-    a.store === b.store &&
-    a.artifactKind === b.artifactKind &&
-    a.subject === b.subject
-  );
-}
+import {
+  claimsConflict,
+  clusterKey,
+  daysSince,
+  isEvidenceArtifact,
+} from "./shared.js";
 
 /**
  * Detect stale artifacts.
@@ -55,83 +45,91 @@ export function detectStale(
   artifacts: KnowledgeArtifact[],
   config: CurationConfig,
 ): CurationFinding[] {
-  const now = Date.now();
   const findings: CurationFinding[] = [];
+  const now = Date.now();
 
-  // age — artifact older than staleAfterDays with no evidence refresh.
+  // age — older than staleAfterDays with no evidence of refresh.
   for (const a of artifacts) {
+    if (isEvidenceArtifact(a)) continue; // evidence is an input, not a curated artifact
+    if (a.evidenceRefs.length > 0) continue; // evidence of refresh
     const ageDays = daysSince(a.createdAt, now);
-    if (ageDays > config.staleAfterDays) {
+    if (ageDays <= config.staleAfterDays) continue;
+
+    findings.push({
+      findingId: computeFindingId(a.store, "stale", a.artifactId),
+      kind: "stale",
+      reasonCode: "age",
+      store: a.store,
+      artifactId: a.artifactId,
+      artifactKind: a.artifactKind,
+      severity: "medium",
+      rationale: `Artifact ${a.artifactId} is ${Math.floor(ageDays)} days old with no evidence of refresh.`,
+      evidenceRefs: [],
+      confidence: 0.8,
+      createdAt: new Date(now).toISOString(),
+    });
+  }
+
+  // superseded — within each cluster, flag every non-newest artifact as
+  // superseded by the cluster's newest artifact (ties broken by largest
+  // artifactId for determinism). The newest artifact is never superseded.
+  const clusters = new Map<string, KnowledgeArtifact[]>();
+  for (const a of artifacts) {
+    const key = clusterKey(a);
+    const bucket = clusters.get(key);
+    if (bucket) bucket.push(a);
+    else clusters.set(key, [a]);
+  }
+  for (const bucket of clusters.values()) {
+    if (bucket.length < 2) continue;
+    const newest = [...bucket].sort((x, y) => {
+      const byDate = y.createdAt.localeCompare(x.createdAt);
+      if (byDate !== 0) return byDate;
+      return y.artifactId.localeCompare(x.artifactId);
+    })[0];
+    for (const a of bucket) {
+      if (a === newest) continue;
       findings.push({
-        findingId: computeFindingId(a.store, "stale", a.artifactId),
+        findingId: computeFindingId(a.store, "stale", a.artifactId, newest.artifactId),
         kind: "stale",
-        reasonCode: "age",
+        reasonCode: "superseded",
         store: a.store,
         artifactId: a.artifactId,
         artifactKind: a.artifactKind,
+        targetId: newest.artifactId,
         severity: "medium",
-        rationale: `Artifact ${a.artifactId} is ${Math.floor(ageDays)} days old, beyond staleAfterDays (${config.staleAfterDays}) with no evidence of refresh.`,
+        rationale: `Artifact ${a.artifactId} superseded by newer artifact ${newest.artifactId} in same (store, artifactKind, subject) cluster.`,
         evidenceRefs: [],
-        confidence: 0.8,
+        confidence: 0.9,
         createdAt: new Date(now).toISOString(),
       });
     }
   }
 
-  // superseded — newer artifact in the same (store, artifactKind, subject) cluster.
-  for (const a of artifacts) {
-    for (const b of artifacts) {
-      if (a === b) continue;
-      if (!sameCluster(a, b)) continue;
-      if (b.createdAt > a.createdAt) {
-        findings.push({
-          findingId: computeFindingId(a.store, "stale", a.artifactId, b.artifactId),
-          kind: "stale",
-          reasonCode: "superseded",
-          store: a.store,
-          artifactId: a.artifactId,
-          artifactKind: a.artifactKind,
-          targetId: b.artifactId,
-          severity: "medium",
-          rationale: `Artifact ${a.artifactId} is superseded by newer artifact ${b.artifactId} in the same (store, artifactKind, subject) cluster.`,
-          evidenceRefs: [],
-          confidence: 0.9,
-          createdAt: new Date(now).toISOString(),
-        });
-      }
-    }
-  }
-
   // outcome_contradiction — claim contradicted by a newer evidence artifact.
   for (const a of artifacts) {
-    if (isEvidence(a) || !a.claim) continue;
+    if (isEvidenceArtifact(a) || !a.claim) continue;
     for (const e of artifacts) {
-      if (!isEvidence(e) || !e.claim) continue;
+      if (!isEvidenceArtifact(e)) continue;
       if (e === a) continue;
       if (e.createdAt <= a.createdAt) continue;
-      if (
-        e.claim.subject === a.claim.subject &&
-        e.claim.predicate === a.claim.predicate &&
-        e.claim.value !== a.claim.value
-      ) {
-        findings.push({
-          findingId: computeFindingId(a.store, "stale", a.artifactId, e.artifactId),
-          kind: "stale",
-          reasonCode: "outcome_contradiction",
-          store: a.store,
-          artifactId: a.artifactId,
-          artifactKind: a.artifactKind,
-          targetId: e.artifactId,
-          severity: "high",
-          rationale: `Artifact ${a.artifactId}'s claim (${a.claim.subject}/${a.claim.predicate}=${a.claim.value}) is contradicted by newer evidence artifact ${e.artifactId} (${e.claim.value}).`,
-          evidenceRefs: [...e.evidenceRefs],
-          confidence: 0.9,
-          createdAt: new Date(now).toISOString(),
-        });
-      }
+      if (!claimsConflict(a, e)) continue;
+      findings.push({
+        findingId: computeFindingId(a.store, "stale", a.artifactId, e.artifactId),
+        kind: "stale",
+        reasonCode: "outcome_contradiction",
+        store: a.store,
+        artifactId: a.artifactId,
+        artifactKind: a.artifactKind,
+        targetId: e.artifactId,
+        severity: "high",
+        rationale: `Artifact ${a.artifactId}'s claim (${a.claim.subject}/${a.claim.predicate}=${a.claim.value}) contradicted by newer observed evidence ${e.artifactId} (${e.claim?.value}).`,
+        evidenceRefs: [e.artifactId],
+        confidence: 0.9,
+        createdAt: new Date(now).toISOString(),
+      });
     }
   }
 
-  // Deterministic ordering.
   return findings.sort((x, y) => x.findingId.localeCompare(y.findingId));
 }

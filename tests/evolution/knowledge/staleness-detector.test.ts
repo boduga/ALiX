@@ -102,6 +102,57 @@ describe("detectStale", () => {
     assert.equal(contradicted.kind, "stale");
   });
 
+  it("does not flag an old artifact that has evidence of refresh (evidenceRefs)", () => {
+    const refreshed = makeArtifact("old-but-refreshed", {
+      evidenceRefs: ["ev-refreshed"],
+    });
+    assert.deepEqual(detectStale([refreshed], DEFAULT_CURATION_CONFIG), []);
+  });
+
+  it("never flags an A5 evidence projection as stale by age", () => {
+    const evidence = makeArtifact("ev-1", {
+      store: "evidence",
+      artifactKind: "VerificationEvidence",
+      createdAt: "2020-01-01T00:00:00.000Z",
+      evidenceRefs: ["ev-1"],
+    });
+    const findings = detectStale([evidence], DEFAULT_CURATION_CONFIG);
+    assert.ok(
+      !findings.some((f) => f.reasonCode === "age"),
+      "evidence artifacts must not produce age findings",
+    );
+  });
+
+  it("flags every non-newest artifact superseded by the NEWEST in the cluster (no double-flag)", () => {
+    const oldA = makeArtifact("art-a", {
+      subject: "agents",
+      createdAt: "2100-01-01T00:00:00.000Z",
+    });
+    const midB = makeArtifact("art-b", {
+      subject: "agents",
+      createdAt: "2101-01-01T00:00:00.000Z",
+    });
+    const newC = makeArtifact("art-c", {
+      subject: "agents",
+      createdAt: "2102-01-01T00:00:00.000Z",
+    });
+    const findings = detectStale([newC, midB, oldA], DEFAULT_CURATION_CONFIG);
+    const superseded = findings.filter((f) => f.reasonCode === "superseded");
+    // Both A and B are superseded, each pointing at the newest (C) — so B is
+    // never simultaneously a superseder and superseded (no double-flag).
+    assert.equal(superseded.length, 2);
+    const aFinding = superseded.find((f) => f.artifactId === "art-a");
+    const bFinding = superseded.find((f) => f.artifactId === "art-b");
+    assert.ok(aFinding, "expected art-a superseded");
+    assert.ok(bFinding, "expected art-b superseded");
+    assert.equal(aFinding?.targetId, "art-c");
+    assert.equal(bFinding?.targetId, "art-c");
+    assert.ok(
+      !findings.some((f) => f.reasonCode === "superseded" && f.artifactId === "art-c"),
+      "newest artifact must not be superseded",
+    );
+  });
+
   it("returns no findings for a fresh artifact", () => {
     const fresh = makeArtifact("fresh-art", { createdAt: "2099-01-01T00:00:00.000Z" });
     assert.deepEqual(detectStale([fresh], DEFAULT_CURATION_CONFIG), []);

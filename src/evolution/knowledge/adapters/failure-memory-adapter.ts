@@ -15,11 +15,10 @@
  * @module failure-memory-adapter
  */
 
-import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { FailureRecord } from "../../../governance/failure-memory.js";
 import type { KnowledgeArtifact } from "../contracts/curation-contract.js";
-import { parseLines, readTextFileOrNull, type AdapterResult } from "./shared.js";
+import { parseLines, readTextFileOrNull, runAdapter, type AdapterResult } from "./shared.js";
 
 const STORAGE_FILE = "failure-memory.jsonl";
 
@@ -41,11 +40,9 @@ export class FailureMemoryAdapter {
   constructor(private readonly dir: string) {}
 
   async read(): Promise<AdapterResult> {
-    try {
-      if (!existsSync(this.dir)) {
-        return { artifacts: [], status: { status: "unavailable", store: "failure_memory" } };
-      }
-
+    return runAdapter(
+      "failure_memory",
+      async () => {
       const artifacts: KnowledgeArtifact[] = [];
 
       const raw = await readTextFileOrNull(join(this.dir, STORAGE_FILE));
@@ -64,16 +61,9 @@ export class FailureMemoryAdapter {
         }
       }
 
-      return { artifacts, status: { status: "available", store: "failure_memory" } };
-    } catch (err) {
-      return {
-        artifacts: [],
-        status: {
-          status: "unavailable",
-          store: "failure_memory",
-          reason: (err as Error).message ?? String(err),
-        },
-      };
-    }
+      return artifacts;
+      },
+      this.dir,
+    );
   }
 }

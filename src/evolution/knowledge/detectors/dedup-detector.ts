@@ -25,6 +25,7 @@ import type {
   KnowledgeArtifact,
 } from "../contracts/curation-contract.js";
 import { computeFindingId, normalizeContent } from "./finding-id.js";
+import { canonicalPair, clusterKey } from "./shared.js";
 
 function bigrams(s: string): Set<string> {
   const out = new Set<string>();
@@ -46,25 +47,6 @@ function contentSimilarity(a: string, b: string): number {
   let inter = 0;
   for (const g of setA) if (setB.has(g)) inter += 1;
   return (2 * inter) / (setA.size + setB.size);
-}
-
-/**
- * Canonicalize an unordered pair: artifactId = larger id, targetId = smaller.
- * The returned `primary` is the artifact matching `artifactId` (used for the
- * finding's store/artifactKind).
- */
-function canonicalPair(
-  a: KnowledgeArtifact,
-  b: KnowledgeArtifact,
-): { artifactId: string; targetId: string; primary: KnowledgeArtifact } {
-  if (a.artifactId < b.artifactId) {
-    return { artifactId: b.artifactId, targetId: a.artifactId, primary: b };
-  }
-  return { artifactId: a.artifactId, targetId: b.artifactId, primary: a };
-}
-
-function clusterKey(a: KnowledgeArtifact): string {
-  return `${a.store}::${a.artifactKind}::${a.subject ?? ""}`;
 }
 
 /**

@@ -21,6 +21,8 @@ import type { VerificationEvidenceLedger } from "../evolution/verification/evide
 import type { GovernanceDecisionBridge } from "../evolution/governance/governance-decision-bridge.js";
 import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
 import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
+import type { PatternRegistry } from "../context/pattern-registry.js";
+import { bold, red } from "./ansi.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
 import { CliObservationProvider } from "../evolution/observation/providers/cli-provider.js";
 import { FilesystemObservationProvider } from "../evolution/observation/providers/filesystem-provider.js";
@@ -38,14 +40,6 @@ function isJsonMode(args: string[]): boolean {
     return true;
   }
   return false;
-}
-
-function red(msg: string): string {
-  return `\x1b[31m${msg}\x1b[0m`;
-}
-
-function bold(msg: string): string {
-  return `\x1b[1m${msg}\x1b[0m`;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +68,9 @@ export interface EvolutionCLIDeps {
   policyConfig?: GovernancePolicyConfig;
   // A4 Governed Execution deps (optional for backward compat)
   decisionStore?: GovernanceDecisionStore;
+  // A6 Curation deps (optional) — the pattern registry is memory-backed and
+  // only contributes artifacts when an instance is supplied.
+  patternRegistry?: PatternRegistry;
 }
 
 export async function handleEvolutionCommand(
