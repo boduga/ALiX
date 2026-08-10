@@ -15,3 +15,4 @@ export * from "./contracts/curation-contract.js";
 export * from "./adapters/index.js";
 export * from "./detectors/index.js";
 export * from "./curation-engine.js";
+export * from "./curation-proposal-builder.js";

@@ -9,6 +9,8 @@
  *   alix governance evolution decide <id>     — governance decision (A3)
  *   alix governance evolution execute <id>    — governed execution (A4)
  *   alix governance evolution observe <id>    — outcome observation (A5)
+ *   alix governance evolution curate [--dimension <kind>] [--json]
+ *                                          — curation of knowledge stores (A6)
  *
  * @module evolution-cli
  */
@@ -150,6 +152,11 @@ export async function handleEvolutionCommand(
         const { runObserve } = await import("../evolution/observation/observation-cli.js");
         const engine = buildObservationEngine(deps);
         await runObserve(id, { engine, evidenceStore: deps.evidenceStore }, { jsonMode });
+      }
+    case "curate":
+      {
+        const { handleCurationCommand } = await import("../evolution/knowledge/curation-cli.js");
+        return handleCurationCommand(deps, args.slice(1), jsonMode);
       }
     default:
       console.log(red(`Unknown evolution command: ${sub}`));
@@ -328,6 +335,7 @@ function printHelp(): void {
   console.log("  decide <id>       Run governance decision on an evolution (A3)");
   console.log("  execute <id>      Execute an APPROVED evolution proposal (A4)");
   console.log("  observe <id>      Run observation providers, store evidence (A5)");
+  console.log("  curate            Curate knowledge stores across all evolutions (A6)");
   console.log("");
   console.log("Options:");
   console.log("  --json            Machine-readable JSON output");
@@ -337,4 +345,7 @@ function printHelp(): void {
   console.log("");
   console.log("Execute options:");
   console.log("  --dry-run         Generate plan but do not execute");
+  console.log("");
+  console.log("Curate options:");
+  console.log("  --dimension <kind>  Restrict to stale|duplicate|contradiction|compressible");
 }
