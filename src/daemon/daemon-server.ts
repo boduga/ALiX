@@ -23,11 +23,12 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
-import { buildExternalRetrievalPrompt } from "../runtime/route-prompts.js";
+import { executeRoute, type RuntimeContext } from "../runtime/route-executor.js";
+import { executeDirectBehavior } from "../runtime/route-execution.js";
+import { DaemonRuntimeExecutor } from "./daemon-runtime-executor.js";
 import { recordWorkspaceActivity } from "./workspace-registry.js";
 
 const args = process.argv.slice(2);
@@ -294,150 +295,23 @@ async function dispatchDirectRoute(
 /**
  * Execute a `direct` route in the daemon process. (Task 3)
  *
- * Mirrors the local executor's contract:
- *   - arithmetic: returns the pre-computed `answer` string verbatim
- *   - standalone generation: one provider call, no tool loop
+ * Delegates to the shared `executeDirectBehavior` (route-execution.ts) — the
+ * single implementation local and daemon both use. Arithmetic returns the
+ * pre-computed `answer` verbatim; standalone generation is one provider call.
  *
- * Like the local executor, this function intentionally does **not**
- * import `ToolExecutor` or `runTask`. The direct path must stay free
- * of side-effecting executors — the whole point of the fast path is
- * that it produces no session events, no task registry entry, no
- * `.alix/sessions`, no `.alix/plans`.
- *
- * The local executor relies on the caller's `RuntimeContext.config`;
- * the daemon has no `RuntimeContext`, so we load config from disk via
- * `loadConfig(cwd)`. Errors here are surfaced to the caller via the
- * `direct.completed` payload — never via session events.
+ * This is the ephemeral `direct`-command path only (no session, no registry,
+ * no `.alix/sessions`). The `run`-command path for a direct route goes
+ * through `DaemonRuntimeExecutor.executeDirect` and streams `assistant.text`
+ * instead — the two wire formats are intentionally different (the client
+ * opted into the slow path when it used `run`).
  */
 async function executeDirectRoute(
   route: TaskRoute & { kind: "direct" },
   cwd: string,
 ): Promise<string> {
-  if (route.answer !== undefined) {
-    return route.answer;
-  }
-
   const { loadConfig } = await import("../config/loader.js");
   const config = await loadConfig(cwd);
-  const { createProvider } = await import("../providers/registry.js");
-
-  const provider = await createProvider(resolveModelConfig(config));
-  const response = await provider.complete({
-    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-    messages: [{ role: "user", content: route.prompt }],
-  });
-  return response.text || "(no response)";
-}
-
-/** Execute a tool route in the daemon process via ToolExecutor. */
-async function executeToolRoute(
-  route: TaskRoute & { kind: "tool" },
-  taskId: string, sessionId: string,
-  cwd: string, client: Socket, eventLog: EventLog,
-): Promise<void> {
-  const { loadConfig } = await import("../config/loader.js");
-  const config = await loadConfig(cwd);
-  const { ToolExecutor } = await import("../tools/executor.js");
-  const { randomBytes } = await import("node:crypto");
-
-  const executor = new ToolExecutor(config, eventLog, cwd);
-  const toolCallId = `daemon_${Date.now()}_${randomBytes(4).toString("hex")}`;
-
-  safeWrite(client, { type: "assistant.text" as const, sessionId, text: `→ ${route.tool} ${JSON.stringify(route.args)}\n` });
-
-  const result = await executor.execute({ toolCallId, name: route.tool, args: route.args });
-
-  if (result.kind === "success") {
-    safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.output ?? result.content ?? "(tool completed)" });
-  } else if (result.kind === "denied") {
-    safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Blocked by policy: ${result.reason}` });
-  } else if (result.kind === "error") {
-    safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Tool error: ${result.message}` });
-  }
-}
-
-/** Execute a chat route in the daemon process: direct model call. */
-async function executeChatRoute(
-  route: TaskRoute & { kind: "chat" },
-  taskId: string, sessionId: string,
-  cwd: string, client: Socket, eventLog: EventLog,
-): Promise<void> {
-  const { loadConfig } = await import("../config/loader.js");
-  const config = await loadConfig(cwd);
-  const { createProvider } = await import("../providers/registry.js");
-
-  const provider = await createProvider(resolveModelConfig(config));
-  const response = await provider.complete({
-    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-    messages: [{ role: "user", content: route.prompt }],
-  });
-
-  safeWrite(client, { type: "assistant.text" as const, sessionId, text: response.text || "(no response)" });
-}
-
-/** Execute a grounded_chat route: model + read-only tools, max 2 rounds. */
-async function executeGroundedChatRoute(
-  route: TaskRoute & { kind: "grounded_chat" },
-  sessionId: string, cwd: string, client: Socket, eventLog: EventLog,
-): Promise<void> {
-  const { loadConfig } = await import("../config/loader.js");
-  const config = await loadConfig(cwd);
-  const { createProvider } = await import("../providers/registry.js");
-  const { ToolExecutor } = await import("../tools/executor.js");
-  const { randomBytes } = await import("node:crypto");
-
-  const provider = await createProvider(resolveModelConfig(config));
-  const executor = new ToolExecutor(config, eventLog, cwd);
-
-  // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
-  // Defensive: external daemon clients may submit a grounded_chat route
-  // without a `diagnostic` (the daemon test does). The executor's purpose is
-  // external retrieval, so default to that intent rather than throwing.
-  const intent = route.diagnostic?.classification ?? "external_retrieval";
-  const retrievalPrompt = buildExternalRetrievalPrompt(intent);
-
-  // First call: model may issue a tool call for fresh information
-  const response = await provider.complete({
-    systemPrompt: retrievalPrompt.systemPrompt,
-    messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
-  });
-
-  if (response.toolCalls.length > 0) {
-    if (response.toolCalls.length > 1) {
-      safeWrite(client, { type: "assistant.text" as const, sessionId, text: "Grounded chat supports only one tool call at a time." });
-      return;
-    }
-    const tc = response.toolCalls[0];
-
-    // Enforce allowedTools allowlist
-    if (!route.allowedTools.includes(tc.name)) {
-      safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Tool "${tc.name}" is not allowed for this query type.` });
-      return;
-    }
-
-    const toolResult = await executor.execute({
-      toolCallId: `daemon_${Date.now()}_${randomBytes(4).toString("hex")}`,
-      name: tc.name, args: tc.args,
-    });
-
-    const toolContent = toolResult.kind === "success"
-      ? (toolResult.output || toolResult.content || "(no output)")
-      : toolResult.kind === "error"
-        ? `Error: ${toolResult.message}`
-        : "Tool request denied by policy";
-
-    const finalResponse = await provider.complete({
-      systemPrompt: "Answer the user's question based on the tool result.",
-      messages: [
-        { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
-        { role: "assistant", content: response.text || "" },
-        { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
-      ],
-    });
-    safeWrite(client, { type: "assistant.text" as const, sessionId, text: finalResponse.text || "(no response)" });
-  } else {
-    safeWrite(client, { type: "assistant.text" as const, sessionId, text: response.text || "(no response)" });
-  }
+  return executeDirectBehavior(route, config);
 }
 
 /** Run a task via the shared task router.
@@ -480,32 +354,23 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
   }
 
   try {
-    // Route execution — tool/chat/grounded_chat/direct complete here, agent falls through
-    switch (route.kind) {
-      case "tool":
-        await executeToolRoute(route, taskId, sessionId, requestCwd, client, eventLog);
-        break;
-      case "chat":
-        await executeChatRoute(route, taskId, sessionId, requestCwd, client, eventLog);
-        break;
-      case "grounded_chat":
-        await executeGroundedChatRoute(route, sessionId, requestCwd, client, eventLog);
-        break;
-      case "direct": {
-        // A client may pre-classify a direct route and submit it via
-        // `run` instead of `direct`. Execute the direct path and stream
-        // the result as `assistant.text`. The lifecycle (session,
-        // registry, task.completed) still applies because the client
-        // opted into the slow path.
-        const text = await executeDirectRoute(route, requestCwd);
-        safeWrite(client, { type: "assistant.text" as const, sessionId, text });
-        break;
-      }
-      case "agent":
-        break; // fall through to runTask() below
-    }
-
+    // Route execution — tool/chat/grounded_chat/direct cross the RuntimeExecutor
+    // seam via DaemonRuntimeExecutor (which delegates to the shared behaviors);
+    // agent falls through to the runTask path below.
     if (route.kind !== "agent") {
+      const daemonExecutor = new DaemonRuntimeExecutor({
+        client, sessionId, taskId, cwd: requestCwd, eventLog,
+      });
+      const runtimeCtx: RuntimeContext = {
+        cwd: requestCwd,
+        sessionId,
+        sessionDir: join(requestCwd, ".alix", "sessions", sessionId),
+        eventLog,
+        // Config is loaded exactly once by the executor and shared into the
+        // context from the same cached instance.
+        config: await daemonExecutor.getConfig(),
+      };
+      await executeRoute(route, runtimeCtx, daemonExecutor);
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
       safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
       await endSession();

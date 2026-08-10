@@ -3,12 +3,18 @@
  *
  * Defines the RuntimeExecutor interface and the executeRoute() dispatcher.
  * Two implementations exist: local (same process) and daemon (Unix socket).
- * The daemon-side executor lives in daemon-server.ts for socket I/O.
+ * Both delegate their execution behavior to the shared functions in
+ * route-execution.ts — adapter-specific code is limited to where the config
+ * comes from and where the result goes.
  */
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
-import { buildExternalRetrievalPrompt } from "./route-prompts.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import {
+  executeChatBehavior,
+  executeDirectBehavior,
+  executeGroundedChatBehavior,
+  executeToolBehavior,
+} from "./route-execution.js";
 
 /** Re-export RouteDiagnostic so callers can import it from one place. */
 export type { RouteDiagnostic } from "./task-router.js";
@@ -98,128 +104,27 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
    * executors so it remains safe to invoke from read-only contexts.
    */
   async executeDirect(route: TaskRoute & { kind: "direct" }, ctx: RuntimeContext): Promise<string> {
-    if (route.answer !== undefined) {
-      return route.answer;
-    }
-
-    const { createProvider } = await import("../providers/registry.js");
-    const provider = await createProvider(resolveModelConfig(ctx.config));
-    const response = await provider.complete({
-      systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-      messages: [{ role: "user", content: route.prompt }],
-      maxOutputTokens: 512,
-    });
-    return response.text || "(no response)";
+    return executeDirectBehavior(route, ctx.config);
   }
 
   async executeTool(route: TaskRoute & { kind: "tool" }, ctx: RuntimeContext): Promise<string> {
-    const { ToolExecutor } = await import("../tools/executor.js");
-    const { randomBytes } = await import("node:crypto");
-
-    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd, undefined, undefined, undefined, undefined, ctx.approvalStore);
-    const toolCallId = `local_${Date.now()}_${randomBytes(4).toString("hex")}`;
-
-    const result = await executor.execute({
-      toolCallId,
-      name: route.tool,
-      args: route.args,
+    return executeToolBehavior(route, ctx.config, {
+      eventLog: ctx.eventLog,
+      cwd: ctx.cwd,
+      approvalStore: ctx.approvalStore,
     });
-
-    if (result.kind === "success") {
-      return result.output || result.content || "(tool completed)";
-    } else if (result.kind === "denied") {
-      const reason = result.reason || "";
-      if (reason.includes("approval") || reason.includes("Approval")) {
-        const idMatch = reason.match(/(approval_[a-zA-Z0-9_-]+)/);
-        const approvalId = idMatch ? idMatch[1] : "";
-        let msg = "Approval required.\n\nPending approval:\n";
-        msg += `  ${approvalId || reason}\n\n`;
-        msg += "Run:\n";
-        msg += `  /approve ${approvalId || "<id>"}\n`;
-        msg += "or:\n";
-        msg += `  /deny ${approvalId || "<id>"}\n`;
-        return msg;
-      }
-      return `Blocked by policy: ${reason}`;
-    } else if (result.kind === "error") {
-      return `Tool error: ${result.message}`;
-    } else {
-      return "(unexpected tool result)";
-    }
   }
 
   async executeChat(route: TaskRoute & { kind: "chat" }, ctx: RuntimeContext): Promise<string> {
-    const { createProvider } = await import("../providers/registry.js");
-    const provider = await createProvider(resolveModelConfig(ctx.config));
-    const response = await provider.complete({
-      systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-      messages: [{ role: "user", content: route.prompt }],
-      maxOutputTokens: 512,
-    });
-    return response.text || "(no response)";
+    return executeChatBehavior(route, ctx.config);
   }
 
   async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, ctx: RuntimeContext): Promise<string> {
-    const { createProvider } = await import("../providers/registry.js");
-    const { ToolExecutor } = await import("../tools/executor.js");
-    const { randomBytes } = await import("node:crypto");
-
-    const provider = await createProvider(resolveModelConfig(ctx.config));
-    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd, undefined, undefined, undefined, undefined, ctx.approvalStore);
-
-    // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
-    // The executor consumes the intent from route.diagnostic.classification
-    // — no re-classification of raw prompt text. Defensive default: a route
-    // without a diagnostic still executes as external retrieval.
-    const intent = route.diagnostic?.classification ?? "external_retrieval";
-    const retrievalPrompt = buildExternalRetrievalPrompt(intent);
-
-    // First call: model may issue a tool call for fresh information
-    const response = await provider.complete({
-      systemPrompt: retrievalPrompt.systemPrompt,
-      messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
-      maxOutputTokens: 512,
+    return executeGroundedChatBehavior(route, ctx.config, {
+      eventLog: ctx.eventLog,
+      cwd: ctx.cwd,
+      approvalStore: ctx.approvalStore,
     });
-
-    if (response.toolCalls.length > 0) {
-      if (response.toolCalls.length > 1) {
-        return "Grounded chat supports only one tool call at a time.";
-      }
-      const tc = response.toolCalls[0];
-
-      // Enforce allowedTools allowlist
-      if (!route.allowedTools.includes(tc.name)) {
-        return `Tool "${tc.name}" is not allowed for this query type.`;
-      }
-
-      const toolResult = await executor.execute({
-        toolCallId: `local_${Date.now()}_${randomBytes(4).toString("hex")}`,
-        name: tc.name,
-        args: tc.args,
-      });
-
-      const toolContent = toolResult.kind === "success"
-        ? (toolResult.output || toolResult.content || "(no output)")
-        : toolResult.kind === "error"
-          ? `Error: ${toolResult.message}`
-          : "Tool request denied by policy";
-
-      // Second call: model synthesizes answer from tool result
-      // Tool results are passed as user messages in the normalized format
-      const finalResponse = await provider.complete({
-        systemPrompt: "Answer the user's question based on the tool result.",
-        messages: [
-          { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
-          { role: "assistant", content: response.text || "" },
-          { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
-        ],
-        maxOutputTokens: 512,
-      });
-      return finalResponse.text || "(no response)";
-    }
-
-    // No tool call — model answered directly
-    return response.text || "(no response)";
   }
 
   async executeAgent(route: TaskRoute & { kind: "agent" }, ctx: RuntimeContext): Promise<string> {

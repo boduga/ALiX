@@ -26,11 +26,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  */
 describe("Daemon server route execution", { timeout: 30000 }, () => {
   const tmpDir = mkdtempSync(join(tmpdir(), "daemon-srv-test-"));
+  // HOME isolation so loadConfig does not merge the operator's real
+  // ~/.config/alix/config.json — otherwise the project's `mock` config is
+  // overridden by a canonical `models.default` from the real home and the
+  // route execution hits a live provider (and "Plan" never appears).
+  const homeDir = join(tmpDir, "home");
   const socketPath = join(tmpDir, "test.sock");
   const cwd = tmpDir;
   let serverProcess: any = null;
 
   before(() => {
+    mkdirSync(homeDir, { recursive: true });
     mkdirSync(join(tmpDir, ".alix"), { recursive: true });
     mkdirSync(join(tmpDir, ".alix", "sessions"), { recursive: true });
     writeFileSync(join(tmpDir, ".alix", "config.json"), JSON.stringify({
@@ -48,6 +54,7 @@ describe("Daemon server route execution", { timeout: 30000 }, () => {
       const serverJs = join(__dirname, "..", "..", "src", "daemon", "daemon-server.js");
       serverProcess = spawn(process.execPath, [serverJs, "--socket", socketPath, "--cwd", cwd], {
         stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, HOME: homeDir },
       });
       serverProcess.stderr.on("data", (data: Buffer) => {
         if (data.toString().includes("listening")) resolve();
