@@ -156,12 +156,15 @@ capability state always reads the M-series registry.
 
 ```ts
 interface CapabilityLifecycleRecord {
-  /** Deterministic identity — hash of (capabilityId, eventType, intent, timestamp bucket). */
+  /** Unique immutable record identifier — see identity rule below. */
   recordId: string;
-  /** Primary capability. */
-  capabilityId: string;
-  /** Multi-target (consolidation: A + B → C). Absent for single-target intents. */
-  targetCapabilities?: string[];
+  /** Target capability reference. Multi-target for consolidation (A + B → C). */
+  target: {
+    /** Primary capability. For consolidation: the resulting/merged capability (C). */
+    capabilityId: string;
+    /** Related affected capabilities. For consolidation: the merged inputs (A, B). */
+    relatedCapabilityIds?: string[];
+  };
   /** Explicit lifecycle intent. */
   intent: CapabilityLifecycleIntent;
   eventType: "intent" | "proposed" | "decided";
@@ -187,6 +190,14 @@ interface CapabilityLifecycleRecord {
 }
 ```
 
+**Identity rule:** `recordId` is generated once when the record is appended and
+never changes. It is **not** the identity of the lifecycle proposal or decision
+— those are carried by `proposalId` / `decisionId`, which are the authoritative
+correlation identifiers. A timestamp is never part of the identity. Where a
+deterministic ID is preferred, derive it from an existing immutable artifact:
+- `intent` / `proposed` → `hash(proposalId + "<eventType>")`
+- `decided` → `hash(decisionId + "decided")`
+
 **Semantics (unambiguous):** An `APPROVE` + `deprecate` record with
 `observedLifecycleState: active`, `proposedLifecycleState: deprecated` reads as
 "governance approved the proposal to deprecate; the registry is still active."
@@ -211,6 +222,12 @@ APPROVED_PENDING_APPLICATION   (when the latest decision is APPROVE and no
 A7.0 terminal states per capability:
 - `REJECTED` — latest decision was a rejection
 - `APPROVED_PENDING_APPLICATION` — latest decision was an approval; no A7.1 application
+
+**`APPROVED_PENDING_APPLICATION` never enters `LifecycleState`.** It is a
+governance-overlay projection state, not a capability lifecycle state. The
+P5.5/M-series lifecycle enum remains `emerging | active | mature | stagnant |
+declining | deprecated` — an A7 record's `observedLifecycleState` /
+`proposedLifecycleState` only ever hold values from that enum.
 
 There are **no** `APPLIED` or `MEASURED` events in A7.0. Those event types are
 reserved for A7.1 and must not appear in A7.0 records.
