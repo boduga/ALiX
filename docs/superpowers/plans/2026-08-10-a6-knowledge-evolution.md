@@ -332,19 +332,22 @@ git commit -m "feat(a6): add curation engine orchestration"
 - Test: `tests/evolution/knowledge/curation-proposal-builder.test.ts`
 
 **Interfaces:**
-- Consumes: `CurationFinding`, `CurationProposal`, `CurationConfig` (Task 2); `GovernanceRecommendation`, `Recommendation` (Task 1); `createVerificationEvidence`, `VerificationEvidenceInput` (Task 1)
+- Consumes: `CurationFinding`, `CurationProposal`, `CurationConfig` (Task 2); the **A2.5** `GovernanceRecommendation` + `GovernanceRecommendationKind` from `src/evolution/verification/contracts/recommendation-contract.ts` (Task 1); `createVerificationEvidence`, `VerificationEvidenceInput` (Task 1)
 - Produces:
   - `function buildCurationProposal(findings: CurationFinding[]): CurationProposal | null` — returns `null` when findings is empty (zero-findings invariant)
-  - `function buildGovernanceRecommendation(proposal: CurationProposal): GovernanceRecommendation` — builds a `DecisionArtifact`-satisfying recommendation (id←proposalId, subject←summary, outcome←"curation_proposed", confidence←max finding confidence, reasons←rationales, evidenceRefs←union, generatedAt←createdAt, reportType:"governance_recommendation", recommendations: one `Recommendation` per dimension)
+  - `function buildGovernanceRecommendation(proposal: CurationProposal): GovernanceRecommendation` — builds the **A2.5** recommendation shape that `generateDecision` consumes: `recommendationId: "rec-curate-" + proposalId`, `evidenceId` = the evidence produced by `buildEvidenceFromFindings`, `proposalId` = evidence.proposalId, `kind: "APPROVE"` (A6 proposes the bounded curation action for A3 to evaluate — A6 does NOT decide), `confidence` = aggregated finding confidence, `reasoning` = proposal.summary, `supportingEvidence` = finding evidenceRefs, `risks` = finding rationale list, `createdAt` = proposal.createdAt
   - `function buildEvidenceFromFindings(findings: CurationFinding[]): VerificationEvidence` — wraps finding `evidenceRefs` + rationale into a `VerificationEvidence` via `createVerificationEvidence` with `confidenceProfile.overallConfidence` = aggregated finding confidence.
+
+**IMPORTANT — A2.5 not P9.x:** `generateDecision` consumes the **A2.5** `GovernanceRecommendation` from `src/evolution/verification/contracts/recommendation-contract.ts` (fields: `recommendationId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt`), NOT the P9.x `governance-types.ts` shape. Do not build the P9.x shape. Mirror the existing A2.5 caller `src/evolution/verification/recommendation/recommendation-engine.ts` (its `recommend()` returns `{ recommendationId: "rec-" + evidenceId, evidenceId, proposalId, kind, confidence, reasoning, supportingEvidence, risks, createdAt: evidence.verifiedAt }`).
 
 - [ ] **Step 1: Write the failing test**
 
 Create `tests/evolution/knowledge/curation-proposal-builder.test.ts`:
 - `buildCurationProposal([])` → `null`
 - `buildCurationProposal([finding])` → proposal with `findings.length === 1`, summary non-empty
-- `buildGovernanceRecommendation(proposal)` → object satisfying `DecisionArtifact` shape (`id`, `subject`, `outcome`, `confidence`, `reasons`, `generatedAt` all present), `reportType === "governance_recommendation"`, one `Recommendation` per dimension
+- `buildGovernanceRecommendation(proposal)` → object satisfying the **A2.5** shape (`recommendationId`, `evidenceId`, `proposalId`, `kind`, `confidence`, `reasoning`, `supportingEvidence`, `risks`, `createdAt` all present), `kind === "APPROVE"`
 - `buildEvidenceFromFindings(findings)` → `VerificationEvidence` with `evidenceClass === "projected"`, `proposalId` non-empty
+- A round-trip: `buildGovernanceRecommendation(proposal).evidenceId` equals `buildEvidenceFromFindings(proposal.findings).evidenceId`
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -353,7 +356,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the builder**
 
-Follow the A3 construction pattern (see `src/governance/governance-types.ts` and `src/evolution/verification/evidence/verification-evidence.ts`). For `buildEvidenceFromFindings`, call `createVerificationEvidence` with:
+Follow the A2.5 caller pattern in `src/evolution/verification/recommendation/recommendation-engine.ts` and the evidence construction in `src/evolution/verification/evidence/verification-evidence.ts`. For `buildEvidenceFromFindings`, call `createVerificationEvidence` with:
 ```ts
 {
   verificationId: `a6-curation-${proposalId}`,
@@ -364,11 +367,26 @@ Follow the A3 construction pattern (see `src/governance/governance-types.ts` and
   baselineMetrics: {}, candidateMetrics: {}, metricDeltas: {},
   behavioralChanges: findings.map(f => f.rationale),
   confidenceProfile: { overallConfidence: aggregated, perMetric: {} },
-  reproducibilityLevel: /* lowest level that satisfies A3 — check the enum in Task 1 */,
+  reproducibilityLevel: 2,   // Task 1 verified: DEFAULT_GOVERNANCE_POLICY.minReproducibilityLevel = 2
   lineage: [], verifiedAt: now,
 }
 ```
-(The `reproducibilityLevel` value must satisfy A3's `minReproducibilityLevel` check — verify the enum in Task 1 Step 3 and set a passing value.)
+(`reproducibilityLevel: 2` is the lowest value passing A3's gate, per the Task 1 contract-verification checkpoint.)
+
+`buildGovernanceRecommendation` returns the A2.5 shape:
+```ts
+{
+  recommendationId: `rec-curate-${proposal.proposalId}`,
+  evidenceId: evidence.evidenceId,       // from buildEvidenceFromFindings
+  proposalId: evidence.proposalId,
+  kind: "APPROVE",                       // A6 proposes; A3 remains authoritative
+  confidence: aggregated,
+  reasoning: proposal.summary,
+  supportingEvidence: proposal.findings.flatMap(f => f.evidenceRefs),
+  risks: proposal.findings.map(f => f.rationale),
+  createdAt: proposal.createdAt,
+}
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 
