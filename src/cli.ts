@@ -2208,6 +2208,13 @@ if (command === "executive") {
   process.exit(0);
 }
 
+// ── Capabilities command (A7.0) ─────────────────────────────────
+if (command === "capabilities") {
+  const { handleCapabilitiesCommand } = await import("./cli/commands/capabilities.js");
+  await handleCapabilitiesCommand(args);
+  process.exit(0);
+}
+
 
 // ── Baseline command (P10.10) ──────────────────────────────────
 if (command === "baseline") {
