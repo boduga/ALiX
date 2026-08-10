@@ -102,13 +102,15 @@ export function buildEvidenceFromFindings(
     candidateMetrics: {},
     metricDeltas: {},
     behavioralChanges: findings.map((f) => f.rationale),
-    // ConfidenceProfile sub-fields are set to the aggregated confidence so the
-    // confidence-formula invariant holds: min(a, a, a) * a === overallConfidence.
+    // ConfidenceProfile sub-fields: replay/coverage/determinism carry the
+    // aggregated curation confidence; historicalSimilarity is 1 (curation
+    // evidence has no historical baseline), so the confidence-formula
+    // invariant holds exactly: min(a, a, a) * 1 === overallConfidence.
     confidenceProfile: {
       replayFidelity: aggregated,
       coverage: aggregated,
       determinism: aggregated,
-      historicalSimilarity: aggregated,
+      historicalSimilarity: 1,
       overallConfidence: aggregated,
     },
     reproducibilityLevel: 2, // lowest value passing A3's minReproducibilityLevel gate
