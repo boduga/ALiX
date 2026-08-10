@@ -9,7 +9,11 @@ import {
   type RuntimeContext,
 } from "../../src/runtime/route-executor.js";
 import { DaemonRuntimeExecutor } from "../../src/daemon/daemon-runtime-executor.js";
-import { executeGroundedChatBehavior } from "../../src/runtime/route-execution.js";
+import {
+  executeDirectBehavior,
+  executeGroundedChatBehavior,
+  renderToolResult,
+} from "../../src/runtime/route-execution.js";
 import { taskRouter } from "../../src/runtime/task-router.js";
 import type { TaskRoute } from "../../src/runtime/task-router.js";
 
@@ -246,5 +250,48 @@ describe("route executor parity — local vs daemon", () => {
     const texts = assistantTexts(frames);
     assert.equal(texts.length, 1);
     assert.equal(texts[0], "4");
+  });
+
+  it("denial rendering: daemon opts out of the /approve block (single-source behavior)", async () => {
+    // A daemon socket client cannot act on CLI /approve commands, so its tool
+    // denials must render the short `Blocked by policy:` line. Pins the
+    // contract on the single shared renderer.
+    const approvalDenial = {
+      kind: "denied",
+      reason: "Approval required (approval_abc123): needs review",
+    };
+    assert.match(renderToolResult(approvalDenial as any), /Approval required/);
+    const short = renderToolResult(approvalDenial as any, { renderApprovalPrompt: false });
+    assert.equal(
+      short,
+      "Blocked by policy: Approval required (approval_abc123): needs review",
+    );
+    assert.doesNotMatch(short, /approve/);
+    // Non-approval denials are always short-form regardless of the option.
+    assert.equal(renderToolResult({ kind: "denied", reason: "sandbox" } as any), "Blocked by policy: sandbox");
+  });
+
+  it("daemon writes the tool marker before execution (present even when the tool errors)", async () => {
+    const { executor, frames } = makeDaemon();
+    const route = { kind: "tool", tool: "no.such.tool", args: {} } as any;
+    await executor.executeTool(route, makeLocalCtx()).catch(() => "threw");
+    const texts = assistantTexts(frames);
+    assert.ok(texts.length >= 1, "marker frame must be present");
+    assert.match(texts[0], /^→ no\.such\.tool/);
+  });
+
+  it("local caps at 512 output tokens; daemon leaves the provider uncapped", async () => {
+    const calls: any[] = [];
+    const provider = {
+      complete: async (opts: any) => { calls.push(opts); return { text: "hi" }; },
+    } as any;
+    const deps = { providerFactory: async () => provider } as any;
+    const route = { kind: "direct", prompt: "x" } as any;
+
+    await executeDirectBehavior(route, config, { ...deps, maxOutputTokens: 512 });
+    assert.equal(calls[0].maxOutputTokens, 512, "local passes its historical cap");
+
+    await executeDirectBehavior(route, config, deps);
+    assert.equal(calls[1].maxOutputTokens, undefined, "daemon leaves the cap unset (uncapped)");
   });
 });

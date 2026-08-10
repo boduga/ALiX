@@ -62,39 +62,46 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
     client.write(JSON.stringify(payload) + "\n");
   }
 
-  async executeDirect(route: TaskRoute & { kind: "direct" }, _ctx: RuntimeContext): Promise<string> {
+  /**
+   * Shared shape for single-frame routes: load the request config, run the
+   * behavior, emit one assistant.text frame, return the text.
+   */
+  private async runAndEmit(run: (config: any) => Promise<string>): Promise<string> {
     const config = await this.getConfig();
-    const text = await executeDirectBehavior(route, config);
+    const text = await run(config);
     this.emitText(text);
     return text;
+  }
+
+  async executeDirect(route: TaskRoute & { kind: "direct" }, _ctx: RuntimeContext): Promise<string> {
+    return this.runAndEmit((config) => executeDirectBehavior(route, config));
   }
 
   async executeChat(route: TaskRoute & { kind: "chat" }, _ctx: RuntimeContext): Promise<string> {
-    const config = await this.getConfig();
-    const text = await executeChatBehavior(route, config);
-    this.emitText(text);
-    return text;
+    return this.runAndEmit((config) => executeChatBehavior(route, config));
   }
 
   async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, _ctx: RuntimeContext): Promise<string> {
-    const config = await this.getConfig();
-    const text = await executeGroundedChatBehavior(route, config, {
-      eventLog: this.opts.eventLog,
-      cwd: this.opts.cwd,
-    });
-    this.emitText(text);
-    return text;
+    return this.runAndEmit((config) =>
+      executeGroundedChatBehavior(route, config, {
+        eventLog: this.opts.eventLog,
+        cwd: this.opts.cwd,
+      }),
+    );
   }
 
   async executeTool(route: TaskRoute & { kind: "tool" }, _ctx: RuntimeContext): Promise<string> {
     const config = await this.getConfig();
+    // Marker frame BEFORE the tool runs — the daemon announces the invocation
+    // so the client gets immediate "tool is running" feedback even if the
+    // tool later errors. (Existing wire format; the ordering is part of the
+    // daemon contract.)
+    this.emitText(`→ ${route.tool} ${JSON.stringify(route.args)}\n`);
     const text = await executeToolBehavior(route, config, {
       eventLog: this.opts.eventLog,
       cwd: this.opts.cwd,
+      renderApprovalPrompt: false, // a socket client can't act on /approve
     });
-    // Preserve the daemon's tool marker frame (existing wire format): the
-    // invoked tool + args are announced before the result.
-    this.emitText(`→ ${route.tool} ${JSON.stringify(route.args)}\n`);
     this.emitText(text);
     return text;
   }

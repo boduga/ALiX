@@ -26,6 +26,19 @@ export interface ExecutionDeps {
   cwd?: string;
   approvalStore?: any;
   /**
+   * Cap on provider output tokens. When unset the field is omitted entirely,
+   * so the provider's own default applies. LocalRuntimeExecutor passes 512
+   * (its historical cap); the daemon omits it to keep its historical
+   * uncapped behavior.
+   */
+  maxOutputTokens?: number;
+  /**
+   * When false, a tool denial is rendered as the short `Blocked by policy: …`
+   * line instead of the multi-line `/approve` prompt. A daemon socket client
+   * cannot act on CLI `/approve` commands, so DaemonRuntimeExecutor opts out.
+   */
+  renderApprovalPrompt?: boolean;
+  /**
    * Test seam: override provider construction. Defaults to
    * `createProvider(resolveModelConfig(config))`. Production adapters never
    * set this — it exists so a test can hand the shared grounded_chat
@@ -53,6 +66,33 @@ async function makeProvider(config: any, deps: ExecutionDeps): Promise<ModelAdap
 }
 
 /**
+ * Spread `maxOutputTokens` only when an adapter set one. When unset the field
+ * is omitted so the provider's own default applies — the daemon's historical
+ * uncapped behavior.
+ */
+function tokenCap(deps: ExecutionDeps): { maxOutputTokens: number } | {} {
+  return deps.maxOutputTokens !== undefined ? { maxOutputTokens: deps.maxOutputTokens } : {};
+}
+
+/**
+ * One provider call with no tool loop — the shared shape behind the direct
+ * and chat behaviors.
+ */
+async function singleProviderCall(
+  prompt: string,
+  config: any,
+  deps: ExecutionDeps,
+): Promise<string> {
+  const provider = await makeProvider(config, deps);
+  const response = await provider.complete({
+    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
+    messages: [{ role: "user", content: prompt }],
+    ...tokenCap(deps),
+  });
+  return response.text || "(no response)";
+}
+
+/**
  * Direct execution — no lifecycle, no tools, no artifacts.
  *
  *  - Arithmetic: returns the route's pre-computed `answer` string.
@@ -66,13 +106,7 @@ export async function executeDirectBehavior(
   if (route.answer !== undefined) {
     return route.answer;
   }
-  const provider = await makeProvider(config, deps);
-  const response = await provider.complete({
-    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-    messages: [{ role: "user", content: route.prompt }],
-    maxOutputTokens: 512,
-  });
-  return response.text || "(no response)";
+  return singleProviderCall(route.prompt, config, deps);
 }
 
 /** Chat route — one provider call, no tool loop. */
@@ -81,47 +115,47 @@ export async function executeChatBehavior(
   config: any,
   deps: ExecutionDeps = {},
 ): Promise<string> {
-  const provider = await makeProvider(config, deps);
-  const response = await provider.complete({
-    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-    messages: [{ role: "user", content: route.prompt }],
-    maxOutputTokens: 512,
-  });
-  return response.text || "(no response)";
+  return singleProviderCall(route.prompt, config, deps);
 }
 
-/** Tool route — execute the requested tool and render its result. */
-export async function executeToolBehavior(
-  route: TaskRoute & { kind: "tool" },
-  config: any,
-  deps: ToolExecutionDeps,
-): Promise<string> {
-  const { ToolExecutor } = await import("../tools/executor.js");
-  const { randomBytes } = await import("node:crypto");
+/** Options controlling how a tool outcome is rendered as text. */
+export interface RenderToolResultOptions {
+  /**
+   * When false, a denial is rendered as the short `Blocked by policy: <reason>`
+   * line even when the reason names an approval. Local keeps the multi-line
+   * `/approve` prompt (its historical UX); the daemon opts out because a
+   * socket client cannot act on CLI commands.
+   */
+  renderApprovalPrompt?: boolean;
+}
 
-  const executor = new ToolExecutor(
-    config,
-    deps.eventLog,
-    deps.cwd,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    deps.approvalStore,
-  );
-  const toolCallId = `alix_${Date.now()}_${randomBytes(4).toString("hex")}`;
+/** Minimal structural shape of a ToolExecutor outcome (see tools/executor.ts). */
+interface ToolOutcome {
+  kind: string;
+  output?: string;
+  content?: string;
+  reason?: string;
+  message?: string;
+}
 
-  const result = await executor.execute({
-    toolCallId,
-    name: route.tool,
-    args: route.args,
-  });
-
+/**
+ * Render a ToolExecutor outcome as the text returned to the caller. Single
+ * implementation both adapters share, so the denial/approval text can never
+ * diverge between local and daemon.
+ */
+export function renderToolResult(
+  result: ToolOutcome,
+  opts: RenderToolResultOptions = {},
+): string {
   if (result.kind === "success") {
     return result.output || result.content || "(tool completed)";
-  } else if (result.kind === "denied") {
+  }
+  if (result.kind === "denied") {
     const reason = result.reason || "";
-    if (reason.includes("approval") || reason.includes("Approval")) {
+    const wantsApprovalPrompt =
+      opts.renderApprovalPrompt !== false &&
+      (reason.includes("approval") || reason.includes("Approval"));
+    if (wantsApprovalPrompt) {
       const idMatch = reason.match(/(approval_[a-zA-Z0-9_-]+)/);
       const approvalId = idMatch ? idMatch[1] : "";
       let msg = "Approval required.\n\nPending approval:\n";
@@ -133,11 +167,51 @@ export async function executeToolBehavior(
       return msg;
     }
     return `Blocked by policy: ${reason}`;
-  } else if (result.kind === "error") {
-    return `Tool error: ${result.message}`;
-  } else {
-    return "(unexpected tool result)";
   }
+  if (result.kind === "error") {
+    return `Tool error: ${result.message}`;
+  }
+  return "(unexpected tool result)";
+}
+
+/** Fresh daemon/local tool-call id with the shared `alix_` prefix. */
+async function newToolCallId(): Promise<string> {
+  const { randomBytes } = await import("node:crypto");
+  return `alix_${Date.now()}_${randomBytes(4).toString("hex")}`;
+}
+
+/**
+ * Build a ToolExecutor for the given deps. Kept behind a dynamic import so the
+ * shared route layer never statically pulls in the tool executor, and so the
+ * two behaviors that run tools construct it identically.
+ */
+async function makeToolExecutor(config: any, deps: ToolExecutionDeps): Promise<any> {
+  const { ToolExecutor } = await import("../tools/executor.js");
+  return new ToolExecutor(
+    config,
+    deps.eventLog,
+    deps.cwd,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    deps.approvalStore,
+  );
+}
+
+/** Tool route — execute the requested tool and render its result. */
+export async function executeToolBehavior(
+  route: TaskRoute & { kind: "tool" },
+  config: any,
+  deps: ToolExecutionDeps,
+): Promise<string> {
+  const executor = await makeToolExecutor(config, deps);
+  const result = await executor.execute({
+    toolCallId: await newToolCallId(),
+    name: route.tool,
+    args: route.args,
+  });
+  return renderToolResult(result, { renderApprovalPrompt: deps.renderApprovalPrompt });
 }
 
 /**
@@ -155,20 +229,8 @@ export async function executeGroundedChatBehavior(
   config: any,
   deps: ToolExecutionDeps,
 ): Promise<string> {
-  const { ToolExecutor } = await import("../tools/executor.js");
-  const { randomBytes } = await import("node:crypto");
-
   const provider = await makeProvider(config, deps);
-  const executor = new ToolExecutor(
-    config,
-    deps.eventLog,
-    deps.cwd,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    deps.approvalStore,
-  );
+  const executor = await makeToolExecutor(config, deps);
 
   // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
   // The executor consumes the intent from route.diagnostic.classification
@@ -181,7 +243,7 @@ export async function executeGroundedChatBehavior(
   const response = await provider.complete({
     systemPrompt: retrievalPrompt.systemPrompt,
     messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
-    maxOutputTokens: 512,
+    ...tokenCap(deps),
   });
 
   if (response.toolCalls.length > 0) {
@@ -196,7 +258,7 @@ export async function executeGroundedChatBehavior(
     }
 
     const toolResult = await executor.execute({
-      toolCallId: `alix_${Date.now()}_${randomBytes(4).toString("hex")}`,
+      toolCallId: await newToolCallId(),
       name: tc.name,
       args: tc.args,
     });
@@ -216,7 +278,7 @@ export async function executeGroundedChatBehavior(
         { role: "assistant", content: response.text || "" },
         { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
       ],
-      maxOutputTokens: 512,
+      ...tokenCap(deps),
     });
     return finalResponse.text || "(no response)";
   }

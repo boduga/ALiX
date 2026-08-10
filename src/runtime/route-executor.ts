@@ -6,6 +6,15 @@
  * Both delegate their execution behavior to the shared functions in
  * route-execution.ts — adapter-specific code is limited to where the config
  * comes from and where the result goes.
+ *
+ * Seam vs session.ts: this module is the task-route execution seam — given a
+ * classified TaskRoute it produces a text result, dispatching through one of
+ * the two adapters. session.ts owns the higher-level agent session lifecycle
+ * (streaming turns, plan approval, memory, event persistence) and is NOT part
+ * of this seam: its agent loop (runTask) is only reached through
+ * executeAgent, and the daemon's handleRun routes agent routes straight to
+ * runTask rather than through DaemonRuntimeExecutor. Keep session.ts out of
+ * this module.
  */
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
@@ -104,7 +113,8 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
    * executors so it remains safe to invoke from read-only contexts.
    */
   async executeDirect(route: TaskRoute & { kind: "direct" }, ctx: RuntimeContext): Promise<string> {
-    return executeDirectBehavior(route, ctx.config);
+    // Local passes its historical 512-token cap; the daemon omits it.
+    return executeDirectBehavior(route, ctx.config, { maxOutputTokens: 512 });
   }
 
   async executeTool(route: TaskRoute & { kind: "tool" }, ctx: RuntimeContext): Promise<string> {
@@ -116,7 +126,8 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
   }
 
   async executeChat(route: TaskRoute & { kind: "chat" }, ctx: RuntimeContext): Promise<string> {
-    return executeChatBehavior(route, ctx.config);
+    // Local passes its historical 512-token cap; the daemon omits it.
+    return executeChatBehavior(route, ctx.config, { maxOutputTokens: 512 });
   }
 
   async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, ctx: RuntimeContext): Promise<string> {
@@ -124,6 +135,8 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       eventLog: ctx.eventLog,
       cwd: ctx.cwd,
       approvalStore: ctx.approvalStore,
+      // Local passes its historical 512-token cap; the daemon omits it.
+      maxOutputTokens: 512,
     });
   }
 
