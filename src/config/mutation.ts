@@ -257,7 +257,9 @@ function projectionRejected(path: string): Error {
  */
 function looksLikeSecret(value: unknown): boolean {
   if (typeof value === "string") {
-    if ((value as string).startsWith("cred://")) return true;
+    // A `cred://<provider>/<keyLabel>` reference is a POINTER to a stored
+    // credential, not a secret itself — it is safe to persist in config.
+    if ((value as string).startsWith("cred://")) return false;
     if (value.length > 30 && /^[A-Za-z0-9_\-+.=/]{30,}$/.test(value)) return true;
     if (/^(sk-|key-|pk-|rk-)/.test(value) && value.length > 20) return true;
     return false;

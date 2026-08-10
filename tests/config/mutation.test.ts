@@ -213,13 +213,13 @@ test("ConfigMutationService: getValue returns object at intermediate path", asyn
 // Secret rejection
 // ---------------------------------------------------------------------------
 
-test("ConfigMutationService: rejects cred:// references in project config", async () => {
+test("ConfigMutationService: allows cred:// references (pointers, not secrets)", async () => {
   const { service, dir } = await setupService();
   try {
-    await assert.rejects(
-      () => service.set("apiKeys", { openai: "cred://openai/apiKey" }),
-      (err: any) => err.code === MUTATION_ERROR_CODES.SECRET_IN_PROJECT,
-    );
+    // A `cred://` reference is a pointer to a stored credential, safe to
+    // persist in config — the secret lives only in the store.
+    const mutation = await service.set("apiKeys", { openai: "cred://openai/apiKey" });
+    assert.equal(mutation.op, "set");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
