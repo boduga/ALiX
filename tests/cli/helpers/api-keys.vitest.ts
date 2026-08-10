@@ -73,6 +73,19 @@ describe("getSavedApiKey", () => {
     _setUserConfigPathOverride(path);
     expect(await getSavedApiKey("openai")).toBeNull();
   });
+
+  it("never returns a cred:// reference as the literal string", async () => {
+    // A `cred://` value must be resolved through the credential store, never
+    // returned as the raw reference. The store may or may not hold the secret
+    // in this environment — the invariant is that the reference string itself
+    // must not leak through (that is what caused 401s in set-default).
+    const path = join(tmpDir, "config.json");
+    const fs = await import("node:fs/promises");
+    await fs.writeFile(path, JSON.stringify({ apiKeys: { openai: "cred://openai/apiKey" } }));
+    _setUserConfigPathOverride(path);
+    const value = await getSavedApiKey("openai");
+    expect(value).not.toBe("cred://openai/apiKey");
+  });
 });
 
 describe("setApiKey", () => {

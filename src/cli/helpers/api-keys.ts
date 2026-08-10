@@ -16,6 +16,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { PROVIDERS } from "../../providers/catalog.js";
+import { isCredentialReference, parseCredentialReference } from "../../security/credentials/credential-reference.js";
+import type { CredentialStore } from "../../security/credentials/credential-store.js";
 
 // Test seam - override the user-config path without touching real filesystem.
 let userConfigPathOverride: string | undefined;
@@ -40,11 +42,48 @@ export async function getSavedApiKey(providerId: string): Promise<string | null>
     const raw = await readFile(path, "utf8");
     const parsed = JSON.parse(raw) as { apiKeys?: Record<string, unknown> };
     const value = parsed.apiKeys?.[providerId];
-    if (typeof value === "string" && value.length > 0) return value;
-    return null;
+    if (typeof value !== "string" || value.length === 0) return null;
+    // A `cred://<provider>/<keyLabel>` reference must be resolved through the
+    // credential store before the key is usable. Returning the literal
+    // reference string (as before) made live model lookups fail with 401.
+    if (isCredentialReference(value)) {
+      return resolveApiKeyReference(value);
+    }
+    return value;
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve a `cred://<provider>/<keyLabel>` reference through the credential
+ * store. Returns the resolved secret, or `null` when the store is unavailable
+ * or the credential is missing (callers treat `null` as "no key", so this
+ * fails soft — it never throws).
+ */
+export async function resolveApiKeyReference(ref: string): Promise<string | null> {
+  const parsed = parseCredentialReference(ref);
+  if (!parsed) return null;
+  try {
+    const store = await loadCredentialStore();
+    return store.get(parsed.provider, parsed.keyLabel);
+  } catch {
+    return null;
+  }
+}
+
+/** Lazily-loaded credential store (same construction the loader uses). */
+let _credentialStore: CredentialStore | undefined;
+async function loadCredentialStore(): Promise<CredentialStore> {
+  if (_credentialStore) return _credentialStore;
+  const { chooseBackend, loadCredentialStoreWithKeychainFallback } =
+    await import("../../security/credentials/backend-selection.js");
+  const backend = await chooseBackend();
+  _credentialStore = await loadCredentialStoreWithKeychainFallback(
+    backend,
+    () => { /* silent — key resolution should not surface store warnings */ },
+  );
+  return _credentialStore;
 }
 
 /**
