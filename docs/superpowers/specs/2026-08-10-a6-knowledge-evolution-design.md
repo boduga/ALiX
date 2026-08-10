@@ -1,6 +1,6 @@
 # A6 — Knowledge Evolution Design
 
-**Status:** Approved (2026-08-10)
+**Status:** Approved with contract refinements (2026-08-10)
 **Phase:** A6 — Knowledge Evolution
 **Depends on:** A3 (Governance Decision engine), A5 (Outcome Observation), A0 (Evolution Contract), ADR-0008
 **Checkpoint target:** `alix-a6-knowledge-evolution-complete`
@@ -48,10 +48,27 @@ src/evolution/knowledge/
 │   ├── learning-store-adapter.ts     — read-only over learning/ (signals, profiles, reports)
 │   ├── chronicle-adapter.ts          — read-only over chronicle/
 │   ├── failure-memory-adapter.ts     — read-only over governance/failure-memory
-│   └── pattern-registry-adapter.ts   — read-only over context/pattern-registry
+│   ├── pattern-registry-adapter.ts   — read-only over context/pattern-registry
+│   └── evidence-adapter.ts           — read-only over VerificationEvidenceLedger (A5 input)
 ├── curation-proposal-builder.ts  — findings → CurationProposal
 ├── curation-cli.ts               — CLI handler
 └── index.ts                      — barrel re-exports
+```
+
+### A5 evidence input
+
+The staleness and contradiction detectors need A5 observed evidence. The
+`evidence-adapter.ts` reads `VerificationEvidenceLedger` read-only
+(`listByProposal`, `listExpired`) and projects the relevant evidence alongside
+`KnowledgeArtifact`s so detectors receive it as part of their pure input — no
+store access from detectors.
+
+```
+A5 observed evidence (VerificationEvidenceLedger)
+        ↓ read-only evidence adapter
+KnowledgeArtifact[] / evidence projection
+        ↓
+staleness / contradiction detector (pure, no I/O)
 ```
 
 ### Structural mirror to A5
@@ -66,47 +83,109 @@ src/evolution/knowledge/
 ### Data flow
 
 ```
-Store adapters (read-only) → detectors → CurationFinding[]
-                                          ↓
-                             buildCurationProposal → CurationProposal
-                                          ↓
-                     A3 generateDecision(evidence, recommendation) → GovernanceDecision
-                                          ↓
-                          EvolutionStateMachine transition (proposal lifecycle)
+Existing stores ──read-only adapters──▶ KnowledgeArtifact[]
+                                                     │
+                        ┌────────────────────────────┼────────────────────────────┐
+                        ▼                            ▼                            ▼
+                 StalenessDetector             DedupDetector            ContradictionDetector
+                        │                            │                            │
+                        └────────────────────────────┼────────────────────────────┘
+                                                     ▼
+                                             CompressionDetector
+                                                     │
+                                                     ▼
+                                            CurationFinding[]
+                                                     │
+                                                     ▼
+                                            CurationProposal
+                                                     │
+                                            (non-empty only)
+                                                     ▼
+                                    A3 generateDecision(evidence, recommendation)
+                                                     │
+                                                     ▼
+                                             GovernanceDecision
+                                                     │
+                                                     ▼
+                                  existing A-series evolution lifecycle
 ```
 
 ### Core invariants
-- Detectors are **pure** — no I/O, no store access, no side effects; operate only on artifact lists handed to them by adapters
+- Detectors are **pure** — no I/O, no store access, no side effects; operate only on `KnowledgeArtifact[]` handed to them by adapters
 - Adapters are **read-only** — read store files, never write
-- Deterministic: same store state → same findings → same decision (ordering preserved)
+- **A6 never writes to knowledge stores.** It recommends; A3 is the governance authority that decides.
+- Deterministic: same store snapshot + same detector config + same timestamp semantics → identical semantic findings, proposal, and governance recommendation (ordering preserved)
 
 ## 4. Data Model
 
-### CurationFinding
+### 4.1 Normalized read model — `KnowledgeArtifact`
+
+The four stores expose different shapes. To keep detectors pure (they must not know how `LearningSignal`, `ChronicleEntry`, `FailureMemory`, and `Pattern` differ), adapters project artifacts into a **small in-memory read model**. This is an internal projection, **not a new persistent store** and not a serializable DTO.
 
 ```ts
-type CurationFindingKind =
-  | "stale"            // superseded / old / contradicted by newer evidence
-  | "duplicate"        // near-duplicate of another artifact
-  | "contradiction"    // two artifacts claim incompatible things
-  | "compressible";    // long-lived low-value, candidate for eviction
+type KnowledgeStore = "learning" | "chronicle" | "failure_memory" | "pattern_registry";
 
-interface CurationFinding {
-  findingId: string;              // deterministic: hash(store, kind, artifactId, targetId?)
-  kind: CurationFindingKind;
-  store: "learning" | "chronicle" | "failure_memory" | "pattern_registry";
-  artifactId: string;             // the artifact flagged
-  artifactKind: string;           // e.g. "LearningSignal" | "ChronicleEntry" | "FailureMemory" | "Pattern"
-  targetId?: string;              // for duplicate/contradiction: the related artifact
-  severity: "low" | "medium" | "high";
-  rationale: string;              // human-readable why
-  evidenceRefs: string[];         // evidence IDs that support this finding (e.g. A5 observed evidence)
-  confidence: number;             // 0..1 detector confidence
-  createdAt: string;              // ISO timestamp
+interface KnowledgeArtifact {
+  readonly store: KnowledgeStore;
+  readonly artifactId: string;
+  readonly artifactKind: string;
+  readonly subject?: string;          // e.g. subsystem / policy / task-type cluster key
+  readonly content: string;           // normalized text for similarity + dedup
+  readonly createdAt: string;
+  readonly updatedAt?: string;
+  readonly evidenceRefs: readonly string[];
+  readonly downstreamRefs: readonly string[];
+  readonly claim?: {                  // structured claim, only where the store already has one
+    readonly subject: string;
+    readonly predicate: string;
+    readonly value: string;
+  };
 }
 ```
 
-### CurationProposal
+Mapping to existing stores (grounded in source):
+
+| Store | artifactKind | subject | claim source |
+|-------|--------------|---------|--------------|
+| `learning` | `LearningSignal` | signalType/target | native `delta { expected, observed }` |
+| `learning` | `CalibrationProfile` | target+targetName | native `previousValue`/`suggestedValue` |
+| `learning` | `LearningReport` | — | — |
+| `chronicle` | `ChronicleEntry` | — | native `outcome` |
+| `failure_memory` | `FailureRecord` | failureType | native `failureType`/`detail` |
+| `pattern_registry` | `Pattern` | TaskType | native `PatternOutcome` |
+
+**Contradiction detection operates only on `claim`.** If a store has no structured claim, contradiction detection cannot establish incompatibility for it — A6 explicitly does **not** introduce an LLM/semantic-inference layer. Adapters expose structured claims only where the underlying store already has them.
+
+### 4.2 `CurationFinding`
+
+```ts
+type CurationFindingKind =
+  | "stale"         // reasonCode distinguishes the phenomenon
+  | "duplicate"
+  | "contradiction"
+  | "compressible";
+
+interface CurationFinding {
+  findingId: string;              // deterministic identity — see §4.4
+  kind: CurationFindingKind;
+  reasonCode: string;             // deterministic subtype, not parsed from rationale:
+                                  //   stale → "age" | "superseded" | "outcome_contradiction"
+                                  //   duplicate → "exact" | "near"
+                                  //   contradiction → "value_clash" | "outcome_contradiction"
+                                  //   compressible → "low_value_long_lived"
+  store: KnowledgeStore;
+  artifactId: string;             // the artifact flagged
+  artifactKind: string;
+  targetId?: string;              // for duplicate/contradiction: the related artifact
+  severity: "low" | "medium" | "high";
+  rationale: string;              // human-readable why
+  evidenceRefs: readonly string[];// evidence IDs that support this finding (e.g. A5 observed evidence)
+  confidence: number;             // 0..1 detector confidence
+  createdAt: string;              // observation timestamp — NOT part of deterministic identity
+}
+```
+
+### 4.3 `CurationProposal`
 
 ```ts
 interface CurationProposal extends DecisionArtifact {
@@ -114,74 +193,152 @@ interface CurationProposal extends DecisionArtifact {
   findings: CurationFinding[];
   summary: string;                 // one-line "N stale, M duplicate..."
   dimension: CurationFindingKind[];// dimensions covered
-  createdAt: string;
+  createdAt: string;               // observation timestamp — not part of deterministic identity
 }
 ```
+
+### 4.4 Deterministic identity
+
+`findingId` is a deterministic hash of `(store, kind, artifactId, targetId?)`. It identifies the **artifact relationship being proposed for curation**, not the detection circumstances.
+
+- Detector rationale, confidence, and evidence may change between observations; `findingId` stays stable.
+- For **pairwise** findings (duplicate, contradiction), the pair is canonicalized: **target IDs sorted lexicographically before hashing**, so `duplicate(A,B)` and `duplicate(B,A)` produce the same `findingId`.
+- `createdAt` is observation metadata and is **excluded** from the deterministic comparison and hash.
+
+**Determinism invariant:** `findingId`, finding ordering, finding content, proposal content, and the governance recommendation are deterministic. Lifecycle timestamps are not part of deterministic identity.
+
+### 4.5 `CurationConfig` — explicit detector input
+
+Thresholds are an explicit input, not hard-coded in detectors:
+
+```ts
+interface CurationConfig {
+  readonly staleAfterDays: number;              // default 90
+  readonly duplicateSimilarityThreshold: number;// default 0.9
+  readonly compressionAfterDays: number;        // default 180
+}
+```
+
+Each detector signature is `detect(artifacts: KnowledgeArtifact[], config: CurationConfig): CurationFinding[]`.
+The CLI/config layer is where these evolve later. Determinism invariant: same artifacts + same config = same findings.
+
+### 4.6 `CurationResult` — engine output (findings + store status)
+
+Store availability is **not** a curation finding and must not become a governance proposal:
+
+```ts
+type StoreStatus =
+  | { status: "available"; store: KnowledgeStore }
+  | { status: "unavailable"; store: KnowledgeStore; reason?: string };
+
+interface CurationResult {
+  findings: CurationFinding[];
+  storeStatus: StoreStatus[];
+}
+```
+
+A missing store dir → `{ status: "unavailable" }` in `storeStatus`, no findings from that store, and a diagnostic line in the report — but **no finding, no proposal, no governance decision**.
+
+### 4.7 The zero-findings invariant
+
+```
+0 findings → no CurationProposal → no GovernanceDecision
+```
+
+A6 must not route an empty proposal to A3 (which would mint a "do nothing" governance decision and add noise to the ledger).
 
 `CurationProposal` extends the existing `DecisionArtifact` base (the same base A3's
 `GovernanceDecision` and P8's `LearningSignal` extend), so it drops straight into
 A3's `generateDecision` pipeline.
 
-`findingId` is a deterministic hash of `(store, kind, artifactId, targetId?)` — same
-store state yields the same finding IDs, so governance decisions on them are
-reproducible (A-series deterministic invariant).
-
 ## 5. Detector Logic
 
-Each detector is pure — takes artifact lists from adapters, returns findings.
+Each detector is pure — `detect(artifacts: KnowledgeArtifact[], config: CurationConfig): CurationFinding[]`, returns findings. Thresholds come from `config`, never hard-coded.
 
 ### StalenessDetector
-Signals an artifact is stale when:
-- **Age**: older than a threshold (default 90 days) with no evidence of refresh
-- **Superseded**: a newer artifact in the same `store + artifactKind + subject` cluster exists
-- **Contradicted by observed evidence**: A5 observed evidence shows the artifact's claim no longer holds
+Signals an artifact is stale (`reasonCode: "age" | "superseded" | "outcome_contradiction"`) when:
+- **Age** (`age`): older than `config.staleAfterDays` with no evidence of refresh
+- **Superseded** (`superseded`): a newer artifact in the same `store + artifactKind + subject` cluster exists
+- **Contradicted by observed evidence** (`outcome_contradiction`): A5 observed evidence shows the artifact's claim no longer holds
 
 ### DedupDetector
-- **Exact match**: same `(store, artifactKind, subject)` — propose consolidation
-- **Near-duplicate**: normalized-content similarity above a threshold (default 0.9) — flag as candidate
+- **Exact match** (`exact`): same `(store, artifactKind, subject)` — propose consolidation
+- **Near-duplicate** (`near`): normalized-content similarity above `config.duplicateSimilarityThreshold` — flag as candidate
 
 ### ContradictionDetector
-- **Value clash**: two artifacts in the same subject cluster assert incompatible values
-- **Outcome contradiction**: an artifact's expectation vs A5 observed outcome disagree
+Operates **only on `KnowledgeArtifact.claim`** — never on free text, never via semantic inference.
+- **Value clash** (`value_clash`): two artifacts in the same subject cluster assert incompatible claim values
+- **Outcome contradiction** (`outcome_contradiction`): an artifact's claim expectation vs A5 observed outcome disagree
 
 ### CompressionDetector
 - **Low-value + long-lived**: older than threshold AND no `evidenceRefs` / no downstream references → eviction candidate
 
-## 6. CLI
+## 6. A6 → A3 governance mapping
+
+A6 is the **curation proposer**; A3 remains the governance authority. A6 must not
+decide whether an artifact is deleted, compressed, merged, or retained — it
+recommends a curation action, and A3 decides.
 
 ```
-alix governance evolution curate [--dimension stale|dup|contradiction|compress] [--json]
+CurationProposal (non-empty findings)
+        ↓
+DecisionArtifact
+        ↓
+A3 generateDecision(evidence, recommendation)
 ```
 
-- `--dimension` filters to one dimension; omitting runs all four
-- Default output: report of findings grouped by kind, plus the resulting governance decision (via A3)
-- `--json`: structured `{ findings, proposal, decision }`
+- **evidence** ← finding `evidenceRefs` (A5 observed evidence) + finding rationale, wrapped to satisfy A3's `VerificationEvidence` input
+- **recommendation** ← "curate the knowledge artifacts identified by this proposal" (an explicit, bounded curation action — never "delete X" specifics)
+- A3's `GovernanceDecision` (APPROVE / REJECT / etc.) is the authority; `EvolutionStateMachine` transition happens through the **existing A-series lifecycle**, which A6 does not instantiate
+- **0 findings → no proposal → no A3 call → no decision** (see §4.7)
+
+## 7. CLI
+
+```
+alix governance evolution curate [--dimension stale|duplicate|contradiction|compressible] [--json]
+```
+
+- `--dimension` filters to one dimension; omitting runs all four. The CLI uses the
+  full `CurationFindingKind` names (`duplicate`, `compressible`) — no short aliases
+- Default output: report of findings grouped by kind, plus the resulting governance decision (via A3, only when findings exist)
+- `--json`: structured `{ findings, proposal, decision }` (decision present only when a proposal exists)
 - Unknown dimension → usage error + exit 1
-- No findings → "No curation findings" message (mirrors `runEvidence`)
+- No findings → "No curation findings" message, no A3 call (mirrors `runEvidence`)
 
 Wiring follows the existing `evolution-cli.ts` subcommand pattern (`decide`/`execute`/`observe` cases).
 
-## 7. Error Handling
+## 8. Error Handling
 
 - **Adapters never throw**: each wraps store reads in try/catch, returns `[]` on corrupt/missing artifacts, skips corrupt JSONL lines (reusing the `parseLines` pattern from `learning-store.ts`)
 - **Detectors never throw**: pure logic; edge cases (empty input, missing target) return empty findings, never exceptions
-- **Missing store dir**: absent `.alix/learning`, `.alix/chronicle`, etc. → adapter returns empty list, engine emits a `store_unavailable` note rather than failing
+- **Missing store dir**: absent `.alix/learning`, `.alix/chronicle`, etc. → adapter returns empty list, engine records `{ status: "unavailable", store }` in `CurationResult.storeStatus` — **not** a finding, never a proposal (§4.6)
 - **CLI**: unknown dimension → usage error + exit 1; no findings → "No curation findings"
 
-## 8. Testing
+## 9. Testing
 
 Mirror the A5 test layout at `tests/evolution/knowledge/`:
 
 | Suite | Covers |
 |-------|--------|
-| `curation-contract.test.ts` | validators for finding/proposal types |
-| `staleness-detector.test.ts` | age / superseded / outcome-contradiction |
+| `curation-contract.test.ts` | validators for finding/proposal/artifact types |
+| `knowledge-artifact-adapter.test.ts` | store→`KnowledgeArtifact` projection, corrupt JSONL resilience |
+| `staleness-detector.test.ts` | age / superseded / outcome-contradiction, config thresholds |
 | `dedup-detector.test.ts` | exact + near-duplicate |
-| `contradiction-detector.test.ts` | value clash + outcome contradiction |
+| `contradiction-detector.test.ts` | value clash + outcome contradiction (claims only) |
 | `compression-detector.test.ts` | low-value + long-lived |
-| `curation-engine.test.ts` | aggregation, ordering determinism |
+| `curation-engine.test.ts` | aggregation, ordering determinism, store status |
 | `curation-proposal-builder.test.ts` | findings → proposal, DecisionArtifact base |
 | `curation-cli.test.ts` | dimension filter, JSON, no-findings, exit codes |
 | `integration/a6-curation-integration.test.ts` | end-to-end: adapters → detectors → builder → A3 decision |
 
-**Success criteria:** all 9 suites pass; determinism test (same input → identical findings + decision) green; governance decision properly generated from a non-empty proposal.
+**Critical invariant tests:**
+
+- **Deterministic pair ordering**: `duplicate(A,B)` and `duplicate(B,A)` → identical finding
+- **Deterministic finding IDs**: same input twice → identical `findingId`s
+- **No mutation**: snapshot adapter inputs before/after detector execution — unchanged
+- **Missing stores**: one unavailable store does not suppress findings from the other three
+- **No findings**: no proposal, no A3 call
+- **Configuration determinism**: same artifacts + same config → identical semantic result
+- **Corrupt JSONL**: one bad line doesn't suppress valid neighboring artifacts
+
+**Success criteria:** all 10 suites pass; determinism tests green; governance decision generated only from a non-empty proposal.
