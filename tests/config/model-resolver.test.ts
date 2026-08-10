@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveModelConfig } from "../../src/config/model-resolver.js";
+import { resolveModelConfig, tryResolveModelConfig } from "../../src/config/model-resolver.js";
 import type { AlixConfig, ModelsConfig } from "../../src/config/schema.js";
 
 function config(models: ModelsConfig | undefined): AlixConfig {
@@ -126,4 +126,29 @@ test("preserves full ModelConfig metadata through the copy", () => {
   });
   const resolved = resolveModelConfig(cfg);
   assert.deepEqual(resolved, cfg.models!.default);
+});
+
+// --- §3 tryResolveModelConfig (non-throwing variant) ---
+
+test("tryResolveModelConfig returns undefined when no model resolves", () => {
+  assert.equal(tryResolveModelConfig(config(undefined)), undefined);
+  assert.equal(tryResolveModelConfig(config({})), undefined);
+});
+
+test("tryResolveModelConfig resolves default when only default is set", () => {
+  assert.deepEqual(tryResolveModelConfig(config({ default: VALID })), VALID);
+});
+
+test("tryResolveModelConfig honors the tier fallback (models[tier] ?? models.default)", () => {
+  assert.deepEqual(
+    tryResolveModelConfig(config({ default: VALID }), "thinking"),
+    VALID,
+    "missing tier falls back to default",
+  );
+});
+
+test("tryResolveModelConfig returns a defensive copy", () => {
+  const resolved = tryResolveModelConfig(config({ default: VALID }))!;
+  resolved.name = "mutated";
+  assert.equal(config({ default: VALID }).models?.default?.name, "gpt-4o");
 });

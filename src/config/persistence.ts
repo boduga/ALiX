@@ -1,9 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import { isValidModelConfig } from "./schema.js";
+import { seedLegacyModelDefault } from "./schema.js";
 import type {
   AlixConfig,
-  ModelConfig,
   PersistedAlixConfig,
   PersistedSubagentConfig,
   SubagentRoleConfig,
@@ -50,20 +49,14 @@ function rolesEqual(a: SubagentRoleConfig[] | undefined, b: SubagentRoleConfig[]
 export function withoutDerivedModelProjections(
   config: AlixConfig,
 ): PersistedAlixConfig {
-  // §5.2 legacy migration, mirrored from the loader: a legacy `model` seeds
+  // §5.2 legacy migration, shared with the loader: a legacy `model` seeds
   // `models.default` when no canonical default exists, so stripping the
   // projection never destroys the user's only model assignment. (The loader
   // also does this on load; this keeps the boundary self-sufficient for raw
   // partial inputs like ConfigMutationService's.)
-  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
-    config = {
-      ...config,
-      models: {
-        ...(config.models as Record<string, ModelConfig> | undefined),
-        default: { ...config.model },
-      },
-    };
-  }
+  const normalized = { ...config };
+  seedLegacyModelDefault(normalized);
+  config = normalized;
 
   const {
     model: _model,

@@ -4,7 +4,7 @@ import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
-import { isValidModelConfig, MODEL_SUBAGENT_TIERS } from "./schema.js";
+import { isValidModelConfig, MODEL_SUBAGENT_TIERS, seedLegacyModelDefault } from "./schema.js";
 import { NO_MODEL_CONFIGURED_MESSAGE } from "./model-resolver.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
@@ -39,9 +39,7 @@ function getEnvTier(name: (typeof MODEL_SUBAGENT_TIERS)[number]): Partial<ModelT
 export function normalizeModelConfig(config: Partial<AlixConfig>): void {
   // §5.2 Legacy migration — legacy `model` seeds `models.default` only when no
   // canonical default exists (key presence wins, even if the value is invalid).
-  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
-    config.models = { ...config.models, default: { ...config.model } };
-  }
+  seedLegacyModelDefault(config);
 
   // §5.3 Projection — `model` derives from a valid `models.default`.
   const canonicalDefault = config.models?.default;

@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
+import { tryResolveModelConfig } from "../../config/model-resolver.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
 import { ApprovalStore } from "../../approvals/approval-store.js";
 import { TuiApp } from "../../tui/app.js";
@@ -198,7 +199,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       }),
     };
   } else {
-    const configuredModel = (config as { model?: { provider?: string; name?: string } } | undefined)?.model;
+    // Resolve the effective default model from the canonical `models` source
+    // (never the derived `model` projection — §10).
+    const configuredModel = tryResolveModelConfig(config);
     const braveSearch = webSearchTool();
     const chatSearchTool = async (query: string): Promise<string> => {
       // Brave Search is opt-in via BRAVE_API_KEY. When unset, return ''
@@ -230,9 +233,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         planApprovalMode: "deferred",              // TUI handles plan display/approval
         // Forward the resolved streaming flag so the chat/direct route can
         // stream tokens live (processTurn's direct-route branch runs BEFORE
-        // initialize() builds ctx.config.model, so it can't read model.streaming
-        // there; we resolve it here from the loaded config and pass it through).
-        streaming: config.model?.streaming !== false,
+        // the context model is resolved, so it can't read streaming there; we
+        // resolve it here from the canonical models and pass it through).
+        streaming: tryResolveModelConfig(config)?.streaming !== false,
         ...(configuredModel?.provider
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
           : {}),

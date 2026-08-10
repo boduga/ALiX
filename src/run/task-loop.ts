@@ -416,7 +416,7 @@ onStream,
 
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
-  const model = resolveModelConfig(config as AlixConfig);
+  const model = resolveModelConfig(config);
 
   // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
   // Independent of Task 4's deferred §1 factor wiring — we only need to read

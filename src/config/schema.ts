@@ -98,6 +98,21 @@ export function isValidModelConfig(
   );
 }
 
+/**
+ * §5.2 legacy migration — seed `models.default` from a legacy `model` when no
+ * canonical default exists (key presence wins, even if the value is invalid).
+ *
+ * Shared by the loader (`normalizeModelConfig`, in-memory on load) and the
+ * persistence boundary (`withoutDerivedModelProjections`, before a write) so
+ * the two sites cannot drift and stripping a projection never destroys the
+ * user's only model assignment. Mutates `config` in place.
+ */
+export function seedLegacyModelDefault(config: Partial<AlixConfig>): void {
+  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
+    config.models = { ...(config.models ?? {}), default: { ...config.model } };
+  }
+}
+
 export type PermissionConfig = {
   default: Decision;
   tools: Record<string, Decision>;

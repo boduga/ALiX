@@ -541,6 +541,11 @@ test("ConfigMutationService: rejects config set subagents.<tier>.* (canonical + 
       () => service.set("subagents.bogus", { provider: "x", name: "y" }),
       (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
     );
+    // A deeper path under a behavior key would corrupt the scalar leaf.
+    await assert.rejects(
+      () => service.set("subagents.enabled.streaming", false),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

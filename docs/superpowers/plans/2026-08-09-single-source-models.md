@@ -801,6 +801,17 @@ export function withoutDerivedModelProjections(
 
 The cast is intentionally isolated here.
 
+> **Resolution (2026-08-09, review follow-ups `2eaaeb95`+):** the strip helper
+> is NOT pure projection removal — it first runs the §5.2 legacy migration
+> (`seedLegacyModelDefault`, shared with the loader) so a legacy `model` seeds
+> `models.default` when no canonical default exists, BEFORE the `model` and
+> `subagents.<tier>` projections are stripped. This keeps the write boundary
+> self-sufficient for raw partial inputs (e.g. ConfigMutationService reads the
+> file without `normalizeModelConfig`); otherwise a legacy `model`-only config
+> would have its only model assignment deleted by the first mutation write.
+> It also preserves `subagents.enabled`/`roles` behavior config (§2.8.1) when
+> they differ from the loader defaults.
+
 This is the trusted construction point for the nominal persisted representation.
 
 ### 4.2 Shared writer

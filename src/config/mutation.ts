@@ -206,17 +206,23 @@ function resolveDotPath(
 const SUBAGENT_BEHAVIOR_KEYS = new Set(["enabled", "roles"]);
 
 function assertMutableModelPath(path: string): void {
-  const [root, second] = path.split(".");
+  const segments = path.split(".");
+  const root = segments[0];
   if (root === "model") {
     throw projectionRejected(path);
   }
   // `subagents` root (whole-object set / delete) and any non-behavior key
   // under it are model-selection projections.
-  if (
-    root === "subagents" &&
-    (second === undefined || !SUBAGENT_BEHAVIOR_KEYS.has(second))
-  ) {
-    throw projectionRejected(path);
+  if (root === "subagents") {
+    const key = segments[1];
+    if (key === undefined || !SUBAGENT_BEHAVIOR_KEYS.has(key)) {
+      throw projectionRejected(path);
+    }
+    // Behavior keys are scalar/array leaves — a deeper path like
+    // `subagents.enabled.streaming` would corrupt the boolean leaf.
+    if (segments.length > 2) {
+      throw projectionRejected(path);
+    }
   }
 }
 
@@ -371,7 +377,6 @@ export class ConfigMutationService {
   // Write (internal, atomic)
   // -----------------------------------------------------------------------
 
-  /**
   /**
    * Strip projections, write atomically, and return the resulting config hash.
    * Crossing the shared persistence boundary (`withoutDerivedModelProjections`)

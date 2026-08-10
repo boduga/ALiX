@@ -6,6 +6,27 @@ export const NO_MODEL_CONFIGURED_MESSAGE =
   "No model configured. Run: alix models set-default";
 
 /**
+ * The resolver only reads the canonical `models` object, so callers with a
+ * partial config (e.g. a TaskLoopDeps fragment) don't need a full `AlixConfig`
+ * or an `as AlixConfig` cast.
+ */
+export type ModelSourceConfig = Pick<AlixConfig, "models">;
+
+/** Resolve the effective model, or `undefined` when none resolves (non-throwing). */
+export function tryResolveModelConfig(
+  config: ModelSourceConfig,
+  tier?: ModelTier,
+): ModelConfig | undefined {
+  const models = config.models;
+  const source =
+    tier === undefined || tier === "default"
+      ? models?.default
+      : models?.[tier] ?? models?.default;
+
+  return isValidModelConfig(source) ? { ...source } : undefined;
+}
+
+/**
  * Pure model resolver — the single reader runtime code uses to pick a model.
  *
  * Reads ONLY the canonical `models` object (single source of truth). It never
@@ -23,20 +44,16 @@ export const NO_MODEL_CONFIGURED_MESSAGE =
  * an explicit entry that names no provider/model does not silently fall back.
  *
  * Returns a defensive copy (§3.3) so callers cannot mutate the loaded
- * configuration by accident. Throws §3.4 when no valid model resolves.
+ * configuration by accident. Throws §3.4 when no valid model resolves (use
+ * `tryResolveModelConfig` for an optional read).
  */
 export function resolveModelConfig(
-  config: AlixConfig,
+  config: ModelSourceConfig,
   tier?: ModelTier,
 ): ModelConfig {
-  const models = config.models;
-  const source =
-    tier === undefined || tier === "default"
-      ? models?.default
-      : models?.[tier] ?? models?.default;
-
-  if (isValidModelConfig(source)) {
-    return { ...source };
+  const resolved = tryResolveModelConfig(config, tier);
+  if (!resolved) {
+    throw new Error(NO_MODEL_CONFIGURED_MESSAGE);
   }
-  throw new Error(NO_MODEL_CONFIGURED_MESSAGE);
+  return resolved;
 }
