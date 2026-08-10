@@ -42,28 +42,49 @@ export class PatternRegistryAdapter {
   constructor(private readonly registry: PatternRegistry) {}
 
   async read(): Promise<AdapterResult> {
-    // Single projection timestamp for all pattern artifacts (deterministic
-    // within a read; stats carry no per-row creation time).
-    const now = new Date().toISOString();
-    const artifacts: KnowledgeArtifact[] = [];
+    try {
+      // Single projection timestamp for all pattern artifacts (deterministic
+      // within a read; stats carry no per-row creation time).
+      const now = new Date().toISOString();
+      const artifacts: KnowledgeArtifact[] = [];
 
-    for (const taskType of TASK_TYPES) {
-      const stats = this.registry.getStats(taskType);
-      if (!stats) continue;
-      artifacts.push({
-        store: "pattern_registry",
-        artifactId: `pattern:${taskType}`,
-        artifactKind: "Pattern",
-        subject: taskType,
-        content: `${taskType}: ${stats.count} runs, successRate ${stats.successRate}, avgIterations ${stats.avgIterations}, avgTokens ${stats.avgTokens}`,
-        createdAt: now,
-        evidenceRefs: [],
-        downstreamRefs: [],
-      });
+      for (const taskType of TASK_TYPES) {
+        const stats = this.registry.getStats(taskType);
+        if (!stats) continue;
+        // Guard the stats fields consumed into content — a partially-malformed
+        // stats record must be skipped, never projected with "undefined".
+        if (
+          typeof stats.count !== "number" ||
+          typeof stats.successRate !== "number" ||
+          typeof stats.avgIterations !== "number" ||
+          typeof stats.avgTokens !== "number"
+        ) {
+          continue;
+        }
+        artifacts.push({
+          store: "pattern_registry",
+          artifactId: `pattern:${taskType}`,
+          artifactKind: "Pattern",
+          subject: taskType,
+          content: `${taskType}: ${stats.count} runs, successRate ${stats.successRate}, avgIterations ${stats.avgIterations}, avgTokens ${stats.avgTokens}`,
+          createdAt: now,
+          evidenceRefs: [],
+          downstreamRefs: [],
+        });
+      }
+
+      // An empty registry is still an available (empty) store.
+      return { artifacts, status: { status: "available", store: "pattern_registry" } };
+    } catch (err) {
+      // Adapters never throw — a getter failure surfaces as unavailable.
+      return {
+        artifacts: [],
+        status: {
+          status: "unavailable",
+          store: "pattern_registry",
+          reason: (err as Error).message ?? String(err),
+        },
+      };
     }
-
-    // getStats is a pure read that never throws; an empty registry is
-    // still an available (empty) store.
-    return { artifacts, status: { status: "available", store: "pattern_registry" } };
   }
 }

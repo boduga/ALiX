@@ -52,7 +52,14 @@ export class FailureMemoryAdapter {
       if (raw) {
         for (const line of parseLines(raw)) {
           const r = line as FailureRecord;
-          if (typeof r?.runId !== "string" || typeof r?.timestamp !== "string") continue;
+          if (
+            typeof r?.runId !== "string" ||
+            typeof r?.timestamp !== "string" ||
+            typeof r?.failureType !== "string" ||
+            typeof r?.detail !== "string"
+          ) {
+            continue;
+          }
           artifacts.push(recordToArtifact(r));
         }
       }

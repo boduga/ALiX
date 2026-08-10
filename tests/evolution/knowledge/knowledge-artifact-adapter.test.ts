@@ -235,6 +235,22 @@ describe("LearningStoreAdapter", () => {
     assert.equal(result.artifacts[0].artifactId, "ls-1");
   });
 
+  it("skips a valid-JSON signal missing a claim/content field instead of projecting undefined", async () => {
+    const dir = await makeTempDir();
+    await writeFile(
+      join(dir, "signals.jsonl"),
+      `${JSON.stringify({ id: "ls-bad", generatedAt: "2026-08-01T00:00:00.000Z", summary: "no signalType" })}\n${JSON.stringify(signal1)}\n`,
+      "utf-8",
+    );
+
+    const result = await new LearningStoreAdapter(dir).read();
+
+    assert.equal(result.status.status, "available");
+    assert.equal(result.artifacts.length, 1);
+    assert.equal(result.artifacts[0].artifactId, "ls-1");
+    assert.ok(result.artifacts.every((a) => a.subject !== "undefined"));
+  });
+
   it("returns unavailable on a missing directory", async () => {
     const result = await new LearningStoreAdapter(join(tmpdir(), "no-learning-a6")).read();
 
@@ -367,6 +383,35 @@ describe("PatternRegistryAdapter", () => {
 
     assert.equal(result.status.status, "available");
     assert.equal(result.artifacts.length, 0);
+  });
+
+  it("never throws — returns unavailable when the registry getter throws", async () => {
+    const throwingRegistry = {
+      getStats: () => {
+        throw new Error("registry boom");
+      },
+    } as unknown as PatternRegistry;
+
+    const result = await new PatternRegistryAdapter(throwingRegistry).read();
+
+    assert.deepEqual(result.artifacts, []);
+    assert.equal(result.status.status, "unavailable");
+    assert.equal(result.status.store, "pattern_registry");
+    assert.equal(result.status.reason, "registry boom");
+  });
+
+  it("skips a partially-malformed stats record instead of projecting undefined fields", async () => {
+    const dir = await makeTempDir();
+    const registry = new PatternRegistry(dir);
+    await registry.recordOutcome("bugfix", { success: true, iterations: 2, totalTokens: 500 });
+    // Corrupt the in-memory stats to drop a field consumed into content.
+    (registry as unknown as { stats: Map<string, unknown> }).stats.set("bugfix", { count: 1 });
+
+    const result = await new PatternRegistryAdapter(registry).read();
+
+    assert.equal(result.status.status, "available");
+    assert.equal(result.artifacts.length, 0);
+    assert.ok(result.artifacts.every((a) => !String(a.content).includes("undefined")));
   });
 });
 

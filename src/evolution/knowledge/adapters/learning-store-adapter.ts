@@ -84,7 +84,14 @@ export class LearningStoreAdapter {
       if (signalsRaw) {
         for (const line of parseLines(signalsRaw)) {
           const s = line as LearningSignal;
-          if (typeof s?.id !== "string" || typeof s?.generatedAt !== "string") continue;
+          if (
+            typeof s?.id !== "string" ||
+            typeof s?.generatedAt !== "string" ||
+            typeof s?.signalType !== "string" ||
+            typeof s?.summary !== "string"
+          ) {
+            continue;
+          }
           artifacts.push(signalToArtifact(s));
         }
       }
@@ -93,7 +100,16 @@ export class LearningStoreAdapter {
       if (profilesRaw) {
         for (const line of parseLines(profilesRaw)) {
           const p = line as CalibrationProfile;
-          if (typeof p?.id !== "string" || typeof p?.generatedAt !== "string") continue;
+          if (
+            typeof p?.id !== "string" ||
+            typeof p?.generatedAt !== "string" ||
+            typeof p?.target !== "string" ||
+            typeof p?.targetName !== "string" ||
+            p?.previousValue === undefined ||
+            p?.suggestedValue === undefined
+          ) {
+            continue;
+          }
           artifacts.push(profileToArtifact(p));
         }
       }
@@ -102,7 +118,14 @@ export class LearningStoreAdapter {
       if (reportsRaw) {
         for (const line of parseLines(reportsRaw)) {
           const r = line as LearningReport;
-          if (typeof r?.id !== "string" || typeof r?.generatedAt !== "string") continue;
+          if (
+            typeof r?.id !== "string" ||
+            typeof r?.generatedAt !== "string" ||
+            typeof r?.windowStart !== "string" ||
+            typeof r?.windowEnd !== "string"
+          ) {
+            continue;
+          }
           artifacts.push(reportToArtifact(r));
         }
       }

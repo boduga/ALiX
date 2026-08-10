@@ -80,7 +80,18 @@ export class ChronicleAdapter {
             } catch {
               continue; // corrupt entry file — skip, don't suppress neighbors
             }
-            if (typeof entry?.entryId !== "string" || typeof entry?.createdAt !== "string") continue;
+            if (
+              typeof entry?.entryId !== "string" ||
+              typeof entry?.createdAt !== "string" ||
+              typeof entry?.signalCode !== "string" ||
+              typeof entry?.outcome !== "string" ||
+              typeof entry?.problem !== "string" ||
+              typeof entry?.diagnosis !== "string" ||
+              typeof entry?.actionTaken !== "string" ||
+              typeof entry?.lesson !== "string"
+            ) {
+              continue;
+            }
             artifacts.push(entryToArtifact(entry));
           }
         }
