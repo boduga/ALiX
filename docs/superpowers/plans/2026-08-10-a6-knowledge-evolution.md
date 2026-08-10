@@ -22,6 +22,23 @@
 - All new files must carry the SPDX header used in `src/evolution/observation/` files. All cross-file imports use `.js` extension.
 - **Contract-first:** Task 1 verifies existing A0/A3/A5 interfaces before any new files; do not invent compatibility fields.
 
+## Executable Invariants
+
+Each invariant below must be asserted by an explicit test (task noted). These are **not** aspirational — a failing invariant test is a plan failure.
+
+| Invariant | Required test | Task |
+|-----------|---------------|------|
+| Detectors are pure | input `KnowledgeArtifact[]` snapshot byte-identical before/after detector | Task 4 |
+| Adapters are read-only | store dir listing + file contents byte-identical after `read()` | Task 3 |
+| Deterministic finding IDs | same input twice → identical `findingId`s | Task 5 |
+| Pair symmetry | `duplicate(A,B)` == `duplicate(B,A)` (canonicalized targetId) | Task 4 |
+| Stable ordering | same input ordering → same output ordering | Task 5 |
+| Missing store tolerated | one unavailable store does not suppress findings from others | Task 5 |
+| Corrupt JSONL tolerated | valid lines survive bad lines | Task 3 |
+| No findings | no proposal **and no A3 call** | Task 6 + Task 7 |
+| Non-empty findings | exactly one proposal and one A3 decision | Task 6 + Task 8 |
+| A6 never mutates stores | integration snapshot of store dir before/after full pipeline byte-identical | Task 8 |
+
 ---
 
 ### Task 1: Contract verification against A0/A3/A5
@@ -179,6 +196,7 @@ Create `tests/evolution/knowledge/knowledge-artifact-adapter.test.ts` with:
 - a test that one corrupt JSONL line doesn't suppress a valid neighbor (2 lines, 1 bad → 1 artifact)
 - a test that `FailureMemoryAdapter` projects `FailureRecord` fields into `claim` when `failureType` present
 - a test that `EvidenceAdapter` projects a `VerificationEvidence` (from `createVerificationEvidence`) into an artifact with `store: "evidence"`
+- **a read-only test**: seed a store dir with known files + contents, snapshot the dir listing + file contents, run each adapter's `read()`, then assert the dir listing + file contents are byte-identical (adapters must never write)
 
 - [ ] **Step 3: Run test to verify it fails**
 
@@ -235,6 +253,7 @@ Create the four test files:
 - `dedup-detector.test.ts`: (a) two exact-same `(store, artifactKind, subject)` → finding `reasonCode: "exact"`; (b) two near-duplicate content above threshold → `reasonCode: "near"`; (c) **pair canonicalization**: `detectDuplicates([A,B])` finding's `targetId` is the lexicographically-smaller ID regardless of input order.
 - `contradiction-detector.test.ts`: (a) two claims same subject different value → `reasonCode: "value_clash"`; (b) a claim whose value disagrees with evidence artifact → `reasonCode: "outcome_contradiction"`; (c) artifacts without `claim` → no finding.
 - `compression-detector.test.ts`: (a) artifact older than `compressionAfterDays` AND empty `evidenceRefs` AND empty `downstreamRefs` → finding; (b) referenced artifact → no finding.
+- **a purity test (shared across the four suites)**: build an `artifacts: KnowledgeArtifact[]` fixture, deep-freeze a snapshot of it, run each detector, then assert the input array's elements and contents are unchanged (`JSON.stringify(snapshotBefore) === JSON.stringify(snapshotAfter)`) — detectors must not mutate their input.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -437,6 +456,7 @@ Create `tests/evolution/knowledge/integration/a6-curation-integration.test.ts`:
 - build the proposal + recommendation + evidence, call `generateDecision`
 - assert the decision is a valid `GovernanceDecision` (has `decisionId`, `kind`, `confidence`)
 - assert `buildCurationProposal([])` → null (no A3 call path)
+- **a no-mutation snapshot**: before running the engine, snapshot the temp store dir listing + all file contents; after the full `curateAll` + proposal + decision flow, assert byte-identical — the entire A6 pipeline never writes to knowledge stores (the A-series invariant holds end-to-end)
 
 - [ ] **Step 2: Run test to verify it fails**
 
