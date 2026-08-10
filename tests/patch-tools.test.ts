@@ -43,7 +43,7 @@ test("patch.apply logs edit format policy telemetry", async () => {
     await log.init();
     const config: AlixConfig = {
       ...DEFAULT_CONFIG,
-      model: { provider: "google", name: "test-model" },
+      models: { default: { provider: "google", name: "test-model" } },
       permissions: {
         ...DEFAULT_CONFIG.permissions,
         default: "allow",

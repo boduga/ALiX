@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG, projectConfigDir } from "./config/loader.js";
+import { resolveModelConfig } from "./config/model-resolver.js";
 import { ALIX_VERSION } from "./index.js";
 import { EXIT_CODES } from "./run.js";
 import { createAgentSession, type AgentTurnResult } from "./agent/session.js";
@@ -204,9 +205,10 @@ if (command === "graph" && args[0] === "plan") {
   await planLog.init();
 
   const wfRun = createWorkflowRun(sessionId, task);
+  const resolved = resolveModelConfig(config);
   const planner = new GraphPlanner({
-    modelName: config.model.name,
-    modelEndpoint: config.model.provider === "ollama"
+    modelName: resolved.name,
+    modelEndpoint: resolved.provider === "ollama"
       ? "http://localhost:11434/api/generate"
       : undefined,
   });
@@ -677,141 +679,6 @@ if (command === "config" && args[0] === "set-key") {
   process.exit(0);
 }
 
-if (command === "config" && args[0] === "set-default-model") {
-  const { resolveProviders, getAvailableModels, selectModelInteractive, selectFromList } = await import("./cli/helpers/provider-selection.js");
-
-  const avail = await resolveProviders();
-  // Show ALL PROVIDERS (no filtering) per spec §15 — behavior preserved.
-  const pick = await selectFromList(
-    avail,
-    (p) => `${p.name} — ${p.apiKeySource}${p.reason ? ` (${p.reason})` : ""}`,
-    { header: "Select a provider:" },
-  );
-  if (!pick) { console.log("Cancelled."); process.exit(0); }
-  const providerId = pick.id;
-
-  let apiKey = await getApiKey(providerId);
-  if (apiKey === undefined) {
-    console.log(`\nNo API key found for ${pick.name}.`);
-    const key = await prompt(`Enter API key (${pick.hint}): `);
-    if (!key) { console.log("Cancelled."); process.exit(0); }
-    await setApiKey(providerId, key);
-    apiKey = key;
-    process.env[pick.env] = key;
-  }
-
-  console.log(`\nFetching available models for ${pick.name}...\n`);
-  const models = await getAvailableModels(providerId);
-  if (models.length === 0) {
-    console.log("No models found.");
-    process.exit(1);
-  }
-
-  const selected = await selectModelInteractive(models);
-  if (!selected) { console.log("Cancelled."); process.exit(0); }
-
-  // Save to project config (.alix/config.json) if inside a git repo,
-  // otherwise user config (~/.config/alix/config.json)
-  const projectConfigPath = join(process.cwd(), ".alix", "config.json");
-  const userConfigDir = join(homedir(), ".config", "alix");
-  const userConfigPath = join(userConfigDir, "config.json");
-  const configPath = existsSync(join(process.cwd(), ".git")) ? projectConfigPath : userConfigPath;
-  const isProjectConfig = configPath === projectConfigPath;
-
-  await mkdir(isProjectConfig ? projectConfigDir(process.cwd()) : userConfigDir, { recursive: true });
-  let existing: Record<string, unknown> = {};
-  try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
-
-  const updated = {
-    ...existing,
-    model: { provider: providerId, name: selected.id },
-  };
-  await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
-  console.log(`\nDefault model set to "${selected.id}" for ${pick.name}.`);
-  console.log(`Saved to ${configPath}`);
-  process.exit(0);
-}
-
-if (command === "config" && args[0] === "set-tier") {
-  const TIERS = ["thinking", "coding", "fast", "critic", "tiny", "image"] as const;
-  let tierName: string = args[1];
-
-  if (!tierName || !TIERS.includes(tierName as any)) {
-    console.log("\nSelect a subagent tier to configure:");
-    for (let i = 0; i < TIERS.length; i++) {
-      const desc: Record<string, string> = {
-        thinking: "Strategic reasoning, planning, complex logic",
-        coding: "Code generation, tool execution, patches",
-        fast: "Quick classification, routing, simple tasks",
-        critic: "Verification, validation, hallucination checks",
-        tiny: "Embeddings, reranking, memory compression",
-        image: "Image generation, multimodal analysis",
-      };
-      console.log(`  ${i + 1}. ${TIERS[i]} - ${desc[TIERS[i]]}`);
-    }
-    const answer = await prompt(`\nSelect tier (1-${TIERS.length}, 0 to cancel): `);
-    const num = parseInt(answer, 10);
-    if (num === 0 || isNaN(num) || num > TIERS.length) { console.log("Cancelled."); process.exit(0); }
-    tierName = TIERS[num - 1];
-  }
-
-  const providerId = await selectProvider();
-  const provider = PROVIDERS.find((p) => p.id === providerId)!;
-
-  let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
-  if (!apiKey) {
-    console.log(`\nNo API key found for ${provider.name}.`);
-    const key = await prompt(`Enter API key (${provider.hint}): `);
-    if (!key) { console.log("Cancelled."); process.exit(0); }
-    await setApiKey(providerId, key);
-    apiKey = key;
-    process.env[provider.env] = key;
-  }
-
-  console.log(`\nFetching available models for ${provider.name}...\n`);
-  let models: ModelInfo[];
-  try {
-    models = await listModels(providerId, apiKey);
-  } catch (err) {
-    console.error(`Failed to fetch models: ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
-  }
-  if (models.length === 0) { console.log("No models found."); process.exit(1); }
-
-  const MAX_SHOWN = 50;
-  const shown = models.slice(0, MAX_SHOWN);
-  for (let i = 0; i < shown.length; i++) {
-    const m = shown[i];
-    const tokens = m.maxInputTokens ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)` : "";
-    console.log(`  ${i + 1}. ${m.displayName}${tokens}`);
-  }
-  if (models.length > MAX_SHOWN) console.log(`  ... and ${models.length - MAX_SHOWN} more`);
-
-  const answer = await prompt(`\nSelect model (1-${shown.length}, 0 to cancel): `);
-  const num = parseInt(answer, 10);
-  if (num === 0 || isNaN(num) || num > shown.length) { console.log("Cancelled."); process.exit(0); }
-  const selected = shown[num - 1];
-
-  const projectConfigPath = join(process.cwd(), ".alix", "config.json");
-  const userConfigDir = join(homedir(), ".config", "alix");
-  const userConfigPath = join(userConfigDir, "config.json");
-  const configPath = existsSync(join(process.cwd(), ".git")) ? projectConfigPath : userConfigPath;
-  const isProjectConfig = configPath === projectConfigPath;
-
-  await mkdir(isProjectConfig ? projectConfigDir(process.cwd()) : userConfigDir, { recursive: true });
-  let existing: Record<string, unknown> = {};
-  try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
-
-  const subagents = (existing.subagents as Record<string, unknown>) ?? {};
-  subagents[tierName] = { provider: providerId, name: selected.id };
-
-  const updated = { ...existing, subagents: { ...(existing.subagents as any), ...subagents } };
-  await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
-  console.log(`\nTier "${tierName}" set to ${providerId}/${selected.id}.`);
-  console.log(`Saved to ${configPath}`);
-  process.exit(0);
-}
-
 // --- alix config get <path> ---
 if (command === "config" && args[0] === "get") {
   const path = args[1];
@@ -840,7 +707,7 @@ if (command === "config" && args[0] === "set") {
   const valueStr = args[2];
   if (!path || valueStr === undefined) {
     console.error("Usage: alix config set <path> <value>");
-    console.error("Example: alix config set model.temperature 0.7");
+    console.error("Example: alix config set permissions.default allow");
     process.exit(1);
   }
   // Parse value: try JSON first, fall back to string
@@ -866,7 +733,7 @@ if (command === "config" && args[0] === "delete") {
   const path = args[1];
   if (!path) {
     console.error("Usage: alix config delete <path>");
-    console.error("Example: alix config delete model.temperature");
+    console.error("Example: alix config delete logging.level");
     process.exit(1);
   }
   const alixDir = projectConfigDir(process.cwd());
@@ -1529,8 +1396,9 @@ if (command === "agent" && agentRole) {
   const prompt = promptWords.join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
   const config = await loadConfig(process.cwd());
-  const provider = config.model.provider;
-  const model = config.model.name;
+  const resolved = resolveModelConfig(config);
+  const provider = resolved.provider;
+  const model = resolved.name;
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
   await SubagentCLI.main([
     "--subagent", agentRole,

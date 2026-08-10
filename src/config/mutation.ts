@@ -28,8 +28,9 @@ import {
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createHash } from "node:crypto";
-import type { AlixConfig } from "./schema.js";
+import type { AlixConfig, PersistedAlixConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
+import { withoutDerivedModelProjections } from "./persistence.js";
 import { isCredentialReference } from "../security/credentials/credential-reference.js";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,8 @@ export const MUTATION_ERROR_CODES = {
   CONCURRENT_MUTATION: "CONFIG_CONCURRENT_MUTATION",
   /** The config directory does not exist and could not be created. */
   NO_CONFIG_DIR: "CONFIG_NO_CONFIG_DIR",
+  /** Mutation targets a loader-derived projection (`model`/`subagents`) that must never be persisted. */
+  MODEL_PROJECTION_REJECTED: "CONFIG_MODEL_PROJECTION_REJECTED",
 } as const;
 
 export type MutationErrorCode = (typeof MUTATION_ERROR_CODES)[keyof typeof MUTATION_ERROR_CODES];
@@ -115,7 +118,7 @@ function now(): string {
  * Compute a deterministic SHA-256 hash of a config object.
  * Uses sorted-key JSON serialization for reproducibility.
  */
-export function computeConfigHash(config: AlixConfig): string {
+export function computeConfigHash(config: AlixConfig | PersistedAlixConfig): string {
   const canonical = JSON.stringify(config, sortedKeysReplacer, 2);
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -180,6 +183,57 @@ function resolveDotPath(
   const key = segments[segments.length - 1];
   const value = current[key];
   return { parent: current, key, value };
+}
+
+// ---------------------------------------------------------------------------
+// Model-projection guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Model selection must only be persisted under the canonical `models` object.
+ * `model` and the six `subagents.<tier>` keys are loader-derived compatibility
+ * projections and must never be independently written (single-source
+ * invariant) — reject any mutation rooted at them, directing the user to the
+ * canonical `alix models` commands.
+ *
+ * `subagents.enabled`/`roles` are NOT projections: they are behavior config
+ * (§2.8.1/§2.8.4) and remain mutable. Every other `subagents.*` key is a model
+ * tier projection (canonical tier, legacy profile vocabulary, or any other
+ * string `normalizeModelConfig` would drop) and is rejected. Testing a literal
+ * behavior-key allowlist — rather than enumerating tier keys — needs no tier
+ * vocabulary and catches unknown keys like `subagents.default`.
+ */
+const SUBAGENT_BEHAVIOR_KEYS = new Set(["enabled", "roles"]);
+
+function assertMutableModelPath(path: string): void {
+  const segments = path.split(".");
+  const root = segments[0];
+  if (root === "model") {
+    throw projectionRejected(path);
+  }
+  // `subagents` root (whole-object set / delete) and any non-behavior key
+  // under it are model-selection projections.
+  if (root === "subagents") {
+    const key = segments[1];
+    if (key === undefined || !SUBAGENT_BEHAVIOR_KEYS.has(key)) {
+      throw projectionRejected(path);
+    }
+    // Behavior keys are scalar/array leaves — a deeper path like
+    // `subagents.enabled.streaming` would corrupt the boolean leaf.
+    if (segments.length > 2) {
+      throw projectionRejected(path);
+    }
+  }
+}
+
+function projectionRejected(path: string): Error {
+  return Object.assign(
+    new Error(
+      `Cannot modify "${path}": model selection is managed by the canonical 'models' object. ` +
+      `Use 'alix models set-default' or 'alix models set-tier' instead.`,
+    ),
+    { code: MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -324,9 +378,24 @@ export class ConfigMutationService {
   // -----------------------------------------------------------------------
 
   /**
-   * Atomically write config to disk using temp-file + rename.
+   * Strip projections, write atomically, and return the resulting config hash.
+   * Crossing the shared persistence boundary (`withoutDerivedModelProjections`)
+   * keeps the canonical single-source invariant: any model/subagent-tier
+   * projections in the mutated config are stripped before reaching disk, while
+   * behavior `enabled`/`roles` survive. §4.1/Task 11.
    */
-  private async atomicWrite(config: AlixConfig): Promise<void> {
+  private async writePersisted(mutated: AlixConfig): Promise<string> {
+    const persisted = withoutDerivedModelProjections(mutated);
+    await this.atomicWrite(persisted);
+    return computeConfigHash(persisted);
+  }
+
+  /**
+   * Atomically write config to disk using temp-file + rename.
+   * Accepts a `PersistedAlixConfig` (already stripped of model/subagent-tier
+   * projections by `withoutDerivedModelProjections`) or a full `AlixConfig`.
+   */
+  private async atomicWrite(config: AlixConfig | PersistedAlixConfig): Promise<void> {
     const dir = dirname(this.configPath);
     await mkdir(dir, { recursive: true, mode: 0o700 });
 
@@ -394,6 +463,7 @@ export class ConfigMutationService {
     opts: MutationOptions = {},
   ): Promise<ConfigMutation> {
     const updatedBy = opts.updatedBy ?? "cli";
+    assertMutableModelPath(path);
     // Save the hash the caller expects (before our internal read resets it)
     const expectedHash = this.lastReadHash;
     const config = await this.read();
@@ -434,11 +504,8 @@ export class ConfigMutationService {
     // Guard against concurrent writes (check against the caller's expected hash)
     await this.checkConcurrency(expectedHash ?? undefined);
 
-    // Write atomically
-    await this.atomicWrite(mutated);
-
-    // Record provenance
-    const newHash = computeConfigHash(mutated);
+    // Write atomically, crossing the shared persistence boundary.
+    const newHash = await this.writePersisted(mutated);
     const mutation: ConfigMutation = {
       path,
       op: "set",
@@ -472,6 +539,7 @@ export class ConfigMutationService {
     opts: MutationOptions = {},
   ): Promise<ConfigMutation> {
     const updatedBy = opts.updatedBy ?? "cli";
+    assertMutableModelPath(path);
     // Save the hash the caller expects (before our internal read resets it)
     const expectedHash = this.lastReadHash;
     const config = await this.read();
@@ -510,11 +578,8 @@ export class ConfigMutationService {
     // Guard against concurrent writes (check against the caller's expected hash)
     await this.checkConcurrency(expectedHash ?? undefined);
 
-    // Write atomically
-    await this.atomicWrite(mutated);
-
-    // Record provenance
-    const newHash = computeConfigHash(mutated);
+    // Write atomically, crossing the shared persistence boundary.
+    const newHash = await this.writePersisted(mutated);
     const mutation: ConfigMutation = {
       path,
       op: "delete",

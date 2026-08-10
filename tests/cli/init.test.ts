@@ -33,17 +33,22 @@ test("runInit creates .alix/config.json", { timeout: 10_000 }, async () => {
 
     assert.ok(existsSync(configPath), ".alix/config.json should be created");
     const content = JSON.parse(await readFileAsync(configPath, "utf8"));
-    assert.ok(content.model, "config should have model field");
+    // §7.2/§7.4: canonical persistence — model selection under models.default
+    // only; init never writes the model/subagents projections.
+    assert.ok(content.models, "config should have models field");
+    assert.ok(content.models.default, "config should have models.default");
     // Model may be populated (Ollama present with models) or empty (no Ollama / no models).
     // The invariant: if model.name is set, it must not be empty.
-    if (content.model.provider !== undefined) {
-      assert.equal(typeof content.model.provider, "string", "model.provider should be a string");
-      assert.notEqual(content.model.provider, "", "model.provider must not be empty");
+    if (content.models.default.provider !== undefined) {
+      assert.equal(typeof content.models.default.provider, "string", "models.default.provider should be a string");
+      assert.notEqual(content.models.default.provider, "", "models.default.provider must not be empty");
     }
-    if (content.model.name !== undefined) {
-      assert.equal(typeof content.model.name, "string", "model.name should be a string");
-      assert.notEqual(content.model.name, "", "model.name must not be empty");
+    if (content.models.default.name !== undefined) {
+      assert.equal(typeof content.models.default.name, "string", "models.default.name should be a string");
+      assert.notEqual(content.models.default.name, "", "models.default.name must not be empty");
     }
+    assert.equal(content.model, undefined, "disk must contain no top-level model projection");
+    assert.equal(content.subagents, undefined, "disk must contain no top-level subagents projection");
   });
 });
 
@@ -111,9 +116,41 @@ test("runInit detects provider from environment", { timeout: 10_000 }, async () 
 
     const configPath = join(dir, ".alix", "config.json");
     const content = JSON.parse(await readFileAsync(configPath, "utf8"));
-    assert.strictEqual(content.model.provider, "anthropic", "should detect anthropic from env");
+    assert.strictEqual(content.models.default.provider, "anthropic", "should detect anthropic from env");
+    assert.equal(content.model, undefined, "disk must contain no top-level model projection");
+    assert.equal(content.subagents, undefined, "disk must contain no top-level subagents projection");
 
     // Clean up
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+});
+
+test("runInit writes canonical models that loadConfig re-projects (§7.4 round-trip)", { timeout: 10_000 }, async () => {
+  await withTempDir(async (dir) => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+
+    const { runInit } = await import("../../src/cli/commands/init.js");
+    await runInit(dir);
+
+    // Half 1: init wrote a canonical disk representation (models only).
+    const configPath = join(dir, ".alix", "config.json");
+    const saved = JSON.parse(await readFileAsync(configPath, "utf8"));
+    assert.ok(saved.models?.default);
+    assert.equal(saved.model, undefined);
+    assert.equal(saved.subagents, undefined);
+
+    // Half 2: loading it re-derives the runtime compatibility projections.
+    const { loadConfig, _setHomedirOverride } = await import("../../src/config/loader.js");
+    _setHomedirOverride(join(dir, ".tmp-homedir")); // isolate from the real user config
+    try {
+      const loaded = await loadConfig(dir);
+      assert.equal(loaded.model?.provider, saved.models.default.provider, "model projection re-derived");
+      assert.ok(loaded.subagents, "subagents projection re-derived");
+      assert.equal(loaded.subagents?.coding?.name, loaded.models?.default?.name, "tier falls back to default");
+    } finally {
+      _setHomedirOverride(undefined);
+    }
+
     delete process.env.ANTHROPIC_API_KEY;
   });
 });

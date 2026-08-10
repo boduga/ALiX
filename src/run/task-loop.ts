@@ -55,6 +55,8 @@ import {
 } from "../config/context-assembly.js";
 import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload, type ContextRotRiskPayload } from "../events/types.js";
 import { loadCalibration, type ContextRotThreshold } from "../config/calibration-store.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
+import type { AlixConfig, ModelsConfig } from "../config/schema.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -324,11 +326,9 @@ const RESEARCH_LIMITS = {
 
 export interface TaskLoopDeps {
   config: {
-model: {
-  provider: string;
-  name: string;
-  streaming: boolean;
-};
+    // The loop resolves the effective model from the canonical `models`
+    // source only (§10) — no `model` projection is forwarded.
+    models?: ModelsConfig;
 permissions: {
   sessionMode?: "auto" | "ask" | "bypass";
 };
@@ -414,6 +414,10 @@ systemPrompt,
 onStream,
   } = deps;
 
+  // §10.1: runtime model resolution reads the canonical `models` object only.
+  // deps.config is a partial config projection; the resolver only reads `.models`.
+  const model = resolveModelConfig(config);
+
   // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
   // Independent of Task 4's deferred §1 factor wiring — we only need to read
   // `contextRotThreshold` here. `loadCalibration` returns `{}` on a missing/
@@ -438,8 +442,8 @@ onStream,
       sessionId: `${session.sessionId}-agent`, actor: "system",
       type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_FALLBACK_FULL,
       payload: {
-        provider: config.model.provider,
-        model: config.model.name,
+        provider: model.provider,
+        model: model.name,
         reason: "no_relevance_signal",
       } satisfies ToolingScopeFallbackFullPayload,
     });
@@ -743,7 +747,7 @@ let usage: TokenUsage | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
-	if (config.model.streaming && provider.stream) {
+	if (model.streaming && provider.stream) {
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
@@ -808,19 +812,19 @@ if (text.length > 0) {
 // Emit model call metric for every call regardless of usage data
 await log.append({
   ...session, actor: "system", type: "m09.metric",
-  payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: config.model.provider }, timestamp: new Date().toISOString() },
+  payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: model.provider }, timestamp: new Date().toISOString() },
 });
 
 if (usage) {
-  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
+  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(model.provider, model.name, usage) });
   // §1 — compare our estimated raw+padded against the provider's actual input
   // tokens. Keyed by the same invocationId as context.snapshot.created.
   await log.append({
     ...session, actor: "system", type: CONTEXT_EVENT_TYPES.TOKEN_CALIBRATION,
     payload: {
       invocationId,
-      provider: config.model.provider,
-      model: config.model.name,
+      provider: model.provider,
+      model: model.name,
       estimatedRaw: assembled.admittedRawTokens,
       estimatedPadded: assembled.admittedTokens,
       actual: usage.inputTokens,
@@ -904,13 +908,13 @@ if (toolCalls.length === 0) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
       }
       if (i >= limits.maxIterations) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
       }
     }
     if (modelSaysDone) {
@@ -984,7 +988,7 @@ if (toolCalls.length === 0) {
       await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
       await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: config.model.streaming, reason, contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: text, streamed: model.streaming, reason, contextPressure: contextPressure.snapshot() };
     }
     // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {
@@ -1020,7 +1024,7 @@ if (toolCalls.length === 0) {
       }
 
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: text, streamed: model.streaming, contextPressure: contextPressure.snapshot() };
     }
 
     // Repair loop — verification failed or model didn't signal done
@@ -1040,7 +1044,7 @@ if (toolCalls.length === 0) {
         filesChanged: [...sessionState.changed],
         config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
       });
-      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, `Repair limit reached: ${failureText}`, config.model.streaming, "session.ended", "max_repairs", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
+      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, `Repair limit reached: ${failureText}`, model.streaming ?? false, "session.ended", "max_repairs", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
     }
 
     // Use Fabric-style refine strategy
@@ -1148,7 +1152,7 @@ if (toolCalls.length === 0) {
             const summary = buildScopeRejectionSummary(pathsToCheck);
             await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
             await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
-            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
+            return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
           }
         }
         continue;
@@ -1334,7 +1338,7 @@ if (toolCalls.length === 0) {
     return await completeSession(
       session, log, memoryStore, sessionDir,
       taskType, sessionId, text,
-      config.model.streaming,
+      model.streaming ?? false,
       "session.ended", reason,
       contextPressure.snapshot(),
       { threshold: contextRotThreshold, contextBudget, lastInvocationId },
@@ -1378,7 +1382,7 @@ if (toolCalls.length === 0) {
     return await completeSession(
       session, log, memoryStore, sessionDir,
       taskType, sessionId, shellOutput || text,
-      config.model.streaming,
+      model.streaming ?? false,
       "session.ended", "completed",
       contextPressure.snapshot(),
       { threshold: contextRotThreshold, contextBudget, lastInvocationId },
@@ -1442,7 +1446,7 @@ if (toolCalls.length === 0) {
             config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
           await evaluatePattern(log, session, sessionDir, taskType);
-          return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming, contextPressure: contextPressure.snapshot() };
+          return { sessionId, summary: "Repair limit reached", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
         }
         const failureText = failedChecks
           .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
@@ -1499,7 +1503,7 @@ filesCreated: [...sessionState.created],
 filesChanged: [...sessionState.changed],
 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
-  return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", config.model.streaming, "session.ended", "max_iterations", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
+  return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", model.streaming ?? false, "session.ended", "max_iterations", contextPressure.snapshot(), { threshold: contextRotThreshold, contextBudget, lastInvocationId });
   } catch (err) {
     // C2 #18: irreducible context-budget overflow is a graceful RunResult
     // failure, not a throw. Returning here preserves the structured fields —
@@ -1517,7 +1521,7 @@ config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
       return {
         sessionId,
         summary,
-        streamed: config.model.streaming,
+        streamed: model.streaming,
         reason: "context_budget_overflow" as const,
         contextBudgetOverflow: err,
         contextPressure: contextPressure.snapshot(),

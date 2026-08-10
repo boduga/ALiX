@@ -34,27 +34,43 @@ describe("model-install", () => {
   it("showProfileDetail returns undefined for unknown", () => {
     assert.equal(showProfileDetail("nonexistent"), undefined);
   });
-  it("applyProfile returns error for unknown profile", () => {
-    const r = applyProfile("nonexistent", TEST_DIR);
+  it("applyProfile returns error for unknown profile", async () => {
+    const r = await applyProfile("nonexistent", TEST_DIR);
     assert.equal(r.success, false); assert.ok(r.message.includes("Unknown profile"));
   });
-  it("applyProfile writes config changes", () => {
-    createConfig(); applyProfile("balanced-local", TEST_DIR);
+  it("applyProfile writes config changes", async () => {
+    createConfig(); await applyProfile("balanced-local", TEST_DIR);
     const updated = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
     assert.equal(updated.modelProfile, "balanced-local");
   });
-  it("applyProfile with dry-run does not write", () => {
+  it("applyProfile with dry-run does not write", async () => {
     createConfig(); const before = readFileSync(CONFIG_PATH, "utf-8");
-    applyProfile("balanced-local", TEST_DIR, true);
+    await applyProfile("balanced-local", TEST_DIR, true);
     assert.equal(readFileSync(CONFIG_PATH, "utf-8"), before);
   });
-  it("dry-run returns changes and preserved", () => {
-    createConfig(); const r = applyProfile("balanced-local", TEST_DIR, true);
+  it("dry-run returns changes and preserved", async () => {
+    createConfig(); const r = await applyProfile("balanced-local", TEST_DIR, true);
     assert.ok(r.changes); assert.ok(Array.isArray(r.preserved));
   });
-  it("preserves unrelated sections", () => {
-    createConfig({ apiKeys: { anthropic: "sk-test" } }); applyProfile("balanced-local", TEST_DIR);
+  it("preserves unrelated sections", async () => {
+    createConfig({ apiKeys: { anthropic: "sk-test" } }); await applyProfile("balanced-local", TEST_DIR);
     const u = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
     assert.equal(u.apiKeys.anthropic, "sk-test");
+  });
+  it("persists canonical models only (disk invariant §6.3)", async () => {
+    createConfig();
+    await applyProfile("balanced-local", TEST_DIR);
+    const raw = readFileSync(CONFIG_PATH, "utf-8");
+    const saved = JSON.parse(raw);
+    // Canonical models persisted from profile vocab via PROFILE_TIER_MAP.
+    assert.ok(saved.models);
+    assert.equal(saved.models.default.name, "qwen3:4b");
+    assert.equal(saved.models.thinking.name, "qwen3:8b"); // planner
+    assert.equal(saved.models.coding.name, "qwen2.5-coder:7b"); // coder
+    assert.equal(saved.models.tiny.name, "qwen3-embedding:0.6b"); // embeddings
+    // No loader-derived projections and no brand on disk.
+    assert.equal(saved.model, undefined);
+    assert.equal(saved.subagents, undefined);
+    assert.equal(raw.includes("persistedConfigBrand"), false);
   });
 });

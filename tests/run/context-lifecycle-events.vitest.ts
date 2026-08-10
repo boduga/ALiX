@@ -119,7 +119,7 @@ async function runOneInvocation(opts: {
 
   const deps: TaskLoopDeps = {
     config: {
-      model: { provider: 'local', name: 'test', streaming: false },
+      models: { default: { provider: 'local', name: 'test' } },
       permissions: { sessionMode: 'bypass' },
     },
     provider: mockProvider as any,
@@ -271,7 +271,7 @@ describe('context lifecycle events — integration', () => {
 
     const deps: TaskLoopDeps = {
       config: {
-        model: { provider: 'local', name: 'test', streaming: false },
+        models: { default: { provider: 'local', name: 'test' } },
         permissions: { sessionMode: 'bypass' },
       },
       provider: mockProvider as any,
@@ -396,7 +396,7 @@ describe('context lifecycle events — integration', () => {
 
     const deps: TaskLoopDeps = {
       config: {
-        model: { provider: 'local', name: 'test', streaming: false },
+        models: { default: { provider: 'local', name: 'test' } },
         permissions: { sessionMode: 'bypass' },
       },
       provider: mockProvider as any,

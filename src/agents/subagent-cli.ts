@@ -5,7 +5,27 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
-import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole } from "../config/schema.js";
+import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle } from "../config/schema.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
+
+/**
+ * §10.3: resolve the effective model for a subagent invocation with
+ * precedence — explicit provider/model override > models.<tier> >
+ * models.default. Never mutates `config.model`/`config.subagents` (they are
+ * loader-derived compatibility projections); the loader re-derives them from
+ * the canonical `models` object on every load.
+ */
+export function resolveEffectiveModel(
+  config: AlixConfig,
+  roleStyle: SubagentStyle | undefined,
+  overrides: { provider?: string; name?: string },
+): { provider: string; name: string } {
+  const base = resolveModelConfig(config, roleStyle);
+  return {
+    provider: overrides.provider ?? base.provider,
+    name: overrides.name ?? base.name,
+  };
+}
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -100,20 +120,17 @@ export class SubagentCLI {
     const loadConfig = (await import("../config/loader.js")).loadConfig;
     const config = await loadConfig(projectRoot) as AlixConfig;
 
-    // Apply overrides (provider from role config takes priority)
-    if (modelOverride) config.model.name = modelOverride;
-    if (providerOverride) config.model.provider = providerOverride as any;
-
-    // Use role config to set provider if not overridden
-    if (!providerOverride) {
-      const roleConfig = config.subagents?.roles.find(r => r.role === role);
-      const roleStyle = roleConfig?.style ?? "fast";
-      const tier = (config.subagents as any)?.[roleStyle];
-      if (tier) {
-        config.model.provider = tier.provider as any;
-        if (!modelOverride) config.model.name = tier.name;
-      }
-    }
+    // §10.3: resolve the effective model with precedence —
+    //   explicit provider/model override > models.<tier> > models.default.
+    // `config.model` and `config.subagents` are loader-derived compatibility
+    // projections and are never mutated here.
+    const roleConfig = config.subagents?.roles.find(r => r.role === role);
+    const roleStyle = roleConfig?.style ?? "fast";
+    const { provider: effectiveProvider, name: effectiveName } = resolveEffectiveModel(
+      config,
+      roleStyle,
+      { provider: providerOverride, name: modelOverride },
+    );
 
     const sessionDir = resolve(process.cwd(), ".alix", "sessions", sessionId);
     await mkdir(sessionDir, { recursive: true });
@@ -154,7 +171,7 @@ export class SubagentCLI {
         maxTools = toolConfig.maxTools;
         tokenBudget = toolConfig.tokenBudget;
         // Match model against reliability patterns
-        const modelName = config.model.name;
+        const modelName = effectiveName;
         for (const reliability of toolConfig.reliabilityDefaults) {
           const regex = new RegExp(reliability.modelPattern, "i");
           if (regex.test(modelName)) {
@@ -177,8 +194,8 @@ export class SubagentCLI {
         maxTools,
         tokenBudget,
         preferKeywordScoring,
-        model: config.model.name,
-        provider: config.model.provider,
+        model: effectiveName,
+        provider: effectiveProvider,
         reliabilityMatrix,
       });
       selectedTools = toolSelector.select(prompt) as ToolDef[];
@@ -193,10 +210,8 @@ export class SubagentCLI {
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
     }
 
-    const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
+    const provider = await createProvider({ provider: effectiveProvider, model: effectiveName });
     const providerTools = buildToolsForProvider(provider);
-    const roleConfig = config.subagents?.roles.find(r => r.role === role);
-    const roleStyle = roleConfig?.style ?? "fast";
     const toolPolicy = getToolPolicy(role);
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);
 
@@ -205,7 +220,7 @@ export class SubagentCLI {
       eventLog,
       projectRoot,
       mcpManager ?? undefined,
-      buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference })
+      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference })
     );
 
     // Build system prompt with role instructions and context

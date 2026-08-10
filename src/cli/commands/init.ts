@@ -3,6 +3,8 @@ import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import { withoutDerivedModelProjections, writeConfig } from "../../config/persistence.js";
+import type { AlixConfig } from "../../config/schema.js";
 import { getDefaultModel } from "../../providers/catalog.js";
 import { parseInitArgs, InitArgsError } from "../helpers/init-args.js";
 import { resolveInitialProviderAndModel } from "../helpers/provider-selection.js";
@@ -112,16 +114,18 @@ Examples:
   // Step 3: Feature toggles (all enabled by default)
   const enableUi = true;
   const enableMcp = true;
-  const enableSkills = true;
-  const enableSubagents = true;
 
-  // Build config
+  // Build config — model selection is persisted under the canonical `models`
+  // object (models.default). The loader derives the `model`/`subagents`
+  // compatibility projections on the next load, so init never writes them.
   const hasModel = resolvedModel != null && resolvedModel !== "";
-  const config = {
+  const config: AlixConfig = {
     ...structuredClone(DEFAULT_CONFIG),
-    model: hasModel
-      ? { provider: selectedProvider, name: resolvedModel }
-      : { ...DEFAULT_CONFIG.model },
+    models: {
+      default: hasModel
+        ? { provider: selectedProvider, name: resolvedModel }
+        : { ...DEFAULT_CONFIG.model },
+    },
     ui: {
       ...DEFAULT_CONFIG.ui,
       enabled: enableUi,
@@ -129,17 +133,14 @@ Examples:
     mcpServers: enableMcp ? [{ type: "stdio" as const, name: "fetch", command: "uvx", args: ["mcp-server-fetch"] }] : [],
     skills: {
       ...DEFAULT_CONFIG.skills,
-      factory: { ...DEFAULT_CONFIG.skills!.factory, enabled: false },
-    },
-    subagents: {
-      ...DEFAULT_CONFIG.subagents,
-      enabled: enableSubagents,
+      factory: { ...DEFAULT_CONFIG.skills!.factory!, enabled: false },
     },
   };
 
-  // Write .alix/config.json
+  // Write .alix/config.json — strip derived projections and write through the
+  // shared persistence boundary so only canonical `models` reaches disk.
   await mkdir(alixDir, { recursive: true });
-  await writeFile(projectConfigPath, JSON.stringify(config, null, 2) + "\n");
+  await writeConfig(withoutDerivedModelProjections(config), projectConfigPath);
 
   // Create AGENTS.md
   const agentsContent = `# Project

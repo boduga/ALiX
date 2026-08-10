@@ -3,10 +3,11 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProfile, listProfiles } from "../config/profile-registry.js";
 import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS, type ProfilePatch } from "../config/profile-patch.js";
+import { writeConfig } from "../config/persistence.js";
 import type { ProfileData } from "../config/profile-types.js";
 import type { AlixConfig } from "../config/schema.js";
 
@@ -21,16 +22,12 @@ function readConfig(cwd: string): AlixConfig {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
-function writeConfig(cwd: string, config: AlixConfig): void {
-  writeFileSync(configPath(cwd), JSON.stringify(config, null, 2), "utf-8");
-}
-
 export function listAllProfiles(): ProfileData[] { return listProfiles(); }
 export function showProfileDetail(id: string): ProfileData | undefined { return getProfile(id); }
 
 const PRESERVED = PRESERVED_SECTIONS;
 
-export function applyProfile(profileId: string, cwd: string, dryRun = false): ApplyResult {
+export async function applyProfile(profileId: string, cwd: string, dryRun = false): Promise<ApplyResult> {
   const profile = getProfile(profileId);
   if (!profile) return { success: false, message: `Unknown profile: ${profileId}. Use "alix models list-profiles" to see available profiles.` };
   const config = readConfig(cwd);
@@ -39,15 +36,15 @@ export function applyProfile(profileId: string, cwd: string, dryRun = false): Ap
   if (dryRun) {
     return { success: true, message: `[DRY-RUN] Would apply profile: ${profileId}`, changes: patch, preserved: PRESERVED.filter(s => (config as any)[s] !== undefined) };
   }
-  writeConfig(cwd, newConfig);
+  await writeConfig(newConfig, configPath(cwd));
   return { success: true, message: `Applied profile: ${profile.id} — ${profile.name}`, changes: patch, preserved: PRESERVED.filter(s => (config as any)[s] !== undefined) };
 }
 
-export function installProfile(profileId: string, cwd: string, dryRun = false): InstallResult | ApplyResult {
+export async function installProfile(profileId: string, cwd: string, dryRun = false): Promise<InstallResult | ApplyResult> {
   const profile = getProfile(profileId);
   if (!profile) return { success: false, message: `Unknown profile: ${profileId}` };
   if (profile.mode === "cloud-only") {
-    return dryRun ? { success: true, message: `[DRY-RUN] Would validate API keys and apply profile: ${profileId}`, pulled: [], skipped: [], errors: [] } : applyProfile(profileId, cwd);
+    return dryRun ? { success: true, message: `[DRY-RUN] Would validate API keys and apply profile: ${profileId}`, pulled: [], skipped: [], errors: [] } : await applyProfile(profileId, cwd);
   }
   // Get already-installed models
   let installedModels: string[] = [];
@@ -67,7 +64,7 @@ export function installProfile(profileId: string, cwd: string, dryRun = false): 
       pulled.push(model);
     } catch { errors.push(model); }
   }
-  const applyResult = dryRun ? applyProfile(profileId, cwd, true) : applyProfile(profileId, cwd);
+  const applyResult = await (dryRun ? applyProfile(profileId, cwd, true) : applyProfile(profileId, cwd));
   const labels = [
     pulled.length > 0 ? `Downloaded ${pulled.length}` : "",
     skipped.length > 0 ? `Already installed ${skipped.length}` : "",

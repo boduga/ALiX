@@ -22,12 +22,12 @@ ALiX will:
 Switch providers with one command:
 
 ```bash
-alix config set-default-model anthropic claude-opus-4-8
-alix config set-default-model openai gpt-4o
-alix config set-default-model google gemini-2.5-flash
-alix config set-default-model ollama llama3.2
-alix config set-default-model deepseek deepseek-chat
-alix config set-default-model groq llama-3.1-70b
+alix models set-default   # then select Anthropic and claude-opus-4-8
+alix models set-default   # then select OpenAI and gpt-4o
+alix models set-default   # then select Google and gemini-2.5-flash
+alix models set-default   # then select Ollama and llama3.2
+alix models set-default   # then select DeepSeek and deepseek-chat
+alix models set-default   # then select Groq and llama-3.1-70b
 ```
 
 Plus: perplexity, minimax, zhipuai, grokai, openrouter, mock.

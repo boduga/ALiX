@@ -9,7 +9,7 @@ export async function runNoToolTaskBenchmark(): Promise<void> {
   const tmpDir = join(tmpdir(), `bench-task-${randomUUID()}`);
   mkdirSync(join(tmpDir, ".alix"), { recursive: true });
   writeFileSync(join(tmpDir, ".alix", "config.json"), JSON.stringify({
-    model: { provider: "mock", name: "mock" },
+    models: { default: { provider: "mock", name: "mock" } },
     permissions: { default: "allow", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
     context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
     runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] },

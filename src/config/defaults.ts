@@ -116,7 +116,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
  */
 export const PERMIT_ALL_CONFIG: AlixConfig = {
   ...DEFAULT_CONFIG,
-  model: { provider: "test", name: "test-model" },
+  models: { default: { provider: "test", name: "test-model" } },
   permissions: {
     ...DEFAULT_CONFIG.permissions,
     default: "allow",

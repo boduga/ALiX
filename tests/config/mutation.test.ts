@@ -36,6 +36,7 @@ function makeTestConfig(overrides: Partial<AlixConfig> = {}): AlixConfig {
   return {
     ...DEFAULT_CONFIG,
     model: { provider: "test", name: "test-model", temperature: 0.5 },
+    models: { default: { provider: "test", name: "test-model" } },
     ...overrides,
   };
 }
@@ -64,15 +65,15 @@ async function setupService(): Promise<{
 test("ConfigMutationService: set a simple top-level value", async () => {
   const { service, dir } = await setupService();
   try {
-    const mutation = await service.set("model.temperature", 0.9);
+    const mutation = await service.set("permissions.default", "allow");
     assert.equal(mutation.op, "set");
-    assert.equal(mutation.path, "model.temperature");
-    assert.equal(mutation.value, 0.9);
-    assert.equal(mutation.previousValue, 0.5);
+    assert.equal(mutation.path, "permissions.default");
+    assert.equal(mutation.value, "allow");
+    assert.equal(mutation.previousValue, "ask");
 
     // Verify the config on disk was updated
     const config = await service.read();
-    assert.equal(config.model.temperature, 0.9);
+    assert.equal(config.permissions.default, "allow");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -81,13 +82,13 @@ test("ConfigMutationService: set a simple top-level value", async () => {
 test("ConfigMutationService: set a nested value with auto-created path", async () => {
   const { service, dir } = await setupService();
   try {
-    const mutation = await service.set("model.newField", "hello");
+    const mutation = await service.set("logging.level", "debug");
     assert.equal(mutation.op, "set");
-    assert.equal(mutation.value, "hello");
+    assert.equal(mutation.value, "debug");
     assert.equal(mutation.previousValue, undefined);
 
     const config = await service.read();
-    assert.equal((config.model as any).newField, "hello");
+    assert.equal((config as any).logging?.level, "debug");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -96,15 +97,15 @@ test("ConfigMutationService: set a nested value with auto-created path", async (
 test("ConfigMutationService: set records provenance", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.7);
+    await service.set("permissions.default", "allow");
 
     const provenance = await service.getProvenance();
     assert.equal(provenance.length, 1);
     assert.equal(provenance[0].mutations.length, 1);
-    assert.equal(provenance[0].mutations[0].path, "model.temperature");
+    assert.equal(provenance[0].mutations[0].path, "permissions.default");
     assert.equal(provenance[0].mutations[0].op, "set");
-    assert.equal(provenance[0].mutations[0].value, 0.7);
-    assert.equal(provenance[0].mutations[0].previousValue, 0.5);
+    assert.equal(provenance[0].mutations[0].value, "allow");
+    assert.equal(provenance[0].mutations[0].previousValue, "ask");
     assert.equal(provenance[0].version, 1);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -114,8 +115,8 @@ test("ConfigMutationService: set records provenance", async () => {
 test("ConfigMutationService: provenance is hash-chained", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.7);
-    await service.set("model.temperature", 0.9);
+    await service.set("permissions.default", "allow");
+    await service.set("permissions.default", "deny");
 
     const provenance = await service.getProvenance();
     assert.equal(provenance.length, 2);
@@ -134,14 +135,14 @@ test("ConfigMutationService: provenance is hash-chained", async () => {
 test("ConfigMutationService: provenance has no values for delete operations", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.8);
-    await service.delete("model.temperature");
+    await service.set("logging.level", "debug");
+    await service.delete("logging.level");
 
     const provenance = await service.getProvenance();
     const deleteEntry = provenance[1];
     assert.equal(deleteEntry.mutations[0].op, "delete");
     assert.equal(deleteEntry.mutations[0].value, undefined);
-    assert.equal(deleteEntry.mutations[0].previousValue, 0.8);
+    assert.equal(deleteEntry.mutations[0].previousValue, "debug");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -154,13 +155,14 @@ test("ConfigMutationService: provenance has no values for delete operations", as
 test("ConfigMutationService: delete removes a value", async () => {
   const { service, dir } = await setupService();
   try {
-    const mutation = await service.delete("model.temperature");
+    await service.set("logging.level", "debug");
+    const mutation = await service.delete("logging.level");
     assert.equal(mutation.op, "delete");
-    assert.equal(mutation.path, "model.temperature");
-    assert.equal(mutation.previousValue, 0.5);
+    assert.equal(mutation.path, "logging.level");
+    assert.equal(mutation.previousValue, "debug");
 
     const config = await service.read();
-    assert.equal(config.model.temperature, undefined);
+    assert.equal((config as any).logging?.level, undefined);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -170,7 +172,7 @@ test("ConfigMutationService: delete non-existent path throws PATH_NOT_FOUND", as
   const { service, dir } = await setupService();
   try {
     await assert.rejects(
-      () => service.delete("model.nonexistent"),
+      () => service.delete("logging.nonexistent"),
       (err: any) => err.code === MUTATION_ERROR_CODES.PATH_NOT_FOUND,
     );
   } finally {
@@ -238,8 +240,8 @@ test("ConfigMutationService: rejects API-key-looking strings", async () => {
 test("ConfigMutationService: allows non-secret string values", async () => {
   const { service, dir } = await setupService();
   try {
-    const mutation = await service.set("model.name", "gpt-4o");
-    assert.equal(mutation.value, "gpt-4o");
+    const mutation = await service.set("permissions.default", "allow");
+    assert.equal(mutation.value, "allow");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -252,7 +254,7 @@ test("ConfigMutationService: allows non-secret string values", async () => {
 test("ConfigMutationService: atomic write does not leave temp files", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.3);
+    await service.set("permissions.default", "allow");
 
     const configDir = join(dir, ".alix", "config");
     const { readdir: rd } = await import("node:fs/promises");
@@ -267,12 +269,12 @@ test("ConfigMutationService: atomic write does not leave temp files", async () =
 test("ConfigMutationService: written config is valid JSON", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.3);
+    await service.set("permissions.default", "allow");
 
     const configPath = join(dir, ".alix", "config", "config.json");
     const raw = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw);
-    assert.equal(parsed.model.temperature, 0.3);
+    assert.equal(parsed.permissions.default, "allow");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -291,12 +293,12 @@ test("ConfigMutationService: detects concurrent mutations", async () => {
     // Simulate concurrent write by directly writing to disk WITHOUT re-reading
     // This way lastReadHash still reflects the initial state
     const configPath = join(dir, ".alix", "config", "config.json");
-    config.model.temperature = 0.99;
+    config.permissions.default = "deny";
     await writeFile(configPath, JSON.stringify(config, null, 2) + "\n");
 
     // Now try to write — should detect the concurrent change
     await assert.rejects(
-      () => service.set("model.temperature", 0.5),
+      () => service.set("permissions.default", "allow"),
       (err: any) => err.code === MUTATION_ERROR_CODES.CONCURRENT_MUTATION,
     );
   } finally {
@@ -311,9 +313,9 @@ test("ConfigMutationService: detects concurrent mutations", async () => {
 test("ConfigMutationService: rejects mutation producing invalid config", async () => {
   const { service, dir } = await setupService();
   try {
-    // Setting model.name to empty string would be invalid
+    // Setting models.default.name to empty string would be invalid
     await assert.rejects(
-      () => service.set("model.name", ""),
+      () => service.set("models.default.name", ""),
       (err: any) => err.code === MUTATION_ERROR_CODES.INVALID_RESULT,
     );
   } finally {
@@ -330,7 +332,7 @@ test("ConfigMutationService: provenance log is bounded to 100 entries", async ()
   try {
     // Create 105 mutations by toggling a value
     for (let i = 0; i < 105; i++) {
-      await service.set("model.temperature", 0.1 + i * 0.01);
+      await service.set("permissions.default", i % 2 === 0 ? "allow" : "deny");
     }
 
     const provenance = await service.getProvenance();
@@ -345,7 +347,7 @@ test("ConfigMutationService: oldest entries are evicted when bounded", async () 
   try {
     // Create 110 mutations
     for (let i = 0; i < 110; i++) {
-      await service.set("model.temperature", 0.1 + i * 0.01);
+      await service.set("permissions.default", i % 2 === 0 ? "allow" : "deny");
     }
 
     const provenance = await service.getProvenance();
@@ -365,16 +367,16 @@ test("ConfigMutationService: oldest entries are evicted when bounded", async () 
 test("ConfigMutationService: getProvenance filters by path", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.7);
-    await service.set("model.name", "new-model");
+    await service.set("permissions.default", "allow");
+    await service.set("logging.level", "debug");
 
-    const tempProvenance = await service.getProvenance("model.temperature");
-    assert.equal(tempProvenance.length, 1);
-    assert.equal(tempProvenance[0].mutations[0].path, "model.temperature");
+    const permissionProvenance = await service.getProvenance("permissions.default");
+    assert.equal(permissionProvenance.length, 1);
+    assert.equal(permissionProvenance[0].mutations[0].path, "permissions.default");
 
-    const nameProvenance = await service.getProvenance("model.name");
-    assert.equal(nameProvenance.length, 1);
-    assert.equal(nameProvenance[0].mutations[0].path, "model.name");
+    const loggingProvenance = await service.getProvenance("logging.level");
+    assert.equal(loggingProvenance.length, 1);
+    assert.equal(loggingProvenance[0].mutations[0].path, "logging.level");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -389,10 +391,10 @@ test("ConfigMutationService: getVersion returns provenance entry count", async (
   try {
     assert.equal(await service.getVersion(), 0);
 
-    await service.set("model.temperature", 0.7);
+    await service.set("permissions.default", "allow");
     assert.equal(await service.getVersion(), 1);
 
-    await service.set("model.temperature", 0.9);
+    await service.set("permissions.default", "deny");
     assert.equal(await service.getVersion(), 2);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -433,7 +435,7 @@ test("ConfigMutationService: errors use stable error codes", async () => {
   const { service, dir } = await setupService();
   try {
     try {
-      await service.delete("model.nonexistent");
+      await service.delete("logging.nonexistent");
       assert.fail("Should have thrown");
     } catch (err: any) {
       assert.equal(err.code, MUTATION_ERROR_CODES.PATH_NOT_FOUND);
@@ -472,7 +474,7 @@ test("ConfigMutationService: read throws NO_CONFIG_DIR when config missing", asy
 test("ConfigMutationService: provenance tracks updatedBy actor", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.7, { updatedBy: "daemon" });
+    await service.set("permissions.default", "allow", { updatedBy: "daemon" });
 
     const provenance = await service.getProvenance();
     assert.equal(provenance[0].updatedBy, "daemon");
@@ -484,10 +486,264 @@ test("ConfigMutationService: provenance tracks updatedBy actor", async () => {
 test("ConfigMutationService: default updatedBy is 'cli'", async () => {
   const { service, dir } = await setupService();
   try {
-    await service.set("model.temperature", 0.7);
+    await service.set("permissions.default", "allow");
 
     const provenance = await service.getProvenance();
     assert.equal(provenance[0].updatedBy, "cli");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Model-projection guard (single-source invariant, Task 9.5 Step 1)
+// ---------------------------------------------------------------------------
+
+test("ConfigMutationService: rejects config set model.*", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.set("model.provider", "openrouter"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.set("model.temperature", 0.7),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: rejects config set subagents.<tier>.* (canonical + legacy vocab)", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.set("subagents.coder.provider", "anthropic"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.set("subagents.coding.provider", "anthropic"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // Whole-object set would clobber model-selection projections.
+    await assert.rejects(
+      () => service.set("subagents", { enabled: false }),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // Unknown subagent keys (subagents.default, arbitrary) are projections too
+    // — normalizeModelConfig would silently drop them on reload.
+    await assert.rejects(
+      () => service.set("subagents.default.provider", "anthropic"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.set("subagents.bogus", { provider: "x", name: "y" }),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // A deeper path under a behavior key would corrupt the scalar leaf.
+    await assert.rejects(
+      () => service.set("subagents.enabled.streaming", false),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: unrelated set migrates legacy model to models.default and strips tier projections", async () => {
+  // Regression (§4.1/Task 11 + §5.2): a legacy config with `model` + `subagents.coding`
+  // on disk. The write crosses withoutDerivedModelProjections: the `model` projection
+  // is stripped BUT seeded into `models.default` (never deleted — the user's only
+  // assignment survives), and the stale `subagents.coding` tier key is dropped while
+  // behavior `enabled:false` survives.
+  const { dir } = await setupService();
+  const configDir = join(dir, ".alix", "config");
+  const configPath = join(configDir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      model: { provider: "ollama", name: "legacy" },
+      subagents: { enabled: false, coding: { provider: "ollama", name: "old-coding" } },
+      permissions: { default: "ask" },
+    }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+  const service = new ConfigMutationService(configDir);
+  try {
+    await service.set("permissions.default", "allow");
+    const onDisk = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
+    assert.equal("model" in onDisk, false, "model projection stripped from disk");
+    // §5.2: legacy model migrated to models.default, not deleted.
+    assert.deepEqual((onDisk.models as any)?.default, { provider: "ollama", name: "legacy" });
+    // Stale tier projection dropped; behavior config survives.
+    assert.equal((onDisk.subagents as any)?.coding, undefined, "stale tier projection cleaned");
+    assert.equal((onDisk.subagents as any)?.enabled, false);
+    assert.equal((onDisk.permissions as any)?.default, "allow");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: allows subagents.enabled/roles (behavior config, §2.8.1)", async () => {
+  const { service, configDir, dir } = await setupService();
+  try {
+    const mutation = await service.set("subagents.enabled", false);
+    assert.equal(mutation.op, "set");
+    assert.equal(mutation.value, false);
+
+    const configPath = join(configDir, "config.json");
+    const onDisk = JSON.parse(await readFile(configPath, "utf8")) as Record<string, unknown>;
+    assert.equal((onDisk.subagents as any)?.enabled, false);
+
+    const del = await service.delete("subagents.enabled");
+    assert.equal(del.op, "delete");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: rejects config delete model", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.delete("model"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: rejects config delete subagents", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.delete("subagents"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: delete subagents.<tier> / subagents.default rejected, delete enabled/roles allowed", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.delete("subagents.coding"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.delete("subagents.coder"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.delete("subagents.default"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    // Behavior config is deletable (no error).
+    await service.set("subagents.enabled", false);
+    const del = await service.delete("subagents.enabled");
+    assert.equal(del.op, "delete");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: guard message directs to alix models commands", async () => {
+  const { service, dir } = await setupService();
+  try {
+    await assert.rejects(
+      () => service.set("model.temperature", 0.7),
+      (err: any) => {
+        assert.ok(
+          err.message.includes("alix models set-default") || err.message.includes("alix models"),
+          `guard message should direct to alix models commands: ${err.message}`,
+        );
+        return true;
+      },
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: rejected operations do not modify config.json", async () => {
+  const { service, dir } = await setupService();
+  try {
+    const configPath = join(dir, ".alix", "config", "config.json");
+    const before = await readFile(configPath, "utf-8");
+
+    await assert.rejects(
+      () => service.set("model.provider", "openrouter"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+    await assert.rejects(
+      () => service.delete("subagents"),
+      (err: any) => err.code === MUTATION_ERROR_CODES.MODEL_PROJECTION_REJECTED,
+    );
+
+    const after = await readFile(configPath, "utf-8");
+    assert.equal(after, before, "rejected mutations must leave config.json untouched");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: set works on a models-only fragment (no ui/context/runtime/permissions)", async () => {
+  // Regression: `alix models set-default` writes a config containing ONLY
+  // `models` (no ui/context/runtime/permissions sections). `config set` on
+  // such a file used to crash with "Cannot read properties of undefined
+  // (reading 'port')" because validateConfig assumed a defaults-merged config.
+  const dir = await mkdtemp(join(tmpdir(), "alix-mutation-test-"));
+  const configDir = join(dir, ".alix", "config");
+  await mkdir(configDir, { recursive: true, mode: 0o700 });
+  const configPath = join(configDir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({ models: { default: { provider: "deepseek", name: "deepseek-chat" } } }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const service = new ConfigMutationService(configDir);
+  try {
+    const mutation = await service.set("permissions.default", "allow");
+    assert.equal(mutation.op, "set");
+    assert.equal(mutation.value, "allow");
+
+    const onDisk = JSON.parse(await readFile(configPath, "utf-8")) as Record<string, unknown>;
+    assert.deepEqual(onDisk.permissions, { default: "allow" });
+    // The models-only file is a fragment — only the mutated path is added.
+    assert.ok(onDisk.models, "models section must survive");
+    assert.equal((onDisk.models as any).default.name, "deepseek-chat");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService: delete works on a models-only fragment", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-mutation-test-"));
+  const configDir = join(dir, ".alix", "config");
+  await mkdir(configDir, { recursive: true, mode: 0o700 });
+  const configPath = join(configDir, "config.json");
+  await writeFile(
+    configPath,
+    JSON.stringify({ models: { default: { provider: "deepseek", name: "deepseek-chat" } } }, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const service = new ConfigMutationService(configDir);
+  try {
+    // Seed a mutable value first (the fragment itself only has `models`, which
+    // the model-projection guard protects).
+    await service.set("permissions.default", "allow");
+    const mutation = await service.delete("permissions.default");
+    assert.equal(mutation.op, "delete");
+
+    const onDisk = JSON.parse(await readFile(configPath, "utf-8")) as Record<string, unknown>;
+    assert.equal((onDisk.permissions as any)?.default, undefined);
+    assert.ok(onDisk.models, "models section must survive");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

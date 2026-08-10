@@ -24,7 +24,7 @@ export function isCI(env: NodeJS.ProcessEnv = process.env): boolean {
  * Auto-disable streaming in CI only, so CI logs stay deterministic.
  * Streaming is the default in any local context (TTY or piped) — a local
  * non-TTY run still streams its tokens to stdout. Callers can opt out via
- * `config.model.streaming` / `ALIX_STREAMING=false`.
+ * the resolved model's `streaming` flag / `ALIX_STREAMING=false`.
  */
 export function shouldAutoDisableStreaming(env: NodeJS.ProcessEnv = process.env): boolean {
   return isCI(env);

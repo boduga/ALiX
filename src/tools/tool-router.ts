@@ -8,6 +8,7 @@ import { dirname, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { extractPatchPaths } from "../patch/patch-paths.js";
 import { createFileCheckpoint, restoreFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
 import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
@@ -274,7 +275,7 @@ export class PatchToolRouter implements ToolRouter {
     }
 
     const patchRoot = r ?? this.root;
-    const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: this.config.model.provider });
+    const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: resolveModelConfig(this.config).provider });
     const requestedFormat = format as EditFormat;
     const allowed = policy.allowed.includes(requestedFormat);
 

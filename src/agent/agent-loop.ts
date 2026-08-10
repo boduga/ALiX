@@ -4,6 +4,7 @@ import { buildToolsForProvider, buildContextBundleEventPayload, renderContextBun
 import type { StreamHandler } from "./stream.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -129,16 +130,17 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
 
   	// Resolve context window and tokenizer from config or API, then
 	// derive the authoritative per-turn ContextBudget (B).
-	const userOverride = ctx.config.model.maxContextTokens;
+	const resolved = resolveModelConfig(ctx.config);
+	const userOverride = resolved.maxContextTokens;
 	let contextBudget: ContextBudget;
 	let tokenizer: TokenizerName;
 
 	if (userOverride !== undefined) {
-	  tokenizer = getEncoding(ctx.config.model.provider);
+	  tokenizer = getEncoding(resolved.provider);
 	  contextBudget = createContextBudget({ contextWindowTokens: userOverride }, ctx.config.context?.budget);
 	} else {
 	  const { resolveModelDescriptor } = await import("../config/context-limits.js");
-	  const descriptor = await resolveModelDescriptor(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
+	  const descriptor = await resolveModelDescriptor(resolved.provider, resolved.name, ctx.config.apiKeys);
 	  tokenizer = descriptor.tokenizer;
 	  contextBudget = createContextBudget(descriptor, ctx.config.context?.budget);
 	}
@@ -150,7 +152,7 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
 	await ensureEncoder(tokenizer);
   const taskType = classifyTask(task);
   const depth = detectResearchDepth(task);
-  const maxIterations = ctx.config.model.maxIterations ?? 10;
+  const maxIterations = resolved.maxIterations ?? 10;
 
   // Shell tasks (bare commands like ls, cat) cap at 2 iterations
   const shellTask = isShellTask(task);
@@ -335,22 +337,23 @@ ${approvedPlanContent}`);
   // Build task loop deps
   // Build execution context for diagnostic correlation
   const runId = `run-${randomUUID().slice(0, 8)}`;
+  // Resolve the effective model from the canonical `models` source (single-source
+  // invariant) — `model` is a loader projection and is never read directly.
+  const resolvedModel = resolveModelConfig(ctx.config);
   const taskContext: ExecutionContext = {
     runId,
     sessionId: ctx.sessionId,
     workflowId: wfRun.id,
-    providerId: ctx.config.model.provider,
-    model: ctx.config.model.name,
+    providerId: resolvedModel.provider,
+    model: resolvedModel.name,
     parentRunId: opts?.parentRunId,
   };
 
   const taskLoopDeps: TaskLoopDeps = {
     config: {
-      model: {
-        provider: ctx.config.model.provider,
-        name: ctx.config.model.name,
-        streaming: ctx.config.model.streaming ?? false,
-      },
+      // Forward the canonical models object so the loop resolves via
+      // resolveModelConfig(models[tier] ?? models.default), not the projection.
+      models: ctx.config.models,
       permissions: {
         sessionMode: ctx.config.permissions.sessionMode,
       },

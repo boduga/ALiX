@@ -14,6 +14,105 @@ export type ModelConfig = {
   streaming?: boolean;
 };
 
+/**
+ * Canonical configuration tier vocabulary.
+ *
+ * This is the single runtime/type source of truth for configuration tiers.
+ * The profile vocabulary (ProfileModelTier in profile-types.ts) is a
+ * distinct, mapped vocabulary — see PROFILE_TIER_MAP for the only bridge.
+ */
+export const MODEL_TIER_VALUES = [
+  "default",
+  "thinking",
+  "coding",
+  "fast",
+  "critic",
+  "tiny",
+  "image",
+] as const;
+
+export type ModelTier = typeof MODEL_TIER_VALUES[number];
+
+/**
+ * The six non-default subagent tiers. `default` is represented by the
+ * `model` projection, therefore only these six appear under `subagents`.
+ */
+export const MODEL_SUBAGENT_TIERS = [
+  "thinking",
+  "coding",
+  "fast",
+  "critic",
+  "tiny",
+  "image",
+] as const;
+
+export type ModelsConfig =
+  Partial<Record<ModelTier, ModelConfig>>;
+
+/**
+ * Loader-owned compatibility projection.
+ *
+ * `default` is represented by `model`, therefore only the six
+ * non-default tiers appear here.
+ */
+export type DerivedSubagentConfig =
+  Partial<
+    Record<Exclude<ModelTier, "default">, ModelConfig>
+  >;
+
+/**
+ * Boundary validator — is this arbitrary string a canonical configuration
+ * tier?
+ *
+ * Used only at external boundaries: CLI arguments, config-file values, and
+ * other arbitrary strings. `resolveModelConfig()` does not need this check
+ * because its API accepts `ModelTier`.
+ */
+export function isModelTier(
+  value: string,
+): value is ModelTier {
+  return (
+    MODEL_TIER_VALUES as readonly string[]
+  ).includes(value);
+}
+
+/**
+ * Validity predicate for a resolved model — a model is usable only when it
+ * names both a provider and a model.
+ *
+ * Shared by the loader projection (`normalizeModelConfig`) and
+ * `resolveModelConfig()` so both agree on what counts as "configured".
+ * Lives in schema.ts next to `isModelTier` so the resolver stays a pure,
+ * dependency-light module (runtime readers that import it do not transitively
+ * pull the loader, signing, or credential-store modules).
+ */
+export function isValidModelConfig(
+  model: ModelConfig | undefined,
+): model is ModelConfig {
+  return (
+    model !== undefined &&
+    typeof model.provider === "string" &&
+    model.provider.length > 0 &&
+    typeof model.name === "string" &&
+    model.name.length > 0
+  );
+}
+
+/**
+ * §5.2 legacy migration — seed `models.default` from a legacy `model` when no
+ * canonical default exists (key presence wins, even if the value is invalid).
+ *
+ * Shared by the loader (`normalizeModelConfig`, in-memory on load) and the
+ * persistence boundary (`withoutDerivedModelProjections`, before a write) so
+ * the two sites cannot drift and stripping a projection never destroys the
+ * user's only model assignment. Mutates `config` in place.
+ */
+export function seedLegacyModelDefault(config: Partial<AlixConfig>): void {
+  if (config.models?.default === undefined && isValidModelConfig(config.model)) {
+    config.models = { ...(config.models ?? {}), default: { ...config.model } };
+  }
+}
+
 export type PermissionConfig = {
   default: Decision;
   tools: Record<string, Decision>;
@@ -150,7 +249,6 @@ export type SubagentConfig = {
   thinking?: ModelTierConfig;  // Strategic reasoning, planning, complex logic
   coding?: ModelTierConfig;     // Code generation, tool execution, patches
   fast?: ModelTierConfig;       // Quick classification, routing, simple tasks
-  classifier?: ModelTierConfig; // Prompt classification/routing fallback
   critic?: ModelTierConfig;     // Verification, validation, hallucination checks
   tiny?: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
   image?: ModelTierConfig;     // Image generation, multimodal analysis
@@ -199,6 +297,18 @@ export type SynthesisFinding = {
   confidence: "high" | "medium" | "low";
 };
 
+/**
+ * AlixConfig — the runtime configuration shape.
+ *
+ * Persisted (single source of truth on disk):
+ *   models, modelProfile, apiKeys, all other persisted configuration.
+ *
+ * Runtime-only compatibility projections (produced exclusively by
+ * loadConfig(), never independently persisted):
+ *   model, subagents
+ *
+ * apiKeys remains independent and is never coupled to model selection.
+ */
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;
@@ -226,8 +336,46 @@ export type AlixConfig = {
     historyRetentionDays?: number;
   };
   modelProfile?: string;
-  models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>;
+  models?: ModelsConfig;
 };
+
+/**
+ * Nominal persistence brand for the persisted configuration representation.
+ *
+ * The brand is type-only: `declare const` emits nothing at runtime and the
+ * unique-symbol computed property is erased, so it never appears in a
+ * serialized config.json. A raw AlixConfig cannot structurally satisfy
+ * PersistedAlixConfig — only after crossing `withoutDerivedModelProjections()`
+ * is an object branded as persisted.
+ */
+declare const persistedConfigBrand: unique symbol;
+
+/**
+ * The only `subagents` content that may reach disk.
+ *
+ * §2.8.1/§2.8.4: `subagents` is a valid container of non-model subagent
+ * *behavior* configuration — `enabled`/`roles` are preserved, never replaced —
+ * but the six `<tier>` keys are loader-derived model-selection projections and
+ * must never be independently written.
+ */
+export type PersistedSubagentConfig = {
+  enabled?: boolean;
+  roles?: SubagentRoleConfig[];
+};
+
+/**
+ * Persisted configuration representation.
+ *
+ * `model` and the six `subagents.<tier>` keys (loader-derived compatibility
+ * projections) are stripped; `models` is the single persistent source of model
+ * assignments. `subagents.enabled`/`roles` are behavior config and may persist.
+ */
+export interface PersistedAlixConfig
+  extends Omit<AlixConfig, "model" | "subagents"> {
+  /** Behavior config only (enabled/roles); model-tier projections never persist. */
+  subagents?: PersistedSubagentConfig;
+  readonly [persistedConfigBrand]: true;
+}
 
 export type ValidationIssue = {
   path: string;

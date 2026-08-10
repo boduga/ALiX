@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/loader.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { ApprovalManager } from "../policy/approvals.js";
 import { buildRepoMapLite } from "../repomap/repomap-lite.js";
@@ -78,9 +79,11 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     config.permissions.sessionMode = opts.sessionMode;
   }
 
-  // Auto-disable streaming in non-TTY environments unless explicitly forced
-  if (shouldAutoDisableStreaming() && config.model.streaming) {
-    config.model.streaming = false;
+  // Auto-disable streaming in non-TTY environments unless explicitly forced.
+  // Streaming lives on the canonical models.default (§2.8.3); keep the
+  // canonical source consistent so resolveModelConfig() reflects the change.
+  if (shouldAutoDisableStreaming() && config.models?.default?.streaming) {
+    config.models.default.streaming = false;
   }
 
   // Create approval manager with event log
@@ -110,14 +113,15 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
-  const apiKey = config.apiKeys?.[config.model.provider]
-    ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
+  const { provider: modelProvider, name: modelName } = resolveModelConfig(config);
+  const apiKey = config.apiKeys?.[modelProvider]
+    ?? process.env[`${modelProvider.toUpperCase()}_API_KEY`]
     ?? "";
   const provider = await createProvider(
-    { provider: config.model.provider, model: config.model.name },
+    { provider: modelProvider, model: modelName },
     apiKey,
   );
-  const editFormatPolicy = buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference });
+  const editFormatPolicy = buildEditFormatPolicy({ provider: modelProvider, preferred: provider.editFormatPreference });
 
   // Initialize MCP manager (lazy - only needed if config.mcpServers?.length > 0)
   let mcpManager: McpManager | null = null;
@@ -174,7 +178,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   const hookRunner = new HookRunner();
 
   // Register tool-repair hooks for monitoring and error recovery
-  const modelKey = `${config.model.provider}-${config.model.name}`;
+  const modelKey = `${modelProvider}-${modelName}`;
   const repairHooks = createToolRepairHooks(modelKey);
   for (const hook of repairHooks) {
     hookRunner.register(hook.name, hook.fn);

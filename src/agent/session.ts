@@ -124,6 +124,7 @@ import {
   buildMemoryStats,
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import { createContextBudget, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
@@ -739,9 +740,10 @@ export class AgentSessionBuilder {
       firstTurnMatchedSkills = matchedSkills;
       firstTurnExplicitSkills = await resolveExplicitSkills(explicitSkills);
 
-      // P5: Context limits + task classification
+      // P5: Context limits + task classification — resolve the runtime model
+      // from the canonical `models` object (§10.1/§10.2).
       const p5 = await setupContextLimits(
-        ctx.config.model,
+        resolveModelConfig(ctx.config),
         ctx.config.apiKeys,
         currentTask,
         config.readOnly,
@@ -991,10 +993,10 @@ export class AgentSessionBuilder {
             : directBasePrompt;
         // Stream live when enabled (matches the loader default and the
         // runTaskLoop path) so the in-process TUI shows tokens as they
-        // arrive. The direct route runs before initialize() so
-        // ctx.config.model.streaming isn't available yet — the closure-
-        // captured top-level `config.streaming` is the resolved source.
-        // `streamToResponse` fail-softs to a blocking complete() on
+        // arrive. The direct route runs before initialize() so the
+        // context's model isn't resolved yet — the closure-captured
+        // top-level `config.streaming` (from the resolved model) is the
+        // source. `streamToResponse` fail-softs to a blocking complete() on
         // mid-stream error, matching runTaskLoop's behavior.
         const useStream = config.streaming !== false;
         const genResponse = await (useStream && genProvider.stream
@@ -1031,7 +1033,7 @@ export class AgentSessionBuilder {
           toolCalls: [],
           // The chat/direct route calls streamToResponse when streaming is on,
           // so the result reflects the actual path used. runTaskLoop and the
-          // agent loop set this the same way (config.model.streaming).
+          // agent loop set this the same way (from the resolved model).
           streamed: useStream && Boolean(genProvider.stream),
           reason: "direct",
         };
@@ -1173,12 +1175,13 @@ export class AgentSessionBuilder {
 
       // Build execution context for diagnostic correlation
       const runId = `run-${randomUUID().slice(0, 8)}`;
+      const resolved = resolveModelConfig(ctx.config);
       const taskContext: ExecutionContext = {
         runId,
         sessionId: ctx.sessionId,
         workflowId: wfRun.id,
-        providerId: ctx.config.model.provider,
-        model: ctx.config.model.name,
+        providerId: resolved.provider,
+        model: resolved.name,
         parentRunId: config.parentRunId,
       };
 
@@ -1218,11 +1221,8 @@ export class AgentSessionBuilder {
       try {
         result = await runTaskLoop({
           config: {
-            model: {
-              provider: ctx.config.model.provider,
-              name: ctx.config.model.name,
-              streaming: ctx.config.model.streaming ?? false,
-            },
+            // Canonical `models` only — the loop resolves via resolveModelConfig.
+            models: ctx.config.models,
             permissions: {
               sessionMode: ctx.config.permissions.sessionMode,
             },

@@ -7,6 +7,7 @@ function makeValidConfig(): AlixConfig {
   return {
     version: 1 as const,
     model: { provider: "anthropic", name: "claude-3-5-sonnet-20241022" },
+    models: { default: { provider: "anthropic", name: "claude-3-5-sonnet-20241022" } },
     ui: { enabled: true, host: "localhost", port: 3000, transport: "sse" as const },
     context: { repoMap: true, maxRepoMapTokens: 4096, repoMapMode: "lite" as const, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
     runtime: { provider: "process" as const, shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] },
@@ -21,12 +22,12 @@ describe("validateConfig", () => {
     assert.equal(result.issues.length, 0);
   });
 
-  it("reports error when model.name is empty", () => {
+  it("reports error when models.default.name is empty", () => {
     const config = makeValidConfig();
-    config.model.name = "" as any;
+    config.models!.default!.name = "" as any;
     const result = validateConfig(config);
     assert.equal(result.valid, false);
-    assert.ok(result.issues.some(i => i.path === "model.name"));
+    assert.ok(result.issues.some(i => i.path === "models.default.name"));
   });
 
   it("reports warning when port is below 1024", () => {

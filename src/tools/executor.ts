@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { AlixConfig } from "../config/schema.js";
+import { resolveModelConfig } from "../config/model-resolver.js";
 import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
 import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
@@ -93,7 +94,8 @@ export class ToolExecutor {
 
     // Initialize tool repair layer
     try {
-      this.repair = new AlixToolRepair(config.model.provider, config.model.name);
+      const resolved = resolveModelConfig(config);
+      this.repair = new AlixToolRepair(resolved.provider, resolved.name);
     } catch {
       this.repair = null;
     }

@@ -21,7 +21,7 @@ function makeCtx(overrides: Partial<RuntimeContext> = {}): RuntimeContext {
     sessionId: "test",
     sessionDir: "/tmp/.alix/sessions/test",
     eventLog: {} as any,
-    config: { model: { provider: "mock", name: "mock-model" } } as any,
+    config: { models: { default: { provider: "mock", name: "mock-model" } } } as any,
     ...overrides,
   };
 }

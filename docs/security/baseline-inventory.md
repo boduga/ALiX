@@ -113,8 +113,8 @@ See `tests/fixtures/security/route-inventory.json` — 33 route entries with ful
 | # | Command/Function | File | Line | Config Path(s) |
 |---|---|---|---|---|
 | 1 | `config set-key` | `src/cli.ts` | 41 | `apiKeys.*` |
-| 2 | `config set-default-model` | `src/cli.ts` | 913 | `model.provider`, `model.name` |
-| 3 | `config set-tier` | `src/cli.ts` | 993 | `subagents.<tier>.*` |
+| 2 | `models set-default` | `src/cli/commands/models.ts` | persistModelSelection | `models.default.*` |
+| 3 | `models set-tier` | `src/cli/commands/models.ts` | persistModelSelection | `models.<tier>.*` |
 | 4 | `mcp add` | `src/cli.ts` | 1211 | `mcpServers[]` |
 | 5 | `mcp discover` | `src/cli.ts` | 1253 | `mcpServers[]` |
 | 6 | `init` | `src/cli/commands/init.ts` | 117 | Full config |
@@ -135,8 +135,8 @@ See `tests/fixtures/security/route-inventory.json` — 33 route entries with ful
 
 | File | Writers |
 |---|---|
-| `~/.config/alix/config.json` | `setApiKey`, `set-default-model`, `set-tier` |
-| `.alix/config.json` (project) | `set-default-model`, `set-tier`, `mcp add/discover`, `init`, models |
+| `~/.config/alix/config.json` | `setApiKey`, `models set-default`, `models set-tier` |
+| `.alix/config.json` (project) | `models set-default`, `models set-tier`, `mcp add/discover`, `init`, models |
 | `.alix/audit/audit.jsonl` | `AuditStore.append` |
 | `.alix/observability/metrics/*.jsonl` | `MetricsStore.append` |
 | `.alix/observability/rollups/hourly.jsonl` | `RollupStore.rollUp` |
