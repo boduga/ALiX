@@ -164,6 +164,23 @@ export function createDefaultRollbackResolver(): DefaultRollbackResolver {
   const resolver = new DefaultRollbackResolver();
   resolver.registerOperation("upgrade_agent_runtime", rollbackUpgradeAgentRuntime);
   resolver.registerOperation("update_configuration", rollbackUpdateConfiguration);
+  // `capability.transition` — the A7.1 lifecycle step executor (A4 binding) drives this
+  // forward op. The in-plan rollback step (`capability.restore_transition`) restores the
+  // id to its pre-execution overlay state via the executor's captured pre-state map — the
+  // authoritative snapshot seeded by the applier before execution. `rollbackApplied()`
+  // remains the compensating rollback for a post-completion ledger-append failure, and is
+  // idempotent with the in-plan restore (both return the id to the same pre-state).
+  resolver.registerOperation("capability.transition", (step) => {
+    const { capabilityId } = step.parameters as { capabilityId: string };
+    return {
+      stepId: `rb-${step.stepId}`,
+      forwardStepId: step.stepId,
+      operation: "capability.restore_transition",
+      parameters: { capabilityId },
+      rollbackType: "automatic" as const,
+      safe: true,
+    };
+  });
   return resolver;
 }
 
