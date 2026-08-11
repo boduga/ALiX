@@ -494,6 +494,10 @@ describe("validateCapabilityMutation (pre/post conditions)", () => {
     expect(validateCapabilityMutation({ operation: "capability.update", sourceVersion: "1.0.0", patch: { title: "x" } }).valid).toBe(false);
   });
 
+  it("update: requires a patch (does not throw)", () => {
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0" }).valid).toBe(false);
+  });
+
   it("remove: requires capabilityId and reason (does not throw)", () => {
     expect(validateCapabilityMutation({ operation: "capability.remove", reason: "superseded" }).valid).toBe(false);
     expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail" }).valid).toBe(false);

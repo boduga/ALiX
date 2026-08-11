@@ -439,7 +439,7 @@ function validateUpdate(m: CapabilityUpdateMutation): ValidationResult {
   const patchKeys = Object.keys(m.patch ?? {});
   if (patchKeys.length === 0) errors.push("update: patch must not be empty");
   for (const imm of IMMUTABLE_DEFINITION_FIELDS) {
-    if ((m.patch as Record<string, unknown>)[imm] !== undefined) {
+    if ((m.patch as Record<string, unknown> | undefined)?.[imm] !== undefined) {
       errors.push(`update: '${imm}' is immutable and must not appear in a patch`);
     }
   }
