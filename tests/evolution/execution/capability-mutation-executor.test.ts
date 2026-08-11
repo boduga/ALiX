@@ -266,7 +266,8 @@ describe("CapabilityMutationExecutor — transition", () => {
     const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "declining" as const, to: "deprecated" as const };
     const res = await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
     assert.equal(res.success, false);
-    assert.match(res.error ?? "", /actual/);
+    assert.match(res.error ?? "", /actual 'active' !== expected 'declining'/);
+    assert.match(res.error ?? "", /#34/);
     assert.equal(registry.getLifecycleState("tool.file.read"), "active"); // unchanged
   });
 
@@ -276,6 +277,21 @@ describe("CapabilityMutationExecutor — transition", () => {
     const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "active" as const, to: "declining" as const };
     const before = JSON.stringify(catalog.list());
     await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
+    assert.equal(JSON.stringify(catalog.list()), before);
+  });
+
+  it("record-sink failure after transition → byte-identical restore (lifecycle set back)", async () => {
+    await seedActive();
+    const before = JSON.stringify(catalog.list());
+    const executor = new CapabilityMutationExecutor({ catalog, registry, record: { record: async (): Promise<void> => { throw new Error("boom"); } } });
+    const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "active" as const, to: "mature" as const };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /record failed/);
+    // The transitioned lifecycle must be restored to its pre-transition state
+    // (the lifecycle-SET branch of restorePreState), not left "mature".
+    assert.equal(registry.getLifecycleState("tool.file.read"), "active");
+    // Catalog untouched — lifecycle is registry state, so no publication change.
     assert.equal(JSON.stringify(catalog.list()), before);
   });
 });
