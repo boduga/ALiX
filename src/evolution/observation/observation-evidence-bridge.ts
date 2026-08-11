@@ -13,7 +13,7 @@
 
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../security/audit/canonical-json.js";
-import type { VerificationEvidence } from "../verification/contracts/verification-contract.js";
+import type { ReproducibilityLevel, VerificationEvidence } from "../verification/contracts/verification-contract.js";
 import type { ObservationResult } from "./contracts/observation-contract.js";
 
 /**
@@ -45,6 +45,9 @@ export interface ObservationBuildInput {
   readonly observations: readonly ObservationResult[];
   /** Optional observation timestamp (for deterministic contexts). Defaults to now. */
   readonly observedAt?: string;
+  /** Optional reproducibility level override (default 0). A5 observations of
+   *  post-application state are direct measurements, so A7.1 passes 2. */
+  readonly reproducibilityLevel?: ReproducibilityLevel;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +150,7 @@ export function buildObservationEvidence(input: ObservationBuildInput): Verifica
       historicalSimilarity: 1,
       overallConfidence: meanConfidence,
     },
-    reproducibilityLevel: 0 as const,
+    reproducibilityLevel: input.reproducibilityLevel ?? 0,
     lineage,
     verifiedAt: now,
     expiresAt,

@@ -13,6 +13,8 @@ import { generateDecision } from "../governance/decision-engine.js";
 import type { GovernancePolicyConfig } from "../governance/contracts/decision-contract.js";
 import type { CapabilityRegistry } from "../../capability/registry.js";
 import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-store.js";
+import { CapabilityLifecycleApplier } from "./capability-lifecycle-applier.js";
+import { CapabilityLifecycleMeasurer } from "./capability-lifecycle-measurer.js";
 
 export interface CapabilitiesCLIDeps {
   cwd?: string;
@@ -31,6 +33,8 @@ const USAGE = [
   "  health                Read the P5.5 capability-evolution report",
   "  recommend             (read-only) analyze and display lifecycle candidates",
   "  propose               (governed) submit lifecycle proposals through A3 and record",
+  "  apply <id>            (governed) execute a decided capability transition",
+  "  measure <id>          (governed) measure a capability post-application",
 ].join("\n");
 
 export async function handleCapabilitiesCommand(
@@ -58,6 +62,10 @@ export async function handleCapabilitiesCommand(
       return runRecommend(registry, store, ledger, jsonMode);
     case "propose":
       return runPropose(registry, store, ledger, deps, jsonMode);
+    case "apply":
+      return runApply(rest[0], ledger, registry, jsonMode);
+    case "measure":
+      return runMeasure(rest[0], ledger, store, jsonMode);
     default:
       console.error(USAGE);
       process.exitCode = 1;
@@ -245,4 +253,53 @@ async function runPropose(
   for (const r of results) {
     console.log(`${r.intent.padEnd(12)} ${r.capabilityId.padEnd(28)} ${r.decisionKind}`);
   }
+}
+
+/** Fatal-path reporter: prints the message (JSON on stdout when in jsonMode,
+ *  otherwise stderr) and exits 1. process.exit(1) is required — the src/cli.ts
+ *  dispatcher's process.exit(0) clobbers a bare exitCode, and fatal capability
+ *  errors must be non-zero in BOTH modes (A7.0 86e323f2). Test-safe: capture()
+ *  stubs process.exit. */
+function failFatal(message: string, jsonMode: boolean): never {
+  if (jsonMode) console.log(JSON.stringify({ ok: false, reason: message }));
+  else console.error(message);
+  process.exitCode = 1;
+  process.exit(1);
+}
+
+async function runApply(
+  id: string | undefined,
+  ledger: CapabilityLifecycleLedger,
+  registry: CapabilityRegistry | undefined,
+  jsonMode: boolean,
+): Promise<void> {
+  if (!id) failFatal("Usage: alix capabilities apply <id>", jsonMode);
+  if (!registry) failFatal("Capability registry unavailable — cannot apply", jsonMode);
+  const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
+  let res;
+  try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
+  catch (err) {
+    failFatal(err instanceof Error ? err.message : String(err), jsonMode);
+  }
+  if (res.status === "blocked") failFatal(res.reason, jsonMode);
+  if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, executionId: res.executionId }));
+  else console.log(`applied ${id} (execution ${res.executionId})`);
+}
+
+async function runMeasure(
+  id: string | undefined,
+  ledger: CapabilityLifecycleLedger,
+  store: CapabilityEvolutionStore,
+  jsonMode: boolean,
+): Promise<void> {
+  if (!id) failFatal("Usage: alix capabilities measure <id>", jsonMode);
+  const measurer = new CapabilityLifecycleMeasurer({ ledger, store });
+  let res;
+  try { res = await measurer.measure(id); }
+  catch (err) {
+    failFatal(err instanceof Error ? err.message : String(err), jsonMode);
+  }
+  if (res.status === "blocked") failFatal(res.reason, jsonMode);
+  if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, measurementId: res.measurementId, stateTransition: res.stateTransition }));
+  else console.log(`measured ${id}: ${res.stateTransition} (measurement ${res.measurementId})`);
 }

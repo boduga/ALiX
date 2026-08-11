@@ -103,4 +103,38 @@ describe("handleCapabilitiesCommand", () => {
     await capture(() => handleCapabilitiesCommand(["propose"], deps));
     assert.equal((await ledger.list()).length, before);
   });
+
+  it("apply with no decided record blocks", async () => {
+    const original = console.error;
+    let errOut = "";
+    console.error = (m?: unknown) => { errOut = String(m); };
+    try {
+      await assert.rejects(
+        capture(() => handleCapabilitiesCommand(["apply", "core.old"], deps)),
+        /__TEST_EXIT__/,
+      );
+    } finally {
+      console.error = original;
+      process.exitCode = 0; // reset CLI exit-1 side effect (repo convention)
+    }
+    assert.ok(errOut.includes("No decided") || errOut.includes("not"));
+    assert.equal(exitCode, 1, "exits with code 1");
+  });
+
+  it("measure with no applied record blocks", async () => {
+    const original = console.error;
+    let errOut = "";
+    console.error = (m?: unknown) => { errOut = String(m); };
+    try {
+      await assert.rejects(
+        capture(() => handleCapabilitiesCommand(["measure", "core.old"], deps)),
+        /__TEST_EXIT__/,
+      );
+    } finally {
+      console.error = original;
+      process.exitCode = 0; // reset CLI exit-1 side effect (repo convention)
+    }
+    assert.ok(errOut.includes("No applied"));
+    assert.equal(exitCode, 1, "exits with code 1");
+  });
 });
