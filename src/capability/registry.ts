@@ -11,18 +11,13 @@ import type { CapabilityProviderBinding, ProviderType } from "./canonical/provid
 import { canonicalToLegacyCapability, legacyToCanonicalDefinition } from "./legacy-adapter.js";
 import type { CapabilityMutationPort } from "./mutation-port.js";
 
-/** CAP-3 canonical availability (design §15). Declarative only — CAP-4 owns
- *  the full R1 availability concept (health, fallback, ordered providers). */
+/** CAP-4 canonical availability (user ruling): two unavailable reasons.
+ *  missing_binding = nothing to resolve; provider_unavailable = something to
+ *  resolve but no provider is currently usable. Exhaustion is provider_unavailable,
+ *  never a separate reason. Availability is NOT a lifecycle change. */
 export interface CapabilityAvailability {
-  enabled: boolean;
-  reason?:
-    | "missing_binding"
-    | "binding_unavailable"
-    | "deprecated"
-    | "disabled"
-    | "dependency_unavailable"
-    | "authorization"
-    | "runtime_error";
+  available: boolean;
+  reason?: "missing_binding" | "provider_unavailable";
 }
 
 /** Single canonical registry model (user-approved): one map, definition from
@@ -90,7 +85,7 @@ export class CapabilityRegistry {
       next.set(def.id, {
         definition: def,
         lifecycle: prev?.lifecycle ?? DEFAULT_LIFECYCLE,
-        availability: prev?.availability ?? { enabled: true },
+        availability: prev?.availability ?? { available: true },
         bindings: def.bindings,
       });
     }
@@ -153,6 +148,13 @@ export class CapabilityRegistry {
 
   getAvailability(id: string): CapabilityAvailability | undefined {
     return this.get(id)?.availability;
+  }
+
+  /** Runtime exhaustion feedback (CAP-4): marks a capability provider-unavailable
+   *  or missing-binding WITHOUT touching lifecycle (#476, #481). */
+  setAvailability(id: string, availability: CapabilityAvailability): void {
+    const entry = this.ensureEntry(id);
+    entry.availability = availability;
   }
 
   /** Declarative provider read (CAP-3, no CAP-4 semantics): the distinct

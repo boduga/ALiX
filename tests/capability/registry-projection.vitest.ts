@@ -44,8 +44,16 @@ describe("CAP-3 registry projection", () => {
     const rc = registry.get("tool.file.read");
     expect(rc?.definition.id).toBe("tool.file.read");
     expect(rc?.lifecycle).toBe("emerging");            // default current state
-    expect(rc?.availability.enabled).toBe(true);
+    expect(rc?.availability.available).toBe(true);
     expect(rc?.bindings[0]?.type).toBe("tool");
+  });
+
+  it("setAvailability writes provider_unavailable and leaves lifecycle unchanged", () => {
+    const { registry } = makeRegistry(dir);
+    registry.register(makeLegacyCap());
+    registry.setAvailability("tool.file.read", { available: false, reason: "provider_unavailable" });
+    expect(registry.getAvailability("tool.file.read")).toEqual({ available: false, reason: "provider_unavailable" });
+    expect(registry.getLifecycleState("tool.file.read")).toBe("emerging");  // availability ≠ lifecycle
   });
 
   it("lifecycle state is registry current state (set/get authority, not A7 overlay)", () => {
