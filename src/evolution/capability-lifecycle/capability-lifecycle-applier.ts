@@ -5,7 +5,8 @@ import type { CapabilityLifecycleLedger } from "./capability-lifecycle-ledger.js
 import { toExecutionProposal } from "./capability-execution-projection.js";
 import { CapabilityLifecycleStepExecutor } from "./capability-lifecycle-step-executor.js";
 import { authorizeExecution } from "../execution/execution-authorization.js";
-import { createExecutionPlan, createDefaultRollbackResolver } from "../execution/execution-planner.js";
+import { createExecutionPlan } from "../execution/execution-planner.js";
+import { createCapabilityRollbackResolver } from "../execution/capability-mutation-executor.js";
 import { GovernedExecutionRuntime } from "../execution/execution-runtime.js";
 import type { ExecutionEnvironment, ExecutionRequest } from "../execution/contracts/execution-contract.js";
 import type { CapabilityRegistry } from "../../capability/registry.js";
@@ -15,7 +16,7 @@ export interface CapabilityApplierDeps {
   ledger: CapabilityLifecycleLedger;
   registry: CapabilityRegistry;
   runtime?: GovernedExecutionRuntime;
-  resolver?: ReturnType<typeof createDefaultRollbackResolver>;
+  resolver?: ReturnType<typeof createCapabilityRollbackResolver>;
   requestId?: string;
   environment?: ExecutionEnvironment;
 }
@@ -87,7 +88,7 @@ export class CapabilityLifecycleApplier {
       runtimeVersion: "1.0.0", agentConfiguration: {}, baselineMetrics: {},
       capabilityFingerprint: "a7",
     };
-    const resolver = this.deps.resolver ?? createDefaultRollbackResolver();
+    const resolver = this.deps.resolver ?? createCapabilityRollbackResolver();
     const plan = createExecutionPlan(proposal, latest.decision, env, resolver);
     const executor = new CapabilityLifecycleStepExecutor(registry, preState);
     this.executor = executor;
