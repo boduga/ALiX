@@ -1133,13 +1133,13 @@ import { CapabilityLifecycleApplier } from "./capability-lifecycle-applier.js";
 import { CapabilityLifecycleMeasurer } from "./capability-lifecycle-measurer.js";
 // in the switch:
 case "apply":
-  return runApply(rest[0], ledger, registry, deps, jsonMode);
+  return runApply(rest[0], ledger, registry, jsonMode);
 case "measure":
   return runMeasure(rest[0], ledger, store, jsonMode);
 ```
 Add handlers. **Fatal paths must use `process.exitCode = 1; process.exit(1);`** — the `src/cli.ts` dispatcher calls `process.exit(0)`, which clobbers a bare `exitCode = 1` (see A7.0 commit 86e323f2). This matches the existing `renderInspect` error pattern in `capability-lifecycle-cli.ts` (lines 63-64, 119-120, 126-127, 148-149). `process.exit(1)` is test-safe because the test's `capture()` stubs `process.exit`:
 ```ts
-async function runApply(id, ledger, registry, deps, jsonMode) {
+async function runApply(id, ledger, registry, jsonMode) {
   if (!id) { console.error("Usage: alix capabilities apply <id>"); process.exitCode = 1; process.exit(1); return; }
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
   let res;
