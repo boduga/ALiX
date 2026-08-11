@@ -173,9 +173,15 @@ class CapabilityRegistry {
   // New — co-located lifecycle overlay, parallel to `status`.
   applyLifecycleTransition(id: string, to: LifecycleState): void;  // throws on unknown id
   getLifecycleState(id: string): LifecycleState | undefined;
+  clearLifecycleState(id: string): void;  // idempotent; deletes the overlay entry, no-op on absent id
   // `register`/`unregister` maintain the overlay map.
 }
 ```
+
+`clearLifecycleState` exists so the compensating rollback (spec §7) can restore
+a capability that had **no** prior overlay state ("restore every touched id to
+its pre-execution value, or clear it if it had none"). It is a no-op on an
+absent id, so it is safe to call unconditionally during rollback.
 
 ## 6. A4 binding
 

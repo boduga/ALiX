@@ -67,7 +67,7 @@ Write the report to `task-1-report.md`: the verified signature table, any drift 
 
 **Interfaces:**
 - Consumes: `LifecycleState` from `src/adaptation/capability-evolution-types.js`; `Capability` from `src/capability/types.js`; existing `CapabilityValidationError` from `src/capability/errors.js`.
-- Produces: `CapabilityRegistry.applyLifecycleTransition(id: string, to: LifecycleState): void` (throws `CapabilityValidationError` on unknown id); `CapabilityRegistry.getLifecycleState(id: string): LifecycleState | undefined`; `register`/`unregister` maintain the overlay map. `list()`/`find()`/`describe()` unchanged.
+- Produces: `CapabilityRegistry.applyLifecycleTransition(id: string, to: LifecycleState): void` (throws `CapabilityValidationError` on unknown id); `CapabilityRegistry.getLifecycleState(id: string): LifecycleState | undefined`; `CapabilityRegistry.clearLifecycleState(id: string): void` (idempotent; deletes the overlay entry, no-op on absent id — required by spec §7 for compensating rollback of capabilities that had no prior state); `register`/`unregister` maintain the overlay map. `list()`/`find()`/`describe()` unchanged.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -122,6 +122,17 @@ describe("CapabilityRegistry lifecycle overlay", () => {
     r.register(makeCapability("core.session.list"));
     assert.equal(r.getLifecycleState("core.session.list"), undefined);
   });
+
+  it("clearLifecycleState removes the entry and is a no-op on an absent id", () => {
+    const r = new CapabilityRegistry();
+    r.register(makeCapability("core.old"));
+    r.applyLifecycleTransition("core.old", "deprecated");
+    r.clearLifecycleState("core.old");
+    assert.equal(r.getLifecycleState("core.old"), undefined);
+    r.clearLifecycleState("core.old"); // no-op on absent id
+    assert.equal(r.getLifecycleState("core.old"), undefined);
+    r.clearLifecycleState("core.never"); // no-op on unknown id
+  });
 });
 ```
 
@@ -148,6 +159,12 @@ applyLifecycleTransition(id: string, to: LifecycleState): void {
 
 getLifecycleState(id: string): LifecycleState | undefined {
   return this.lifecycle.get(id);
+}
+
+/** A7.1 — clear the lifecycle overlay entry (used by compensating rollback).
+ *  Idempotent: a no-op on an absent id, so callers may invoke it unconditionally. */
+clearLifecycleState(id: string): void {
+  this.lifecycle.delete(id);
 }
 ```
 In `unregister(id)`, after `this.status.delete(id)`, add `this.lifecycle.delete(id);`.
@@ -559,37 +576,19 @@ export class CapabilityLifecycleStepExecutor implements StepExecutor {
     }
   }
 
-  /** Compensating rollback — restore every applied id to its pre-execution value.
-   *  Idempotent: after the first call, appliedIds is drained. */
+  /** Compensating rollback — restore every applied id to its pre-execution value,
+   *  or clear it if it had none. Idempotent: after the first call, appliedIds is
+   *  drained. `clearLifecycleState` is a no-op on an absent id. */
   rollbackApplied(): void {
     while (this.appliedIds.length > 0) {
       const id = this.appliedIds.pop()!;
       const prev = this.preState.get(id);
-      if (prev === undefined) this.registry.getLifecycleState(id); // no-op guard (cleared)
-      // Use a package-private path: registry has no public clear; overlay is
-      // Map-backed. This task may add `clearLifecycleState(id)` to the registry.
+      if (prev === undefined) this.registry.clearLifecycleState(id);
+      else this.registry.applyLifecycleTransition(id, prev);
     }
   }
 }
 ```
-
-**Task 2 modification (this task completes it):** add to `CapabilityRegistry`:
-```ts
-/** A7.1 — clear the lifecycle overlay entry (used by compensating rollback). */
-clearLifecycleState(id: string): void { this.lifecycle.delete(id); }
-```
-Update `rollbackApplied()` to use it:
-```ts
-rollbackApplied(): void {
-  while (this.appliedIds.length > 0) {
-    const id = this.appliedIds.pop()!;
-    const prev = this.preState.get(id);
-    if (prev === undefined) this.registry.clearLifecycleState(id);
-    else this.registry.applyLifecycleTransition(id, prev);
-  }
-}
-```
-Add a test to `registry-lifecycle-overlay.test.ts`: `clearLifecycleState` removes the entry and is a no-op on an absent id.
 
 - [ ] **Step 4: Add the `capability.transition` rollback resolver**
 
