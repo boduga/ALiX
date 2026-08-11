@@ -1120,7 +1120,7 @@ private async executeConsolidate(step: ExecutionStep): Promise<{ success: boolea
   }
   // SemVer advance gate (user-amended): proposed version must be STRICTLY GREATER per the canonical comparator — lexical compare forbidden (1.9.0 → 1.10.0 must be accepted).
   if (this.catalog.has(mutation.target) && compareVersions(mutation.definition.version, this.catalog.get(mutation.target)!.version) <= 0) {
-    return { success: false, output: {}, error: `capability.consolidate: proposed target version ${mutation.definition.version} must be higher than current target version ${this.catalog.get(mutation.target)!.version} (immutable #479)` };
+    return { success: false, output: {}, error: `capability.consolidate: proposed target version ${mutation.definition.version} must advance (be higher than) current target version ${this.catalog.get(mutation.target)!.version} (immutable #479)` };
   }
 
   const pre = capturePreState(this.catalog, this.registry);
