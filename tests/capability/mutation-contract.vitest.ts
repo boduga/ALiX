@@ -484,4 +484,25 @@ describe("validateCapabilityMutation (pre/post conditions)", () => {
     expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail", reason: "superseded" }).valid).toBe(true);
     expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail", reason: "" }).valid).toBe(false);
   });
+
+  it("transition: requires capabilityId", () => {
+    expect(validateCapabilityMutation({ operation: "capability.transition", from: "emerging", to: "active" }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.transition", capabilityId: "", from: "emerging", to: "active" }).valid).toBe(false);
+  });
+
+  it("update: requires capabilityId (does not throw)", () => {
+    expect(validateCapabilityMutation({ operation: "capability.update", sourceVersion: "1.0.0", patch: { title: "x" } }).valid).toBe(false);
+  });
+
+  it("remove: requires capabilityId and reason (does not throw)", () => {
+    expect(validateCapabilityMutation({ operation: "capability.remove", reason: "superseded" }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail" }).valid).toBe(false);
+  });
+
+  it("consolidate: requires a sources array (does not throw)", () => {
+    expect(validateCapabilityMutation({
+      operation: "capability.consolidate", target: "a.d",
+      definition: okDef, sourceDisposition: "deprecate",
+    }).valid).toBe(false);
+  });
 });

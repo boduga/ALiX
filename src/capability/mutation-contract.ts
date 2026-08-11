@@ -435,7 +435,7 @@ function validateUpdate(m: CapabilityUpdateMutation): ValidationResult {
   if (!isValidVersion(m.sourceVersion)) {
     errors.push(`update: sourceVersion must be full SemVer MAJOR.MINOR.PATCH (got '${String(m.sourceVersion)}'); no ranges, no normalization`);
   }
-  if (m.capabilityId.trim().length === 0) errors.push("update: capabilityId required");
+  if (typeof m.capabilityId !== "string" || m.capabilityId.trim().length === 0) errors.push("update: capabilityId required");
   const patchKeys = Object.keys(m.patch ?? {});
   if (patchKeys.length === 0) errors.push("update: patch must not be empty");
   for (const imm of IMMUTABLE_DEFINITION_FIELDS) {
@@ -448,6 +448,9 @@ function validateUpdate(m: CapabilityUpdateMutation): ValidationResult {
 
 function validateTransition(m: CapabilityTransitionMutation): ValidationResult {
   const errors: string[] = [];
+  if (typeof m.capabilityId !== "string" || m.capabilityId.trim().length === 0) {
+    errors.push("transition: capabilityId required");
+  }
   if (!isLifecycleState(m.from)) errors.push(`transition: 'from' must be a valid lifecycle state (got '${String(m.from)}')`);
   if (!isLifecycleState(m.to)) errors.push(`transition: 'to' must be a valid lifecycle state (got '${String(m.to)}')`);
   if (isLifecycleState(m.from) && isLifecycleState(m.to) && !isLegalTransition(m.from, m.to)) {
@@ -458,9 +461,10 @@ function validateTransition(m: CapabilityTransitionMutation): ValidationResult {
 
 function validateConsolidate(m: CapabilityConsolidateMutation): ValidationResult {
   const errors: string[] = [];
-  if (m.sources.length === 0) errors.push("consolidate: sources must be non-empty");
-  if (new Set(m.sources).size !== m.sources.length) errors.push("consolidate: sources must be unique");
-  if (m.sources.includes(m.target)) errors.push("consolidate: target must not be one of the sources");
+  if (!Array.isArray(m.sources)) errors.push("consolidate: sources must be an array");
+  if (Array.isArray(m.sources) && m.sources.length === 0) errors.push("consolidate: sources must be non-empty");
+  if (Array.isArray(m.sources) && new Set(m.sources).size !== m.sources.length) errors.push("consolidate: sources must be unique");
+  if (Array.isArray(m.sources) && m.sources.includes(m.target)) errors.push("consolidate: target must not be one of the sources");
   if (m.sourceDisposition !== "deprecate" && m.sourceDisposition !== "remove") {
     errors.push("consolidate: sourceDisposition must be 'deprecate' or 'remove'");
   }
@@ -474,8 +478,8 @@ function validateConsolidate(m: CapabilityConsolidateMutation): ValidationResult
 
 function validateRemove(m: CapabilityRemoveMutation): ValidationResult {
   const errors: string[] = [];
-  if (m.capabilityId.trim().length === 0) errors.push("remove: capabilityId required");
-  if (m.reason.trim().length === 0) errors.push("remove: reason required");
+  if (typeof m.capabilityId !== "string" || m.capabilityId.trim().length === 0) errors.push("remove: capabilityId required");
+  if (typeof m.reason !== "string" || m.reason.trim().length === 0) errors.push("remove: reason required");
   return { valid: errors.length === 0, errors };
 }
 
