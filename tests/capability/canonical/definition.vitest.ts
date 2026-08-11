@@ -23,8 +23,20 @@ describe("CapabilityDefinition", () => {
   it("rejects empty id", () => {
     expect(() => validateCapabilityDefinition(makeDef({ id: "" }))).toThrow(/id/);
   });
+  it("accepts kind: 'agent' as a valid semantic kind", () => {
+    expect(() => validateCapabilityDefinition(makeDef({ kind: "agent" }))).not.toThrow();
+  });
   it("rejects a kind that is a provider technology", () => {
     expect(() => validateCapabilityDefinition(makeDef({ kind: "tool" as never }))).toThrow(/kind/);
+  });
+  it("rejects invalid risk level", () => {
+    expect(() => validateCapabilityDefinition(makeDef({ risk: "extreme" as never }))).toThrow(/risk/);
+  });
+  it("rejects invalid requiredPermissions element", () => {
+    expect(() => validateCapabilityDefinition(makeDef({ requiredPermissions: ["superuser" as never] }))).toThrow(/requiredPermissions/);
+  });
+  it("rejects a Date in extensions as non-serializable", () => {
+    expect(() => validateCapabilityDefinition(makeDef({ extensions: { created: new Date() } }))).toThrow(/serializable/);
   });
   it("rejects a definition with no bindings", () => {
     expect(() => validateCapabilityDefinition(makeDef({ bindings: [] }))).toThrow(/binding/);

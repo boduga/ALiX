@@ -24,6 +24,9 @@ describe("CapabilityProviderBinding", () => {
     const fn = () => 1;
     expect(() => validateProviderBinding({ id: "x", type: "native", config: { cb: fn } })).toThrow(/serializable/);
   });
+  it("rejects a Date in config as non-serializable", () => {
+    expect(() => validateProviderBinding({ id: "x", type: "native", config: { created: new Date() } })).toThrow(/serializable/);
+  });
   it("rejects missing required config for external-cli", () => {
     expect(() => validateProviderBinding({ id: "gh", type: "external-cli" })).toThrow(/external-cli/);
   });

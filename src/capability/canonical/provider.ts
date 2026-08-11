@@ -32,7 +32,11 @@ function isSerializable(value: unknown): boolean {
   if (t === "string" || t === "number" || t === "boolean") return true;
   if (t === "undefined") return false;
   if (Array.isArray(value)) return value.every(isSerializable);
-  if (t === "object") return Object.values(value as Record<string, unknown>).every(isSerializable);
+  if (t === "object") {
+    // Reject non-plain objects (Date, RegExp, Map, Set, etc.)
+    if (Object.prototype.toString.call(value) !== "[object Object]") return false;
+    return Object.values(value as Record<string, unknown>).every(isSerializable);
+  }
   return false; // function, symbol, bigint
 }
 

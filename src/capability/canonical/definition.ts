@@ -10,7 +10,8 @@ import { isValidVersion } from "./version.js";
 export type CapabilityRisk = "low" | "medium" | "high" | "critical";
 export type CapabilityPermission = "operator" | "admin" | "developer" | "internal";
 
-const PROVIDER_TECH_KINDS = new Set<string>(["native", "tool", "mcp", "external-cli", "daemon", "agent", "plugin", "remote-api"]);
+const RISK_LEVELS = new Set<string>(["low", "medium", "high", "critical"]);
+const VALID_PERMISSIONS = new Set<string>(["operator", "admin", "developer", "internal"]);
 
 /** Canonical capability artifact. Pure data — no functions, no live handles. */
 export interface CapabilityDefinition {
@@ -42,7 +43,11 @@ function isSerializable(value: unknown): boolean {
   if (t === "string" || t === "number" || t === "boolean") return true;
   if (t === "undefined") return false;
   if (Array.isArray(value)) return value.every(isSerializable);
-  if (t === "object") return Object.values(value as Record<string, unknown>).every(isSerializable);
+  if (t === "object") {
+    // Reject non-plain objects (Date, RegExp, Map, Set, etc.)
+    if (Object.prototype.toString.call(value) !== "[object Object]") return false;
+    return Object.values(value as Record<string, unknown>).every(isSerializable);
+  }
   return false; // function, symbol, bigint
 }
 
@@ -54,13 +59,14 @@ export function validateCapabilityDefinition(d: unknown): asserts d is Capabilit
   if (!isPlainRecord(d)) throw new Error("capability: definition must be an object");
   if (typeof d.id !== "string" || d.id.trim().length === 0) throw new Error("capability: definition id must be a non-empty string");
   if (!isValidVersion(d.version)) throw new Error(`capability: definition version '${String(d.version)}' is not full SemVer MAJOR.MINOR.PATCH`);
-  if (!isCapabilityKind(d.kind)) throw new Error(`capability: definition kind '${String(d.kind)}' is not one of ${CAPABILITY_KINDS.join("|")}`);
-  if (PROVIDER_TECH_KINDS.has(d.kind)) throw new Error(`capability: definition kind '${d.kind}' is a provider technology, not a semantic kind`);
+  if (!isCapabilityKind(d.kind)) throw new Error(`capability: definition kind '${String(d.kind)}' is not a semantic kind (provider technologies like tool/mcp/native are not kinds). Must be one of ${CAPABILITY_KINDS.join("|")}`);
+  if (typeof d.risk !== "string" || !RISK_LEVELS.has(d.risk)) throw new Error(`capability: definition risk '${String(d.risk)}' must be one of ${[...RISK_LEVELS].join("|")}`);
   if (typeof d.title !== "string" || d.title.trim().length === 0) throw new Error("capability: definition title must be a non-empty string");
   if (typeof d.description !== "string") throw new Error("capability: definition description must be a string");
   if (!isStringArray(d.tags)) throw new Error("capability: definition tags must be a string array");
   if (typeof d.category !== "string") throw new Error("capability: definition category must be a string");
   if (!isStringArray(d.requiredPermissions)) throw new Error("capability: definition requiredPermissions must be a string array");
+  if (!d.requiredPermissions.every((p) => VALID_PERMISSIONS.has(p))) throw new Error(`capability: definition requiredPermissions must only contain ${[...VALID_PERMISSIONS].join("|")}`);
   if (!isStringArray(d.dependencies)) throw new Error("capability: definition dependencies must be a string array");
   if (!Array.isArray(d.bindings) || d.bindings.length === 0) throw new Error("capability: definition must declare at least one provider binding");
   for (const b of d.bindings) validateProviderBinding(b);
