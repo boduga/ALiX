@@ -7,8 +7,10 @@ import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js"
 import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
 import { CapabilityRegistry } from "../../../src/capability/registry.js";
 import { CapabilityMutationExecutor, createCapabilityRollbackResolver, type CapabilityPreState } from "../../../src/evolution/execution/capability-mutation-executor.js";
+import { nextDefinitionForUpdate } from "../../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
 import type { CapabilityCreateMutation } from "../../../src/capability/mutation-contract.js";
+import { classifyUpdateBump } from "../../../src/capability/mutation-contract.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -136,5 +138,97 @@ describe("CapabilityMutationExecutor — create", () => {
     assert.equal(rbTrans.operation, "capability.restore_transition");
     assert.equal(rbTrans.safe, true);
     assert.equal(rbTrans.parameters.capabilityId, "tool.file.read");
+  });
+});
+
+describe("CapabilityMutationExecutor — update", () => {
+  let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
+  before(() => { dir = mkdtempSync(join(tmpdir(), "cap6-upd-")); catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir })); registry = new CapabilityRegistry(catalog); });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  async function seed() {
+    // `before` runs once per suite (not per test), so reset the shared id to a
+    // clean single publication before re-seeding — otherwise a prior test's
+    // new id@version collides on "already exists". Behavior-identical to a
+    // fresh catalog per test: each seed leaves exactly tool.file.read@1.0.0.
+    catalog.remove("tool.file.read");
+    catalog.register(def(), def().bindings[0]);
+    registry.reload();
+  }
+
+  it("publishes a new immutable id@version with the classified bump", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { description: "updated desc" } };
+    const step = { stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} };
+    const res = await executor.executeStep(step, {});
+    assert.equal(res.success, true);
+    const cur = catalog.get("tool.file.read")!;
+    assert.equal(cur.version, "1.0.1"); // PATCH bump
+    assert.equal(cur.description, "updated desc");
+    // Immutability: the old publication is still in the catalog
+    const all = catalog.list().filter((d) => d.id === "tool.file.read");
+    assert.equal(all.length, 2);
+    assert.ok(all.some((d) => d.version === "1.0.0" && d.description === "read"));
+  });
+
+  it("classifies a binding change as MAJOR and bumps major", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { bindings: [{ type: "mcp" as const, id: "mcp-2" }] } };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.get("tool.file.read")!.version, "2.0.0");
+  });
+
+  it("rejects a stale sourceVersion (actual !== sourceVersion)", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "0.5.0", patch: { description: "x" } };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /sourceVersion/);
+    assert.equal(catalog.get("tool.file.read")!.version, "1.0.0"); // unchanged
+  });
+
+  it("rejects a patch that touches immutable id/version/kind", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { id: "tool.evil", version: "9.9.9", kind: "query" } as never };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /immutable/);
+  });
+
+  it("rejects a no-op update (#480: failed update = no-op, no redundant publication)", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { description: "read" } }; // identical value
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /no change/);
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.read").length, 1);
+  });
+
+  it("record-sink failure after update → byte-identical restore", async () => {
+    await seed();
+    const executor = new CapabilityMutationExecutor({ catalog, registry, record: { record: async (): Promise<void> => { throw new Error("boom"); } } });
+    const before = JSON.stringify(catalog.list());
+    const mutation = { operation: "capability.update" as const, capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { description: "x" } };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.update", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.equal(JSON.stringify(catalog.list()), before);
+  });
+});
+
+describe("nextDefinitionForUpdate", () => {
+  it("applies patch and classifies bump", () => {
+    const next = nextDefinitionForUpdate(def(), { description: "new" });
+    assert.equal(next.version, "1.0.1");
+    assert.equal(next.description, "new");
+    assert.equal(next.id, "tool.file.read");
+  });
+  it("throws when the patched result is not a valid definition", () => {
+    assert.throws(() => nextDefinitionForUpdate(def(), { bindings: [] }), /binding/);
   });
 });

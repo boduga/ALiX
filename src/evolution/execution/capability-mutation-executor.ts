@@ -21,14 +21,16 @@ import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { CapabilityCatalog } from "../../capability/canonical/catalog.js";
 import type { CapabilityProviderBinding } from "../../capability/canonical/provider.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
+import { validateCapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { CapabilityAvailability, CapabilityRegistry } from "../../capability/registry.js";
 import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
 import type {
   CapabilityMutation,
   CapabilityDefinitionPatch,
   CapabilityCreateMutation,
+  CapabilityUpdateMutation,
 } from "../../capability/mutation-contract.js";
-import { validateCapabilityMutation } from "../../capability/mutation-contract.js";
+import { classifyUpdateBump, validateCapabilityMutation } from "../../capability/mutation-contract.js";
 import type { StepExecutor } from "./execution-runtime.js";
 import type { ExecutionStep, RollbackStep } from "./contracts/execution-contract.js";
 import { DefaultRollbackResolver, type RollbackResolver } from "./execution-planner.js";
@@ -79,6 +81,37 @@ export function toCapabilityMutationChange(mutation: CapabilityMutation): {
     preconditions: {},
     postconditions: {},
   };
+}
+
+/** Structural deep equality for two plain values (no prototype walk). Used by the
+ *  update no-op guard (#480) — the same shape CAP-5's `classifyBindingsChange` uses. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  const keysA = Object.keys(a as Record<string, unknown>);
+  const keysB = Object.keys(b as Record<string, unknown>);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
+  }
+  return true;
+}
+
+/** Apply an update patch to a publication, classify the bump (#480), and return the
+ *  new immutable publication with the bumped version. Throws on any invalid state. */
+export function nextDefinitionForUpdate(
+  previous: CapabilityDefinition,
+  patch: CapabilityDefinitionPatch,
+): CapabilityDefinition {
+  if ((patch as Record<string, unknown>).id !== undefined || (patch as Record<string, unknown>).version !== undefined || (patch as Record<string, unknown>).kind !== undefined) {
+    throw new Error("update: 'id'/'version'/'kind' are immutable and must not appear in a patch");
+  }
+  const patched = applyCapabilityDefinitionPatch(previous, patch);
+  validateCapabilityDefinition(patched); // throws if patch produces an invalid definition
+  const bump = classifyUpdateBump(previous, patched);
+  const next = { ...patched, version: bumpSemVer(previous.version, bump) };
+  validateCapabilityDefinition(next);
+  return next;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +208,17 @@ export function createCapabilityRollbackResolver(): RollbackResolver {
       forwardStepId: step.stepId,
       operation: "capability.restore_create",
       parameters: { capabilityId: params.capabilityId ?? params.definition?.id },
+      rollbackType: "automatic" as const,
+      safe: true,
+    };
+  });
+  resolver.registerOperation("capability.update", (step) => {
+    const { capabilityId } = step.parameters as { capabilityId?: string };
+    return {
+      stepId: `rb-${step.stepId}`,
+      forwardStepId: step.stepId,
+      operation: "capability.restore_update",
+      parameters: { capabilityId },
       rollbackType: "automatic" as const,
       safe: true,
     };
@@ -293,8 +337,43 @@ export class CapabilityMutationExecutor implements StepExecutor {
     return { success: true, output: { operation, mutation: result.mutation, result } };
   }
 
-  private async executeUpdate(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
-    return { success: false, output: {}, error: "capability.update: not implemented (Task 2)" };
+  private async executeUpdate(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const mutation = step.parameters as unknown as CapabilityUpdateMutation;
+    const validation = validateCapabilityMutation(mutation);
+    if (!validation.valid) return { success: false, output: {}, error: validation.errors.join("; ") };
+    const previous = this.catalog.get(mutation.capabilityId);
+    if (!previous) return { success: false, output: {}, error: `capability.update: '${mutation.capabilityId}' not found` };
+    if (previous.version !== mutation.sourceVersion) {
+      return { success: false, output: {}, error: `capability.update: sourceVersion mismatch (expected ${previous.version}, got ${mutation.sourceVersion}) — stale decision (#479)` };
+    }
+    // No-op guard FIRST (#480, user ruling): detect before any version allocation or
+    // durable mutation — a no-op leaves no publication, no registry change, no result.
+    const preBump = applyCapabilityDefinitionPatch(previous, mutation.patch);
+    if (deepEqual(preBump, previous)) {
+      return { success: false, output: {}, error: "capability.update: patch produces no change (#480 no-op)" };
+    }
+    let next: CapabilityDefinition;
+    try {
+      next = nextDefinitionForUpdate(previous, mutation.patch);
+    } catch (err) {
+      return { success: false, output: {}, error: err instanceof Error ? err.message : String(err) };
+    }
+    const pre = capturePreState(this.catalog, this.registry);
+    const result = this.applyUpdate(next, previous);
+    if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
+    // `result.output ?? {}` mirrors executeCreate: output is always set when
+    // ok=true, but the union type requires the guard (matches Task 1's tail).
+    return this.commit("capability.update", mutation, [mutation.capabilityId], pre, result.output ?? {});
+  }
+
+  private applyUpdate(next: CapabilityDefinition, previous: CapabilityDefinition): { ok: boolean; error?: string; output?: Record<string, unknown> } {
+    try {
+      this.catalog.register(next, next.bindings[0]); // append immutable id@version — never catalog.update
+      this.registry.reload();
+      return { ok: true, output: { published: this.catalog.get(next.id), previous, bump: classifyUpdateBump(previous, next) } };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
   private async executeTransition(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
     return { success: false, output: {}, error: "capability.transition: not implemented (Task 3)" };
