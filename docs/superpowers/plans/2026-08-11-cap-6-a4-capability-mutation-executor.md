@@ -14,13 +14,18 @@
 - **A4 gate preserved verbatim** — `authorizeExecution` (`execution-authorization.ts`) is untouched. The executor is the runtime's `StepExecutor`; the caller authorizes first.
 - **Atomicity design (greenfield)** — per mutation: prepare (capture pre-state) → validate (CAP-5 validators + source/precondition checks) → apply durable mutation (catalog) → project registry (`registry.reload()`) → record governance result (injected `GovernanceRecordSink`, inside the boundary) → commit. The A7.1 compensating-rollback-after-post-commit-failure pattern is a legacy bridge, NOT carried forward. On any failure after apply, restore the pre-mutation projection (byte-identical) and return a failed step.
 - **Immutable publications (#479)** — create/update/consolidate always **append** a new `id@version` via `catalog.register(def, def.bindings[0])`; never `catalog.update` (in-place replace). `id`/`version`/`kind` are never patched. Update's `sourceVersion` is a stale-decision precondition: `catalog.get(id).version === sourceVersion` must hold (#34 `actual === from`).
+  - **Consolidate target publication (user-ruling REFINED):** never overwrite or re-register an existing `id@version`. **Existing target** → the proposed target publication must advance the current target's version. **New target** → create the first immutable publication (there is no "current version" to advance from). Both paths publish a NEW immutable artifact; neither may in-place-replace an existing publication.
+  - **No-op update (user-ruling EXPLICIT):** no-op detection occurs **before** any durable mutation and **before** any publication/version allocation. A patch producing no effective change is rejected with no publication, no registry change, no governance result, no durable mutation — no artifact of any kind left behind.
 - **Governed register/create is actually applied** — a create with a complete approved definition registers it (no placeholder, no `APPROVED_PENDING_APPLICATION` dead-end). Create rejects an already-present id.
 - **Consolidation is a real definition mutation** — publishes the approved target definition and then disposes sources per `sourceDisposition` (`deprecate` → lifecycle `deprecated`; `remove` → catalog remove). This is NOT the old A7.1 "deprecate related capabilities" behavior.
 - **Forbidden files (never touch):** `src/capability/initial-capabilities.ts`, `src/tools/tool-registry.ts`, `src/policy/capability-registry.ts`, and **production `src/capability/canonical/*`** (CAP-2 import-only — the executor uses only the public `CapabilityCatalog`/`CapabilityRegistry` surface; it never modifies the canonical store or definition).
 - **A7.1 legacy surfaces stay** — `capability-lifecycle-applier.ts` and `capability-lifecycle-step-executor.ts` are NOT removed (CAP-11). Their behavior must not regress: the applier's resolver injection is repointed to the executor's `createCapabilityRollbackResolver()` (identical `capability.transition` → `capability.restore_transition` mapping) so plans built for legacy transitions keep automatic safe rollback.
+- **Single authoritative capability rollback resolver (user ruling KEEP #1)** — after CAP-6 there is exactly ONE place that maps `capability.*` operations to rollback steps: `createCapabilityRollbackResolver()` in the executor module. Both the executor AND the legacy `capability-lifecycle-applier` consume that resolver. No duplicated mapping: the planner's `createDefaultRollbackResolver` is generic (upgrade_agent_runtime / update_configuration / manual fallback) and holds NO capability-specific rollback knowledge.
 - **Test convention:** new executor tests are **node:test** (`.test.ts`) under `tests/evolution/execution/`, importing `../../../src/evolution/execution/...js` — run via `pnpm run build && pnpm test` (the A4 layer tests are node:test, NOT vitest). Vitest tests under `tests/capability/` are unaffected.
 - **Type gate:** ALWAYS run `pnpm exec tsc --noEmit` after each task (node:test does not typecheck — CAP-1 lesson).
 - **Deterministic artifacts:** every output artifact (mutation result, post-state, evidence) is built from deep copies/frozen snapshots — the executor must never return live references into `CapabilityCatalog`/`CapabilityRegistry` state. Mutating a returned result must not affect the catalog.
+- **Deterministic artifactId (user-ruling LOCKED)** — `artifactId` is a deterministic function of the mutation/result **identity only**: the canonicalized mutation payload + resulting post-state. It MUST NOT depend on wall-clock time, random UUIDs, object identity, map iteration order, or incidental serialization order. These artifacts become evidence for later A-series governance, so identical governed inputs must produce identical artifactIds.
+- **Transaction boundary includes the registry projection (user-ruling LOCKED)** — the recoverable atomicity boundary is: capture durable state + registry + artifacts → validate → mutate → project registry → record governance result → commit. **Any failure before commit restores catalog + registry + artifacts byte-identical** — including a failure in the projection step itself. If a catalog mutation succeeds but the registry projection fails, the executor must NOT leave a half-applied state. This is a hard Task 6/8 assertion: the apply paths restore pre-state on apply failure (not just on record-sink failure).
 
 ### Consumed interfaces (exact — from CAP-2/3/4/5, already on main)
 
@@ -470,7 +475,9 @@ export class CapabilityMutationExecutor implements StepExecutor {
     validateCapabilityDefinition(mutation.definition); // fail-closed: the contract validator may pass shape but the store must not throw mid-write
     const pre = capturePreState(this.catalog, this.registry);
     const result = this.applyCreate(mutation, pre);
-    if (!result.ok) return { success: false, output: {}, error: result.error };
+    // Apply failure (incl. a registry projection failure after the catalog write)
+    // must restore the pre-state — never leave a half-applied mutation.
+    if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.definition.id], pre); return { success: false, output: {}, error: result.error }; }
     return this.commit("capability.create", mutation, [mutation.definition.id], pre, result.output);
   }
 
@@ -726,19 +733,21 @@ private async executeUpdate(step: ExecutionStep): Promise<{ success: boolean; ou
   if (previous.version !== mutation.sourceVersion) {
     return { success: false, output: {}, error: `capability.update: sourceVersion mismatch (expected ${previous.version}, got ${mutation.sourceVersion}) — stale decision (#479)` };
   }
+  // No-op guard FIRST (#480, user ruling): detect before any version allocation or
+  // durable mutation — a no-op leaves no publication, no registry change, no result.
+  const preBump = applyCapabilityDefinitionPatch(previous, mutation.patch);
+  if (deepEqual(preBump, previous)) {
+    return { success: false, output: {}, error: "capability.update: patch produces no change (#480 no-op)" };
+  }
   let next: CapabilityDefinition;
   try {
     next = nextDefinitionForUpdate(previous, mutation.patch);
   } catch (err) {
     return { success: false, output: {}, error: err instanceof Error ? err.message : String(err) };
   }
-  // No-op guard (#480): patch produces no effective change → reject, no redundant publication.
-  if (deepEqual(applyCapabilityDefinitionPatch(previous, mutation.patch), previous)) {
-    return { success: false, output: {}, error: "capability.update: patch produces no change (#480 no-op)" };
-  }
   const pre = capturePreState(this.catalog, this.registry);
   const result = this.applyUpdate(next, previous);
-  if (!result.ok) return { success: false, output: {}, error: result.error };
+  if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
   return this.commit("capability.update", mutation, [mutation.capabilityId], pre, result.output);
 }
 
@@ -856,7 +865,7 @@ private async executeTransition(step: ExecutionStep): Promise<{ success: boolean
   }
   const pre = capturePreState(this.catalog, this.registry);
   const result = this.applyTransition(mutation);
-  if (!result.ok) return { success: false, output: {}, error: result.error };
+  if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
   return this.commit("capability.transition", mutation, [mutation.capabilityId], pre, result.output);
 }
 
@@ -899,7 +908,7 @@ git commit -m "feat(capability): CAP-6 capability.transition path — stale-deci
 - Produces: `capability.restore_consolidate` rollback mapping (parameters: `{ sources: string[]; target: string }`).
 
 **Design contract:**
-- Consolidate sequence: (1) `validateCapabilityMutation(mutation)` (local shape) → reject; (2) resolve sources: `sourceDefs = mutation.sources.map(id => catalog.get(id))` — any missing → reject "source does not resolve"; (3) **`validateConsolidateMerge(mutation, sourceDefs)` → errors → reject** (this is the source-aware gate the CAP-5 deferral invariant demands — the executor is the ONLY place it runs); (4) **`mutation.definition.id === target` → else reject** (the approved definition must publish as the target); (5) **target version must advance the current target** — `catalog.has(target)` and `catalog.get(target).version >= definition.version` → reject "proposed target version must be higher than current target version (immutable #479)"; (6) capture pre-state; (7) publish target: `catalog.register(mutation.definition, mutation.definition.bindings[0])`; (8) disposition: `"deprecate"` → `registry.setLifecycleState(source, "deprecated")` for each source; `"remove"` → `catalog.remove(source)` for each source; (9) `registry.reload()`; (10) commit. Failure → restore pre-state (affectedIds = [target, ...sources]).
+- Consolidate sequence: (1) `validateCapabilityMutation(mutation)` (local shape) → reject; (2) resolve sources: `sourceDefs = mutation.sources.map(id => catalog.get(id))` — any missing → reject "source does not resolve"; (3) **`validateConsolidateMerge(mutation, sourceDefs)` → errors → reject** (this is the source-aware gate the CAP-5 deferral invariant demands — the executor is the ONLY place it runs); (4) **`mutation.definition.id === target` → else reject** (the approved definition must publish as the target); (5) **target publication (user-ruling REFINED)** — never overwrite/re-register an existing `id@version`. If `catalog.has(target)`, reject when the proposed `definition.version` does **not advance** the current target version (`catalog.get(target).version >= definition.version` → reject "must advance current target version"); if the target is NEW, publish the first immutable publication (no "current version" to advance from); (6) capture pre-state; (7) publish target: `catalog.register(mutation.definition, mutation.definition.bindings[0])` (append — never `catalog.update`); (8) disposition: `"deprecate"` → `registry.setLifecycleState(source, "deprecated")` for each source; `"remove"` → `catalog.remove(source)` for each source; (9) `registry.reload()`; (10) commit. Failure → restore pre-state (affectedIds = [target, ...sources]).
 - This is a REAL definition mutation (#477): the approved definition is published; it is NOT the old A7.1 "deprecate related capabilities" behavior. The target publication is the governed definition, immutable, exactly as approved.
 - If `sourceDisposition === "deprecate"`, sources remain in the catalog with lifecycle `deprecated` (terminal, #481); if `"remove"`, they are removed from the catalog.
 
@@ -991,6 +1000,43 @@ describe("CapabilityMutationExecutor — consolidate", () => {
     const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
     assert.equal(res.success, false);
     assert.match(res.error ?? "", /id.*target|target.*id/);
+  });
+
+  it("existing target: rejects a proposed version that does not advance the current target (user-refined #479)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.0.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }), // same version as current target
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /advance|higher|current/);
+    // Nothing re-registered/overwritten: still exactly one tool.file.ab publication at 1.0.0
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 1);
+  });
+
+  it("existing target: advancing version publishes a new immutable publication", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.0.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.1.0", dependencies: ["tool.file.a", "tool.file.b"] }), // advances to 1.1.0
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.get("tool.file.ab")!.version, "1.1.0");
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 2); // old + new, both immutable
   });
 
   it("rejects a source that does not resolve", async () => {
@@ -1219,7 +1265,7 @@ private async executeRemove(step: ExecutionStep): Promise<{ success: boolean; ou
   }
   const pre = capturePreState(this.catalog, this.registry);
   const result = this.applyRemove(mutation);
-  if (!result.ok) return { success: false, output: {}, error: result.error };
+  if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
   return this.commit("capability.remove", mutation, [mutation.capabilityId], pre, result.output);
 }
 
@@ -1265,7 +1311,7 @@ git commit -m "feat(capability): CAP-6 capability.remove path — terminal remov
 
 **Design contract (the ticket's atomicity AC, hardened):**
 - **Reject → unchanged:** a mutation failing `validateCapabilityMutation` / source resolution / preconditions leaves catalog + registry byte-identical. Covered per-op in Tasks 1-5; this task adds a comprehensive matrix across ALL five ops asserting `JSON.stringify(catalog.list())` and `registry.list()` unchanged after each reject.
-- **Execution failure → rollback, no committed mutation:** a record-sink failure (or an injected apply failure) after the durable mutation restores the pre-state byte-identical. Matrix across all five ops.
+- **Execution failure → rollback, no committed mutation:** a record-sink failure (or an injected apply failure, or a **registry projection failure after a catalog write**) after the durable mutation restores the pre-state byte-identical. The projection step is INSIDE the transaction boundary: a catalog write that succeeds but fails to project must not leave a half-applied state. Matrix across all five ops + the one-shot projection-failure test.
 - **Success → exactly one governed mutation + new immutable publication where required:** create/update/consolidate publish exactly one new `id@version`; transition mutates lifecycle only; remove deletes. Matrix asserts the exact post-state.
 - **Immutable input + output artifacts:** every `CapabilityMutationResult` is deep-frozen; returned objects share no references with live catalog/registry state (mutating them cannot change the catalog). `artifactId` is deterministic across identical executions.
 - **In-plan rollback (`capability.restore_*`):** `handleRestoreStep` maps each restore op to `restorePreState` with the step's parameters (the executor restores from the captured pre-state; idempotent). The in-plan rollback and the executor's own restore produce the same byte-identical result.
@@ -1341,6 +1387,27 @@ describe("CAP-6 atomicity matrix", () => {
       assert.equal(res.success, false, `${a.op} should fail`);
       assertIdentical(snapshot(), before);
     }
+  });
+
+  it("registry projection failure after a catalog write → byte-identical restore (projection is IN the transaction boundary)", async () => {
+    // The catalog write succeeds but `registry.reload()` throws ONCE — the executor
+    // must NOT leave a half-applied state: the catalog write is rolled back, and
+    // the restore's own projection succeeds (one-shot throw, not permanent).
+    class OneShotThrowingRegistry extends CapabilityRegistry {
+      private throwOnNext = true;
+      override reload(): void {
+        if (this.throwOnNext) { this.throwOnNext = false; throw new Error("projection failed"); }
+        super.reload();
+      }
+    }
+    const failingRegistry = new OneShotThrowingRegistry(catalog);
+    catalog.register(def("tool.file.read"), def("tool.file.read").bindings[0]);
+    const executor = new CapabilityMutationExecutor({ catalog, registry: failingRegistry });
+    const before = { catalog: JSON.stringify(catalog.list()) };
+    const res = await executor.executeStep(step("capability.create", { operation: "capability.create", definition: def("tool.file.proj") }), {});
+    assert.equal(res.success, false);
+    assert.equal(catalog.has("tool.file.proj"), false); // the catalog write was rolled back
+    assert.equal(JSON.stringify(catalog.list()), before.catalog); // byte-identical
   });
 
   it("success produces exactly one governed mutation + immutable artifact", async () => {
@@ -1839,13 +1906,16 @@ git commit -m "test(capability): CAP-6 full A4 flow integration — all five mut
 - `deepEqual` in Task 2 matches CAP-5's `classifyBindingsChange` comparison semantics.
 - Registry lifecycle setter is `setLifecycleState` (not `applyLifecycleTransition`) — the executor uses the canonical authority per CAP-3.
 
-**Known deliberate deviations (flag for human review):**
-1. **Applier repoint** (Task 7): the program spec's "Files/modules affected" lists `execution-planner.ts`/`execution-runtime.ts`/`execution-authorization.ts` but NOT `capability-lifecycle-applier.ts`. Repointing the legacy applier's resolver is the minimal consequence of re-homing without regressing its rollback behavior. Alternative (keep both mappings) was rejected as it duplicates capability semantics in the generic planner.
-2. **Create rejects an existing id** (Task 1): #478 says create is a new-capability operation; the executor rejects re-registration (use update). This is an application invariant, not new semantics.
-3. **No-op update rejected** (Task 2): #480 "failed update = no-op" read as "a patch producing no effective change is rejected" to avoid redundant publications.
-4. **Remove has no must-be-deprecated gate** (Task 5): removal policy is upstream governance (design §25); the executor applies an approved remove regardless of lifecycle.
-5. **Consolidate target must advance version** (Task 4): immutable-publication invariant — publishing a non-current version would orphan it.
-6. **No registry mutation-port rewiring** (all tasks): the executor is the governed mutation path; wiring it into `setMutationPort` is CAP-8/9 territory (bootstrap stays `CatalogBackedCapabilityMutationPort`).
+**Known deliberate deviations (human-reviewed, rulings locked before SDD):**
+1. **Applier repoint** (Task 7) — **KEEP**: the program spec's "Files/modules affected" lists `execution-planner.ts`/`execution-runtime.ts`/`execution-authorization.ts` but NOT `capability-lifecycle-applier.ts`. Repointing the legacy applier's resolver is the minimal consequence of re-homing without regressing its rollback behavior. Locked invariant: exactly ONE authoritative capability rollback resolver (`createCapabilityRollbackResolver`) consumed by BOTH the executor and the legacy applier; no duplicated mapping.
+2. **Create rejects an existing id** (Task 1) — **KEEP**: #478 says create is a new-capability operation. `create(id)` requires id absent; `update(id)` requires id present; create must never become an upsert. Both cases tested (create nonexistent → publication; create existing → rejection + zero mutation in the atomicity suite).
+3. **No-op update rejected, detection-before-durable-mutation** (Task 2) — **KEEP**: #480 "failed update = no-op". No-op detection occurs before any durable mutation and before any publication/version allocation — a no-op leaves no publication, no registry change, no governance result, no durable mutation.
+4. **Remove has no must-be-deprecated gate** (Task 5) — **KEEP**: removal policy is upstream governance (design §25); the executor validates the mutation contract + stale-state invariants and mechanically applies an approved remove. It never becomes a second governance-policy engine (that would duplicate CAP-7).
+5. **Consolidate target publication REFINED** (Task 4) — **REFINED per user ruling**: never overwrite/re-register an existing `id@version`. Existing target → proposed publication must advance the current target's version. New target → first immutable publication (no "current version" to advance from). Plus `target ∉ sources` + the locked conservative disposition rules.
+6. **One governed mutation per execution plan** (all tasks) — **KEEP**: the greenfield model (design §36; ticket AC "exactly one governed mutation"). The executor is stateless; each plan = one mutation = one atomic transaction boundary. Multi-mutation orchestration is its own future contract, not CAP-6.
+7. **No registry mutation-port rewiring** (all tasks) — **KEEP**: CAP-6 establishes the governed execution path CAN execute capability mutations; CAP-8/9 decide WHICH mutation paths reach it. Bootstrap stays `CatalogBackedCapabilityMutationPort`.
+8. **Transaction boundary includes the registry projection** (Task 6/8) — **LOCKED**: capture durable state + registry + artifacts → validate → mutate → project registry → record governance result → commit. Any failure before commit (INCLUDING a projection failure) restores catalog + registry + artifacts byte-identical. The apply paths restore pre-state on apply failure, not just record-sink failure; the Task 6 atomicity matrix asserts it.
+9. **Deterministic artifactId** (Task 6) — **LOCKED**: a deterministic function of mutation/result identity only — never wall-clock time, random UUID, object identity, map iteration order, or incidental serialization order. These artifacts become A-series governance evidence.
 
 ## Execution Handoff
 
