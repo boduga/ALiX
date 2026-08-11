@@ -1533,12 +1533,13 @@ describe('CAP-4 R1 fallback contract', () => {
     expect(healthy.output).toBe('fine');
   });
 
-  it('a capability with no bindings is missing_binding, not provider_unavailable', async () => {
-    const { reg, runtime } = makeRuntime();
-    reg.import([def({ id: 'nobind.cap', bindings: [] })]);
-    expect(() => runtime.invoke('nobind.cap', {}, { actor: 'operator', cwd: '/', workspace: '/' }))
-      .toThrow(/missing_binding/);
-  });
+  // NOTE (adjudicated at implementation): the canonical validator
+  // (`validateCapabilityDefinition`) REQUIRES ≥1 binding, so `bindings: []`
+  // cannot be registered — `missing_binding` is structurally unreachable via
+  // the public API. The runtime keeps its defensive `missing_binding` branch
+  // (locked vocabulary, future-proof for hand-edited catalogs), but there is
+  // NO test for it — the sync-throw path's `bindingsCount === 0` ternary is
+  // likewise defensive. This test was dropped as unbuildable.
 });
 ```
 
@@ -1551,8 +1552,8 @@ Expected: PASS.
 
 - [ ] **Step 9a: Prove every runtime path is provider-bound (legacy-free evidence)**
 
-Run: `grep -rn "ExecutorRegistry\|ExecutionResolver\|CapabilityExecutor\|ToolExecutorAdapter\|registerExecutor" src/capability/provider-executor.ts src/capability/provider-registry.ts src/capability/provider-resolver.ts src/capability/runtime.ts src/capability/platform.ts src/capability/tool-adapter.ts src/tui/capabilities/capability-service.ts`
-Expected: NO matches — no CAP-4 provider executor, the resolver, the registry, the runtime, the platform, the tool adapter, or the TUI service depends on the legacy strategy machinery (Global Constraints "No CAP-4 provider executor may depend on legacy"). The tool path is exercised by `tool-adapter.vitest.ts` (through the platform), the native path by `runtime.vitest.ts`, and mcp/external-cli/tool-fallback by `fallback.vitest.ts`. Task 6 is then pure deletion.
+Run: `grep -rnE "\b(ExecutorRegistry|ExecutionResolver|CapabilityExecutor|ToolExecutorAdapter|registerExecutor)\b" src/capability/provider-executor.ts src/capability/provider-registry.ts src/capability/provider-resolver.ts src/capability/runtime.ts src/capability/platform.ts src/capability/tool-adapter.ts src/tui/capabilities/capability-service.ts`
+Expected: NO code matches (word-boundary anchored — `ProviderExecutorRegistry` is a substring, not a word, so it does NOT match). The single expected exception is the `provider-resolver.ts` doc comment that NAMES `ExecutionResolver` in prose ("replaces strategy-keyed ExecutionResolver dispatch") — a comment is not a dependency; accept it. Everything else zero — no CAP-4 provider executor, the resolver, the registry, the runtime, the platform, the tool adapter, or the TUI service depends on the legacy strategy machinery (Global Constraints "No CAP-4 provider executor may depend on legacy"). The tool path is exercised by `tool-adapter.vitest.ts` (through the platform), the native path by `runtime.vitest.ts`, and mcp/external-cli/tool-fallback by `fallback.vitest.ts`. Task 6 is then pure deletion.
 
 - [ ] **Step 10: Typecheck gate**
 
