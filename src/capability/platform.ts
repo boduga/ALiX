@@ -5,12 +5,18 @@ import { ExecutionResolver } from "./execution-resolver.js";
 import { CapabilityRuntime } from "./runtime.js";
 import { ExecutorRegistry, NativeExecutor, type CapabilityExecutor } from "./executors.js";
 import { EventBus } from "./event-bus.js";
+import { CapabilityCatalog } from "./canonical/catalog.js";
+import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
+import { join } from "node:path";
 import type { CapabilityQuery } from "./registry.js";
 import type { Capability, CapabilityContext, Invocation } from "./types.js";
 
-/** Composes the five platform services for consumers. No UI assumptions. */
+/** Composition root (CAP-3): load catalog → build registry → wire mutation
+ *  port. Exactly ONE CapabilityRegistry per runtime universe lives here. */
 export class CapabilityPlatform {
-  readonly registry = new CapabilityRegistry();
+  readonly registry: CapabilityRegistry;
+  readonly catalog: CapabilityCatalog;
   readonly hooks = new HookRegistry();
   readonly executors = new ExecutorRegistry();
   readonly events = new EventBus();
@@ -19,7 +25,11 @@ export class CapabilityPlatform {
   private readonly resolver: ExecutionResolver;
   private readonly runtime: CapabilityRuntime;
 
-  constructor() {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog } = {}) {
+    this.catalog = opts.catalog ?? new CapabilityCatalog(new CapabilityDefinitionStore({ dir: opts.catalogDir ?? join(process.cwd(), ".alix", "capabilities") }));
+    this.registry = new CapabilityRegistry(this.catalog);
+    this.registry.setMutationPort(new CatalogBackedCapabilityMutationPort(this.catalog));
+    this.registry.setProviderBound((type) => this.executors.get(type) !== undefined);
     this.executors.register("native", this.native);
     this.registry.attach(this.events);
     this.resolver = new ExecutionResolver(this.registry);

@@ -7,6 +7,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CapabilityRegistry } from "../../../../src/capability/registry.js";
+import { CapabilityCatalog } from "../../../../src/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../../src/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../../src/capability/mutation-port.js";
 import type { Capability } from "../../../../src/capability/types.js";
 import { JsonlCapabilityLifecycleLedger } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
 import { analyzeCapabilityLifecycle } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-analyzer.js";
@@ -40,7 +43,10 @@ let registry: CapabilityRegistry;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "a7-int-"));
   ledger = new JsonlCapabilityLifecycleLedger(join(dir, "lifecycle.jsonl"));
-  registry = new CapabilityRegistry();
+  // CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+  registry = new CapabilityRegistry(catalog);
+  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   registry.register(makeCapability("core.session.list"));
   registry.register(makeCapability("core.old"));
 });
