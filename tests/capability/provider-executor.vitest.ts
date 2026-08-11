@@ -8,6 +8,7 @@ import type { Capability, CapabilityContext } from '../../src/capability/types.j
 import type { CapabilityProviderBinding } from '../../src/capability/canonical/provider.js';
 import type { ToolCallRequest } from '../../src/tools/types.js';
 import type { ExecuteResult } from '../../src/tools/executor.js';
+import { McpProviderExecutor, ExternalCliProviderExecutor, type SpawnLike } from '../../src/capability/provider-executor.js';
 
 function cap(id = 'core.echo'): Capability {
   return { id, version: '1.0', kind: 'core', title: 'Echo', description: 'x',
@@ -99,5 +100,70 @@ describe('UnavailableProviderExecutor', () => {
     const result = await new UnavailableProviderExecutor('daemon').run(binding({ type: 'daemon' }), cap(), ctx(), {});
     expect(result.error).toMatch(/not implemented/i);
     expect(result.errorKind).toBe('unavailable');
+  });
+});
+
+describe('McpProviderExecutor', () => {
+  it('calls the MCP tool and returns output', async () => {
+    const calls: string[] = [];
+    const exec = new McpProviderExecutor({ callTool: async (name, _args) => { calls.push(name); return { kind: 'success', output: 'ok' }; } });
+    const result = await exec.run(binding({ type: 'mcp', id: 'mcp:github', config: { toolName: 'github.issue.create' } }), cap(), ctx(), {});
+    expect(calls).toEqual(['github.issue.create']);
+    expect(result.output).toBe('ok');
+  });
+  it('falls back to binding.id as the tool name when config.toolName is absent', async () => {
+    const calls: string[] = [];
+    const exec = new McpProviderExecutor({ callTool: async (name) => { calls.push(name); return { kind: 'success' }; } });
+    await exec.run(binding({ type: 'mcp', id: 'mcp:github' }), cap(), ctx(), {});
+    expect(calls).toEqual(['mcp:github']);
+  });
+  it('maps an error result to fatal (or unavailable when retryable)', async () => {
+    const fatal = new McpProviderExecutor({ callTool: async () => ({ kind: 'error', message: 'denied' }) });
+    expect((await fatal.run(binding({ type: 'mcp' }), cap(), ctx(), {})).errorKind).toBe('fatal');
+    const retryable = new McpProviderExecutor({ callTool: async () => ({ kind: 'error', message: 'busy', retryable: true }) });
+    expect((await retryable.run(binding({ type: 'mcp' }), cap(), ctx(), {})).errorKind).toBe('unavailable');
+  });
+});
+
+describe('ExternalCliProviderExecutor', () => {
+  function fakeSpawn(record: { cmd: string; args: string[] }[]) {
+    const spawn: SpawnLike = async (cmd, args, opts) => { record.push({ cmd, args }); return { exitCode: 0, stdout: 'out', stderr: '' }; };
+    return spawn;
+  }
+  it('spawns the executable with operation args and a --json invocation payload', async () => {
+    const record: { cmd: string; args: string[] }[] = [];
+    const exec = new ExternalCliProviderExecutor(fakeSpawn(record));
+    const result = await exec.run(
+      binding({ type: 'external-cli', id: 'gitnexus', config: { executable: 'gitnexus', operation: ['impact'] } }),
+      cap('code.repository.impact'), ctx(), { file: 'src/x.ts' });
+    expect(record[0]).toEqual({ cmd: 'gitnexus', args: ['impact', '--json', JSON.stringify({ file: 'src/x.ts' })] });
+    expect(result.output).toBe('out');
+  });
+  it('gh implements github.issue.create with its operation', async () => {
+    const record: { cmd: string; args: string[] }[] = [];
+    const exec = new ExternalCliProviderExecutor(fakeSpawn(record));
+    await exec.run(binding({ type: 'external-cli', id: 'gh', config: { executable: 'gh', operation: ['issue', 'create'] } }), cap('github.issue.create'), ctx(), { title: 'x' });
+    expect(record[0]!.cmd).toBe('gh');
+    expect(record[0]!.args[0]).toBe('issue');
+    expect(record[0]!.args[1]).toBe('create');
+  });
+  it('ENOENT (executable missing) is fallback-eligible provider_unavailable', async () => {
+    const spawn: SpawnLike = async () => { const e = new Error('spawn gh ENOENT') as Error & { code: string }; e.code = 'ENOENT'; throw e; };
+    const exec = new ExternalCliProviderExecutor(spawn);
+    const result = await exec.run(binding({ type: 'external-cli', id: 'gh', config: { executable: 'gh' } }), cap(), ctx(), {});
+    expect(result.errorKind).toBe('unavailable');
+    expect(result.error).toMatch(/ENOENT|not found/i);
+  });
+  it('a missing config.executable is a fatal configuration error', async () => {
+    const record: { cmd: string; args: string[] }[] = [];
+    const exec = new ExternalCliProviderExecutor(fakeSpawn(record));
+    const result = await exec.run(binding({ type: 'external-cli', id: 'gh' }), cap(), ctx(), {});
+    expect(result.errorKind).toBe('configuration');
+    expect(record).toHaveLength(0);   // nothing spawned
+  });
+  it('a timeout is a fallback-eligible timeout', async () => {
+    const spawn: SpawnLike = async () => { const e = new Error('timed out') as Error & { code: string }; e.code = 'ETIMEDOUT'; throw e; };
+    const result = await new ExternalCliProviderExecutor(spawn).run(binding({ type: 'external-cli', id: 'gh', config: { executable: 'gh' } }), cap(), ctx(), {});
+    expect(result.errorKind).toBe('timeout');
   });
 });

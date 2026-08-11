@@ -6,6 +6,8 @@ import type { CapabilityProviderBinding, ProviderType } from "./canonical/provid
 import type { NativeExecutor } from "./executors.js";
 import type { ToolCallRequest } from "../tools/types.js";
 import type { ExecuteResult } from "../tools/executor.js";
+import { execFile } from "node:child_process";
+import type { ToolResult } from "../tools/types.js";
 
 /** R1 error classes (wf-r1 §4.2). timeout/429/5xx/unavailable may fail over;
  *  400-class/auth/contract/configuration are fatal (no fallback). */
@@ -92,5 +94,76 @@ export class UnavailableProviderExecutor implements ProviderExecutor {
   constructor(private readonly providerType: ProviderType) {}
   async run(_binding: CapabilityProviderBinding, _capability: Capability, _ctx: CapabilityContext, _args: Record<string, unknown>): Promise<ProviderRunResult> {
     return { error: `Provider type '${this.providerType}' is not implemented (CAP-4)`, errorKind: "unavailable" };
+  }
+}
+
+/** MCP tool invocation seam — mirrors McpManager.callTool's ToolResult shape. */
+export interface McpToolRunner {
+  callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
+}
+
+/** MCP provider executor. toolName = binding.config.toolName ?? binding.id.
+ *  An MCP server is a provider boundary (ADR-0013 MCP rule); protocol plumbing
+ *  is never a capability — only intentional operations bound here. */
+export class McpProviderExecutor implements ProviderExecutor {
+  constructor(private readonly tools: McpToolRunner) {}
+  async run(binding: CapabilityProviderBinding, capability: Capability, _ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
+    const toolName = (binding.config?.toolName as string | undefined) ?? binding.id;
+    const result = await this.tools.callTool(toolName, args);
+    if (result.kind === "error") return { error: result.message, errorKind: classifyErrorKind(result, undefined, result.retryable) };
+    return { output: result.content ?? result.output ?? result.value };
+  }
+}
+
+/** Spawn seam — injectable so tests never run real executables.
+ *  Resolves { exitCode, stdout, stderr } or throws with a `.code`
+ *  (ENOENT / ETIMEDOUT / ABORT_ERR). */
+export type SpawnLike = (
+  cmd: string,
+  args: string[],
+  opts: { timeoutMs?: number; signal?: AbortSignal },
+) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+
+function defaultSpawn(cmd: string, args: string[], opts: { timeoutMs?: number; signal?: AbortSignal }): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: opts.timeoutMs, signal: opts.signal, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        const e = error as NodeJS.ErrnoException & { code?: string };
+        if (e.code !== undefined) {
+          const wrapped = new Error(`external-cli ${cmd}: ${e.message}`) as Error & { code?: string };
+          wrapped.code = e.code;
+          reject(wrapped);
+        } else {
+          reject(new Error(`external-cli ${cmd} failed: ${e.message}`));
+        }
+        return;
+      }
+      resolve({ exitCode: 0, stdout, stderr });
+    });
+  });
+}
+
+/** External CLI provider executor (ADR-0013 external-CLI rule). The provider
+ *  owns executable resolution, argument construction, env, timeout, capture,
+ *  exit-code interpretation. One executor serves gh/gitnexus/kubectl/… —
+ *  instance identity + config come from the binding. */
+export class ExternalCliProviderExecutor implements ProviderExecutor {
+  constructor(private readonly spawn: SpawnLike = defaultSpawn) {}
+  async run(binding: CapabilityProviderBinding, capability: Capability, ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
+    const config = (binding.config ?? {}) as { executable?: string; operation?: string[]; args?: string[]; timeoutMs?: number };
+    const executable = config.executable;
+    if (!executable) {
+      return { error: `external-cli binding '${binding.id}' is missing config.executable`, errorKind: "configuration" };
+    }
+    const cliArgs = [...(config.operation ?? []), ...(config.args ?? [])];
+    if (Object.keys(args).length > 0) cliArgs.push("--json", JSON.stringify(args));
+    const timeoutMs = config.timeoutMs;
+    try {
+      const res = await this.spawn(executable, cliArgs, { timeoutMs, signal: ctx.cancellationToken });
+      if (res.exitCode === 0) return { output: res.stdout };
+      return { error: `${executable} exited ${res.exitCode}: ${res.stderr}`, errorKind: classifyErrorKind({}, res.stderr) };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : String(e), errorKind: classifyErrorKind(e as { code?: string }) };
+    }
   }
 }
