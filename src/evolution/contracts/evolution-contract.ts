@@ -12,6 +12,8 @@
  * @module evolution-contract
  */
 
+import { isValidVersion } from "../../capability/canonical/version.js";
+
 // ---------------------------------------------------------------------------
 // Evolution State
 // ---------------------------------------------------------------------------
@@ -96,7 +98,37 @@ export const VALID_EVOLUTION_TARGET_KINDS: readonly EvolutionTargetKind[] = [
 export interface EvolutionTarget {
   kind: EvolutionTargetKind;
   id: string;
+  /** Exact immutable publication for `kind === "capability"` (#479, CAP-5).
+   *  Absent = unpinned; present = must be full SemVer MAJOR.MINOR.PATCH. When
+   *  present, `(id, version)` is the complete publication identity. Other
+   *  target kinds ignore `version`. */
+  version?: string;
   currentHash?: string;
+}
+
+/**
+ * Validate an EvolutionTarget (CAP-5 #479 reconcile). For capability targets,
+ * `version` (when present) must be full SemVer MAJOR.MINOR.PATCH only — no
+ * ranges (`^`/`~`/`>=`/`*`), never silently normalized; a malformed pinned
+ * target fails contract validation. Other kinds ignore `version`. Pure — no
+ * side effects, no I/O, no store access.
+ */
+export function validateEvolutionTarget(value: unknown): ValidationResult {
+  const errors: string[] = [];
+  if (!value || typeof value !== "object") {
+    return { valid: false, errors: ["EvolutionTarget must be an object"] };
+  }
+  const v = value as Record<string, unknown>;
+  if (typeof v.kind !== "string" || !isValidTargetKind(v.kind)) {
+    errors.push(`kind must be one of: ${VALID_EVOLUTION_TARGET_KINDS.join(", ")}`);
+  }
+  if (!isNonEmptyString(v.id)) errors.push("id required and must be non-empty");
+  if (v.kind === "capability" && v.version !== undefined) {
+    if (typeof v.version !== "string" || !isValidVersion(v.version)) {
+      errors.push(`capability target version must be full SemVer MAJOR.MINOR.PATCH (got '${String(v.version)}'); no ranges, no normalization`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +389,9 @@ export function validateEvolutionIntent(value: unknown): ValidationResult {
   }
   if (!v.target || typeof v.target !== "object") {
     errors.push("target required and must be an EvolutionTarget object");
+  } else {
+    const targetErrors = validateEvolutionTarget(v.target).errors;
+    errors.push(...targetErrors);
   }
   if (!Array.isArray(v.rationale) || v.rationale.length === 0) {
     errors.push("rationale required and must contain at least one EvidenceReference");
