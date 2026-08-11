@@ -25,6 +25,7 @@ import {
   validateEvolutionValidation,
   validateEvolutionActivation,
   validateEvolutionLineage,
+  validateEvolutionTarget,
   sortReviews,
   sortProposals,
   type EvolutionIntent,
@@ -506,5 +507,52 @@ describe("empty input edge cases", () => {
 
   it("sortProposals with empty list returns empty", () => {
     assert.deepEqual(sortProposals([]), []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ValidateEvolutionTarget (CAP-5 #479 pinning)
+// ---------------------------------------------------------------------------
+
+describe("validateEvolutionTarget (CAP-5 #479 pinning)", () => {
+  it("accepts a capability target without a version (unpinned)", () => {
+    const r = validateEvolutionTarget({ kind: "capability", id: "tool.file.read" });
+    assert.equal(r.valid, true);
+  });
+
+  it("accepts a capability target pinned to an exact full-SemVer publication", () => {
+    const r = validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: "1.1.0" });
+    assert.equal(r.valid, true);
+  });
+
+  it("rejects a capability target with a non-full-SemVer version", () => {
+    assert.equal(validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: "1.1" }).valid, false);
+    assert.equal(validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: "1" }).valid, false);
+  });
+
+  it("rejects a capability target with a range or wildcard version", () => {
+    assert.equal(validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: "^1.1.0" }).valid, false);
+    assert.equal(validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: ">=1.0.0" }).valid, false);
+    assert.equal(validateEvolutionTarget({ kind: "capability", id: "tool.file.read", version: "*" }).valid, false);
+  });
+
+  it("ignores version for non-capability target kinds", () => {
+    assert.equal(validateEvolutionTarget({ kind: "policy", id: "policy-approval-threshold", version: "not-semver" }).valid, true);
+  });
+
+  it("rejects a missing kind or id", () => {
+    assert.equal(validateEvolutionTarget({ id: "tool.file.read" }).valid, false);
+    assert.equal(validateEvolutionTarget({ kind: "capability" }).valid, false);
+  });
+
+  it("validateEvolutionIntent still passes with a pinned capability target", () => {
+    const intent = {
+      evolutionId: "ev-1", origin: "operator",
+      target: { kind: "capability", id: "tool.file.read", version: "1.1.0" },
+      rationale: [{ type: "observation", reference: "obs-1" }],
+      expectedEffect: "tighten", riskClass: "medium", constraints: [], createdAt: "2026-08-11T00:00:00Z",
+    };
+    const r = validateEvolutionIntent(intent);
+    assert.equal(r.valid, true);
   });
 });
