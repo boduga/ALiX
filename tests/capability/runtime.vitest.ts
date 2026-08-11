@@ -6,10 +6,12 @@ import { join } from 'node:path';
 import { CapabilityRuntime } from '../../src/capability/runtime.js';
 import { CapabilityRegistry } from '../../src/capability/registry.js';
 import { HookRegistry } from '../../src/capability/hook-registry.js';
-import { ExecutionResolver } from '../../src/capability/execution-resolver.js';
-import { ExecutorRegistry, NativeExecutor } from '../../src/capability/executors.js';
+import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
+import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
+import { ProviderResolver } from '../../src/capability/provider-resolver.js';
+import { CapabilityNotFoundError, ProviderUnavailableError } from '../../src/capability/errors.js';
+import { NativeExecutor } from '../../src/capability/executors.js';
 import { EventBus } from '../../src/capability/event-bus.js';
-import { CapabilityNotFoundError, ExecutorNotFoundError } from '../../src/capability/errors.js';
 import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
 import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
 import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
@@ -24,11 +26,11 @@ function setup() {
   const reg = new CapabilityRegistry(catalog);
   reg.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   const hooks = new HookRegistry();
-  const executors = new ExecutorRegistry();
   const native = new NativeExecutor();
-  executors.register('native', native);
+  const providers = new ProviderExecutorRegistry();
+  providers.register('native', new NativeProviderExecutor(native));
   const bus = new EventBus();
-  const runtime = new CapabilityRuntime(reg, hooks, new ExecutionResolver(reg), executors, bus);
+  const runtime = new CapabilityRuntime(reg, hooks, new ProviderResolver(reg, providers), bus);
   return { reg, runtime, native, bus, hooks };
 }
 
@@ -224,14 +226,13 @@ describe('CapabilityRuntime', () => {
     expect(() => runtime.invoke('nope.x', {}, { actor: 'op', cwd: '/', workspace: '/' })).toThrow(CapabilityNotFoundError);
   });
 
-  it('throws ExecutorNotFoundError when the strategy has no executor', () => {
+  it('throws ProviderUnavailableError when the sole step has no eligible provider', () => {
     const { reg, runtime } = setup();
-    reg.register({
-      id: 'core.missing', version: '1.0', kind: 'core', title: 'X', description: 'x',
+    reg.register({ id: 'core.noop', version: '1.0', kind: 'core', title: 'Noop', description: 'x',
       tags: [], category: 'core', risk: 'low', requiredPermissions: ['operator'],
-      execution: { strategy: 'does-not-exist' },
-    });
-    expect(() => runtime.invoke('core.missing', {}, { actor: 'op', cwd: '/', workspace: '/' })).toThrow(ExecutorNotFoundError);
+      execution: { strategy: 'does-not-exist' } });
+    expect(() => runtime.invoke('core.noop', {}, { actor: 'operator', cwd: '/', workspace: '/' }))
+      .toThrow(ProviderUnavailableError);
   });
 
   // ── Phase 3 (#308): composition pipelines ─────────────────────────

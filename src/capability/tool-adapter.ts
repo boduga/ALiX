@@ -1,16 +1,10 @@
-import { ToolExecutorAdapter } from "./executors.js";
-import type { ToolCallRequest } from "../tools/types.js";
-import type { ExecuteResult } from "../tools/executor.js";
+// SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
+// SPDX-License-Identifier: MIT
 
-type ToolExecutorLike = { execute(req: ToolCallRequest): Promise<ExecuteResult> };
+import { ToolProviderExecutor } from "./provider-executor.js";
+import type { ToolExecutorLike } from "./provider-executor.js";
 
-/** Adapts the existing ToolExecutor.execute() to the capability executor seam. */
-export function createToolExecutorAdapter(executor: ToolExecutorLike): ToolExecutorAdapter {
-  return new ToolExecutorAdapter(async (name, args) => {
-    const req: ToolCallRequest = { toolCallId: `cap_${Date.now()}`, name, args };
-    const result = await executor.execute(req);
-    if (result.kind === "error") return { error: result.message };
-    if (result.kind === "denied") return { error: result.reason };
-    return { output: result.content ?? result.output ?? result.value };
-  });
+/** Adapts the existing ToolExecutor.execute() seam to the tool provider. */
+export function createToolProviderExecutor(executor: ToolExecutorLike): ToolProviderExecutor {
+  return new ToolProviderExecutor(executor);
 }

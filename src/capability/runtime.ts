@@ -1,11 +1,11 @@
 // src/capability/runtime.ts
 import { randomUUID } from "node:crypto";
-import { CapabilityNotFoundError, ExecutorNotFoundError } from "./errors.js";
-import { AsyncEventQueue, type CapabilityContext, type CapabilityEvent, type EventBusLike, type ExecutorRunResult, type Invocation, type InvocationResult, type InvocationStatus, type Permission } from "./types.js";
+import { CapabilityNotFoundError, ProviderUnavailableError } from "./errors.js";
+import { AsyncEventQueue, type CapabilityContext, type CapabilityEvent, type EventBusLike, type Invocation, type InvocationResult, type InvocationStatus, type Permission } from "./types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { HookRegistry } from "./hook-registry.js";
-import type { ExecutionResolver } from "./execution-resolver.js";
-import type { ExecutorRegistry } from "./executors.js";
+import type { ProviderResolver } from "./provider-resolver.js";
+import { isFallbackEligibleKind, classifyErrorKind, type ProviderRunResult } from "./provider-executor.js";
 import type { EventBus } from "./event-bus.js";
 
 interface InternalState {
@@ -24,8 +24,7 @@ export class CapabilityRuntime {
   constructor(
     private readonly registry: CapabilityRegistry,
     private readonly hooks: HookRegistry,
-    private readonly resolver: ExecutionResolver,
-    private readonly executors: ExecutorRegistry,
+    private readonly resolver: ProviderResolver,
     private readonly bus: EventBus,
   ) {}
 
@@ -42,12 +41,11 @@ export class CapabilityRuntime {
     if (!steps || steps.length === 0) throw new CapabilityNotFoundError(capabilityId);
 
     // Backward-compatible synchronous error for the single-step case: a
-    // missing executor on the sole step throws immediately (existing
-    // contract). Multi-step plans resolve executors per-step in the async
-    // body and fail the composite instead.
-    if (steps.length === 1) {
-      const singleExecutor = this.executors.get(steps[0]!.executor);
-      if (!singleExecutor) throw new ExecutorNotFoundError(steps[0]!.executor);
+    // capability with no eligible provider throws immediately (the legacy
+    // "missing executor" contract). Multi-step plans resolve providers
+    // per-step in the async body and fail the composite instead.
+    if (steps.length === 1 && steps[0]!.candidates.length === 0) {
+      throw new ProviderUnavailableError(capabilityId, steps[0]!.bindingsCount === 0 ? "missing_binding" : "provider_unavailable");
     }
 
     const invocationId = `inv_${randomUUID().slice(0, 8)}`;
@@ -140,26 +138,59 @@ export class CapabilityRuntime {
         // and the capability's own step runs last. A failed dependency fails
         // the whole composite.
         let stepArgs = args;
+        // The serving provider of the LAST successful step (the capability's
+        // own step) is carried to the result. Set only on a success branch;
+        // fail() never passes it. Declared here (not inside the loop) so the
+        // post-loop completion can read it.
+        let serving: { providerId: string; providerType: string; bindingIndex: number } | undefined;
         for (const step of steps) {
           if (abort.signal.aborted) { inv.cancel(); return; }
-          const stepExecutor = this.executors.get(step.executor);
-          if (!stepExecutor) return fail(`No executor for strategy '${step.executor}'`);
           const stepCap = this.registry.find(step.capabilityId);
           if (!stepCap) return fail(`Unknown capability '${step.capabilityId}'`);
-          let runResult: ExecutorRunResult;
-          try {
-            runResult = await stepExecutor.run(stepCap, ctx, stepArgs);
-          } catch (e) {
-            return fail(e instanceof Error ? e.message : String(e));
+          // Nothing eligible to resolve: distinguish missing_binding (no
+          // bindings declared) from provider_unavailable (bindings existed,
+          // but no provider is usable). Availability change, NEVER a lifecycle
+          // change (#476, #481).
+          if (step.candidates.length === 0) {
+            const reason = step.bindingsCount === 0 ? "missing_binding" : "provider_unavailable";
+            this.registry.setAvailability(step.capabilityId, { available: false, reason });
+            return fail(`No available provider for '${step.capabilityId}' (${reason})`);
           }
-          if (abort.signal.aborted) { inv.cancel(); return; }
-          if (runResult.error) return fail(runResult.error);
-          // The dependency's output becomes the next step's input.
-          stepArgs = (runResult.output ?? {}) as Record<string, unknown>;
+          let stepOutput: Record<string, unknown> | undefined;
+          let served = false;
+          for (const candidate of step.candidates) {
+            if (abort.signal.aborted) { inv.cancel(); return; }
+            let runResult: ProviderRunResult;
+            try {
+              runResult = await candidate.executor.run(candidate.binding, stepCap, ctx, stepArgs);
+            } catch (e) {
+              // Execution threw → classify through the closed R1 function, not
+              // a hard-coded "unavailable" (Global Constraints "R1 Taxonomy").
+              runResult = { error: e instanceof Error ? e.message : String(e), errorKind: classifyErrorKind(e as { code?: string }) };
+            }
+            if (runResult.error !== undefined) {
+              // R1 error-class gate: provider failure → next candidate
+              // (bounded single pass); capability/fatal → fail immediately.
+              if (isFallbackEligibleKind(runResult.errorKind)) continue;
+              return fail(runResult.error);
+            }
+            stepOutput = (runResult.output ?? {}) as Record<string, unknown>;
+            served = true;
+            serving = { providerId: candidate.providerId, providerType: candidate.providerType, bindingIndex: candidate.bindingIndex };
+            break;
+          }
+          if (!served) {
+            this.registry.setAvailability(step.capabilityId, { available: false, reason: "provider_unavailable" });
+            return fail(`No provider available for '${step.capabilityId}' (provider_unavailable)`);
+          }
+          // !served returned above, so stepOutput was assigned by the success branch.
+          stepArgs = stepOutput!;
         }
 
+        // The serving provider is a first-class execution fact (identity stays
+        // the capability; the provider identity is what changes across attempts).
         emitTerminal({ type: "InvocationCompleted", invocationId, at: Date.now() });
-        const r = finish("completed", { output: stepArgs });
+        const r = finish("completed", { output: stepArgs, servingProvider: serving });
         await hooks?.afterInvoke?.(r, ctx);
       } catch (e) {
         fail(e instanceof Error ? e.message : String(e));

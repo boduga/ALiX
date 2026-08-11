@@ -47,4 +47,16 @@ describe("CapabilityDefinition", () => {
   it("rejects non-serializable extensions", () => {
     expect(() => validateCapabilityDefinition(makeDef({ extensions: { fn: () => 1 } }))).toThrow(/serializable/);
   });
+
+  it("accepts allowFallbacks: true", () => {
+    expect(() => validateCapabilityDefinition(makeDef({ allowFallbacks: true }))).not.toThrow();
+  });
+
+  it("accepts allowFallbacks omitted (defaults to true)", () => {
+    expect(() => validateCapabilityDefinition(makeDef())).not.toThrow();
+  });
+
+  it("rejects a non-boolean allowFallbacks", () => {
+    expect(() => validateCapabilityDefinition({ ...makeDef(), allowFallbacks: "yes" } as unknown)).toThrow(/allowFallbacks/);
+  });
 });

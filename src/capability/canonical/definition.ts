@@ -30,6 +30,10 @@ export interface CapabilityDefinition {
   examples?: string[];
   dependencies: string[]; // capability-IDs, not id@version refs (#479)
   bindings: CapabilityProviderBinding[]; // one-to-many; identity independent of provider (#476)
+  /** R1 fallback policy (#476). Omitted/true = try bindings in declared order
+   *  until one succeeds or the chain is exhausted; false = only bindings[0]
+   *  may execute (still eligibility-filtered — never a blind invoke). */
+  allowFallbacks?: boolean;
   extensions?: Record<string, unknown>;
 }
 
@@ -70,6 +74,9 @@ export function validateCapabilityDefinition(d: unknown): asserts d is Capabilit
   if (!isStringArray(d.dependencies)) throw new Error("capability: definition dependencies must be a string array");
   if (!Array.isArray(d.bindings) || d.bindings.length === 0) throw new Error("capability: definition must declare at least one provider binding");
   for (const b of d.bindings) validateProviderBinding(b);
+  if (d.allowFallbacks !== undefined && typeof d.allowFallbacks !== "boolean") {
+    throw new Error("capability: definition allowFallbacks must be a boolean");
+  }
   if (d.extensions !== undefined) {
     if (!isPlainRecord(d.extensions)) throw new Error("capability: definition extensions must be an object");
     if (!isSerializable(d.extensions)) throw new Error("capability: definition extensions must be JSON-serializable (no functions)");

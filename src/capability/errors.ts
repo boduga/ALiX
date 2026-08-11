@@ -14,10 +14,10 @@ export class CapabilityValidationError extends Error {
   }
 }
 
-export class ExecutorNotFoundError extends Error {
-  constructor(strategy: string) {
-    super(`No executor for strategy: ${strategy}`);
-    this.name = "ExecutorNotFoundError";
+export class ProviderUnavailableError extends Error {
+  constructor(capabilityId: string, reason: "missing_binding" | "provider_unavailable" = "provider_unavailable") {
+    super(`No available provider for capability '${capabilityId}' (${reason})`);
+    this.name = "ProviderUnavailableError";
   }
 }
 
