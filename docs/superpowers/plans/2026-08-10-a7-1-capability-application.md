@@ -1137,22 +1137,34 @@ case "apply":
 case "measure":
   return runMeasure(rest[0], ledger, store, jsonMode);
 ```
-Add handlers. **Fatal paths must use `process.exitCode = 1; process.exit(1);`** — the `src/cli.ts` dispatcher calls `process.exit(0)`, which clobbers a bare `exitCode = 1` (see A7.0 commit 86e323f2). This matches the existing `renderInspect` error pattern in `capability-lifecycle-cli.ts` (lines 63-64, 119-120, 126-127, 148-149). `process.exit(1)` is test-safe because the test's `capture()` stubs `process.exit`:
+Add handlers. **Fatal paths must use `process.exitCode = 1; process.exit(1);` in BOTH human and json mode** — the `src/cli.ts` dispatcher calls `process.exit(0)`, which clobbers a bare `exitCode = 1` (see A7.0 commit 86e323f2). This matches the existing `renderInspect` pattern in the same file (lines 130-136 exit 1 in both modes; a `--json` response is still a failed invocation). `process.exit(1)` is test-safe because the test's `capture()` stubs `process.exit`. `deps.registry` is typed `CapabilityRegistry | undefined`, so `runApply` guards `!registry` first (truthful message, exit 1) — required to typecheck the applier constructor AND because the live CLI wiring passes no registry.
 ```ts
 async function runApply(id, ledger, registry, jsonMode) {
   if (!id) { console.error("Usage: alix capabilities apply <id>"); process.exitCode = 1; process.exit(1); return; }
+  if (!registry) { // deps.registry is undefined in the live CLI wiring (src/cli.ts:2214) — guard before applier
+    const msg = "Capability registry unavailable — cannot apply";
+    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
+    return;
+  }
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
   let res;
   try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; process.exit(1); }
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
+    else console.error(res.reason);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, executionId: res.executionId }));
@@ -1166,12 +1178,16 @@ async function runMeasure(id, ledger, store, jsonMode) {
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; process.exit(1); }
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
+    else console.error(res.reason);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, measurementId: res.measurementId, stateTransition: res.stateTransition }));
@@ -1195,11 +1211,13 @@ Expected: PASS (existing 6 + new 2).
 
 - [ ] **Step 5: Real-CLI smoke + impact + commit**
 
-Smoke-test the real CLI for exit codes (fatal → 1, non-error → 0):
+Smoke-test the real CLI for exit codes (fatal → 1, non-error → 0). Real entry is `dist/src/cli.js` (`bin/alix.js` spawns it):
 ```bash
-node dist/cli.js capabilities apply core.old; echo "exit=$?"   # expect exit 1, "No decided"
-node dist/cli.js capabilities measure core.old; echo "exit=$?" # expect exit 1, "No applied"
+node dist/src/cli.js capabilities apply core.old; echo "exit=$?"   # expect exit 1, "Capability registry unavailable — cannot apply" (live CLI wires no registry; guard fires before applier)
+node dist/src/cli.js capabilities measure core.old; echo "exit=$?" # expect exit 1, "No applied transition for core.old"
+node dist/src/cli.js capabilities apply core.old --json; echo "exit=$?" # expect exit 1 (json fatal still non-zero), {"ok":false,"reason":"Capability registry unavailable — cannot apply"}
 ```
+The live CLI's `capabilities` command passes no deps (`src/cli.ts:2214`) — a pre-existing wiring gap, documented for Task 10 closure; the full decide→apply→measure walk is exercised in tests with injected deps (Task 9 test 4).
 Run `impact({target: "handleCapabilitiesCommand", direction: "upstream"})` — expect LOW. Commit:
 ```bash
 git add src/evolution/capability-lifecycle/capability-lifecycle-cli.ts src/evolution/capability-lifecycle/index.ts tests/evolution/capability-lifecycle/capability-cli.test.ts
@@ -1293,8 +1311,11 @@ describe("A7.1 end-to-end capability application", () => {
 
     // Post-apply P5.5 health reflects the new state
     await store.save({ generatedAt: new Date().toISOString(), totalCapabilities: 2,
-      healthAnalysis: [stagnantHealth("core.old"), { ...stagnantHealth("core.session.list"), lifecycleState: "active" }],
-      gapAnalysis: [], overlapAnalysis: [], driftAnalysis: [], lifecycleDistribution: {}, executiveSummary: "s" } as never);
+      healthAnalysis: [{ ...stagnantHealth("core.old"), lifecycleState: "deprecated" },
+        { ...stagnantHealth("core.session.list"), lifecycleState: "active" }],
+      gapAnalysis: [], overlapAnalysis: [], driftAnalysis: [],
+      lifecycleDistribution: { emerging: 0, active: 0, mature: 0, stagnant: 0, declining: 0, deprecated: 1 },
+      executiveSummary: "s" });
 
     const measurer = new CapabilityLifecycleMeasurer({ ledger, store });
     const measured = await measurer.measure("core.old");
@@ -1321,13 +1342,15 @@ describe("A7.1 end-to-end capability application", () => {
 
     registry.applyLifecycleTransition("core.old", "declining"); // pre-state
     const before = canonicalStringify(registry.list());
-    const failingLedger = {
-      ...ledger,
-      append: async () => { throw new Error("disk full"); },
-    } as unknown as JsonlCapabilityLifecycleLedger;
+    // NOTE: `{ ...ledger }` would drop the class's prototype methods, so the
+    // failing ledger is built via Object.create to keep read methods while
+    // overriding only append (same pattern as Task 6's atomicity test).
+    const failingLedger = Object.create(ledger) as JsonlCapabilityLifecycleLedger;
+    failingLedger.append = async () => { throw new Error("disk full"); };
     const applier = new CapabilityLifecycleApplier({ ledger: failingLedger, registry });
-    const res = await applier.apply("core.old");
-    assert.equal(res.status, "blocked");
+    // The shipped applier THROWS on append failure after the compensating
+    // rollback (spec §11 exit 1) — it does NOT return a blocked result.
+    await assert.rejects(() => applier.apply("core.old"), /Ledger append failed/);
     assert.equal(canonicalStringify(registry.list()), before); // byte-identical
     assert.equal(registry.getLifecycleState("core.old"), "declining"); // restored, not deprecated
   });
