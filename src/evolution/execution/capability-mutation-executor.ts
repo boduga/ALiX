@@ -29,6 +29,7 @@ import type {
   CapabilityDefinitionPatch,
   CapabilityCreateMutation,
   CapabilityUpdateMutation,
+  CapabilityTransitionMutation,
 } from "../../capability/mutation-contract.js";
 import { classifyUpdateBump, validateCapabilityMutation } from "../../capability/mutation-contract.js";
 import type { StepExecutor } from "./execution-runtime.js";
@@ -375,8 +376,29 @@ export class CapabilityMutationExecutor implements StepExecutor {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
-  private async executeTransition(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
-    return { success: false, output: {}, error: "capability.transition: not implemented (Task 3)" };
+  private async executeTransition(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const mutation = step.parameters as unknown as CapabilityTransitionMutation;
+    const validation = validateCapabilityMutation(mutation);
+    if (!validation.valid) return { success: false, output: {}, error: validation.errors.join("; ") };
+    const actual = this.registry.getLifecycleState(mutation.capabilityId);
+    if (actual !== mutation.from) {
+      return { success: false, output: {}, error: `capability.transition: stale decision — actual '${String(actual)}' !== expected '${mutation.from}' (#34)` };
+    }
+    const pre = capturePreState(this.catalog, this.registry);
+    const result = this.applyTransition(mutation);
+    if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
+    // `result.output ?? {}` mirrors the create/update tails: output is always
+    // set when ok=true, but the union type requires the guard.
+    return this.commit("capability.transition", mutation, [mutation.capabilityId], pre, result.output ?? {});
+  }
+
+  private applyTransition(mutation: CapabilityTransitionMutation): { ok: boolean; error?: string; output?: Record<string, unknown> } {
+    try {
+      this.registry.setLifecycleState(mutation.capabilityId, mutation.to);
+      return { ok: true, output: { capabilityId: mutation.capabilityId, from: mutation.from, to: mutation.to } };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
   private async executeConsolidate(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
     return { success: false, output: {}, error: "capability.consolidate: not implemented (Task 4)" };

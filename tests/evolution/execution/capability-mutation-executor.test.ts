@@ -232,3 +232,50 @@ describe("nextDefinitionForUpdate", () => {
     assert.throws(() => nextDefinitionForUpdate(def(), { bindings: [] }), /binding/);
   });
 });
+
+describe("CapabilityMutationExecutor — transition", () => {
+  let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
+  before(() => { dir = mkdtempSync(join(tmpdir(), "cap6-tr-")); catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir })); registry = new CapabilityRegistry(catalog); });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  async function seedActive() {
+    // `before` runs once per suite (not per test), so reset the shared id to a
+    // clean single publication before re-seeding — otherwise a prior test's
+    // publication collides on "already exists". Behavior-identical to a fresh
+    // catalog per test: each seed leaves exactly tool.file.read@1.0.0 active.
+    if (catalog.has("tool.file.read")) catalog.remove("tool.file.read");
+    catalog.register(def(), def().bindings[0]);
+    registry.reload();
+    registry.setLifecycleState("tool.file.read", "active");
+  }
+
+  it("applies a legal transition (active → mature)", async () => {
+    await seedActive();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "active" as const, to: "mature" as const };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(registry.getLifecycleState("tool.file.read"), "mature");
+  });
+
+  it("refuses a stale decision (actual !== from)", async () => {
+    await seedActive();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    // declining → deprecated is a #481-legal pair, but the actual lifecycle
+    // state is "active", so the stale-decision precondition must fire.
+    const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "declining" as const, to: "deprecated" as const };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /actual/);
+    assert.equal(registry.getLifecycleState("tool.file.read"), "active"); // unchanged
+  });
+
+  it("does not mutate the catalog (lifecycle is registry state)", async () => {
+    await seedActive();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.transition" as const, capabilityId: "tool.file.read", from: "active" as const, to: "declining" as const };
+    const before = JSON.stringify(catalog.list());
+    await executor.executeStep({ stepId: "s1", operation: "capability.transition", parameters: mutation, idempotent: true, preconditions: {}, postconditions: {} }, {});
+    assert.equal(JSON.stringify(catalog.list()), before);
+  });
+});
