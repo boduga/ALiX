@@ -32,6 +32,7 @@ import type {
   CapabilityUpdateMutation,
   CapabilityTransitionMutation,
   CapabilityConsolidateMutation,
+  CapabilityRemoveMutation,
 } from "../../capability/mutation-contract.js";
 import {
   classifyUpdateBump,
@@ -247,6 +248,14 @@ export function createCapabilityRollbackResolver(): RollbackResolver {
       parameters: { sources: sources ?? [], target },
       rollbackType: "automatic" as const,
       safe: true,
+    };
+  });
+  resolver.registerOperation("capability.remove", (step) => {
+    const { capabilityId } = step.parameters as { capabilityId?: string };
+    return {
+      stepId: `rb-${step.stepId}`, forwardStepId: step.stepId,
+      operation: "capability.restore_remove",
+      parameters: { capabilityId }, rollbackType: "automatic" as const, safe: true,
     };
   });
   return resolver;
@@ -465,7 +474,28 @@ export class CapabilityMutationExecutor implements StepExecutor {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
-  private async executeRemove(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
-    return { success: false, output: {}, error: "capability.remove: not implemented (Task 5)" };
+  private async executeRemove(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const mutation = step.parameters as unknown as CapabilityRemoveMutation;
+    const validation = validateCapabilityMutation(mutation);
+    if (!validation.valid) return { success: false, output: {}, error: validation.errors.join("; ") };
+    if (!this.catalog.has(mutation.capabilityId)) {
+      return { success: false, output: {}, error: `capability.remove: '${mutation.capabilityId}' not found` };
+    }
+    const pre = capturePreState(this.catalog, this.registry);
+    const result = this.applyRemove(mutation);
+    if (!result.ok) { restorePreState(this.catalog, this.registry, [mutation.capabilityId], pre); return { success: false, output: {}, error: result.error }; }
+    // `result.output ?? {}` mirrors the create/update/transition/consolidate
+    // tails: output is always set when ok=true, but the union type requires the guard.
+    return this.commit("capability.remove", mutation, [mutation.capabilityId], pre, result.output ?? {});
+  }
+
+  private applyRemove(mutation: CapabilityRemoveMutation): { ok: boolean; error?: string; output?: Record<string, unknown> } {
+    try {
+      this.catalog.remove(mutation.capabilityId);
+      this.registry.reload();
+      return { ok: true, output: { capabilityId: mutation.capabilityId, reason: mutation.reason, removed: true } };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
 }

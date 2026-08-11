@@ -9,7 +9,7 @@ import { CapabilityRegistry } from "../../../src/capability/registry.js";
 import { CapabilityMutationExecutor, createCapabilityRollbackResolver, type CapabilityPreState } from "../../../src/evolution/execution/capability-mutation-executor.js";
 import { nextDefinitionForUpdate } from "../../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
-import type { CapabilityCreateMutation } from "../../../src/capability/mutation-contract.js";
+import type { CapabilityCreateMutation, CapabilityRemoveMutation } from "../../../src/capability/mutation-contract.js";
 import { classifyUpdateBump, validateConsolidateMerge } from "../../../src/capability/mutation-contract.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
@@ -529,5 +529,50 @@ describe("CapabilityMutationExecutor — consolidate", () => {
     assert.equal(res.success, false);
     assert.match(res.error ?? "", /must advance/);
     assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 1); // unchanged
+  });
+});
+
+describe("CapabilityMutationExecutor — remove", () => {
+  let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
+  before(() => { dir = mkdtempSync(join(tmpdir(), "cap6-rm-")); catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir })); registry = new CapabilityRegistry(catalog); });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  async function seedTwoVersions() {
+    if (catalog.has("tool.file.read")) catalog.remove("tool.file.read");
+    catalog.register(def(), def().bindings[0]);
+    catalog.register(def({ version: "1.1.0", description: "newer" }), def({ version: "1.1.0", description: "newer" }).bindings[0]);
+    registry.reload();
+  }
+
+  it("removes the capability (all id@version publications) with an immutable record", async () => {
+    await seedTwoVersions();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.remove" as const, capabilityId: "tool.file.read", reason: "superseded by tool.file.aggregate" };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.remove", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.has("tool.file.read"), false);
+    assert.equal(registry.get("tool.file.read"), undefined);
+    const result = res.output.result as { mutation: { reason: string }; preState: { definitions: CapabilityDefinition[] } };
+    assert.equal(result.mutation.reason, "superseded by tool.file.aggregate");
+    assert.equal(result.preState.definitions.filter((d) => d.id === "tool.file.read").length, 2); // full pre-state captured
+  });
+
+  it("rejects removal of an unknown capability", async () => {
+    await seedTwoVersions();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = { operation: "capability.remove" as const, capabilityId: "tool.file.nope", reason: "x" };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.remove", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /not found/);
+  });
+
+  it("record-sink failure after remove → byte-identical restore", async () => {
+    await seedTwoVersions();
+    const executor = new CapabilityMutationExecutor({ catalog, registry, record: { record: async (): Promise<void> => { throw new Error("boom"); } } });
+    const before = JSON.stringify(catalog.list());
+    const mutation = { operation: "capability.remove" as const, capabilityId: "tool.file.read", reason: "x" };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.remove", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.equal(JSON.stringify(catalog.list()), before);
   });
 });
