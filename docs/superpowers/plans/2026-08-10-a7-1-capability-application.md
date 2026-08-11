@@ -1141,7 +1141,14 @@ Add handlers (mirror the existing `renderInspect` error pattern â€” missing id â
 async function runApply(id, ledger, registry, deps, jsonMode) {
   if (!id) { console.error("Usage: alix capabilities apply <id>"); process.exitCode = 1; return; }
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
-  const res = await applier.apply(id);
+  let res;
+  try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
+  catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
+    else { console.error(msg); process.exitCode = 1; }
+    return;
+  }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
     else { console.error(res.reason); process.exitCode = 1; }
@@ -1153,7 +1160,14 @@ async function runApply(id, ledger, registry, deps, jsonMode) {
 async function runMeasure(id, ledger, store, jsonMode) {
   if (!id) { console.error("Usage: alix capabilities measure <id>"); process.exitCode = 1; return; }
   const measurer = new CapabilityLifecycleMeasurer({ ledger, store });
-  const res = await measurer.measure(id);
+  let res;
+  try { res = await measurer.measure(id); }
+  catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
+    else { console.error(msg); process.exitCode = 1; }
+    return;
+  }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
     else { console.error(res.reason); process.exitCode = 1; }
