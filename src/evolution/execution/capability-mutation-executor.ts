@@ -22,6 +22,7 @@ import type { CapabilityCatalog } from "../../capability/canonical/catalog.js";
 import type { CapabilityProviderBinding } from "../../capability/canonical/provider.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
 import { validateCapabilityDefinition } from "../../capability/canonical/definition.js";
+import { compareVersions } from "../../capability/canonical/version.js";
 import type { CapabilityAvailability, CapabilityRegistry } from "../../capability/registry.js";
 import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
 import type {
@@ -433,10 +434,12 @@ export class CapabilityMutationExecutor implements StepExecutor {
       return { success: false, output: {}, error: `capability.consolidate: proposed definition id '${mutation.definition.id}' must equal target '${mutation.target}'` };
     }
     // Target publication (user-ruling REFINED #479): never overwrite/re-register
-    // an existing id@version. String compare is plan-mandated verbatim (known
-    // double-digit-Segment edge triaged at final review — do not "fix").
-    if (this.catalog.has(mutation.target) && this.catalog.get(mutation.target)!.version >= mutation.definition.version) {
-      return { success: false, output: {}, error: `capability.consolidate: proposed target version ${mutation.definition.version} must be higher than current target version ${this.catalog.get(mutation.target)!.version} (immutable #479)` };
+    // an existing id@version. SemVer ordering via the canonical comparator —
+    // lexical compare would falsely reject digit-count rollovers like
+    // 1.9.0 → 1.10.0 or 9.9.9 → 10.0.0. Reject when the proposed version is
+    // NOT strictly greater than the current target version.
+    if (this.catalog.has(mutation.target) && compareVersions(mutation.definition.version, this.catalog.get(mutation.target)!.version) <= 0) {
+      return { success: false, output: {}, error: `capability.consolidate: proposed target version ${mutation.definition.version} must advance (be higher than) current target version ${this.catalog.get(mutation.target)!.version} (immutable #479)` };
     }
 
     const pre = capturePreState(this.catalog, this.registry);

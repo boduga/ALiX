@@ -457,4 +457,77 @@ describe("CapabilityMutationExecutor — consolidate", () => {
     // in a fresh suite; the assertion is relative so it is ordering-independent).
     assert.equal(registry.getLifecycleState("tool.file.a"), beforeLifecycleA);
   });
+
+  it("existing target: accepts a digit-count rollover advance 1.9.0 → 1.10.0 (SemVer, not lexical)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.9.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.10.0" }), // lexically "1.9.0" >= "1.10.0", SemVer-ordered it advances
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.get("tool.file.ab")!.version, "1.10.0");
+  });
+
+  it("existing target: accepts a digit-count rollover advance 9.9.9 → 10.0.0 (SemVer, not lexical)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "9.9.9", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "10.0.0" }), // lexically "9.9.9" >= "10.0.0", SemVer-ordered it advances
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.get("tool.file.ab")!.version, "10.0.0");
+  });
+
+  it("existing target: rejects a downgrade 1.10.0 → 1.9.0 at the version gate (regression)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.10.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.9.0" }), // SemVer-lower than current target
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    // Must be the VERSION gate (not a validation/merge error) — the merged
+    // definition satisfies the #477 merge rules against sources a/b.
+    assert.match(res.error ?? "", /must advance/);
+    assert.equal(catalog.get("tool.file.ab")!.version, "1.10.0"); // current publication untouched
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 1);
+  });
+
+  it("existing target: rejects an equal version 2.0.0 → 2.0.0 (not strictly greater)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "2.0.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "2.0.0" }), // equal, not strictly greater
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /must advance/);
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 1); // unchanged
+  });
 });
