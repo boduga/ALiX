@@ -92,7 +92,7 @@ export class ProviderResolver {
         executor: this.providers.get(binding.type)!,
       }));
     const first = candidates[0];
-    const timeout = typeof first?.binding.config?.timeout === "number" ? first.binding.config.timeout : DEFAULT_TIMEOUT;
+    const timeout = typeof first?.binding.config?.timeoutMs === "number" ? first.binding.config.timeoutMs : DEFAULT_TIMEOUT;
     return {
       capabilityId: def.id,
       candidates,

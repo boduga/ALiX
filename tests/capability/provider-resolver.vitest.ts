@@ -132,4 +132,18 @@ describe('ProviderResolver', () => {
   it('throws CapabilityNotFoundError for an unknown capability id', () => {
     expect(() => new ProviderResolver(makeRegistry(), makeProviderExecutorRegistry()).resolve('nope.missing', ctx())).toThrow(CapabilityNotFoundError);
   });
+
+  it('reads binding.config.timeoutMs into the step timeout (aligned with the SpawnLike spawn seam)', () => {
+    const reg = makeRegistry();
+    reg.import([def({ bindings: [{ id: 'core.echo', type: 'native', config: { timeoutMs: 1234 } }] })]);
+    const plans = new ProviderResolver(reg, makeProviderExecutorRegistry()).resolve('core.echo', ctx());
+    expect(plans[0]!.steps[0]!.timeout).toBe(1234);
+  });
+
+  it('defaults the step timeout to 30_000 when the binding config has no timeoutMs', () => {
+    const reg = makeRegistry();
+    reg.import([def({})]);   // bindings[0] has no config
+    const plans = new ProviderResolver(reg, makeProviderExecutorRegistry()).resolve('core.echo', ctx());
+    expect(plans[0]!.steps[0]!.timeout).toBe(30_000);
+  });
 });

@@ -206,4 +206,11 @@ describe('CAP-4 R1 fallback contract', () => {
     expect(healthy.status).toBe('completed');
     expect(healthy.output).toBe('fine');
   });
+
+  // NOTE: `missing_binding` is structurally unreachable via the public API —
+  // validateCapabilityDefinition requires >=1 binding, so bindings:[] cannot be
+  // registered. The runtime keeps its defensive missing_binding branch (locked
+  // vocabulary; future-proof for hand-edited catalogs); the sync-throw ternary's
+  // bindingsCount === 0 case is likewise defensive. There is deliberately no
+  // test for it.
 });
