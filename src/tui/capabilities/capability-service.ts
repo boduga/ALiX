@@ -1,7 +1,7 @@
 // src/tui/capabilities/capability-service.ts
 import { CapabilityPlatform } from '../../capability/platform.js';
 import { registerInitialCapabilities } from '../../capability/initial-capabilities.js';
-import { createToolExecutorAdapter } from '../../capability/tool-adapter.js';
+import { createToolProviderExecutor } from '../../capability/tool-adapter.js';
 import { toAlixEvent } from '../../capability/event-bus.js';
 import type { Capability, CapabilityStatus, Invocation } from '../../capability/types.js';
 import type { CapabilityQuery } from '../../capability/registry.js';
@@ -80,7 +80,7 @@ export class CapabilityService {
     // capabilities show as unavailable rather than crashing when the
     // executor is missing.
     if (this.opts.toolExecutor) {
-      this.platform.registerExecutor('tool', createToolExecutorAdapter(this.opts.toolExecutor));
+      this.platform.registerProvider('tool', createToolProviderExecutor(this.opts.toolExecutor));
     }
   }
 

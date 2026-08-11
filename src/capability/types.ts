@@ -45,6 +45,10 @@ export interface InvocationResult {
   startedAt: number;
   completedAt?: number;
   durationMs?: number;
+  /** The provider that actually produced a successful result — absent on
+   *  failure. Capability identity is invariant; provider identity is what
+   *  changes across fallback attempts (CAP-4, #476). */
+  servingProvider?: { providerId: string; providerType: string; bindingIndex: number };
 }
 
 export interface Invocation {

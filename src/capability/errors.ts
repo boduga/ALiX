@@ -21,6 +21,13 @@ export class ExecutorNotFoundError extends Error {
   }
 }
 
+export class ProviderUnavailableError extends Error {
+  constructor(capabilityId: string, reason: "missing_binding" | "provider_unavailable" = "provider_unavailable") {
+    super(`No available provider for capability '${capabilityId}' (${reason})`);
+    this.name = "ProviderUnavailableError";
+  }
+}
+
 export class PermissionDeniedError extends Error {
   constructor(capabilityId: string, actor: string) {
     super(`Permission denied for ${actor} invoking ${capabilityId}`);
