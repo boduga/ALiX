@@ -1,8 +1,26 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ExecutionResolver } from '../../src/capability/execution-resolver.js';
 import { CapabilityRegistry } from '../../src/capability/registry.js';
 import { CapabilityNotFoundError } from '../../src/capability/errors.js';
+import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
 import type { Capability, CapabilityContext } from '../../src/capability/types.js';
+
+let dir: string;
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap3-resolver-')); });
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+// CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+function makeRegistry(): CapabilityRegistry {
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+  const registry = new CapabilityRegistry(catalog);
+  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
+  return registry;
+}
 
 function ctx(): CapabilityContext {
   return {
@@ -15,7 +33,7 @@ function ctx(): CapabilityContext {
 
 describe('ExecutionResolver', () => {
   it('resolves a native capability to a single-step native plan with capabilityId', () => {
-    const reg = new CapabilityRegistry();
+    const reg = makeRegistry();
     reg.register({
       id: 'core.session.list', version: '1.0', kind: 'core', title: 'List', description: 'x',
       tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
@@ -30,25 +48,25 @@ describe('ExecutionResolver', () => {
   });
 
   it('applies the strategy default timeout when absent', () => {
-    const reg = new CapabilityRegistry();
+    const reg = makeRegistry();
     reg.register({
       id: 'git.commit', version: '1.0', kind: 'core', title: 'Commit', description: 'x',
       tags: [], category: 'git', risk: 'high', requiredPermissions: ['developer'],
-      execution: { strategy: 'cli' },
+      execution: { strategy: 'cli' }, extensions: { executable: 'git' },
     });
     const plans = new ExecutionResolver(reg).resolve('git.commit', ctx());
     expect(plans[0]!.steps[0]!.timeout).toBe(30_000);
   });
 
   it('throws CapabilityNotFoundError for an unknown capability id', () => {
-    const resolver = new ExecutionResolver(new CapabilityRegistry());
+    const resolver = new ExecutionResolver(makeRegistry());
     expect(() => resolver.resolve('nope.missing', ctx())).toThrow(CapabilityNotFoundError);
   });
 
   // ── Phase 3 (#308): composition pipelines ─────────────────────────
 
   it('resolves a capability with dependencies into a multi-step plan (deps first, then self)', () => {
-    const reg = new CapabilityRegistry();
+    const reg = makeRegistry();
     reg.register({
       id: 'dep.a', version: '1.0', kind: 'core', title: 'A', description: 'x',
       tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],
@@ -78,7 +96,7 @@ describe('ExecutionResolver', () => {
   });
 
   it('rejects a cyclic dependency graph', () => {
-    const reg = new CapabilityRegistry();
+    const reg = makeRegistry();
     reg.register({
       id: 'cyc.a', version: '1.0', kind: 'core', title: 'A', description: 'x',
       tags: [], category: 'session', risk: 'low', requiredPermissions: ['operator'],

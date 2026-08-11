@@ -2212,13 +2212,20 @@ if (command === "executive") {
 if (command === "capabilities") {
   const { handleCapabilitiesCommand } = await import("./cli/commands/capabilities.js");
   const { CapabilityRegistry } = await import("./capability/registry.js");
+  const { CapabilityCatalog } = await import("./capability/canonical/catalog.js");
+  const { CapabilityDefinitionStore } = await import("./capability/canonical/catalog-store.js");
+  const { CatalogBackedCapabilityMutationPort } = await import("./capability/mutation-port.js");
   const { JsonlCapabilityLifecycleLedger, DEFAULT_CAPABILITY_LIFECYCLE_FILE } =
     await import("./evolution/capability-lifecycle/capability-lifecycle-ledger.js");
   const { CapabilityEvolutionStore } = await import("./adaptation/capability-evolution-store.js");
   const { rehydrateLifecycleOverlay } =
     await import("./evolution/capability-lifecycle/capability-lifecycle-rehydration.js");
   const cwd = process.cwd();
-  const registry = new CapabilityRegistry();
+  // CAP-3: the registry is a catalog projection — build it over the catalog
+  // and route mutations through the port (Task 5 rewires to the composition root).
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir: join(cwd, ".alix", "capabilities") }));
+  const registry = new CapabilityRegistry(catalog);
+  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   const ledger = new JsonlCapabilityLifecycleLedger(DEFAULT_CAPABILITY_LIFECYCLE_FILE);
   const store = new CapabilityEvolutionStore(join(cwd, ".alix", "capability-evolution"));
   // The registry overlay is a runtime projection of persisted applied records —

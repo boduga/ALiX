@@ -1,5 +1,8 @@
 // tests/capability/runtime.vitest.ts
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CapabilityRuntime } from '../../src/capability/runtime.js';
 import { CapabilityRegistry } from '../../src/capability/registry.js';
 import { HookRegistry } from '../../src/capability/hook-registry.js';
@@ -7,9 +10,19 @@ import { ExecutionResolver } from '../../src/capability/execution-resolver.js';
 import { ExecutorRegistry, NativeExecutor } from '../../src/capability/executors.js';
 import { EventBus } from '../../src/capability/event-bus.js';
 import { CapabilityNotFoundError, ExecutorNotFoundError } from '../../src/capability/errors.js';
+import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
+
+let dir: string;
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap3-runtime-')); });
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
 function setup() {
-  const reg = new CapabilityRegistry();
+  // CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+  const reg = new CapabilityRegistry(catalog);
+  reg.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   const hooks = new HookRegistry();
   const executors = new ExecutorRegistry();
   const native = new NativeExecutor();

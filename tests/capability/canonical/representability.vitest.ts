@@ -1,10 +1,16 @@
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
 // SPDX-License-Identifier: MIT
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CapabilityRegistry } from "../../../src/capability/registry.js";
 import { NativeExecutor } from "../../../src/capability/executors.js";
 import { registerInitialCapabilities } from "../../../src/capability/initial-capabilities.js";
+import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
 import type { Capability } from "../../../src/capability/types.js";
 import { migrateKind } from "../../../src/capability/canonical/kind.js";
 import { validateCapabilityDefinition } from "../../../src/capability/canonical/definition.js";
@@ -28,6 +34,18 @@ function normalizeVersion(v: string): string {
 /** Map an execution strategy to a ProviderType. Fails loudly on an unknown
  *  strategy so a genuinely unmappable current capability surfaces as a
  *  real migration blocker instead of being papered over. */
+let dir: string;
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "cap3-repr-")); });
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+// CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+function makeRegistry(): CapabilityRegistry {
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+  const registry = new CapabilityRegistry(catalog);
+  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
+  return registry;
+}
+
 function providerTypeOf(strategy: string): ProviderType {
   const type = PROVIDER_TYPES.find((p) => p === strategy);
   if (!type) {
@@ -62,7 +80,7 @@ function toCapabilityDefinition(cap: Capability): CapabilityDefinition {
 
 describe("CAP-1 representability", () => {
   it("maps every currently-registered capability to a valid CapabilityDefinition without loss", () => {
-    const registry = new CapabilityRegistry();
+    const registry = makeRegistry();
     const native = new NativeExecutor(); // NativeExecutor ctor is dependency-free
     registerInitialCapabilities(registry, native);
     const caps = registry.list();
@@ -85,7 +103,7 @@ describe("CAP-1 representability", () => {
   });
 
   it("normalizes current short SemVer versions to full MAJOR.MINOR.PATCH", () => {
-    const registry = new CapabilityRegistry();
+    const registry = makeRegistry();
     registerInitialCapabilities(registry, new NativeExecutor());
     for (const cap of registry.list()) {
       expect(isValidVersion(cap.version) ? cap.version : normalizeVersion(cap.version)).toMatch(/^\d+\.\d+\.\d+$/);

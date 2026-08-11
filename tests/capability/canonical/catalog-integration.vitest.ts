@@ -9,6 +9,7 @@ import { CapabilityRegistry } from "../../../src/capability/registry.js";
 import { NativeExecutor } from "../../../src/capability/executors.js";
 import { registerInitialCapabilities } from "../../../src/capability/initial-capabilities.js";
 import type { Capability } from "../../../src/capability/types.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
 // Task 5 wires the CAP-2 barrel — the whole slice is consumed through it so a
 // missing/invalid export fails this test, not the individual unit tests.
 import {
@@ -71,11 +72,20 @@ function toDefinition(cap: Capability): CapabilityDefinition {
   };
 }
 
-/** Snapshot the currently-registered legacy capabilities. */
+/** Snapshot the currently-registered legacy capabilities.
+ *  CAP-3: registry is a catalog projection — build over a private scratch
+ *  catalog so the snapshot never collides with the test's own catalog dir. */
 function currentCapabilities(): Capability[] {
-  const registry = new CapabilityRegistry();
-  registerInitialCapabilities(registry, new NativeExecutor());
-  return registry.list();
+  const scratch = tempDir("cap2-current-");
+  try {
+    const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir: scratch }));
+    const registry = new CapabilityRegistry(catalog);
+    registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
+    registerInitialCapabilities(registry, new NativeExecutor());
+    return registry.list();
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 function tempDir(prefix: string): string {

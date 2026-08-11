@@ -7,6 +7,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CapabilityRegistry } from "../../../../src/capability/registry.js";
+import { CapabilityCatalog } from "../../../../src/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../../src/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../../src/capability/mutation-port.js";
 import { JsonlCapabilityLifecycleLedger } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
 import { analyzeCapabilityLifecycle } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-analyzer.js";
 import { buildCapabilityProposals } from "../../../../src/evolution/capability-lifecycle/capability-proposal-builder.js";
@@ -40,7 +43,10 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "a7-1-int-"));
   ledger = new JsonlCapabilityLifecycleLedger(join(dir, "lifecycle.jsonl"));
   store = new CapabilityEvolutionStore(join(dir, "evolution"));
-  registry = new CapabilityRegistry();
+  // CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+  registry = new CapabilityRegistry(catalog);
+  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   registry.register(makeCapability("core.session.list"));
   registry.register(makeCapability("core.old"));
 });
@@ -133,7 +139,10 @@ describe("A7.1 end-to-end capability application", () => {
     await ledger.append(toLedgerRecord("decided", artifacts.candidate, { proposalId: artifacts.proposal.proposalId, outcome }));
     await new CapabilityLifecycleApplier({ ledger, registry }).apply("core.old");
 
-    const restarted = new CapabilityRegistry();
+    // CAP-3: registry is a catalog projection — fresh catalog + port (simulated restart).
+    const restartCatalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+    const restarted = new CapabilityRegistry(restartCatalog);
+    restarted.setMutationPort(new CatalogBackedCapabilityMutationPort(restartCatalog));
     restarted.register(makeCapability("core.session.list"));
     restarted.register(makeCapability("core.old"));
     // Production rehydration: rebuild the overlay from persisted applied records (spec §8).

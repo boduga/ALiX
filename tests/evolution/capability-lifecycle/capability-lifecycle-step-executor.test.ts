@@ -1,10 +1,16 @@
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
 // SPDX-License-Identifier: MIT
 
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CapabilityRegistry } from "../../../src/capability/registry.js";
 import { CapabilityLifecycleStepExecutor } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-step-executor.js";
+import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js";
+import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
+import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
 import type { Capability } from "../../../src/capability/types.js";
 import type { ExecutionStep } from "../../../src/evolution/execution/contracts/execution-contract.js";
 
@@ -17,14 +23,22 @@ function trans(capabilityId: string, to: string): ExecutionStep {
     idempotent: true, preconditions: {}, postconditions: {} };
 }
 
+let dir: string;
+
 describe("CapabilityLifecycleStepExecutor", () => {
   let registry: CapabilityRegistry;
   beforeEach(() => {
-    registry = new CapabilityRegistry();
+    dir = mkdtempSync(join(tmpdir(), "cap3-step-"));
+    // CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
+    const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+    registry = new CapabilityRegistry(catalog);
+    registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
     registry.register(makeCapability("core.session"));
     registry.register(makeCapability("core.session.a"));
     registry.register(makeCapability("core.session.b"));
   });
+
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it("applies a single transition", async () => {
     const ex = new CapabilityLifecycleStepExecutor(registry);
@@ -43,8 +57,8 @@ describe("CapabilityLifecycleStepExecutor", () => {
     assert.equal(registry.getLifecycleState("core.session.a"), "deprecated");
     assert.equal(registry.getLifecycleState("core.session.b"), "deprecated");
     ex.rollbackApplied();
-    assert.equal(registry.getLifecycleState("core.session.a"), undefined); // restored (was undefined)
-    assert.equal(registry.getLifecycleState("core.session.b"), undefined); // restored
+    assert.equal(registry.getLifecycleState("core.session.a"), "emerging"); // restored to default (was undefined in overlay model)
+    assert.equal(registry.getLifecycleState("core.session.b"), "emerging"); // restored to default
     assert.equal(registry.getLifecycleState("core.session"), "active");   // primary preserved
   });
 
@@ -53,7 +67,7 @@ describe("CapabilityLifecycleStepExecutor", () => {
     await ex.executeStep(trans("core.session.a", "deprecated"), {});
     ex.rollbackApplied();
     ex.rollbackApplied(); // second call is a no-op
-    assert.equal(registry.getLifecycleState("core.session.a"), undefined);
+    assert.equal(registry.getLifecycleState("core.session.a"), "emerging"); // restored to default
   });
 
   it("rollback restores the PRE-execution value, not a later state", async () => {
