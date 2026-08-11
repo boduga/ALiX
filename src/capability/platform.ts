@@ -29,6 +29,7 @@ export class CapabilityPlatform {
     this.catalog = opts.catalog ?? new CapabilityCatalog(new CapabilityDefinitionStore({ dir: opts.catalogDir ?? join(process.cwd(), ".alix", "capabilities") }));
     this.registry = new CapabilityRegistry(this.catalog);
     this.registry.setMutationPort(new CatalogBackedCapabilityMutationPort(this.catalog));
+    this.registry.setProviderBound((type) => this.executors.get(type) !== undefined);
     this.executors.register("native", this.native);
     this.registry.attach(this.events);
     this.resolver = new ExecutionResolver(this.registry);
