@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ExecutorRegistry, NativeExecutor } from '../../src/capability/executors.js';
+import { NativeExecutor } from '../../src/capability/executors.js';
 import type { Capability, CapabilityContext } from '../../src/capability/types.js';
 
 function cap(strategy: string): Capability {
@@ -17,15 +17,6 @@ function ctx(): CapabilityContext {
     cancellationToken: new AbortController().signal, eventBus: { emit: () => {} },
   };
 }
-
-describe('ExecutorRegistry', () => {
-  it('registers and retrieves executors by strategy', () => {
-    const er = new ExecutorRegistry();
-    er.register('native', new NativeExecutor());
-    expect(er.get('native')).toBeInstanceOf(NativeExecutor);
-    expect(er.get('missing')).toBeUndefined();
-  });
-});
 
 describe('NativeExecutor', () => {
   it('runs a registered handler and returns its output', async () => {

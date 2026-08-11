@@ -72,7 +72,7 @@ export class CapabilityRegistry {
     this.mutationPort = port;
   }
 
-  /** Optional executor-availability probe (wired by platform from ExecutorRegistry).
+  /** Optional provider-availability probe (wired by platform from ProviderExecutorRegistry).
    *  Used ONLY by getAvailableProviders — declarative, no CAP-4 fallback/health. */
   setProviderBound(fn: (type: string) => boolean): void {
     this.providerBound = fn;
