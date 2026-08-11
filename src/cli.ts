@@ -2211,27 +2211,22 @@ if (command === "executive") {
 // ── Capabilities command (A7.0/A7.1) ────────────────────────────
 if (command === "capabilities") {
   const { handleCapabilitiesCommand } = await import("./cli/commands/capabilities.js");
-  const { CapabilityRegistry } = await import("./capability/registry.js");
-  const { CapabilityCatalog } = await import("./capability/canonical/catalog.js");
-  const { CapabilityDefinitionStore } = await import("./capability/canonical/catalog-store.js");
-  const { CatalogBackedCapabilityMutationPort } = await import("./capability/mutation-port.js");
+  const { CapabilityPlatform } = await import("./capability/platform.js");
   const { JsonlCapabilityLifecycleLedger, DEFAULT_CAPABILITY_LIFECYCLE_FILE } =
     await import("./evolution/capability-lifecycle/capability-lifecycle-ledger.js");
   const { CapabilityEvolutionStore } = await import("./adaptation/capability-evolution-store.js");
   const { rehydrateLifecycleOverlay } =
     await import("./evolution/capability-lifecycle/capability-lifecycle-rehydration.js");
   const cwd = process.cwd();
-  // CAP-3: the registry is a catalog projection — build it over the catalog
-  // and route mutations through the port (Task 5 rewires to the composition root).
-  const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir: join(cwd, ".alix", "capabilities") }));
-  const registry = new CapabilityRegistry(catalog);
-  registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
+  // CAP-3: build the composition root once — the registry is the canonical
+  // catalog projection with the mutation port wired inside the platform.
+  const platform = new CapabilityPlatform({ catalogDir: join(cwd, ".alix", "capabilities") });
   const ledger = new JsonlCapabilityLifecycleLedger(DEFAULT_CAPABILITY_LIFECYCLE_FILE);
   const store = new CapabilityEvolutionStore(join(cwd, ".alix", "capability-evolution"));
   // The registry overlay is a runtime projection of persisted applied records —
   // rehydrate it before the command reads/mutates state (spec §8).
-  await rehydrateLifecycleOverlay(registry, ledger);
-  await handleCapabilitiesCommand(args, { cwd, ledger, registry, store });
+  await rehydrateLifecycleOverlay(platform.registry, ledger);
+  await handleCapabilitiesCommand(args, { cwd, ledger, registry: platform.registry, store });
   process.exit(0);
 }
 
