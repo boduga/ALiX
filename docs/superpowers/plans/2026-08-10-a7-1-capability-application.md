@@ -1051,10 +1051,9 @@ export class CapabilityLifecycleMeasurer {
       environmentHash: "a7-capability",
       observations: [{
         observationId: `a7-obs-${capabilityId}`,
-        provider: "capability-lifecycle",
-        description: `post-application lifecycle state for ${capabilityId}`,
         status: "pass", observed: postState, expected: latest.proposedLifecycleState, confidence: 1,
-      } as never],
+        observedAt: new Date().toISOString(), evidence: {},
+      }],
     });
 
     const measurementId = `a7-meas-${hash16(`a7-meas|${capabilityId}|${latest.executionId ?? ""}`)}`;
@@ -1079,7 +1078,7 @@ function hash16(input: string): string { return createHash("sha256").update(inpu
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm build && node --test dist/tests/evolution/capability-lifecycle/capability-lifecycle-measurer.test.js`
-Expected: PASS (2/2). If `buildObservationEvidence`'s `ObservationResult` type rejects the cast, loosen to a local `ObservationResult`-compatible object (match the actual shape in `src/evolution/observation/contracts/observation-contract.js`).
+Expected: PASS (2/2). The observation literal must match the contract `ObservationResult` shape (observationId/status/confidence/observedAt/evidence — `src/evolution/observation/contracts/observation-contract.js`); Step 3's literal already does. The measurer itself constructs the observation — the test only exercises it via `measure()`.
 
 - [ ] **Step 5: Impact + commit**
 
