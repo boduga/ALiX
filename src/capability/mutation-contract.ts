@@ -45,7 +45,9 @@ export function isLegalTransition(from: LifecycleState, to: LifecycleState): boo
 }
 
 import type { CapabilityDefinition, CapabilityRisk, CapabilityPermission } from "./canonical/definition.js";
+import { validateCapabilityDefinition } from "./canonical/definition.js";
 import type { CapabilityProviderBinding } from "./canonical/provider.js";
+import type { ValidationResult } from "../evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Mutation payloads (design §20-25; #477/#479/#480/#481)
@@ -283,4 +285,92 @@ function deepEqual(a: unknown, b: unknown): boolean {
     if (!deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
   }
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Consolidation conservative merge rules (#477)
+// ---------------------------------------------------------------------------
+
+const RISK_RANK: Record<CapabilityRisk, number> = { low: 0, medium: 1, high: 2, critical: 3 };
+
+/**
+ * Validate a consolidation PROPOSAL against the #477 conservative merge rules,
+ * relative to the resolved SOURCE definitions. The proposal must carry the
+ * explicit proposed target definition; this validator checks it is
+ * conservatively sound — it NEVER synthesizes a merged definition.
+ *
+ * Rules (#477 table): target ∉ sources; sources non-empty + unique; each
+ * source resolves; proposed kind compatible with every source (else
+ * governance cannot auto-merge); proposed risk >= highest source risk
+ * (highest wins); proposed requiredPermissions ⊇ union of sources;
+ * proposed dependencies ⊇ union of sources; proposed bindings explicitly
+ * proposed (non-empty, never blindly unioned); proposed aliases collision-free.
+ */
+export function validateConsolidateMerge(
+  proposal: CapabilityConsolidateMutation,
+  sources: readonly CapabilityDefinition[],
+): ValidationResult {
+  const errors: string[] = [];
+
+  if (proposal.sources.length === 0) errors.push("consolidate: sources must be non-empty");
+  if (new Set(proposal.sources).size !== proposal.sources.length) errors.push("consolidate: sources must be unique");
+  if (proposal.sources.includes(proposal.target)) errors.push("consolidate: target must not be one of the sources");
+  if (proposal.sourceDisposition !== "deprecate" && proposal.sourceDisposition !== "remove") {
+    errors.push("consolidate: sourceDisposition must be 'deprecate' or 'remove'");
+  }
+
+  try {
+    validateCapabilityDefinition(proposal.definition);
+  } catch (err) {
+    errors.push(`consolidate: proposed target definition invalid — ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const sourceDefs = proposal.sources.map((id) => sources.find((s) => s.id === id));
+  for (let i = 0; i < proposal.sources.length; i++) {
+    if (!sourceDefs[i]) errors.push(`consolidate: source '${proposal.sources[i]}' does not resolve to a definition`);
+  }
+  const resolved = sourceDefs.filter((s): s is CapabilityDefinition => s !== undefined);
+  if (resolved.length === 0) return { valid: errors.length === 0, errors };
+
+  // kind compatibility (#477: "Must be compatible; otherwise governance cannot auto-merge")
+  for (const s of resolved) {
+    if (s.kind !== proposal.definition.kind) {
+      errors.push(`consolidate: kind '${s.kind}' of source '${s.id}' incompatible with proposed kind '${proposal.definition.kind}' — governance cannot auto-merge`);
+    }
+  }
+
+  // risk: highest wins
+  const maxSourceRisk = Math.max(...resolved.map((s) => RISK_RANK[s.risk]));
+  if (RISK_RANK[proposal.definition.risk] < maxSourceRisk) {
+    errors.push("consolidate: proposed risk must be >= highest source risk (highest wins)");
+  }
+
+  // requiredPermissions: union
+  for (const s of resolved) {
+    for (const p of s.requiredPermissions) {
+      if (!proposal.definition.requiredPermissions.includes(p)) {
+        errors.push(`consolidate: proposed definition missing required permission '${p}' from source '${s.id}' (union required)`);
+      }
+    }
+  }
+
+  // dependencies: union
+  for (const s of resolved) {
+    for (const d of s.dependencies) {
+      if (!proposal.definition.dependencies.includes(d)) {
+        errors.push(`consolidate: proposed definition missing dependency '${d}' from source '${s.id}' (union required)`);
+      }
+    }
+  }
+
+  // bindings: explicitly proposed, never blindly unioned
+  if (proposal.definition.bindings.length === 0) {
+    errors.push("consolidate: proposed definition must carry explicit bindings (never blindly unioned)");
+  }
+
+  // aliases: no collision within the proposed definition
+  const aliases = proposal.definition.aliases ?? [];
+  if (new Set(aliases).size !== aliases.length) errors.push("consolidate: aliases must not collide within the proposed definition");
+
+  return { valid: errors.length === 0, errors };
 }

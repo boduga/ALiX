@@ -7,6 +7,7 @@ import {
   isLegalTransition,
   CAPABILITY_MUTATION_OPERATIONS,
   classifyUpdateBump,
+  validateConsolidateMerge,
 } from "../../src/capability/mutation-contract.js";
 import type {
   CapabilityCreateMutation,
@@ -308,5 +309,85 @@ describe("classifyUpdateBump (#479/#480 locked matrix)", () => {
       bindings: [{ type: "daemon", id: "d" }],
     });
     expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+});
+
+function sourceDef(id: string, over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
+  return {
+    id, version: "1.0.0", kind: "operation", title: id, description: id,
+    tags: [], category: "tools", risk: "low",
+    requiredPermissions: ["operator"], dependencies: [], bindings: [{ type: "mcp", id: `${id}-mcp` }],
+    ...over,
+  };
+}
+
+// VALID fixture: target is a NEW id (not a source), risk is highest, permissions
+// are the union, dependencies are the union, bindings explicit, no alias collision.
+function proposal(over: Partial<CapabilityConsolidateMutation> = {}): CapabilityConsolidateMutation {
+  return {
+    operation: "capability.consolidate",
+    sources: ["tool.file.read", "tool.file.tail"],
+    target: "tool.file.combined",
+    definition: sourceDef("tool.file.combined", {
+      risk: "medium",
+      requiredPermissions: ["operator", "admin"],
+      dependencies: ["core.session.list"],
+      aliases: ["readtail"],
+    }),
+    sourceDisposition: "deprecate",
+    ...over,
+  };
+}
+
+describe("validateConsolidateMerge (#477 conservative merge rules)", () => {
+  // sources: tool.file.read has perms [operator], deps []; tool.file.tail has
+  // perms [operator, admin], deps [core.session.list], aliases [tail].
+  const sources = [
+    sourceDef("tool.file.read"),
+    sourceDef("tool.file.tail", { requiredPermissions: ["operator", "admin"], dependencies: ["core.session.list"], aliases: ["tail"] }),
+  ];
+
+  it("accepts a conservatively sound proposal", () => {
+    const r = validateConsolidateMerge(proposal(), sources);
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it("rejects when target is one of the sources", () => {
+    const r = validateConsolidateMerge(proposal({ target: "tool.file.read" }), sources);
+    expect(r.valid).toBe(false);
+  });
+
+  it("rejects empty or duplicate sources", () => {
+    expect(validateConsolidateMerge(proposal({ sources: [] }), sources).valid).toBe(false);
+    expect(validateConsolidateMerge(proposal({ sources: ["tool.file.read", "tool.file.read"] }), sources).valid).toBe(false);
+  });
+
+  it("rejects a kind mismatch between a source and the proposed target", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { kind: "query" }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects proposed risk below the highest source risk", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { risk: "low" }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects a missing source required permission (union)", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { requiredPermissions: ["operator"] }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects a missing source dependency (union)", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { dependencies: [] }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects empty proposed bindings (never blindly unioned)", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { bindings: [] }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects duplicate aliases within the proposed definition", () => {
+    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { aliases: ["tail", "tail"] }) }), sources).valid).toBe(false);
+  });
+
+  it("rejects a source id that does not resolve to a definition", () => {
+    expect(validateConsolidateMerge(proposal({ sources: ["tool.file.read", "ghost.capability"] }), sources).valid).toBe(false);
   });
 });
