@@ -15,7 +15,7 @@ export function isCapabilityKind(v: unknown): v is CapabilityKind {
 /** Pre-greenfield kind vocabulary — superseded by semantic kinds (decisions #475/#476). */
 export type LegacyKind = "core" | "tool" | "skill" | "custom" | "workflow" | "plugin";
 
-const LEGACY_TO_KIND: Record<LegacyKind, CapabilityKind> = {
+const LEGACY_TO_KIND: Record<Exclude<LegacyKind, "custom">, CapabilityKind> = {
   core: "core",
   tool: "operation",
   skill: "operation",
@@ -27,7 +27,7 @@ const LEGACY_TO_KIND: Record<LegacyKind, CapabilityKind> = {
  *  equivalent and is rejected — provider technologies must not become kinds. */
 export function migrateKind(legacy: string): CapabilityKind {
   if (legacy === "custom") throw new Error("legacy kind 'custom' has no semantic CapabilityKind");
-  const mapped = LEGACY_TO_KIND[legacy as LegacyKind];
+  const mapped = LEGACY_TO_KIND[legacy as Exclude<LegacyKind, "custom">];
   if (!mapped) throw new Error(`unknown legacy kind: ${legacy}`);
   return mapped;
 }
