@@ -462,10 +462,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { CapabilityLifecycleStepExecutor } from "../../src/evolution/capability-lifecycle/capability-lifecycle-step-executor.js";
-import type { Capability } from "../../src/capability/types.js";
-import type { ExecutionStep } from "../../src/evolution/execution/contracts/execution-contract.js";
+import { CapabilityRegistry } from "../../../src/capability/registry.js";
+import { CapabilityLifecycleStepExecutor } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-step-executor.js";
+import type { Capability } from "../../../src/capability/types.js";
+import type { ExecutionStep } from "../../../src/evolution/execution/contracts/execution-contract.js";
 
 function makeCapability(id: string): Capability {
   return { id, version: "1.0.0", kind: "core", title: id, description: id, tags: [], category: "core",
