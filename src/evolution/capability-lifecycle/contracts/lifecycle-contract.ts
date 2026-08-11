@@ -8,6 +8,8 @@ import type { GovernanceDecision, GovernanceDecisionKind } from "../../governanc
 import type { ValidationResult } from "../../contracts/evolution-contract.js";
 import type { VerificationEvidence } from "../../verification/contracts/verification-contract.js";
 import type { PatternObservation } from "../../contracts/pattern-discovery-contract.js";
+import type { CapabilityDefinition } from "../../../capability/canonical/definition.js";
+import type { CapabilityAvailability } from "../../../capability/registry.js";
 
 // ---------------------------------------------------------------------------
 // Lifecycle intent
@@ -191,6 +193,51 @@ export function deriveCapabilityProjectionState(
   if (latestDecision.decisionKind === "REJECT") return "REJECTED";
   return "APPROVED_PENDING_APPLICATION"; // APPROVE / MONITOR / REQUEST_MORE_EVIDENCE
 }
+
+// ---------------------------------------------------------------------------
+// Three-axis separation + governance status (CAP-5; #481, #476, design §17)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three independent runtime axes. `lifecycle` ("where it is") and
+ * `availability` ("can it run?") are independent — `active + unavailable` and
+ * `deprecated + available` are both legal. There is NO `dormant` lifecycle
+ * state; an unbound capability is `unavailable`, never a fourth state. The
+ * definition axis is the immutable `id@version` publication (#479).
+ *
+ * CAP-5 contract only — NOT yet wired into the registry. CAP-7/8/9 adopt this
+ * type as the canonical runtime-state shape.
+ */
+export interface CapabilityRuntimeState {
+  definition: CapabilityDefinition;
+  lifecycle: LifecycleState;
+  availability: CapabilityAvailability;
+}
+
+/**
+ * Fourth, independent axis: what GOVERNANCE says about the capability
+ * (design §17). Orthogonal to lifecycle — a capability can be
+ * `lifecycle: active` while `governance: approved` with a deprecation
+ * requested-but-not-yet-applied; no artificial lifecycle value such as
+ * APPROVED_PENDING_APPLICATION is required. CAP-5 declares the type only; it
+ * is not wired into the governance engine.
+ */
+export type CapabilityGovernanceStatus =
+  | "none"
+  | "proposed"
+  | "approved"
+  | "rejected"
+  | "applied"
+  | "measured";
+
+export const CAPABILITY_GOVERNANCE_STATUSES: readonly CapabilityGovernanceStatus[] = [
+  "none", "proposed", "approved", "rejected", "applied", "measured",
+];
+
+// NOTE: `CapabilityProjectionState`'s `APPROVED_PENDING_APPLICATION` (A7
+// overlay) is NOT a CAP-5 lifecycle or governance state. Its removal/cleanup
+// is deferred to CAP-11. The CAP-5 model expresses the same truth as
+// `lifecycle` + `governance: approved`.
 
 // ---------------------------------------------------------------------------
 // Analyzer inputs / candidates
