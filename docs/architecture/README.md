@@ -22,6 +22,7 @@
 | [0010](adrs/ADR-0010-executive-intelligence-architecture.md) | Intelligence | Cyclic executive stack: plan → evaluate → learn → recommend |
 | [0011](adrs/ADR-0011-evolution-verification-model.md) | Verification | Counterfactual replay with dimensional confidence |
 | [0012](adrs/ADR-0012-patch-mutation-architecture.md) | Patches | Preimage-validated patch engine with format selection |
+| [0013](adrs/ADR-0013-capability-system-and-provider-architecture.md) | Capabilities | One canonical CapabilityRegistry; semantic capabilities with provider implementations |
 
 ---
 
@@ -40,15 +41,15 @@ ADR-0001  Hub-and-Spoke
     │
     └──► ADR-0002  Runtime Builder
             │
-            └──► ADR-0010  Executive Intelligence
+            ├──► ADR-0010  Executive Intelligence
+            │
+            └──► ADR-0013  Capability / Provider Architecture
                         │
-                        ├──► ADR-0006  Governed Evolution Pipeline
-                        │       │
-                        │       ├──► ADR-0011  Verification Model
-                        │       │
-                        │       └──► ADR-0012  Patch & Mutation
-                        │
-                        └──► ADR-0009
+                        └──► ADR-0006  Governed Evolution Pipeline
+                                │
+                                ├──► ADR-0011  Verification Model
+                                │
+                                └──► ADR-0012  Patch & Mutation
 ```
 
 Transitive dependencies are not expanded. If B depends on A, and C depends on B, C transitively depends on A — read A when changing C.
@@ -66,11 +67,13 @@ Transitive dependencies are not expanded. If B depends on A, and C depends on B,
 | Security & Audit | `src/security/`, `src/audit/` | 0004, 0009 | Canonical JSON, audit store, credentials, redaction |
 | Governance | `src/gov/`, `src/governance/` | 0006 | CLI, evolution lifecycle |
 | Evolution | `src/evolution/` | 0006, 0011 | A-series pipeline, verification, execution, observation |
+| Capabilities | `src/capability/` | **0013** | Canonical definitions, lifecycle, provider bindings, discovery |
+| Capability integrations | `src/integrations/` | **0013** | Native/tool/MCP/external provider adapters |
 | Executive | `src/executive/` | 0010 | Planning, outcome evaluation, learning, recommendations |
 | Patches | `src/patch/` | 0012 | Edit format policy, preimage validation, rollback |
-| CLI | `src/cli/` | — | Command tree, evolution subcommands |
-| Tools | `src/tools/` | — | Tool execution, tool discovery |
-| MCP | `src/mcp/` | — | MCP server integration |
+| CLI | `src/cli/` | 0013 | Command tree and capability consumer surfaces |
+| Tools | `src/tools/` | 0013 | Tool provider implementation |
+| MCP | `src/mcp/` | 0013 | MCP provider/integration boundary |
 | Providers | `src/providers/` | 0003, 0007 | Model provider interface, routing |
 | Checkpoints | `src/checkpoints/` | 0005 | File-level checkpoints |
 | Recovery | `src/recovery/` | 0008 | Crash recovery |
@@ -78,6 +81,49 @@ Transitive dependencies are not expanded. If B depends on A, and C depends on B,
 ---
 
 ## Where to Look When Changing X
+
+### Changing capabilities, capability discovery, or provider bindings
+
+```
+Read: ADR-0013 (canonical capability/provider architecture)
+Read: docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md
+Read: docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md
+Read: src/capability/registry.ts, src/capability/types.ts
+Read: src/capability/execution-resolver.ts
+```
+
+**Hard rule:** never create a second `CapabilityRegistry` to serve a UI, CLI, governance module, or adapter.
+
+### Changing MCP-backed capabilities
+
+```
+Read: ADR-0013
+Read: src/mcp/
+Read: provider binding/resolution contracts
+```
+
+MCP is a provider/integration mechanism. MCP protocol plumbing is not automatically a capability.
+
+### Changing external CLI-backed capabilities
+
+```
+Read: ADR-0013
+Read: external CLI provider contract
+Read: provider executor / argument / environment / cwd policy
+```
+
+`gh`, GitNexus, `kubectl`, `terraform`, `docker`, etc. are providers behind semantic capabilities.
+
+### Changing capability governance
+
+```
+Read: ADR-0013 (capability ownership)
+Read: ADR-0006 (governed evolution pipeline)
+Read: A7 greenfield capability design + plan
+Read: src/evolution/capability-lifecycle/
+```
+
+A7 governs capability lifecycle; A4 remains the mutation boundary; the registry remains current-state authority.
 
 ### Changing subagent dispatch or isolation
 
@@ -173,6 +219,16 @@ Update: docs/architecture/adrs/README.md (index table)
 - Credentials are encrypted at rest
 - Path traversal is structurally prevented
 
+### Capability Layer (ADR-0013)
+
+- Exactly one canonical `CapabilityRegistry` per runtime composition
+- Capability identity is semantic and provider-independent
+- MCP, tools, external CLIs, native functions, daemons, agents, plugins, and APIs are providers/implementations
+- Provider failure does not automatically mutate capability lifecycle
+- Current capability state comes from the registry; A7 ledger is history/governance
+- CLI/TUI/Web consume the same capability system
+- Governed registration must contain a complete capability definition and provider binding
+
 ### Evolution Layer (ADR-0006, ADR-0011, ADR-0012)
 
 - Governance depends on evidence, not implementation
@@ -205,9 +261,12 @@ Update: docs/architecture/adrs/README.md (index table)
 |----------|----------|
 | ADR index (this file) | `docs/architecture/README.md` |
 | ADRs | `docs/architecture/adrs/ADR-NNNN-*.md` |
+| **Canonical capability/provider ADR** | `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md` |
 | A-series living reference | `docs/architecture/a-series-governed-evolution.md` |
 | Design specifications | `docs/architecture/specs/YYYY-MM-DD-*.md` |
 | Implementation plans | `docs/superpowers/plans/YYYY-MM-DD-*.md` |
+| **Capability greenfield design** | `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md` |
+| **Capability greenfield plan** | `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md` |
 | **EventLog projection architecture (canonical)** | `docs/architecture/eventlog-projection-architecture.md` |
 
 ---
