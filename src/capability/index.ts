@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./errors.js";
 export * from "./registry.js";
 export * from "./legacy-adapter.js";
+export * from "./mutation-contract.js";
 export * from "./mutation-port.js";
 export * from "./hook-registry.js";
 export * from "./provider-resolver.js";
