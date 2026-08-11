@@ -344,7 +344,7 @@ describe("validateConsolidateMerge (#477 conservative merge rules)", () => {
   // perms [operator, admin], deps [core.session.list], aliases [tail].
   const sources = [
     sourceDef("tool.file.read"),
-    sourceDef("tool.file.tail", { requiredPermissions: ["operator", "admin"], dependencies: ["core.session.list"], aliases: ["tail"] }),
+    sourceDef("tool.file.tail", { risk: "medium", requiredPermissions: ["operator", "admin"], dependencies: ["core.session.list"], aliases: ["tail"] }),
   ];
 
   it("accepts a conservatively sound proposal", () => {
@@ -368,7 +368,9 @@ describe("validateConsolidateMerge (#477 conservative merge rules)", () => {
   });
 
   it("rejects proposed risk below the highest source risk", () => {
-    expect(validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { risk: "low" }) }), sources).valid).toBe(false);
+    const r = validateConsolidateMerge(proposal({ definition: sourceDef("tool.file.combined", { risk: "low", requiredPermissions: ["operator", "admin"], dependencies: ["core.session.list"] }) }), sources);
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes("risk"))).toBe(true);
   });
 
   it("rejects a missing source required permission (union)", () => {

@@ -323,6 +323,7 @@ export function validateConsolidateMerge(
     validateCapabilityDefinition(proposal.definition);
   } catch (err) {
     errors.push(`consolidate: proposed target definition invalid — ${err instanceof Error ? err.message : String(err)}`);
+    return { valid: false, errors };
   }
 
   const sourceDefs = proposal.sources.map((id) => sources.find((s) => s.id === id));
