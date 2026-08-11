@@ -7,6 +7,7 @@ import {
   isLegalTransition,
   CAPABILITY_MUTATION_OPERATIONS,
   classifyUpdateBump,
+  validateCapabilityMutation,
   validateConsolidateMerge,
 } from "../../src/capability/mutation-contract.js";
 import type {
@@ -391,5 +392,96 @@ describe("validateConsolidateMerge (#477 conservative merge rules)", () => {
 
   it("rejects a source id that does not resolve to a definition", () => {
     expect(validateConsolidateMerge(proposal({ sources: ["tool.file.read", "ghost.capability"] }), sources).valid).toBe(false);
+  });
+});
+
+// validateCapabilityDefinition requires >=1 binding, so the create/consolidate
+// tests need a definition with a real binding (not the Task 3 factory default).
+const okDef = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1" }] });
+
+describe("validateCapabilityMutation (pre/post conditions)", () => {
+  it("rejects non-objects", () => {
+    expect(validateCapabilityMutation(null).valid).toBe(false);
+    expect(validateCapabilityMutation(42).valid).toBe(false);
+  });
+
+  it("rejects unknown operations", () => {
+    expect(validateCapabilityMutation({ operation: "capability.frobnicate" }).valid).toBe(false);
+  });
+
+  it("create: accepts a valid authored definition", () => {
+    const r = validateCapabilityMutation({ operation: "capability.create", definition: okDef });
+    expect(r.valid).toBe(true);
+  });
+
+  it("create: rejects an invalid definition and a non-emerging initialLifecycle", () => {
+    expect(validateCapabilityMutation({ operation: "capability.create", definition: { ...okDef, version: "1.0" } }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.create", definition: okDef, initialLifecycle: "active" }).valid).toBe(false);
+  });
+
+  it("update: accepts sourceVersion + patch", () => {
+    const r = validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { title: "x" } });
+    expect(r.valid).toBe(true);
+  });
+
+  it("update: rejects malformed sourceVersion, empty patch, and immutable patch fields", () => {
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0", patch: { title: "x" } }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "^1.0.0", patch: { title: "x" } }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: {} }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { kind: "query" } }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { version: "2.0.0" } }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.update", capabilityId: "tool.file.read", sourceVersion: "1.0.0", patch: { id: "other.capability" } }).valid).toBe(false);
+  });
+
+  it("transition: accepts a legal transition and rejects illegal/stale ones", () => {
+    expect(validateCapabilityMutation({ operation: "capability.transition", capabilityId: "tool.file.read", from: "emerging", to: "active" }).valid).toBe(true);
+    expect(validateCapabilityMutation({ operation: "capability.transition", capabilityId: "tool.file.read", from: "active", to: "deprecated" }).valid).toBe(false); // not in #481 graph
+    expect(validateCapabilityMutation({ operation: "capability.transition", capabilityId: "tool.file.read", from: "active", to: "active" }).valid).toBe(false);
+    expect(validateCapabilityMutation({ operation: "capability.transition", capabilityId: "tool.file.read", from: "active", to: "dormant" }).valid).toBe(false);
+  });
+
+  it("consolidate: enforces internal preconditions (target ∉ sources, non-empty, disposition)", () => {
+    expect(validateCapabilityMutation({
+      operation: "capability.consolidate", sources: ["a.b", "a.c"], target: "a.b",
+      definition: okDef, sourceDisposition: "deprecate",
+    }).valid).toBe(false); // target ∈ sources
+    expect(validateCapabilityMutation({
+      operation: "capability.consolidate", sources: [], target: "a.c",
+      definition: okDef, sourceDisposition: "deprecate",
+    }).valid).toBe(false); // empty sources
+    expect(validateCapabilityMutation({
+      operation: "capability.consolidate", sources: ["a.b", "a.c"], target: "a.d",
+      definition: okDef, sourceDisposition: "retain",
+    }).valid).toBe(false); // bad disposition
+    expect(validateCapabilityMutation({
+      operation: "capability.consolidate", sources: ["a.b", "a.c"], target: "a.d",
+      definition: okDef, sourceDisposition: "remove",
+    }).valid).toBe(true);
+  });
+
+  it("consolidate: local validation passes even when source-aware validation fails (deferral invariant)", () => {
+    // A kind-mismatched merge is mutation-LOCALLY valid (target ∉ sources,
+    // non-empty sources, valid proposed definition) — validateCapabilityMutation
+    // MUST NOT claim it is fully valid by itself. validateConsolidateMerge
+    // (Task 4) rejects it against resolved source publications. This is the
+    // validateCapabilityMutation → validateConsolidateMerge deferral invariant.
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.read", "tool.file.tail"],
+      target: "tool.file.combined",
+      definition: okDef, // kind: "operation"
+      sourceDisposition: "deprecate" as const,
+    };
+    expect(validateCapabilityMutation(mutation).valid).toBe(true); // mutation-local shape only
+    const merge = validateConsolidateMerge(mutation, [
+      { ...okDef, id: "tool.file.read", kind: "query" },
+      { ...okDef, id: "tool.file.tail", kind: "query" },
+    ]);
+    expect(merge.valid).toBe(false); // source-aware conservative rules reject it
+  });
+
+  it("remove: requires capabilityId and reason", () => {
+    expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail", reason: "superseded" }).valid).toBe(true);
+    expect(validateCapabilityMutation({ operation: "capability.remove", capabilityId: "tool.file.tail", reason: "" }).valid).toBe(false);
   });
 });

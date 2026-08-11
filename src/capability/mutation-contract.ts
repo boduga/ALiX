@@ -47,6 +47,7 @@ export function isLegalTransition(from: LifecycleState, to: LifecycleState): boo
 import type { CapabilityDefinition, CapabilityRisk, CapabilityPermission } from "./canonical/definition.js";
 import { validateCapabilityDefinition } from "./canonical/definition.js";
 import type { CapabilityProviderBinding } from "./canonical/provider.js";
+import { isValidVersion } from "./canonical/version.js";
 import type { ValidationResult } from "../evolution/contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
@@ -374,4 +375,110 @@ export function validateConsolidateMerge(
   if (new Set(aliases).size !== aliases.length) errors.push("consolidate: aliases must not collide within the proposed definition");
 
   return { valid: errors.length === 0, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Master mutation validator — pre/post conditions
+// ---------------------------------------------------------------------------
+
+const IMMUTABLE_DEFINITION_FIELDS = ["id", "version", "kind"] as const;
+
+/**
+ * Validate any CAP-5 mutation against its MUTATION-LOCAL pre/post conditions.
+ * The contract's acceptance proof: a mutation a later executor cannot redefine.
+ *
+ * Invariant: a consolidate mutation is NOT fully validated by this function
+ * alone — the source-aware conservative merge rules need resolved source
+ * publications and are checked by `validateConsolidateMerge(proposal, sources)`
+ * (CAP-6 resolves them from the catalog). This function validates only the
+ * local shape and NEVER claims a Consolidate is fully valid by itself.
+ */
+export function validateCapabilityMutation(value: unknown): ValidationResult {
+  const shape = validateMutationShape(value);
+  if (!shape.valid) return shape;
+
+  const m = value as CapabilityMutation;
+  switch (m.operation) {
+    case "capability.create": return validateCreate(m);
+    case "capability.update": return validateUpdate(m);
+    case "capability.transition": return validateTransition(m);
+    case "capability.consolidate": return validateConsolidate(m);
+    case "capability.remove": return validateRemove(m);
+  }
+}
+
+/** Structural shape check — operation discriminator + required field presence. */
+function validateMutationShape(value: unknown): ValidationResult {
+  if (!value || typeof value !== "object") return { valid: false, errors: ["mutation must be an object"] };
+  const v = value as Record<string, unknown>;
+  if (typeof v.operation !== "string" || !(CAPABILITY_MUTATION_OPERATIONS as readonly string[]).includes(v.operation)) {
+    return { valid: false, errors: [`operation must be one of: ${CAPABILITY_MUTATION_OPERATIONS.join(", ")}`] };
+  }
+  return { valid: true, errors: [] };
+}
+
+function validateCreate(m: CapabilityCreateMutation): ValidationResult {
+  const errors: string[] = [];
+  try {
+    validateCapabilityDefinition(m.definition);
+  } catch (err) {
+    errors.push(`create: definition invalid — ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (m.initialLifecycle !== undefined && m.initialLifecycle !== "emerging") {
+    errors.push("create: initialLifecycle must be 'emerging' (a new capability enters the graph at emerging, #481)");
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateUpdate(m: CapabilityUpdateMutation): ValidationResult {
+  const errors: string[] = [];
+  if (!isValidVersion(m.sourceVersion)) {
+    errors.push(`update: sourceVersion must be full SemVer MAJOR.MINOR.PATCH (got '${String(m.sourceVersion)}'); no ranges, no normalization`);
+  }
+  if (m.capabilityId.trim().length === 0) errors.push("update: capabilityId required");
+  const patchKeys = Object.keys(m.patch ?? {});
+  if (patchKeys.length === 0) errors.push("update: patch must not be empty");
+  for (const imm of IMMUTABLE_DEFINITION_FIELDS) {
+    if ((m.patch as Record<string, unknown>)[imm] !== undefined) {
+      errors.push(`update: '${imm}' is immutable and must not appear in a patch`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateTransition(m: CapabilityTransitionMutation): ValidationResult {
+  const errors: string[] = [];
+  if (!isLifecycleState(m.from)) errors.push(`transition: 'from' must be a valid lifecycle state (got '${String(m.from)}')`);
+  if (!isLifecycleState(m.to)) errors.push(`transition: 'to' must be a valid lifecycle state (got '${String(m.to)}')`);
+  if (isLifecycleState(m.from) && isLifecycleState(m.to) && !isLegalTransition(m.from, m.to)) {
+    errors.push(`transition: '${m.from}' → '${m.to}' is not a legal transition in the #481 graph`);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateConsolidate(m: CapabilityConsolidateMutation): ValidationResult {
+  const errors: string[] = [];
+  if (m.sources.length === 0) errors.push("consolidate: sources must be non-empty");
+  if (new Set(m.sources).size !== m.sources.length) errors.push("consolidate: sources must be unique");
+  if (m.sources.includes(m.target)) errors.push("consolidate: target must not be one of the sources");
+  if (m.sourceDisposition !== "deprecate" && m.sourceDisposition !== "remove") {
+    errors.push("consolidate: sourceDisposition must be 'deprecate' or 'remove'");
+  }
+  try {
+    validateCapabilityDefinition(m.definition);
+  } catch (err) {
+    errors.push(`consolidate: proposed target definition invalid — ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateRemove(m: CapabilityRemoveMutation): ValidationResult {
+  const errors: string[] = [];
+  if (m.capabilityId.trim().length === 0) errors.push("remove: capabilityId required");
+  if (m.reason.trim().length === 0) errors.push("remove: reason required");
+  return { valid: errors.length === 0, errors };
+}
+
+function isLifecycleState(v: unknown): v is LifecycleState {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(LEGAL_LIFECYCLE_TRANSITIONS, v);
 }
