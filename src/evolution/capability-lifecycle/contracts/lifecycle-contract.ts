@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import type { LifecycleState } from "../../../adaptation/capability-evolution-types.js";
 import type { CapabilityGap, CapabilityHealth, CapabilityOverlap, CapabilityDrift } from "../../../adaptation/capability-evolution-types.js";
-import type { GovernanceDecisionKind } from "../../governance/contracts/decision-contract.js";
+import type { GovernanceDecision, GovernanceDecisionKind } from "../../governance/contracts/decision-contract.js";
 import type { ValidationResult } from "../../contracts/evolution-contract.js";
 import type { VerificationEvidence } from "../../verification/contracts/verification-contract.js";
 import type { PatternObservation } from "../../contracts/pattern-discovery-contract.js";
@@ -24,10 +24,10 @@ export const CAPABILITY_LIFECYCLE_INTENTS: readonly CapabilityLifecycleIntent[] 
   "register", "promote", "modify", "consolidate", "deprecate",
 ];
 
-export type CapabilityLifecycleEventType = "intent" | "proposed" | "decided";
+export type CapabilityLifecycleEventType = "intent" | "proposed" | "decided" | "applied" | "measured";
 
 export const CAPABILITY_LIFECYCLE_EVENT_TYPES: readonly CapabilityLifecycleEventType[] = [
-  "intent", "proposed", "decided",
+  "intent", "proposed", "decided", "applied", "measured",
 ];
 
 // ---------------------------------------------------------------------------
@@ -69,6 +69,8 @@ export interface CapabilityLifecycleRecord {
   observedLifecycleState: LifecycleState | null;
   proposedLifecycleState: LifecycleState;
   decisionKind?: GovernanceDecisionKind;
+  /** A7.1 — full A3 GovernanceDecision persisted on `decided` records. */
+  decision?: GovernanceDecision;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,17 +110,22 @@ export function validateCapabilityLifecycleRecord(value: unknown): ValidationRes
     if (typeof v.decisionKind !== "string" || !["APPROVE", "REJECT", "MONITOR", "REQUEST_MORE_EVIDENCE"].includes(v.decisionKind)) {
       errors.push("decided record requires a valid decisionKind");
     }
+    if (isNonEmptyString(v.executionId)) errors.push("decided record must not carry executionId");
+    if (isNonEmptyString(v.measurementId)) errors.push("decided record must not carry measurementId");
   }
   if (v.eventType === "proposed" && !isNonEmptyString(v.proposalId)) {
     errors.push("proposed record requires proposalId");
   }
-  // A7.0 invariant: applied/measured events and execution/measurement ids are
-  // prohibited until A7.1.
-  if (v.eventType === "applied" || v.eventType === "measured") {
-    errors.push(`eventType ${String(v.eventType)} is reserved for A7.1 and must not appear in A7.0 records`);
+  if (v.eventType === "applied") {
+    if (!isNonEmptyString(v.executionId)) errors.push("applied record requires executionId");
+    if (!isNonEmptyString(v.decisionId)) errors.push("applied record requires decisionId");
+    if (isNonEmptyString(v.measurementId)) errors.push("applied record must not carry measurementId");
   }
-  if (isNonEmptyString(v.executionId)) errors.push("executionId is an A7.1 field — must be absent in A7.0 records");
-  if (isNonEmptyString(v.measurementId)) errors.push("measurementId is an A7.1 field — must be absent in A7.0 records");
+  if (v.eventType === "measured") {
+    if (!isNonEmptyString(v.measurementId)) errors.push("measured record requires measurementId");
+    if (!Array.isArray(v.baselineEvidenceRefs)) errors.push("measured record requires baselineEvidenceRefs array");
+    if (!Array.isArray(v.postObservationRefs)) errors.push("measured record requires postObservationRefs array");
+  }
   if (v.observedLifecycleState !== null && typeof v.observedLifecycleState === "string") {
     if (!(P5_5_LIFECYCLE_STATES as readonly string[]).includes(v.observedLifecycleState)) {
       errors.push("observedLifecycleState must be a P5.5 lifecycle state or null");
@@ -163,7 +170,9 @@ export function computeDeterministicRecordId(
 export type CapabilityProjectionState =
   | "PROPOSED"
   | "REJECTED"
-  | "APPROVED_PENDING_APPLICATION";
+  | "APPROVED_PENDING_APPLICATION"
+  | "APPLIED"
+  | "MEASURED";
 
 /**
  * Projection over (latest A7 decision). The registry's current state remains
@@ -172,7 +181,9 @@ export type CapabilityProjectionState =
 export function deriveCapabilityProjectionState(
   latestDecision: CapabilityLifecycleRecord | null,
 ): CapabilityProjectionState {
-  if (!latestDecision || latestDecision.eventType !== "decided") return "PROPOSED";
+  if (!latestDecision || latestDecision.eventType === "intent" || latestDecision.eventType === "proposed") return "PROPOSED";
+  if (latestDecision.eventType === "applied") return "APPLIED";
+  if (latestDecision.eventType === "measured") return "MEASURED";
   if (latestDecision.decisionKind === "REJECT") return "REJECTED";
   return "APPROVED_PENDING_APPLICATION"; // APPROVE / MONITOR / REQUEST_MORE_EVIDENCE
 }

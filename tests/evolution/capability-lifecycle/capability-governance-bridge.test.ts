@@ -7,6 +7,7 @@ import {
   buildCapabilityEvidence,
   buildCapabilityRecommendation,
   runCapabilityGovernance,
+  toLedgerRecord,
 } from "../../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
 import type { CapabilityLifecycleCandidate } from "../../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
 
@@ -54,5 +55,12 @@ describe("capability governance bridge", () => {
     const candidate = { ...makeCandidate(), confidence: 0.2 }; // < rejectConfidenceThreshold 0.3
     const outcome = runCapabilityGovernance(candidate, "prop-a7-x");
     assert.equal(outcome.decision.kind, "REJECT");
+  });
+
+  it("persists the full GovernanceDecision on a decided ledger record", () => {
+    const candidate = makeCandidate();
+    const outcome = runCapabilityGovernance(candidate, "prop-a7-x");
+    const record = toLedgerRecord("decided", candidate, { proposalId: "prop-a7-x", outcome });
+    assert.equal(record.decision, outcome.decision);
   });
 });

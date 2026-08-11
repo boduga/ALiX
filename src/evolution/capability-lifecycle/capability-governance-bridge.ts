@@ -104,8 +104,10 @@ export function runCapabilityGovernance(
 
 /**
  * Map a bridge phase + outcome into a ledger record (spec §5.2 semantics).
- * `decided` records carry decisionId + decisionKind; `proposed` carry
- * proposalId; `intent` carry neither. Never sets executionId/measurementId.
+ * `decided` records carry decisionId + decisionKind + the full A3
+ * GovernanceDecision (A7.1); `proposed` carry proposalId; `intent` carry
+ * neither. Never sets executionId/measurementId (those are A7.1 applied /
+ * measured fields written by the applier, not the bridge).
  */
 export function toLedgerRecord(
   phase: CapabilityLifecycleEventType,
@@ -127,6 +129,7 @@ export function toLedgerRecord(
   if (phase === "decided" && options.outcome) {
     record.decisionId = options.outcome.decision.decisionId;
     record.decisionKind = options.outcome.decision.kind as GovernanceDecisionKind;
+    record.decision = options.outcome.decision;   // A7.1 — persist the full A3 artifact
   }
   return record;
 }

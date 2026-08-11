@@ -41,7 +41,9 @@ describe("CapabilityLifecycleRecord", () => {
   });
 
   it("accepts every event type in the canonical list", () => {
-    assert.deepEqual(CAPABILITY_LIFECYCLE_EVENT_TYPES, ["intent", "proposed", "decided"]);
+    assert.deepEqual(CAPABILITY_LIFECYCLE_EVENT_TYPES, [
+      "intent", "proposed", "decided", "applied", "measured",
+    ]);
   });
 
   it("rejects a decided record missing its decisionId", () => {
@@ -50,8 +52,9 @@ describe("CapabilityLifecycleRecord", () => {
     assert.ok(result.errors.some((e) => e.includes("decisionId")));
   });
 
-  it("rejects a record that claims applied or measured (A7.0 invariant)", () => {
-    // executionId/measurementId are A7.1 fields — must NOT exist in A7.0 records.
+  it("rejects a decided record carrying executionId or measurementId (A7.1 fields)", () => {
+    // executionId/measurementId belong to A7.1 applied/measured phases — a
+    // decided record (a decision is not an application) must not carry them.
     const withExecution = validateCapabilityLifecycleRecord(makeRecord({ executionId: "exec-x" }));
     assert.equal(withExecution.valid, false);
     const withMeasurement = validateCapabilityLifecycleRecord(makeRecord({ measurementId: "meas-x" }));
