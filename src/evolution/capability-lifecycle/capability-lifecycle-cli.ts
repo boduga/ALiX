@@ -270,7 +270,9 @@ async function runApply(
   if (!registry) {
     const msg = "Capability registry unavailable — cannot apply";
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; process.exit(1); }
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
@@ -279,12 +281,16 @@ async function runApply(
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; process.exit(1); }
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
+    else console.error(res.reason);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, executionId: res.executionId }));
@@ -309,12 +315,16 @@ async function runMeasure(
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; process.exit(1); }
+    else console.error(msg);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
+    else console.error(res.reason);
+    process.exitCode = 1;
+    process.exit(1);
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, measurementId: res.measurementId, stateTransition: res.stateTransition }));
