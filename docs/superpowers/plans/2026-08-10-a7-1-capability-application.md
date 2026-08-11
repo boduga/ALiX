@@ -522,6 +522,17 @@ describe("CapabilityLifecycleStepExecutor", () => {
     ex.rollbackApplied();
     assert.equal(registry.getLifecycleState("core.session.a"), "deprecated"); // restores deprecated, not undefined
   });
+
+  it("handles the capability.restore_transition in-plan rollback step", async () => {
+    const ex = new CapabilityLifecycleStepExecutor(registry);
+    registry.applyLifecycleTransition("core.session.a", "deprecated"); // pre-state = deprecated
+    await ex.executeStep(trans("core.session.a", "active"), {});        // displace to active
+    const rbStep: ExecutionStep = { stepId: "rb-s1", operation: "capability.restore_transition",
+      parameters: { capabilityId: "core.session.a" }, idempotent: true, preconditions: {}, postconditions: {} };
+    const res = await ex.executeStep(rbStep, {});
+    assert.equal(res.success, true);
+    assert.equal(registry.getLifecycleState("core.session.a"), "deprecated"); // restored to true pre-state
+  });
 });
 ```
 
@@ -560,6 +571,15 @@ export class CapabilityLifecycleStepExecutor implements StepExecutor {
   }
 
   async executeStep(step: ExecutionStep, _context: Record<string, unknown>): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    if (step.operation === "capability.restore_transition") {
+      // In-plan rollback step (emitted by the capability.transition resolver): restore
+      // the id to the pre-state this executor captured (or clear it if it had none).
+      const { capabilityId } = step.parameters as { capabilityId: string };
+      const prev = this.preState.get(capabilityId);
+      if (prev === undefined) this.registry.clearLifecycleState(capabilityId);
+      else this.registry.applyLifecycleTransition(capabilityId, prev);
+      return { success: true, output: { capabilityId, restoredTo: prev ?? null } };
+    }
     if (step.operation !== "capability.transition") {
       return { success: false, output: {}, error: `Unknown operation: ${step.operation}` };
     }
@@ -595,18 +615,18 @@ export class CapabilityLifecycleStepExecutor implements StepExecutor {
 In `src/evolution/execution/execution-planner.ts`, in `createDefaultRollbackResolver()`, register a `capability.transition` operation:
 ```ts
 resolver.registerOperation("capability.transition", (step) => {
-  const { capabilityId, to } = step.parameters as { capabilityId: string; to: string };
+  const { capabilityId } = step.parameters as { capabilityId: string };
   return {
     stepId: `rb-${step.stepId}`,
     forwardStepId: step.stepId,
     operation: "capability.restore_transition",
-    parameters: { capabilityId, to: to === "deprecated" ? "active" : "active" }, // A7.1 overlay has no prior-state record in the plan; see note
+    parameters: { capabilityId },
     rollbackType: "automatic" as const,
     safe: true,
   };
 });
 ```
-> **Note:** A4's in-plan rollback restores an *approximate* overlay value (there is no plan-time prior state). The authoritative restoration for the A7 commit failure is `rollbackApplied()` (Task 6), which captures the true pre-state. Document this in a code comment.
+> **Note:** the in-plan rollback step (`capability.restore_transition`) restores the id to its pre-execution overlay state via the executor's captured pre-state map — the authoritative snapshot seeded by the applier (Task 6) before execution. `rollbackApplied()` remains the compensating rollback for the post-completion ledger-append failure, and is idempotent with the in-plan restore. Document this in a code comment.
 
 - [ ] **Step 5: Run tests + impact + commit**
 
