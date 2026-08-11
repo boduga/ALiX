@@ -1403,7 +1403,7 @@ Run the full A7 suite (globstar) + A0 core contracts:
 ```bash
 shopt -s globstar
 pnpm build && node --test dist/tests/evolution/capability-lifecycle/**/*.test.js
-node --test dist/tests/evolution/contracts/evolution-contract.test.js dist/tests/evolution/contracts/pattern-discovery-contract.test.js
+node --test dist/tests/evolution/evolution-contract.test.js dist/tests/evolution/pattern-discovery-contract.test.js
 ```
 Run `mcp__gitnexus__detect_changes()` and confirm the affected scope is the A7 module + the registry + the A4 planner + CLI + tests — no unexpected execution flows.
 
