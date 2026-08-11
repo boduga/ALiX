@@ -1379,7 +1379,7 @@ describe("A7.1 end-to-end capability application", () => {
 
   it("register is approved-but-not-executable: blocked, no mutation, stays APPROVED_PENDING_APPLICATION", async () => {
     const c = { intent: "register" as const, target: { capabilityId: "core.new" }, confidence: 0.9,
-      rationale: ["gap"], evidenceRefs: [], observedLifecycleState: null, proposedLifecycleState: "emerging" };
+      rationale: ["gap"], evidenceRefs: [], observedLifecycleState: null, proposedLifecycleState: "emerging" as const };
     const outcome = runCapabilityGovernance(c, "prop-a7-reg");
     await ledger.append(toLedgerRecord("decided", c, { proposalId: "prop-a7-reg", outcome }));
     const applier = new CapabilityLifecycleApplier({ ledger, registry });
@@ -1403,7 +1403,7 @@ Run the full A7 suite (globstar) + A0 core contracts:
 ```bash
 shopt -s globstar
 pnpm build && node --test dist/tests/evolution/capability-lifecycle/**/*.test.js
-node --test dist/tests/evolution/contracts/*.test.js
+node --test dist/tests/evolution/contracts/evolution-contract.test.js dist/tests/evolution/contracts/pattern-discovery-contract.test.js
 ```
 Run `mcp__gitnexus__detect_changes()` and confirm the affected scope is the A7 module + the registry + the A4 planner + CLI + tests — no unexpected execution flows.
 
