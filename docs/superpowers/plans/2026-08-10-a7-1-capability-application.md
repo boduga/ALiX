@@ -954,10 +954,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { JsonlCapabilityLifecycleLedger } from "../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
-import { CapabilityLifecycleMeasurer } from "../../src/evolution/capability-lifecycle/capability-lifecycle-measurer.js";
-import { CapabilityEvolutionStore } from "../../src/adaptation/capability-evolution-store.js";
-import type { CapabilityEvolutionReport, CapabilityHealth } from "../../src/adaptation/capability-evolution-types.js";
+import { JsonlCapabilityLifecycleLedger } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
+import { CapabilityLifecycleMeasurer } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-measurer.js";
+import { CapabilityEvolutionStore } from "../../../src/adaptation/capability-evolution-store.js";
+import type { CapabilityEvolutionReport, CapabilityHealth } from "../../../src/adaptation/capability-evolution-types.js";
 
 function health(capability: string, lifecycleState: string): CapabilityHealth {
   return { capability, agentCount: 0, resolutionCount: 2, resolutionCountRecent: 0,
@@ -1028,7 +1028,9 @@ import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-
 import { buildObservationEvidence } from "../observation/observation-evidence-bridge.js";
 
 export interface CapabilityMeasurerDeps { ledger: CapabilityLifecycleLedger; store: CapabilityEvolutionStore; }
-export interface MeasureResult { status: "measured" | "blocked"; measurementId?: string; stateTransition?: string; reason?: string; }
+export type MeasureResult =
+  | { status: "measured"; measurementId: string; stateTransition: string }
+  | { status: "blocked"; reason: string };
 
 export class CapabilityLifecycleMeasurer {
   constructor(private readonly deps: CapabilityMeasurerDeps) {}
