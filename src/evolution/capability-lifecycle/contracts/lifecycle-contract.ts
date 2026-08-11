@@ -71,6 +71,10 @@ export interface CapabilityLifecycleRecord {
   decisionKind?: GovernanceDecisionKind;
   /** A7.1 — full A3 GovernanceDecision persisted on `decided` records. */
   decision?: GovernanceDecision;
+  /** A7.1 — present on `measured` records; pre-application baseline evidence. */
+  baselineEvidenceRefs?: string[];
+  /** A7.1 — present on `measured` records; post-application observation evidence. */
+  postObservationRefs?: string[];
 }
 
 // ---------------------------------------------------------------------------
