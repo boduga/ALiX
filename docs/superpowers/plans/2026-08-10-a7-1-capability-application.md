@@ -1133,45 +1133,45 @@ import { CapabilityLifecycleApplier } from "./capability-lifecycle-applier.js";
 import { CapabilityLifecycleMeasurer } from "./capability-lifecycle-measurer.js";
 // in the switch:
 case "apply":
-  return runApply(rest[0], ledger, registry, deps);
+  return runApply(rest[0], ledger, registry, deps, jsonMode);
 case "measure":
-  return runMeasure(rest[0], ledger, store, deps);
+  return runMeasure(rest[0], ledger, store, jsonMode);
 ```
-Add handlers (mirror the existing `renderInspect` error pattern — missing id → error + `process.exitCode = 1; return;`):
+Add handlers. **Fatal paths must use `process.exitCode = 1; process.exit(1);`** — the `src/cli.ts` dispatcher calls `process.exit(0)`, which clobbers a bare `exitCode = 1` (see A7.0 commit 86e323f2). This matches the existing `renderInspect` error pattern in `capability-lifecycle-cli.ts` (lines 63-64, 119-120, 126-127, 148-149). `process.exit(1)` is test-safe because the test's `capture()` stubs `process.exit`:
 ```ts
 async function runApply(id, ledger, registry, deps, jsonMode) {
-  if (!id) { console.error("Usage: alix capabilities apply <id>"); process.exitCode = 1; return; }
+  if (!id) { console.error("Usage: alix capabilities apply <id>"); process.exitCode = 1; process.exit(1); return; }
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
   let res;
   try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; }
+    else { console.error(msg); process.exitCode = 1; process.exit(1); }
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; }
+    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, executionId: res.executionId }));
   else console.log(`applied ${id} (execution ${res.executionId})`);
 }
 async function runMeasure(id, ledger, store, jsonMode) {
-  if (!id) { console.error("Usage: alix capabilities measure <id>"); process.exitCode = 1; return; }
+  if (!id) { console.error("Usage: alix capabilities measure <id>"); process.exitCode = 1; process.exit(1); return; }
   const measurer = new CapabilityLifecycleMeasurer({ ledger, store });
   let res;
   try { res = await measurer.measure(id); }
   catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else { console.error(msg); process.exitCode = 1; }
+    else { console.error(msg); process.exitCode = 1; process.exit(1); }
     return;
   }
   if (res.status === "blocked") {
     if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else { console.error(res.reason); process.exitCode = 1; }
+    else { console.error(res.reason); process.exitCode = 1; process.exit(1); }
     return;
   }
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, measurementId: res.measurementId, stateTransition: res.stateTransition }));
