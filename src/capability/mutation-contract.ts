@@ -404,6 +404,8 @@ export function validateCapabilityMutation(value: unknown): ValidationResult {
     case "capability.transition": return validateTransition(m);
     case "capability.consolidate": return validateConsolidate(m);
     case "capability.remove": return validateRemove(m);
+    default:
+      return { valid: false, errors: [`unknown operation: ${String((m as { operation?: unknown }).operation)}`] };
   }
 }
 

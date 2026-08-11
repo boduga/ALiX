@@ -393,6 +393,10 @@ describe("validateConsolidateMerge (#477 conservative merge rules)", () => {
   it("rejects a source id that does not resolve to a definition", () => {
     expect(validateConsolidateMerge(proposal({ sources: ["tool.file.read", "ghost.capability"] }), sources).valid).toBe(false);
   });
+
+  it("rejects an invalid sourceDisposition in the standalone path", () => {
+    expect(validateConsolidateMerge(proposal({ sourceDisposition: "retain" as "deprecate" | "remove" }), sources).valid).toBe(false);
+  });
 });
 
 // validateCapabilityDefinition requires >=1 binding, so the create/consolidate
