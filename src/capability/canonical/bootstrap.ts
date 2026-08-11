@@ -22,13 +22,20 @@ export const BOOTSTRAP_SOURCE_ORDER = [
   "built-in", "project-local", "plugins", "provider-discovery", "governed", "overrides",
 ] as const;
 
+/** Rank a bootstrap source for precedence. Lower rank sorts earlier and is
+ *  processed first, so it is OVERRIDDEN by every later (higher-rank) source.
+ *  An unknown/typo'd source must never override known catalog content, so it
+ *  gets the LOWEST precedence (-Infinity, sorts before all known sources). */
+function sourceRank(source: string): number {
+  const idx = BOOTSTRAP_SOURCE_ORDER.indexOf(source as never);
+  return idx === -1 ? -Infinity : idx;
+}
+
 /** Deterministic source precedence: later sources override earlier on the same
  *  id@version. Every entry passes canonical validation. */
 export function loadCatalogWithPrecedence(providers: CapabilityBootstrapProvider[]): CapabilityBootstrapEntry[] {
   const byKey = new Map<string, CapabilityBootstrapEntry>();
-  const ordered = [...providers].sort(
-    (a, b) => BOOTSTRAP_SOURCE_ORDER.indexOf(a.source as never) - BOOTSTRAP_SOURCE_ORDER.indexOf(b.source as never),
-  );
+  const ordered = [...providers].sort((a, b) => sourceRank(a.source) - sourceRank(b.source));
   for (const p of ordered) {
     for (const entry of p.load()) {
       validateCapabilityDefinition(entry.definition);

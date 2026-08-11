@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: 2024-present alix <alix@example.com>
 // SPDX-License-Identifier: MIT
 
-import { appendFileSync, mkdirSync, readFileSync, existsSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, existsSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { CapabilityDefinition } from "./definition.js";
 import { validateCapabilityDefinition } from "./definition.js";
 import type { CapabilityProviderBinding } from "./provider.js";
 
 export interface CatalogStoreOptions { dir: string; }
-
-interface DefLine { id: string; version: string; kind: string; /* + full def */ }
-interface BindingLine { id: string; binding: CapabilityProviderBinding; }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);

@@ -25,6 +25,23 @@ describe("bootstrap source precedence", () => {
     expect(abc?.definition.title).toBe("override title");
   });
 
+  it("unknown source lands at lowest precedence (overridden by a known source)", () => {
+    const entries = loadCatalogWithPrecedence([
+      provider("bulit-in", [makeDef("a.b.c", "typo title")]),
+      provider("built-in", [makeDef("a.b.c", "built-in title")]),
+    ]);
+    const abc = entries.find((e) => e.definition.id === "a.b.c");
+    expect(abc?.definition.title).toBe("built-in title");
+  });
+
+  it("unknown source still loads (fail-open) when it has a unique id", () => {
+    const entries = loadCatalogWithPrecedence([
+      provider("bulit-in", [makeDef("u.v.w", "typo title")]),
+    ]);
+    const uvw = entries.find((e) => e.definition.id === "u.v.w");
+    expect(uvw?.definition.title).toBe("typo title");
+  });
+
   it("keeps distinct ids from different sources", () => {
     const entries = loadCatalogWithPrecedence([
       provider("built-in", [makeDef("a.b.c", "x")]),

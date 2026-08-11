@@ -43,6 +43,6 @@ export function evaluateDefinitionAuthoring(
     validateCapabilityDefinition(input as CapabilityDefinition);
     return { status: "valid", missing: [] };
   } catch {
-    return { status: "incomplete", missing };
+    return { status: "incomplete", missing: ["definition"] };
   }
 }

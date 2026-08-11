@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
@@ -63,6 +63,7 @@ describe("CapabilityDefinitionStore", () => {
     const file = join(dir, "capabilities", "definitions.jsonl");
     // Inject a corrupt line at the end
     const raw = readFileSync(file, "utf-8") + "{ not valid json }\n";
+    writeFileSync(file, raw); // persist the corrupt line so s2 actually sees it on reload
     const s2 = new CapabilityDefinitionStore({ dir }); // reloads
     // Corrupt line is skipped; valid entry survives
     expect(s2.listDefinitions().some(d => d.id === "a.b.c")).toBe(true);
