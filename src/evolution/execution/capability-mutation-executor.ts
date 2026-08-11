@@ -30,8 +30,13 @@ import type {
   CapabilityCreateMutation,
   CapabilityUpdateMutation,
   CapabilityTransitionMutation,
+  CapabilityConsolidateMutation,
 } from "../../capability/mutation-contract.js";
-import { classifyUpdateBump, validateCapabilityMutation } from "../../capability/mutation-contract.js";
+import {
+  classifyUpdateBump,
+  validateCapabilityMutation,
+  validateConsolidateMerge,
+} from "../../capability/mutation-contract.js";
 import type { StepExecutor } from "./execution-runtime.js";
 import type { ExecutionStep, RollbackStep } from "./contracts/execution-contract.js";
 import { DefaultRollbackResolver, type RollbackResolver } from "./execution-planner.js";
@@ -232,6 +237,17 @@ export function createCapabilityRollbackResolver(): RollbackResolver {
     rollbackType: "automatic" as const,
     safe: true,
   }));
+  resolver.registerOperation("capability.consolidate", (step) => {
+    const { sources, target } = step.parameters as { sources?: string[]; target?: string };
+    return {
+      stepId: `rb-${step.stepId}`,
+      forwardStepId: step.stepId,
+      operation: "capability.restore_consolidate",
+      parameters: { sources: sources ?? [], target },
+      rollbackType: "automatic" as const,
+      safe: true,
+    };
+  });
   return resolver;
 }
 
@@ -400,8 +416,51 @@ export class CapabilityMutationExecutor implements StepExecutor {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
-  private async executeConsolidate(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
-    return { success: false, output: {}, error: "capability.consolidate: not implemented (Task 4)" };
+  private async executeConsolidate(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const mutation = step.parameters as unknown as CapabilityConsolidateMutation;
+    const validation = validateCapabilityMutation(mutation);
+    if (!validation.valid) return { success: false, output: {}, error: validation.errors.join("; ") };
+
+    const sourceDefs: CapabilityDefinition[] = [];
+    for (const id of mutation.sources) {
+      const d = this.catalog.get(id);
+      if (!d) return { success: false, output: {}, error: `capability.consolidate: source '${id}' does not resolve to a definition` };
+      sourceDefs.push(d);
+    }
+    const merge = validateConsolidateMerge(mutation, sourceDefs);
+    if (!merge.valid) return { success: false, output: {}, error: merge.errors.join("; ") };
+    if (mutation.definition.id !== mutation.target) {
+      return { success: false, output: {}, error: `capability.consolidate: proposed definition id '${mutation.definition.id}' must equal target '${mutation.target}'` };
+    }
+    // Target publication (user-ruling REFINED #479): never overwrite/re-register
+    // an existing id@version. String compare is plan-mandated verbatim (known
+    // double-digit-Segment edge triaged at final review — do not "fix").
+    if (this.catalog.has(mutation.target) && this.catalog.get(mutation.target)!.version >= mutation.definition.version) {
+      return { success: false, output: {}, error: `capability.consolidate: proposed target version ${mutation.definition.version} must be higher than current target version ${this.catalog.get(mutation.target)!.version} (immutable #479)` };
+    }
+
+    const pre = capturePreState(this.catalog, this.registry);
+    const affected = [mutation.target, ...mutation.sources];
+    const result = this.applyConsolidate(mutation);
+    if (!result.ok) { restorePreState(this.catalog, this.registry, affected, pre); return { success: false, output: {}, error: result.error }; }
+    // `result.output ?? {}` mirrors the create/update/transition tails: output
+    // is always set when ok=true, but the union type requires the guard.
+    return this.commit("capability.consolidate", mutation, affected, pre, result.output ?? {});
+  }
+
+  private applyConsolidate(mutation: CapabilityConsolidateMutation): { ok: boolean; error?: string; output?: Record<string, unknown> } {
+    try {
+      this.catalog.register(mutation.definition, mutation.definition.bindings[0]); // publish the approved definition (immutable)
+      if (mutation.sourceDisposition === "deprecate") {
+        for (const s of mutation.sources) this.registry.setLifecycleState(s, "deprecated");
+      } else {
+        for (const s of mutation.sources) this.catalog.remove(s);
+      }
+      this.registry.reload();
+      return { ok: true, output: { target: this.catalog.get(mutation.target), sources: mutation.sources, sourceDisposition: mutation.sourceDisposition } };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }
   private async executeRemove(_step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
     return { success: false, output: {}, error: "capability.remove: not implemented (Task 5)" };

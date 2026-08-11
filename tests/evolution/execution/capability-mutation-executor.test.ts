@@ -10,7 +10,7 @@ import { CapabilityMutationExecutor, createCapabilityRollbackResolver, type Capa
 import { nextDefinitionForUpdate } from "../../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
 import type { CapabilityCreateMutation } from "../../../src/capability/mutation-contract.js";
-import { classifyUpdateBump } from "../../../src/capability/mutation-contract.js";
+import { classifyUpdateBump, validateConsolidateMerge } from "../../../src/capability/mutation-contract.js";
 
 function def(overrides: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
   return {
@@ -293,5 +293,168 @@ describe("CapabilityMutationExecutor — transition", () => {
     assert.equal(registry.getLifecycleState("tool.file.read"), "active");
     // Catalog untouched — lifecycle is registry state, so no publication change.
     assert.equal(JSON.stringify(catalog.list()), before);
+  });
+});
+
+describe("CapabilityMutationExecutor — consolidate", () => {
+  let dir: string; let catalog: CapabilityCatalog; let registry: CapabilityRegistry;
+  before(() => { dir = mkdtempSync(join(tmpdir(), "cap6-co-")); catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir })); registry = new CapabilityRegistry(catalog); });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const merged = (id: string, overrides: Partial<CapabilityDefinition> = {}) => def({ id, title: `Merged ${id}`, description: "merged", requiredPermissions: ["operator"], dependencies: [], ...overrides });
+
+  async function seedSources() {
+    // `before` runs once per suite (not per test), so reset all shared ids to a
+    // clean state before re-seeding — otherwise a prior test's target
+    // publication (tool.file.ab) or lifecycle state collides. Behavior-identical
+    // to a fresh catalog per test: each seed leaves exactly a + b registered.
+    for (const id of ["tool.file.a", "tool.file.b", "tool.file.ab"]) {
+      if (catalog.has(id)) catalog.remove(id);
+    }
+    catalog.register(merged("tool.file.a", { bindings: [{ type: "tool", id: "ta" }] }), { type: "tool", id: "ta" });
+    catalog.register(merged("tool.file.b", { bindings: [{ type: "tool", id: "tb" }] }), { type: "tool", id: "tb" });
+    registry.reload();
+  }
+
+  it("publishes the approved target definition and deprecates sources (deprecate disposition)", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }),
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    // Real definition mutation: target published, not just deprecate-related
+    const target = catalog.get("tool.file.ab")!;
+    assert.equal(target.title, "Merged tool.file.ab");
+    assert.equal(target.version, "1.0.0");
+    // Sources deprecated (still present)
+    assert.equal(registry.getLifecycleState("tool.file.a"), "deprecated");
+    assert.equal(registry.getLifecycleState("tool.file.b"), "deprecated");
+  });
+
+  it("removes sources when disposition is 'remove'", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }),
+      sourceDisposition: "remove" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.has("tool.file.a"), false);
+    assert.equal(catalog.has("tool.file.b"), false);
+  });
+
+  it("rejects a merge that violates the #477 conservative rules (source-aware)", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: [], requiredPermissions: [] }), // missing the sources' union required permission "operator"
+      sourceDisposition: "deprecate" as const,
+    };
+    // Sanity: the CAP-5 validator rejects it too (executor must route through it)
+    const srcs = mutation.sources.map((id) => catalog.get(id)!).filter(Boolean);
+    assert.equal(validateConsolidateMerge(mutation, srcs).valid, false);
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.ok(!catalog.has("tool.file.ab")); // nothing mutated
+  });
+
+  it("rejects a definition whose id does not match the target", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.WRONG", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }),
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /id.*target|target.*id/);
+  });
+
+  it("existing target: rejects a proposed version that does not advance the current target (user-refined #479)", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.0.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }), // same version as current target
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /advance|higher|current/);
+    // Nothing re-registered/overwritten: still exactly one tool.file.ab publication at 1.0.0
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 1);
+  });
+
+  it("existing target: advancing version publishes a new immutable publication", async () => {
+    await seedSources();
+    catalog.register(merged("tool.file.ab", { version: "1.0.0", bindings: [{ type: "tool", id: "tab" }] }), { type: "tool", id: "tab" });
+    registry.reload();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.1.0", dependencies: ["tool.file.a", "tool.file.b"] }), // advances to 1.1.0
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, true);
+    assert.equal(catalog.get("tool.file.ab")!.version, "1.1.0");
+    assert.equal(catalog.list().filter((d) => d.id === "tool.file.ab").length, 2); // old + new, both immutable
+  });
+
+  it("rejects a source that does not resolve", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry });
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.missing"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a"] }),
+      sourceDisposition: "deprecate" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.match(res.error ?? "", /does not resolve/);
+  });
+
+  it("record-sink failure after consolidate → byte-identical restore", async () => {
+    await seedSources();
+    const executor = new CapabilityMutationExecutor({ catalog, registry, record: { record: async (): Promise<void> => { throw new Error("boom"); } } });
+    const before = JSON.stringify(catalog.list());
+    const beforeLifecycleA = registry.getLifecycleState("tool.file.a");
+    const mutation = {
+      operation: "capability.consolidate" as const,
+      sources: ["tool.file.a", "tool.file.b"],
+      target: "tool.file.ab",
+      definition: merged("tool.file.ab", { version: "1.0.0", dependencies: ["tool.file.a", "tool.file.b"] }),
+      sourceDisposition: "remove" as const,
+    };
+    const res = await executor.executeStep({ stepId: "s1", operation: "capability.consolidate", parameters: mutation, idempotent: false, preconditions: {}, postconditions: {} }, {});
+    assert.equal(res.success, false);
+    assert.equal(JSON.stringify(catalog.list()), before);
+    // Lifecycle also restored to its pre-mutation state (sources are "emerging"
+    // in a fresh suite; the assertion is relative so it is ordering-independent).
+    assert.equal(registry.getLifecycleState("tool.file.a"), beforeLifecycleA);
   });
 });
