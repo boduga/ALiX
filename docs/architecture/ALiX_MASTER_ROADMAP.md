@@ -4,7 +4,7 @@
 
 **Document Type:** Architecture Roadmap
 **Status:** Living Document
-**Version:** 1.0
+**Version:** 1.1
 
 ---
 
@@ -12,28 +12,24 @@
 
 ALiX is designed as a layered intelligent operations platform.
 
-The architecture consists of four major programs:
-
-| Program  | Purpose                           | Core Question                        |
-| -------- | --------------------------------- | ------------------------------------ |
-| M-Series | Platform Runtime                  | How does ALiX operate?               |
+| Program | Purpose | Core Question |
+|---|---|---|
+| M-Series | Platform Runtime | How does ALiX operate? |
 | P-Series | Product Intelligence & Governance | How does ALiX understand and reason? |
-| X-Series | Controlled Execution Platform     | How does ALiX perform approved work? |
-| A-Series | Autonomous Evolution              | How does ALiX improve itself?        |
+| X-Series | Controlled Execution Platform | How does ALiX perform approved work? |
+| A-Series | Autonomous Evolution | How does ALiX improve itself? |
 
-The execution order is:
+Execution order remains:
 
 ```text
 M-Series
-    ↓
+   ↓
 P-Series
-    ↓
+   ↓
 X-Series
-    ↓
+   ↓
 A-Series
 ```
-
-Each layer depends on the previous layer.
 
 ---
 
@@ -42,252 +38,238 @@ Each layer depends on the previous layer.
 ALiX separates intelligence, governance, execution, and evolution. No subsystem bypasses another.
 
 ```text
-                    Human
-                      │
-                      ▼
-              Intent / Approval
-                      │
-                      ▼
-              Execution Platform
-                      │
-             Execution Evidence
-                      │
-                      ▼
-             Governance Layer
-                      │
-      Audit • Replay • Explain • Learn
-                      │
-                      ▼
-             Evolution Proposals
+Intent → Reasoning → Proposal → Governance → Approved Execution → Evidence → Outcome → Learning
 ```
+
+Capability architecture is governed by ADR-0013:
+
+```text
+CapabilityRegistry
+      |
+      +-- semantic capability identity
+      +-- lifecycle state
+      +-- provider bindings
+      |
+      +-- native
+      +-- tool
+      +-- MCP
+      +-- external CLI (gh, GitNexus, ...)
+      +-- daemon / agent / plugin / remote API
+```
+
+There is exactly one canonical current-state `CapabilityRegistry` per runtime composition.
 
 ---
 
 # 3. Program M — Platform Runtime Foundation
 
-**Purpose:** The M-series provides the operational substrate of ALiX.
-**Question answered:** How does ALiX work?
+**Purpose:** operational substrate of ALiX.
 
-**Status:** Partially Delivered
+Major areas:
 
-### M0 — Coordination Kernel
+- coordination and agent lifecycle;
+- context and memory;
+- replanning;
+- event architecture;
+- security and ownership;
+- tool platform;
+- planning and orchestration;
+- model/provider routing;
+- observability;
+- distributed execution.
 
-- **M0.1** Agent Coordination — lifecycle management, registry, capability discovery, ownership tracking
-- **M0.2** Context Management — task/session/long-running context, compression, transfer
-- **M0.3** Replanning Engine — failure detection, plan adjustment, alternative path generation
-- **M0.4** Memory Infrastructure — working/episodic/semantic memory, retrieval, provenance
-- **M0.5** Event Architecture — event bus, contracts, correlation, replay
-- **M0.6** Security & Ownership Registry — permissions, trust boundaries, capability authorization
+The Capability Platform is part of the M-series runtime foundation and is governed by:
 
-### M1 — Agent Runtime
-Agent lifecycle, worker lifecycle, execution context, cancellation, scheduling, agent registry.
+`docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
 
-### M2 — Memory Platform
-Context memory, long-term memory, evidence memory, vector store abstraction, cache, knowledge indexing.
-
-### M3 — Tool Platform
-Tool registry, tool execution, permission framework, discovery, sandboxing.
-
-### M4 — Planning Platform
-Planning primitives, DAG execution, plan validation, step orchestration, state management.
-
-### M5 — Orchestration Platform
-Multi-agent coordination, handoff, conflict detection, aggregation.
-
-### M6 — Intelligence Platform
-Model abstraction, provider routing, model adapters.
-
-### M7 — Governance Platform
-Governance primitives consumed by P-series.
-
-### M8 — Observability Platform
-Metrics, traces, diagnostics, telemetry.
-
-### M9 — Distributed Platform
-Multi-host, multi-workspace, distributed coordination.
+The capability system provides one semantic catalog consumed by runtime, CLI, TUI, Web UI, agents, and governance.
 
 ---
 
 # 4. Program P — Product Intelligence Layer
 
-**Purpose:** The P-series provides reasoning, intelligence, adaptation, and governance.
-**Question answered:** What does ALiX know and how does it reason?
+**Purpose:** reasoning, intelligence, adaptation, and governance.
 
-### P1–P4 — Foundational Intelligence
-Status: Requires historical recovery and documentation.
-Expected areas: Initial reasoning, planning primitives, intelligence services, early learning.
+Current major areas include:
 
-### P5 — Adaptation Lifecycle
-Status: Partial / remaining work.
-Capabilities: Capability evolution, adaptation tracking, proposal effectiveness.
+- P5 adaptation and capability-evolution intelligence;
+- P6 decision influence;
+- P8 adaptive learning/evidence chains;
+- P9 meta-governance;
+- P10 executive intelligence;
+- P11 cognitive pipeline.
 
-### P6 — Decision Influence Framework
-Status: Completed.
-Capabilities: Decision influence tracking, decision analysis.
-
-### P7.5p — Persistence Substrate
-Status: Completed.
-Capabilities: Persistence foundation, storage abstractions.
-
-### P8 — Adaptive Learning & Evidence Chains
-Status: Completed.
-Capabilities: Learning loops, evidence chains, knowledge correlation.
-
-### P9 — Meta-Governance & Advisory Layer
-Status: Completed.
-Capabilities: Governance proposals, advisory mechanisms, dashboards.
-
-### P10 — Executive Intelligence
-Status: Completed.
-Capabilities: Planning intelligence, evaluation, learning, signals, recommendations.
-
-### P11 — Cognitive Pipeline
-Status: Active.
-**P11.9** — Issue-to-PR Proposal Loop: Create governed engineering improvement proposals.
-Flow: Issue Detection → Analysis → Change Proposal → Human Review → Implementation → Measurement.
-Constraints: No autonomous merge, no bypassing review, no uncontrolled code mutation.
+P5.5/P5.6 remain the owners of capability health, gap, overlap, and drift analysis. A7 consumes these signals; it does not recreate their analysis.
 
 ---
 
-# 5. P14–P30 Governance Layer — ✅ COMPLETE
+# 5. P14–P30 Governance Layer — COMPLETE
 
-The governance layer is the first fully sealed ALiX subsystem.
-
-**Purpose:** Provide complete observational governance.
-
-Governance observes, records, explains, correlates, packages, and navigates.
-Governance does **not** execute, mutate, decide, rank, predict, or prescribe.
-
-### Governance Pipeline
+The governance layer provides observational governance and evidence lineage.
 
 ```text
-Evidence → Detection → Review Candidate → Human Decision → Outcome Ledger
-       → Replay → Calibration → Learning → Explanation → Compliance Package
-       → Evidence Navigation
+Evidence → Detection → Review → Human Decision → Outcome Ledger
+       → Replay → Calibration → Learning → Explanation → Compliance
 ```
 
-### Completed Governance Phases
-
-| Phase | Capability |
-|-------|-----------|
-| P14 | Auditability |
-| P15 | Observability |
-| P16 | Safe Response & Remediation |
-| P17 | Approved Execution Lifecycle |
-| P18 | Governance Workbench |
-| P19 | Automation Readiness Projection |
-| P20 | Controlled Manual Execution Handoff |
-| P21 | Human Execution Evidence Ledger |
-| P22 | Closure Intelligence |
-| P23 | Governance Replay |
-| P24 | Calibration & Policy Drift Intelligence |
-| P25 | Policy Review Candidate Lifecycle |
-| P26 | Outcome Ledger |
-| P27 | Learning Synthesis |
-| P28 | Governance Explainability |
-| P29 | Compliance Packages |
-| P30 | Evidence Navigation & Lineage Browsing |
-
-### Governance Permanent Exclusions
-
-| Capability | Status |
-|-----------|--------|
-| Autonomous execution | ❌ |
-| Automatic policy changes | ❌ |
-| Policy recommendations | ❌ |
-| Reviewer ranking | ❌ |
-| Predictive governance | ❌ |
-| Threshold mutation | ❌ |
-| Background governance agents | ❌ |
+Governance does not bypass the A-series execution boundary.
 
 ---
 
 # 6. Program X — Controlled Execution Platform
 
-**Purpose:** Provide safe execution capabilities separate from governance.
-**Question answered:** How does ALiX perform approved work?
+**Purpose:** safe execution of approved work.
 
-**Status:** Not started.
+The X-series provides execution contracts, planning, providers, runtime, rollback, cancellation, and safety controls.
 
-### X0 — Execution Contracts
-Define ExecutionIntent, ExecutionPlan, ExecutionStep, ExecutionResult, ExecutionEvidence.
-
-### X1 — Planning Integration
-Intent translation, dependency graphs, preconditions, validation, dry runs.
-
-### X2 — Provider SDK
-Initial providers: Docker, Kubernetes, Proxmox, Incus/LXC, VMware, XCP-ng, Hyper-V, cloud platforms, storage systems, DNS, networking.
-
-### X3 — Execution Runtime
-Step execution, retry handling, rollback, cancellation, progress tracking, evidence generation.
-
-### X4 — Execution Safety Layer
-Approval gates, resource locking, capability checks, maintenance controls.
+A4 governed evolution execution reuses the same execution principles: an approved decision is required before mutation, execution is deterministic, and rollback/evidence are explicit.
 
 ---
 
 # 7. Program A — Autonomous Evolution
 
-**Purpose:** Enable governed self-improvement.
-**Question answered:** How does ALiX improve itself?
-
-**Status:** Not started.
-
-### Autonomous Evolution Contract
+**Purpose:** enable governed self-improvement.
 
 ```text
 Observe → Assess → Propose → Review → Approve → Apply → Measure → Learn
 ```
 
-### A0 — Self-Assessment
-Architecture analysis, gap detection, drift detection, improvement proposals.
+## A0–A6
 
-### A1 — Goal Management
-Long-term goals, progress tracking, conflict resolution.
+| Phase | Responsibility | Status |
+|---|---|---|
+| A0 | Evolution Contract | ✅ Complete |
+| A1 | Pattern Discovery | ✅ Complete |
+| A2 | Evolution Verification | ✅ Complete |
+| A3 | Governance Decision | ✅ Complete |
+| A4 | Governed Execution | ✅ Complete |
+| A5 | Outcome Observation | ✅ Complete |
+| A6 | Knowledge Evolution | ✅ Complete |
 
-### A2 — Agent Generation
-Candidate agents, capability definitions, registration proposals.
+## A7 — Capability Lifecycle Governance
 
-### A3 — Workflow Synthesis
-Workflow creation, requirement analysis, process design.
+**Status:** Greenfield refactor proposed.
 
-### A4 — Architecture Evolution
-Architecture proposals, change analysis.
+A7's responsibility survives: govern the lifecycle of capabilities through proposal, decision, application, and measurement.
 
-### A5 — Code Evolution
-Code proposals, PR generation, review lifecycle.
+The previous A7.0/A7.1 implementation is historical and superseded architecturally. The replacement is defined by ADR-0013 and the greenfield capability design/plan.
 
-### A6 — Knowledge Evolution
-Knowledge updates, controlled learning.
+### Canonical A7 boundary
 
-### A7 — Capability Marketplace
-Capability discovery, capability sharing.
+```text
+P5.5/P5.6 capability intelligence
+            ↓
+      A7 lifecycle analysis
+            ↓
+      EvolutionProposal
+            ↓
+      A3 GovernanceDecision
+            ↓
+      A4 governed execution
+            ↓
+      CapabilityRegistry
+            ↓
+      A5 outcome observation
+```
 
-### A8 — Organizational Learning
-Pattern discovery, system learning.
+The A7 ledger is append-only governance history. It is not a second capability registry.
 
-### A9 — Self-Directed Engineering
-Long-horizon improvement, engineering optimization.
+### Capability/provider rule
+
+A7 governs semantic capabilities.
+
+```text
+github.issue.create
+      |
+      +-- MCP GitHub provider
+      +-- gh external CLI provider
+      +-- future native/API provider
+```
+
+Changing the provider does not inherently change the capability identity.
+
+### Operator surface
+
+```text
+alix capabilities
+  list
+  inspect <id>
+  history <id>
+  health
+  recommend
+  propose
+  apply
+  measure
+```
+
+This namespace is a consumer of the canonical registry, not a separate capability store.
+
+## A8–A9
+
+| Milestone | Focus | Status |
+|---|---|---|
+| A8 | Organizational Learning | 🔲 Proposed |
+| A9 | Self-Directed Engineering | 🔲 Proposed |
 
 ---
 
-# 8. Final Execution Order
+# 8. Capability Greenfield Refactor
+
+The next capability increment must proceed in this order:
 
 ```text
-PHASE 1 — Complete M-Series (Runtime, Memory, Events, Security, Coordination)
+Canonical contract
+    ↓
+Provider model
+    ↓
+Canonical registry
+    ↓
+Definition persistence
+    ↓
+Provider resolver
+    ↓
+Native/tool/MCP/external-CLI providers
+    ↓
+CapabilityService
+    ↓
+A7 governance rebuild
+    ↓
+CLI/TUI/Web parity
+    ↓
+Runtime lifecycle enforcement
+```
 
-PHASE 2 — Complete Remaining P-Series (P1-P4 recovery, P5 adaptation, P11.9 proposal loop)
+Hard requirements:
 
-PHASE 3 — Maintain Governance Foundation (P14-P30 sealed)
+1. one registry;
+2. semantic capability identity;
+3. provider-independent identity;
+4. complete governed registration artifact;
+5. A4 remains the mutation boundary;
+6. A5 measures outcomes;
+7. CLI/TUI/Web/runtime consume the same capability system.
 
-PHASE 4 — Build X-Series (Execution contracts, Planning, Providers, Runtime, Safety)
+---
 
-PHASE 5 — Enable A-Series (Self assessment, Evolution proposals, Governed improvement)
+# 9. Final Execution Order
+
+```text
+PHASE 1 — Complete/maintain M-Series runtime foundation
+
+PHASE 2 — Complete remaining P-Series work
+
+PHASE 3 — Maintain sealed governance foundation P14–P30
+
+PHASE 4 — Build/extend X-Series controlled execution
+
+PHASE 5 — Greenfield A7 capability architecture
+
+PHASE 6 — A8/A9 autonomous evolution frontier
 ```
 
 ---
 
-# 9. ALiX Long-Term Vision
+# 10. Long-Term Vision
 
 ```text
 Intent → Reasoning → Planning → Approval → Execution → Evidence → Governance → Learning → Evolution
@@ -297,8 +279,10 @@ ALiX becomes progressively more capable while preserving human control, explaina
 
 ---
 
-# 10. References
+# 11. Canonical References
 
-- **MA0 Architecture (`docs/architecture/ma0-alix-architecture-2-0.md`)** — Superseded by this document. Retained for detailed ownership matrix, dependency rules, and contract definitions.
-- **P11 Post-Effect Roadmap Alignment (`docs/architecture/decisions/2026-07-04-p11-post-effect-roadmap-alignment.md`)** — Maps temporary phase labels to P11.x project plan.
-- **Governance Checkpoints** — Individual phase checkpoints under `docs/architecture/checkpoints/`.
+- Capability architecture: `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
+- Capability greenfield design: `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
+- Capability greenfield plan: `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
+- A-series roadmap: `docs/roadmap/a-series-autonomous-evolution.md`
+- A-series governed evolution architecture: `docs/architecture/a-series-governed-evolution.md`
