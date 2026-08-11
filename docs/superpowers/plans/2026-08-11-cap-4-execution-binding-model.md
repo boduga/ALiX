@@ -298,7 +298,7 @@ describe('classifyErrorKind — closed R1 taxonomy', () => {
   it('classifies CLI exit stderr', () => {
     expect(classifyErrorKind(err(), 'HTTP 429 Too Many Requests')).toBe('rate-limit');
     expect(classifyErrorKind(err(), '500 Internal Server Error')).toBe('http-5xx');
-    expect(classifyErrorKind(err(), 'boom')).toBe('unavailable');
+    expect(classifyErrorKind(err(), 'boom')).toBe('fatal');   // unclassified stderr → fail-closed
   });
   it('defaults an unclassified error to fatal (fail-closed)', () => {
     expect(classifyErrorKind(err())).toBe('fatal');
@@ -378,9 +378,14 @@ Expected: FAIL — modules do not exist.
 import type { ProviderType, CapabilityProviderBinding } from "./canonical/provider.js";
 import type { ProviderExecutor } from "./provider-executor.js";
 
-/** A binding paired with its resolved executor — what the runtime attempts. */
+/** A binding paired with its resolved executor — what the runtime attempts.
+ *  Carries provider identity (Global Constraints "Candidate metadata"): the
+ *  bindingIndex is the ORIGINAL bindings[] position, never the filtered index. */
 export interface ProviderCandidate {
   binding: CapabilityProviderBinding;
+  providerId: string;       // = binding.id ("gitnexus", "gh")
+  providerType: ProviderType;
+  bindingIndex: number;
   executor: ProviderExecutor;
 }
 
