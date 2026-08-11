@@ -7,9 +7,11 @@ import type { CapabilityRegistry } from "../../capability/registry.js";
 import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
 
 /** A7.1 — capability lifecycle step executor (A4 binding). Drives the single
- *  `capability.transition` operation. Captures pre-state at construction;
- *  `rollbackApplied()` is the bounded compensating rollback for a post-completion
- *  ledger-append failure. Pre-state is NEVER recalculated during rollback. */
+ *  `capability.transition` operation. Pre-state is captured immediately before
+ *  the first transition of each id (the applier pre-seeds the target + related
+ *  ids; any id not pre-seeded is captured lazily on first touch) and NEVER
+ *  recalculated during rollback. `rollbackApplied()` is the bounded compensating
+ *  rollback for a post-completion ledger-append failure. */
 export class CapabilityLifecycleStepExecutor implements StepExecutor {
   /** Pre-execution lifecycle state per touched capability id (undefined = absent). */
   private readonly preState = new Map<string, LifecycleState | undefined>();
@@ -23,15 +25,22 @@ export class CapabilityLifecycleStepExecutor implements StepExecutor {
     }
   }
 
+  /** Restore one id to its captured pre-state (or clear it if it had none).
+   *  Shared by in-plan rollback steps and `rollbackApplied()` so the restore
+   *  semantics are defined once. */
+  private restoreToPreState(capabilityId: string): void {
+    const prev = this.preState.get(capabilityId);
+    if (prev === undefined) this.registry.clearLifecycleState(capabilityId);
+    else this.registry.applyLifecycleTransition(capabilityId, prev);
+  }
+
   async executeStep(step: ExecutionStep, _context: Record<string, unknown>): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
     if (step.operation === "capability.restore_transition") {
       // In-plan rollback step (emitted by the capability.transition resolver): restore
       // the id to the pre-state this executor captured (or clear it if it had none).
       const { capabilityId } = step.parameters as { capabilityId: string };
-      const prev = this.preState.get(capabilityId);
-      if (prev === undefined) this.registry.clearLifecycleState(capabilityId);
-      else this.registry.applyLifecycleTransition(capabilityId, prev);
-      return { success: true, output: { capabilityId, restoredTo: prev ?? null } };
+      this.restoreToPreState(capabilityId);
+      return { success: true, output: { capabilityId, restoredTo: this.preState.get(capabilityId) ?? null } };
     }
     if (step.operation !== "capability.transition") {
       return { success: false, output: {}, error: `Unknown operation: ${step.operation}` };
@@ -54,10 +63,7 @@ export class CapabilityLifecycleStepExecutor implements StepExecutor {
    *  drained. `clearLifecycleState` is a no-op on an absent id. */
   rollbackApplied(): void {
     while (this.appliedIds.length > 0) {
-      const id = this.appliedIds.pop()!;
-      const prev = this.preState.get(id);
-      if (prev === undefined) this.registry.clearLifecycleState(id);
-      else this.registry.applyLifecycleTransition(id, prev);
+      this.restoreToPreState(this.appliedIds.pop()!);
     }
   }
 }

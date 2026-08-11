@@ -13,6 +13,7 @@ import { buildCapabilityProposals } from "../../../../src/evolution/capability-l
 import { runCapabilityGovernance, toLedgerRecord } from "../../../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
 import { CapabilityLifecycleApplier } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-applier.js";
 import { CapabilityLifecycleMeasurer } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-measurer.js";
+import { rehydrateLifecycleOverlay } from "../../../../src/evolution/capability-lifecycle/capability-lifecycle-rehydration.js";
 import { deriveCapabilityProjectionState } from "../../../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
 import { CapabilityEvolutionStore } from "../../../../src/adaptation/capability-evolution-store.js";
 import { canonicalStringify } from "../../../../src/security/audit/canonical-json.js";
@@ -52,6 +53,10 @@ describe("A7.1 end-to-end capability application", () => {
       adoption: {}, outcome: [], patterns: [] };
     const candidates = analyzeCapabilityLifecycle(inputs);
     assert.equal(candidates.length, 1);
+    // Attach the pre-application baseline evidence (P5.5 report) to the candidate so
+    // the decided/applied records carry it — the measurer's baselineEvidenceRefs
+    // must reference it (spec §9).
+    candidates[0].evidenceRefs.push("a7-p55-report");
     const [artifacts] = buildCapabilityProposals(candidates, [{ evidenceId: "a7-p55-report", source: "p55" }]);
     const outcome = runCapabilityGovernance(artifacts.candidate, artifacts.proposal.proposalId);
     assert.equal(outcome.decision.kind, "APPROVE");
@@ -100,7 +105,9 @@ describe("A7.1 end-to-end capability application", () => {
     await ledger.append(toLedgerRecord("decided", artifacts.candidate, { proposalId: artifacts.proposal.proposalId, outcome }));
 
     registry.applyLifecycleTransition("core.old", "declining"); // pre-state
-    const before = canonicalStringify(registry.list());
+    // Byte-identity must cover the overlay too — apply mutates ONLY the overlay,
+    // so a definitions-only stringify would pass trivially even if rollback failed.
+    const before = canonicalStringify({ definitions: registry.list(), overlay: registry.listLifecycleStates() });
     // NOTE: `{ ...ledger }` would drop the class's prototype methods, so the
     // failing ledger is built via Object.create to keep read methods while
     // overriding only append (same pattern as Task 6's atomicity test).
@@ -110,7 +117,7 @@ describe("A7.1 end-to-end capability application", () => {
     // The shipped applier THROWS on append failure after the compensating
     // rollback (spec §11 exit 1) — it does NOT return a blocked result.
     await assert.rejects(() => applier.apply("core.old"), /Ledger append failed/);
-    assert.equal(canonicalStringify(registry.list()), before); // byte-identical
+    assert.equal(canonicalStringify({ definitions: registry.list(), overlay: registry.listLifecycleStates() }), before); // byte-identical incl. overlay
     assert.equal(registry.getLifecycleState("core.old"), "declining"); // restored, not deprecated
   });
 
@@ -129,10 +136,9 @@ describe("A7.1 end-to-end capability application", () => {
     const restarted = new CapabilityRegistry();
     restarted.register(makeCapability("core.session.list"));
     restarted.register(makeCapability("core.old"));
-    // Rehydrate the overlay from the ledger: every applied record → applyLifecycleTransition
-    for (const r of await ledger.list()) {
-      if (r.eventType === "applied") restarted.applyLifecycleTransition(r.target.capabilityId, r.proposedLifecycleState);
-    }
+    // Production rehydration: rebuild the overlay from persisted applied records (spec §8).
+    const replayed = await rehydrateLifecycleOverlay(restarted, ledger);
+    assert.equal(replayed, 1);
     assert.equal(restarted.getLifecycleState("core.old"), "deprecated");
   });
 

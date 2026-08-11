@@ -255,44 +255,33 @@ async function runPropose(
   }
 }
 
+/** Fatal-path reporter: prints the message (JSON on stdout when in jsonMode,
+ *  otherwise stderr) and exits 1. process.exit(1) is required — the src/cli.ts
+ *  dispatcher's process.exit(0) clobbers a bare exitCode, and fatal capability
+ *  errors must be non-zero in BOTH modes (A7.0 86e323f2). Test-safe: capture()
+ *  stubs process.exit. */
+function failFatal(message: string, jsonMode: boolean): never {
+  if (jsonMode) console.log(JSON.stringify({ ok: false, reason: message }));
+  else console.error(message);
+  process.exitCode = 1;
+  process.exit(1);
+}
+
 async function runApply(
   id: string | undefined,
   ledger: CapabilityLifecycleLedger,
   registry: CapabilityRegistry | undefined,
   jsonMode: boolean,
 ): Promise<void> {
-  if (!id) {
-    console.error("Usage: alix capabilities apply <id>");
-    process.exitCode = 1;
-    process.exit(1);
-    return;
-  }
-  if (!registry) {
-    const msg = "Capability registry unavailable — cannot apply";
-    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else console.error(msg);
-    process.exitCode = 1;
-    process.exit(1);
-    return;
-  }
+  if (!id) failFatal("Usage: alix capabilities apply <id>", jsonMode);
+  if (!registry) failFatal("Capability registry unavailable — cannot apply", jsonMode);
   const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
   let res;
   try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
   catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else console.error(msg);
-    process.exitCode = 1;
-    process.exit(1);
-    return;
+    failFatal(err instanceof Error ? err.message : String(err), jsonMode);
   }
-  if (res.status === "blocked") {
-    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else console.error(res.reason);
-    process.exitCode = 1;
-    process.exit(1);
-    return;
-  }
+  if (res.status === "blocked") failFatal(res.reason, jsonMode);
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, executionId: res.executionId }));
   else console.log(`applied ${id} (execution ${res.executionId})`);
 }
@@ -303,30 +292,14 @@ async function runMeasure(
   store: CapabilityEvolutionStore,
   jsonMode: boolean,
 ): Promise<void> {
-  if (!id) {
-    console.error("Usage: alix capabilities measure <id>");
-    process.exitCode = 1;
-    process.exit(1);
-    return;
-  }
+  if (!id) failFatal("Usage: alix capabilities measure <id>", jsonMode);
   const measurer = new CapabilityLifecycleMeasurer({ ledger, store });
   let res;
   try { res = await measurer.measure(id); }
   catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: msg }));
-    else console.error(msg);
-    process.exitCode = 1;
-    process.exit(1);
-    return;
+    failFatal(err instanceof Error ? err.message : String(err), jsonMode);
   }
-  if (res.status === "blocked") {
-    if (jsonMode) console.log(JSON.stringify({ ok: false, reason: res.reason }));
-    else console.error(res.reason);
-    process.exitCode = 1;
-    process.exit(1);
-    return;
-  }
+  if (res.status === "blocked") failFatal(res.reason, jsonMode);
   if (jsonMode) console.log(JSON.stringify({ ok: true, capabilityId: id, measurementId: res.measurementId, stateTransition: res.stateTransition }));
   else console.log(`measured ${id}: ${res.stateTransition} (measurement ${res.measurementId})`);
 }

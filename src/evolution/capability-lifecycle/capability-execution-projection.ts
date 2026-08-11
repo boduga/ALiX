@@ -4,6 +4,7 @@
 import type { EvolutionProposal } from "../contracts/evolution-contract.js";
 import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
 import type { CapabilityLifecycleRecord } from "./contracts/lifecycle-contract.js";
+import { CapabilityNotExecutableError } from "./errors.js";
 
 export interface CapabilityChangeStep {
   operation: "capability.transition";
@@ -31,7 +32,7 @@ function step(capabilityId: string, to: LifecycleState): CapabilityChangeStep {
 export function toExecutionProposal(decided: CapabilityLifecycleRecord): CapabilityExecutionProposal {
   const builder = INTENT_TO_STATE[decided.intent];
   if (!builder) {
-    throw new Error(`capability:${decided.intent} is not executable in A7.1`);
+    throw new CapabilityNotExecutableError(decided.intent);
   }
   const changes = builder(decided);
   const change = `${decided.intent}: ${decided.target.capabilityId} → ${decided.proposedLifecycleState}`;

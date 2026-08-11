@@ -11,3 +11,4 @@ export * from "./capability-execution-projection.js";
 export * from "./capability-lifecycle-step-executor.js";
 export * from "./capability-lifecycle-applier.js";
 export * from "./capability-lifecycle-measurer.js";
+export * from "./capability-lifecycle-rehydration.js";

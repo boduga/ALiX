@@ -44,6 +44,12 @@ export class CapabilityLifecycleApplier {
     if (latest.intent === "register" || latest.intent === "modify") {
       return { status: "blocked", reason: new CapabilityNotExecutableError(latest.intent).message };
     }
+    // The overlay is a projection over registered capabilities (spec §8) — a
+    // transition can only be applied to one the registry knows. Placed after the
+    // register/modify check so a deferred intent reports not-executable first.
+    if (!registry.find(capabilityId)) {
+      return { status: "blocked", reason: `Capability ${capabilityId} is not registered — A7.1 apply requires the capability to exist in the registry` };
+    }
     if (!latest.decision) {
       return { status: "blocked", reason: `Decided record for ${capabilityId} has no persisted decision (A7.1 requires it)` };
     }

@@ -99,6 +99,19 @@ describe("buildObservationEvidence", () => {
     assert.ok(obsLineage);
   });
 
+  it("honors a reproducibilityLevel override (default 0; A7.1 passes 2)", () => {
+    const input = {
+      proposalId: "prop-001",
+      evolutionId: "evol-001",
+      environmentHash: "env-hash",
+      reproducibilityLevel: 2 as const,
+      observations: [makeResult({ observationId: "o1", status: "pass" })],
+      observedAt: "2026-07-12T00:00:00.000Z",
+    };
+    const evidence = buildObservationEvidence(input);
+    assert.equal(evidence.reproducibilityLevel, 2);
+  });
+
   it("deterministic: same inputs produce same outputs", () => {
     const input = {
       proposalId: "prop-001",

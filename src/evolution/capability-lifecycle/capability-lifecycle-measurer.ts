@@ -25,11 +25,12 @@ export class CapabilityLifecycleMeasurer {
     const post = report?.healthAnalysis.find((h) => h.capability === capabilityId);
     const postState = post?.lifecycleState ?? latest.observedLifecycleState;
 
-    // A5 post-application observation evidence
+    // A5 post-application observation evidence (direct measurement → level 2, spec §9)
     const evidence = buildObservationEvidence({
       proposalId: latest.proposalId ?? "a7-measure",
       evolutionId: latest.proposalId ?? "a7-measure",
       environmentHash: "a7-capability",
+      reproducibilityLevel: 2,
       observations: [{
         observationId: `a7-obs-${capabilityId}`,
         status: "pass", observed: postState, expected: latest.proposedLifecycleState, confidence: 1,
@@ -44,7 +45,8 @@ export class CapabilityLifecycleMeasurer {
       target: { ...latest.target }, intent: latest.intent, eventType: "measured" as const,
       timestamp: new Date().toISOString(), proposalId: latest.proposalId, decisionId: latest.decisionId,
       executionId: latest.executionId, measurementId,
-      baselineEvidenceRefs: [latest.decisionId ?? "a7-baseline"], postObservationRefs: [evidence.evidenceId],
+      baselineEvidenceRefs: [...latest.evidenceRefs], // pre-application evidence the decision referenced (spec §9)
+      postObservationRefs: [evidence.evidenceId],
       evidenceRefs: [...latest.evidenceRefs], observedLifecycleState: latest.observedLifecycleState,
       proposedLifecycleState: latest.proposedLifecycleState,
     };

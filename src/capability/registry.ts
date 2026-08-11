@@ -112,6 +112,15 @@ export class CapabilityRegistry {
     this.lifecycle.delete(id);
   }
 
+  /** A7.1 — snapshot of the lifecycle overlay, capabilityId-sorted for a stable
+   *  canonical serialization. The overlay is a runtime projection (never a value
+   *  in a Capability definition), so `list()`/`query()` do not include it. */
+  listLifecycleStates(): { capabilityId: string; state: LifecycleState }[] {
+    return [...this.lifecycle.entries()]
+      .map(([capabilityId, state]) => ({ capabilityId, state }))
+      .sort((a, b) => (a.capabilityId < b.capabilityId ? -1 : a.capabilityId > b.capabilityId ? 1 : 0));
+  }
+
   reload(): void {
     // No-op in Phase 1. Plugin loader hooks here later to re-scan/re-register.
   }

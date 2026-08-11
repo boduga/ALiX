@@ -90,5 +90,9 @@ contract extension 12/12, execution projection 5/5, step executor 5/5, applier
 - [x] register/modify application blocked at every layer — projection throws `CapabilityNotExecutableError`, applier rejects, CLI exits 1
 - [x] Fatal CLI paths exit 1 in BOTH human and json mode
 
-### Known limitation
-- [x] The live `alix capabilities` top-level command passes no deps (`src/cli.ts:2214` — `await handleCapabilitiesCommand(args)`), so `apply`/`measure` happy paths are exercised via tests/programmatic use until the command is wired with a registry. Fatal CLI paths still exit 1.
+### Live CLI + rehydration (post-review fixes)
+- [x] `src/cli.ts` wires real deps (ledger, store, registry) into the `capabilities` command; `apply`/`measure`/`list` operate on persisted state
+- [x] `rehydrateLifecycleOverlay(registry, ledger)` is a production function (spec §8) — rebuilds the overlay from `applied` records, skips unregistered capabilities, last-applied-wins
+- [x] Applier reports "Capability `<id>` is not registered" (truthful blocked reason) instead of a confusing execution failure when the registry lacks the capability
+- [x] Measurer A5 evidence carries `reproducibilityLevel 2` (direct observation) and `baselineEvidenceRefs` reference the decided record's pre-application evidence (spec §9)
+- [x] Atomicity integration assertion stringifies the overlay too (`listLifecycleStates`) — byte-identity no longer passes trivially on a definitions-only snapshot
