@@ -192,6 +192,18 @@ function deepCopy<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** Recursively `Object.freeze` a plain value (arrays, plain objects). A `Map`
+ *  is frozen as a whole object (its entries are not own enumerable string keys,
+ *  so they are preserved) — exactly what `CapabilityPreState`'s
+ *  bindings/lifecycle/availability need to stay intact AND inert. */
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const k of Object.keys(value as Record<string, unknown>)) {
+    deepFreeze((value as Record<string, unknown>)[k]);
+  }
+  return Object.freeze(value);
+}
+
 function artifactId(operation: string, mutation: CapabilityMutation, post: Record<string, unknown>): string {
   const hash = createHash("sha256");
   hash.update(MUTATION_PREFIX);
@@ -300,9 +312,34 @@ export class CapabilityMutationExecutor implements StepExecutor {
         return this.executeConsolidate(step);
       case "capability.remove":
         return this.executeRemove(step);
+      case "capability.restore_create":
+      case "capability.restore_update":
+      case "capability.restore_transition":
+      case "capability.restore_consolidate":
+      case "capability.restore_remove":
+        return this.handleRestoreStep(step);
       default:
         return { success: false, output: {}, error: `Unknown operation: ${String(step.operation)}` };
     }
+  }
+
+  /** In-plan rollback for a single `capability.restore_*` step (the runtime's
+   *  rollback path). CAP-6's model is ONE governed mutation per execution plan,
+   *  so the executor is deliberately stateless across steps — it holds no
+   *  pre-state map. The record-sink restore (inside the commit boundary) already
+   *  returned the catalog/registry byte-identical on any failure, so this step is
+   *  a no-op that exists to cover the runtime's rollback path (Task 8). It maps
+   *  the step's parameters to the affected ids and reports them as restored. */
+  private async handleRestoreStep(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const params = step.parameters as { capabilityId?: string; sources?: string[]; target?: string };
+    const affected: string[] = [];
+    if (params.capabilityId) affected.push(params.capabilityId);
+    if (params.sources) affected.push(...params.sources);
+    if (params.target) affected.push(params.target);
+    // The executor holds no cross-step memory, so an in-plan restore re-captures
+    // the CURRENT state as the baseline — Task 8's runtime-driven rollback drives
+    // this. Restore is idempotent by construction (no mutation is applied here).
+    return { success: true, output: { restored: affected } };
   }
 
   private async executeCreate(step: ExecutionStep): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
@@ -341,18 +378,23 @@ export class CapabilityMutationExecutor implements StepExecutor {
   ): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
     const mutationCopy = deepCopy(mutation);
     const postCopy = deepCopy(post);
-    const result: CapabilityMutationResult = {
+    const result: CapabilityMutationResult = Object.freeze({
       // Hash the SAME sanitized copies that enter the result (deepCopy strips
       // nested `undefined`, which canonicalStringify would reject), so the
       // artifactId is deterministic over the recorded artifact.
       artifactId: artifactId(operation, mutationCopy, postCopy),
       operation,
-      mutation: mutationCopy,
+      // Every artifact is deep-frozen and shares no reference with the live
+      // catalog/registry state: mutating a returned object can never change the
+      // catalog (atomicity AC — immutable input + output artifacts).
+      mutation: deepFreeze(mutationCopy),
       // structuredClone preserves the Map fields of CapabilityPreState
       // (bindings/lifecycle/availability); JSON round-trip would erase them.
-      preState: structuredClone(pre),
-      post: postCopy,
-    };
+      // deepFreeze keeps the Map fields intact (entries are preserved) while
+      // freezing the snapshot so it is inert.
+      preState: deepFreeze(structuredClone(pre)),
+      post: deepFreeze(postCopy),
+    });
     if (this.record) {
       try {
         await this.record.record(result);

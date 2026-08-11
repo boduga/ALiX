@@ -88,7 +88,10 @@ describe("CapabilityMutationExecutor — create", () => {
     const res = await executor.executeStep({ stepId: "s1", operation: "capability.create", parameters: { ...makeCreate({ definition: def({ id: "tool.file.append" }) }) }, idempotent: false, preconditions: {}, postconditions: {} }, {});
     assert.equal(res.success, true);
     const out = res.output.result as { mutation: { definition: CapabilityDefinition } };
-    out.mutation.definition.title = "MUTATED"; // must not affect the catalog
+    // The returned artifact is deep-frozen (CAP-6 immutability AC), so a write is
+    // rejected (throws in strict ESM) and can never alias the live catalog state.
+    assert.ok(Object.isFrozen(out.mutation));
+    try { out.mutation.definition.title = "MUTATED"; } catch { /* frozen — expected */ }
     assert.notEqual(catalog.get("tool.file.append")!.title, "MUTATED");
   });
 
@@ -97,17 +100,23 @@ describe("CapabilityMutationExecutor — create", () => {
     const res = await executor.executeStep({ stepId: "s1", operation: "capability.create", parameters: { ...makeCreate({ definition: def({ id: "tool.file.snap" }) }) }, idempotent: false, preconditions: {}, postconditions: {} }, {});
     assert.equal(res.success, true);
     const result = res.output.result as { preState: CapabilityPreState; post: { published: CapabilityDefinition } };
-    // Maps must survive the immutable-artifact copy (structuredClone, not JSON).
+    // Maps must survive the immutable-artifact copy (structuredClone, not JSON)
+    // AND the deep-freeze (Object.freeze on a Map freezes the Map object only —
+    // its entries are not own enumerable string keys, so they are preserved).
     assert.ok(result.preState.bindings instanceof Map);
     assert.ok(result.preState.lifecycle instanceof Map);
     assert.ok(result.preState.availability instanceof Map);
-    // Mutating the returned snapshot's definitions must not alias the catalog.
-    result.preState.definitions.push({ ...def({ id: "ghost" }) });
+    // Immutable snapshot: the pre-state is deep-frozen, so pushing to the
+    // definitions array is rejected (strict ESM) and can never alias the catalog.
+    assert.ok(Object.isFrozen(result.preState.definitions));
+    assert.throws(() => { result.preState.definitions.push({ ...def({ id: "ghost" }) }); });
     assert.equal(catalog.has("ghost"), false);
     // post.published is a faithful snapshot of the live publication, not a reference.
     const live = catalog.get("tool.file.snap")!;
     assert.deepEqual(result.post.published, live);
-    result.post.published.title = "MUTATED";
+    // And it is frozen, so mutating it is rejected and cannot change the catalog.
+    assert.ok(Object.isFrozen(result.post.published));
+    assert.throws(() => { result.post.published.title = "MUTATED"; });
     assert.equal(catalog.get("tool.file.snap")!.title, "Read file");
   });
 
