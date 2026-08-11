@@ -662,13 +662,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CapabilityRegistry } from "../../src/capability/registry.js";
-import { JsonlCapabilityLifecycleLedger } from "../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
-import { CapabilityLifecycleApplier } from "../../src/evolution/capability-lifecycle/capability-lifecycle-applier.js";
-import { toLedgerRecord } from "../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
-import { runCapabilityGovernance } from "../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
-import type { CapabilityLifecycleCandidate } from "../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
-import type { Capability } from "../../src/capability/types.js";
+import { CapabilityRegistry } from "../../../src/capability/registry.js";
+import { JsonlCapabilityLifecycleLedger } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-ledger.js";
+import { CapabilityLifecycleApplier } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-applier.js";
+import { toLedgerRecord } from "../../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
+import { runCapabilityGovernance } from "../../../src/evolution/capability-lifecycle/capability-governance-bridge.js";
+import type { CapabilityLifecycleCandidate } from "../../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
+import type { Capability } from "../../../src/capability/types.js";
 
 function makeCapability(id: string): Capability {
   return { id, version: "1.0.0", kind: "core", title: id, description: id, tags: [], category: "core",
@@ -767,10 +767,10 @@ describe("CapabilityLifecycleApplier", () => {
     await seedDecided("deprecate", "core.old");
     registry.applyLifecycleTransition("core.old", "declining"); // pre-state snapshot
     const before = JSON.stringify(registry.list());
-    const failing = {
-      ...ledger,
-      append: async () => { throw new Error("append failed"); },
-    } as unknown as JsonlCapabilityLifecycleLedger;
+    // Object.create keeps the prototype (spread of a class instance drops all
+    // prototype methods — listByCapability etc. would be undefined).
+    const failing = Object.create(ledger) as JsonlCapabilityLifecycleLedger;
+    failing.append = async () => { throw new Error("append failed"); };
     const applier = new CapabilityLifecycleApplier({ ledger: failing, registry });
     await assert.rejects(applier.apply("core.old"), /append failed/);
     assert.equal(JSON.stringify(registry.list()), before);
@@ -817,11 +817,9 @@ export interface CapabilityApplierDeps {
   environment?: ExecutionEnvironment;
 }
 
-export interface ApplyResult {
-  status: "applied" | "blocked";
-  executionId?: string;
-  reason?: string;
-}
+export type ApplyResult =
+  | { status: "applied"; executionId: string }
+  | { status: "blocked"; reason: string };
 
 export class CapabilityLifecycleApplier {
   private executor?: CapabilityLifecycleStepExecutor;
@@ -829,8 +827,11 @@ export class CapabilityLifecycleApplier {
 
   async apply(capabilityId: string): Promise<ApplyResult> {
     const { ledger, registry } = this.deps;
-    const latest = await ledger.listLatestForCapability(capabilityId);
-    if (!latest || latest.eventType !== "decided") {
+    // Latest DECIDED record — NOT listLatestForCapability (after a prior apply
+    // the file tail is the `applied` record; rehydration must target the decided
+    // record so a re-apply flows into authorizeExecution check 7).
+    const latest = [...(await ledger.listByCapability(capabilityId))].reverse().find((r) => r.eventType === "decided");
+    if (!latest) {
       return { status: "blocked", reason: `No decided transition for ${capabilityId}` };
     }
     if (latest.decisionKind !== "APPROVE") {
@@ -907,7 +908,7 @@ export class CapabilityLifecycleApplier {
       return { status: "applied", executionId: report.executionId };
     } catch (err) {
       executor.rollbackApplied(); // compensating rollback — restore pre-state
-      return { status: "blocked", reason: `Ledger append failed: ${err instanceof Error ? err.message : String(err)}` };
+      throw new Error(`Ledger append failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
