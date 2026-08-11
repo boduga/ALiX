@@ -6,6 +6,7 @@ import {
   LEGAL_LIFECYCLE_TRANSITIONS,
   isLegalTransition,
   CAPABILITY_MUTATION_OPERATIONS,
+  classifyUpdateBump,
 } from "../../src/capability/mutation-contract.js";
 import type {
   CapabilityCreateMutation,
@@ -199,3 +200,113 @@ function makeDefinition(id: string, version: string) {
     requiredPermissions: ["operator"], dependencies: [], bindings: [],
   } as CapabilityDefinition;
 }
+
+function baseDefinition(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
+  return {
+    id: "tool.file.read", version: "1.0.0", kind: "operation",
+    title: "Read a file", description: "Reads a file",
+    tags: [], category: "tools", risk: "low",
+    requiredPermissions: ["operator"], dependencies: [], bindings: [],
+    ...over,
+  };
+}
+
+describe("classifyUpdateBump (#479/#480 locked matrix)", () => {
+  it("classifies identical definitions as PATCH (no change)", () => {
+    const a = baseDefinition();
+    expect(classifyUpdateBump(a, baseDefinition())).toBe("patch");
+  });
+
+  it("classifies PATCH fields as PATCH", () => {
+    const a = baseDefinition();
+    expect(classifyUpdateBump(a, baseDefinition({ title: "Read a file (updated)" }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ description: "new description" }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ examples: ["cat x"] }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ category: "files" }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ risk: "medium" }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ extensions: { note: "x" } }))).toBe("patch");
+    expect(classifyUpdateBump(a, baseDefinition({ allowFallbacks: false }))).toBe("patch");
+  });
+
+  it("classifies MINOR fields as MINOR", () => {
+    const a = baseDefinition();
+    expect(classifyUpdateBump(a, baseDefinition({ aliases: ["readfile"] }))).toBe("minor");
+    expect(classifyUpdateBump(a, baseDefinition({ tags: ["io"] }))).toBe("minor");
+    expect(classifyUpdateBump(a, baseDefinition({ dependencies: ["core.session.list"] }))).toBe("minor");
+  });
+
+  it("classifies an added optional schema property as MINOR", () => {
+    const a = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } });
+    const b = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" }, encoding: { type: "string" } }, required: ["path"] } });
+    expect(classifyUpdateBump(a, b)).toBe("minor");
+  });
+
+  it("classifies MAJOR fields as MAJOR", () => {
+    const a = baseDefinition();
+    expect(classifyUpdateBump(a, baseDefinition({ requiredPermissions: ["admin"] }))).toBe("major");
+    expect(classifyUpdateBump(a, baseDefinition({ argsSchema: { type: "object", properties: {}, required: ["path"] } }))).toBe("major");
+    expect(classifyUpdateBump(a, baseDefinition({ resultSchema: { type: "object", properties: {} } }))).toBe("major");
+  });
+
+  it("classifies a removed schema property as MAJOR", () => {
+    const a = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" }, encoding: { type: "string" } }, required: ["path"] } });
+    const b = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies an optional→required schema property as MAJOR (semantic, not key-set)", () => {
+    const a = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" } }, required: [] } });
+    const b = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies a shared-property type change as MAJOR", () => {
+    const a = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } });
+    const b = baseDefinition({ argsSchema: { type: "object", properties: { path: { type: "number" } }, required: ["path"] } });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies a binding provider-technology change as MAJOR", () => {
+    const a = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1" }] });
+    const b = baseDefinition({ bindings: [{ type: "external-cli", id: "cli-1" }] });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies a same-technology id swap as MAJOR (binding.id = provider identity)", () => {
+    // canonical CAP-4 provider identity is binding.id — mcp-1 → mcp-2 is a
+    // different serving provider, hence MAJOR, not MINOR (user tightening).
+    const a = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1" }] });
+    const b = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-2" }] });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies a config change as MAJOR even with type and id held constant", () => {
+    // gh → gitnexus via config.executable is a provider swap despite the type
+    // staying "external-cli" (user tightening — canonical identity = (type, id, config)).
+    const a = baseDefinition({ bindings: [{ type: "external-cli", id: "gh", config: { executable: "gh" } }] });
+    const b = baseDefinition({ bindings: [{ type: "external-cli", id: "gh", config: { executable: "gitnexus" } }] });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("classifies a binding reorder as MAJOR (fallback priority is behavioral)", () => {
+    const a = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1" }, { type: "external-cli", id: "gh" }] });
+    const b = baseDefinition({ bindings: [{ type: "external-cli", id: "gh" }, { type: "mcp", id: "mcp-1" }] });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+
+  it("treats an identical binding array as no binding change", () => {
+    const a = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1", config: { timeoutMs: 5000 } }] });
+    const b = baseDefinition({ bindings: [{ type: "mcp", id: "mcp-1", config: { timeoutMs: 5000 } }] });
+    expect(classifyUpdateBump(a, b)).toBe("patch"); // nothing else changed → PATCH
+  });
+
+  it("is monotonic: any MAJOR-class change ⇒ MAJOR despite MINOR/PATCH changes", () => {
+    const a = baseDefinition();
+    const b = baseDefinition({
+      title: "renamed",
+      argsSchema: { type: "object", properties: { extra: { type: "string" } } },
+      bindings: [{ type: "daemon", id: "d" }],
+    });
+    expect(classifyUpdateBump(a, b)).toBe("major");
+  });
+});

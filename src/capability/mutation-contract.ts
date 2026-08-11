@@ -134,3 +134,153 @@ export const CAPABILITY_MUTATION_OPERATIONS: readonly CapabilityMutation["operat
   "capability.consolidate",
   "capability.remove",
 ];
+
+// ---------------------------------------------------------------------------
+// Update bump classification (#479/#480 — locked matrix, user ruling)
+// ---------------------------------------------------------------------------
+
+/**
+ * Classify the SemVer bump an update publication earns by comparing the
+ * governed SOURCE definition with the NEXT definition. Compares two canonical
+ * definitions/publications and returns the minimum required bump; it does NOT
+ * apply patches — the caller (CAP-6) applies the update's patch to `previous`
+ * to produce `next`, then classifies.
+ * MAJOR: argsSchema / resultSchema / requiredPermissions / any binding change
+ * (type, id, or config — the effective serving provider is (type, id, config),
+ * the canonical CAP-4 provider identity). MINOR: additive-only schema
+ * property, aliases / tags / dependencies. PATCH: title, description,
+ * examples, category, risk, extensions, allowFallbacks. id/version/kind are
+ * immutable and never appear here. Semantic, not textual: an optional→required
+ * property is MAJOR. Monotonic: any MAJOR-class change ⇒ MAJOR regardless of
+ * simultaneous MINOR/PATCH changes. CAP-6's executor applies this; CAP-5 only
+ * classifies.
+ */
+export function classifyUpdateBump(
+  previous: CapabilityDefinition,
+  next: CapabilityDefinition,
+): "major" | "minor" | "patch" {
+  let major = false;
+  let minor = false;
+
+  // MAJOR: requiredPermissions
+  if (listChanged(previous.requiredPermissions, next.requiredPermissions)) major = true;
+
+  // MAJOR/MINOR: argsSchema + resultSchema (semantic schema classifier)
+  const args = classifySchemaChange(previous.argsSchema, next.argsSchema);
+  const result = classifySchemaChange(previous.resultSchema, next.resultSchema);
+  if (args === "major" || result === "major") major = true;
+  if (args === "minor" || result === "minor") minor = true;
+
+  // MAJOR: bindings (any difference changes the serving provider)
+  const bindings = classifyBindingsChange(previous.bindings, next.bindings);
+  if (bindings === "major") major = true;
+
+  // MINOR: aliases / tags / dependencies
+  if (listChanged(previous.aliases ?? [], next.aliases ?? [])) minor = true;
+  if (listChanged(previous.tags, next.tags)) minor = true;
+  if (listChanged(previous.dependencies, next.dependencies)) minor = true;
+
+  // PATCH fields (title, description, examples, category, risk, extensions,
+  // allowFallbacks) contribute nothing — any change here with no MAJOR/MINOR
+  // change falls through to PATCH.
+
+  if (major) return "major";
+  if (minor) return "minor";
+  return "patch";
+}
+
+/** Classify an argsSchema/resultSchema change. Semantic, conservative: name-set
+ *  + `required`-array + shared-property declared `type`. Adding an optional
+ *  property is MINOR; removing a property, making one required, or changing a
+ *  shared property's declared type is MAJOR. Anything else that differs is
+ *  MAJOR (fail-closed on ambiguity). */
+export function classifySchemaChange(
+  previous: Record<string, unknown> | undefined,
+  next: Record<string, unknown> | undefined,
+): "major" | "minor" | "none" {
+  // A schema field toggling present↔absent is a breaking contract change
+  // (e.g. adding resultSchema where none existed, or dropping argsSchema).
+  // Fail-closed on ambiguity — treat as MAJOR.
+  if ((previous === undefined) !== (next === undefined)) return "major";
+  const a = schemaShape(previous);
+  const b = schemaShape(next);
+  if (shapesEqual(a, b)) return "none";
+
+  // removed property → MAJOR
+  for (const key of a.props.keys()) {
+    if (!b.props.has(key)) return "major";
+  }
+  // shared property type drift → MAJOR
+  for (const [key, typeA] of a.props) {
+    const typeB = b.props.get(key);
+    if (typeB !== undefined && typeA !== typeB) return "major";
+  }
+  // property became required → MAJOR
+  for (const key of b.props.keys()) {
+    if (!a.required.has(key) && b.required.has(key)) return "major";
+  }
+  // added property that is required → MAJOR
+  for (const key of b.props.keys()) {
+    if (!a.props.has(key) && b.required.has(key)) return "major";
+  }
+  // only optional additions remain → MINOR
+  return "minor";
+}
+
+/** MAJOR if the bindings differ in ANY way (ordered deep compare); NONE if the
+ *  arrays are deeply identical. Per the canonical CAP-4 provider identity —
+ *  (type, id, config) — any difference changes the serving provider, so there
+ *  is NO MINOR binding case. Provider technology is `binding.type`. */
+function classifyBindingsChange(
+  previous: readonly { type: string; id: string; config?: Record<string, unknown> }[],
+  next: readonly { type: string; id: string; config?: Record<string, unknown> }[],
+): "major" | "none" {
+  return deepEqual(previous, next) ? "none" : "major";
+}
+
+function listChanged(a: readonly unknown[], b: readonly unknown[]): boolean {
+  if (a.length !== b.length) return true;
+  for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return true;
+  return false;
+}
+
+interface SchemaShape {
+  props: Map<string, string>; // property name → declared type ("" when untyped)
+  required: Set<string>;
+}
+
+function schemaShape(schema: Record<string, unknown> | undefined): SchemaShape {
+  const props = new Map<string, string>();
+  const properties = (schema?.properties ?? {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(properties)) {
+    const t = (v as Record<string, unknown>)?.type;
+    props.set(k, typeof t === "string" ? t : "");
+  }
+  if (schema && Object.keys(properties).length === 0) {
+    for (const k of Object.keys(schema)) {
+      if (k !== "required" && k !== "type" && k !== "properties") props.set(k, "");
+    }
+  }
+  const required = new Set<string>(Array.isArray(schema?.required) ? (schema.required as string[]) : []);
+  return { props, required };
+}
+
+function shapesEqual(a: SchemaShape, b: SchemaShape): boolean {
+  if (a.props.size !== b.props.size) return false;
+  for (const [k, v] of a.props) if (b.props.get(k) !== v) return false;
+  if (a.required.size !== b.required.size) return false;
+  for (const r of a.required) if (!b.required.has(r)) return false;
+  return true;
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  const keysA = Object.keys(a as Record<string, unknown>);
+  const keysB = Object.keys(b as Record<string, unknown>);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) return false;
+  }
+  return true;
+}
