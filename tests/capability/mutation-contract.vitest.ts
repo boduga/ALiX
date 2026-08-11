@@ -5,8 +5,18 @@ import { describe, it, expect } from "vitest";
 import {
   LEGAL_LIFECYCLE_TRANSITIONS,
   isLegalTransition,
+  CAPABILITY_MUTATION_OPERATIONS,
+} from "../../src/capability/mutation-contract.js";
+import type {
+  CapabilityCreateMutation,
+  CapabilityUpdateMutation,
+  CapabilityTransitionMutation,
+  CapabilityConsolidateMutation,
+  CapabilityRemoveMutation,
+  CapabilityMutation,
 } from "../../src/capability/mutation-contract.js";
 import type { LifecycleState } from "../../src/adaptation/capability-evolution-types.js";
+import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
 
 const ALL_STATES: readonly LifecycleState[] = [
   "emerging", "active", "mature", "stagnant", "declining", "deprecated",
@@ -80,3 +90,112 @@ describe("isLegalTransition", () => {
     }
   });
 });
+
+describe("CapabilityMutation payload types", () => {
+  it("defines exactly the five governed mutation operations", () => {
+    expect(CAPABILITY_MUTATION_OPERATIONS).toEqual([
+      "capability.create",
+      "capability.update",
+      "capability.transition",
+      "capability.consolidate",
+      "capability.remove",
+    ]);
+  });
+
+  it("discriminates each payload on its operation string", () => {
+    const create: CapabilityMutation = {
+      operation: "capability.create",
+      definition: makeDefinition("tool.file.read", "1.0.0"),
+    };
+    const update: CapabilityMutation = {
+      operation: "capability.update",
+      capabilityId: "tool.file.read",
+      sourceVersion: "1.0.0",
+      patch: { title: "Read a file" },
+    };
+    const transition: CapabilityMutation = {
+      operation: "capability.transition",
+      capabilityId: "tool.file.read",
+      from: "emerging",
+      to: "active",
+    };
+    const consolidate: CapabilityMutation = {
+      operation: "capability.consolidate",
+      sources: ["tool.file.read", "tool.file.tail"],
+      target: "tool.file.read",
+      definition: makeDefinition("tool.file.read", "2.0.0"),
+      sourceDisposition: "deprecate",
+    };
+    const remove: CapabilityMutation = {
+      operation: "capability.remove",
+      capabilityId: "tool.file.tail",
+      reason: "superseded by tool.file.read",
+    };
+    expect(create.operation).toBe("capability.create");
+    expect(update.operation).toBe("capability.update");
+    expect(transition.operation).toBe("capability.transition");
+    expect(consolidate.operation).toBe("capability.consolidate");
+    expect(remove.operation).toBe("capability.remove");
+  });
+
+  it("update carries sourceVersion + patch (no 'modify current' shape)", () => {
+    const u: CapabilityUpdateMutation = {
+      operation: "capability.update",
+      capabilityId: "tool.file.read",
+      sourceVersion: "1.0.0",
+      patch: { risk: "medium" },
+    };
+    expect(u.sourceVersion).toBe("1.0.0");
+    // @ts-expect-error — patch must NOT accept the immutable kind field
+    const bad: CapabilityUpdateMutation = { operation: "capability.update", capabilityId: "x", sourceVersion: "1.0.0", patch: { kind: "query" } };
+    void bad;
+  });
+
+  it("consolidate requires an explicit proposed target definition + sourceDisposition", () => {
+    const c: CapabilityConsolidateMutation = {
+      operation: "capability.consolidate",
+      sources: ["a.b", "a.c"],
+      target: "a.b",
+      definition: makeDefinition("a.b", "2.0.0"),
+      sourceDisposition: "remove",
+    };
+    expect(c.sourceDisposition).toBe("remove");
+  });
+
+  it("transition carries explicit from + to (stale-decision precondition)", () => {
+    const t: CapabilityTransitionMutation = {
+      operation: "capability.transition",
+      capabilityId: "tool.file.read",
+      from: "active",
+      to: "mature",
+    };
+    expect(t.from).toBe("active");
+    expect(t.to).toBe("mature");
+  });
+
+  it("create carries a definition and no placeholder flag", () => {
+    const c: CapabilityCreateMutation = {
+      operation: "capability.create",
+      definition: makeDefinition("tool.file.write", "1.0.0"),
+    };
+    expect(c.definition.id).toBe("tool.file.write");
+  });
+
+  it("remove carries a reason", () => {
+    const r: CapabilityRemoveMutation = {
+      operation: "capability.remove",
+      capabilityId: "tool.file.tail",
+      reason: "superseded",
+    };
+    expect(r.reason).toBe("superseded");
+  });
+});
+
+// helper shared with later describe blocks in this file
+function makeDefinition(id: string, version: string) {
+  return {
+    id, version, kind: "operation", title: id, description: id,
+    tags: [], category: "tools", risk: "low",
+    requiredPermissions: ["operator"], dependencies: [], bindings: [],
+  } as CapabilityDefinition;
+}
