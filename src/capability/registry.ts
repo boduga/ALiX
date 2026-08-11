@@ -1,6 +1,7 @@
 import { CapabilityValidationError } from "./errors.js";
 import type { EventBus } from "./event-bus.js";
 import type { Capability, CapabilityStatus, Permission } from "./types.js";
+import type { LifecycleState } from "../adaptation/capability-evolution-types.js";
 
 export interface CapabilityQuery {
   text?: string;
@@ -25,6 +26,7 @@ const CAPABILITY_ID = /^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/;
 export class CapabilityRegistry {
   private byId = new Map<string, Capability>();
   private status = new Map<string, CapabilityStatus>();
+  private readonly lifecycle = new Map<string, LifecycleState>();
   private watchers = new Set<(evt: { type: "registered" | "removed"; capabilityId: string }) => void>();
   private bus?: EventBus;
 
@@ -50,6 +52,7 @@ export class CapabilityRegistry {
   unregister(id: string): void {
     if (!this.byId.delete(id)) return;
     this.status.delete(id);
+    this.lifecycle.delete(id);
     for (const w of this.watchers) w({ type: "removed", capabilityId: id });
     this.bus?.emit({ type: "CapabilityRemoved", capabilityId: id, at: Date.now() });
   }
@@ -90,6 +93,24 @@ export class CapabilityRegistry {
   }
 
   getStatus(id: string): CapabilityStatus | undefined { return this.status.get(id); }
+
+  /** A7.1 — governed lifecycle overlay. The registry remains the current-state
+   *  authority; this is a runtime projection of the A7 lifecycle ledger, and
+   *  never a value in the Capability definition. */
+  applyLifecycleTransition(id: string, to: LifecycleState): void {
+    if (!this.byId.has(id)) throw new CapabilityValidationError(`Unknown capability id: ${id}`);
+    this.lifecycle.set(id, to);
+  }
+
+  getLifecycleState(id: string): LifecycleState | undefined {
+    return this.lifecycle.get(id);
+  }
+
+  /** A7.1 — clear the lifecycle overlay entry (used by compensating rollback).
+   *  Idempotent: a no-op on an absent id, so callers may invoke it unconditionally. */
+  clearLifecycleState(id: string): void {
+    this.lifecycle.delete(id);
+  }
 
   reload(): void {
     // No-op in Phase 1. Plugin loader hooks here later to re-scan/re-register.
