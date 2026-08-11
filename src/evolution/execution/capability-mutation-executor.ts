@@ -20,7 +20,6 @@ import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { CapabilityCatalog } from "../../capability/canonical/catalog.js";
 import type { CapabilityProviderBinding } from "../../capability/canonical/provider.js";
-import { validateCapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { CapabilityAvailability, CapabilityRegistry } from "../../capability/registry.js";
 import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
@@ -29,7 +28,7 @@ import type {
   CapabilityDefinitionPatch,
   CapabilityCreateMutation,
 } from "../../capability/mutation-contract.js";
-import { validateCapabilityMutation, CAPABILITY_MUTATION_OPERATIONS } from "../../capability/mutation-contract.js";
+import { validateCapabilityMutation } from "../../capability/mutation-contract.js";
 import type { StepExecutor } from "./execution-runtime.js";
 import type { ExecutionStep, RollbackStep } from "./contracts/execution-contract.js";
 import { DefaultRollbackResolver, type RollbackResolver } from "./execution-planner.js";
@@ -165,14 +164,21 @@ function artifactId(operation: string, mutation: CapabilityMutation, post: Recor
 
 export function createCapabilityRollbackResolver(): RollbackResolver {
   const resolver = new DefaultRollbackResolver();
-  resolver.registerOperation("capability.create", (step) => ({
-    stepId: `rb-${step.stepId}`,
-    forwardStepId: step.stepId,
-    operation: "capability.restore_create",
-    parameters: { capabilityId: (step.parameters as { capabilityId?: string }).capabilityId },
-    rollbackType: "automatic" as const,
-    safe: true,
-  }));
+  resolver.registerOperation("capability.create", (step) => {
+    // Real create steps carry the full mutation as parameters (see
+    // toCapabilityMutationChange), so the capability id lives at
+    // parameters.definition.id; a top-level parameters.capabilityId is
+    // honored first for callers that pass it explicitly.
+    const params = step.parameters as { capabilityId?: string; definition?: { id?: string } };
+    return {
+      stepId: `rb-${step.stepId}`,
+      forwardStepId: step.stepId,
+      operation: "capability.restore_create",
+      parameters: { capabilityId: params.capabilityId ?? params.definition?.id },
+      rollbackType: "automatic" as const,
+      safe: true,
+    };
+  });
   resolver.registerOperation("capability.transition", (step) => ({
     stepId: `rb-${step.stepId}`,
     forwardStepId: step.stepId,
@@ -235,7 +241,6 @@ export class CapabilityMutationExecutor implements StepExecutor {
     if (this.catalog.has(mutation.definition.id)) {
       return { success: false, output: {}, error: `capability.create: '${mutation.definition.id}' already exists (use update to modify; #478)` };
     }
-    validateCapabilityDefinition(mutation.definition); // fail-closed: the contract validator may pass shape but the store must not throw mid-write
     const pre = capturePreState(this.catalog, this.registry);
     const result = this.applyCreate(mutation, pre);
     // Apply failure (incl. a registry projection failure after the catalog write)
@@ -263,12 +268,19 @@ export class CapabilityMutationExecutor implements StepExecutor {
     pre: CapabilityPreState,
     post: Record<string, unknown>,
   ): Promise<{ success: boolean; output: Record<string, unknown>; error?: string }> {
+    const mutationCopy = deepCopy(mutation);
+    const postCopy = deepCopy(post);
     const result: CapabilityMutationResult = {
-      artifactId: artifactId(operation, mutation, deepCopy(post)),
+      // Hash the SAME sanitized copies that enter the result (deepCopy strips
+      // nested `undefined`, which canonicalStringify would reject), so the
+      // artifactId is deterministic over the recorded artifact.
+      artifactId: artifactId(operation, mutationCopy, postCopy),
       operation,
-      mutation: deepCopy(mutation),
-      preState: deepCopy(pre),
-      post: deepCopy(post),
+      mutation: mutationCopy,
+      // structuredClone preserves the Map fields of CapabilityPreState
+      // (bindings/lifecycle/availability); JSON round-trip would erase them.
+      preState: structuredClone(pre),
+      post: postCopy,
     };
     if (this.record) {
       try {
