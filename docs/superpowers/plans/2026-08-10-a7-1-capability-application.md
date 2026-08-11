@@ -308,8 +308,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { toExecutionProposal } from "../../src/evolution/capability-lifecycle/capability-execution-projection.js";
-import type { CapabilityLifecycleRecord } from "../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
+import { toExecutionProposal } from "../../../src/evolution/capability-lifecycle/capability-execution-projection.js";
+import type { CapabilityLifecycleRecord } from "../../../src/evolution/capability-lifecycle/contracts/lifecycle-contract.js";
 
 function decidedRecord(over: Partial<CapabilityLifecycleRecord>): CapabilityLifecycleRecord {
   return {
