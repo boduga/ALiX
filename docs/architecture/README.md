@@ -86,7 +86,7 @@ Transitive dependencies are not expanded. If B depends on A, and C depends on B,
 
 ```
 Read: ADR-0013 (canonical capability/provider architecture)
-Read: docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md
+Read: docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md
 Read: docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md
 Read: src/capability/registry.ts, src/capability/types.ts
 Read: src/capability/execution-resolver.ts
@@ -265,7 +265,7 @@ Update: docs/architecture/adrs/README.md (index table)
 | A-series living reference | `docs/architecture/a-series-governed-evolution.md` |
 | Design specifications | `docs/architecture/specs/YYYY-MM-DD-*.md` |
 | Implementation plans | `docs/superpowers/plans/YYYY-MM-DD-*.md` |
-| **Capability greenfield design** | `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md` |
+| **Capability greenfield design** | `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md` |
 | **Capability greenfield plan** | `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md` |
 | **EventLog projection architecture (canonical)** | `docs/architecture/eventlog-projection-architecture.md` |
 

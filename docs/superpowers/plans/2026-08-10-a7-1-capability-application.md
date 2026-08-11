@@ -3,7 +3,7 @@
 **Status:** Superseded
 **Superseded by:** `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 **Canonical architecture:** `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-**Canonical design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+**Canonical design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 
 This plan is retained as a historical record of the original A7.1 Apply → Measure implementation. It is not the active plan for capability-platform work.
 

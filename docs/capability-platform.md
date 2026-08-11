@@ -1,7 +1,7 @@
 # ALiX Capability Platform
 
 **Architecture:** `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-**Greenfield design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+**Greenfield design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 
 ## What it is
 

@@ -1,8 +1,10 @@
 # ALiX Capability Platform — Greenfield Refactor Plan
 
-**Status:** Proposed
+> **⚠️ SUPERSEDED (2026-08-11).** This plan's **execution ordering (§19) is superseded** by the reconciled CAP program: `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-reconciled-program.md` (the execution authority for the greenfield build). This document remains useful as provenance of the original proposal. **ADR-0013** and the **greenfield architecture design** remain the architectural authorities; this plan is not the execution authority.
+
+**Status:** Superseded (provenance) — originally Proposed
 **Date:** 2026-08-10
-**Design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+**Design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 **ADR:** `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
 **Goal:** Replace the split A7 capability surfaces with one canonical capability system.
 
@@ -658,7 +660,7 @@ The test suite should include a structural sentinel preventing the CLI capabilit
 
 - `docs/architecture/README.md`
 - `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-- `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+- `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 - `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 - `docs/capability-platform.md`
 - `docs/superpowers/specs/2026-07-31-capability-platform-design.md`

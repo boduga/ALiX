@@ -282,7 +282,7 @@ ALiX becomes progressively more capable while preserving human control, explaina
 # 11. Canonical References
 
 - Capability architecture: `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-- Capability greenfield design: `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+- Capability greenfield design: `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 - Capability greenfield plan: `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 - A-series roadmap: `docs/roadmap/a-series-autonomous-evolution.md`
 - A-series governed evolution architecture: `docs/architecture/a-series-governed-evolution.md`

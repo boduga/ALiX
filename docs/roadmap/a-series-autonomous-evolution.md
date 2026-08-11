@@ -11,7 +11,7 @@ The A-Series sits above both M and P, consuming platform and product capabilitie
 The A7 implementation remains a historical checkpoint; new capability work must follow:
 
 - `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-- `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+- `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 - `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 
 A7 is therefore **architecturally reset, not deleted**: the lifecycle governance responsibility survives, while its implementation boundary is rebuilt around the canonical M-series CapabilityRegistry.

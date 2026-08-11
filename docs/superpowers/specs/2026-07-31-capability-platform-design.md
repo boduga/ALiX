@@ -3,7 +3,7 @@
 **Status:** Historical / Superseded
 **Original date:** 2026-07-31
 **Current architecture:** `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-**Current design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-design.md`
+**Current design:** `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
 **Current plan:** `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
 
 ## Historical status
