@@ -172,7 +172,7 @@ In `unregister(id)`, after `this.status.delete(id)`, add `this.lifecycle.delete(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm build && node --test dist/tests/capability/registry-lifecycle-overlay.test.js`
-Expected: PASS (5/5).
+Expected: PASS (6/6).
 
 - [ ] **Step 5: Impact + commit**
 
@@ -194,7 +194,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `GovernanceDecision` from `src/evolution/governance/contracts/decision-contract.js`; existing `CapabilityLifecycleRecord`/`EventType`/`ProjectionState`/validator/`deriveCapabilityProjectionState`.
-- Produces: `CapabilityLifecycleEventType` extends to `"intent"|"proposed"|"decided"|"applied"|"measured"`; `CAPABILITY_LIFECYCLE_EVENT_TYPES` extended; `CapabilityLifecycleRecord` gains `decision?: GovernanceDecision`; validator rules flip (see Step 3); `CapabilityProjectionState` extends to include `"APPLIED"`/`"MEASURED"`; `deriveCapabilityProjectionState` extended; `toLedgerRecord` persists `decision` on `decided` records.
+- Produces: `CapabilityLifecycleEventType` extends to `"intent"|"proposed"|"decided"|"applied"|"measured"`; `CAPABILITY_LIFECYCLE_EVENT_TYPES` extended; `CapabilityLifecycleRecord` gains `decision?: GovernanceDecision` + `baselineEvidenceRefs?: string[]` + `postObservationRefs?: string[]`; validator rules flip (see Step 3); `CapabilityProjectionState` extends to include `"APPLIED"`/`"MEASURED"`; `deriveCapabilityProjectionState` extended; `toLedgerRecord` persists `decision` on `decided` records.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -221,7 +221,7 @@ export const CAPABILITY_LIFECYCLE_EVENT_TYPES: readonly CapabilityLifecycleEvent
   "intent", "proposed", "decided", "applied", "measured",
 ];
 ```
-Add `decision?: GovernanceDecision` to `CapabilityLifecycleRecord` (import `GovernanceDecision` type).
+Add `decision?: GovernanceDecision` to `CapabilityLifecycleRecord` (import `GovernanceDecision` type). Also add the two measured-record evidence refs the validator will require: `baselineEvidenceRefs?: string[]` and `postObservationRefs?: string[]`.
 
 Validator changes:
 ```ts
