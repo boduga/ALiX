@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ProviderResolver } from '../../src/capability/provider-resolver.js';
+import { ProviderResolver, CapabilityResolver, type ResolverContext } from '../../src/capability/provider-resolver.js';
 import { ProviderExecutorRegistry } from '../../src/capability/provider-registry.js';
 import { NativeProviderExecutor } from '../../src/capability/provider-executor.js';
 import { NativeExecutor } from '../../src/capability/executors.js';
@@ -11,8 +11,9 @@ import { CapabilityNotFoundError } from '../../src/capability/errors.js';
 import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
 import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
 import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
-import type { CapabilityContext } from '../../src/capability/types.js';
 import type { CapabilityDefinition } from '../../src/capability/canonical/definition.js';
+import type { CapabilityRegistry as CapabilityRegistryType } from '../../src/capability/registry.js';
+import type { LifecycleState } from '../../src/adaptation/capability-evolution-types.js';
 
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap4-resolver-')); });
@@ -24,10 +25,11 @@ function makeRegistry() {
   registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   return registry;
 }
-function ctx(): CapabilityContext {
-  return { invocationId: 'i', requestId: 'r', actor: 'operator', permissions: ['operator'],
-    cwd: '/', workspace: '/', sessionId: 's', cancellationToken: new AbortController().signal,
-    eventBus: { emit: () => {} } };
+// CAP-7 — ResolverContext replaces CapabilityContext. The resolver no longer
+// takes CapabilityContext (see design contract). The empty default preserves
+// CAP-4 behaviour for all existing tests.
+function ctx(over: Partial<ResolverContext> = {}): ResolverContext {
+  return { ...over };
 }
 function makeProviderExecutorRegistry() {
   const providers = new ProviderExecutorRegistry();
@@ -41,6 +43,16 @@ function def(over: Partial<CapabilityDefinition>): CapabilityDefinition {
     dependencies: [], bindings: [{ id: 'core.echo', type: 'native' }],
     ...over,
   };
+}
+
+// Local helper for new CAP-7 describe block. Uses setLifecycleState — same
+// authority Task 1 + CAP-5 use; CAP-7 reads (never writes).
+function registrySetLifecycle(
+  reg: CapabilityRegistryType,
+  id: string,
+  state: LifecycleState,
+): void {
+  reg.setLifecycleState(id, state);
 }
 
 describe('ProviderResolver', () => {
@@ -145,5 +157,92 @@ describe('ProviderResolver', () => {
     reg.import([def({})]);   // bindings[0] has no config
     const plans = new ProviderResolver(reg, makeProviderExecutorRegistry()).resolve('core.echo', ctx());
     expect(plans[0]!.steps[0]!.timeout).toBe(30_000);
+  });
+});
+
+describe('CapabilityResolver (CAP-7 lifecycle eligibility extension)', () => {
+  it('attaches a lifecycleEligibility annotation to every step (default allowDeprecated=false)', () => {
+    const reg = makeRegistry();
+    reg.import([def({})]);
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry());
+    const plans = resolver.resolve('core.echo', ctx());
+    expect(plans[0]!.steps[0]!.lifecycleEligibility).toEqual({
+      state: 'emerging', eligible: true, overrideUsed: false,
+    });
+  });
+
+  it('deprecated without override → step is present but has no candidates and eligible=false (AC#2)', () => {
+    const reg = makeRegistry();
+    reg.import([def({})]);
+    registrySetLifecycle(reg, 'core.echo', 'deprecated');
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry());
+    const plans = resolver.resolve('core.echo', ctx());
+    const step = plans[0]!.steps.find((s) => s.capabilityId === 'core.echo')!;
+    expect(step.lifecycleEligibility).toEqual({
+      state: 'deprecated', eligible: false, overrideUsed: false,
+    });
+    expect(step.candidates).toEqual([]);
+    expect(step.bindingsCount).toBe(1);
+  });
+
+  it('deprecated WITH allowDeprecated → eligible=true, overrideUsed=true; provider gate still applies (locked ruling #1)', () => {
+    const reg = makeRegistry();
+    reg.import([def({})]);
+    registrySetLifecycle(reg, 'core.echo', 'deprecated');
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry());
+    const plans = resolver.resolve('core.echo', ctx({ allowDeprecated: true }));
+    const step = plans[0]!.steps.find((s) => s.capabilityId === 'core.echo')!;
+    expect(step.lifecycleEligibility.eligible).toBe(true);
+    expect(step.lifecycleEligibility.overrideUsed).toBe(true);
+    // native provider IS registered → provider gate passes normally.
+    // Override only bypasses the LIFECYCLE gate, not the provider gate (locked ruling #1).
+    expect(step.candidates).toHaveLength(1);
+  });
+
+  it('non-deprecated with allowDeprecated:true still shows overrideUsed=false (override meaningful only for deprecated)', () => {
+    const reg = makeRegistry();
+    reg.import([def({})]);
+    registrySetLifecycle(reg, 'core.echo', 'active');
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry());
+    const plans = resolver.resolve('core.echo', ctx({ allowDeprecated: true }));
+    expect(plans[0]!.steps[0]!.lifecycleEligibility).toEqual({
+      state: 'active', eligible: true, overrideUsed: false,
+    });
+  });
+
+  it('lifecycle gate runs BEFORE provider gate (AC#6: axes never conflate)', () => {
+    // active + provider-down → step carries lifecycleEligibility.eligible=true AND
+    // candidates=[] (provider gate). Two axes, two independent annotations.
+    const reg = makeRegistry();
+    reg.import([def({ bindings: [{ id: 'native.a', type: 'native' }] })]);
+    registrySetLifecycle(reg, 'core.echo', 'active');
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry(), {
+      isProviderHealthy: () => false,   // provider down
+    });
+    const plans = resolver.resolve('core.echo', ctx());
+    const step = plans[0]!.steps.find((s) => s.capabilityId === 'core.echo')!;
+    expect(step.lifecycleEligibility).toEqual({
+      state: 'active', eligible: true, overrideUsed: false,
+    });
+    expect(step.candidates).toEqual([]);
+    // bindingsCount reflects bindings[] (pre-filter), not eligible candidates.
+    expect(step.bindingsCount).toBe(1);
+  });
+
+  it('multi-step plan: a non-deprecated dependency resolves, a deprecated head is excluded (override=false)', () => {
+    const reg = makeRegistry();
+    reg.import([
+      def({ id: 'dep.a' }),
+      def({ id: 'core.composed', dependencies: ['dep.a'] }),
+    ]);
+    registrySetLifecycle(reg, 'core.composed', 'deprecated');
+    const resolver = new CapabilityResolver(reg, makeProviderExecutorRegistry());
+    const plans = resolver.resolve('core.composed', ctx());
+    const head = plans[0]!.steps.find((s) => s.capabilityId === 'core.composed')!;
+    const dep = plans[0]!.steps.find((s) => s.capabilityId === 'dep.a')!;
+    expect(head.lifecycleEligibility.eligible).toBe(false);
+    expect(head.candidates).toEqual([]);
+    expect(dep.lifecycleEligibility.eligible).toBe(true);
+    expect(dep.candidates).toHaveLength(1);
   });
 });

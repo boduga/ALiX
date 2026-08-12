@@ -35,7 +35,7 @@ export class CapabilityRuntime {
   ): Invocation {
     const capability = this.registry.find(capabilityId);
     if (!capability) throw new CapabilityNotFoundError(capabilityId);
-    const plans = this.resolver.resolve(capabilityId, this.makeContext(capabilityId, overrides));
+    const plans = this.resolver.resolve(capabilityId, {});   // CAP-7: runtime invokes with an empty ResolverContext; override is a caller concern, not a runtime concern
     const plan = plans[0];
     const steps = plan?.steps;
     if (!steps || steps.length === 0) throw new CapabilityNotFoundError(capabilityId);
