@@ -33,6 +33,7 @@ import type { ExecutionStep } from "../evolution/execution/contracts/execution-c
 import type { EventLog } from "../events/event-log.js";
 import type { LifecycleState } from "../adaptation/capability-evolution-types.js";
 import { CapabilityNotFoundError } from "./errors.js";
+import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
 import type {
   CapabilityListResult, CapabilityListItem,
   CapabilityInspectResult,
@@ -280,5 +281,22 @@ export class CapabilityService {
     } catch {
       return { available: false, reason: "missing_binding" };
     }
+  }
+
+  /**
+   * Forward-wired stub (locked ruling #4). Body lands in CAP-9.
+   * Throws `CapabilityServiceNotImplementedError` (code `not_implemented_yet`).
+   * The signature is async so CAP-9 can replace the body without changing the surface.
+   */
+  async propose(_input: unknown): Promise<never> {
+    throw new CapabilityServiceNotImplementedError("propose() lands in CAP-9");
+  }
+
+  /**
+   * Forward-wired stub (locked ruling #4). Body lands in CAP-10.
+   * Throws `CapabilityServiceNotImplementedError` (code `not_implemented_yet`).
+   */
+  async measure(_input: unknown): Promise<never> {
+    throw new CapabilityServiceNotImplementedError("measure() lands in CAP-10");
   }
 }
