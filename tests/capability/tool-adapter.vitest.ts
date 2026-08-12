@@ -6,7 +6,7 @@ import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
 
 describe('tool provider executor', () => {
   function platformWithTool(tool: { execute(req: ToolCallRequest): Promise<ToolResult | { kind: 'denied'; reason: string }> }) {
-    const platform = new CapabilityPlatform();
+    const platform = new CapabilityPlatform({ eventLog: { append: async () => {}, readAll: async () => [] } as never });
     registerInitialCapabilities(platform.registry, platform.native);
     platform.registerProvider('tool', createToolProviderExecutor(tool));
     return platform;

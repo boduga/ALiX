@@ -5,7 +5,7 @@ import { createToolProviderExecutor } from '../../capability/tool-adapter.js';
 import { toAlixEvent } from '../../capability/event-bus.js';
 import type { Capability, CapabilityStatus, Invocation } from '../../capability/types.js';
 import type { CapabilityQuery } from '../../capability/registry.js';
-import type { EventLog } from '../../events/event-log.js';
+import { EventLog } from '../../events/event-log.js';
 import type { ToolCallRequest } from '../../tools/types.js';
 import type { ExecuteResult } from '../../tools/executor.js';
 import type { InvocationPresenter } from './invocation-presenter.js';
@@ -59,7 +59,14 @@ export class CapabilityService {
       toolExecutor: undefined,
       ...opts,
     };
-    this.platform = new CapabilityPlatform();
+    // Locked ruling #12 — the platform requires an authoritative EventLog.
+    // When the TUI service was constructed without one, construct a no-op
+    // EventLog scoped to the current working directory so the platform can
+    // wire the same instance into the service. The TUI's own `eventLog` opt
+    // (when supplied) takes precedence — both land in the same EventLog.
+    const eventLog = this.opts.eventLog ?? new EventLog(this.opts.cwd);
+    this.opts.eventLog = eventLog;
+    this.platform = new CapabilityPlatform({ eventLog });
     // Subscribe BEFORE registering initial capabilities so the bridge
     // (EventBus does not replay past events to late subscribers) captures
     // every CapabilityRegistered emission.

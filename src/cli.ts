@@ -2217,10 +2217,15 @@ if (command === "capabilities") {
   const { CapabilityEvolutionStore } = await import("./adaptation/capability-evolution-store.js");
   const { rehydrateLifecycleOverlay } =
     await import("./evolution/capability-lifecycle/capability-lifecycle-rehydration.js");
+  const { EventLog } = await import("./events/event-log.js");
   const cwd = process.cwd();
+  const sessionDir = join(cwd, ".alix", "sessions", "capabilities-cmd");
   // CAP-3: build the composition root once — the registry is the canonical
   // catalog projection with the mutation port wired inside the platform.
-  const platform = new CapabilityPlatform({ catalogDir: join(cwd, ".alix", "capabilities") });
+  // CAP-8: supply an authoritative EventLog (locked ruling #12); the
+  // platform never instantiates one internally.
+  const eventLog = new EventLog(sessionDir);
+  const platform = new CapabilityPlatform({ catalogDir: join(cwd, ".alix", "capabilities"), eventLog });
   const ledger = new JsonlCapabilityLifecycleLedger(DEFAULT_CAPABILITY_LIFECYCLE_FILE);
   const store = new CapabilityEvolutionStore(join(cwd, ".alix", "capability-evolution"));
   // The registry overlay is a runtime projection of persisted applied records —

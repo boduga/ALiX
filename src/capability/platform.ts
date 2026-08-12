@@ -1,7 +1,7 @@
 // src/capability/platform.ts
 import { CapabilityRegistry } from "./registry.js";
 import { HookRegistry } from "./hook-registry.js";
-import { ProviderResolver } from "./provider-resolver.js";
+import { CapabilityResolver, ProviderResolver } from "./provider-resolver.js";
 import { CapabilityRuntime } from "./runtime.js";
 import { NativeExecutor } from "./executors.js";
 import { ProviderExecutorRegistry } from "./provider-registry.js";
@@ -10,10 +10,13 @@ import { EventBus } from "./event-bus.js";
 import { CapabilityCatalog } from "./canonical/catalog.js";
 import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
+import { CapabilityService } from "./capability-service.js";
+import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
 import type { CapabilityQuery } from "./registry.js";
 import type { Capability, CapabilityContext, Invocation } from "./types.js";
+import type { EventLog } from "../events/event-log.js";
 
 /** Composition root (CAP-4): catalog → registry → mutation port → provider
  *  registry (native + recognized-unimplemented stubs) → provider resolver →
@@ -29,7 +32,21 @@ export class CapabilityPlatform {
   private readonly resolver: ProviderResolver;
   private readonly runtime: CapabilityRuntime;
 
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog } = {}) {
+  /** CapabilityService — the single mandatory capability surface (CAP-8).
+   *  Wired by the composition root per locked ruling #6; the only place
+   *  the service is constructed. Uses the SAME EventLog instance supplied
+   *  to the platform (locked ruling #12 — EventLog is authoritative). */
+  readonly service: CapabilityService;
+
+  /** CapabilityPlatform constructor opts (locked ruling #12 — `eventLog`
+   *  is REQUIRED; the platform never instantiates an EventLog internally).
+   *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
+   *  EventLog; existing platform tests MUST pass an explicit test
+   *  EventLog fixture. The same instance flows through to the service. */
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog }) {
+    if (!opts.eventLog) {
+      throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
+    }
     this.catalog = opts.catalog ?? new CapabilityCatalog(new CapabilityDefinitionStore({ dir: opts.catalogDir ?? join(process.cwd(), ".alix", "capabilities") }));
     this.registry = new CapabilityRegistry(this.catalog);
     this.registry.setMutationPort(new CatalogBackedCapabilityMutationPort(this.catalog));
@@ -41,8 +58,24 @@ export class CapabilityPlatform {
       this.providers.register(t, new UnavailableProviderExecutor(t));
     }
     this.registry.attach(this.events);
-    this.resolver = new ProviderResolver(this.registry, this.providers);
+    // Instantiate the CapabilityResolver subclass (CAP-7) — the service
+    // needs the narrow type (lifecycle accessor) for `apply()`. The
+    // `ProviderResolver` superclass ref remains for back-compat with the
+    // `runtime` wiring.
+    const resolver = new CapabilityResolver(this.registry, this.providers);
+    this.resolver = resolver;
     this.runtime = new CapabilityRuntime(this.registry, this.hooks, this.resolver, this.events);
+    // CAP-6 mutation executor owned by the composition root.
+    const mutationExecutor = new CapabilityMutationExecutor({ catalog: this.catalog, registry: this.registry });
+    // CAP-8 — construct the service with the platform's resolver and
+    // the same EventLog supplied by the caller (ruling #12). The
+    // service is the only public capability surface (ruling #2).
+    this.service = new CapabilityService({
+      catalog: this.catalog,
+      resolver,
+      mutationExecutor,
+      eventLog: opts.eventLog,
+    });
   }
 
   register(capability: Capability): void { this.registry.register(capability); }
