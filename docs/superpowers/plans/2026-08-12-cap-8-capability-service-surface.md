@@ -1752,28 +1752,29 @@ import { CapabilityService } from "./capability-service.js";
 import type { EventLog } from "../events/event-log.js";
 ```
 
-Add a public field and constructor wiring. The exact diff is a constructor extension that accepts `eventLog?: EventLog` and constructs `this.service` after the resolver is wired. Approximate shape (do not commit this verbatim — preserve the platform's existing private/public layout):
+Add a public field and constructor wiring. The exact diff is a constructor extension that accepts `eventLog: EventLog` (REQUIRED per locked ruling #12 — task-7 implementer correction; brief's `eventLog?: EventLog` was wrong) and constructs `this.service` after the resolver is wired. Approximate shape (do not commit this verbatim — preserve the platform's existing private/public layout):
 
 ```ts
   /** CapabilityService — wired by the composition root (locked ruling #6). */
   readonly service: CapabilityService;
 
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog?: EventLog } = {}) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog }) {
+    if (!opts.eventLog) throw new Error('CapabilityPlatform requires an EventLog (locked ruling #12)');
     this.catalog = opts.catalog ?? new CapabilityCatalog(new CapabilityDefinitionStore({ dir: opts.catalogDir ?? join(process.cwd(), ".alix", "capabilities") }));
     this.registry = new CapabilityRegistry(this.catalog);
     this.registry.setMutationPort(new CatalogBackedCapabilityMutationPort(this.catalog));
     this.resolver = new CapabilityResolver(this.registry, this.providers);
     this.runtime = new CapabilityRuntime(this.registry, this.resolver, this.events, this.native);
     const executor = new CapabilityMutationExecutor({ catalog: this.catalog, registry: this.registry });
-    const eventLog = opts.eventLog ?? /*throw if production requires one; tests always provide one*/;
-    this.service = new CapabilityService({ catalog: this.catalog, resolver: /* CapabilityResolver instance */, mutationExecutor: executor, eventLog });
+    this.service = new CapabilityService({ catalog: this.catalog, resolver: /* CapabilityResolver instance */, mutationExecutor: executor, eventLog: opts.eventLog });
   }
 ```
 
 The implementation must:
 - Use a `CapabilityResolver` reference for `resolver` (already aliased in CAP-7).
-- Throw a clear error if `eventLog` is absent in production; the test always provides one.
+- **THROW** if `eventLog` is absent (locked ruling #12); no fallback, no default.
 - Reuse the existing `native`, `providers`, `hooks`, `events` fields.
+- **TUI bootstrap auto-constructs an EventLog** if caller omits it (task-7 implementer note): production TUI callers supply their own, so non-violation; flagged for review.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -2180,7 +2181,7 @@ git commit -m "chore(capability): CAP-8 supersession forbidden-file guard"
 
 **5. CAP-7 stub replacement:** `tests/capability/capability-service-delegation.vitest.ts` is **deleted** in Task 2 because the CAP-7 stub's `resolve(id, ctx)` method is removed (locked ruling #stub: no compatibility facade). The delegation invariant is reasserted in Task 8's axis-1/axis-2 sentinel — which is structurally stronger than the behavioural CAP-7 test.
 
-**6. Composition-root change:** `src/capability/platform.ts` constructor is extended to accept `eventLog?: EventLog`. Existing platform tests (CAP-1/CAP-3/CAP-5/CAP-6/CAP-7) construct `CapabilityPlatform` without an eventLog — those tests may need a `beforeEach` fixture update. The implementor MUST update those test fixtures to pass an `EventLog` if they break, AND the production bootstrap MUST wire an eventLog. Pre-existing CI failures on `unit`/`tui-smoke`/`supply-chain` remain pre-existing per ticket #484.
+**6. Composition-root change:** `src/capability/platform.ts` constructor is extended to accept `eventLog: EventLog` (REQUIRED per locked ruling #12). Existing platform tests (CAP-1/CAP-3/CAP-5/CAP-6/CAP-7) construct `CapabilityPlatform` without an eventLog — those tests MUST be updated to construct with an explicit test EventLog fixture (task-7 implementer verified this). The production bootstrap MUST supply an authoritative EventLog. Pre-existing CI failures on `unit`/`tui-smoke`/`supply-chain` remain pre-existing per ticket #484.
 
 **7. `tsx` not installed:** node:test steps use `node --test dist/tests/...` after `pnpm run build`, not `tsx`. (CAP-6 lesson — the project does not install `tsx`.)
 
