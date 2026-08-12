@@ -65,7 +65,12 @@ describe('LifecycleEligibility annotation shape (locked ruling #6)', () => {
     const ann: LifecycleEligibility = { state: 'active', eligible: true, overrideUsed: false };
     expect(Object.keys(ann).sort()).toEqual(['eligible', 'overrideUsed', 'state']);
     // Casting to a permissive shape surfaces unintended fields at compile time.
-    const widened: Record<string, unknown> = ann;
+    // Brief-amendment 2026-08-11: TS 7.0.2 strict mode rejects direct assignment
+    // (LifecycleEligibility has no index signature). Double-cast via unknown
+    // preserves the locked-ruling #6 "deliberately narrow" interface while
+    // satisfying tsc. Adding `[key: string]: unknown` to the interface would
+    // itself widen the shape, so the cast stays here.
+    const widened = ann as unknown as Record<string, unknown>;
     expect(widened.callerId).toBeUndefined();
     expect(widened.actorRole).toBeUndefined();
     expect(widened.governanceDecisionId).toBeUndefined();
