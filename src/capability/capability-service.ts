@@ -29,6 +29,7 @@ import type { CapabilityCatalog } from "./canonical/catalog.js";
 import type { CapabilityDefinition } from "./canonical/definition.js";
 import type { CapabilityResolver } from "./provider-resolver.js";
 import type { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
+import type { ExecutionStep } from "../evolution/execution/contracts/execution-contract.js";
 import type { EventLog } from "../events/event-log.js";
 import type { LifecycleState } from "../adaptation/capability-evolution-types.js";
 import { CapabilityNotFoundError } from "./errors.js";
@@ -38,6 +39,7 @@ import type {
   CapabilitySearchQuery, CapabilitySearchResult,
   CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
+  CapabilityApplyInput, CapabilityApplyResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
@@ -47,6 +49,7 @@ export type {
   CapabilitySearchQuery, CapabilitySearchResult,
   CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
+  CapabilityApplyInput, CapabilityApplyResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
@@ -180,6 +183,69 @@ export class CapabilityService {
       lifecycle,
       providersChecked: candidatesCount,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // apply() — single mutation seam. Locked ruling #1: thin delegation to
+  // CAP-6's CapabilityMutationExecutor.executeStep. The service introduces
+  // NO second mutation execution path; CAP-6 owns validation, atomicity,
+  // rollback, registry projection, and governance-result dispatch. We
+  // construct a structurally-typed ExecutionStep with the service-step's
+  // idempotent/preconditions/postconditions defaulted (CAP-6 requires them)
+  // and project the executor's output into CapabilityApplyResult.
+  // -------------------------------------------------------------------------
+
+  async apply(input: CapabilityApplyInput, ctx?: Record<string, unknown>): Promise<CapabilityApplyResult> {
+    const step: ExecutionStep = {
+      stepId: input.step.stepId,
+      operation: input.step.operation,
+      parameters: input.step.parameters,
+      idempotent: input.step.idempotent ?? false,
+      preconditions: input.step.preconditions ?? {},
+      postconditions: input.step.postconditions ?? {},
+    };
+    const result = await this.executor.executeStep(step, ctx ?? {});
+    return {
+      success: result.success,
+      operation: input.step.operation,
+      affected: this.affectedFromResult(input.step, result),
+      // CAP-6 success output shape: { operation, mutation, result } where
+      // `result` is the frozen CapabilityMutationResult carrying artifactId.
+      // Failure paths return `output = {}`, so we guard with a single cast.
+      artifactId: CapabilityService.readArtifactId(result.output),
+      error: result.error,
+    };
+  }
+
+  private affectedFromResult(
+    step: CapabilityApplyInput["step"],
+    result: { success: boolean; output: Record<string, unknown> },
+  ): readonly string[] {
+    const fromOutput = Array.isArray(result.output?.affected)
+      ? (result.output.affected as readonly unknown[]).filter((x): x is string => typeof x === "string")
+      : undefined;
+    if (fromOutput && fromOutput.length > 0) return fromOutput;
+    const params = step.parameters as Record<string, unknown>;
+    const out: string[] = [];
+    const def = params.definition as { id?: unknown } | undefined;
+    if (def && typeof def.id === "string") out.push(def.id);
+    if (typeof params.capabilityId === "string") out.push(params.capabilityId);
+    if (Array.isArray(params.sources)) {
+      for (const s of params.sources) if (typeof s === "string") out.push(s);
+    }
+    if (typeof params.target === "string") out.push(params.target);
+    return out;
+  }
+
+  // Helper: read the SHA-256 `artifactId` produced by CAP-6's commit boundary.
+  // CAP-6's success path returns output = { operation, mutation, result }; the
+  // frozen `result` (a CapabilityMutationResult) carries the `artifactId`.
+  // Failure paths return output = {} so we guard explicitly.
+  private static readArtifactId(output: Record<string, unknown>): string | undefined {
+    const inner = output["result"];
+    if (!inner || typeof inner !== "object") return undefined;
+    const candidate = (inner as { artifactId?: unknown }).artifactId;
+    return typeof candidate === "string" ? candidate : undefined;
   }
 
   // -------------------------------------------------------------------------
