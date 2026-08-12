@@ -1074,7 +1074,7 @@ git commit -m "feat(capability): CAP-8 service.health() — narrow CapabilityHea
   - `success = result.success`
   - `operation = input.step.operation`
   - `affected` from `result.output.affected` (computed by the executor; falls back to empty array when absent)
-  - `artifactId = result.output.artifactId`
+  - `artifactId = result.output.result.artifactId` (CAP-6 success path returns `{ operation, mutation, result }`; artifactId lives at `output.result.artifactId`, NOT `output.artifactId` — task-4 implementer correction)
   - `error = result.error`
 - The service MUST NOT itself call `catalog.register`, `catalog.remove`, `registry.setLifecycleState`, `registry.reload`, `mutationPort.register`, or any helper from `capability-mutation-executor.ts` other than going through `executor.executeStep`. A future PR that bypasses the executor is a locked-ruling-#1 violation.
 - Async signature mirrors the executor's existing async contract (so the existing A4 execution-runtime semantics — atomic boundary, rollback, projection — are preserved end-to-end).
@@ -1141,7 +1141,7 @@ describe('AC#1/AC#3 + locked ruling #1 — service.apply() delegates verbatim to
     expect(result.success).toBe(true);
     expect(result.operation).toBe('capability.create');
     expect(result.affected).toEqual(['core.newcap']);
-    expect(result.artifactId).toMatch(/^ar-/);
+    expect(result.artifactId).toMatch(/^[a-f0-9]{64}$/); // CAP-6 artifactId is SHA-256 hex (task-4 implementer correction; brief had `/^ar-/` which doesn't match)
     expect(catalog.has('core.newcap')).toBe(true);
   });
 
@@ -1172,7 +1172,7 @@ describe('AC#1/AC#3 + locked ruling #1 — service.apply() delegates verbatim to
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();
     expect(catalog.has('core.bad')).toBe(false);
-    expect(registry.has('core.bad')).toBe(false);
+    expect(registry.getLifecycleState('core.bad')).toBeUndefined(); // registry.has doesn't exist (task-4 implementer correction)
   });
 
   it('locked ruling #1 invariant: service never calls catalog.register/mutationPort directly', async () => {
@@ -1219,7 +1219,7 @@ Append to `src/capability/capability-service.ts`:
       // CAP-6 executor emits `affected` inside `output.affected` for capability.create /
       // remove; for others it's implicit in `parameters.capabilityId` / `parameters.sources`.
       affected: this.affectedFromResult(input.step, result),
-      artifactId: typeof result.output?.artifactId === 'string' ? result.output.artifactId : undefined,
+      artifactId: typeof result.output?.result?.artifactId === 'string' ? result.output.result.artifactId : undefined, // CAP-6 success path returns `{ operation, mutation, result }`; artifactId lives at `output.result.artifactId` (task-4 implementer correction)
       error: result.error,
     };
   }
