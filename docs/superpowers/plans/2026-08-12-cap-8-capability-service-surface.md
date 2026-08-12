@@ -99,6 +99,12 @@ These constraints are reproduced verbatim from the **10 locked rulings** (sign-o
   - `export interface CapabilityApplyInput { readonly step: { stepId: string; operation: "capability.create" | "capability.update" | "capability.transition" | "capability.consolidate" | "capability.remove"; parameters: Readonly<Record<string, unknown>>; idempotent?: boolean; preconditions?: Readonly<Record<string, unknown>>; postconditions?: Readonly<Record<string, unknown>> } }`
   - `export interface CapabilityApplyResult { readonly success: boolean; readonly operation: string; readonly affected: readonly string[]; readonly artifactId?: string; readonly error?: string }`
   - `export interface CapabilityServiceOptions { readonly catalog: import("../canonical/catalog.js").CapabilityCatalog; readonly resolver: import("../provider-resolver.js").CapabilityResolver; readonly mutationExecutor: import("../../../evolution/execution/capability-mutation-executor.js").CapabilityMutationExecutor; readonly eventLog: import("../../../events/event-log.js").EventLog }`
+  - Type imports inside `service-results.ts` follow the actual repo layout (Task 1 implementer verified these paths):
+    - `import type { CapabilityKind } from "../canonical/kind.js"`
+    - `import type { LifecycleState } from "../../adaptation/capability-evolution-types.js"`
+    - `import type { CapabilityProviderBinding } from "../canonical/provider.js"`
+    - `import type { CapabilityPermission, CapabilityRisk } from "../canonical/definition.js"`
+    - The inline `import("...").X` inside `CapabilityServiceOptions` (plan line 101) follows the same paths. **Do NOT import from a non-existent `./kind` or `./canonical/kind` literal — these are TS-level type imports, not value imports.**
   - `export class CapabilityServiceNotImplementedError extends Error { readonly code: "not_implemented_yet"; constructor(message: string) }` — `name = "CapabilityServiceNotImplementedError"`, `code` typed as the literal.
 
 **Design contract:**
@@ -201,9 +207,12 @@ describe('Result-shape readonly surface (locked ruling #8)', () => {
   });
   it('No {ok, value, error} envelope — every result shape is the success shape or the failure throws', () => {
     // Type-level: CapabilityListResult has no `ok`/`error` field.
+    // `keyof` is compile-time only; runtime sanity uses a string-array assertion.
     type Keys = keyof CapabilityListResult;
-    expect(Keys.prototype.hasOwnProperty).toBeDefined(); // sanity
-    expect((['items', 'total'] as const).every((k) => ['items', 'total'].includes(k))).toBe(true);
+    const RUNTIME_KEYS: Keys[] = ['items', 'total'];
+    expect(RUNTIME_KEYS).toEqual(['items', 'total']);
+    expect(RUNTIME_KEYS).not.toContain('ok' as Keys);
+    expect(RUNTIME_KEYS).not.toContain('error' as Keys);
   });
 });
 ```
