@@ -1347,7 +1347,6 @@ function def(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
 describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', () => {
   it('service.propose exists; rejects with CapabilityServiceNotImplementedError, code = "not_implemented_yet"', async () => {
     const { service } = setup();
-    const before = 'capability.echo';
     let caught: unknown;
     try {
       await service.propose({ intent: 'add capability core.echo' });
