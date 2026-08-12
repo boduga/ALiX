@@ -2210,6 +2210,13 @@ git commit -m "chore(capability): CAP-8 supersession forbidden-file guard"
 
 4. **CAP-11 migration debt tracking** — locked ruling #7 tolerates existing non-CLI direct consumers only as "explicitly tracked CAP-11 migration debt." TUI/Web consumers are NOT migrated by CAP-8; CAP-11 owns that work.
 
+5. **Task 8 corrections (added 2026-08-12):**
+   - **Axis 2 regex must anchor on `capability/` module path** — `capability/(?:registry|provider-resolver)\.js`. The brief's compressed regex `[^"']*(?:registry|provider-resolver)\.js` over-matched `policy/capability-registry.js` (a completely different `CapabilityRegistry` class — pre-CAP-2 narrow scope). Without this anchor the sentinel flags `src/policy/policy-engine.ts` and `src/runtime/execution-authorization.ts` on every run.
+   - **CAP-11 debt allowlist is REQUIRED** — the sentinel must exclude the 5 pre-existing non-`src/capability/**` files that import `CapabilityRegistry` today: `src/evolution/capability-lifecycle/capability-lifecycle-rehydration.ts`, `src/evolution/capability-lifecycle/capability-lifecycle-applier.ts`, `src/evolution/capability-lifecycle/capability-lifecycle-step-executor.ts`, `src/evolution/execution/capability-mutation-executor.ts`, `src/integrations/session-capabilities.ts`. Listed by absolute path in a `CAP11_DEBT_FILES` `ReadonlySet<string>` with a comment forbidding new entries in CAP-8.
+   - **`CapabilitiesCLIDeps.registry` re-typed as `unknown`** — the A7.0 governance `CapabilityLifecycleApplier` is a CAP-11 debt file. To avoid naming `CapabilityRegistry` in this module, the `registry` field is re-typed as `unknown` and the cast at the applier boundary uses `ConstructorParameters<typeof CapabilityLifecycleApplier>[0]["registry"]` — TypeScript extracts the applier's registry type without writing `CapabilityRegistry` in source.
+   - **Docstring in `src/cli/commands/capabilities.ts` rephrased** to "Direct constructor invocations of the platform registry / resolver types" — axis 3 is grep-based and matched the original JSDoc phrase "new CapabilityRegistry(" by accident.
+   - **CLI migration scope is bounded** to the 8 commands listed in the implementer's report. `alix capabilities apply <id>` keeps the legacy `registry` param (CAP-11 debt); `recommend`/`propose`/`history`/`health`/`measure` are unchanged.
+
 ---
 
 Execute tasks in session using executing-plans, batch execution with checkpoints for review.
