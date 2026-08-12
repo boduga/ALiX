@@ -36,6 +36,7 @@ import type {
   CapabilityListResult, CapabilityListItem,
   CapabilityInspectResult,
   CapabilitySearchQuery, CapabilitySearchResult,
+  CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
@@ -44,6 +45,7 @@ export type {
   CapabilityListResult, CapabilityListItem,
   CapabilityInspectResult,
   CapabilitySearchQuery, CapabilitySearchResult,
+  CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
@@ -130,6 +132,54 @@ export class CapabilityService {
   recommend(input: CapabilityRecommendInput): CapabilityRecommendResult {
     const suggestions = Object.freeze(this.search({ text: input.text, limit: input.limit ?? 10 }).items);
     return { input, suggestions, total: suggestions.length };
+  }
+
+  /**
+   * Narrow health snapshot (locked ruling #9: resolution stays on
+   * CapabilityResolver; this method just narrows and labels).
+   * Returns `CapabilityHealthResult`, never `ProviderCandidate[]`.
+   */
+  health(id: string, ctx: { allowDeprecated?: boolean } = {}): CapabilityHealthResult {
+    let plan: ReturnType<CapabilityResolver['resolve']>;
+    try {
+      plan = this.resolver.resolve(id, ctx);
+    } catch (e) {
+      if (e instanceof CapabilityNotFoundError) throw e;
+      throw e;
+    }
+    const step = plan.flatMap((p) => p.steps).find((s) => s.capabilityId === id);
+    const lifecycle = step?.lifecycleEligibility.state;
+    const eligible = step?.lifecycleEligibility.eligible ?? false;
+    const overrideUsed = step?.lifecycleEligibility.overrideUsed ?? false;
+    const candidatesCount = step?.candidates.length ?? 0;
+    const bindingsCount = step?.bindingsCount ?? 0;
+
+    let available = false;
+    let reason: CapabilityHealthResult['reason'];
+    if (!eligible) {
+      reason = 'lifecycle_ineligible';
+    } else if (bindingsCount === 0) {
+      reason = 'missing_binding';
+    } else if (candidatesCount === 0) {
+      reason = 'provider_unavailable';
+    } else {
+      available = true;
+    }
+
+    // `overrideUsed` is not part of CapabilityHealthResult (the resolver exposed that
+    // information internally; the surface reflects only available + reason + lifecycle).
+    void overrideUsed;
+
+    // Read version from the catalog so the snapshot reflects the current publication.
+    const def = this.catalog.get(id);
+    return {
+      id,
+      version: def?.version ?? 'unknown',
+      available,
+      reason,
+      lifecycle,
+      providersChecked: candidatesCount,
+    };
   }
 
   // -------------------------------------------------------------------------
