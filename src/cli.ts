@@ -2231,7 +2231,10 @@ if (command === "capabilities") {
   // The registry overlay is a runtime projection of persisted applied records —
   // rehydrate it before the command reads/mutates state (spec §8).
   await rehydrateLifecycleOverlay(platform.registry, ledger);
-  await handleCapabilitiesCommand(args, { cwd, ledger, registry: platform.registry, store });
+  // CAP-8: route through `service.*` per locked ruling #7; the legacy
+  // A7.0 governance applier still receives the registry through the
+  // CAP-11-debt `registry` accessor field until CAP-11 migrates it.
+  await handleCapabilitiesCommand(args, { cwd, ledger, service: platform.service, registry: platform.registry, store });
   process.exit(0);
 }
 
