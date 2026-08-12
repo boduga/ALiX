@@ -31,6 +31,7 @@ import type { CapabilityResolver } from "./provider-resolver.js";
 import type { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
 import type { ExecutionStep } from "../evolution/execution/contracts/execution-contract.js";
 import type { EventLog } from "../events/event-log.js";
+import type { AlixEvent } from "../events/types.js";
 import type { LifecycleState } from "../adaptation/capability-evolution-types.js";
 import { CapabilityNotFoundError } from "./errors.js";
 import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
@@ -41,6 +42,7 @@ import type {
   CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
   CapabilityApplyInput, CapabilityApplyResult,
+  CapabilityHistoryEvent, CapabilityHistoryResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
@@ -51,6 +53,7 @@ export type {
   CapabilityHealthResult,
   CapabilityRecommendInput, CapabilityRecommendResult,
   CapabilityApplyInput, CapabilityApplyResult,
+  CapabilityHistoryEvent, CapabilityHistoryResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
@@ -136,6 +139,44 @@ export class CapabilityService {
   recommend(input: CapabilityRecommendInput): CapabilityRecommendResult {
     const suggestions = Object.freeze(this.search({ text: input.text, limit: input.limit ?? 10 }).items);
     return { input, suggestions, total: suggestions.length };
+  }
+
+  /**
+   * EventLog projection for a single capability (locked ruling #5).
+   * Pure EventLog facts — no catalog reconstruction, no registry snapshot walk.
+   * Filtering rule: an event belongs to capability `id` iff its payload
+   * contains `capabilityId === id`, or `sources.includes(id)`, or `target === id`.
+   * Output is ascending by `seq`; `opts.limit` caps the returned `events`
+   * array but does NOT change `total` (which is the full-match count).
+   */
+  async history(
+    id: string,
+    opts: { limit?: number; beforeSeq?: number } = {},
+  ): Promise<CapabilityHistoryResult> {
+    const all: readonly AlixEvent[] = await this.eventLog.readAll();
+    const CAPABILITY_EVENT_PREFIX = 'capability.';
+    const matched = all.filter((evt) => {
+      if (!evt.type.startsWith(CAPABILITY_EVENT_PREFIX)) return false;
+      const p = evt.payload as Record<string, unknown> | undefined;
+      if (!p) return false;
+      if (p.capabilityId === id) return true;
+      if (Array.isArray(p.sources) && (p.sources as unknown[]).includes(id)) return true;
+      if (p.target === id) return true;
+      return false;
+    });
+    let filtered = matched;
+    if (typeof opts.beforeSeq === 'number') {
+      filtered = filtered.filter((e) => e.seq < (opts.beforeSeq as number));
+    }
+    const ordered = [...filtered].sort((a, b) => a.seq - b.seq);
+    const capped = opts.limit ? ordered.slice(-opts.limit) : ordered;
+    const events: readonly CapabilityHistoryEvent[] = capped.map((e) => ({
+      seq: e.seq,
+      type: e.type,
+      payload: e.payload as Readonly<Record<string, unknown>>,
+      at: e.timestamp,
+    }));
+    return { id, events, total: matched.length };
   }
 
   /**
