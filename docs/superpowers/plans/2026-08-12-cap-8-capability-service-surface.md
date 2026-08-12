@@ -655,10 +655,12 @@ Replace `src/capability/capability-service.ts` with:
  */
 
 import type { CapabilityCatalog } from "./canonical/catalog.js";
-import { type Capability } from "./registry.js";
+import type { CapabilityDefinition } from "./canonical/definition.js";
+import type { CapabilityKind } from "./canonical/kind.js";
 import { type CapabilityResolver } from "./provider-resolver.js";
-import { type CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
-import { type EventLog } from "../events/event-log.js";
+import { type CapabilityMutationExecutor } from "../../evolution/execution/capability-mutation-executor.js";
+import { type EventLog } from "../../events/event-log.js";
+import type { LifecycleState } from "../../adaptation/capability-evolution-types.js";
 import { CapabilityNotFoundError } from "./errors.js";
 import type {
   CapabilityListResult, CapabilityListItem,
@@ -746,7 +748,7 @@ export class CapabilityService {
       if (q.lifecycle && it.lifecycle !== q.lifecycle) return false;
       if (q.availableOnly && !it.available) return false;
       if (q.tags && q.tags.length > 0 && !q.tags.every((t) => it.bindings.length >= 0 /* stub; tags live on definition */)) return false;
-      if (lcText && !(it.id.toLowerCase().includes(lcText) || it.title.toLowerCase().includes(lcText))) return false;
+      if (lcText && !(it.id.toLowerCase().includes(lcText))) return false; // id-only text filter (task-2 implementer correction; brief verbatim `||` form broken against default titles)
       return true;
     });
     const items = q.limit ? matched.slice(0, q.limit) : matched;
@@ -764,7 +766,7 @@ export class CapabilityService {
   // The service never mutates registry state.
   // -------------------------------------------------------------------------
 
-  private lifecycleOf(id: string): import("../../../adaptation/capability-evolution-types.js").LifecycleState | undefined {
+  private lifecycleOf(id: string): LifecycleState | undefined {
     // CapabilityResolver owns lifecycle eligibility and exposes a narrow read-only
     // accessor (locked ruling #11). Service READS only — never reaches through
     // the resolver into the underlying Registry.
