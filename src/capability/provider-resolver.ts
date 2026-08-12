@@ -179,6 +179,16 @@ export class CapabilityResolver extends ProviderResolver {
     return this.buildPlanWithOverride(capabilityId, ctx);
   }
 
+  /**
+   * Narrow public accessor for the lifecycle state (locked ruling #11 — CAP-8).
+   * Delegates to the registry's `getLifecycleState(id)`. CapabilityService
+   * reaches lifecycle state ONLY through this accessor — never via the
+   * resolver's internal registry reference or any back-channel cast.
+   */
+  getLifecycleState(capabilityId: string): LifecycleState | undefined {
+    return this.registry.getLifecycleState(capabilityId);
+  }
+
   private buildPlanWithOverride(capabilityId: string, ctx: ResolverContext): ProviderPlan[] {
     const rc = this.registry.get(capabilityId);
     if (!rc) throw new CapabilityNotFoundError(capabilityId);
