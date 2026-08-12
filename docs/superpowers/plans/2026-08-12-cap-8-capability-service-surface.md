@@ -835,7 +835,7 @@ git commit -m "feat(capability): CAP-8 broaden CapabilityService — constructor
 - Bound: `CapabilityService` is the application-facing capability surface; `CapabilityResolver` remains the runtime execution-resolution surface.
 - Implementation: a single call to `resolver.resolve(id, ctx)`. Concatenate all `steps[*].lifecycleEligibility` across all plans. Find the step matching `id`. Build `CapabilityHealthResult`:
   - `available = true` iff at least one step with `id` has `lifecycleEligibility.eligible === true` AND `candidates.length > 0`.
-  - `reason` (in order): `lifecycle_ineligible` if `lifecycleEligibility.eligible === false` (regardless of provider health); else `provider_unavailable` if `candidates.length === 0`; else `missing_binding` if `bindingsCount === 0`.
+  - `reason` (in order — task-3 implementer correction; brief prose was inverted): `lifecycle_ineligible` if `lifecycleEligibility.eligible === false`; else `missing_binding` if `bindingsCount === 0`; else `provider_unavailable` if `candidates.length === 0`.
   - `providersChecked = sum(steps[*].candidates.length) where step.capabilityId === id`.
 - `health()` MUST NOT return `ProviderCandidate[]`, `ProviderPlan`, `ProviderPlanStep`, or any internal resolver type (locked ruling #9 — boundary invariant).
 
@@ -913,15 +913,16 @@ describe('AC#2 + locked ruling #9 — service.health() delegates to CapabilityRe
     expect(h.providersChecked).toBe(0);
   });
 
-  it('missing binding → reason="missing_binding"', () => {
+  it('unregistered binding type → reason="provider_unavailable" (bindingsCount=1, candidates=0)', () => {
+    // Brief originally asserted reason="missing_binding" but with one binding present
+    // and no registered provider, the correct reason per the brief's own order is
+    // `provider_unavailable` (candidates.length === 0 fires before bindingsCount check).
     const { service, registry } = setup();
-    registry.import([def({ bindings: [] })]); // override to no bindings — bad definition; use a differently-typed binding
-    // The contract requires ≥1 binding per validateCapabilityDefinition; emulate by importing,
-    // then querying a capability without native provider registered.
-    registry.import([def({ bindings: [{ id: 'ext', type: 'external-cli' as any, config: {} }] })]);
+    registry.import([def({ bindings: [{ id: 'ext', type: 'external-cli' as any, config: { executable: '/bin/false' } }] })]);
     const h = service.health('core.echo');
     expect(h.available).toBe(false);
-    expect(h.reason).toBe('missing_binding');
+    expect(h.reason).toBe('provider_unavailable');
+    expect(h.providersChecked).toBe(1);
   });
 
   it('deprecated + !allowDeprecated → reason="lifecycle_ineligible"', () => {
