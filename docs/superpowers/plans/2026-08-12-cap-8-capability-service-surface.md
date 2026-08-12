@@ -1526,9 +1526,9 @@ function def(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
 describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catalog reconstruction)', () => {
   it('filters events whose capabilityId matches, returns CapabilityHistoryResult', async () => {
     const { service, catalog, executor, eventLog } = setup();
-    await eventLog.append('capability.create', { sessionId: 's1', capabilityId: 'core.echo' });
-    await eventLog.append('capability.update', { sessionId: 's1', capabilityId: 'core.echo' });
-    await eventLog.append('capability.create', { sessionId: 's1', capabilityId: 'core.other' });
+    await eventLog.append({ type: 'capability.create', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo' } });
+    await eventLog.append({ type: 'capability.update', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo' } });
+    await eventLog.append({ type: 'capability.create', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.other' } });
     const d = def({ id: 'core.echo' });
     await executor.executeStep({
       stepId: 's2', operation: 'capability.transition',
@@ -1536,7 +1536,7 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
       idempotent: true, preconditions: {}, postconditions: {},
     }, {});
     // Manually append a transition event so the test is self-contained.
-    await eventLog.append('capability.transition', { sessionId: 's1', capabilityId: 'core.echo', from: 'active', to: 'mature' });
+    await eventLog.append({ type: 'capability.transition', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo', from: 'active', to: 'mature' } });
     const r = await service.history('core.echo');
     const types = r.events.map(e => e.type);
     expect(types).toEqual(['capability.create', 'capability.update', 'capability.transition']);
@@ -1547,7 +1547,7 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
   it('respects `limit`; total is full-match count, items is capped', async () => {
     const { service, eventLog } = setup();
     for (let i = 0; i < 5; i++) {
-      await eventLog.append('capability.transition', { sessionId: 's1', capabilityId: 'core.echo', from: 'active', to: 'mature' });
+      await eventLog.append({ type: 'capability.transition', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo', from: 'active', to: 'mature' } });
     }
     const r = await service.history('core.echo', { limit: 2 });
     expect(r.events).toHaveLength(2);
@@ -1568,8 +1568,13 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
     // snapshot helpers.
     const { readFileSync } = require('node:fs');
     const src = readFileSync(new URL('../../src/capability/capability-service.ts', import.meta.url), 'utf8');
-    expect(src).not.toMatch(/catalog\.get\(/);
-    expect(src).not.toMatch(/catalog\.list\(/);
+    // Structural sentinel scoped to the history() method body (task-6 implementer correction):
+    // whole-file regex would fail unconditionally because list()/inspect() already use catalog.
+    const historyBody = src.match(/async history\([^)]*\)[^}]*\{[\s\S]*?\n  \}/)?.[0] ?? '';
+    expect(historyBody).not.toMatch(/catalog\.get\(/);
+    expect(historyBody).not.toMatch(/catalog\.list\(/);
+    expect(historyBody).not.toMatch(/catalog\.listPublications\(/);
+    expect(historyBody).not.toMatch(/registry\./);
     // `history` may use catalog.get(id) ONLY for the `id` fallback (when `id` is absent
     // from the EventLog queries). The test enforces "no catalog reconstruction"; a
     // future PR that uses catalog inside history() must be reviewed.
@@ -1577,9 +1582,9 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
 
   it('ascending seq ordering (locked ruling #5 — no reordering)', async () => {
     const { service, eventLog } = setup();
-    await eventLog.append('capability.create', { sessionId: 's1', capabilityId: 'core.echo' });
-    await eventLog.append('capability.update', { sessionId: 's1', capabilityId: 'core.echo' });
-    await eventLog.append('capability.transition', { sessionId: 's1', capabilityId: 'core.echo', from: 'active', to: 'mature' });
+    await eventLog.append({ type: 'capability.create', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo' } });
+    await eventLog.append({ type: 'capability.update', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo' } });
+    await eventLog.append({ type: 'capability.transition', actor: 'test', sessionId: 's1', payload: { capabilityId: 'core.echo', from: 'active', to: 'mature' } });
     const r = await service.history('core.echo');
     const seqs = r.events.map(e => e.seq);
     expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
@@ -1624,7 +1629,7 @@ Append to `src/capability/capability-service.ts`:
       filtered = filtered.filter((e) => e.seq < (opts.beforeSeq as number));
     }
     const ordered = [...filtered].sort((a, b) => a.seq - b.seq);
-    const capped = opts.limit ? ordered.slice(-opts.limit) : ordered;
+    const capped = opts.limit ? ordered.slice(-opts.limit) : ordered; // tail semantics — last N (task-6 implementer note: future change to first-N would break contract)
     const events = capped.map((e) => ({
       seq: e.seq,
       type: e.type,
@@ -1640,9 +1645,9 @@ Append to `src/capability/capability-service.ts`:
 Update the import block:
 
 ```ts
-import type { AlixEvent } from "../events/types.js";
+import type { AlixEvent } from "../events/types.js"; // AlixEvent has `timestamp`, not `at` (task-6 implementer correction)
 
-export type { AlixEvent } from "../events/types.js";
+// Re-export of AlixEvent declined (type belongs to events module; service surface does not re-export event types). Task 6 only adds CapabilityHistoryEvent/Result to the existing export type block.
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
