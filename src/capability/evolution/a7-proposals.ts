@@ -12,12 +12,17 @@
  * body alone (no `Date.now()`, ruling #18 spirit).
  *
  * Hard architectural boundary (axis-4 sentinel, ruling #14):
- *   - MUST NOT import from `capability/canonical` (except CapabilityDefinition type).
- *   - MUST NOT import from `evolution/capability-lifecycle`.
- *   - MUST NOT import from `policy/capability-registry`.
- *   - MUST NOT import from `tools/tool-registry`.
- *   - MUST NOT call `catalog.register` / `catalog.remove` /
- *     `registry.setLifecycleState` / `registry.applyMutation`.
+ *   - MUST NOT import from the canonical-catalog mutator module
+ *     (`capability/canonical/catalog`) — `CapabilityDefinition` type excepted.
+ *   - MUST NOT import from the lifecycle-governance module
+ *     (`evolution/capability-lifecycle`).
+ *   - MUST NOT import from the policy-registry module
+ *     (`policy/capability-registry`).
+ *   - MUST NOT import from the tool-registry module
+ *     (`tools/tool-registry`).
+ *   - MUST NOT invoke any catalog registration or removal entry point.
+ *   - MUST NOT invoke any registry lifecycle-state change or
+ *     mutation-application entry point.
  *   - MUST NOT write to any store.
  *
  * Persistence is `service.propose()`'s sole responsibility (ruling #3).
