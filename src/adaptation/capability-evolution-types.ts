@@ -131,3 +131,51 @@ export interface CapabilityEvolutionReport {
   /** Natural-language executive summary. */
   executiveSummary: string;
 }
+
+// ---------------------------------------------------------------------------
+// CAP-9 A7 proposal candidate (Task 1 — additive)
+// ---------------------------------------------------------------------------
+
+/** CAP-9 — Evolution target discriminator. A7 emits candidates against a
+ *  capability target (the only target kind A7 currently supports). The
+ *  union is left open for future CAP-10+ targets (agent_card, skill, etc.). */
+export type CapabilityEvolutionTarget =
+  | { readonly kind: "capability"; readonly id: string };
+
+/** CAP-9 — Risk class discriminator. Drives downstream validation and
+ *  approval routing. */
+export type CapabilityEvolutionRiskClass = "low" | "medium" | "high";
+
+/**
+ * CAP-9 — A7 proposal candidate.
+ *
+ * A7 (the proposal-intelligence layer) emits `CapabilityEvolutionCandidate`
+ * shapes. `service.propose()` is the sole persistence boundary; A7 itself
+ * never writes anywhere (ruling #5). The candidate body is the canonical
+ * input to proposal-identity hashing (SHA-256 hex of canonical-JSON,
+ * ruling #18) — same body → same id, enabling deduplication (ruling #21).
+ *
+ * Field semantics:
+ *   - `candidateId` — A7-supplied stable id within a single A7 emission.
+ *     Two A7 emissions can produce different `candidateId`s for the same
+ *     canonical body (A7 owns the namespace); the proposal identity used
+ *     by the ledger is `computeProposalId(candidate)` (see Task 2).
+ *   - `sourcePatternId` — identifies the signal pattern that triggered the
+ *     candidate (`gap`, `underperformer`, `consolidation_opportunity`,
+ *     `deprecation_signal`).
+ *   - `confidence` — 0..1, A7-supplied score from the underlying signal.
+ *   - `target` — the capability (or future: agent/skill) being proposed.
+ *   - `description` / `expectedEffect` — human-readable rationale.
+ *   - `riskClass` — drives approval routing.
+ *   - `evidenceIds` — opaque fingerprints that justify the candidate.
+ */
+export interface CapabilityEvolutionCandidate {
+  readonly candidateId: string;
+  readonly sourcePatternId: string;
+  readonly confidence: number;
+  readonly target: CapabilityEvolutionTarget;
+  readonly description: string;
+  readonly expectedEffect: string;
+  readonly riskClass: CapabilityEvolutionRiskClass;
+  readonly evidenceIds: ReadonlyArray<string>;
+}

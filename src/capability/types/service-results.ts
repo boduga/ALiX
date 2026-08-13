@@ -164,3 +164,36 @@ export interface CapabilityServiceOptions {
   readonly mutationExecutor: import("../../evolution/execution/capability-mutation-executor.js").CapabilityMutationExecutor;
   readonly eventLog: import("../../events/event-log.js").EventLog;
 }
+
+// ---------------------------------------------------------------------------
+// CAP-9 governance result types (Task 1 — APPEND ONLY)
+// ---------------------------------------------------------------------------
+
+import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
+import type { CapabilityGovernanceEventProjection, CapabilityMutationResult } from "../governance/governance-types.js";
+
+/** CAP-9 ruling #3 — sole proposal submission route result.
+ *  Fail-closed when input missing required fields (ruling #6). */
+export interface CapabilityProposeResult {
+  readonly proposalId: string;
+  readonly status: "pending";
+  readonly candidate: CapabilityEvolutionCandidate;
+}
+
+/** CAP-9 ruling #4 — approval→execution bridge result. `mutation` is
+ *  present only when `status === 'executed'`; `error` is present only when
+ *  `status === 'execution_failed'`. Narrow union — no generic envelope
+ *  (CAP-8 ruling #8). */
+export interface CapabilityApplyProposalResult {
+  readonly proposalId: string;
+  readonly status: "executed" | "execution_failed";
+  readonly mutation?: CapabilityMutationResult;
+  readonly error?: string;
+}
+
+/** CAP-9 ruling #22 — governance event projection. Filters by
+ *  `capability.governance.*` prefix (and capabilityId if supplied). Pure
+ *  projection; no catalog reads (ruling #23). */
+export interface CapabilityGovernanceResult {
+  readonly events: ReadonlyArray<CapabilityGovernanceEventProjection>;
+}
