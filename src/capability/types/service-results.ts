@@ -214,3 +214,20 @@ export interface CapabilityApplyProposalResult {
 export interface CapabilityGovernanceResult {
   readonly events: ReadonlyArray<CapabilityGovernanceEventProjection>;
 }
+
+// ---------------------------------------------------------------------------
+// CAP-10 — Measure input (ruling #2; type-gate section)
+// ---------------------------------------------------------------------------
+
+/** Capability measurement request input (CAP-10).
+ *
+ *  Identifies the capability `(capabilityId, version)` to measure
+ *  and an optional baseline `ObservationResult.observationId`
+ *  captured before measurement. `baselineObservationId` is optional —
+ *  measurement may proceed without a baseline and record an
+ *  absent-baseline posture in the resulting event. */
+export interface CapabilityMeasureInput {
+  readonly capabilityId: string;
+  readonly version: string;
+  readonly baselineObservationId?: string;
+}
