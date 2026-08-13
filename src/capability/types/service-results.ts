@@ -231,3 +231,44 @@ export interface CapabilityMeasureInput {
   readonly version: string;
   readonly baselineObservationId?: string;
 }
+
+// ---------------------------------------------------------------------------
+// CAP-10 — Measure result (ruling #4, #14)
+// ---------------------------------------------------------------------------
+
+import type { CapabilityMeasurementOutcome } from "../measurement/outcome-discriminated-union.js";
+import type { ObservationStatus } from "../../evolution/observation/contracts/observation-contract.js";
+
+/** Capability measurement result (CAP-10).
+ *
+ *  Atomic snapshot emitted by `CapabilityMeasurementEngine.measure()`
+ *  on success (ruling #4). Lives in the `service/`-side result-shape
+ *  registry alongside `CapabilityApplyResult` etc. — no generic
+ *  envelope (ruling #8). Frozen — consumers may safely retain the
+ *  snapshot across the event-log lifetime (CAP-6/9 precedent).
+ *
+ *  Exactly one `capability.governance.measurement.measured` event is
+ *  recorded per successful measure() invocation (ruling #5); its
+ *  `type+seq` is mirrored under `eventIds[0]`. */
+export interface CapabilityMeasureResult {
+  readonly status: "measured";
+  readonly measurement: {
+    readonly capabilityId: string;
+    readonly version: string;
+  };
+  readonly baseline?: {
+    readonly observationId: string;
+    readonly takenAt: string;
+  };
+  readonly post: {
+    readonly observationId: string;
+    readonly takenAt: string;
+    readonly status: ObservationStatus;
+    readonly confidence: number;
+  };
+  readonly outcome: CapabilityMeasurementOutcome;
+  readonly eventIds: ReadonlyArray<{
+    readonly type: string;
+    readonly seq: number;
+  }>;
+}
