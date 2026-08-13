@@ -68,16 +68,23 @@ export class ProposalStore {
    * id via `computeProposalId(candidate)` and rejects duplicates (ruling
    * #21). Returns the persisted proposal id AND materialized event so the
    * caller does not need a second read.
+   *
+   * `sourceVersion` (ruling #17) is the catalog version of
+   * `candidate.target.id` captured at submission time. The apply step
+   * compares it against the current catalog and rejects stale
+   * publications instead of silently rebasing. Pass `null` when the
+   * target capability is not yet in the catalog (create intent).
    */
   async submit(
     candidate: CapabilityEvolutionCandidate,
     signalIds: ReadonlyArray<string>,
+    sourceVersion: string | null,
   ): Promise<{ proposalId: string; event: CapabilityGovernanceEvent }> {
     const proposalId = computeProposalId(candidate);
     if (await this.existsSubmitted(proposalId)) {
       throw new CapabilityProposalDuplicateError(proposalId);
     }
-    const payload: ProposalSubmittedPayload = { candidate, signalIds };
+    const payload: ProposalSubmittedPayload = { candidate, signalIds, sourceVersion };
     const event = await this.append(proposalId, "capability.governance.proposal.submitted", payload);
     return { proposalId, event };
   }

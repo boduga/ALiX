@@ -57,21 +57,21 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("submit() persists proposal.submitted and returns stable id", async () => {
-    const { proposalId, event } = await store.submit(mkCandidate(), ["sig-1"]);
+    const { proposalId, event } = await store.submit(mkCandidate(), ["sig-1"], null);
     expect(proposalId).toMatch(/^[0-9a-f]{64}$/);
     expect(event.type).toBe("capability.governance.proposal.submitted");
     expect(event.proposalId).toBe(proposalId);
   });
 
   it("submit() rejects duplicate proposal id (ruling #21)", async () => {
-    await store.submit(mkCandidate(), []);
-    await expect(store.submit(mkCandidate(), [])).rejects.toBeInstanceOf(
+    await store.submit(mkCandidate(), [], null);
+    await expect(store.submit(mkCandidate(), [], null)).rejects.toBeInstanceOf(
       CapabilityProposalDuplicateError,
     );
   });
 
   it("recordApproved() persists proposal.approved with approvedBy", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     const evt = await store.recordApproved(proposalId, "human:alice");
     expect(evt.type).toBe("capability.governance.proposal.approved");
     expect(evt.proposalId).toBe(proposalId);
@@ -82,7 +82,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("recordRejected() persists proposal.rejected with reason", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     const evt = await store.recordRejected(proposalId, "human:bob", "too risky");
     expect(evt.type).toBe("capability.governance.proposal.rejected");
     expect(evt.proposalId).toBe(proposalId);
@@ -93,7 +93,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("recordExecuted() persists proposal.executed with mutation result", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     const fakeMutation: CapabilityMutationResult = {
       success: true,
       mutation: { operation: "capability.create" },
@@ -109,7 +109,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("recordExecutionFailed() persists proposal.execution_failed with error", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     const evt = await store.recordExecutionFailed(proposalId, "boom", "rolled_back");
     expect(evt.type).toBe("capability.governance.proposal.execution_failed");
     expect(evt.proposalId).toBe(proposalId);
@@ -120,7 +120,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("persisted events share the locked capability.governance.proposal. prefix (ruling #1)", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     await store.recordApproved(proposalId, "human:alice");
     await store.recordExecuted(
       proposalId,
@@ -142,7 +142,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("findById() returns all events for a proposal, ordered by seq", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     await store.recordApproved(proposalId, "human:alice");
     await store.recordExecuted(
       proposalId,
@@ -158,6 +158,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
     await store.submit(
       { ...mkCandidate(), candidateId: "c-2" },
       [],
+      null,
     );
 
     const events = await store.findById(proposalId);
@@ -175,7 +176,7 @@ describe("ProposalStore — append-only governance ledger (CAP-9)", () => {
   });
 
   it("existsSubmitted() returns true after submit, false before", async () => {
-    const { proposalId } = await store.submit(mkCandidate(), []);
+    const { proposalId } = await store.submit(mkCandidate(), [], null);
     expect(await store.existsSubmitted(proposalId)).toBe(true);
   });
 

@@ -109,7 +109,7 @@ describe('CapabilityGovernanceEvent discriminated union', () => {
       timestamp: '2026-08-13T00:00:00.000Z',
       proposalId: 'p-1',
       type: 'capability.governance.proposal.submitted',
-      payload: { candidate: mkCandidate(), signalIds: ['s-1'] },
+      payload: { candidate: mkCandidate(), signalIds: ['s-1'], sourceVersion: null },
     };
     expect(e.type).toBe('capability.governance.proposal.submitted');
     if (e.type === 'capability.governance.proposal.submitted') {
@@ -185,7 +185,7 @@ describe('CapabilityGovernanceEventProjection — application-facing shape', () 
       timestamp: '2026-08-13T00:00:06.000Z',
       proposalId: 'p-1',
       type: 'capability.governance.proposal.submitted',
-      payload: { candidate: mkCandidate(), signalIds: ['s-1'] },
+      payload: { candidate: mkCandidate(), signalIds: ['s-1'], sourceVersion: null },
     };
     expect(projection.seq).toBe(7);
     expect(projection.type).toBe('capability.governance.proposal.submitted');
@@ -242,7 +242,7 @@ describe('CapabilityGovernanceResult (ruling #22)', () => {
         timestamp: '2026-08-13T00:00:00.000Z',
         proposalId: 'p-1',
         type: 'capability.governance.proposal.submitted',
-        payload: { candidate: mkCandidate(), signalIds: [] },
+        payload: { candidate: mkCandidate(), signalIds: [], sourceVersion: null },
       },
     ];
     const r: CapabilityGovernanceResult = { events: projections };

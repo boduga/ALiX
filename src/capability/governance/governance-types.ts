@@ -151,6 +151,14 @@ export function isGovernanceEventType(value: unknown): value is CapabilityGovern
 export interface ProposalSubmittedPayload {
   readonly candidate: CapabilityEvolutionCandidate;
   readonly signalIds: ReadonlyArray<string>;
+  /**
+   * CAP-9 ruling #17 — the version of `candidate.target.id` at the time
+   * the proposal was submitted, captured *before* persistence so the
+   * apply step can re-resolve the pin against the current catalog and
+   * reject stale publications. `null` indicates the target capability
+   * was not yet present in the catalog (create intent).
+   */
+  readonly sourceVersion: string | null;
 }
 
 export interface ProposalApprovedPayload {

@@ -45,6 +45,7 @@ import {
   isGovernanceEventType,
   projectCapabilityMutationResult,
   type CapabilityGovernanceEventProjection,
+  type ProposalSubmittedPayload,
 } from "./governance/governance-types.js";
 import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
 import type {
@@ -90,7 +91,7 @@ export class CapabilityService {
   private readonly proposalGenerator?: A7ProposalGenerator;
   /** CAP-9 ruling #19 — derive from `eventLog` so the service does not
    *  grow a separate persistence constructor dep. */
-  private readonly proposalStore?: ProposalStore;
+  private readonly proposalStore: ProposalStore;
 
   constructor(opts: CapabilityServiceOptions) {
     this.catalog = opts.catalog;
@@ -320,9 +321,6 @@ export class CapabilityService {
    *      failure, persist `proposal.execution_failed` and rethrow.
    */
   private async applyProposal(proposalId: string): Promise<CapabilityApplyProposalResult> {
-    if (!this.proposalStore) {
-      throw new Error("proposalStore not initialized — service requires eventLog");
-    }
     const events = await this.proposalStore.findById(proposalId);
     const submitted = events.find((e) => e.type === "capability.governance.proposal.submitted");
     if (!submitted) {
@@ -335,20 +333,26 @@ export class CapabilityService {
     const candidate = submitted.payload.candidate;
     const sourceId = candidate.target.id;
 
-    // CAP-9 ruling #17 — re-resolve source pin against current catalog.
-    // Source version is the version the capability held at apply time
-    // (the pin was authored against the current state). If the capability
-    // is gone, surface a stale error and ledger-record the rejection.
+    // CAP-9 ruling #17 — re-resolve the proposal's pinned source version
+    // (captured at submit time) against the current catalog. If the
+    // pinned version no longer matches, surface a stale error and
+    // ledger-record the rejection (no silent rebase).
+    const submittedPayload = submitted.payload as ProposalSubmittedPayload & {
+      readonly sourceVersion: string | null;
+    };
+    const sourceVersion = submittedPayload.sourceVersion;
     const current = this.catalog.get(sourceId);
-    if (!current) {
-      await this.proposalStore.recordRejected(
+    const currentVersion = current?.version;
+    if (sourceVersion !== currentVersion) {
+      const detail = `stale: source '${sourceId}@${sourceVersion ?? "absent"}' superseded by '${currentVersion ?? "absent"}'`;
+      await this.proposalStore.recordRejected(proposalId, "system", detail);
+      throw new CapabilityProposalStaleError(
         proposalId,
-        "system",
-        "stale at apply time — capability removed",
+        sourceId,
+        sourceVersion ?? "absent",
+        currentVersion,
       );
-      throw new CapabilityProposalStaleError(proposalId, sourceId, "unknown", undefined);
     }
-    const currentVersion = current.version;
 
     await this.proposalStore.recordApproved(proposalId, "operator");
 
@@ -372,17 +376,19 @@ export class CapabilityService {
           mutation: projected,
         });
       }
-      await this.proposalStore.recordExecutionFailed(
-        proposalId,
-        result.error ?? "unknown error",
-        "rolled_back",
-      );
-      return Object.freeze({
-        proposalId,
-        status: "execution_failed" as const,
-        error: result.error,
-      });
+      // CAP-9 ruling #4 — on executor failure, persist
+      // `proposal.execution_failed` AND rethrow so callers (CLI, tests)
+      // see the failure instead of a silent `{ status: "execution_failed" }`.
+      const errorMessage = result.error ?? "unknown executor error";
+      await this.proposalStore.recordExecutionFailed(proposalId, errorMessage, "rolled_back");
+      throw new Error(`Proposal '${proposalId}' execution failed: ${errorMessage}`);
     } catch (err) {
+      // If we already threw a rethrow for execution_failed, pass it
+      // through unchanged. For unexpected exceptions, ledger-record and
+      // rethrow the original error.
+      if (err instanceof Error && err.message.startsWith(`Proposal '${proposalId}' execution failed: `)) {
+        throw err;
+      }
       const message = err instanceof Error ? err.message : String(err);
       await this.proposalStore.recordExecutionFailed(proposalId, message, "rolled_back");
       throw err;
@@ -464,7 +470,7 @@ export class CapabilityService {
     // forward-wired stub contract (CAP-8 ruling #4) is preserved:
     // callers that did not inject `proposalGenerator` still receive
     // the stable `CapabilityServiceNotImplementedError`.
-    if (!this.proposalGenerator || !this.proposalStore) {
+    if (!this.proposalGenerator) {
       throw new CapabilityServiceNotImplementedError("propose()");
     }
     const candidates = await this.proposalGenerator.generate();
@@ -477,7 +483,17 @@ export class CapabilityService {
     // independent ledger entries awaiting separate approval.
     let firstProposalId: string | undefined;
     for (const candidate of candidates) {
-      const { proposalId } = await this.proposalStore.submit(candidate, candidate.evidenceIds);
+      // CAP-9 ruling #17 — capture the source's current catalog version
+      // BEFORE persistence so apply time can re-resolve the pin. Null
+      // means the target capability is not yet in the catalog (create
+      // intent); submit carries it into the persisted payload verbatim.
+      const current = this.catalog.get(candidate.target.id);
+      const sourceVersion: string | null = current?.version ?? null;
+      const { proposalId } = await this.proposalStore.submit(
+        candidate,
+        candidate.evidenceIds,
+        sourceVersion,
+      );
       if (firstProposalId === undefined) {
         firstProposalId = proposalId;
       }
