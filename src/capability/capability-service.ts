@@ -41,7 +41,6 @@ import { CapabilityServiceNotImplementedError } from "./errors/service-not-imple
 import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
 import { ProposalStore } from "./governance/proposal-store.js";
 import {
-  GOVERNANCE_EVENT_PREFIX,
   isGovernanceEventType,
   projectCapabilityMutationResult,
   type CapabilityGovernanceEventProjection,
