@@ -195,7 +195,6 @@ export class CapabilityService {
     const step = plan.flatMap((p) => p.steps).find((s) => s.capabilityId === id);
     const lifecycle = step?.lifecycleEligibility.state;
     const eligible = step?.lifecycleEligibility.eligible ?? false;
-    const overrideUsed = step?.lifecycleEligibility.overrideUsed ?? false;
     const candidatesCount = step?.candidates.length ?? 0;
     const bindingsCount = step?.bindingsCount ?? 0;
 
@@ -210,10 +209,6 @@ export class CapabilityService {
     } else {
       available = true;
     }
-
-    // `overrideUsed` is not part of CapabilityHealthResult (the resolver exposed that
-    // information internally; the surface reflects only available + reason + lifecycle).
-    void overrideUsed;
 
     // Read version from the catalog so the snapshot reflects the current publication.
     const def = this.catalog.get(id);

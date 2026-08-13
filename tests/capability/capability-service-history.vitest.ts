@@ -79,12 +79,17 @@ describe('Locked ruling #5 + AC#6 — history() is EventLog projection (NO catal
     for (let i = 0; i < 5; i++) {
       await eventLog.append({
         type: 'capability.transition', actor: 'system', sessionId: 's1',
-        payload: { capabilityId: 'core.echo', from: 'active', to: 'mature' },
+        payload: { capabilityId: 'core.echo', from: 'active', to: 'mature', step: i },
       });
     }
     const r = await service.history('core.echo', { limit: 2 });
     expect(r.events).toHaveLength(2);
     expect(r.total).toBe(5);
+    // Lock LAST-N (tail) semantics: with limit=2 of 5 events, we must see steps 3 and 4,
+    // NOT steps 0 and 1. A switch to slice(0, limit) (head semantics) would silently
+    // regress the contract — this assertion makes that change fail loudly.
+    const steps = r.events.map((e) => (e.payload as { step?: number }).step);
+    expect(steps).toEqual([3, 4]);
   });
 
   it('returns total=0 when no events match (no fabrication; no lineage reconstruction from catalog)', async () => {
