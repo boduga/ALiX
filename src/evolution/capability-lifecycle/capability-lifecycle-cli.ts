@@ -12,6 +12,7 @@ import { runCapabilityGovernance, toLedgerRecord } from "./capability-governance
 import { generateDecision } from "../governance/decision-engine.js";
 import type { GovernancePolicyConfig } from "../governance/contracts/decision-contract.js";
 import type { CapabilityService } from "../../capability/capability-service.js";
+import type { CapabilityMeasureCommandOptions } from "../../cli/commands/capability-measure.js";
 import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-store.js";
 import { CapabilityLifecycleApplier } from "./capability-lifecycle-applier.js";
 import { CapabilityLifecycleMeasurer } from "./capability-lifecycle-measurer.js";
@@ -90,8 +91,21 @@ export async function handleCapabilitiesCommand(
       return runPropose(store, ledger, deps, jsonMode);
     case "apply":
       return runApply(rest[0], ledger, registry, jsonMode);
-    case "measure":
+    case "measure": {
+      // CAP-10 Task 9 — measure capability at id@version via service.measure().
+      // Routes through CapabilityService exclusively (ruling #11); CLI is a
+      // thin adapter that hands the request to the service and serializes result.
+      // The legacy CAP-7 path (no @version) delegates to the historical
+      // CapabilityLifecycleMeasurer; both paths coexist for compatibility.
+      if (rest[0] && rest[0].includes("@")) {
+        const { capabilityMeasureCommand } = await import(
+          "../../cli/commands/capability-measure.js"
+        );
+        const measureOpts: CapabilityMeasureCommandOptions = { service };
+        return capabilityMeasureCommand(rest, measureOpts);
+      }
       return runMeasure(rest[0], ledger, store, jsonMode);
+    }
     case "proposals": {
       // CAP-9 Task 9 — list proposals via service.governance(capabilityId?).
       // Routes exclusively through CapabilityService; no direct catalog access.
