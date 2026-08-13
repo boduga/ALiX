@@ -533,6 +533,27 @@ export class CapabilityService {
   }
 
   /**
+   * CAP-9 Task 9 — record a rejection of a pending proposal.
+   *
+   * CLI seam: the operator-facing reject path. Records
+   * `proposal.rejected` (long-form `capability.governance.proposal.rejected`)
+   * via the shared ProposalStore. Distinct from `apply()` which routes
+   * through CAP-6's mutation executor; `reject()` is a store-level write
+   * only — no executor delegation, no atomicity matrix, no rollback.
+   *
+   * Returns `{ proposalId, status: "rejected" }` snapshot. The CLI may
+   * print this and exit 0. The governance ledger records the rejection
+   * with `operator` actor and the supplied `reason`.
+   */
+  async reject(
+    proposalId: string,
+    reason: string,
+  ): Promise<{ readonly proposalId: string; readonly status: "rejected" }> {
+    await this.proposalStore.recordRejected(proposalId, "operator", reason);
+    return Object.freeze({ proposalId, status: "rejected" as const });
+  }
+
+  /**
    * Forward-wired stub (locked ruling #4). Body lands in CAP-10.
    * Throws `CapabilityServiceNotImplementedError` (code `not_implemented_yet`).
    */

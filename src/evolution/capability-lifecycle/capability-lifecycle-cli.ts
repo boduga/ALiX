@@ -57,12 +57,15 @@ const USAGE = [
   "  propose               (governed) submit lifecycle proposals through A3 and record",
   "  apply <id>            (governed) execute a decided capability transition",
   "  measure <id>          (governed) measure a capability post-application",
+  "  proposals             (governed) list pending + recent governance proposals via service.governance",
+  "  approve <proposalId>  (governed) execute a decided proposal via service.apply({proposalId})",
+  "  reject <proposalId> <reason>  (governed) record a proposal rejection via service.reject",
 ].join("\n");
 
 export async function handleCapabilitiesCommand(
   args: string[],
   deps: CapabilitiesCLIDeps = {},
-): Promise<void> {
+): Promise<number | void> {
   const sub = args[0];
   const rest = args.slice(1);
   const jsonMode = rest.includes("--json");
@@ -89,6 +92,24 @@ export async function handleCapabilitiesCommand(
       return runApply(rest[0], ledger, registry, jsonMode);
     case "measure":
       return runMeasure(rest[0], ledger, store, jsonMode);
+    case "proposals": {
+      // CAP-9 Task 9 — list proposals via service.governance(capabilityId?).
+      // Routes exclusively through CapabilityService; no direct catalog access.
+      const { capabilityProposalsCommand } = await import("../../cli/commands/capability-proposals.js");
+      return capabilityProposalsCommand(rest, { service });
+    }
+    case "approve": {
+      // CAP-9 Task 9 — execute a proposal via service.apply({proposalId}).
+      // Mutation execution itself is delegated to CAP-6; CLI is the seam.
+      const { capabilityApproveCommand } = await import("../../cli/commands/capability-approve.js");
+      return capabilityApproveCommand(rest, { service });
+    }
+    case "reject": {
+      // CAP-9 Task 9 — record a rejection via service.reject(proposalId, reason).
+      // Store-level write only; no executor delegation.
+      const { capabilityRejectCommand } = await import("../../cli/commands/capability-reject.js");
+      return capabilityRejectCommand(rest, { service });
+    }
     default:
       console.error(USAGE);
       process.exitCode = 1;

@@ -2234,8 +2234,14 @@ if (command === "capabilities") {
   // CAP-8: route through `service.*` per locked ruling #7; the legacy
   // A7.0 governance applier still receives the registry through the
   // CAP-11-debt `registry` accessor field until CAP-11 migrates it.
-  await handleCapabilitiesCommand(args, { cwd, ledger, service: platform.service, registry: platform.registry, store });
-  process.exit(0);
+  // CAP-9 Task 9: the new proposals/approve/reject subcommands return
+  // numeric exit codes (0/1/2/3). Forward that exit code; legacy
+  // subcommands (list/inspect/etc.) still `process.exit(1)` themselves
+  // on usage error, so we only override when an explicit code is returned.
+  const exitCode = await handleCapabilitiesCommand(args, {
+    cwd, ledger, service: platform.service, registry: platform.registry, store,
+  });
+  if (typeof exitCode === "number") process.exit(exitCode);
 }
 
 
