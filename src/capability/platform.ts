@@ -12,6 +12,7 @@ import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
+import type { A7ProposalGenerator } from "./evolution/a7-proposals.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
 import type { CapabilityQuery } from "./registry.js";
@@ -43,7 +44,7 @@ export class CapabilityPlatform {
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -75,6 +76,7 @@ export class CapabilityPlatform {
       resolver,
       mutationExecutor,
       eventLog: opts.eventLog,
+      proposalGenerator: opts.proposalGenerator,
     });
   }
 
