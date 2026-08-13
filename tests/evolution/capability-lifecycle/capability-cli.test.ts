@@ -13,6 +13,13 @@ import { CapabilityCatalog } from "../../../src/capability/canonical/catalog.js"
 import { CapabilityDefinitionStore } from "../../../src/capability/canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "../../../src/capability/mutation-port.js";
 import { CapabilityEvolutionStore } from "../../../src/adaptation/capability-evolution-store.js";
+import { CapabilityResolver } from "../../../src/capability/provider-resolver.js";
+import { ProviderExecutorRegistry } from "../../../src/capability/provider-registry.js";
+import { NativeProviderExecutor } from "../../../src/capability/provider-executor.js";
+import { NativeExecutor } from "../../../src/capability/executors.js";
+import { CapabilityService } from "../../../src/capability/capability-service.js";
+import { CapabilityMutationExecutor } from "../../../src/evolution/execution/capability-mutation-executor.js";
+import { EventLog } from "../../../src/events/event-log.js";
 import type { Capability } from "../../../src/capability/types.js";
 import type { CapabilitiesCLIDeps } from "../../../src/evolution/capability-lifecycle/capability-lifecycle-cli.js";
 
@@ -20,6 +27,7 @@ const _origExit = process.exit;
 let exitCode: number | undefined;
 
 let dir: string;
+let sessionDir: string;
 let deps: CapabilitiesCLIDeps;
 let ledger: JsonlCapabilityLifecycleLedger;
 let registry: CapabilityRegistry;
@@ -48,6 +56,7 @@ beforeEach(() => {
     throw new Error("__TEST_EXIT__");
   }) as typeof process.exit;
   dir = mkdtempSync(join(tmpdir(), "a7-cli-"));
+  sessionDir = mkdtempSync(join(tmpdir(), "a7-cli-session-"));
   ledger = new JsonlCapabilityLifecycleLedger(join(dir, "lifecycle.jsonl"));
   // CAP-3: registry is a catalog projection — build over a temp-dir catalog + port.
   const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
@@ -55,12 +64,23 @@ beforeEach(() => {
   registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
   registry.register(makeCapability("core.session.list"));
   registry.register(makeCapability("core.old"));
-  deps = { cwd: dir, ledger, registry };
+
+  // CAP-8: the platform is the composition root — both registry and service
+  // are constructed only here (test scope imports these modules directly).
+  const providers = new ProviderExecutorRegistry();
+  providers.register("native", new NativeProviderExecutor(new NativeExecutor()));
+  const resolver = new CapabilityResolver(registry, providers);
+  const executor = new CapabilityMutationExecutor({ catalog, registry });
+  const eventLog = new EventLog(sessionDir);
+  const service = new CapabilityService({ catalog, resolver, mutationExecutor: executor, eventLog });
+
+  deps = { cwd: dir, ledger, service, registry };
 });
 
 afterEach(() => {
   process.exit = _origExit;
   rmSync(dir, { recursive: true, force: true });
+  rmSync(sessionDir, { recursive: true, force: true });
 });
 
 describe("handleCapabilitiesCommand", () => {

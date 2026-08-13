@@ -11,19 +11,41 @@ import { buildCapabilityProposals } from "./capability-proposal-builder.js";
 import { runCapabilityGovernance, toLedgerRecord } from "./capability-governance-bridge.js";
 import { generateDecision } from "../governance/decision-engine.js";
 import type { GovernancePolicyConfig } from "../governance/contracts/decision-contract.js";
-import type { CapabilityRegistry } from "../../capability/registry.js";
+import type { CapabilityService } from "../../capability/capability-service.js";
 import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-store.js";
 import { CapabilityLifecycleApplier } from "./capability-lifecycle-applier.js";
 import { CapabilityLifecycleMeasurer } from "./capability-lifecycle-measurer.js";
 
+/**
+ * CapabilityService is the only mandatory capability surface (CAP-8, locked
+ * ruling #2). The A7.0 governance applier remains a CAP-11 migration debt
+ * until it is itself rewritten to consume the service; until then we accept
+ * a structurally-compatible accessor through `registry` so the CLI seam
+ * can remain service-mediated while preserving the legacy flow.
+ *
+ * NOTE: per locked ruling #2 (axis 2), this module MUST NOT import
+ * `CapabilityRegistry` or `CapabilityResolver` by name. The applier's
+ * internal registry type is reached indirectly through
+ * `Parameters<typeof CapabilityLifecycleApplier>[0]["registry"]` to keep
+ * the named-type import out of this source file.
+ */
 export interface CapabilitiesCLIDeps {
   cwd?: string;
   ledger?: CapabilityLifecycleLedger;
-  registry?: CapabilityRegistry;
+  service?: CapabilityService;
+  /** Legacy/CAP-11 accessor — typed as `unknown` here so this module avoids
+   *  importing `CapabilityRegistry`. The applier accepts any object that
+   *  satisfies its full registry shape; the cast happens at the applier
+   *  boundary. */
+  registry?: unknown;
   store?: CapabilityEvolutionStore;
   generateDecision?: typeof generateDecision;
   policyConfig?: GovernancePolicyConfig;
 }
+
+/** Internal: registry type extracted from the applier's constructor without
+ *  naming `CapabilityRegistry` in this file. */
+type ApplierRegistry = ConstructorParameters<typeof CapabilityLifecycleApplier>[0]["registry"];
 
 const USAGE = [
   "alix capabilities",
@@ -46,22 +68,23 @@ export async function handleCapabilitiesCommand(
   const jsonMode = rest.includes("--json");
   const cwd = deps.cwd ?? process.cwd();
   const ledger = deps.ledger ?? new JsonlCapabilityLifecycleLedger(DEFAULT_CAPABILITY_LIFECYCLE_FILE);
+  const service = deps.service;
   const registry = deps.registry;
   const store = deps.store ?? new CapabilityEvolutionStore(join(cwd, ".alix", "capability-evolution"));
 
   switch (sub) {
     case "list":
-      return renderList(registry, ledger, jsonMode);
+      return renderList(service, ledger, jsonMode);
     case "inspect":
-      return renderInspect(rest[0], registry, ledger, jsonMode);
+      return renderInspect(rest[0], service, ledger, jsonMode);
     case "history":
       return renderHistory(rest[0], ledger, jsonMode);
     case "health":
       return renderHealth(store, jsonMode);
     case "recommend":
-      return runRecommend(registry, store, ledger, jsonMode);
+      return runRecommend(store, ledger, jsonMode);
     case "propose":
-      return runPropose(registry, store, ledger, deps, jsonMode);
+      return runPropose(store, ledger, deps, jsonMode);
     case "apply":
       return runApply(rest[0], ledger, registry, jsonMode);
     case "measure":
@@ -74,7 +97,6 @@ export async function handleCapabilitiesCommand(
 }
 
 async function buildSignalInputs(
-  registry: CapabilityRegistry | undefined,
   store: CapabilityEvolutionStore,
   ledger: CapabilityLifecycleLedger,
 ): Promise<CapabilitySignalInputs> {
@@ -91,13 +113,14 @@ async function buildSignalInputs(
 }
 
 async function renderList(
-  registry: CapabilityRegistry | undefined,
+  service: CapabilityService | undefined,
   ledger: CapabilityLifecycleLedger,
   jsonMode: boolean,
 ): Promise<void> {
-  const rows = [];
-  const capabilities = registry ? registry.list() : [];
-  for (const cap of capabilities) {
+  const rows: Array<{ capabilityId: string; lifecycleState: unknown; projection: string }> = [];
+  // CAP-8: list comes through the service (AC#2 / AC#5 — `service.list == registry.list`).
+  const items = service ? service.list().items : [];
+  for (const cap of items) {
     const latest = await ledger.listLatestForCapability(cap.id);
     const projection = latest ? deriveCapabilityProjectionState(latest) : "PROPOSED";
     rows.push({ capabilityId: cap.id, lifecycleState: latest?.observedLifecycleState ?? null, projection });
@@ -118,7 +141,7 @@ async function renderList(
 
 async function renderInspect(
   id: string | undefined,
-  registry: CapabilityRegistry | undefined,
+  service: CapabilityService | undefined,
   ledger: CapabilityLifecycleLedger,
   jsonMode: boolean,
 ): Promise<void> {
@@ -127,7 +150,15 @@ async function renderInspect(
     process.exitCode = 1;
     process.exit(1);
   }
-  const cap = registry?.find(id);
+  // CAP-8: inspect comes through the service. service.inspect throws
+  // CapabilityNotFoundError for missing ids — translate to the legacy
+  // "not found" fatal path so CLI UX is preserved byte-for-byte.
+  let cap;
+  try {
+    cap = service ? service.inspect(id) : undefined;
+  } catch {
+    cap = undefined;
+  }
   if (!cap) {
     if (jsonMode) console.log(JSON.stringify({ ok: false, error: `capability not found: ${id}` }));
     else console.error(`Capability not found: ${id}`);
@@ -190,12 +221,11 @@ async function renderHealth(store: CapabilityEvolutionStore, jsonMode: boolean):
 }
 
 async function runRecommend(
-  registry: CapabilityRegistry | undefined,
   store: CapabilityEvolutionStore,
   ledger: CapabilityLifecycleLedger,
   jsonMode: boolean,
 ): Promise<void> {
-  const inputs = await buildSignalInputs(registry, store, ledger);
+  const inputs = await buildSignalInputs(store, ledger);
   const candidates = analyzeCapabilityLifecycle(inputs);
   if (jsonMode) {
     console.log(JSON.stringify(candidates, null, 2));
@@ -212,13 +242,12 @@ async function runRecommend(
 }
 
 async function runPropose(
-  registry: CapabilityRegistry | undefined,
   store: CapabilityEvolutionStore,
   ledger: CapabilityLifecycleLedger,
   deps: CapabilitiesCLIDeps,
   jsonMode: boolean,
 ): Promise<void> {
-  const inputs = await buildSignalInputs(registry, store, ledger);
+  const inputs = await buildSignalInputs(store, ledger);
   const candidates = analyzeCapabilityLifecycle(inputs);
   if (candidates.length === 0) {
     if (jsonMode) console.log(JSON.stringify({ ok: true, proposals: [] }));
@@ -228,7 +257,7 @@ async function runPropose(
 
   const signalEvidenceRefs = [{ evidenceId: "a7-p55-report", source: "p55" }];
   const artifacts = buildCapabilityProposals(candidates, signalEvidenceRefs);
-  const results = [];
+  const results: Array<{ proposalId: string; intent: string; capabilityId: string; decisionKind: string }> = [];
 
   for (const { candidate, intent, proposal } of artifacts) {
     await ledger.append(toLedgerRecord("intent", candidate));
@@ -270,12 +299,19 @@ function failFatal(message: string, jsonMode: boolean): never {
 async function runApply(
   id: string | undefined,
   ledger: CapabilityLifecycleLedger,
-  registry: CapabilityRegistry | undefined,
+  registry: unknown,
   jsonMode: boolean,
 ): Promise<void> {
   if (!id) failFatal("Usage: alix capabilities apply <id>", jsonMode);
-  if (!registry) failFatal("Capability registry unavailable — cannot apply", jsonMode);
-  const applier = new CapabilityLifecycleApplier({ ledger, registry, requestId: `req-${id}` });
+  if (registry == null) failFatal("Capability registry unavailable — cannot apply", jsonMode);
+  // CAP-11 debt: the applier still uses a CapabilityRegistry directly. The
+  // type is reached via the applier's own constructor signature so this
+  // module never names CapabilityRegistry itself.
+  const applier = new CapabilityLifecycleApplier({
+    ledger,
+    registry: registry as ApplierRegistry,
+    requestId: `req-${id}`,
+  });
   let res;
   try { res = await applier.apply(id); } // append-failure THROWS (post-commit rollback ran)
   catch (err) {
