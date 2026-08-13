@@ -159,7 +159,12 @@ describe("CAP-9 governance CLI — proposals / approve / reject seams", () => {
 
     const result = await service.governance();
     assert.equal(result.events.length, 1);
-    assert.equal(result.events[0]!.proposalId, proposed.proposalId);
+    // CAP-10 widening — events array is the proposal+measurement union;
+    // narrow by type before accessing `proposalId` (proposal-only field).
+    assert.equal(
+      (result.events[0] as { proposalId: string }).proposalId,
+      proposed.proposalId,
+    );
   });
 
   // -------------------------------------------------------------------------

@@ -76,7 +76,10 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
     const { service } = setup();
     let caught: unknown;
     try {
-      await service.measure({ id: 'core.echo', outcome: 'passed' });
+      // CAP-10 ruling #2 — measure() takes { capabilityId, version,
+      // baselineObservationId? } (CAP-9 forward-wired stub only accepted
+      // `unknown`; CAP-10 narrows the signature).
+      await service.measure({ capabilityId: 'core.echo', version: '1.0.0' });
     } catch (e) { caught = e; }
     expect(caught).toBeInstanceOf(CapabilityServiceNotImplementedError);
     expect((caught as CapabilityServiceNotImplementedError).code).toBe('not_implemented_yet');
@@ -89,7 +92,7 @@ describe('Locked ruling #4 — propose() / measure() are forward-wired stubs', (
     registry.reload();
     const beforeItems = registry.list().length;
     try { await service.propose({}); } catch { /* expected */ }
-    try { await service.measure({}); } catch { /* expected */ }
+    try { await service.measure({ capabilityId: 'core.echo', version: '1.0.0' }); } catch { /* expected */ }
     expect(registry.list().length).toBe(beforeItems);
   });
 

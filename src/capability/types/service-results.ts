@@ -180,6 +180,10 @@ export interface CapabilityServiceOptions {
   /** CAP-9 ruling #5 — A7 proposal intelligence. Required by
    *  `service.propose()`. Backward-compat absent. */
   readonly proposalGenerator?: import("../evolution/a7-proposals.js").A7ProposalGenerator;
+  /** CAP-10 ruling #22 — measurement engine. Optional. Absent →
+   *  `service.measure()` throws `CapabilityServiceNotImplementedError`
+   *  (CAP-8 ruling #4 preserved). NEVER required. */
+  readonly measurementEngine?: import("../measurement/capability-measurement-engine.js").CapabilityMeasurementEngine;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,11 +212,27 @@ export interface CapabilityApplyProposalResult {
   readonly error?: string;
 }
 
+/** CAP-10 ruling #6 — measurement event projection. Lives in
+ *  the same governance projection bucket (parent prefix
+ *  `capability.governance.`) so `service.governance()` widens
+ *  its filter to include `measurement.*` events alongside the
+ *  CAP-9 `proposal.*` events. */
+export interface CapabilityMeasurementEventProjection {
+  readonly seq: number;
+  readonly timestamp: string;
+  readonly type: "capability.governance.measurement.measured";
+  readonly payload: import("../measurement/measurement-event-types.js").CapabilityMeasurementPayload;
+}
+
 /** CAP-9 ruling #22 — governance event projection. Filters by
  *  `capability.governance.*` prefix (and capabilityId if supplied). Pure
- *  projection; no catalog reads (ruling #23). */
+ *  projection; no catalog reads (ruling #23).
+ *  CAP-10 ruling #6 widens the filter to include `measurement.*`
+ *  events in addition to CAP-9 `proposal.*` events. */
 export interface CapabilityGovernanceResult {
-  readonly events: ReadonlyArray<CapabilityGovernanceEventProjection>;
+  readonly events: ReadonlyArray<
+    CapabilityGovernanceEventProjection | CapabilityMeasurementEventProjection
+  >;
 }
 
 // ---------------------------------------------------------------------------

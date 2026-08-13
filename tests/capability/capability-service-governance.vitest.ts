@@ -100,10 +100,13 @@ describe("CapabilityService.governance (CAP-9 rulings #10, #22, #23)", () => {
     const proposed = await service.propose();
     const result = await service.governance();
     expect(result.events).toHaveLength(1);
-    expect(result.events[0]!.type).toBe("capability.governance.proposal.submitted");
-    expect(result.events[0]!.proposalId).toBe(proposed.proposalId);
-    expect(result.events[0]!.seq).toBeGreaterThan(0);
-    expect(typeof result.events[0]!.timestamp).toBe("string");
+    const ev = result.events[0]!;
+    expect(ev.type).toBe("capability.governance.proposal.submitted");
+    // CAP-10 widening — events array is the proposal+measurement union;
+    // narrow by type before accessing `proposalId` (proposal-only field).
+    expect((ev as { proposalId: string }).proposalId).toBe(proposed.proposalId);
+    expect(ev.seq).toBeGreaterThan(0);
+    expect(typeof ev.timestamp).toBe("string");
   });
 
   it("filters by capabilityId when supplied (returns empty for unrelated id)", async () => {

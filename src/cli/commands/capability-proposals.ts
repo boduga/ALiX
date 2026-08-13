@@ -50,7 +50,7 @@ export async function capabilityProposalsCommand(
     return 0;
   }
 
-  const events: ReadonlyArray<CapabilityGovernanceEventProjection> = result.events;
+  const events = result.events;
   if (events.length === 0) {
     if (capabilityId) {
       console.log(`No governance events for capability: ${capabilityId}`);
@@ -60,10 +60,25 @@ export async function capabilityProposalsCommand(
     return 0;
   }
 
-  console.log(`Capability governance proposals (${events.length}):`);
+  // CAP-10 ruling #6 — the governance projection widens to include both
+  // `proposal.*` (CAP-9) and `measurement.*` (CAP-10) events. This CLI
+  // command is proposal-focused (CAP-9 lock); we filter out
+  // `measurement.*` events at the type boundary so proposalId formatting
+  // stays well-defined.
+  const proposalEvents = events.filter(
+    (e): e is CapabilityGovernanceEventProjection =>
+      e.type.startsWith("capability.governance.proposal."),
+  );
+
+  if (proposalEvents.length === 0) {
+    console.log("No governance proposal events recorded.");
+    return 0;
+  }
+
+  console.log(`Capability governance proposals (${proposalEvents.length}):`);
   console.log(`${"seq".padStart(4)}  ${"proposalId".padEnd(20)}  ${"type".padEnd(50)}  timestamp`);
   console.log("-".repeat(100));
-  for (const e of events) {
+  for (const e of proposalEvents) {
     const shortType = e.type.replace(/^capability\.governance\.proposal\./, "");
     const shortId = e.proposalId.length > 18 ? `${e.proposalId.slice(0, 16)}…` : e.proposalId;
     console.log(
