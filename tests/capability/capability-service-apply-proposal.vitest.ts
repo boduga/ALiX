@@ -38,6 +38,7 @@ import type {
 import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
+import type { CapabilityApplyProposalResult } from "../../src/capability/types/service-results.js";
 import { CapabilityProposalStaleError } from "../../src/capability/errors/proposal-stale.js";
 
 class FakeSignalSource implements ProposalSignalSource {
@@ -336,5 +337,84 @@ describe("CAP-9 service.apply({ proposalId }) — ruling #17 / #4 / happy-path",
       expect(payload.error).toBe("boom");
       expect(payload.partialState).toBe("rolled_back");
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // N1 — create-intent (gap) proposals must not be reported stale.
+  //
+  // A7 gap signals target a capability that does not yet exist in the
+  // catalog. `service.propose()` therefore pins `sourceVersion = null`
+  // (captured from `catalog.get(target.id)?.version ?? null`).
+  // `service.apply({ proposalId })` MUST treat
+  // `sourceVersion === null && currentVersion === undefined` as a
+  // non-stale condition for create intents — otherwise create proposals
+  // are permanently un-applyable.
+  // ---------------------------------------------------------------------------
+  it("N1 (cherry-pick): create-intent (gap) proposal with no pre-existing version is not stale", async () => {
+    // Gap signal targets `new.a7-gap-new` — which is intentionally NOT
+    // registered in the catalog. So `catalog.get()` returns undefined at
+    // both submit and apply time.
+    const gapGenerator = new A7ProposalGenerator({
+      signalSource: new FakeSignalSource([
+        { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-gap"] },
+      ]),
+    });
+    const executor = new ScriptedExecutor({
+      success: true,
+      output: {
+        result: { artifactId: "g".repeat(64) },
+        mutation: { operation: "capability.transition", capabilityId: "new.a7-gap-new" },
+      },
+      artifactId: "g".repeat(64),
+    });
+    const options: CapabilityServiceOptions = {
+      catalog,
+      resolver,
+      mutationExecutor: executor as unknown as CapabilityMutationExecutor,
+      eventLog,
+      proposalGenerator: gapGenerator,
+    };
+    const gapService = new CapabilityService(options);
+
+    // submit (gap intent — no pre-existing catalog entry, so
+    // catalog.get(target.id) === undefined → sourceVersion = null)
+    const proposed = await gapService.propose();
+    expect(proposed.status).toBe("pending");
+    expect(proposed.candidate.target.id).toBe("new.a7-gap-new");
+
+    // apply — must NOT throw CapabilityProposalStaleError.
+    // The gap target is still absent from the catalog at apply time,
+    // so currentVersion === undefined. With the N1 fix:
+    //   isStale = (null !== undefined) → false (rule treats
+    //   `null === undefined` as non-stale for create intents).
+    // Cast to the proposal-overload return type.
+    const applyResult = (await gapService.apply({ proposalId: proposed.proposalId })) as unknown as CapabilityApplyProposalResult;
+    expect(Object.isFrozen(applyResult)).toBe(true);
+    expect(applyResult.proposalId).toBe(proposed.proposalId);
+    expect(applyResult.status).toBe("executed");
+    if (applyResult.status !== "executed") return;
+    expect(applyResult.mutation).toBeDefined();
+    expect(applyResult.mutation!.success).toBe(true);
+    expect(applyResult.mutation!.artifactId).toBe("g".repeat(64));
+
+    // The executor was actually dispatched (not silently no-oped).
+    expect(executor.callCount).toBe(1);
+
+    // Ledger must carry proposal.executed (NOT proposal.rejected).
+    const events = await eventLog.readAll();
+    const executed = events.find(
+      (e) =>
+        e.type === "capability.governance.proposal.executed" &&
+        (e.payload as { proposalId?: string } | undefined)?.proposalId ===
+          proposed.proposalId,
+    );
+    expect(executed).toBeDefined();
+    const staleRejected = events.find(
+      (e) =>
+        e.type === "capability.governance.proposal.rejected" &&
+        (e.payload as { proposalId?: string } | undefined)?.proposalId ===
+          proposed.proposalId,
+    );
+    expect(staleRejected).toBeUndefined();
   });
 });

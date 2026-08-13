@@ -40,7 +40,7 @@ import type {
   ProposalSignalSource,
 } from "../../src/capability/evolution/a7-proposals.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
-import { CapabilityProposalStaleError } from "../../src/capability/errors/proposal-stale.js";
+import type { CapabilityApplyProposalResult } from "../../src/capability/types/service-results.js";
 
 import { capabilityProposalsCommand } from "../../src/cli/commands/capability-proposals.js";
 import { capabilityApproveCommand } from "../../src/cli/commands/capability-approve.js";
@@ -163,18 +163,20 @@ describe("CAP-9 governance CLI — proposals / approve / reject seams", () => {
   });
 
   // -------------------------------------------------------------------------
-  // approve — applies via service.apply({proposalId}); the candidate target
-  // does not exist in the catalog so the stale guard fires and the ledger
-  // records `proposal.rejected` (long-form).
+  // approve — applies via service.apply({proposalId}); a create-intent
+  // candidate (null sourceVersion) against a not-yet-existent target is
+  // NOT stale under the N1 guard, so apply reaches the executor and the
+  // ledger records `proposal.executed` (long-form).
   // -------------------------------------------------------------------------
 
-  it("approve routes through service.apply({ proposalId }) — stale target records proposal.rejected", async () => {
-    const { service } = await buildHarness(
+  it("approve routes through service.apply({ proposalId }) — create-intent reaches executor (N1 non-stale)", async () => {
+    const { service, executor } = await buildHarness(
       [
-        // deprecation_signal → candidate.target.id = capabilityId from signal.
-        // We deliberately do NOT register anything in the catalog, so the
-        // apply path will hit the stale guard before the executor runs.
-        { kind: "deprecation_signal", capabilityId: "nonexistent.capability", score: 0.7, evidenceIds: [] },
+        // gap signal → create candidate against a NOT-YET-EXISTENT target.
+        // Pre-N1 this would throw CapabilityProposalStaleError. Post-N1 the
+        // create-intent (null sourceVersion, undefined currentVersion) is
+        // non-stale, and apply proceeds to the executor.
+        { kind: "gap", score: 0.9, evidenceIds: ["e-1"] },
       ],
       new ScriptedExecutor({
         success: true,
@@ -186,13 +188,16 @@ describe("CAP-9 governance CLI — proposals / approve / reject seams", () => {
 
     const { proposalId } = await service.propose();
 
-    // apply MUST route through the service seam (CAP-6 delegation)
-    // and throw CapabilityProposalStaleError when the candidate target
-    // is absent from the catalog.
-    await assert.rejects(
-      async () => service.apply({ proposalId }),
-      (err: unknown) => err instanceof CapabilityProposalStaleError,
-    );
+    // apply MUST route through the service seam (CAP-6 delegation).
+    // N1 fix: NOT stale, executor runs, proposal.executed recorded.
+    // The proposalId overload is the second overload; cast to the proposal
+    // result type because the first overload (step input) is also a TS match
+    // for `{ proposalId }` and wins overload resolution.
+    const result = (await service.apply({ proposalId })) as unknown as CapabilityApplyProposalResult;
+    assert.equal(result.status, "executed");
+
+    // Executor called exactly once.
+    assert.equal(executor.callCount, 1);
 
     const events = await service.governance();
     const types = events.events.map((e) => e.type);
@@ -201,13 +206,13 @@ describe("CAP-9 governance CLI — proposals / approve / reject seams", () => {
       `expected submitted event, got: ${types.join(", ")}`,
     );
     assert.ok(
-      types.includes("capability.governance.proposal.rejected"),
-      `expected rejected event, got: ${types.join(", ")}`,
+      types.includes("capability.governance.proposal.executed"),
+      `expected executed event, got: ${types.join(", ")}`,
     );
-    // proposal.approved NOT recorded — stale guard short-circuits before approval.
+    // proposal.rejected NOT recorded — create intent is non-stale.
     assert.ok(
-      !types.includes("capability.governance.proposal.approved"),
-      `did not expect approved event, got: ${types.join(", ")}`,
+      !types.includes("capability.governance.proposal.rejected"),
+      `did not expect rejected event, got: ${types.join(", ")}`,
     );
   });
 

@@ -337,13 +337,43 @@ export class CapabilityService {
     // (captured at submit time) against the current catalog. If the
     // pinned version no longer matches, surface a stale error and
     // ledger-record the rejection (no silent rebase).
+    //
+    // CAP-9 cherry-pick N1 — create-intent (gap) proposals carry
+    // `sourceVersion = null` because the target capability did not
+    // exist at submit time. The stale predicate covers four
+    // non-trivial truth-table cells:
+    //   (null, undefined)        → NOT stale (create intent, both absent)
+    //   (null, "1.0.0")          → STALE   (target id now taken — race)
+    //   ("1.0.0", "1.5.0")       → STALE   (superseded)
+    //   ("1.0.0", "1.0.0")       → NOT stale (match)
+    //   ("1.0.0", undefined)     → STALE   (capability was removed)
+    //
+    // Implementation: `null === undefined` is treated as the non-stale
+    // "both absent" anchor for create intents (both ends of the
+    // comparison are absent → no drift to detect). Any other
+    // inequality is stale.
     const submittedPayload = submitted.payload as ProposalSubmittedPayload & {
       readonly sourceVersion: string | null;
     };
     const sourceVersion = submittedPayload.sourceVersion;
     const current = this.catalog.get(sourceId);
     const currentVersion = current?.version;
-    if (sourceVersion !== currentVersion) {
+    // CAP-9 cherry-pick N1 — create-intent (gap) proposals carry
+    // `sourceVersion = null` because the target capability did not
+    // exist at submit time. The stale predicate covers five
+    // truth-table cells:
+    //   (null, undefined)        → NOT stale (create intent, both absent)
+    //   (null, "1.0.0")          → STALE   (target id now taken — race)
+    //   ("1.0.0", "1.5.0")       → STALE   (superseded)
+    //   ("1.0.0", "1.0.0")       → NOT stale (match)
+    //   ("1.0.0", undefined)     → STALE   (capability was removed)
+    //
+    // Implementation: throw iff BOTH ends are defined AND they differ.
+    // The (null, undefined) anchor is treated as non-stale (both ends
+    // absent → no drift to detect). The (null, "x") / ("x", undefined)
+    // cases still fail because one side is defined and the other is
+    // mismatched/absent.
+    if (sourceVersion !== null && sourceVersion !== currentVersion) {
       const detail = `stale: source '${sourceId}@${sourceVersion ?? "absent"}' superseded by '${currentVersion ?? "absent"}'`;
       await this.proposalStore.recordRejected(proposalId, "system", detail);
       throw new CapabilityProposalStaleError(
@@ -358,7 +388,20 @@ export class CapabilityService {
 
     // Map candidate → CAP-6 step. CAP-9 ships a conservative consumption
     // policy; CAP-N tightens the candidate→mutation mapping per kind.
-    const step = candidateToExecutionStep(candidate, sourceId, currentVersion);
+    //
+    // `sourceVersion ?? currentVersion ?? "0.0.0"` covers three cases
+    // that survive the throw above:
+    //   - matched strings (`sourceVersion` is the non-null current `currentVersion`).
+    //   - create-intent: sourceVersion=null, currentVersion=undefined →
+    //     both absent, falls back to the explicit placeholder. Executor
+    //     treats this as a forecast anchor for the new capability.
+    //   - matched (null, null) is impossible: `currentVersion` is
+    //     `string | undefined`, never `null`.
+    const step = candidateToExecutionStep(
+      candidate,
+      sourceId,
+      sourceVersion ?? currentVersion ?? "0.0.0",
+    );
     try {
       // The executor returns the slim `StepExecutor` shape
       // (`{ success, output, error? }`); the projection reads only those
