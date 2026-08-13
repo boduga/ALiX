@@ -32,17 +32,41 @@ import type { CapabilityMutationExecutor } from "../evolution/execution/capabili
 import type { ExecutionStep } from "../evolution/execution/contracts/execution-contract.js";
 import type { EventLog } from "../events/event-log.js";
 import type { AlixEvent } from "../events/types.js";
-import type { LifecycleState } from "../adaptation/capability-evolution-types.js";
+import type {
+  CapabilityEvolutionCandidate,
+  LifecycleState,
+} from "../adaptation/capability-evolution-types.js";
 import { CapabilityNotFoundError } from "./errors.js";
 import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
+import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
+import { ProposalStore } from "./governance/proposal-store.js";
+import {
+  GOVERNANCE_EVENT_PREFIX,
+  isGovernanceEventType,
+  projectCapabilityMutationResult,
+  type CapabilityGovernanceEventProjection,
+  type ProposalSubmittedPayload,
+} from "./governance/governance-types.js";
+import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
 import type {
-  CapabilityListResult, CapabilityListItem,
+  CapabilityProposeResult,
+  CapabilityApplyProposalResult,
+  CapabilityGovernanceResult,
+} from "./types/service-results.js";
+import type {
+  CapabilityApplyInput,
+  CapabilityApplyResult,
+  CapabilityApplyStep,
+  CapabilityHistoryEvent,
+  CapabilityHistoryResult,
   CapabilityInspectResult,
-  CapabilitySearchQuery, CapabilitySearchResult,
+  CapabilityListItem,
+  CapabilityListResult,
+  CapabilityRecommendInput,
+  CapabilityRecommendResult,
+  CapabilitySearchQuery,
+  CapabilitySearchResult,
   CapabilityHealthResult,
-  CapabilityRecommendInput, CapabilityRecommendResult,
-  CapabilityApplyInput, CapabilityApplyResult,
-  CapabilityHistoryEvent, CapabilityHistoryResult,
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
@@ -62,12 +86,20 @@ export class CapabilityService {
   private readonly resolver: CapabilityResolver;
   private readonly executor: CapabilityMutationExecutor;
   private readonly eventLog: EventLog;
+  /** CAP-9 ruling #5 — A7 proposal intelligence. Optional so backward-compat
+   *  CAP-8 read-only consumers keep constructing the service without it. */
+  private readonly proposalGenerator?: A7ProposalGenerator;
+  /** CAP-9 ruling #19 — derive from `eventLog` so the service does not
+   *  grow a separate persistence constructor dep. */
+  private readonly proposalStore: ProposalStore;
 
   constructor(opts: CapabilityServiceOptions) {
     this.catalog = opts.catalog;
     this.resolver = opts.resolver;
     this.executor = opts.mutationExecutor;
     this.eventLog = opts.eventLog;
+    this.proposalGenerator = opts.proposalGenerator;
+    this.proposalStore = new ProposalStore({ eventLog: this.eventLog });
     Object.freeze(this); // service surface is immutable post-construction.
   }
 
@@ -232,20 +264,35 @@ export class CapabilityService {
   // and project the executor's output into CapabilityApplyResult.
   // -------------------------------------------------------------------------
 
-  async apply(input: CapabilityApplyInput, ctx?: Record<string, unknown>): Promise<CapabilityApplyResult> {
-    const step: ExecutionStep = {
-      stepId: input.step.stepId,
-      operation: input.step.operation,
-      parameters: input.step.parameters,
-      idempotent: input.step.idempotent ?? false,
-      preconditions: input.step.preconditions ?? {},
-      postconditions: input.step.postconditions ?? {},
+  async apply(input: CapabilityApplyInput, ctx?: Record<string, unknown>): Promise<CapabilityApplyResult>;
+  async apply(input: { proposalId: string }, ctx?: Record<string, unknown>): Promise<CapabilityApplyProposalResult>;
+  async apply(
+    input: CapabilityApplyInput | { proposalId: string },
+    ctx?: Record<string, unknown>,
+  ): Promise<CapabilityApplyResult | CapabilityApplyProposalResult> {
+    if ("proposalId" in input) {
+      return this.applyProposal(input.proposalId);
+    }
+    return this.applyStep(input.step, ctx ?? {});
+  }
+
+  private async applyStep(
+    step: CapabilityApplyStep,
+    ctx: Record<string, unknown>,
+  ): Promise<CapabilityApplyResult> {
+    const executionStep: ExecutionStep = {
+      stepId: step.stepId,
+      operation: step.operation,
+      parameters: step.parameters,
+      idempotent: step.idempotent ?? false,
+      preconditions: step.preconditions ?? {},
+      postconditions: step.postconditions ?? {},
     };
-    const result = await this.executor.executeStep(step, ctx ?? {});
+    const result = await this.executor.executeStep(executionStep, ctx);
     return {
       success: result.success,
-      operation: input.step.operation,
-      affected: this.affectedFromResult(input.step, result),
+      operation: step.operation,
+      affected: this.affectedFromResult(step, result),
       // CAP-6 success output shape: { operation, mutation, result } where
       // `result` is the frozen CapabilityMutationResult carrying artifactId.
       // Failure paths return `output = {}`, so we guard with a single cast.
@@ -254,8 +301,145 @@ export class CapabilityService {
     };
   }
 
+  /**
+   * CAP-9 ruling #4 — bridge a ledger-bound proposal through the CAP-6 executor.
+   *
+   * Steps:
+   *   1. Reconstruct the proposal events (`proposalStore.findById`).
+   *   2. Extract the candidate body from the `proposal.submitted` event.
+   *   3. Re-resolve source id@version against the current catalog. Stale
+   *      proposals (capability removed since submission) raise
+   *      `CapabilityProposalStaleError` (ruling #17) and persist
+   *      `proposal.rejected` with `system` actor.
+   *   4. Persist `proposal.approved` (operator actor — A7 has no default
+   *      approver; the apply caller is the operator).
+   *   5. Map the candidate onto a CAP-6 `ExecutionStep` via the
+   *      consumption-policy stub (transitions for now; CAP-N work
+   *      tightens the candidate→mutation mapping).
+   *   6. Delegate to the CAP-6 executor. On success, persist
+   *      `proposal.executed` with the projected ArtifactId. On
+   *      failure, persist `proposal.execution_failed` and rethrow.
+   */
+  private async applyProposal(proposalId: string): Promise<CapabilityApplyProposalResult> {
+    const events = await this.proposalStore.findById(proposalId);
+    const submitted = events.find((e) => e.type === "capability.governance.proposal.submitted");
+    if (!submitted) {
+      throw new Error(`Proposal '${proposalId}' not found`);
+    }
+    // Narrow the union down to the discriminated submitted event payload.
+    if (submitted.type !== "capability.governance.proposal.submitted") {
+      throw new Error(`Proposal '${proposalId}' found event is not a submission`);
+    }
+    const candidate = submitted.payload.candidate;
+    const sourceId = candidate.target.id;
+
+    // CAP-9 ruling #17 — re-resolve the proposal's pinned source version
+    // (captured at submit time) against the current catalog. If the
+    // pinned version no longer matches, surface a stale error and
+    // ledger-record the rejection (no silent rebase).
+    //
+    // CAP-9 cherry-pick N1 — create-intent (gap) proposals carry
+    // `sourceVersion = null` because the target capability did not
+    // exist at submit time. The stale predicate covers four
+    // non-trivial truth-table cells:
+    //   (null, undefined)        → NOT stale (create intent, both absent)
+    //   (null, "1.0.0")          → STALE   (target id now taken — race)
+    //   ("1.0.0", "1.5.0")       → STALE   (superseded)
+    //   ("1.0.0", "1.0.0")       → NOT stale (match)
+    //   ("1.0.0", undefined)     → STALE   (capability was removed)
+    //
+    // Implementation: `null === undefined` is treated as the non-stale
+    // "both absent" anchor for create intents (both ends of the
+    // comparison are absent → no drift to detect). Any other
+    // inequality is stale.
+    const submittedPayload = submitted.payload as ProposalSubmittedPayload & {
+      readonly sourceVersion: string | null;
+    };
+    const sourceVersion = submittedPayload.sourceVersion;
+    const current = this.catalog.get(sourceId);
+    const currentVersion = current?.version;
+    // CAP-9 cherry-pick N1 — create-intent (gap) proposals carry
+    // `sourceVersion = null` because the target capability did not
+    // exist at submit time. The stale predicate covers five
+    // truth-table cells:
+    //   (null, undefined)        → NOT stale (create intent, both absent)
+    //   (null, "1.0.0")          → STALE   (target id now taken — race)
+    //   ("1.0.0", "1.5.0")       → STALE   (superseded)
+    //   ("1.0.0", "1.0.0")       → NOT stale (match)
+    //   ("1.0.0", undefined)     → STALE   (capability was removed)
+    //
+    // Implementation: throw iff BOTH ends are defined AND they differ.
+    // The (null, undefined) anchor is treated as non-stale (both ends
+    // absent → no drift to detect). The (null, "x") / ("x", undefined)
+    // cases still fail because one side is defined and the other is
+    // mismatched/absent.
+    if (sourceVersion !== null && sourceVersion !== currentVersion) {
+      const detail = `stale: source '${sourceId}@${sourceVersion ?? "absent"}' superseded by '${currentVersion ?? "absent"}'`;
+      await this.proposalStore.recordRejected(proposalId, "system", detail);
+      throw new CapabilityProposalStaleError(
+        proposalId,
+        sourceId,
+        sourceVersion ?? "absent",
+        currentVersion,
+      );
+    }
+
+    await this.proposalStore.recordApproved(proposalId, "operator");
+
+    // Map candidate → CAP-6 step. CAP-9 ships a conservative consumption
+    // policy; CAP-N tightens the candidate→mutation mapping per kind.
+    //
+    // `sourceVersion ?? currentVersion ?? "0.0.0"` covers three cases
+    // that survive the throw above:
+    //   - matched strings (`sourceVersion` is the non-null current `currentVersion`).
+    //   - create-intent: sourceVersion=null, currentVersion=undefined →
+    //     both absent, falls back to the explicit placeholder. Executor
+    //     treats this as a forecast anchor for the new capability.
+    //   - matched (null, null) is impossible: `currentVersion` is
+    //     `string | undefined`, never `null`.
+    const step = candidateToExecutionStep(
+      candidate,
+      sourceId,
+      sourceVersion ?? currentVersion ?? "0.0.0",
+    );
+    try {
+      // The executor returns the slim `StepExecutor` shape
+      // (`{ success, output, error? }`); the projection reads only those
+      // three fields, so a structural cast is sound — the function does
+      // not touch the missing `stepId`/`startedAt`/`completedAt`.
+      const result = await this.executor.executeStep(step, {});
+      if (result.success) {
+        const projected = projectCapabilityMutationResult(
+          result as unknown as import("../evolution/execution/contracts/execution-contract.js").ExecutionStepResult,
+        );
+        await this.proposalStore.recordExecuted(proposalId, projected, projected.artifactId);
+        return Object.freeze({
+          proposalId,
+          status: "executed" as const,
+          mutation: projected,
+        });
+      }
+      // CAP-9 ruling #4 — on executor failure, persist
+      // `proposal.execution_failed` AND rethrow so callers (CLI, tests)
+      // see the failure instead of a silent `{ status: "execution_failed" }`.
+      const errorMessage = result.error ?? "unknown executor error";
+      await this.proposalStore.recordExecutionFailed(proposalId, errorMessage, "rolled_back");
+      throw new Error(`Proposal '${proposalId}' execution failed: ${errorMessage}`);
+    } catch (err) {
+      // If we already threw a rethrow for execution_failed, pass it
+      // through unchanged. For unexpected exceptions, ledger-record and
+      // rethrow the original error.
+      if (err instanceof Error && err.message.startsWith(`Proposal '${proposalId}' execution failed: `)) {
+        throw err;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      await this.proposalStore.recordExecutionFailed(proposalId, message, "rolled_back");
+      throw err;
+    }
+  }
+
   private affectedFromResult(
-    step: CapabilityApplyInput["step"],
+    step: CapabilityApplyStep,
     result: { success: boolean; output: Record<string, unknown> },
   ): readonly string[] {
     const fromOutput = Array.isArray(result.output?.affected)
@@ -324,8 +508,92 @@ export class CapabilityService {
    * Throws `CapabilityServiceNotImplementedError` (code `not_implemented_yet`).
    * The signature is async so CAP-9 can replace the body without changing the surface.
    */
-  async propose(_input: unknown): Promise<never> {
-    throw new CapabilityServiceNotImplementedError("propose() lands in CAP-9");
+  async propose(_input?: unknown): Promise<CapabilityProposeResult> {
+    // CAP-9 ruling #3 — sole proposal submission route. The CAP-8
+    // forward-wired stub contract (CAP-8 ruling #4) is preserved:
+    // callers that did not inject `proposalGenerator` still receive
+    // the stable `CapabilityServiceNotImplementedError`.
+    if (!this.proposalGenerator) {
+      throw new CapabilityServiceNotImplementedError("propose()");
+    }
+    const candidates = await this.proposalGenerator.generate();
+    if (candidates.length === 0) {
+      throw new Error("A7 produced no candidates — no signals available");
+    }
+    // Persist every candidate; the synthesized proposalId is the
+    // canonical-JSON SHA-256 of the candidate body. Callers receive
+    // only the first proposalId in the return shape; the rest are
+    // independent ledger entries awaiting separate approval.
+    let firstProposalId: string | undefined;
+    for (const candidate of candidates) {
+      // CAP-9 ruling #17 — capture the source's current catalog version
+      // BEFORE persistence so apply time can re-resolve the pin. Null
+      // means the target capability is not yet in the catalog (create
+      // intent); submit carries it into the persisted payload verbatim.
+      const current = this.catalog.get(candidate.target.id);
+      const sourceVersion: string | null = current?.version ?? null;
+      const { proposalId } = await this.proposalStore.submit(
+        candidate,
+        candidate.evidenceIds,
+        sourceVersion,
+      );
+      if (firstProposalId === undefined) {
+        firstProposalId = proposalId;
+      }
+    }
+    return Object.freeze({
+      proposalId: firstProposalId!,
+      status: "pending" as const,
+      candidate: candidates[0]!,
+    });
+  }
+
+  /**
+   * CAP-9 ruling #10, #22, #23 — pure projection over the shared
+   * EventLog. No catalog reads, no registry reads, no service state.
+   *
+   * Optional `capabilityId` filter matches events whose payload
+   * `candidate.target.id` equals the supplied id. Without a filter,
+   * returns every governance event written so far.
+   */
+  async governance(capabilityId?: string): Promise<CapabilityGovernanceResult> {
+    if (!this.eventLog) {
+      return Object.freeze({ events: [] });
+    }
+    const all = await this.eventLog.readAll();
+    const governanceEvents = all.filter(
+      (e): e is AlixEvent =>
+        typeof e.type === "string" && e.type.startsWith(GOVERNANCE_EVENT_PREFIX),
+    );
+    const filtered = capabilityId
+      ? governanceEvents.filter((e) => {
+          const payload = e.payload as { candidate?: CapabilityEvolutionCandidate } | undefined;
+          return payload?.candidate?.target?.id === capabilityId;
+        })
+      : governanceEvents;
+    const projections: CapabilityGovernanceEventProjection[] = filtered.map(toProjection);
+    return Object.freeze({ events: projections });
+  }
+
+  /**
+   * CAP-9 Task 9 — record a rejection of a pending proposal.
+   *
+   * CLI seam: the operator-facing reject path. Records
+   * `proposal.rejected` (long-form `capability.governance.proposal.rejected`)
+   * via the shared ProposalStore. Distinct from `apply()` which routes
+   * through CAP-6's mutation executor; `reject()` is a store-level write
+   * only — no executor delegation, no atomicity matrix, no rollback.
+   *
+   * Returns `{ proposalId, status: "rejected" }` snapshot. The CLI may
+   * print this and exit 0. The governance ledger records the rejection
+   * with `operator` actor and the supplied `reason`.
+   */
+  async reject(
+    proposalId: string,
+    reason: string,
+  ): Promise<{ readonly proposalId: string; readonly status: "rejected" }> {
+    await this.proposalStore.recordRejected(proposalId, "operator", reason);
+    return Object.freeze({ proposalId, status: "rejected" as const });
   }
 
   /**
@@ -335,4 +603,62 @@ export class CapabilityService {
   async measure(_input: unknown): Promise<never> {
     throw new CapabilityServiceNotImplementedError("measure() lands in CAP-10");
   }
+}
+
+// ---------------------------------------------------------------------------
+// Module-private helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Project an EventLog event into a `CapabilityGovernanceEventProjection`.
+ * Pops the locked `capability.governance.proposal.` prefix for the
+ * type-narrowing cast; the long-form literal is preserved in the projection
+ * so consumers can filter by prefix alone (ruling #1).
+ */
+function toProjection(e: AlixEvent): CapabilityGovernanceEventProjection {
+  const type = e.type as CapabilityGovernanceEventProjection["type"];
+  if (!isGovernanceEventType(type)) {
+    throw new Error(`Unknown governance event type: ${e.type}`);
+  }
+  const payload = e.payload as { proposalId: string } & Record<string, unknown>;
+  return Object.freeze({
+    seq: e.seq,
+    timestamp: e.timestamp,
+    proposalId: payload.proposalId,
+    type,
+    payload: payload as never,
+  }) as CapabilityGovernanceEventProjection;
+}
+
+/**
+ * CAP-9 ruling #4 + consumption-policy stub — map a candidate to a
+ * CAP-6 `ExecutionStep`. CAP-9 ships a conservative transition stub
+ * (`capability.transition` to `active`); CAP-N work tightens the
+ * candidate→mutation mapping per candidate kind (e.g. `gap` →
+ * `capability.create`, `deprecation_signal` → `capability.remove`).
+ *
+ * The current `sourceId` + `currentVersion` are passed in so the
+ * forecast is forward-pinned to the catalog state at apply time
+ * (ruling #17 — stale-detection source).
+ */
+function candidateToExecutionStep(
+  candidate: CapabilityEvolutionCandidate,
+  sourceId: string,
+  currentVersion: string,
+): ExecutionStep {
+  return {
+    stepId: `proposal-${candidate.candidateId}`,
+    operation: "capability.transition",
+    parameters: {
+      operation: "capability.transition",
+      capabilityId: sourceId,
+      from: "emerging",
+      to: "active",
+      // Forecast pin — the catalog version the apply was authorised against.
+      sourceVersion: currentVersion,
+    },
+    idempotent: true,
+    preconditions: {},
+    postconditions: {},
+  };
 }

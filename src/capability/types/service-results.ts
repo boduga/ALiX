@@ -127,21 +127,26 @@ export interface CapabilityHistoryResult {
 /** The A4 step shape the service forwards to CAP-6's `CapabilityMutationExecutor.executeStep`.
  *  Mirrors `ExecutionStep` but excludes A4 internal envelope; idempotency defaults to false,
  *  pre/postconditions default to empty records. */
-export interface CapabilityApplyInput {
-  readonly step: {
-    stepId: string;
-    operation:
-      | "capability.create"
-      | "capability.update"
-      | "capability.transition"
-      | "capability.consolidate"
-      | "capability.remove";
-    parameters: Readonly<Record<string, unknown>>;
-    idempotent?: boolean;
-    preconditions?: Readonly<Record<string, unknown>>;
-    postconditions?: Readonly<Record<string, unknown>>;
-  };
+export interface CapabilityApplyStep {
+  readonly stepId: string;
+  readonly operation:
+    | "capability.create"
+    | "capability.update"
+    | "capability.transition"
+    | "capability.consolidate"
+    | "capability.remove";
+  readonly parameters: Readonly<Record<string, unknown>>;
+  readonly idempotent?: boolean;
+  readonly preconditions?: Readonly<Record<string, unknown>>;
+  readonly postconditions?: Readonly<Record<string, unknown>>;
 }
+
+/** CAP-9 ruling #4 — `apply()` accepts either a verbatim A4 step
+ *  (legacy CAP-8 path) or a ledger-bound proposalId (CAP-9 bridge).
+ *  Discriminated by presence of `proposalId` vs `step`. */
+export type CapabilityApplyInput =
+  | { readonly step: CapabilityApplyStep }
+  | { readonly proposalId: string };
 
 export interface CapabilityApplyResult {
   readonly success: boolean;
@@ -155,12 +160,57 @@ export interface CapabilityApplyResult {
 // Constructor dependency list (locked ruling #6 — derived from ownership graph)
 // ---------------------------------------------------------------------------
 
-/** Exactly four dependencies. `CapabilityResolver` already owns the
- *  `CapabilityRegistry` dep (CAP-7 ruling); the service does NOT double-inject.
- *  A future PR that adds a 5th dep is a locked-ruling-#6 violation. */
+/** Exactly five dependencies (CAP-9 extends the CAP-8 four-dep dep list
+ *  with `proposalGenerator` — the A7 signal-only proposal intelligence
+ *  adapter). `CapabilityResolver` already owns the `CapabilityRegistry`
+ *  dep (CAP-7 ruling); the service does NOT double-inject.
+ *
+ *  `proposalGenerator` is OPTIONAL on the constructor to preserve
+ *  backward compat with CAP-8 call-sites that only consume read methods
+ *  (list/inspect/search/health/recommend). When `proposalGenerator` is
+ *  absent, `service.propose()` throws `CapabilityServiceNotImplementedError`
+ *  (CAP-8 ruling #4 — stable error contract). The `ProposalStore` is
+ *  derived inside the constructor from the injected `eventLog`, so the
+ *  service does not grow a separate persistence constructor dep. */
 export interface CapabilityServiceOptions {
   readonly catalog: import("../canonical/catalog.js").CapabilityCatalog;
   readonly resolver: import("../provider-resolver.js").CapabilityResolver;
   readonly mutationExecutor: import("../../evolution/execution/capability-mutation-executor.js").CapabilityMutationExecutor;
   readonly eventLog: import("../../events/event-log.js").EventLog;
+  /** CAP-9 ruling #5 — A7 proposal intelligence. Required by
+   *  `service.propose()`. Backward-compat absent. */
+  readonly proposalGenerator?: import("../evolution/a7-proposals.js").A7ProposalGenerator;
+}
+
+// ---------------------------------------------------------------------------
+// CAP-9 governance result types (Task 1 — APPEND ONLY)
+// ---------------------------------------------------------------------------
+
+import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
+import type { CapabilityGovernanceEventProjection, CapabilityMutationResult } from "../governance/governance-types.js";
+
+/** CAP-9 ruling #3 — sole proposal submission route result.
+ *  Fail-closed when input missing required fields (ruling #6). */
+export interface CapabilityProposeResult {
+  readonly proposalId: string;
+  readonly status: "pending";
+  readonly candidate: CapabilityEvolutionCandidate;
+}
+
+/** CAP-9 ruling #4 — approval→execution bridge result. `mutation` is
+ *  present only when `status === 'executed'`; `error` is present only when
+ *  `status === 'execution_failed'`. Narrow union — no generic envelope
+ *  (CAP-8 ruling #8). */
+export interface CapabilityApplyProposalResult {
+  readonly proposalId: string;
+  readonly status: "executed" | "execution_failed";
+  readonly mutation?: CapabilityMutationResult;
+  readonly error?: string;
+}
+
+/** CAP-9 ruling #22 — governance event projection. Filters by
+ *  `capability.governance.*` prefix (and capabilityId if supplied). Pure
+ *  projection; no catalog reads (ruling #23). */
+export interface CapabilityGovernanceResult {
+  readonly events: ReadonlyArray<CapabilityGovernanceEventProjection>;
 }

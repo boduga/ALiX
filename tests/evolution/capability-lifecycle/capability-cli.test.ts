@@ -40,7 +40,7 @@ function makeCapability(id: string): Capability {
   };
 }
 
-function capture(fn: () => Promise<void>): Promise<{ stdout: string }> {
+function capture(fn: () => Promise<unknown>): Promise<{ stdout: string }> {
   const writes: string[] = [];
   const original = console.log;
   console.log = (...args: unknown[]) => writes.push(args.join(" "));
