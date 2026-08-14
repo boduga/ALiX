@@ -682,34 +682,90 @@ function toProjection(
 }
 
 /**
- * CAP-9 ruling #4 + consumption-policy stub — map a candidate to a
- * CAP-6 `ExecutionStep`. CAP-9 ships a conservative transition stub
- * (`capability.transition` to `active`); CAP-N work tightens the
- * candidate→mutation mapping per candidate kind (e.g. `gap` →
- * `capability.create`, `deprecation_signal` → `capability.remove`).
+ * CAP-N ruling — map a candidate to a CAP-6 `ExecutionStep` per its
+ * sourcePatternId. Discriminator table (CAP-N spec §4.1):
+ *   - "gap"                   → capability.create
+ *   - "deprecation_signal"    → capability.remove
+ *   - all other sourcePatterns → capability.transition (current behavior preserved)
  *
- * The current `sourceId` + `currentVersion` are passed in so the
- * forecast is forward-pinned to the catalog state at apply time
- * (ruling #17 — stale-detection source).
+ * The `sourceId` + `currentVersion` parameters are forward-pinned to the
+ * catalog state at apply time (CAP-9 ruling #17 — stale-detection source).
+ * For create intents, `sourceId` is `""` and `currentVersion` is `"0.0.0"`.
  */
 function candidateToExecutionStep(
   candidate: CapabilityEvolutionCandidate,
   sourceId: string,
   currentVersion: string,
 ): ExecutionStep {
-  return {
+  const baseStep = {
     stepId: `proposal-${candidate.candidateId}`,
-    operation: "capability.transition",
-    parameters: {
-      operation: "capability.transition",
-      capabilityId: sourceId,
-      from: "emerging",
-      to: "active",
-      // Forecast pin — the catalog version the apply was authorised against.
-      sourceVersion: currentVersion,
-    },
     idempotent: true,
     preconditions: {},
     postconditions: {},
   };
+
+  switch (candidate.sourcePatternId) {
+    case "gap": {
+      // Auto-derive a minimal valid CapabilityDefinition from the candidate
+      // fields. CAP-N spec §4.2 — caller can refine via capability.update.
+      const proposedDefinition = {
+        id: candidate.target.id,
+        version: "0.1.0",
+        kind: "operation" as const,
+        lifecycle: "emerging" as const,
+        bindings: [],
+        argsSchema: { type: "object" as const, properties: {} },
+        resultSchema: { type: "object" as const, properties: {} },
+        title: candidate.description,
+        description: candidate.description,
+        tags: [],
+        examples: [],
+        allowFallbacks: false,
+        requiredPermissions: [],
+        category: "uncategorized",
+        risk: candidate.riskClass,
+        extensions: {
+          provenance: {
+            kind: "a7-gap" as const,
+            candidateId: candidate.candidateId,
+          },
+        },
+      };
+      return {
+        ...baseStep,
+        operation: "capability.create",
+        parameters: {
+          operation: "capability.create",
+          proposedDefinition,
+        },
+      };
+    }
+
+    case "deprecation_signal":
+      return {
+        ...baseStep,
+        operation: "capability.remove",
+        parameters: {
+          operation: "capability.remove",
+          capabilityId: sourceId,
+          reason: candidate.description,
+          sourceVersion: currentVersion,
+        },
+      };
+
+    case "underperformer":
+    case "consolidation_opportunity":
+    default:
+      return {
+        ...baseStep,
+        operation: "capability.transition",
+        parameters: {
+          operation: "capability.transition",
+          capabilityId: sourceId,
+          from: "emerging",
+          to: "active",
+          sourceVersion: currentVersion,
+        },
+      };
+  }
 }
