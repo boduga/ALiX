@@ -23,7 +23,6 @@
  *
  * Forbidden (ruling #9, axis 5):
  *   - MUST NOT import `src/evolution/observation/a5-capability-measurement`.
- *   - MUST NOT import `src/evolution/capability-lifecycle/*`.
  *
  * @module capability/measurement/capability-measurement-engine
  */

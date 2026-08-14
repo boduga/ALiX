@@ -2161,7 +2161,7 @@ Inject the same application-level `CapabilityService`.
 
 ## Stage 5 — Migrate lifecycle overlay
 
-Move lifecycle state out of the ad-hoc A7 registry overlay into the canonical runtime-state model.
+The lifecycle overlay (`rehydrateLifecycleOverlay`) and `CapabilityLifecycleMeasurer` were retired in CAP-11 (2026-08-14). CAP-4 / CAP-7 / CAP-8 use the canonical `CapabilityRegistry.lifecycleState` directly; CAP-12 closes the e2e evolution loop on top of CAP-10 measurement + CAP-10.5 signal emission.
 
 ---
 

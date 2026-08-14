@@ -26,8 +26,9 @@ import type { EventLog } from "../events/event-log.js";
  *  registry (native + recognized-unimplemented stubs) → provider resolver →
  *  runtime. Exactly ONE CapabilityRegistry per runtime universe lives here. */
 export class CapabilityPlatform {
-  readonly registry: CapabilityRegistry;
-  readonly catalog: CapabilityCatalog;
+  // PRIVATE — composition-root internals (CAP-11 ruling #8)
+  private readonly registry: CapabilityRegistry;
+  private readonly catalog: CapabilityCatalog;
   readonly hooks = new HookRegistry();
   readonly providers = new ProviderExecutorRegistry();
   readonly events = new EventBus();

@@ -126,14 +126,6 @@ export class CapabilityRegistry {
     entry.lifecycle = to;
   }
 
-  /** A7 compatibility alias (deprecated). 3 production files call
-   *  applyLifecycleTransition (rehydration, step-executor) and are outside
-   *  CAP-3's file allowlist — this alias keeps them working unmodified while
-   *  lifecycle state lives in ONE authority (setLifecycleState). */
-  applyLifecycleTransition(id: string, to: LifecycleState): void {
-    this.setLifecycleState(id, to);
-  }
-
   clearLifecycleState(id: string): void {
     const entry = this.entries.get(id);
     if (entry) entry.lifecycle = DEFAULT_LIFECYCLE;

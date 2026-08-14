@@ -10,7 +10,7 @@ const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capability/platform.ts', import.meta.url));
 const CAPABILITY_DIR = fileURLToPath(new URL('../../src/capability/', import.meta.url));
 const MIGRATED_CLI_FILES = new Set<string>([
-  fileURLToPath(new URL('../../src/cli/commands/capabilities.ts', import.meta.url)),
+  fileURLToPath(new URL('../../src/cli/commands/capability.ts', import.meta.url)),
 ]);
 
 const CAPABILITY_REGISTRY_RE = /new\s+CapabilityRegistry\s*\(/g;
