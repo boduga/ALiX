@@ -137,7 +137,7 @@ All 19 §20 criteria green:
 | 9 | provider fallback works without changing capability identity | CAP-4 | `tests/capability/fallback.vitest.ts` test 1, 5 | PASS |
 | 10 | current capability state comes from the registry | CAP-3 | `tests/capability/registry.vitest.ts` | PASS |
 | 11 | A7 ledger is history/governance, not current capability state | CAP-9 | `tests/capability/cap-12-e2e.vitest.ts` step 14 | PASS |
-| 12 | A7 register can be approved and actually applied | CAP-6, CAP-9 | `tests/capability/cap-12-e2e.vitest.ts` step 9-11 | PASS *with caveat* |
+| 12 | A7 register can be approved and actually applied | CAP-6, CAP-9 | `tests/capability/cap-12-e2e.vitest.ts` step 9-11 | PASS |
 | 13 | registration applies a complete definition, not a placeholder | CAP-2, CAP-6, CAP-9 | `tests/capability/capability-service-apply.vitest.ts` | PASS |
 | 14 | A4 remains the mutation boundary | CAP-6 | `src/capability/evolution/execution/capability-mutation-executor.ts` | PASS |
 | 15 | A5 measures actual post-application outcomes | CAP-10 | `tests/capability/cap-12-e2e.vitest.ts` step 13 | PASS |
@@ -147,6 +147,8 @@ All 19 §20 criteria green:
 | 19 | documentation no longer presents A7.0/A7.1 split-registry assumptions as active architecture | CAP-11, CAP-12 | `tests/capability/cap-12-sentinel.vitest.ts` axis 4 + `docs/architecture/README.md` | PASS |
 
 **§20 #12 caveat:** The `apply()` path's candidate → mutation mapping currently hardcodes `capability.transition` (CAP-9 conservative stub at `src/capability/capability-service.ts:702,704`). The `gap → capability.create` mapping is a deferred CAP-N follow-up. The e2e test asserts the proposal lifecycle (proposal.submitted → proposal.approved → proposal.executed) and the catalog preservation (no spurious additions/removals), which is the actual behavior of the current production path. The carve-out was user-approved (2026-08-14).
+
+**§20 #12 closed by CAP-N at 518e226d — 2026-08-14.** `apply()` now routes per `sourcePatternId`: `gap` → `capability.create`, `deprecation_signal` → `capability.remove`, others → `capability.transition`. E2E step 12b (`tests/capability/cap-12-e2e.vitest.ts`) asserts a gap proposal actually grows the catalog by one. The §20 #12 evidence row now reads plain "PASS" without caveat.
 
 ---
 
