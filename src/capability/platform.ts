@@ -87,7 +87,6 @@ export class CapabilityPlatform {
       const observationEngine = new ObservationEngine();
       measurementEngine = new CapabilityMeasurementEngine({
         catalog: this.catalog,
-        eventLog: opts.eventLog,
         a5: opts.a5CapabilityMeasurement,
         observationEngine,
       });
