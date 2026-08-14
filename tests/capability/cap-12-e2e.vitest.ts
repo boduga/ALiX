@@ -63,6 +63,7 @@ import type { CapabilityServiceOptions } from "../../src/capability/types/servic
 import { CapabilityService } from "../../src/capability/capability-service.js";
 import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
+import { CapabilityMutationExecutor as CapabilityMutationExecutorImpl } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
 import { legacyToCanonicalDefinition } from "../../src/capability/legacy-adapter.js";
 
@@ -750,6 +751,86 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
       afterItems.some((c) => c.id === newCapId),
       "gap-candidate apply() must NOT add the new id to the catalog (CAP-N carve-out)",
     ).toBe(false);
+  });
+
+  // ─── Step 12b: apply(gap-candidate) registers new capability in catalog ──
+  // CAP-N end-to-end proof that a `gap` candidate actually registers a
+  // new capability via the FULL `apply()` → executor → catalog write
+  // path. Unlike steps 9/10 (which use a stub executor that never
+  // mutates the catalog), this step uses the REAL
+  // `CapabilityMutationExecutor` bound to the platform's catalog and
+  // registry — so `executeCreate` actually calls
+  // `catalog.register(...)` and the catalog grows by exactly one.
+  //
+  // Note: per A7's `signalToCandidate` (`src/capability/evolution/
+  // a7-proposals.ts:194-205`), `gap` signals always yield
+  // `target.id = "new.${candidateId}"` where
+  // `candidateId = "a7-${kind}-${signal.capabilityId ?? 'new'}"`.
+  // The test reads `proposal.candidate.target.id` after `propose()`
+  // to know the exact id the executor will register.
+  it("step 12b: apply(gap-candidate) registers new capability in catalog", async () => {
+    // Baseline: catalog size before this test's propose+apply.
+    const beforeCount = platform.service.list().items.length;
+
+    // Build a sibling service with a REAL executor (not the stub used
+    // by steps 9-12). The executor shares the platform's catalog +
+    // registry, so any mutation it performs is observable via
+    // `platform.service.list().items`.
+    const platformCatalog = (platform.service as unknown as { readonly catalog: CapabilityCatalog }).catalog;
+    const platformResolver = (platform.service as unknown as { readonly resolver: CapabilityResolver }).resolver;
+    const platformRegistry = (platform as unknown as { readonly registry: CapabilityRegistry }).registry;
+    const realExecutor = new CapabilityMutationExecutorImpl({
+      catalog: platformCatalog,
+      registry: platformRegistry,
+    });
+    const newCapId = "test.cap-n.step12b";
+    const generator = new A7ProposalGenerator({
+      signalSource: new FakeSignalSource([
+        {
+          kind: "gap",
+          capabilityId: newCapId,
+          score: 0.92,
+          evidenceIds: ["cap-n-step12b-evidence"],
+        },
+      ]),
+    });
+    const sibling = new CapabilityService({
+      catalog: platformCatalog,
+      resolver: platformResolver,
+      mutationExecutor: realExecutor as unknown as CapabilityMutationExecutor,
+      eventLog,
+      proposalGenerator: generator,
+    } as CapabilityServiceOptions);
+
+    // Drive propose() → apply(). propose() reads from the A7 generator
+    // (FakeSignalSource feeds one gap signal); apply() routes through
+    // the real executor and the executor's `executeCreate` writes to
+    // the shared catalog.
+    const proposal = await sibling.propose();
+    expect(proposal.status).toBe("pending");
+    expect(proposal.candidate.sourcePatternId).toBe("gap");
+
+    // The catalog id is `new.${candidateId}` per A7's mapper. Verify
+    // before apply so we can assert presence + uniqueness after.
+    const expectedId = proposal.candidate.target.id;
+    expect(expectedId).toMatch(/^new\.a7-gap-/);
+    expect(platformCatalog.has(expectedId)).toBe(false);
+
+    const applyResult = await sibling.apply({ proposalId: proposal.proposalId });
+    expect(applyResult.status).toBe("executed");
+
+    // Real assertion 1: catalog grew by exactly one.
+    const afterCount = platform.service.list().items.length;
+    expect(afterCount).toBe(beforeCount + 1);
+
+    // Real assertion 2: the new capability id (`candidate.target.id`)
+    // appears in `service.list().items`.
+    const afterIds = platform.service.list().items.map((c) => c.id);
+    expect(afterIds).toContain(expectedId);
+
+    // Real assertion 3: the catalog authority agrees the id is
+    // registered (independent projection surface).
+    expect(platformCatalog.has(expectedId)).toBe(true);
   });
 
   // ─── Step 13: service.measure() records measurement.measured event ───────
