@@ -18,8 +18,13 @@ import { join } from "node:path";
  * `capability-lifecycle-cli.ts` to wire governance CLI switch cases
  * (`proposals` / `approve` / `reject`) through the new CapabilityService
  * surface. The CAP-11 cliff is preserved by other sentinels
- * (`governance-cli.test.ts`, `four-axis-sentinel.vitest.ts`); this
- * supersession test focuses on CAP-9 forbidden imports.
+ * (`governance-cli.test.ts`, `four-axis-sentinel.vitest.ts` → retired
+ * and replaced by `cap-11-structural-cleanup-sentinel.vitest.ts`);
+ * this supersession test focuses on CAP-9 forbidden imports.
+ *
+ * CAP-9 originally protected that surface; CAP-11 subsequently
+ * retired it (see `cap-11-supersession.test.ts`). This test is now an
+ * audit pointer, not an assertion against the lifecycle surface.
  *
  * Bug 3 amendment: brief's "5-file debt allowlist" test only asserted
  * the CAP-8 service class still exists — a vacuous check that did not

@@ -76,12 +76,12 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
       }
     });
 
-    it("legacy measurer file remains untouched (CAP-11 cliff)", () => {
-      const legacy = readSrc(
-        "src/evolution/capability-lifecycle/capability-lifecycle-measurer.ts",
-      );
-      assert.ok(legacy.length > 0, "Legacy measurer file still exists.");
-      assert.match(legacy, /class\s+CapabilityLifecycleMeasurer/);
+    it("legacy measurer file retired by CAP-11 (was: CAP-11 cliff)", () => {
+      // CAP-10 originally protected the legacy measurer file.
+      // CAP-11 subsequently retired it (see
+      // `cap-11-supersession.test.ts` for authoritative deletion proof).
+      // This assertion is now an audit pointer, not an existence check.
+      assert.ok(true);
     });
   });
 
