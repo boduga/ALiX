@@ -557,6 +557,46 @@ export class CapabilityService {
     });
   }
 
+  // CAP-O test seam — not for production use.
+  /**
+   * CAP-O T1 — test-only seam that bypasses A7's `proposalGenerator`
+   * and persists a hand-rolled `CapabilityEvolutionCandidate` directly.
+   * Used by tests that need to exercise `applyProposal` with candidates
+   * A7 cannot produce (e.g. an `underperformer` candidate missing or
+   * with an empty `proposedPatch`, which T2's guard will reject).
+   *
+   * Gated behind `process.env.CAPABILITY_TEST_SEAM === "1"` so production
+   * callers that happen to invoke this method receive a clear error
+   * instead of silently persisting a candidate that bypassed A7's purity
+   * invariants (locked ruling #14).
+   *
+   * Surface mirrors `propose()`'s `CapabilityProposeResult` shape so test
+   * assertions read identically across the two paths.
+   *
+   * Test infrastructure — not for production use.
+   */
+  async proposeDirect(
+    candidate: CapabilityEvolutionCandidate,
+  ): Promise<CapabilityProposeResult> {
+    if (process.env["CAPABILITY_TEST_SEAM"] !== "1") {
+      throw new Error(
+        "proposeDirect is a CAP-O test seam — set CAPABILITY_TEST_SEAM=1 in the test environment",
+      );
+    }
+    const current = this.catalog.get(candidate.target.id);
+    const sourceVersion: string | null = current?.version ?? null;
+    const { proposalId } = await this.proposalStore.submit(
+      candidate,
+      candidate.evidenceIds,
+      sourceVersion,
+    );
+    return Object.freeze({
+      proposalId,
+      status: "pending" as const,
+      candidate,
+    });
+  }
+
   /**
    * CAP-9 ruling #10, #22, #23 — pure projection over the shared
    * EventLog. No catalog reads, no registry reads, no service state.
