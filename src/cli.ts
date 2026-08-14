@@ -2208,43 +2208,6 @@ if (command === "executive") {
   process.exit(0);
 }
 
-// ── Capabilities command (A7.0/A7.1) ────────────────────────────
-if (command === "capabilities") {
-  const { handleCapabilitiesCommand } = await import("./cli/commands/capabilities.js");
-  const { CapabilityPlatform } = await import("./capability/platform.js");
-  const { JsonlCapabilityLifecycleLedger, DEFAULT_CAPABILITY_LIFECYCLE_FILE } =
-    await import("./evolution/capability-lifecycle/capability-lifecycle-ledger.js");
-  const { CapabilityEvolutionStore } = await import("./adaptation/capability-evolution-store.js");
-  const { rehydrateLifecycleOverlay } =
-    await import("./evolution/capability-lifecycle/capability-lifecycle-rehydration.js");
-  const { EventLog } = await import("./events/event-log.js");
-  const cwd = process.cwd();
-  const sessionDir = join(cwd, ".alix", "sessions", "capabilities-cmd");
-  // CAP-3: build the composition root once — the registry is the canonical
-  // catalog projection with the mutation port wired inside the platform.
-  // CAP-8: supply an authoritative EventLog (locked ruling #12); the
-  // platform never instantiates one internally.
-  const eventLog = new EventLog(sessionDir);
-  const platform = new CapabilityPlatform({ catalogDir: join(cwd, ".alix", "capabilities"), eventLog });
-  const ledger = new JsonlCapabilityLifecycleLedger(DEFAULT_CAPABILITY_LIFECYCLE_FILE);
-  const store = new CapabilityEvolutionStore(join(cwd, ".alix", "capability-evolution"));
-  // The registry overlay is a runtime projection of persisted applied records —
-  // rehydrate it before the command reads/mutates state (spec §8).
-  await rehydrateLifecycleOverlay(platform.registry, ledger);
-  // CAP-8: route through `service.*` per locked ruling #7; the legacy
-  // A7.0 governance applier still receives the registry through the
-  // CAP-11-debt `registry` accessor field until CAP-11 migrates it.
-  // CAP-9 Task 9: the new proposals/approve/reject subcommands return
-  // numeric exit codes (0/1/2/3). Forward that exit code; legacy
-  // subcommands (list/inspect/etc.) still `process.exit(1)` themselves
-  // on usage error, so we only override when an explicit code is returned.
-  const exitCode = await handleCapabilitiesCommand(args, {
-    cwd, ledger, service: platform.service, registry: platform.registry, store,
-  });
-  if (typeof exitCode === "number") process.exit(exitCode);
-}
-
-
 // ── Baseline command (P10.10) ──────────────────────────────────
 if (command === "baseline") {
   const { handleBaselineCommand } = await import("./cli/commands/baseline.js");
