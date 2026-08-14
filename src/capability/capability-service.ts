@@ -41,12 +41,16 @@ import { CapabilityServiceNotImplementedError } from "./errors/service-not-imple
 import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
 import { ProposalStore } from "./governance/proposal-store.js";
 import {
-  GOVERNANCE_EVENT_PREFIX,
   isGovernanceEventType,
   projectCapabilityMutationResult,
   type CapabilityGovernanceEventProjection,
   type ProposalSubmittedPayload,
 } from "./governance/governance-types.js";
+import type { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
+import {
+  MEASUREMENT_EVENT_PREFIX,
+  MEASUREMENT_GOVERNANCE_PREFIX,
+} from "./measurement/measurement-event-types.js";
 import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
 import type {
   CapabilityProposeResult,
@@ -89,6 +93,10 @@ export class CapabilityService {
   /** CAP-9 ruling #5 — A7 proposal intelligence. Optional so backward-compat
    *  CAP-8 read-only consumers keep constructing the service without it. */
   private readonly proposalGenerator?: A7ProposalGenerator;
+  /** CAP-10 ruling #22 — measurement engine. Optional. Absent →
+   *  `service.measure()` throws `CapabilityServiceNotImplementedError`
+   *  (CAP-8 ruling #4 preserved). NEVER required. */
+  private readonly measurementEngine?: CapabilityMeasurementEngine;
   /** CAP-9 ruling #19 — derive from `eventLog` so the service does not
    *  grow a separate persistence constructor dep. */
   private readonly proposalStore: ProposalStore;
@@ -99,6 +107,7 @@ export class CapabilityService {
     this.executor = opts.mutationExecutor;
     this.eventLog = opts.eventLog;
     this.proposalGenerator = opts.proposalGenerator;
+    this.measurementEngine = opts.measurementEngine;
     this.proposalStore = new ProposalStore({ eventLog: this.eventLog });
     Object.freeze(this); // service surface is immutable post-construction.
   }
@@ -561,9 +570,16 @@ export class CapabilityService {
       return Object.freeze({ events: [] });
     }
     const all = await this.eventLog.readAll();
+    // CAP-10 ruling #6, #20 — widens filter from
+    // `capability.governance.proposal.` (CAP-9) to the parent
+    // `capability.governance.` prefix so projection includes both
+    // `proposal.*` (CAP-9) AND `measurement.*` (CAP-10) events.
+    // Pure projection — never calculate, reinterpret, or override
+    // events.
     const governanceEvents = all.filter(
       (e): e is AlixEvent =>
-        typeof e.type === "string" && e.type.startsWith(GOVERNANCE_EVENT_PREFIX),
+        typeof e.type === "string" &&
+        e.type.startsWith(MEASUREMENT_GOVERNANCE_PREFIX),
     );
     const filtered = capabilityId
       ? governanceEvents.filter((e) => {
@@ -571,7 +587,9 @@ export class CapabilityService {
           return payload?.candidate?.target?.id === capabilityId;
         })
       : governanceEvents;
-    const projections: CapabilityGovernanceEventProjection[] = filtered.map(toProjection);
+    const projections: Array<
+      CapabilityGovernanceEventProjection | import("./types/service-results.js").CapabilityMeasurementEventProjection
+    > = filtered.map(toProjection);
     return Object.freeze({ events: projections });
   }
 
@@ -597,11 +615,23 @@ export class CapabilityService {
   }
 
   /**
-   * Forward-wired stub (locked ruling #4). Body lands in CAP-10.
-   * Throws `CapabilityServiceNotImplementedError` (code `not_implemented_yet`).
+   * CAP-10 ruling #2, #22 — measure a capability at id@version.
+   * Optional baseline via `baselineObservationId?`.
+   * Delegates to the injected `CapabilityMeasurementEngine`
+   * (ruling #8, #18). Absent engine →
+   * `CapabilityServiceNotImplementedError` (CAP-8 ruling #4 preserved).
    */
-  async measure(_input: unknown): Promise<never> {
-    throw new CapabilityServiceNotImplementedError("measure() lands in CAP-10");
+  async measure(input: {
+    capabilityId: string;
+    version: string;
+    baselineObservationId?: string;
+  }): Promise<import("./types/service-results.js").CapabilityMeasureResult> {
+    if (!this.measurementEngine) {
+      throw new CapabilityServiceNotImplementedError(
+        "measure() requires measurementEngine",
+      );
+    }
+    return this.measurementEngine.measure(input);
   }
 }
 
@@ -610,12 +640,33 @@ export class CapabilityService {
 // ---------------------------------------------------------------------------
 
 /**
- * Project an EventLog event into a `CapabilityGovernanceEventProjection`.
+ * Project an EventLog event into a governance projection.
  * Pops the locked `capability.governance.proposal.` prefix for the
  * type-narrowing cast; the long-form literal is preserved in the projection
  * so consumers can filter by prefix alone (ruling #1).
+ *
+ * CAP-10 ruling #6 — measurement events (`capability.governance.measurement.*`)
+ * fall through the widened governance filter; they project to
+ * `CapabilityMeasurementEventProjection` (no `proposalId` field — the
+ * measurement payload carries the capability id@version directly).
+ *
+ * Pure projection — never calculate, reinterpret, or override events
+ * (ruling #6).
  */
-function toProjection(e: AlixEvent): CapabilityGovernanceEventProjection {
+function toProjection(
+  e: AlixEvent,
+): CapabilityGovernanceEventProjection | import("./types/service-results.js").CapabilityMeasurementEventProjection {
+  if (
+    typeof e.type === "string" &&
+    e.type.startsWith(MEASUREMENT_EVENT_PREFIX)
+  ) {
+    return Object.freeze({
+      seq: e.seq,
+      timestamp: e.timestamp,
+      type: e.type as "capability.governance.measurement.measured",
+      payload: e.payload as import("./measurement/measurement-event-types.js").CapabilityMeasurementPayload,
+    }) as import("./types/service-results.js").CapabilityMeasurementEventProjection;
+  }
   const type = e.type as CapabilityGovernanceEventProjection["type"];
   if (!isGovernanceEventType(type)) {
     throw new Error(`Unknown governance event type: ${e.type}`);

@@ -13,6 +13,9 @@ import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
 import type { A7ProposalGenerator } from "./evolution/a7-proposals.js";
+import type { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
+import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
+import { ObservationEngine } from "../evolution/observation/observation-engine.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
 import type { CapabilityQuery } from "./registry.js";
@@ -39,12 +42,18 @@ export class CapabilityPlatform {
    *  to the platform (locked ruling #12 — EventLog is authoritative). */
   readonly service: CapabilityService;
 
+  /** CAP-10 — measurement engine instance (optional). Absent when the
+   *  platform was constructed without `a5CapabilityMeasurement`
+   *  (ruling #18). Exposed for tests + downstream wiring; service.measure()
+   *  remains the public surface (CAP-8 ruling #2). */
+  readonly measurementEngine?: CapabilityMeasurementEngine;
+
   /** CapabilityPlatform constructor opts (locked ruling #12 — `eventLog`
    *  is REQUIRED; the platform never instantiates an EventLog internally).
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -71,13 +80,26 @@ export class CapabilityPlatform {
     // CAP-8 — construct the service with the platform's resolver and
     // the same EventLog supplied by the caller (ruling #12). The
     // service is the only public capability surface (ruling #2).
+    // CAP-10 ruling #18 — compose A5 implementation into a measurement engine (optional).
+    let measurementEngine: CapabilityMeasurementEngine | undefined;
+    if (opts.a5CapabilityMeasurement) {
+      const observationEngine = new ObservationEngine();
+      measurementEngine = new CapabilityMeasurementEngine({
+        catalog: this.catalog,
+        eventLog: opts.eventLog,
+        a5: opts.a5CapabilityMeasurement,
+        observationEngine,
+      });
+    }
     this.service = new CapabilityService({
       catalog: this.catalog,
       resolver,
       mutationExecutor,
       eventLog: opts.eventLog,
       proposalGenerator: opts.proposalGenerator,
+      ...(measurementEngine !== undefined ? { measurementEngine } : {}),
     });
+    this.measurementEngine = measurementEngine;
   }
 
   register(capability: Capability): void { this.registry.register(capability); }
