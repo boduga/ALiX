@@ -32,14 +32,18 @@ import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
+  ProposalSignalSink,
 } from "../../src/capability/evolution/a7-proposals.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
 
-class FakeSignalSource implements ProposalSignalSource {
-  constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
+class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
+  constructor(private readonly seedSignals: ReadonlyArray<CapabilityEvolutionSignal>) {}
+  async publish(_signal: CapabilityEvolutionSignal): Promise<void> {
+    // no-op — sink side unused in these tests (channel wired by composition root)
+  }
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return this.items;
+    return this.seedSignals;
   }
 }
 
@@ -74,7 +78,7 @@ describe("CapabilityService.governance (CAP-9 rulings #10, #22, #23)", () => {
       mutationExecutor: new StubExecutor() as unknown as CapabilityMutationExecutor,
       eventLog,
       proposalGenerator: new A7ProposalGenerator({
-        signalSource: new FakeSignalSource([
+        signalSource: new FakeSignalChannel([
           { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-1"] },
         ]),
       }),

@@ -3,6 +3,8 @@
 
 /**
  * CAP-9 Task 7 — Platform composition root wires `proposalGenerator`.
+ * CAP-10.5 — Platform composition root also owns the sole ProposalSignalChannel
+ *            instance and auto-constructs A7 bound to the channel.
  *
  * Brief Step 1 asserted `platform.service` was missing; bug 1 in the
  * triage corrected that to verifying the NEW wiring — that an injected
@@ -12,9 +14,10 @@
  *   - `platform.service` is a defined `CapabilityService` (already true
  *     from CAP-8).
  *   - When constructed with `proposalGenerator`, `service.propose()`
- *     succeeds (does not throw `CapabilityServiceNotImplementedError`).
- *   - Without `proposalGenerator`, `service.propose()` throws the
- *     stable `CapabilityServiceNotImplementedError` (CAP-8 ruling #4).
+ *     succeeds (does not throw).
+ *   - Without `proposalGenerator`, the composition root (CAP-10.5) auto-constructs
+ *     an A7ProposalGenerator bound to the empty ProposalSignalChannel —
+ *     `service.propose()` surfaces the stable A7-zero-candidates error.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -26,14 +29,17 @@ import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
+  ProposalSignalSink,
 } from "../../src/capability/evolution/a7-proposals.js";
 import { EventLog } from "../../src/events/event-log.js";
-import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
 
-class FakeSignalSource implements ProposalSignalSource {
-  constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
+class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
+  constructor(private readonly seedSignals: ReadonlyArray<CapabilityEvolutionSignal>) {}
+  async publish(_signal: CapabilityEvolutionSignal): Promise<void> {
+    // no-op — sink side unused in these tests (channel wired by composition root)
+  }
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return this.items;
+    return this.seedSignals;
   }
 }
 
@@ -64,7 +70,7 @@ describe("CapabilityPlatform — CAP-9 wiring (proposalGenerator)", () => {
 
   it("wires proposalGenerator through to the service (observable via propose())", async () => {
     const generator = new A7ProposalGenerator({
-      signalSource: new FakeSignalSource([
+      signalSource: new FakeSignalChannel([
         { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-1"] },
       ]),
     });
@@ -80,10 +86,14 @@ describe("CapabilityPlatform — CAP-9 wiring (proposalGenerator)", () => {
     expect(result.candidate.target.kind).toBe("capability");
   });
 
-  it("without proposalGenerator, service.propose() throws stable not-implemented error (CAP-8 ruling #4)", async () => {
+  it("auto-constructs A7 with channel signalSource when proposalGenerator not provided (CAP-10.5 ruling #R4); empty channel surfaces stable A7-zero-candidates error", async () => {
     const platform = new CapabilityPlatform({ eventLog });
-    await expect(platform.service.propose()).rejects.toBeInstanceOf(
-      CapabilityServiceNotImplementedError,
+    // CAP-10.5 — composition root constructs an A7ProposalGenerator bound to the
+    // ProposalSignalChannel. Empty channel → A7 produces no candidates → the
+    // service surfaces its stable "no candidates" error (no fallback to the
+    // CAP-8 not-implemented stub).
+    await expect(platform.service.propose()).rejects.toThrow(
+      /A7 produced no candidates/,
     );
   });
 });
