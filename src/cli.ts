@@ -2208,6 +2208,25 @@ if (command === "executive") {
   process.exit(0);
 }
 
+// ── Capability command (singular; CAP-11 owner of alix capability namespace) ──
+if (command === "capability") {
+  const { handleCapabilityCommand } = await import("./cli/commands/capability.js");
+  const { CapabilityPlatform } = await import("./capability/platform.js");
+  const { EventLog } = await import("./events/event-log.js");
+  const cwd = process.cwd();
+  const sessionDir = join(cwd, ".alix", "sessions", "capability-cmd");
+  const eventLog = new EventLog(sessionDir);
+  const platform = new CapabilityPlatform({
+    catalogDir: join(cwd, ".alix", "capabilities"),
+    eventLog,
+  });
+  const exitCode = await handleCapabilityCommand(args, {
+    cwd,
+    service: platform.service,
+  });
+  if (typeof exitCode === "number") process.exit(exitCode);
+}
+
 // ── Baseline command (P10.10) ──────────────────────────────────
 if (command === "baseline") {
   const { handleBaselineCommand } = await import("./cli/commands/baseline.js");
