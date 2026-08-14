@@ -2,147 +2,242 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * CAP-10 Task 4 — A5CapabilityMeasurement concrete implementation.
+ * CAP-10.5 Task 5 — A5CapabilityMeasurement locked pipeline.
  *
  * Asserts that A5CapabilityMeasurement:
- *   - returns effective outcome when post observation passes (ruling #7, #8)
- *   - returns ineffective outcome when post observation fails (ruling #7)
- *   - returns inconclusive when observation engine returns error (ruling #16)
- *   - consults signalSource via signals() (ruling #12)
- *   - uses injected OutcomeDecider when supplied
- *   - does NOT mutate catalog/registry (axis 5 purity)
+ *   - uses the new sink-based emission pipeline (ruling #R1, #R2)
+ *   - default decider emits `underperformer` for `ineffective` ONLY (ruling #R3)
+ *   - records `measured` event BEFORE publishing signals (commit point)
+ *   - on sink failure, records `signals_unpublished` event with the failed
+ *     signal IDs (ruling #R5)
+ *   - never mutates decider-produced signals (ruling #R3)
+ *   - returns the outcome regardless of publish failure
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import {
-  A5CapabilityMeasurement,
-  type OutcomeDecider,
-} from "../../src/evolution/observation/a5-capability-measurement.js";
-import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { ObservationProvider, Observation, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
-import { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
-import { CapabilityDefinitionStore } from "../../src/capability/canonical/catalog-store.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
+import { describe, it, expect } from "vitest";
+import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
+import type { OutcomeDecider } from "../../src/evolution/observation/a5-capability-measurement.js";
+import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import type { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
+import type { ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
+import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
+import type { EventLog } from "../../src/events/event-log.js";
 
-class FakePassProvider implements ObservationProvider {
-  readonly name = "native";
-  readonly capabilities = ["test"];
-  async observe(_o: Observation): Promise<ObservationResult> {
-    return {
-      observationId: _o.observationId,
-      status: "pass",
-      confidence: 0.95,
-      observedAt: new Date().toISOString(),
-      evidence: { ok: true },
-    };
+// --- minimal in-memory fakes ---
+
+class FakeCatalog implements Pick<CapabilityCatalog, "get"> {
+  get(id: string) {
+    return { id, bindings: [{ type: "native" }] } as unknown as ReturnType<CapabilityCatalog["get"]>;
   }
 }
 
-class FakeFailProvider implements ObservationProvider {
-  readonly name = "native";
-  readonly capabilities = ["test"];
-  async observe(_o: Observation): Promise<ObservationResult> {
-    return {
-      observationId: _o.observationId,
-      status: "fail",
-      confidence: 0.85,
-      observedAt: new Date().toISOString(),
-      evidence: { ok: false },
-      observed: { score: 0.1 },
-      expected: { score: 0.9 },
-    };
+class FakeEngine {
+  constructor(private readonly post: ObservationResult) {}
+  async observe(): Promise<ObservationResult> {
+    return this.post;
   }
 }
 
-class CapturingSignalSource implements ProposalSignalSource {
-  consumed = 0;
-  async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    this.consumed += 1;
-    return [];
+class CollectingSink implements ProposalSignalSink {
+  public readonly published: CapabilityEvolutionSignal[] = [];
+  public shouldThrow = false;
+  async publish(signal: CapabilityEvolutionSignal): Promise<void> {
+    if (this.shouldThrow) throw new Error("boom");
+    this.published.push(signal);
   }
 }
 
-describe("A5CapabilityMeasurement (CAP-10 ruling #7, #8, #12, #15)", () => {
-  let dir: string;
-  let engine: ObservationEngine;
-  let catalog: CapabilityCatalog;
-  let signalSource: CapturingSignalSource;
-  let a5: A5Measurement;
+class FakeEventLog {
+  public readonly events: Record<string, unknown>[] = [];
+  async append<TType extends string, TPayload>(event: { type: TType; payload: TPayload }): Promise<{ seq: number }> {
+    const seq = this.events.length + 1;
+    this.events.push({ ...event, seq });
+    return { seq };
+  }
+}
 
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "cap10-a5-"));
-    engine = new ObservationEngine();
-    catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
-    signalSource = new CapturingSignalSource();
-    a5 = new A5CapabilityMeasurement({
-      observationEngine: engine,
-      signalSource,
-      catalog,
+// --- helpers ---
+
+function buildMeasurement(opts: {
+  sink?: CollectingSink;
+  eventLog?: FakeEventLog;
+  decider?: OutcomeDecider;
+  postStatus?: "pass" | "fail" | "error";
+}) {
+  const post: ObservationResult = {
+    observationId: "obs-post",
+    status: opts.postStatus ?? "pass",
+    confidence: 0.8,
+    observedAt: new Date().toISOString(),
+    evidence: {},
+  };
+  const engine = new FakeEngine(post);
+  const sink = opts.sink ?? new CollectingSink();
+  const eventLog = opts.eventLog ?? new FakeEventLog();
+  const m = new A5CapabilityMeasurement({
+    observationEngine: engine as unknown as ObservationEngine,
+    signalSink: sink,
+    catalog: new FakeCatalog() as unknown as CapabilityCatalog,
+    eventLog: eventLog as unknown as EventLog,
+    ...(opts.decider ? { outcomeDecider: opts.decider } : {}),
+  });
+  return { m, sink, eventLog, engine };
+}
+
+// --- tests ---
+
+describe("A5CapabilityMeasurement default decider (CAP-10.5 ruling #R3)", () => {
+  it("effective → no signals published", async () => {
+    const { m, sink } = buildMeasurement({ postStatus: "pass" });
+    const out = await m.measureCapability({ capabilityId: "cap", version: "1" });
+    expect(out.kind).toBe("effective");
+    expect(sink.published).toEqual([]);
+  });
+
+  it("ineffective → exactly one underperformer published with locked fields", async () => {
+    const { m, sink } = buildMeasurement({ postStatus: "fail" });
+    const out = await m.measureCapability({ capabilityId: "cap-x", version: "1.0.0" });
+    expect(out.kind).toBe("ineffective");
+    expect(sink.published).toHaveLength(1);
+    const s = sink.published[0]!;
+    expect(s.kind).toBe("underperformer");
+    if (s.kind === "underperformer") {
+      expect(s.capabilityId).toBe("cap-x@1.0.0");
+      expect(s.score).toBeCloseTo(0.8);
+      expect(s.evidenceIds).toContain("obs-post");
+    }
+  });
+
+  it("inconclusive → no signals published", async () => {
+    const { m, sink } = buildMeasurement({ postStatus: "error" });
+    const out = await m.measureCapability({ capabilityId: "cap", version: "1" });
+    expect(out.kind).toBe("inconclusive");
+    expect(sink.published).toEqual([]);
+  });
+});
+
+describe("A5CapabilityMeasurement custom decider (CAP-10.5 ruling #R3)", () => {
+  it("decider can emit a gap signal", async () => {
+    const gap: CapabilityEvolutionSignal = { kind: "gap", score: 0.7, evidenceIds: [] };
+    const { m, sink } = buildMeasurement({
+      postStatus: "fail",
+      decider: () => ({
+        kind: "ineffective",
+        evidenceRefs: ["obs-post"],
+        confidence: 0.4,
+        summary: "x",
+        signals: [gap],
+      }),
     });
+    await m.measureCapability({ capabilityId: "cap", version: "1" });
+    expect(sink.published).toEqual([gap]);
   });
 
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it("returns effective outcome when post passes", async () => {
-    engine.register(new FakePassProvider());
-    const outcome = await a5.measureCapability({ capabilityId: "x", version: "1.0.0" });
-    expect(outcome.kind).toBe("effective");
-    expect(outcome.confidence).toBeGreaterThan(0);
-    expect(outcome.summary.length).toBeGreaterThan(0);
-    expect(Array.isArray(outcome.evidenceRefs)).toBe(true);
-    expect(Array.isArray(outcome.signals)).toBe(true);
-  });
-
-  it("returns ineffective outcome when post fails", async () => {
-    engine.register(new FakeFailProvider());
-    const outcome = await a5.measureCapability({ capabilityId: "x", version: "1.0.0" });
-    expect(outcome.kind).toBe("ineffective");
-  });
-
-  it("returns inconclusive when observation engine returns error (ruling #16)", async () => {
-    const errorProvider: ObservationProvider = {
-      name: "native",
-      capabilities: ["test"],
-      async observe(_o) { throw new Error("provider down"); },
-    };
-    engine.register(errorProvider);
-    const outcome = await a5.measureCapability({ capabilityId: "x", version: "1.0.0" });
-    expect(outcome.kind).toBe("inconclusive");
-  });
-
-  it("consults signalSource via signals() (ruling #12)", async () => {
-    engine.register(new FakePassProvider());
-    await a5.measureCapability({ capabilityId: "x", version: "1.0.0" });
-    expect(signalSource.consumed).toBeGreaterThanOrEqual(1);
-  });
-
-  it("uses injected OutcomeDecider when supplied", async () => {
-    let called = false;
-    const decider: OutcomeDecider = (_post, _baseline) => {
-      called = true;
-      return {
-        kind: "inconclusive",
-        evidenceRefs: [],
-        confidence: 0.0,
-        summary: "decider-forced",
-        signals: [],
-      };
-    };
-    const custom = new A5CapabilityMeasurement({
-      observationEngine: engine,
-      signalSource,
-      catalog,
-      outcomeDecider: decider,
+  it("A5 never modifies decider-produced signals (frozen array)", async () => {
+    const sig: CapabilityEvolutionSignal = { kind: "underperformer", capabilityId: "a@1", score: 0.4, evidenceIds: [] };
+    const arr: CapabilityEvolutionSignal[] = [sig];
+    Object.freeze(arr);
+    const { m, sink } = buildMeasurement({
+      postStatus: "fail",
+      decider: () => ({
+        kind: "ineffective",
+        evidenceRefs: ["obs-post"],
+        confidence: 0.4,
+        summary: "x",
+        signals: arr,
+      }),
     });
-    engine.register(new FakePassProvider());
-    const outcome = await custom.measureCapability({ capabilityId: "x", version: "1.0.0" });
-    expect(called).toBe(true);
-    expect(outcome.summary).toBe("decider-forced");
+    await m.measureCapability({ capabilityId: "cap", version: "1" });
+    expect(sink.published).toHaveLength(1);
+    expect(arr).toHaveLength(1); // unchanged
+  });
+});
+
+describe("A5CapabilityMeasurement locked pipeline (CAP-10.5 ruling #R2)", () => {
+  it("measured event appended before publish (commit point is step 3)", async () => {
+    const order: string[] = [];
+    const sink = new CollectingSink();
+    sink.publish = async (s: CapabilityEvolutionSignal) => {
+      order.push(`publish:${s.kind}`);
+      (sink as CollectingSink).published.push(s);
+    };
+    const eventLog = new FakeEventLog();
+    const originalAppend = eventLog.append.bind(eventLog);
+    eventLog.append = async (e: { type: string; payload: unknown }) => {
+      order.push("append:measured");
+      return originalAppend(e);
+    };
+    const { m } = buildMeasurement({ sink, eventLog, postStatus: "fail" });
+    await m.measureCapability({ capabilityId: "cap", version: "1" });
+    const appendIdx = order.indexOf("append:measured");
+    const publishIdx = order.findIndex((s) => s.startsWith("publish:"));
+    expect(appendIdx).toBeGreaterThanOrEqual(0);
+    expect(publishIdx).toBeGreaterThan(appendIdx);
+  });
+
+  it("sink throws → records signals_unpublished + returns successful outcome", async () => {
+    const sink = new CollectingSink();
+    sink.shouldThrow = true;
+    const eventLog = new FakeEventLog();
+    const { m } = buildMeasurement({ sink, eventLog, postStatus: "fail" });
+    const out = await m.measureCapability({ capabilityId: "cap-x", version: "1.0.0" });
+    expect(out.kind).toBe("ineffective");
+    const unpublished = eventLog.events.find(
+      (e: any) => e.type === "capability.governance.measurement.signals_unpublished",
+    );
+    expect(unpublished).toBeDefined();
+    const p = (unpublished as any).payload;
+    expect(p.measurementEventId).toBeDefined();
+    expect(p.signalCount).toBe(p.signalIds.length);
+    expect(p.signalIds).toHaveLength(1);
+    expect(p.failure.classification).toBe("sink_threw");
+    expect(p.actor).toEqual({ kind: "system", component: "A5CapabilityMeasurement" });
+  });
+
+  it("partial publish failure → signals_unpublished lists only the failed signals", async () => {
+    const sink = new CollectingSink();
+    const gap: CapabilityEvolutionSignal = { kind: "gap", score: 0.6, evidenceIds: [] };
+    const under: CapabilityEvolutionSignal = { kind: "underperformer", capabilityId: "a@1", score: 0.4, evidenceIds: [] };
+    let first = true;
+    sink.publish = async (s: CapabilityEvolutionSignal) => {
+      if (first && s.kind === "underperformer") {
+        first = false;
+        throw new Error("boom");
+      }
+      sink.published.push(s);
+    };
+    const eventLog = new FakeEventLog();
+    const { m } = buildMeasurement({
+      sink,
+      eventLog,
+      postStatus: "fail",
+      decider: () => ({
+        kind: "ineffective",
+        evidenceRefs: ["obs-post"],
+        confidence: 0.4,
+        summary: "x",
+        signals: [gap, under],
+      }),
+    });
+    await m.measureCapability({ capabilityId: "cap", version: "1" });
+    const unpublished = eventLog.events.find(
+      (e: any) => e.type === "capability.governance.measurement.signals_unpublished",
+    );
+    expect(unpublished).toBeDefined();
+    const p = (unpublished as any).payload;
+    expect(p.signalIds).toHaveLength(1); // only the underperformer failed
+  });
+
+  it("records measured event with outcome.signals on success path", async () => {
+    const eventLog = new FakeEventLog();
+    const { m } = buildMeasurement({ eventLog, postStatus: "fail" });
+    await m.measureCapability({ capabilityId: "cap", version: "1" });
+    const measured = eventLog.events.find(
+      (e: any) => e.type === "capability.governance.measurement.measured",
+    );
+    expect(measured).toBeDefined();
+    const p = (measured as any).payload;
+    expect(p.outcome.signals).toHaveLength(1);
+    expect(p.outcome.signals[0].kind).toBe("underperformer");
   });
 });

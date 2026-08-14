@@ -24,11 +24,11 @@ import { EventLog } from "../../src/events/event-log.js";
 import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
 
-class NoopSignalSource implements ProposalSignalSource {
-  async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return [];
+class NoopSignalSink implements ProposalSignalSink {
+  async publish(_signal: CapabilityEvolutionSignal): Promise<void> {
+    // no-op
   }
 }
 
@@ -57,8 +57,9 @@ describe("CapabilityPlatform — CAP-10 wiring (ruling #18, #22)", () => {
   it("constructs with a5CapabilityMeasurement and wires measurementEngine", () => {
     const a5 = new A5CapabilityMeasurement({
       observationEngine: new ObservationEngine(),
-      signalSource: new NoopSignalSource(),
+      signalSink: new NoopSignalSink(),
       catalog: { get: () => undefined } as never,
+      eventLog,
     });
     platform = new CapabilityPlatform({ catalogDir: dir, eventLog, a5CapabilityMeasurement: a5 });
     expect(platform).toBeDefined();

@@ -29,11 +29,11 @@ import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capa
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import { EventLog } from "../../src/events/event-log.js";
 import { capabilityMeasureCommand } from "../../src/cli/commands/capability-measure.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
 
-class NoopSignalSource implements ProposalSignalSource {
-  async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return [];
+class NoopSignalSink implements ProposalSignalSink {
+  async publish(_signal: CapabilityEvolutionSignal): Promise<void> {
+    // no-op
   }
 }
 
@@ -67,8 +67,9 @@ describe("CLI: alix capability measure (CAP-10 ruling #11)", () => {
       eventLog,
       a5CapabilityMeasurement: new A5CapabilityMeasurement({
         observationEngine: new ObservationEngine(),
-        signalSource: new NoopSignalSource(),
+        signalSink: new NoopSignalSink(),
         catalog: { get: () => undefined } as never,
+        eventLog,
       }),
     });
     const exitCode = await capabilityMeasureCommand(["nonexistent@1.0.0"], { service: platform.service });
