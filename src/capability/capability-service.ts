@@ -737,7 +737,7 @@ function candidateToExecutionStep(
         operation: "capability.create",
         parameters: {
           operation: "capability.create",
-          proposedDefinition,
+          definition: proposedDefinition,
         },
       };
     }
