@@ -4,6 +4,8 @@
 **Phase:** A7.1 — Capability Lifecycle Application
 **Checkpoint tag:** `alix-a7-1-capability-application-complete`
 
+> **SUPERSEDED by CAP-11 — 2026-08-14.** The A7.0/A7.1 legacy lifecycle machinery (capability-lifecycle overlay, applier, ledger, measurer, CLI shim) has been retired. See `memory/cap-11-rulings-locked.md` and `memory/cap-11-remove-legacy-capability-surfaces-complete.md` for the cleanup details.
+
 ## Summary
 
 A7.1 closes the Capability Marketplace lifecycle loop. Where A7.0 implemented the

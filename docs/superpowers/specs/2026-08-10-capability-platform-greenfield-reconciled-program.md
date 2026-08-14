@@ -404,6 +404,8 @@ Each CAP records: **Purpose · Scope · Dependencies · Locked decisions incorpo
 
 ### CAP-11 — Remove Legacy Capability Surfaces
 
+**Status:** COMPLETE (squash-merged 2026-08-14 via PR #TBD). Tag `alix-cap-11-remove-legacy-capability-surfaces-complete`. See `memory/cap-11-remove-legacy-capability-surfaces-complete.md`.
+
 **Purpose.** Architectural deletion gate: mechanically prevent regression to two capability surfaces.
 
 **Scope.** Remove the inventory's REMOVE set: A7 capability CLI surface (`capability-lifecycle-cli.ts`, `src/cli/commands/capabilities.ts` barrel, `src/cli.ts:2211-2229` block incl. the **second `new CapabilityRegistry()`**); A7 lifecycle machinery (applier, ledger-rehydration `rehydrateLifecycleOverlay`, step-executor, execution-projection, `CapabilityNotExecutableError`, module `index.ts`); `APPROVED_PENDING_APPLICATION` + the A7 `CapabilityProjectionState`; the lifecycle overlay in `src/capability/registry.ts:100-122`; obsolete A7 lifecycle tests. **Install the structural sentinel test** (plan Workstream 13).
