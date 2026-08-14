@@ -1,13 +1,29 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CapabilityPlatform } from '../../src/capability/platform.js';
 import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
 import { createToolProviderExecutor } from '../../src/capability/tool-adapter.js';
+import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
+import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
+import { CapabilityRegistry } from '../../src/capability/registry.js';
+import { CatalogBackedCapabilityMutationPort } from '../../src/capability/mutation-port.js';
 import type { ToolCallRequest, ToolResult } from '../../src/tools/types.js';
 
 describe('tool provider executor', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap8-tool-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  // R10 — test-owned catalog composed into the platform; `registerInitialCapabilities`
+  // accepts a CapabilityRegistry, so wrap our catalog in one with the catalog-backed port.
   function platformWithTool(tool: { execute(req: ToolCallRequest): Promise<ToolResult | { kind: 'denied'; reason: string }> }) {
-    const platform = new CapabilityPlatform({ eventLog: { append: async () => {}, readAll: async () => [] } as never });
-    registerInitialCapabilities(platform.registry, platform.native);
+    const catalog = new CapabilityCatalog(new CapabilityDefinitionStore({ dir }));
+    const platform = new CapabilityPlatform({ catalog, eventLog: { append: async () => {}, readAll: async () => [] } as never });
+    const registry = new CapabilityRegistry(catalog);
+    registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
+    registerInitialCapabilities(registry, platform.native);
     platform.registerProvider('tool', createToolProviderExecutor(tool));
     return platform;
   }
