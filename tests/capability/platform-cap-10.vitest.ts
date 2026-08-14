@@ -24,11 +24,20 @@ import { EventLog } from "../../src/events/event-log.js";
 import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
-import type { ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityMeasureInvalidTargetError } from "../../src/capability/errors/measure-invalid-target.js";
+import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
 
-class NoopSignalSource implements ProposalSignalSource {
+/** CAP-10.5 — sink+source fake for tests; implements both contracts so a
+ *  single instance can stand in for either side of the channel. Used
+ *  here for the A5 sink side; A7 side is wired via the composition-root
+ *  channel (`src/capability/platform.ts`). */
+class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
+  public readonly published: CapabilityEvolutionSignal[] = [];
+  async publish(signal: CapabilityEvolutionSignal): Promise<void> {
+    this.published.push(signal);
+  }
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return [];
+    return [...this.published];
   }
 }
 
@@ -47,18 +56,21 @@ describe("CapabilityPlatform — CAP-10 wiring (ruling #18, #22)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("constructs without a5CapabilityMeasurement (CAP-8 backward compat)", () => {
+  it("auto-constructs A5 with the channel when a5CapabilityMeasurement not provided (CAP-10.5 ruling #R4)", () => {
     platform = new CapabilityPlatform({ catalogDir: dir, eventLog });
     expect(platform).toBeDefined();
     expect(platform.service).toBeDefined();
-    expect(platform.measurementEngine).toBeUndefined();
+    // CAP-10.5 — composition root owns ProposalSignalChannel and auto-constructs
+    // a real A5 bound to it; the platform's measurementEngine is now always present.
+    expect(platform.measurementEngine).toBeDefined();
   });
 
   it("constructs with a5CapabilityMeasurement and wires measurementEngine", () => {
     const a5 = new A5CapabilityMeasurement({
       observationEngine: new ObservationEngine(),
-      signalSource: new NoopSignalSource(),
+      signalSink: new FakeSignalChannel(),
       catalog: { get: () => undefined } as never,
+      eventLog,
     });
     platform = new CapabilityPlatform({ catalogDir: dir, eventLog, a5CapabilityMeasurement: a5 });
     expect(platform).toBeDefined();
@@ -66,10 +78,13 @@ describe("CapabilityPlatform — CAP-10 wiring (ruling #18, #22)", () => {
     expect(platform.measurementEngine).toBeDefined();
   });
 
-  it("service.measure() throws when platform wired without A5", async () => {
+  it("service.measure() reaches the engine (which throws CapabilityMeasureInvalidTargetError for unknown ids)", async () => {
     platform = new CapabilityPlatform({ catalogDir: dir, eventLog });
+    // CAP-10.5 — A5 is auto-constructed, so the engine is wired. Measure
+    // reaches the engine and surfaces the catalog's invalid-target error
+    // (not the CAP-8 not-implemented stub).
     await expect(
       platform.service.measure({ capabilityId: "x", version: "1.0.0" }),
-    ).rejects.toBeInstanceOf(CapabilityServiceNotImplementedError);
+    ).rejects.toBeInstanceOf(CapabilityMeasureInvalidTargetError);
   });
 });

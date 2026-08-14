@@ -70,7 +70,6 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
   it("throws CapabilityMeasureInvalidTargetError when target absent in catalog (ruling #8)", async () => {
     const m = new CapabilityMeasurementEngine({
       catalog,
-      eventLog,
       a5: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
@@ -79,7 +78,7 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     ).rejects.toBeInstanceOf(CapabilityMeasureInvalidTargetError);
   });
 
-  it("happy path: records exactly one measured event and returns frozen result", async () => {
+  it("happy path: returns frozen result with empty eventIds (CAP-10.5 ruling #R2 — A5 owns the measured event)", async () => {
     catalog.register({
       id: "tool.file.read",
       version: "1.0.0",
@@ -95,7 +94,6 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     });
     const m = new CapabilityMeasurementEngine({
       catalog,
-      eventLog,
       a5: mkA5({ kind: "effective", evidenceRefs: ["obs-1"], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
@@ -103,12 +101,14 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     expect(result.status).toBe("measured");
     expect(result.measurement).toEqual({ capabilityId: "tool.file.read", version: "1.0.0" });
     expect(result.outcome.kind).toBe("effective");
-    expect(result.eventIds).toHaveLength(1);
-    expect(result.eventIds[0]!.type).toBe(`${MEASUREMENT_EVENT_PREFIX}measured`);
-
+    // CAP-10.5 — A5 owns the measured event commit point; the engine
+    // does NOT append it, so eventIds is empty by design.
+    expect(result.eventIds).toHaveLength(0);
+    // Engine never appends to EventLog (A5 does). With a fake A5, the
+    // log stays empty.
     const all = await eventLog.readAll();
     const measured = all.filter((e) => e.type === `${MEASUREMENT_EVENT_PREFIX}measured`);
-    expect(measured).toHaveLength(1);
+    expect(measured).toHaveLength(0);
   });
 
   it("throws CapabilityMeasureFailedError when A5 throws (ruling #16)", async () => {
@@ -132,7 +132,6 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     };
     const m = new CapabilityMeasurementEngine({
       catalog,
-      eventLog,
       a5,
       observationEngine: engine,
     });
@@ -144,7 +143,7 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     expect(measured).toHaveLength(0);
   });
 
-  it("re-measure creates a new event (append-only, ruling #13)", async () => {
+  it("re-measure is supported (engine is idempotent-safe, ruling #13 — A5 owns append-only)", async () => {
     catalog.register({
       id: "tool.y",
       version: "1.0.0",
@@ -160,15 +159,18 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     });
     const m = new CapabilityMeasurementEngine({
       catalog,
-      eventLog,
       a5: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
     await m.measure({ capabilityId: "tool.y", version: "1.0.0" });
     await m.measure({ capabilityId: "tool.y", version: "1.0.0" });
+    // Engine doesn't append — this test verifies the engine can be
+    // invoked twice without idempotency errors and without polluting the
+    // EventLog. A5's append-only behavior is verified in its own test
+    // surface (a5-capability-measurement.vitest.ts).
     const all = await eventLog.readAll();
     const measured = all.filter((e) => e.type === `${MEASUREMENT_EVENT_PREFIX}measured`);
-    expect(measured).toHaveLength(2);
+    expect(measured).toHaveLength(0);
   });
 });
 

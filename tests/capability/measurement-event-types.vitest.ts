@@ -4,6 +4,8 @@
 /**
  * CAP-10 Task 1 — Measurement event types: literal, constants, runtime guard,
  * discriminated union shape.
+ * CAP-10.5 Task 4 — Adds the `signals_unpublished` event for sink-publish failures
+ * (ruling #R5).
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,12 +18,65 @@ import {
 import type {
   CapabilityMeasurementEvent,
   CapabilityMeasurementEventType,
+  MeasurementSignalsUnpublishedEvent,
+  MeasurementSignalsUnpublishedFailure,
 } from "../../src/capability/measurement/measurement-event-types.js";
 
+const baseFailure: MeasurementSignalsUnpublishedFailure = {
+  classification: "sink_threw",
+  cause: "boom",
+};
+
+const unpublished: MeasurementSignalsUnpublishedEvent = {
+  seq: 42,
+  timestamp: "2026-08-14T00:00:00.000Z",
+  type: "capability.governance.measurement.signals_unpublished",
+  payload: {
+    measurementEventId: "evt-1",
+    signalCount: 2,
+    signalIds: ["a".repeat(64), "b".repeat(64)],
+    failure: baseFailure,
+    occurredAt: "2026-08-14T00:00:00.000Z",
+    actor: { kind: "system", component: "A5CapabilityMeasurement" },
+  },
+};
+
+describe("MeasurementSignalsUnpublishedEvent (CAP-10.5 ruling #R5)", () => {
+  it("has the locked event-type discriminator", () => {
+    expect(CAPABILITY_MEASUREMENT_EVENT_TYPES).toContain(
+      "capability.governance.measurement.signals_unpublished",
+    );
+  });
+
+  it("isMeasurementEventType accepts both measured and signals_unpublished", () => {
+    expect(isMeasurementEventType("capability.governance.measurement.measured")).toBe(true);
+    expect(isMeasurementEventType("capability.governance.measurement.signals_unpublished")).toBe(true);
+    expect(isMeasurementEventType("something.else")).toBe(false);
+  });
+
+  it("signalCount invariant equals signalIds.length", () => {
+    expect(unpublished.payload.signalCount).toBe(unpublished.payload.signalIds.length);
+  });
+
+  it("failure classification is one of the locked values", () => {
+    const c1: MeasurementSignalsUnpublishedFailure = { classification: "sink_threw", cause: "x" };
+    const c2: MeasurementSignalsUnpublishedFailure = { classification: "sink_timeout", cause: "x" };
+    expect([c1.classification, c2.classification].sort()).toEqual(["sink_threw", "sink_timeout"]);
+  });
+
+  it("actor shape is locked to system + A5CapabilityMeasurement", () => {
+    expect(unpublished.payload.actor).toEqual({
+      kind: "system",
+      component: "A5CapabilityMeasurement",
+    });
+  });
+});
+
 describe("CapabilityMeasurementEventType (CAP-10 ruling #1, #5)", () => {
-  it("has exactly one event type — measured only", () => {
+  it("exposes both measured and signals_unpublished (CAP-10.5 ruling #R5)", () => {
     expect(CAPABILITY_MEASUREMENT_EVENT_TYPES).toEqual([
       "capability.governance.measurement.measured",
+      "capability.governance.measurement.signals_unpublished",
     ]);
   });
 

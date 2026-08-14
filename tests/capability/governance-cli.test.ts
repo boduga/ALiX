@@ -38,6 +38,7 @@ import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
+  ProposalSignalSink,
 } from "../../src/capability/evolution/a7-proposals.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
 import type { CapabilityApplyProposalResult } from "../../src/capability/types/service-results.js";
@@ -50,10 +51,13 @@ import { capabilityRejectCommand } from "../../src/cli/commands/capability-rejec
 // Test scaffolding
 // ---------------------------------------------------------------------------
 
-class FakeSignalSource implements ProposalSignalSource {
-  constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
+class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
+  constructor(private readonly seedSignals: ReadonlyArray<CapabilityEvolutionSignal>) {}
+  async publish(_signal: CapabilityEvolutionSignal): Promise<void> {
+    // no-op — sink side unused in these tests (channel wired by composition root)
+  }
   async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    return this.items;
+    return this.seedSignals;
   }
 }
 
@@ -112,7 +116,7 @@ async function buildHarness(
   await eventLog.init();
   const mutationExecutor = executor as unknown as CapabilityMutationExecutor;
   const proposalGenerator = new A7ProposalGenerator({
-    signalSource: new FakeSignalSource(signals),
+    signalSource: new FakeSignalChannel(signals),
   });
   const options: CapabilityServiceOptions = {
     catalog, resolver, mutationExecutor, eventLog, proposalGenerator,

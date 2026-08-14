@@ -94,6 +94,18 @@ export interface ProposalSignalSource {
   signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>>;
 }
 
+/**
+ * Write-side contract for evolution-signal delivery. A5 publishes
+ * produced signals here; the composition-root-owned channel forwards
+ * them to readers via `ProposalSignalSource`.
+ *
+ * CAP-10.5 (ruling #R1): sink is the sole write-side contract; the
+ * outcome's signals array remains the authoritative representation.
+ */
+export interface ProposalSignalSink {
+  publish(signal: CapabilityEvolutionSignal): Promise<void>;
+}
+
 export interface A7ProposalGeneratorOptions {
   readonly signalSource: ProposalSignalSource;
 }

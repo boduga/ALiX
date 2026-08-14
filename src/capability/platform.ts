@@ -12,8 +12,9 @@ import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
-import type { A7ProposalGenerator } from "./evolution/a7-proposals.js";
-import type { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
+import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
+import { ProposalSignalChannel } from "./evolution/proposal-signal-channel.js";
+import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
 import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
 import { join } from "node:path";
@@ -81,23 +82,41 @@ export class CapabilityPlatform {
     // CAP-8 — construct the service with the platform's resolver and
     // the same EventLog supplied by the caller (ruling #12). The
     // service is the only public capability surface (ruling #2).
+    // CAP-10.5 ruling #R4 — composition root owns the sole
+    // ProposalSignalChannel instance; injected into A5 (as signalSink)
+    // and A7 (as signalSource). T8 sentinel verifies `new ProposalSignalChannel(`
+    // appears exactly once in `src/`.
+    const channel = new ProposalSignalChannel();
+    const observationEngine = new ObservationEngine();
     // CAP-10 ruling #18 — compose A5 implementation into a measurement engine (optional).
+    // When not supplied by the caller, the composition root constructs a real
+    // A5CapabilityMeasurement bound to the channel.
+    const a5 = opts.a5CapabilityMeasurement ?? new A5CapabilityMeasurement({
+      observationEngine,
+      signalSink: channel,
+      catalog: this.catalog,
+      eventLog: opts.eventLog,
+    });
     let measurementEngine: CapabilityMeasurementEngine | undefined;
-    if (opts.a5CapabilityMeasurement) {
-      const observationEngine = new ObservationEngine();
+    if (a5) {
       measurementEngine = new CapabilityMeasurementEngine({
         catalog: this.catalog,
-        eventLog: opts.eventLog,
-        a5: opts.a5CapabilityMeasurement,
+        a5,
         observationEngine,
       });
     }
+    // A7 proposal generator — composition root constructs a real
+    // A7ProposalGenerator bound to the channel as signalSource when the
+    // caller does not supply one. Existing test injects are preserved.
+    const proposalGenerator = opts.proposalGenerator ?? new A7ProposalGenerator({
+      signalSource: channel,
+    });
     this.service = new CapabilityService({
       catalog: this.catalog,
       resolver,
       mutationExecutor,
       eventLog: opts.eventLog,
-      proposalGenerator: opts.proposalGenerator,
+      proposalGenerator,
       ...(measurementEngine !== undefined ? { measurementEngine } : {}),
     });
     this.measurementEngine = measurementEngine;

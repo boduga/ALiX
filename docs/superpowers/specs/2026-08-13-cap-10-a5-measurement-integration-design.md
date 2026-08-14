@@ -318,7 +318,7 @@ Thrown when the id@version target does not exist in the catalog. Distinct from `
 
 ### 10.3 Future extensions
 
-- Multiple `capability.governance.measurement.*` event types (e.g. `measurement.failed` for observability of failures) — currently deferred
+- CAP-10.5 (`signals_unpublished`) replaced the deferred `measurement.failed` observability item. Sink publish failures record `capability.governance.measurement.signals_unpublished` events with deterministic SHA-256 signal IDs. See `docs/superpowers/specs/2026-08-14-cap-10-5-evolution-signal-emission-design.md`.
 - Per-capability observation profile customization — currently deferred
 - Measurement aggregation across multiple id@versions — currently deferred
 

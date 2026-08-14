@@ -88,7 +88,6 @@ describe("CapabilityService.measure() (CAP-10 ruling #2, #22)", () => {
     } as never;
     const engine = new CapabilityMeasurementEngine({
       catalog,
-      eventLog,
       a5: mkA5(),
       observationEngine: new ObservationEngine(),
     });
