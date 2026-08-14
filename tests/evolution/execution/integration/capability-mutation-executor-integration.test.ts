@@ -15,7 +15,7 @@
  *   6. rejection — invalid/stale mutation: no mutation applied, report not
  *      completed, byte-identical pre-state preserved.
  *   7. rollback — record-sink throw inside atomic boundary restores pre-state
- *      (A4 fail-safe stop, no APPROVED_PENDING_APPLICATION dead-end).
+ *      (CAP-4 fail-safe stop: mutation completes end-to-end or fails cleanly).
  *   8. evidence — `buildExecutionEvidence` produces a 64-char SHA-256
  *      integrity hash over an immutable artifact set.
  *
@@ -204,7 +204,7 @@ describe("CAP-6 A4 end-to-end", () => {
   // -----------------------------------------------------------------------
   // AC #1 — create through A4
   // -----------------------------------------------------------------------
-  it("create: approved mutation publishes complete definition, no APPROVED_PENDING_APPLICATION dead-end", async () => {
+  it("create: approved mutation publishes complete definition; no fail-dead-end", async () => {
     const { report } = await runMutation(catalog, registry, {
       operation: "capability.create",
       definition: def("tool.file.read"),
@@ -399,7 +399,7 @@ describe("CAP-6 A4 end-to-end", () => {
     // A record sink that throws AFTER the durable mutation — the executor
     // must restore pre-state inside the boundary, and the runtime must
     // surface that as a `rolled_back` report (NOT leave the system in
-    // an APPROVED_PENDING_APPLICATION dead-end).
+    // an undetected fail-dead-end state).
     const throwingSink = async (): Promise<void> => { throw new Error("sink boom"); };
     const { report, executor } = await runMutation(
       catalog,
