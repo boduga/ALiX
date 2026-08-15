@@ -75,6 +75,16 @@ export interface ConsolidationIdentity {
  * (mutation-contract.ts) enforces the conservative merge invariants against
  * catalog-resolved sources. This only rejects a value that is not a
  * definition at all.
+ *
+ * OWNERSHIP (revised from spec §4.4): this module — not A7 — owns the
+ * "is this well-formed?" predicates that span multiple consumers (A7 signal
+ * contract, the executor's wire-up in `capability-service.ts`, and the CLI
+ * parser). `consolidation-identity` owns shape invariants on the quartet;
+ * A7 owns the signal CONTRACT. The previous spec naming
+ * (`isValidConsolidateDefinition` on A7) is superseded — this is the
+ * intentional cross-module import boundary, not a reversal of A7's signal
+ * authority. A7 still constructs the signal; A7 just consults shape
+ * predicates from the module that owns them.
  */
 export function isWellFormedConsolidateDefinition(
   value: unknown,

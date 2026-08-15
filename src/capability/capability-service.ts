@@ -62,7 +62,6 @@ import {
   validateConsolidationIdentity,
 } from "./evolution/consolidation-identity.js";
 import {
-  validateConsolidateMerge,
   type CapabilityConsolidateMutation,
 } from "./mutation-contract.js";
 import type {
@@ -379,11 +378,13 @@ export class CapabilityService {
     const events = await this.proposalStore.findById(proposalId);
     const submitted = events.find((e) => e.type === "capability.governance.proposal.submitted");
     if (!submitted) {
-      throw new Error(`Proposal '${proposalId}' not found`);
+      throw new CapabilityNotFoundError(proposalId);
     }
     // Narrow the union down to the discriminated submitted event payload.
     if (submitted.type !== "capability.governance.proposal.submitted") {
-      throw new Error(`Proposal '${proposalId}' found event is not a submission`);
+      throw new CapabilityValidationError(
+        `Proposal '${proposalId}' found event is not a submission`,
+      );
     }
     const candidate = submitted.payload.candidate;
     const sourceId = candidate.target.id;
@@ -668,11 +669,15 @@ export class CapabilityService {
    *   governed set or the call is rejected.
    *
    * Validation (never completion): the constructed signal is checked by
-   * `validateConsolidationOpportunitySignal` (absorbed set non-empty) and
-   * the constructed mutation by `validateConsolidateMerge` against the
-   * catalog-resolved SOURCE definitions (`target ∉ sources`, uniqueness,
-   * permission/dependency union, explicit bindings, …). A failed check
-   * throws; it NEVER repairs the operator's set.
+   * `validateConsolidationOpportunitySignal` (absorbed set non-empty). The
+   * full contract invariants (`target ∉ sources`, uniqueness, permission /
+   * dependency union, explicit bindings, …) are enforced by the executor's
+   * own `validateConsolidate()` at apply time
+   * (mutation-contract.ts:464). The wire-up MUST NOT pre-validate what the
+   * executor already validates — that is the spec §4.4 layering separation
+   * ("A7 received well-formed signal" vs "consolidation is structurally
+   * merge-valid"). A failed check throws; it NEVER repairs the operator's
+   * set.
    *
    * Persistence is the same `ProposalStore` ledger route used by
    * `propose()` (CAP-9 ruling #3) — no parallel governance path.
@@ -721,19 +726,13 @@ export class CapabilityService {
     if (this.catalog.get(mutation.target) === undefined) {
       throw new CapabilityNotFoundError(mutation.target);
     }
-    const sourceDefs: CapabilityDefinition[] = mutation.sources.map(
-      (id) => this.catalog.get(id) as CapabilityDefinition,
-    );
-    const validation = validateConsolidateMerge(mutation, sourceDefs);
-    if (!validation.valid) {
-      // Distinct failure class from "id not found": the ids all resolved,
-      // but the operator's merge violates the contract invariants. Use the
-      // validation error type so callers can tell the two apart instead of
-      // pattern-matching a bare `Error`.
-      throw new CapabilityValidationError(
-        `capability.consolidate: operator-supplied proposal invalid — ${validation.errors.join("; ")}`,
-      );
-    }
+    // Spec §4.4 layering: the executor's `validateConsolidate()`
+    // (mutation-contract.ts:464) is the SOLE validator for the merge
+    // contract. Pre-validating here would either (a) duplicate the
+    // executor's work, or (b) leak validator internals into the wire-up.
+    // Neither is desired — wire-up guarantees signal well-formedness
+    // (`validateConsolidationOpportunitySignal` above); executor
+    // guarantees merge validity. Two layers, intentional separation.
 
     // 4. Candidate — survivor is the target; absorbed set, definition, and
     //    disposition all carried verbatim from the operator's request.
@@ -1000,7 +999,7 @@ function candidateToExecutionStep(
       // chain). Throw BEFORE constructing the parameters so the guard
       // is the only path the executor can possibly see.
       if (!isNonEmptyPatch(candidate.proposedPatch)) {
-        throw new Error(
+        throw new CapabilityValidationError(
           `capability.update: underperformer candidate '${candidate.candidateId}' must carry a non-empty proposedPatch; observed keys=${Object.keys((candidate.proposedPatch ?? {}) as Record<string, unknown>).join(",") || "<none>"}`,
         );
       }
@@ -1030,7 +1029,7 @@ function candidateToExecutionStep(
       // path the executor can possibly see, with full context about
       // which candidate lacked the operator-supplied fields.
       if (candidate.consolidateDefinition === undefined) {
-        throw new Error(
+        throw new CapabilityValidationError(
           `capability.consolidate: candidate '${candidate.candidateId}' must carry consolidateDefinition; observer will receive structurally invalid mutation (ruling #544 — caller-supplied target definition)`,
         );
       }
@@ -1038,7 +1037,7 @@ function candidateToExecutionStep(
         candidate.sourceDisposition !== "deprecate" &&
         candidate.sourceDisposition !== "remove"
       ) {
-        throw new Error(
+        throw new CapabilityValidationError(
           `capability.consolidate: candidate '${candidate.candidateId}' sourceDisposition must be 'deprecate' or 'remove'; observed='${String(candidate.sourceDisposition)}' (ruling #544 — caller-supplied source disposition)`,
         );
       }
@@ -1046,7 +1045,7 @@ function candidateToExecutionStep(
         !Array.isArray(candidate.absorbedCapabilityIds) ||
         candidate.absorbedCapabilityIds.length === 0
       ) {
-        throw new Error(
+        throw new CapabilityValidationError(
           `capability.consolidate: candidate '${candidate.candidateId}' must carry non-empty absorbedCapabilityIds (ruling #534 — caller-supplied complete absorbed set)`,
         );
       }

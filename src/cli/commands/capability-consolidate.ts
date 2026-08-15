@@ -55,6 +55,7 @@ import type {
 } from "../../capability/capability-service.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { SourceDisposition } from "../../capability/evolution/consolidation-identity.js";
+import { isSourceDisposition } from "../../capability/evolution/consolidation-identity.js";
 import { CapabilityNotFoundError } from "../../capability/errors.js";
 import { CapabilityServiceNotImplementedError } from "../../capability/errors/service-not-implemented.js";
 
@@ -181,7 +182,7 @@ export function parseConsolidateArgs(args: readonly string[]): ParseConsolidateR
 
   let sourceDisposition: SourceDisposition | undefined;
   if (rawDisposition !== undefined) {
-    if (rawDisposition === "deprecate" || rawDisposition === "remove") {
+    if (isSourceDisposition(rawDisposition)) {
       sourceDisposition = rawDisposition;
     } else {
       errors.push(
