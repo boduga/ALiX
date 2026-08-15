@@ -51,6 +51,7 @@ import type { CapabilityMutationExecutor } from "../../src/evolution/execution/c
 import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
 import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
+import type { CapabilityKind } from "../../src/capability/canonical/kind.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -231,13 +232,33 @@ describe("CAP-N T1 — candidate→ExecutionStep operation mapping (4 axes)", ()
     expect(calls[0]!.step.operation).toBe("capability.update");
   });
 
-  // ─── Axis 4: consolidation_opportunity → capability.transition (preserved)
-  // PASSING on current code (current default). Expected post-T2: same.
-  it("axis 4: sourcePatternId=consolidation_opportunity → operation=\"capability.transition\"", async () => {
+  // ─── Axis 4: consolidation_opportunity → capability.consolidate (CAP-P)
+  // Pre-CAP-N this discriminator fell through to capability.transition (the
+  // silent fall-through bug). CAP-N kept that fall-through; CAP-P closes
+  // it by giving consolidation_opportunity its own explicit case in the
+  // discriminator. The operator-CLI-supplied identity carries the
+  // required `consolidateDefinition` and `sourceDisposition` fields.
+  it("axis 4: sourcePatternId=consolidation_opportunity → operation=\"capability.consolidate\" (CAP-P closed the fall-through)", async () => {
     const seedId = "tool.file.read";
+    const absorbedId = "tool.file.fetch";
     const signal: CapabilityEvolutionSignal = {
       kind: "consolidation_opportunity",
-      capabilityId: seedId,
+      survivorCapabilityId: seedId,
+      absorbedCapabilityIds: [absorbedId],
+      consolidateDefinition: {
+        id: seedId,
+        version: "2.0.0",
+        kind: "tool" as CapabilityKind,
+        title: "consolidated",
+        description: "d",
+        tags: [],
+        category: "tool",
+        risk: "low",
+        requiredPermissions: ["operator"],
+        dependencies: [],
+        bindings: [{ id: seedId, type: "native" }],
+      },
+      sourceDisposition: "deprecate",
       score: 0.8,
       evidenceIds: ["cap-n-t1-axis-4"],
     };
@@ -246,6 +267,6 @@ describe("CAP-N T1 — candidate→ExecutionStep operation mapping (4 axes)", ()
     const applyResult = await service.apply({ proposalId: proposal.proposalId });
     expect(applyResult.status).toBe("executed");
     expect(calls.length).toBe(1);
-    expect(calls[0]!.step.operation).toBe("capability.transition");
+    expect(calls[0]!.step.operation).toBe("capability.consolidate");
   });
 });

@@ -83,12 +83,15 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
     expect(c.target.id).toBe("tool.file.read");
   });
 
-  it("consolidation_opportunity → consolidate candidate (target.id === signal.capabilityId)", async () => {
+  it("consolidation_opportunity → consolidate candidate (target.id === signal.survivorCapabilityId)", async () => {
     const gen = new A7ProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "consolidation_opportunity",
-          capabilityId: "tool.file.read",
+          survivorCapabilityId: "tool.file.read",
+          absorbedCapabilityIds: ["tool.file.fetch", "tool.file.copy"],
+          consolidateDefinition: { id: "tool.file.read", version: "2.0.0", kind: "tool", title: "consolidated", description: "d", tags: [], category: "tool", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: "tool.file.read", type: "native" }] },
+          sourceDisposition: "deprecate",
           score: 0.8,
           evidenceIds: [],
         },
@@ -98,6 +101,45 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
     expect(c).toBeDefined();
     expect(c.target.kind).toBe("capability");
     expect(c.target.id).toBe("tool.file.read");
+  });
+
+  it("consolidation_opportunity: empty absorbedCapabilityIds → validator rejects (ruling #534)", async () => {
+    const gen = new A7ProposalGenerator({
+      signalSource: new FakeSignalSource([
+        {
+          kind: "consolidation_opportunity",
+          survivorCapabilityId: "tool.file.read",
+          absorbedCapabilityIds: [], // empty — non-empty required
+          score: 0.8,
+          evidenceIds: [],
+        },
+      ]),
+    });
+    await expect(gen.generate()).rejects.toThrow(/absorbedCapabilityIds must be a non-empty array/);
+  });
+
+  it("consolidation_opportunity: round-trip — caller-supplied absorbed set passes through mapper verbatim", async () => {
+    const absorbed = ["cap.a@1.0.0", "cap.b@2.1.0", "cap.c@0.5.0"];
+    const gen = new A7ProposalGenerator({
+      signalSource: new FakeSignalSource([
+        {
+          kind: "consolidation_opportunity",
+          survivorCapabilityId: "cap.survivor@3.0.0",
+          absorbedCapabilityIds: absorbed,
+          consolidateDefinition: { id: "cap.survivor", version: "3.0.0", kind: "core", title: "consolidated", description: "d", tags: [], category: "core", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: "cap.survivor", type: "native" }] },
+          sourceDisposition: "deprecate",
+          score: 0.91,
+          evidenceIds: ["ev-1", "ev-2"],
+        },
+      ]),
+    });
+    const [c] = (await gen.generate()) ?? [];
+    expect(c).toBeDefined();
+    expect(c.target.id).toBe("cap.survivor@3.0.0");
+    expect(c.absorbedCapabilityIds).toEqual(absorbed);
+    expect(c.confidence).toBe(0.91);
+    expect(c.evidenceIds).toEqual(["ev-1", "ev-2"]);
+    expect(c.sourcePatternId).toBe("consolidation_opportunity");
   });
 
   it("deprecation_signal → remove candidate (target.id === signal.capabilityId)", async () => {
@@ -181,7 +223,10 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
       },
       {
         kind: "consolidation_opportunity",
-        capabilityId: "tool.file.read",
+        survivorCapabilityId: "tool.file.read",
+        absorbedCapabilityIds: ["tool.file.fetch"],
+        consolidateDefinition: { id: "tool.file.read", version: "2.0.0", kind: "tool", title: "consolidated", description: "d", tags: [], category: "tool", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: "tool.file.read", type: "native" }] },
+        sourceDisposition: "deprecate",
         score: 0.8,
         evidenceIds: [],
       },
@@ -251,7 +296,10 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
       },
       {
         kind: "consolidation_opportunity",
-        capabilityId: "tool.file.read",
+        survivorCapabilityId: "tool.file.read",
+        absorbedCapabilityIds: ["tool.file.fetch"],
+        consolidateDefinition: { id: "tool.file.read", version: "2.0.0", kind: "tool", title: "consolidated", description: "d", tags: [], category: "tool", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: "tool.file.read", type: "native" }] },
+        sourceDisposition: "deprecate",
         score: 0.8,
         evidenceIds: [],
       },

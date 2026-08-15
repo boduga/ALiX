@@ -36,7 +36,8 @@ import type {
   CapabilityEvolutionCandidate,
   LifecycleState,
 } from "../adaptation/capability-evolution-types.js";
-import { CapabilityNotFoundError } from "./errors.js";
+import { consolidationIdentityFromCandidate } from "../adaptation/capability-evolution-types.js";
+import { CapabilityNotFoundError, CapabilityValidationError } from "./errors.js";
 import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
 import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
 import { ProposalStore } from "./governance/proposal-store.js";
@@ -51,7 +52,18 @@ import {
   MEASUREMENT_EVENT_PREFIX,
   MEASUREMENT_GOVERNANCE_PREFIX,
 } from "./measurement/measurement-event-types.js";
-import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
+import {
+  A7ProposalGenerator,
+  validateConsolidationOpportunitySignal,
+  type CapabilityEvolutionSignal,
+} from "./evolution/a7-proposals.js";
+import {
+  type ConsolidationIdentity,
+  validateConsolidationIdentity,
+} from "./evolution/consolidation-identity.js";
+import {
+  type CapabilityConsolidateMutation,
+} from "./mutation-contract.js";
 import type {
   CapabilityProposeResult,
   CapabilityApplyProposalResult,
@@ -85,7 +97,40 @@ export type {
   CapabilityServiceOptions,
 } from "./types/service-results.js";
 
+/**
+ * P5.5/P5.6 ruling #544 — the complete governed set an AUTHORIZED CALLER
+ * (the operator, via `alix capability consolidate`) supplies explicitly.
+ *
+ * Every field is required. Nothing here is defaulted, derived, inferred,
+ * expanded, or completed by any layer. `absorbedCapabilityIds` must be
+ * non-empty (ruling #534) and must not contain `survivorCapabilityId`
+ * (`validateConsolidateMerge`).
+ */
+export interface OperatorConsolidationInput {
+  /**
+   * The COMPLETE caller-supplied governed set (rulings #534, #544):
+   * survivor, absorbed set, target definition, and source disposition.
+   */
+  readonly identity: ConsolidationIdentity;
+  /**
+   * Optional opaque provenance fingerprints. Pair-layer evidence MAY be
+   * recorded here for audit, but it has NO influence on any identity above.
+   */
+  readonly evidenceIds?: readonly string[];
+}
+
+/**
+ * Result of `proposeConsolidation`. Carries the constructed `mutation` and
+ * `signal` so callers (and sentinels) can assert that the operator's values
+ * were transported verbatim.
+ */
+export interface CapabilityProposeConsolidationResult extends CapabilityProposeResult {
+  readonly mutation: CapabilityConsolidateMutation;
+  readonly signal: CapabilityEvolutionSignal;
+}
+
 export class CapabilityService {
+
   private readonly catalog: CapabilityCatalog;
   private readonly resolver: CapabilityResolver;
   private readonly executor: CapabilityMutationExecutor;
@@ -333,11 +378,13 @@ export class CapabilityService {
     const events = await this.proposalStore.findById(proposalId);
     const submitted = events.find((e) => e.type === "capability.governance.proposal.submitted");
     if (!submitted) {
-      throw new Error(`Proposal '${proposalId}' not found`);
+      throw new CapabilityNotFoundError(proposalId);
     }
     // Narrow the union down to the discriminated submitted event payload.
     if (submitted.type !== "capability.governance.proposal.submitted") {
-      throw new Error(`Proposal '${proposalId}' found event is not a submission`);
+      throw new CapabilityValidationError(
+        `Proposal '${proposalId}' found event is not a submission`,
+      );
     }
     const candidate = submitted.payload.candidate;
     const sourceId = candidate.target.id;
@@ -598,6 +645,136 @@ export class CapabilityService {
   }
 
   /**
+   * P5.5/P5.6 — authorized-caller seam for `consolidation_opportunity`
+   * (locked ruling #544, 2026-08-15).
+   *
+   * The OPERATOR is the authorized caller. Every identity-bearing field of
+   * `input` is operator-supplied and is transported VERBATIM:
+   *
+   *   input.survivorCapabilityId  → signal.survivorCapabilityId
+   *                               → candidate.target.id
+   *                               → mutation.target
+   *   input.absorbedCapabilityIds → signal.absorbedCapabilityIds
+   *                               → candidate.absorbedCapabilityIds
+   *                               → mutation.sources
+   *   input.definition            → mutation.definition
+   *
+   * Hard architectural boundary (rulings #534, #543, #544):
+   * - MUST NOT derive, infer, choose, or reorder the survivor identity.
+   * - MUST NOT derive, infer, expand, complete, or reorder the absorbed set.
+   * - MUST NOT consult the P5.5 pair layer, the overlap analyzer, or any
+   *   heuristic source. Pair evidence is CONTEXT for the operator, never a
+   *   determinant of these identities, and never a gate on this call.
+   * - MUST NOT default any field — the caller supplies the complete
+   *   governed set or the call is rejected.
+   *
+   * Validation (never completion): the constructed signal is checked by
+   * `validateConsolidationOpportunitySignal` (absorbed set non-empty). The
+   * full contract invariants (`target ∉ sources`, uniqueness, permission /
+   * dependency union, explicit bindings, …) are enforced by the executor's
+   * own `validateConsolidate()` at apply time
+   * (mutation-contract.ts:464). The wire-up MUST NOT pre-validate what the
+   * executor already validates — that is the spec §4.4 layering separation
+   * ("A7 received well-formed signal" vs "consolidation is structurally
+   * merge-valid"). A failed check throws; it NEVER repairs the operator's
+   * set.
+   *
+   * Persistence is the same `ProposalStore` ledger route used by
+   * `propose()` (CAP-9 ruling #3) — no parallel governance path.
+   */
+  async proposeConsolidation(
+    input: OperatorConsolidationInput,
+  ): Promise<CapabilityProposeConsolidationResult> {
+    // 0. The operator's complete governed set, validated as a whole before
+    //    anything is constructed from it. Rejection only — never repair.
+    const identity = input.identity;
+    validateConsolidationIdentity(identity);
+
+    // 1. Signal — operator identities copied verbatim, then validated.
+    // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the signal
+    // transports `consolidateDefinition` and `sourceDisposition`
+    // operator-supplied. A7 does NOT derive, infer, expand, or
+    // complete any of these fields — they pass through to the
+    // candidate, then to the `capability.consolidate` execution step,
+    // unchanged.
+    const signal: CapabilityEvolutionSignal = {
+      kind: "consolidation_opportunity",
+      survivorCapabilityId: identity.survivorCapabilityId,
+      absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+      consolidateDefinition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
+      score: 1,
+      evidenceIds: [...(input.evidenceIds ?? [])],
+    };
+    validateConsolidationOpportunitySignal(signal);
+
+    // 2. Mutation — operator identities copied verbatim (no transformation).
+    const mutation: CapabilityConsolidateMutation = {
+      operation: "capability.consolidate",
+      target: identity.survivorCapabilityId,
+      sources: [...identity.absorbedCapabilityIds],
+      definition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
+    };
+
+    // 3. Contract validation against catalog-resolved sources. Missing
+    //    sources are reported as such — never dropped from the set.
+    const missing = mutation.sources.filter((id) => this.catalog.get(id) === undefined);
+    if (missing.length > 0) {
+      throw new CapabilityNotFoundError(missing.join(", "));
+    }
+    if (this.catalog.get(mutation.target) === undefined) {
+      throw new CapabilityNotFoundError(mutation.target);
+    }
+    // Spec §4.4 layering: the executor's `validateConsolidate()`
+    // (mutation-contract.ts:464) is the SOLE validator for the merge
+    // contract. Pre-validating here would either (a) duplicate the
+    // executor's work, or (b) leak validator internals into the wire-up.
+    // Neither is desired — wire-up guarantees signal well-formedness
+    // (`validateConsolidationOpportunitySignal` above); executor
+    // guarantees merge validity. Two layers, intentional separation.
+
+    // 4. Candidate — survivor is the target; absorbed set, definition, and
+    //    disposition all carried verbatim from the operator's request.
+    //    CAP-P (locked rulings #534 + #544, 2026-08-14/15): the
+    //    `candidateToExecutionStep` discriminator depends on these three
+    //    fields being present and well-formed on the candidate at apply
+    //    time. We copy them verbatim — no derivation, inference, expansion,
+    //    or completion.
+    const candidate: CapabilityEvolutionCandidate = {
+      candidateId: `operator-consolidation-${identity.survivorCapabilityId}`,
+      sourcePatternId: "consolidation_opportunity",
+      confidence: signal.score,
+      target: { kind: "capability", id: identity.survivorCapabilityId },
+      description:
+        `Operator-requested consolidation of ` +
+        `${mutation.sources.join(", ")} into ${mutation.target}`,
+      expectedEffect: "Consolidate the operator-supplied absorbed set into the survivor",
+      riskClass: "high",
+      evidenceIds: signal.evidenceIds,
+      absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+      consolidateDefinition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
+    };
+
+    // 5. Persist through the shared governance ledger.
+    const current = this.catalog.get(candidate.target.id);
+    const sourceVersion: string | null = current?.version ?? null;
+    const { proposalId } = await this.proposalStore.submit(
+      candidate,
+      candidate.evidenceIds,
+      sourceVersion,
+    );
+    return Object.freeze({
+      proposalId,
+      status: "pending" as const,
+      candidate,
+      mutation,
+      signal,
+    });
+  }
+
+  /**
    * CAP-9 ruling #10, #22, #23 — pure projection over the shared
    * EventLog. No catalog reads, no registry reads, no service state.
    *
@@ -735,10 +912,18 @@ function isNonEmptyPatch(patch: unknown): boolean {
 
 /**
  * CAP-N ruling — map a candidate to a CAP-6 `ExecutionStep` per its
- * sourcePatternId. Discriminator table (CAP-N spec §4.1):
- *   - "gap"                   → capability.create
- *   - "deprecation_signal"    → capability.remove
- *   - all other sourcePatterns → capability.transition (current behavior preserved)
+ * sourcePatternId. Discriminator table (CAP-N spec §4.1 + CAP-O + CAP-P):
+ *   - "gap"                       → capability.create
+ *   - "deprecation_signal"        → capability.remove
+ *   - "underperformer"            → capability.update (CAP-O; carries
+ *                                   `proposedPatch` invariant)
+ *   - "consolidation_opportunity" → capability.consolidate (CAP-P;
+ *                                   carries `consolidateDefinition`,
+ *                                   `sourceDisposition`, and non-empty
+ *                                   `absorbedCapabilityIds` invariants)
+ *   - default                     → THROWS (fail-closed — silent fall-through
+ *                                   to `capability.transition` was the bug
+ *                                   that broke CAP-P pre-CAP-P impl)
  *
  * The `sourceId` + `currentVersion` parameters are forward-pinned to the
  * catalog state at apply time (CAP-9 ruling #17 — stale-detection source).
@@ -814,7 +999,7 @@ function candidateToExecutionStep(
       // chain). Throw BEFORE constructing the parameters so the guard
       // is the only path the executor can possibly see.
       if (!isNonEmptyPatch(candidate.proposedPatch)) {
-        throw new Error(
+        throw new CapabilityValidationError(
           `capability.update: underperformer candidate '${candidate.candidateId}' must carry a non-empty proposedPatch; observed keys=${Object.keys((candidate.proposedPatch ?? {}) as Record<string, unknown>).join(",") || "<none>"}`,
         );
       }
@@ -830,18 +1015,73 @@ function candidateToExecutionStep(
       };
     }
 
-    case "consolidation_opportunity":
-    default:
+    case "consolidation_opportunity": {
+      // CAP-P invariant (locked rulings #534 + #544, 2026-08-14/15):
+      // the candidate MUST carry the operator-supplied
+      // `consolidateDefinition` and `sourceDisposition`. This invariant
+      // mirrors CAP-O's underperformer-patch invariant (#982) — both
+      // are locked structural invariants that the executor depends on.
+      // If the candidate lacks them, the observer would receive a
+      // structurally invalid `capability.consolidate` mutation that
+      // the executor's `validateConsolidate()` (mutation-contract.ts:464)
+      // would reject at apply time with a less-precise error. Throw
+      // BEFORE constructing the parameters so the guard is the only
+      // path the executor can possibly see, with full context about
+      // which candidate lacked the operator-supplied fields.
+      if (candidate.consolidateDefinition === undefined) {
+        throw new CapabilityValidationError(
+          `capability.consolidate: candidate '${candidate.candidateId}' must carry consolidateDefinition; observer will receive structurally invalid mutation (ruling #544 — caller-supplied target definition)`,
+        );
+      }
+      if (
+        candidate.sourceDisposition !== "deprecate" &&
+        candidate.sourceDisposition !== "remove"
+      ) {
+        throw new CapabilityValidationError(
+          `capability.consolidate: candidate '${candidate.candidateId}' sourceDisposition must be 'deprecate' or 'remove'; observed='${String(candidate.sourceDisposition)}' (ruling #544 — caller-supplied source disposition)`,
+        );
+      }
+      if (
+        !Array.isArray(candidate.absorbedCapabilityIds) ||
+        candidate.absorbedCapabilityIds.length === 0
+      ) {
+        throw new CapabilityValidationError(
+          `capability.consolidate: candidate '${candidate.candidateId}' must carry non-empty absorbedCapabilityIds (ruling #534 — caller-supplied complete absorbed set)`,
+        );
+      }
+      // The candidate-specific guards above have already rejected every
+      // malformed shape with a candidate-scoped message. Re-bundling the
+      // quartet through the shared helper keeps the execution step built
+      // from ONE named governed set rather than four field reads.
+      const identity = consolidationIdentityFromCandidate(candidate);
       return {
         ...baseStep,
-        operation: "capability.transition",
+        operation: "capability.consolidate",
         parameters: {
-          operation: "capability.transition",
-          capabilityId: sourceId,
-          from: "emerging",
-          to: "active",
+          operation: "capability.consolidate",
+          target: identity.survivorCapabilityId,
+          sources: [...identity.absorbedCapabilityIds],
+          definition: identity.consolidateDefinition,
+          sourceDisposition: identity.sourceDisposition,
           sourceVersion: currentVersion,
         },
       };
+    }
+
+    default:
+      // Defensive default. Pre-CAP-P, the discriminator fell through to
+      // `capability.transition` silently — that was the bug that
+      // caused `consolidation_opportunity` candidates to emit
+      // transitions instead of consolidations. The discriminator now
+      // has an explicit case for every sourcePatternId (gap → create,
+      // deprecation_signal → remove, underperformer → update,
+      // consolidation_opportunity → consolidate); an unrecognized
+      // sourcePatternId MUST throw rather than silently produce a
+      // mutation that the observer didn't intend. Future
+      // sourcePatternIds get added as explicit cases BEFORE this
+      // default; this default is the explicit fail-closed boundary.
+      throw new CapabilityValidationError(
+        `candidateToExecutionStep: unrecognized sourcePatternId '${candidate.sourcePatternId}' on candidate '${candidate.candidateId}'; discriminator has no explicit case (CAP-N/O/P closed; this default is fail-closed)`,
+      );
   }
 }

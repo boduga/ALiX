@@ -8,12 +8,18 @@ import { ProviderExecutorRegistry } from "./provider-registry.js";
 import { NativeProviderExecutor, UnavailableProviderExecutor, type ProviderExecutor } from "./provider-executor.js";
 import { EventBus } from "./event-bus.js";
 import { CapabilityCatalog } from "./canonical/catalog.js";
+import type { CapabilityDefinition } from "./canonical/definition.js";
 import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
-import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
+import { A7ProposalGenerator, type ProposalSignalSource } from "./evolution/a7-proposals.js";
 import { ProposalSignalChannel } from "./evolution/proposal-signal-channel.js";
+import {
+  buildOverlapSignals,
+  compositeProposalSignalSource,
+} from "./evolution/overlap-signal-source.js";
+import { CapabilityOverlapAnalyzer } from "../adaptation/capability-overlap-analyzer.js";
 import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
 import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
@@ -44,6 +50,14 @@ export class CapabilityPlatform {
    *  to the platform (locked ruling #12 — EventLog is authoritative). */
   readonly service: CapabilityService;
 
+  /** P5.5/P5.6 ruling #544 — READ-ONLY definition lookup, exposed so the
+   *  operator CLI (`alix capability consolidate`) can resolve the
+   *  operator-named `--definition=<id@version>`. Read-only by construction:
+   *  the mutable `CapabilityCatalog` stays private (CAP-11 ruling #8), and
+   *  this surface exposes `get` only. It resolves a name the OPERATOR gave —
+   *  it never chooses a survivor, an absorbed set, or a definition. */
+  readonly definitions: { get(id: string): CapabilityDefinition | undefined };
+
   /** CAP-10 — measurement engine instance (optional). Absent when the
    *  platform was constructed without `a5CapabilityMeasurement`
    *  (ruling #18). Exposed for tests + downstream wiring; service.measure()
@@ -55,7 +69,7 @@ export class CapabilityPlatform {
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -105,11 +119,33 @@ export class CapabilityPlatform {
         observationEngine,
       });
     }
+    // P5.5/P5.6 pair layer (ruling #543) — composition-root option to
+    // inject an `overlapSignalSource`. When absent, the composition root
+    // constructs a default overlap source via `buildOverlapSignals` with a stub
+    // `identitySupplier` that returns `null` for every overlap (no
+    // signals emitted until the operator-CLI binding — ticket #309 /
+    // ruling #544 — is wired). The pair layer is read-only over canonical
+    // sources and emits evidence-only signals; it does NOT derive survivor
+    // identity or absorbed set.
+    const overlapSignalSource: ProposalSignalSource =
+      opts.overlapSignalSource ??
+      buildOverlapSignals({
+        analyzer: new CapabilityOverlapAnalyzer(),
+        inputs: async () => ({
+          agentCards: [],
+          proposals: [],
+          capabilityEvents: [],
+          registeredCapabilities: [],
+        }),
+        identitySupplier: () => null,
+      });
     // A7 proposal generator — composition root constructs a real
-    // A7ProposalGenerator bound to the channel as signalSource when the
-    // caller does not supply one. Existing test injects are preserved.
+    // A7ProposalGenerator bound to a composite signalSource (the A5
+    // channel + the pair layer) when the caller does not supply one.
+    // Existing test injects are preserved: `opts.proposalGenerator`
+    // bypasses the wiring entirely.
     const proposalGenerator = opts.proposalGenerator ?? new A7ProposalGenerator({
-      signalSource: channel,
+      signalSource: compositeProposalSignalSource([channel, overlapSignalSource]),
     });
     this.service = new CapabilityService({
       catalog: this.catalog,
@@ -120,6 +156,11 @@ export class CapabilityPlatform {
       ...(measurementEngine !== undefined ? { measurementEngine } : {}),
     });
     this.measurementEngine = measurementEngine;
+    // Read-only projection of the private catalog (ruling #544 wiring).
+    const catalog = this.catalog;
+    this.definitions = Object.freeze({
+      get: (id: string): CapabilityDefinition | undefined => catalog.get(id),
+    });
   }
 
   register(capability: Capability): void { this.registry.register(capability); }
