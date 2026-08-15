@@ -109,6 +109,8 @@ class RecordingService {
         kind: "consolidation_opportunity",
         survivorCapabilityId: input.survivorCapabilityId,
         absorbedCapabilityIds: [...input.absorbedCapabilityIds],
+        consolidateDefinition: input.definition,
+        sourceDisposition: input.sourceDisposition,
         score: 1,
         evidenceIds: [],
       },
@@ -349,7 +351,9 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     );
     // The operator typed `--survivor=core.alpha@1.0.0`.
     expect(result.mutation.target).toBe("core.alpha");
-    expect(result.signal.survivorCapabilityId).toBe("core.alpha");
+    expect((result.signal as { survivorCapabilityId: string }).survivorCapabilityId).toBe(
+      "core.alpha",
+    );
     expect(result.candidate.target.id).toBe("core.alpha");
   });
 

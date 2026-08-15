@@ -679,10 +679,18 @@ export class CapabilityService {
     input: OperatorConsolidationInput,
   ): Promise<CapabilityProposeConsolidationResult> {
     // 1. Signal — operator identities copied verbatim, then validated.
+    // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the signal
+    // transports `consolidateDefinition` and `sourceDisposition`
+    // operator-supplied. A7 does NOT derive, infer, expand, or
+    // complete any of these fields — they pass through to the
+    // candidate, then to the `capability.consolidate` execution step,
+    // unchanged.
     const signal: CapabilityEvolutionSignal = {
       kind: "consolidation_opportunity",
       survivorCapabilityId: input.survivorCapabilityId,
       absorbedCapabilityIds: [...input.absorbedCapabilityIds],
+      consolidateDefinition: input.definition,
+      sourceDisposition: input.sourceDisposition,
       score: 1,
       evidenceIds: [...(input.evidenceIds ?? [])],
     };
@@ -716,7 +724,13 @@ export class CapabilityService {
       );
     }
 
-    // 4. Candidate — survivor is the target; absorbed set carried verbatim.
+    // 4. Candidate — survivor is the target; absorbed set, definition, and
+    //    disposition all carried verbatim from the operator's request.
+    //    CAP-P (locked rulings #534 + #544, 2026-08-14/15): the
+    //    `candidateToExecutionStep` discriminator depends on these three
+    //    fields being present and well-formed on the candidate at apply
+    //    time. We copy them verbatim — no derivation, inference, expansion,
+    //    or completion.
     const candidate: CapabilityEvolutionCandidate = {
       candidateId: `operator-consolidation-${input.survivorCapabilityId}`,
       sourcePatternId: "consolidation_opportunity",
@@ -729,6 +743,8 @@ export class CapabilityService {
       riskClass: "high",
       evidenceIds: signal.evidenceIds,
       absorbedCapabilityIds: [...input.absorbedCapabilityIds],
+      consolidateDefinition: input.definition,
+      sourceDisposition: input.sourceDisposition,
     };
 
     // 5. Persist through the shared governance ledger.
@@ -886,10 +902,18 @@ function isNonEmptyPatch(patch: unknown): boolean {
 
 /**
  * CAP-N ruling — map a candidate to a CAP-6 `ExecutionStep` per its
- * sourcePatternId. Discriminator table (CAP-N spec §4.1):
- *   - "gap"                   → capability.create
- *   - "deprecation_signal"    → capability.remove
- *   - all other sourcePatterns → capability.transition (current behavior preserved)
+ * sourcePatternId. Discriminator table (CAP-N spec §4.1 + CAP-O + CAP-P):
+ *   - "gap"                       → capability.create
+ *   - "deprecation_signal"        → capability.remove
+ *   - "underperformer"            → capability.update (CAP-O; carries
+ *                                   `proposedPatch` invariant)
+ *   - "consolidation_opportunity" → capability.consolidate (CAP-P;
+ *                                   carries `consolidateDefinition`,
+ *                                   `sourceDisposition`, and non-empty
+ *                                   `absorbedCapabilityIds` invariants)
+ *   - default                     → THROWS (fail-closed — silent fall-through
+ *                                   to `capability.transition` was the bug
+ *                                   that broke CAP-P pre-CAP-P impl)
  *
  * The `sourceId` + `currentVersion` parameters are forward-pinned to the
  * catalog state at apply time (CAP-9 ruling #17 — stale-detection source).
@@ -981,18 +1005,68 @@ function candidateToExecutionStep(
       };
     }
 
-    case "consolidation_opportunity":
-    default:
+    case "consolidation_opportunity": {
+      // CAP-P invariant (locked rulings #534 + #544, 2026-08-14/15):
+      // the candidate MUST carry the operator-supplied
+      // `consolidateDefinition` and `sourceDisposition`. This invariant
+      // mirrors CAP-O's underperformer-patch invariant (#982) — both
+      // are locked structural invariants that the executor depends on.
+      // If the candidate lacks them, the observer would receive a
+      // structurally invalid `capability.consolidate` mutation that
+      // the executor's `validateConsolidate()` (mutation-contract.ts:464)
+      // would reject at apply time with a less-precise error. Throw
+      // BEFORE constructing the parameters so the guard is the only
+      // path the executor can possibly see, with full context about
+      // which candidate lacked the operator-supplied fields.
+      if (candidate.consolidateDefinition === undefined) {
+        throw new Error(
+          `capability.consolidate: candidate '${candidate.candidateId}' must carry consolidateDefinition; observer will receive structurally invalid mutation (ruling #544 — caller-supplied target definition)`,
+        );
+      }
+      if (
+        candidate.sourceDisposition !== "deprecate" &&
+        candidate.sourceDisposition !== "remove"
+      ) {
+        throw new Error(
+          `capability.consolidate: candidate '${candidate.candidateId}' sourceDisposition must be 'deprecate' or 'remove'; observed='${String(candidate.sourceDisposition)}' (ruling #544 — caller-supplied source disposition)`,
+        );
+      }
+      if (
+        !Array.isArray(candidate.absorbedCapabilityIds) ||
+        candidate.absorbedCapabilityIds.length === 0
+      ) {
+        throw new Error(
+          `capability.consolidate: candidate '${candidate.candidateId}' must carry non-empty absorbedCapabilityIds (ruling #534 — caller-supplied complete absorbed set)`,
+        );
+      }
       return {
         ...baseStep,
-        operation: "capability.transition",
+        operation: "capability.consolidate",
         parameters: {
-          operation: "capability.transition",
-          capabilityId: sourceId,
-          from: "emerging",
-          to: "active",
+          operation: "capability.consolidate",
+          target: candidate.target.id,
+          sources: [...candidate.absorbedCapabilityIds],
+          definition: candidate.consolidateDefinition,
+          sourceDisposition: candidate.sourceDisposition,
           sourceVersion: currentVersion,
         },
       };
+    }
+
+    default:
+      // Defensive default. Pre-CAP-P, the discriminator fell through to
+      // `capability.transition` silently — that was the bug that
+      // caused `consolidation_opportunity` candidates to emit
+      // transitions instead of consolidations. The discriminator now
+      // has an explicit case for every sourcePatternId (gap → create,
+      // deprecation_signal → remove, underperformer → update,
+      // consolidation_opportunity → consolidate); an unrecognized
+      // sourcePatternId MUST throw rather than silently produce a
+      // mutation that the observer didn't intend. Future
+      // sourcePatternIds get added as explicit cases BEFORE this
+      // default; this default is the explicit fail-closed boundary.
+      throw new Error(
+        `candidateToExecutionStep: unrecognized sourcePatternId '${candidate.sourcePatternId}' on candidate '${candidate.candidateId}'; discriminator has no explicit case (CAP-N/O/P closed; this default is fail-closed)`,
+      );
   }
 }
