@@ -91,26 +91,26 @@ class RecordingService {
         candidateId: "c-recorded",
         sourcePatternId: "consolidation_opportunity",
         confidence: 1,
-        target: { kind: "capability", id: input.survivorCapabilityId },
+        target: { kind: "capability", id: input.identity.survivorCapabilityId },
         description: "d",
         expectedEffect: "e",
         riskClass: "high",
         evidenceIds: [],
-        absorbedCapabilityIds: [...input.absorbedCapabilityIds],
+        absorbedCapabilityIds: [...input.identity.absorbedCapabilityIds],
       },
       mutation: {
         operation: "capability.consolidate",
-        target: input.survivorCapabilityId,
-        sources: [...input.absorbedCapabilityIds],
-        definition: input.definition,
-        sourceDisposition: input.sourceDisposition,
+        target: input.identity.survivorCapabilityId,
+        sources: [...input.identity.absorbedCapabilityIds],
+        definition: input.identity.consolidateDefinition,
+        sourceDisposition: input.identity.sourceDisposition,
       },
       signal: {
         kind: "consolidation_opportunity",
-        survivorCapabilityId: input.survivorCapabilityId,
-        absorbedCapabilityIds: [...input.absorbedCapabilityIds],
-        consolidateDefinition: input.definition,
-        sourceDisposition: input.sourceDisposition,
+        survivorCapabilityId: input.identity.survivorCapabilityId,
+        absorbedCapabilityIds: [...input.identity.absorbedCapabilityIds],
+        consolidateDefinition: input.identity.consolidateDefinition,
+        sourceDisposition: input.identity.sourceDisposition,
         score: 1,
         evidenceIds: [],
       },
@@ -376,11 +376,11 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     expect(exit).toBe(0);
     expect(rec.inputs).toHaveLength(1);
     const input = rec.inputs[0]!;
-    expect([...input.absorbedCapabilityIds]).toEqual(["core.gamma", "core.beta"]);
-    expect(input.absorbedCapabilityIds).toHaveLength(2);
-    expect(input.survivorCapabilityId).toBe("core.alpha");
+    expect([...input.identity.absorbedCapabilityIds]).toEqual(["core.gamma", "core.beta"]);
+    expect(input.identity.absorbedCapabilityIds).toHaveLength(2);
+    expect(input.identity.survivorCapabilityId).toBe("core.alpha");
     // The survivor is NEVER folded into the absorbed set.
-    expect(input.absorbedCapabilityIds).not.toContain("core.alpha");
+    expect(input.identity.absorbedCapabilityIds).not.toContain("core.alpha");
   });
 
   it("axis 7b SENTINEL: a single-element absorbed set is not expanded to sibling capabilities", async () => {
@@ -398,7 +398,7 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     expect(exit).toBe(0);
     // `core.gamma` exists in the catalog and overlaps, but the operator did
     // not name it — it must not appear.
-    expect([...rec.inputs[0]!.absorbedCapabilityIds]).toEqual(["core.beta"]);
+    expect([...rec.inputs[0]!.identity.absorbedCapabilityIds]).toEqual(["core.beta"]);
   });
 
   // -------------------------------------------------------------------------
@@ -431,15 +431,15 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     // Absent evidence does NOT gate the request — both succeed identically.
     expect(exitA).toBe(0);
     expect(exitB).toBe(0);
-    expect(withEvidence.inputs[0]!.survivorCapabilityId).toBe(
-      withoutEvidence.inputs[0]!.survivorCapabilityId,
+    expect(withEvidence.inputs[0]!.identity.survivorCapabilityId).toBe(
+      withoutEvidence.inputs[0]!.identity.survivorCapabilityId,
     );
-    expect([...withEvidence.inputs[0]!.absorbedCapabilityIds]).toEqual([
-      ...withoutEvidence.inputs[0]!.absorbedCapabilityIds,
+    expect([...withEvidence.inputs[0]!.identity.absorbedCapabilityIds]).toEqual([
+      ...withoutEvidence.inputs[0]!.identity.absorbedCapabilityIds,
     ]);
     // The contradicting evidence's capabilities never leak into the request.
-    expect(withEvidence.inputs[0]!.absorbedCapabilityIds).not.toContain("core.delta");
-    expect(withEvidence.inputs[0]!.survivorCapabilityId).not.toBe("core.gamma");
+    expect(withEvidence.inputs[0]!.identity.absorbedCapabilityIds).not.toContain("core.delta");
+    expect(withEvidence.inputs[0]!.identity.survivorCapabilityId).not.toBe("core.gamma");
     // Evidence IS displayed as context.
     expect(errSpy.mock.calls.flat().join("\n")).toContain("context only");
   });
@@ -448,10 +448,12 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     seedCatalog();
     await expect(
       realService().proposeConsolidation({
-        survivorCapabilityId: "core.alpha",
-        absorbedCapabilityIds: [],
-        definition: catalog.get("core.alpha") as CapabilityDefinition,
-        sourceDisposition: "deprecate",
+        identity: {
+          survivorCapabilityId: "core.alpha",
+          absorbedCapabilityIds: [],
+          consolidateDefinition: catalog.get("core.alpha") as CapabilityDefinition,
+          sourceDisposition: "deprecate",
+        },
       }),
     ).rejects.toThrow(/absorbedCapabilityIds must be a non-empty array/);
   });

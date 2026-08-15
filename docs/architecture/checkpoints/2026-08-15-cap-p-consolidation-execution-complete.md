@@ -74,7 +74,7 @@ The discriminator table post-CAP-P is 5/5 cells green:
 
 - [x] NO new architecture introduced. CAP-P is wiring, not analysis.
 - [x] NO heuristics introduced. No derivation, no inference, no expansion, no completion anywhere in the implementation.
-- [x] NO changes to `CapabilityDefinition`, `CapabilityConsolidateMutation`, `validateConsolidate()`, or any CAP-12 forbidden file OTHER than the discriminator site (`capability-service.ts:984-998` per CAP-O precedent).
+- [x] NO changes to `CapabilityDefinition`, `CapabilityConsolidateMutation`, `validateConsolidate()`, or any CAP-12 forbidden file OTHER than the two CAP-P carve-out sites: (a) `capability-service.ts:984-998` discriminator (CAP-O precedent), and (b) `platform.ts:111` composition-root `overlapSignalSource` wiring (locked ruling #539).
 - [x] NO new persistence (analyzer output is transient per ruling #534; pair layer output is transient per ruling #534).
 - [x] NO new authorities granted to A2.5/P5.1 (ruling #541 STOP_CONDITION preserved).
 - [x] NO A0 EvolutionProposalStore work (ruling #540 STOP_CONDITION preserved).

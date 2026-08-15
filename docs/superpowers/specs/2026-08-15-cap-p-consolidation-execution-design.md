@@ -37,7 +37,7 @@ The architectural progression: `CAP-N → CAP-O → CAP-P` — each CAP adds one
 - **Analyzing heuristic introduction.** CAP-P is wiring, not analysis. No survivorship heuristic, no absorbed-set expansion, no merge-direction inference anywhere in CAP-P.
 - **A0 store / A2.5 producer role.** Both were dispositioned STOP_CONDITION in tickets #540/#541; CAP-P does not unblock them.
 - **Mutation contract changes.** `CapabilityConsolidateMutation` already requires `target`, `sources`, `definition`, `sourceDisposition`. CAP-P supplies those via the candidate; no contract changes.
-- **CAP-12 forbidden-file policy partly lifted.** `src/capability/capability-service.ts` is on the CAP-12 forbidden list. CAP-P lifts the restriction for that single file because the discriminator is exactly in that file (same precedent CAP-O established). All other CAP-12 forbidden files remain forbidden.
+- **CAP-12 forbidden-file policy partly lifted (under the #539 carve-out).** `src/capability/capability-service.ts` and `src/capability/platform.ts` are on the CAP-12 forbidden list. CAP-P lifts the restriction for **both** files because (a) the discriminator is in `capability-service.ts` (CAP-O precedent), AND (b) the composition-root wiring is locked at `platform.ts:111` per ruling #539. All other CAP-12 forbidden files remain forbidden.
 - **Generalized candidate refactor.** `CapabilityEvolutionCandidate` gains exactly two new optional fields. No `executionHints` abstraction, no discriminated-union overhaul.
 
 ## 4. Architecture
@@ -274,7 +274,11 @@ The operator-CLI path is identical except it constructs the `consolidation_oppor
 
 ## 6. Composition root
 
-No changes. The composition root at `src/capability/platform.ts` already provides `CapabilityService` with `executor`, `proposalStore`, `catalog`, and `proposalGenerator`. CAP-P is internal to `signalToCandidate` (A7), `candidateToExecutionStep` (discriminator), `proposeConsolidation` (CLI seam), and `OverlapIdentitySupplier` (pair-layer seam).
+**Composition root (per the #539 locked ruling).** The composition root at `src/capability/platform.ts` requires the `overlapSignalSource` constructor opt (added per #539's locked wiring path). The pair layer's `OverlapIdentitySupplier` (Section 5.3) is bound at this seam. Without #539's wiring, no overlap signals reach the A7 pipeline — the seam is essential.
+
+Everything else in CAP-P remains internal to `signalToCandidate` (A7), `candidateToExecutionStep` (discriminator), `proposeConsolidation` (CLI seam), and `OverlapIdentitySupplier` (pair-layer seam); the composition root continues to provide `CapabilityService` with `executor`, `proposalStore`, `catalog`, and `proposalGenerator`.
+
+**CAP-12 forbidden-file carve-out expansion (per #539).** Per SP2 below, `src/capability/platform.ts` is added to the CAP-P carve-out scope alongside `capability-service.ts`. Both files are required for the composition-root wiring path locked at #539.
 
 ## 7. Migration boundary
 
@@ -309,13 +313,13 @@ The CLI seam (`alix capability consolidate --survivor --absorbed --definition --
 
 The test follows the CAP-N/CAP-O test pattern (`tests/capability/cap-n-candidate-mapping.vitest.ts`, `tests/capability/cap-o-candidate-mapping.vitest.ts`). Uses `FakeSignalSource` + `A7ProposalGenerator` so `service.propose()` reads from the generator rather than receiving the candidate as a direct arg. Uses `proposeDirect` for the guard-throws axes (axes 6/7/8/9) where the candidate needs to violate the invariants.
 
-### 9.2 CLI test (existing, extended)
+### 9.2 CLI test (new under CAP-P)
 
-`tests/cli/capability-consolidate.vitest.ts` — pre-existing 16 tests, all GREEN post-CAP-P. The `RecordingService` mock was updated to construct the `consolidation_opportunity` signal with `consolidateDefinition` and `sourceDisposition` set from `input.definition` and `input.sourceDisposition` (the operator-CLI-supplied values). All operator-supplied identity invariants tested: survivor verbatim, absorbed verbatim (including empty-set rejection, survivor-in-absorbed rejection), definition resolution against catalog, disposition validation.
+`tests/cli/capability-consolidate.vitest.ts` (488 lines) is **new** under CAP-P — 16 tests, all GREEN. Per locked ruling #544 (operator CLI), this test coverage is a CAP-P deliverable, not a pre-existing artifact. The `RecordingService` mock was updated to construct the `consolidation_opportunity` signal with `consolidateDefinition` and `sourceDisposition` set from `input.definition` and `input.sourceDisposition` (the operator-CLI-supplied values). All operator-supplied identity invariants tested: survivor verbatim, absorbed verbatim (including empty-set rejection, survivor-in-absorbed rejection), definition resolution against catalog, disposition validation.
 
-### 9.3 Pair-layer test (existing, extended)
+### 9.3 Pair-layer test (new under CAP-P)
 
-`tests/capability/evolution/p5-pair-layer.vitest.ts` — pre-existing 12 tests, all GREEN post-CAP-P. `supplierIdentityAtoB` updated to return `consolidateDefinition` and `sourceDisposition` as test fixtures. The validator-rejects-empty-array test now also supplies the other two fields so the validator reaches the empty-array check (the test pins the empty-array enforcement per ruling #534).
+`tests/capability/evolution/p5-pair-layer.vitest.ts` (520 lines) is **new** under CAP-P — 12 tests, all GREEN. Per locked ruling #543 (pair layer), this test coverage is a CAP-P deliverable, not a pre-existing artifact. `testStubIdentityAtoB` returns `consolidateDefinition` and `sourceDisposition` as test fixtures. The validator-rejects-empty-array test now also supplies the other two fields so the validator reaches the empty-array check (the test pins the empty-array enforcement per ruling #534).
 
 ### 9.4 CAP-N sentinel test (existing, updated)
 

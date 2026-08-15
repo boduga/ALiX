@@ -12,7 +12,7 @@
 
 These are binding on every task — copy verbatim:
 
-- **Carve-out site:** `src/capability/capability-service.ts:922+` (`candidateToExecutionStep` function). This is the **only** file on the CAP-12 forbidden list that CAP-P modifies. All other CAP-12 forbidden files (`src/capability/platform.ts`, `legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
+- **Carve-out sites (two files, per rulings #539 + CAP-O precedent):** (a) `src/capability/capability-service.ts:922+` (`candidateToExecutionStep` discriminator), and (b) `src/capability/platform.ts:111` (composition-root `overlapSignalSource` wiring, locked at ruling #539). These are the **only** files on the CAP-12 forbidden list that CAP-P modifies. All other CAP-12 forbidden files (`legacy-adapter.ts`, `registry.ts`, `provider-resolver.ts`, all CAP-1…CAP-11 sentinels) remain FORBIDDEN.
 - **Operation mapping contract (locked post-CAP-P):** `sourcePatternId === "gap"` → `capability.create` (CAP-N); `sourcePatternId === "deprecation_signal"` → `capability.remove` (CAP-N); `sourcePatternId === "underperformer"` → `capability.update` (CAP-O); `sourcePatternId === "consolidation_opportunity"` → `capability.consolidate` (**CAP-P**); unrecognized sourcePatternId → THROWS (CAP-P fail-closed default).
 - **Verbatim copy discipline (locked, governance-critical):** All four operator-supplied fields flow through the A7 pipeline VERBATIM. No derivation, no inference, no expansion, no completion:
   - `survivorCapabilityId` (signal) → `target.id` (candidate) → `parameters.target` (execution step)

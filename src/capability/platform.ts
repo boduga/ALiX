@@ -16,8 +16,8 @@ import { CapabilityMutationExecutor } from "../evolution/execution/capability-mu
 import { A7ProposalGenerator, type ProposalSignalSource } from "./evolution/a7-proposals.js";
 import { ProposalSignalChannel } from "./evolution/proposal-signal-channel.js";
 import {
-  CompositeProposalSignalSource,
-  OverlapProposalSignalSource,
+  buildOverlapSignals,
+  compositeProposalSignalSource,
 } from "./evolution/overlap-signal-source.js";
 import { CapabilityOverlapAnalyzer } from "../adaptation/capability-overlap-analyzer.js";
 import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
@@ -121,7 +121,7 @@ export class CapabilityPlatform {
     }
     // P5.5/P5.6 pair layer (ruling #543) — composition-root option to
     // inject an `overlapSignalSource`. When absent, the composition root
-    // constructs a default `OverlapProposalSignalSource` with a stub
+    // constructs a default overlap source via `buildOverlapSignals` with a stub
     // `identitySupplier` that returns `null` for every overlap (no
     // signals emitted until the operator-CLI binding — ticket #309 /
     // ruling #544 — is wired). The pair layer is read-only over canonical
@@ -129,7 +129,7 @@ export class CapabilityPlatform {
     // identity or absorbed set.
     const overlapSignalSource: ProposalSignalSource =
       opts.overlapSignalSource ??
-      new OverlapProposalSignalSource({
+      buildOverlapSignals({
         analyzer: new CapabilityOverlapAnalyzer(),
         inputs: async () => ({
           agentCards: [],
@@ -145,7 +145,7 @@ export class CapabilityPlatform {
     // Existing test injects are preserved: `opts.proposalGenerator`
     // bypasses the wiring entirely.
     const proposalGenerator = opts.proposalGenerator ?? new A7ProposalGenerator({
-      signalSource: new CompositeProposalSignalSource([channel, overlapSignalSource]),
+      signalSource: compositeProposalSignalSource([channel, overlapSignalSource]),
     });
     this.service = new CapabilityService({
       catalog: this.catalog,

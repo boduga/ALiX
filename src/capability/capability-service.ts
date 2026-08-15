@@ -36,7 +36,8 @@ import type {
   CapabilityEvolutionCandidate,
   LifecycleState,
 } from "../adaptation/capability-evolution-types.js";
-import { CapabilityNotFoundError } from "./errors.js";
+import { consolidationIdentityFromCandidate } from "../adaptation/capability-evolution-types.js";
+import { CapabilityNotFoundError, CapabilityValidationError } from "./errors.js";
 import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
 import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
 import { ProposalStore } from "./governance/proposal-store.js";
@@ -56,6 +57,10 @@ import {
   validateConsolidationOpportunitySignal,
   type CapabilityEvolutionSignal,
 } from "./evolution/a7-proposals.js";
+import {
+  type ConsolidationIdentity,
+  validateConsolidationIdentity,
+} from "./evolution/consolidation-identity.js";
 import {
   validateConsolidateMerge,
   type CapabilityConsolidateMutation,
@@ -103,14 +108,11 @@ export type {
  * (`validateConsolidateMerge`).
  */
 export interface OperatorConsolidationInput {
-  /** Caller-supplied surviving capability id (ruling #534). */
-  readonly survivorCapabilityId: string;
-  /** Caller-supplied COMPLETE absorbed set (ruling #534). Non-empty. */
-  readonly absorbedCapabilityIds: readonly string[];
-  /** Caller-supplied resulting target definition (CAP-9 ruling #8). */
-  readonly definition: CapabilityDefinition;
-  /** Caller-supplied disposition for the absorbed capabilities. */
-  readonly sourceDisposition: "deprecate" | "remove";
+  /**
+   * The COMPLETE caller-supplied governed set (rulings #534, #544):
+   * survivor, absorbed set, target definition, and source disposition.
+   */
+  readonly identity: ConsolidationIdentity;
   /**
    * Optional opaque provenance fingerprints. Pair-layer evidence MAY be
    * recorded here for audit, but it has NO influence on any identity above.
@@ -678,6 +680,11 @@ export class CapabilityService {
   async proposeConsolidation(
     input: OperatorConsolidationInput,
   ): Promise<CapabilityProposeConsolidationResult> {
+    // 0. The operator's complete governed set, validated as a whole before
+    //    anything is constructed from it. Rejection only — never repair.
+    const identity = input.identity;
+    validateConsolidationIdentity(identity);
+
     // 1. Signal — operator identities copied verbatim, then validated.
     // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the signal
     // transports `consolidateDefinition` and `sourceDisposition`
@@ -687,10 +694,10 @@ export class CapabilityService {
     // unchanged.
     const signal: CapabilityEvolutionSignal = {
       kind: "consolidation_opportunity",
-      survivorCapabilityId: input.survivorCapabilityId,
-      absorbedCapabilityIds: [...input.absorbedCapabilityIds],
-      consolidateDefinition: input.definition,
-      sourceDisposition: input.sourceDisposition,
+      survivorCapabilityId: identity.survivorCapabilityId,
+      absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+      consolidateDefinition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
       score: 1,
       evidenceIds: [...(input.evidenceIds ?? [])],
     };
@@ -699,10 +706,10 @@ export class CapabilityService {
     // 2. Mutation — operator identities copied verbatim (no transformation).
     const mutation: CapabilityConsolidateMutation = {
       operation: "capability.consolidate",
-      target: input.survivorCapabilityId,
-      sources: [...input.absorbedCapabilityIds],
-      definition: input.definition,
-      sourceDisposition: input.sourceDisposition,
+      target: identity.survivorCapabilityId,
+      sources: [...identity.absorbedCapabilityIds],
+      definition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
     };
 
     // 3. Contract validation against catalog-resolved sources. Missing
@@ -719,7 +726,11 @@ export class CapabilityService {
     );
     const validation = validateConsolidateMerge(mutation, sourceDefs);
     if (!validation.valid) {
-      throw new Error(
+      // Distinct failure class from "id not found": the ids all resolved,
+      // but the operator's merge violates the contract invariants. Use the
+      // validation error type so callers can tell the two apart instead of
+      // pattern-matching a bare `Error`.
+      throw new CapabilityValidationError(
         `capability.consolidate: operator-supplied proposal invalid — ${validation.errors.join("; ")}`,
       );
     }
@@ -732,19 +743,19 @@ export class CapabilityService {
     //    time. We copy them verbatim — no derivation, inference, expansion,
     //    or completion.
     const candidate: CapabilityEvolutionCandidate = {
-      candidateId: `operator-consolidation-${input.survivorCapabilityId}`,
+      candidateId: `operator-consolidation-${identity.survivorCapabilityId}`,
       sourcePatternId: "consolidation_opportunity",
       confidence: signal.score,
-      target: { kind: "capability", id: input.survivorCapabilityId },
+      target: { kind: "capability", id: identity.survivorCapabilityId },
       description:
         `Operator-requested consolidation of ` +
         `${mutation.sources.join(", ")} into ${mutation.target}`,
       expectedEffect: "Consolidate the operator-supplied absorbed set into the survivor",
       riskClass: "high",
       evidenceIds: signal.evidenceIds,
-      absorbedCapabilityIds: [...input.absorbedCapabilityIds],
-      consolidateDefinition: input.definition,
-      sourceDisposition: input.sourceDisposition,
+      absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+      consolidateDefinition: identity.consolidateDefinition,
+      sourceDisposition: identity.sourceDisposition,
     };
 
     // 5. Persist through the shared governance ledger.
@@ -1039,15 +1050,20 @@ function candidateToExecutionStep(
           `capability.consolidate: candidate '${candidate.candidateId}' must carry non-empty absorbedCapabilityIds (ruling #534 — caller-supplied complete absorbed set)`,
         );
       }
+      // The candidate-specific guards above have already rejected every
+      // malformed shape with a candidate-scoped message. Re-bundling the
+      // quartet through the shared helper keeps the execution step built
+      // from ONE named governed set rather than four field reads.
+      const identity = consolidationIdentityFromCandidate(candidate);
       return {
         ...baseStep,
         operation: "capability.consolidate",
         parameters: {
           operation: "capability.consolidate",
-          target: candidate.target.id,
-          sources: [...candidate.absorbedCapabilityIds],
-          definition: candidate.consolidateDefinition,
-          sourceDisposition: candidate.sourceDisposition,
+          target: identity.survivorCapabilityId,
+          sources: [...identity.absorbedCapabilityIds],
+          definition: identity.consolidateDefinition,
+          sourceDisposition: identity.sourceDisposition,
           sourceVersion: currentVersion,
         },
       };

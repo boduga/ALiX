@@ -48,6 +48,7 @@ import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
 } from "./a7-proposals.js";
+import type { ConsolidationIdentity } from "./consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
 // Canonical input shape (matches CapabilityOverlapAnalyzer's internal types)
@@ -102,27 +103,9 @@ export interface OverlapProposalSignalSourceInputs {
  * identity owner. Until that binding exists, the composition-root default
  * returns `null` for every overlap (no signals emitted).
  */
-export type OverlapIdentitySupplier = (overlap: CapabilityOverlap) => {
-  readonly survivorCapabilityId: string;
-  readonly absorbedCapabilityIds: ReadonlyArray<string>;
-  /**
-   * CAP-P (locked ruling #544, 2026-08-15): the operator-supplied
-   * target definition. Required on the `consolidation_opportunity`
-   * signal — A7 will reject signals missing it
-   * (`validateConsolidationOpportunitySignal`). The pair layer does
-   * NOT derive this; the caller-supplied identity owner (operator
-   * CLI per #544) provides it.
-   */
-  readonly consolidateDefinition: CapabilityDefinition;
-  /**
-   * CAP-P (locked ruling #544, 2026-08-15): the operator-supplied
-   * source disposition. Required on the
-   * `consolidation_opportunity` signal — A7 will reject signals
-   * missing it. The pair layer does NOT infer this; the
-   * caller-supplied identity owner provides it.
-   */
-  readonly sourceDisposition: "deprecate" | "remove";
-} | null;
+export type OverlapIdentitySupplier = (
+  overlap: CapabilityOverlap,
+) => ConsolidationIdentity | null;
 
 /**
  * Options for the pair layer.
@@ -144,90 +127,88 @@ export interface OverlapProposalSignalSourceOptions {
 }
 
 /**
- * Pair layer (opaque-name source).
+ * Pair layer (opaque-name source) — a pure factory.
  *
- * Implements `ProposalSignalSource`. The name signals provenance to
- * downstream telemetry; it is purely informational.
+ * Returns a `ProposalSignalSource` closing over the supplied options. No
+ * class, no instance state: the returned `signals()` reads only its captured
+ * options and the freshly awaited inputs, so it is stateless between
+ * invocations (CONTRIBUTING.md — prefer pure functions where a class would
+ * only wrap injected collaborators).
+ *
+ * The returned `signals()` emits one `consolidation_opportunity` signal per
+ * pair with `consolidationCandidate === true` AND a caller-supplied identity.
+ *
+ * It returns an empty array when:
+ *   - inputs are empty,
+ *   - no overlap meets the threshold,
+ *   - no overlap has a caller-supplied identity,
+ *   - the analyzer returns no candidates.
+ *
+ * Errors from the inputs or analyzer propagate (no swallowing).
  */
-export class OverlapProposalSignalSource implements ProposalSignalSource {
-  private readonly analyzer: CapabilityOverlapAnalyzer;
-  private readonly inputs: () => Promise<OverlapProposalSignalSourceInputs>;
-  private readonly identitySupplier: OverlapIdentitySupplier;
-  private readonly minOverlapScore: number;
+export function buildOverlapSignals(
+  options: OverlapProposalSignalSourceOptions,
+): ProposalSignalSource {
+  const { analyzer, inputs, identitySupplier } = options;
+  const minOverlapScore = options.minOverlapScore ?? 0.7;
 
-  constructor(options: OverlapProposalSignalSourceOptions) {
-    this.analyzer = options.analyzer;
-    this.inputs = options.inputs;
-    this.identitySupplier = options.identitySupplier;
-    this.minOverlapScore = options.minOverlapScore ?? 0.7;
-  }
+  return Object.freeze({
+    async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
+      const resolved = await inputs();
+      const overlaps = analyzer.analyze({
+        registeredCapabilities: [...resolved.registeredCapabilities],
+        agentCards: [...resolved.agentCards],
+        proposals: [...resolved.proposals],
+        capabilityEvents: [...resolved.capabilityEvents],
+        minOverlapScore,
+      });
 
-  /**
-   * Emit one `consolidation_opportunity` signal per pair with
-   * `consolidationCandidate === true` AND a caller-supplied identity.
-   *
-   * Returns an empty array when:
-   *   - inputs are empty,
-   *   - no overlap meets the threshold,
-   *   - no overlap has a caller-supplied identity,
-   *   - the analyzer returns no candidates.
-   *
-   * Errors from the inputs or analyzer propagate (no swallowing).
-   */
-  async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    const inputs = await this.inputs();
-    const overlaps = this.analyzer.analyze({
-      registeredCapabilities: [...inputs.registeredCapabilities],
-      agentCards: [...inputs.agentCards],
-      proposals: [...inputs.proposals],
-      capabilityEvents: [...inputs.capabilityEvents],
-      minOverlapScore: this.minOverlapScore,
-    });
+      const signals: CapabilityEvolutionSignal[] = [];
+      for (const overlap of overlaps) {
+        if (!overlap.consolidationCandidate) continue;
+        const identity = identitySupplier(overlap);
+        if (identity === null) continue;
 
-    const signals: CapabilityEvolutionSignal[] = [];
-    for (const overlap of overlaps) {
-      if (!overlap.consolidationCandidate) continue;
-      const identity = this.identitySupplier(overlap);
-      if (identity === null) continue;
-
-      // Ruling #534: caller-supplied identity transported verbatim.
-      // The pair layer itself does NOT invent survivor or absorbed set;
-      // whatever the caller assembles is what propagates.
-      // Validator (`validateConsolidationOpportunitySignal` in
-      // a7-proposals.ts) enforces `absorbedCapabilityIds.length >= 1`
-      // downstream — `signalToCandidate` reacts by throwing on
-      // empty arrays, so any caller error surfaces here too.
-      const signal: CapabilityEvolutionSignal = {
-        kind: "consolidation_opportunity",
-        survivorCapabilityId: identity.survivorCapabilityId,
-        absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
-        // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the
-        // operator-CLI-supplied identities pass through verbatim.
-        // The pair layer does NOT derive or synthesize these values;
-        // it transports what the `identitySupplier` callback
-        // (composition-root-bound, operator-side per #544) returns.
-        consolidateDefinition: identity.consolidateDefinition,
-        sourceDisposition: identity.sourceDisposition,
-        score: overlap.overlapScore,
-        // Pair-evidence provenance. Note: we deliberately encode
-        // pair primitives in `evidenceIds` (which the signal contract
-        // already defines as opaque fingerprints) rather than
-        // introducing a top-level pair-evidence struct. The signal's
-        // top-level fields remain the locked A7 contract
-        // (kind/survivor/absorbed/score/evidenceIds); the pair layer
-        // does NOT add pair-only fields to the signal body.
-        evidenceIds: [
-          `p5.5-pair:${overlap.capabilityA}<>${overlap.capabilityB}`,
-          `overlapScore=${overlap.overlapScore.toFixed(4)}`,
-          `coverageAtoB=${overlap.coverageAtoB.toFixed(4)}`,
-          `coverageBtoA=${overlap.coverageBtoA.toFixed(4)}`,
-          `sharedSignalCount=${overlap.sharedSignalCount}`,
-        ],
-      };
-      signals.push(signal);
-    }
-    return signals;
-  }
+        // Ruling #534: the caller-supplied `ConsolidationIdentity` is
+        // transported verbatim. The pair layer itself does NOT invent
+        // survivor, absorbed set, definition, or disposition; whatever
+        // the caller assembles is what propagates.
+        // Validator (`validateConsolidationOpportunitySignal` in
+        // a7-proposals.ts) enforces `absorbedCapabilityIds.length >= 1`
+        // downstream — `signalToCandidate` reacts by throwing on
+        // empty arrays, so any caller error surfaces here too.
+        const signal: CapabilityEvolutionSignal = {
+          kind: "consolidation_opportunity",
+          survivorCapabilityId: identity.survivorCapabilityId,
+          absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+          // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the
+          // operator-CLI-supplied identities pass through verbatim.
+          // The pair layer does NOT derive or synthesize these values;
+          // it transports what the `identitySupplier` callback
+          // (composition-root-bound, operator-side per #544) returns.
+          consolidateDefinition: identity.consolidateDefinition,
+          sourceDisposition: identity.sourceDisposition,
+          score: overlap.overlapScore,
+          // Pair-evidence provenance. Note: we deliberately encode
+          // pair primitives in `evidenceIds` (which the signal contract
+          // already defines as opaque fingerprints) rather than
+          // introducing a top-level pair-evidence struct. The signal's
+          // top-level fields remain the locked A7 contract
+          // (kind/survivor/absorbed/score/evidenceIds); the pair layer
+          // does NOT add pair-only fields to the signal body.
+          evidenceIds: [
+            `p5.5-pair:${overlap.capabilityA}<>${overlap.capabilityB}`,
+            `overlapScore=${overlap.overlapScore.toFixed(4)}`,
+            `coverageAtoB=${overlap.coverageAtoB.toFixed(4)}`,
+            `coverageBtoA=${overlap.coverageBtoA.toFixed(4)}`,
+            `sharedSignalCount=${overlap.sharedSignalCount}`,
+          ],
+        };
+        signals.push(signal);
+      }
+      return signals;
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -238,19 +219,18 @@ export class OverlapProposalSignalSource implements ProposalSignalSource {
  * Concatenates signals from multiple `ProposalSignalSource` instances.
  *
  * Composition-root only — used to fan A5 measurement signals and
- * pair-layer overlap signals into a single A7 `signalSource`. The
- * pair layer itself does not depend on this class; it is provided
- * here for the platform wiring to keep A7's surface area unchanged.
+ * pair-layer overlap signals into a single A7 `signalSource`. A pure
+ * factory over the supplied sources: the pair layer itself does not depend
+ * on it; it exists so the platform wiring can keep A7's surface area
+ * unchanged.
  */
-export class CompositeProposalSignalSource implements ProposalSignalSource {
-  constructor(
-    private readonly sources: ReadonlyArray<ProposalSignalSource>,
-  ) {}
-
-  async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
-    const nested = await Promise.all(
-      this.sources.map((s) => s.signals()),
-    );
-    return nested.flat();
-  }
+export function compositeProposalSignalSource(
+  sources: ReadonlyArray<ProposalSignalSource>,
+): ProposalSignalSource {
+  return Object.freeze({
+    async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
+      const nested = await Promise.all(sources.map((s) => s.signals()));
+      return nested.flat();
+    },
+  });
 }

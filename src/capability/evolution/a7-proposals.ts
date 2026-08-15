@@ -41,6 +41,12 @@ import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-e
 import { CapabilityEvolutionProposalGenerator } from "../../adaptation/capability-evolution-proposal-generator.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { CapabilityDefinitionPatch } from "../mutation-contract.js";
+import {
+  type ConsolidationIdentity,
+  type SourceDisposition,
+  isSourceDisposition,
+  isWellFormedConsolidateDefinition,
+} from "./consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
 // Signal discriminator
@@ -104,7 +110,7 @@ export type CapabilityEvolutionSignal =
        * `deprecated` lifecycle) or `"remove"` (sources removed
        * from catalog).
        */
-      readonly sourceDisposition: "deprecate" | "remove";
+      readonly sourceDisposition: SourceDisposition;
       readonly score: number;
       readonly evidenceIds: ReadonlyArray<string>;
     }
@@ -156,33 +162,16 @@ export function validateConsolidationOpportunitySignal(
       "consolidation_opportunity signal: absorbedCapabilityIds must be a non-empty array (ruling #534 — caller-supplied complete governed set)",
     );
   }
-  if (!isValidConsolidateDefinition(signal.consolidateDefinition)) {
+  if (!isWellFormedConsolidateDefinition(signal.consolidateDefinition)) {
     throw new Error(
       "consolidation_opportunity signal: consolidateDefinition is required and must be a well-formed CapabilityDefinition (ruling #544 — caller-supplied target definition)",
     );
   }
-  if (signal.sourceDisposition !== "deprecate" && signal.sourceDisposition !== "remove") {
+  if (!isSourceDisposition(signal.sourceDisposition)) {
     throw new Error(
       `consolidation_opportunity signal: sourceDisposition must be 'deprecate' or 'remove' (ruling #544 — caller-supplied disposition); observed='${String(signal.sourceDisposition)}'`,
     );
   }
-}
-
-/**
- * Light structural check on `consolidateDefinition`. The executor's
- * `validateConsolidate()` (mutation-contract.ts:464) runs the full
- * `validateCapabilityDefinition` rules; here we only enforce "present and
- * shaped like a definition object" so the validator doesn't duplicate
- * the contract layer. Same pattern CAP-N uses for `proposedDefinition`
- * on the gap signal: structural presence, full validation downstream.
- */
-function isValidConsolidateDefinition(value: unknown): value is CapabilityDefinition {
-  if (value === null || typeof value !== "object") return false;
-  const v = value as Record<string, unknown>;
-  if (typeof v["id"] !== "string" || v["id"].length === 0) return false;
-  if (typeof v["version"] !== "string" || v["version"].length === 0) return false;
-  if (typeof v["kind"] !== "string" || v["kind"].length === 0) return false;
-  return true;
 }
 
 /**
@@ -347,19 +336,30 @@ function signalToCandidate(
       // present, `sourceDisposition ∈ {"deprecate","remove"}`) before
       // any candidate construction occurs.
       validateConsolidationOpportunitySignal(signal);
-      return {
-        candidateId,
-        sourcePatternId: signal.kind,
-        confidence: signal.score,
-        target: { kind: "capability", id: signal.survivorCapabilityId },
-        description: `Consolidation opportunity (score=${signal.score})`,
-        expectedEffect: "Consolidate overlapping capability",
-        riskClass: riskClassFor(signal),
-        evidenceIds: [...signal.evidenceIds],
-        absorbedCapabilityIds: [...signal.absorbedCapabilityIds],
-        consolidateDefinition: signal.consolidateDefinition,
-        sourceDisposition: signal.sourceDisposition,
-      };
+      {
+        // The quartet is named once, then unpacked into the candidate's
+        // wire fields. Naming it here keeps the "complete governed set"
+        // a single value at the seam instead of four parallel copies.
+        const identity: ConsolidationIdentity = {
+          survivorCapabilityId: signal.survivorCapabilityId,
+          absorbedCapabilityIds: [...signal.absorbedCapabilityIds],
+          consolidateDefinition: signal.consolidateDefinition,
+          sourceDisposition: signal.sourceDisposition,
+        };
+        return {
+          candidateId,
+          sourcePatternId: signal.kind,
+          confidence: signal.score,
+          target: { kind: "capability", id: identity.survivorCapabilityId },
+          description: `Consolidation opportunity (score=${signal.score})`,
+          expectedEffect: "Consolidate overlapping capability",
+          riskClass: riskClassFor(signal),
+          evidenceIds: [...signal.evidenceIds],
+          absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+          consolidateDefinition: identity.consolidateDefinition,
+          sourceDisposition: identity.sourceDisposition,
+        };
+      }
     case "deprecation_signal":
       return {
         candidateId,

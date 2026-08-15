@@ -54,6 +54,7 @@ import type {
   OperatorConsolidationInput,
 } from "../../capability/capability-service.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
+import type { SourceDisposition } from "../../capability/evolution/consolidation-identity.js";
 import { CapabilityNotFoundError } from "../../capability/errors.js";
 import { CapabilityServiceNotImplementedError } from "../../capability/errors/service-not-implemented.js";
 
@@ -91,7 +92,7 @@ export interface ParsedConsolidateArgs {
   readonly survivor: CapabilityRef;
   readonly absorbed: readonly CapabilityRef[];
   readonly definition: CapabilityRef;
-  readonly sourceDisposition: "deprecate" | "remove";
+  readonly sourceDisposition: SourceDisposition;
   readonly showEvidence: boolean;
 }
 
@@ -178,7 +179,7 @@ export function parseConsolidateArgs(args: readonly string[]): ParseConsolidateR
     }
   }
 
-  let sourceDisposition: "deprecate" | "remove" | undefined;
+  let sourceDisposition: SourceDisposition | undefined;
   if (rawDisposition !== undefined) {
     if (rawDisposition === "deprecate" || rawDisposition === "remove") {
       sourceDisposition = rawDisposition;
@@ -236,10 +237,12 @@ export function buildConsolidationInput(
   definition: CapabilityDefinition,
 ): OperatorConsolidationInput {
   return {
-    survivorCapabilityId: parsed.survivor.id,
-    absorbedCapabilityIds: parsed.absorbed.map((a) => a.id),
-    definition,
-    sourceDisposition: parsed.sourceDisposition,
+    identity: {
+      survivorCapabilityId: parsed.survivor.id,
+      absorbedCapabilityIds: parsed.absorbed.map((a) => a.id),
+      consolidateDefinition: definition,
+      sourceDisposition: parsed.sourceDisposition,
+    },
     evidenceIds: [`operator-cli:consolidate:${parsed.survivor.id}`],
   };
 }

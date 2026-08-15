@@ -45,11 +45,12 @@ import {
 } from "../../../src/capability/evolution/a7-proposals.js";
 import { ProposalSignalChannel } from "../../../src/capability/evolution/proposal-signal-channel.js";
 import {
-  CompositeProposalSignalSource,
-  OverlapProposalSignalSource,
+  buildOverlapSignals,
+  compositeProposalSignalSource,
   type OverlapIdentitySupplier,
   type OverlapProposalSignalSourceInputs,
 } from "../../../src/capability/evolution/overlap-signal-source.js";
+import type { ConsolidationIdentity } from "../../../src/capability/evolution/consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
 // Helpers (mirror tests/adaptation/capability-overlap-analyzer.vitest.ts)
@@ -120,14 +121,9 @@ function buildCandidateInputs(
  * Identity supplier that promotes `capA` to survivor and `capB` to absorbed.
  * Verbatim — no transformation.
  */
-function supplierIdentityAtoB(
+function testStubIdentityAtoB(
   overlap: CapabilityOverlap,
-): {
-  survivorCapabilityId: string;
-  absorbedCapabilityIds: readonly string[];
-  consolidateDefinition: CapabilityDefinition;
-  sourceDisposition: "deprecate" | "remove";
-} | null {
+): ConsolidationIdentity | null {
   // Mirror the locked #540 ruling: caller decides direction. Here, the
   // decision rule is "A survives, B is absorbed" — but this is a TEST
   // stub, not a production heuristic. The pair layer itself does not
@@ -160,9 +156,9 @@ function supplierIdentityAtoB(
 // Axis 1: Empty inputs → empty signals
 // ---------------------------------------------------------------------------
 
-describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
+describe("buildOverlapSignals — pair layer (ruling #543)", () => {
   it("axis 1: empty inputs → empty signals", async () => {
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => ({
         agentCards: [],
@@ -170,7 +166,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
         capabilityEvents: [],
         registeredCapabilities: [],
       }),
-      identitySupplier: supplierIdentityAtoB,
+      identitySupplier: testStubIdentityAtoB,
     });
     const signals = await source.signals();
     expect(signals).toEqual([]);
@@ -181,10 +177,10 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
   // -----------------------------------------------------------------------
 
   it("axis 2: single overlap pair with consolidationCandidate=true → emits one signal carrying identitySupplier values", async () => {
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
-      identitySupplier: supplierIdentityAtoB,
+      identitySupplier: testStubIdentityAtoB,
     });
     const signals = await source.signals();
     expect(signals).toHaveLength(1);
@@ -200,7 +196,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
   // -----------------------------------------------------------------------
 
   it("axis 3: identitySupplier returns null → overlap is skipped (no signal emitted)", async () => {
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.X", "cap.Y"),
       identitySupplier: () => null,
@@ -225,7 +221,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
       sourceDisposition: "deprecate",
       absorbedCapabilityIds: SUPPLIED_ABSORBED,
     });
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
       identitySupplier: supplier,
@@ -284,7 +280,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
         sourceDisposition: "deprecate",
       };
     };
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => inputs,
       identitySupplier: supplier,
@@ -307,10 +303,10 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
   // -----------------------------------------------------------------------
 
   it("axis 6: SENTINEL — emitted signal carries pair evidence (score, evidenceIds) but NOT any heuristic decision field", async () => {
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
-      identitySupplier: supplierIdentityAtoB,
+      identitySupplier: testStubIdentityAtoB,
     });
     const [sig] = await source.signals();
     if (!sig) throw new Error("expected one signal");
@@ -361,7 +357,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
     const SUPPLIED_ABSORBED = ["cap.absorbed1@1.0.0", "cap.absorbed2@2.0.0"];
     const SUPPLIED_SURVIVOR = "cap.survivor@3.0.0";
 
-    const overlapSource = new OverlapProposalSignalSource({
+    const overlapSource = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
       identitySupplier: () => ({
@@ -412,7 +408,7 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
   // -----------------------------------------------------------------------
 
   it("axis 8: SENTINEL — validator rejects consolidation_opportunity with empty absorbedCapabilityIds", async () => {
-    const source = new OverlapProposalSignalSource({
+    const source = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
       // Caller-bug: returns empty absorbed set. The pair layer is the
@@ -447,10 +443,10 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// CompositeProposalSignalSource — composition-root helper
+// compositeProposalSignalSource — composition-root helper
 // ---------------------------------------------------------------------------
 
-describe("CompositeProposalSignalSource — composition-root helper", () => {
+describe("compositeProposalSignalSource — composition-root helper", () => {
   class StaticSource implements ProposalSignalSource {
     constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
     async signals(): Promise<ReadonlyArray<CapabilityEvolutionSignal>> {
@@ -465,30 +461,30 @@ describe("CompositeProposalSignalSource — composition-root helper", () => {
     const b = new StaticSource([
       { kind: "deprecation_signal", capabilityId: "cap.legacy", score: 0.7, evidenceIds: ["b1"] },
     ]);
-    const composite = new CompositeProposalSignalSource([a, b]);
+    const composite = compositeProposalSignalSource([a, b]);
     const signals = await composite.signals();
     expect(signals).toHaveLength(2);
     expect(signals.map((s) => s.kind)).toEqual(["gap", "deprecation_signal"]);
   });
 
   it("empty source list → empty signals", async () => {
-    const composite = new CompositeProposalSignalSource([]);
+    const composite = compositeProposalSignalSource([]);
     expect(await composite.signals()).toEqual([]);
   });
 
-  it("works with ProposalSignalChannel (A5 channel) + OverlapProposalSignalSource (pair layer)", async () => {
+  it("works with ProposalSignalChannel (A5 channel) + buildOverlapSignals (pair layer)", async () => {
     const channel = new ProposalSignalChannel();
     await channel.publish({
       kind: "gap",
       score: 0.6,
       evidenceIds: ["a5-publish"],
     });
-    const overlapSource = new OverlapProposalSignalSource({
+    const overlapSource = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
-      identitySupplier: supplierIdentityAtoB,
+      identitySupplier: testStubIdentityAtoB,
     });
-    const composite = new CompositeProposalSignalSource([channel, overlapSource]);
+    const composite = compositeProposalSignalSource([channel, overlapSource]);
     const signals = await composite.signals();
     expect(signals).toHaveLength(2);
     expect(signals.map((s) => s.kind).sort()).toEqual([
@@ -505,12 +501,12 @@ describe("CompositeProposalSignalSource — composition-root helper", () => {
       score: 0.5,
       evidenceIds: ["slow-ev"],
     });
-    const overlapSource = new OverlapProposalSignalSource({
+    const overlapSource = buildOverlapSignals({
       analyzer: new CapabilityOverlapAnalyzer(),
       inputs: async () => buildCandidateInputs("cap.A", "cap.B"),
-      identitySupplier: supplierIdentityAtoB,
+      identitySupplier: testStubIdentityAtoB,
     });
-    const composite = new CompositeProposalSignalSource([channel, overlapSource]);
+    const composite = compositeProposalSignalSource([channel, overlapSource]);
     const gen = new A7ProposalGenerator({ signalSource: composite });
     const candidates = await gen.generate();
     expect(candidates).toHaveLength(2);
