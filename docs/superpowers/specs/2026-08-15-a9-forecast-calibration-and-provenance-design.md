@@ -1,237 +1,426 @@
+Yes. The right move is to produce a **single authoritative corrected spec**, not keep patching the draft conversationally.
+
+Below is the full corrected version incorporating **Q1–Q8**, including the two defects exposed by Q8 and the semantic distinction between **correlation/evidence** and **calibration/realization**.
+
+````md
 # A9 — Pre-Execution Risk Forecast & Governance Gating Design
 
-**Status:** Design (brainstorm → spec → plan → SDD → closeout)
-**Date:** 2026-08-15
-**Author:** A9 spec authoring session
-**Parent program:** A-series autonomous evolution; A8 (`ca4ca307`) shipped organizational learning; A9 is the next executable frontier.
-**Predecessor frontier:** A8 Organizational Learning (closed 2026-08-15). A9 recon: tickets #527, #528, #529, #530, #531, #546.
-**Closes:** the pre-execution risk forecast gap. A9 emits forecasts before execution, correlates them with post-execution measurements, and routes high-risk forecasts through a new `RISK_GATED_REVIEW` governance path that maps to A3 `REQUEST_MORE_EVIDENCE` (UNDER_REVIEW state). A3 retains final decision authority.
+**Status:** Design (brainstorm → spec → plan → SDD → closeout)  
+**Date:** 2026-08-15  
+**Author:** A9 spec authoring session  
+**Parent program:** A-series autonomous evolution  
+**Predecessor frontier:** A8 Organizational Learning (closed 2026-08-15)  
+**A9 recon:** #527, #528, #529, #530, #531, #546  
+**Decision authority:** A3 retains final governance decision authority
 
-**Locked by:** post-A8 wayfinder map #517 close-out (A9 next-frontier authorization) + 8-question grilling ticket #546 (10 architectural invariants) + recon tickets #528-#531 (4 architectural decisions).
+---
 
 ## 1. Problem
 
-A8 surfaces organizational patterns from history and routes them through A2.5 → A3 as MONITOR-only signals. A8 is post-hoc learning. There is no pre-execution risk lens: a proposal can be technically well-formed yet forecast to be high-risk (low confidence, hostile environment, unresolved evidence, prior failures on similar fingerprints), and the current A2.5 → A3 path has no clean gate between "submitted" and "APPROVED" for that case.
+A8 surfaces organizational patterns from history and routes them through A2.5 → A3 as MONITOR-only signals. A8 is post-hoc learning.
 
-The A9 recon sequence (#527 → #546 → #528 → #529 → #530 → #531) discovered that:
+There is no pre-execution risk lens: a proposal can be technically well-formed yet forecast to be high-risk because of low confidence, hostile execution conditions, incomplete evidence, high blast radius, or recurrence of prior failures.
 
-1. **Identity is fragmented.** Three distinct proposal-id namespaces exist (CAP-9 SHA-256 hex, A2.5-A3 free-form, P5.1c `prop-YYYY-MM-DD-NNN`); on the CAP-9 pipeline, measurement events deliberately do NOT carry `proposalId` (CAP-10/10.5 design). The forecast-vs-realization correlation gap is structural, not heuristic.
-2. **A8 normalization is lossy.** `EnrichedProposalRecord.enrichedFields` is names-only; `ProposalGovernanceRecord.capabilityId` is empty on 4/5 event kinds; `proposal.target.kind` is not propagated; `outcome-contradiction.evidenceRefs` is heterogeneous composite — A9 cannot consume A8's normalized records without losing information required for correlation.
-3. **Risk vocabulary is fragmented.** A6 `RiskOutcome` is canonical across ALiX (used in `approvals/approval-store.ts:35`, `kernel/replan-approval-gate.ts:123`, `governance/investigation-types.ts:31,58`, `governance-types.ts:52,107`), but no A9 forecast contract exists to project onto it.
-4. **Governance outcomes are exhausted.** A3's 4 binding kinds (`APPROVE | REJECT | MONITOR | REQUEST_MORE_EVIDENCE`) and 3 target states are LOCKED. A9 needs a "hold for review" semantic that does not collapse to REJECT or APPROVE.
+The current A2.5 → A3 path has no clean gate between "submitted" and "approved" for that case.
 
-A9 closes this gap by owning pre-execution risk forecasting, deterministic correlation with post-execution measurement, and a new gate (`RISK_GATED_REVIEW`) that maps to existing A3 `REQUEST_MORE_EVIDENCE` (UNDER_REVIEW) — preserving all locked A3 invariants.
+The A9 recon sequence (#527 → #546 → #528 → #529 → #530 → #531) established:
 
-## 2. Goal
+1. **Identity is fragmented.**
+   Three distinct proposal-id namespaces exist:
+   - CAP-9 SHA-256 hex
+   - A2.5/A3 free-form proposal identifiers
+   - P5.1c `prop-YYYY-MM-DD-NNN`
 
-A9 produces a `A9Forecast` artifact before proposal execution, projects a band (`"low" | "medium" | "high" | "critical"`) from inputs, and on high/critical emits a `GovernanceRecommendation` with `kind: "RISK_GATED_REVIEW"` at the A2.5 seam. A3 retains final decision authority — A9 is governance-gating, not governance. After execution, A9 emits a `A9Correlation` artifact connecting the forecast to the realized `CapabilityMeasurement`. A9 owns identity, persistence, and correlation; foreign contracts are read-only references.
+   A9 therefore cannot treat a foreign proposal ID as its own identity.
 
-The architectural progression: `CAP-N → CAP-O → CAP-P → A8 → A9` — each frontier adds one capability layer: A9 adds the pre-execution risk lens atop A2.5 → A3 → A4.
+2. **Measurement identity is intentionally capability-scoped.**
+   CAP-10/10.5 measurement events are capability-targeted and do not carry proposal identity. A9 must not modify that contract to solve correlation.
 
-**A9 does NOT:**
-- Mutate CAP-9 5-event taxonomy (`proposal.submitted`, `proposal.approved`, `proposal.rejected`, `proposal.executed`, `proposal.execution_failed`).
-- Mutate CAP-10/10.5 measurement contracts (capability-targeted, no proposalId).
-- Add a 6th governance event type.
-- Re-couple the three proposal-id namespaces.
-- Introduce temporal-heuristic correlation.
-- Mutate A3's 4 binding kinds or 3 target states.
-- Mandate A9 → A4 execution path; A9 is governance-gating only.
+3. **A8 normalization is lossy.**
+   `EnrichedProposalRecord.enrichedFields` is names-only; `ProposalGovernanceRecord.capabilityId` is empty on 4/5 event kinds; `proposal.target.kind` is not propagated; and `outcome-contradiction.evidenceRefs` is heterogeneous composite.
 
-## 3. Non-goals
+   A9 therefore reads raw canonical sources rather than relying on A8's normalized surface.
 
-- **No A9 → A4 mandatory execution.** A9 emits a governance recommendation; A3 decides; A4 executes if APPROVED. A9 is not on the execution path.
-- **No mutable `A9Forecast`.** Forecasts are immutable; corrections are new forecasts with new `forecastId`s.
-- **No negative `A9Correlation` records.** Absence means absence; the ledger is positive evidence only. Failure audit (`A9CorrelationAttempt`) is NOT built speculatively.
-- **No primary-designation in correlation.** Primacy is calibration semantics, not persistence. A forecast may have many supporting measurements, none flagged as "primary."
-- **No CAP-9 deviation.** A9 does NOT add a forecast field to `ProposalSubmittedPayload`; A9 does NOT add `proposalId` to `CapabilityMeasurementPayload`. A9 reads raw adapter records (per #528) and correlates by other means.
-- **No A8 normalization reuse.** A9 bypasses A8's normalization layer; A9 reads raw adapter records directly. A9 does NOT propose A8 contract amendments.
-- **No new A2.5 binding kind beyond the 6th (`RISK_GATED_REVIEW`).** The 5 existing A2.5 kinds are LOCKED. Adding a 6th kind is the minimum change; no 7th.
-- **No A3 contract change.** A3 still has 4 binding kinds; A3 still has 3 target states. A9's new-gate path maps to A3's existing `REQUEST_MORE_EVIDENCE` (UNDER_REVIEW).
-- **No speculative strategy-tuning.** A9 does NOT recommend threshold changes, retry-policy changes, or risk-class remapping. Those would be a new architectural increment.
-- **No TUI/Web surfaces.** CAP-11 territory.
-- **No A6 domain type reuse.** A6 `CurationProposal` is a different domain (knowledge artifacts vs capability targets); A9 owns its own contracts.
-- **No generalized correlation engine.** A9Correlation is a specific (forecast, measurement) ledger — not a generic foreign-key tracker.
+4. **Risk vocabulary is fragmented.**
+   A6's `RiskOutcome` vocabulary and thresholds are canonical for risk-band projection, but no A9 forecast contract exists.
 
-## 4. Architecture
+5. **Governance outcomes are exhausted.**
+   A3's four binding kinds are locked:
 
-### 4.1 Module structure (locked)
+   ```text
+   APPROVE
+   REJECT
+   MONITOR
+   REQUEST_MORE_EVIDENCE
+````
 
-A9 mirrors A8's `src/evolution/learning/` structure in `src/evolution/a9/`. The pattern is reused; the domain is independent.
+A9 requires a distinct pre-execution gate semantic without introducing a fifth A3 binding decision.
 
+6. **The forecast/measurement correlation boundary is structural.**
+   Measurement records do not carry proposal identity. A9 therefore cannot perform a direct proposalId → measurementId join.
+
+A9 closes this gap by owning:
+
+* pre-execution risk forecasting;
+* deterministic proposal-to-capability correlation metadata;
+* post-execution evidence correlation;
+* a new A2.5 `RISK_GATED_REVIEW` recommendation kind;
+* mapping of that recommendation to A3's existing `REQUEST_MORE_EVIDENCE` decision.
+
+A3 retains final decision authority.
+
+---
+
+# 2. Goal
+
+A9 produces an immutable, content-addressed `A9Forecast` before proposal execution.
+
+The forecast:
+
+* is owned and persisted by A9;
+* is identified by an A9-owned deterministic `forecastId`;
+* is scoped to a proposal;
+* preserves the proposal's canonical capability target as an immutable bridge attribute;
+* projects risk onto:
+
+  ```text
+  low | medium | high | critical
+  ```
+
+For high/critical forecasts, A9 emits an A2.5 `GovernanceRecommendation` with:
+
+```text
+kind = RISK_GATED_REVIEW
 ```
+
+A2.5 maps this to:
+
+```text
+REQUEST_MORE_EVIDENCE
+```
+
+and A3 retains final decision authority.
+
+After execution, A9 may emit immutable `A9Correlation` records connecting an A9 forecast to capability measurements **only when an existing deterministic canonical bridge establishes correlation eligibility**.
+
+A9 owns the correlation relationship and its identity.
+
+Foreign identities remain references/provenance.
+
+---
+
+# 3. Locked Architectural Decisions — Q1–Q8
+
+## Q1 — Forecast identity
+
+`forecastId` is A9-owned.
+
+It is deterministically derived:
+
+```text
+forecastId =
+  SHA-256(canonical(A9ForecastWithoutIdentity))
+```
+
+Foreign proposal identifiers never substitute for `forecastId`.
+
+---
+
+## Q2 — Correlation artifact
+
+`A9Correlation` is an immutable A9-owned positive evidence artifact.
+
+A correlation is written only when correlation can be deterministically established.
+
+Absence means:
+
+```text
+unresolved / unestablished
+```
+
+It does **not** mean:
+
+```text
+open
+failed
+abandoned
+expired
+```
+
+A9 does not continuously observe measurements merely to promise a future correlation.
+
+The correlation operation writes a record only when it has sufficient information to assert the relationship.
+
+Corrections are new records.
+
+Existing records are never mutated.
+
+---
+
+## Q3 — A9 identity ownership
+
+A9 is an **identity owner**, not merely an identity bridge.
+
+Every A9-owned artifact has an A9-owned deterministic identity.
+
+Therefore:
+
+```text
+A9Forecast       → forecastId
+A9Correlation    → correlationId
+```
+
+Foreign identifiers are references/provenance only.
+
+Foreign identifiers never substitute for A9 identity.
+
+Canonicalization excludes mutable/incidental fields such as:
+
+* timestamps that represent write timing rather than artifact content;
+* sequence numbers;
+* storage locations;
+* filesystem paths;
+* other mutable persistence metadata.
+
+Identity must be reproducible from the artifact's canonical semantic content.
+
+---
+
+## Q4 — Persistence and restart durability
+
+A9 owns two separate append-only JSONL stores:
+
+```text
+.alix/governance/forecasts.jsonl
+.alix/governance/correlations.jsonl
+```
+
+Forecast and correlation stores have separate lifecycles and therefore remain separate files.
+
+A9 persistence is self-sufficient for A9 provenance.
+
+A foreign store must not know that a correlation existed.
+
+Foreign stores are consulted only for:
+
+* dereferencing;
+* enrichment;
+* establishing an existing canonical correlation bridge.
+
+A9 uses read-only adapters over canonical foreign sources.
+
+A9 never copies foreign records into its own namespace merely to make correlation possible.
+
+No destructive pruning is part of the initial A9 persistence contract.
+
+---
+
+## Q5 — Forecast-to-measurement cardinality
+
+A forecast may have many supporting measurements.
+
+There is no primary measurement at the correlation layer.
+
+`A9Correlation` answers:
+
+> What evidence is related to this forecast?
+
+It does not answer:
+
+> Which measurement is the realized outcome?
+
+That distinction belongs to future calibration/result semantics.
+
+Multiple independent immutable correlation records may therefore reference the same forecast:
+
+```text
+F1 → M1
+F1 → M2
+F1 → M3
+```
+
+No measurement is marked primary.
+
+Conflicting evidence is preserved.
+
+A9 does not resolve conflicts at the correlation layer.
+
+---
+
+## Q6 — Measurement reuse
+
+A measurement may support multiple forecasts.
+
+Many-to-many relationships emerge naturally from independent `A9Correlation` records:
+
+```text
+F1 → M
+F2 → M
+F3 → M
+```
+
+No reverse pointer is added to the measurement.
+
+No measurement-group artifact is introduced.
+
+No maximum forecast-per-measurement cardinality is enforced.
+
+Measurements are evidence, not consumable resources.
+
+The relationship is structurally acyclic:
+
+```text
+A9Forecast → Measurement
+```
+
+A measurement never becomes an A9Forecast node.
+
+---
+
+## Q7 — Unavailable correlation
+
+No persisted correlation-status field exists on `A9Forecast`.
+
+There is no:
+
+```text
+correlationStatus: "open" | "resolved"
+```
+
+There are no negative `A9Correlation` records.
+
+There is no speculative `A9CorrelationAttempt` artifact.
+
+Absence from `correlations.jsonl` means only:
+
+```text
+correlation unresolved / unestablished
+```
+
+It does not assert whether A9 attempted correlation.
+
+If failure auditing becomes necessary, `A9CorrelationAttempt` must be separately authorized as a future architectural increment.
+
+---
+
+## Q8 — Measurement namespace boundary
+
+CAP-10/10.5 measurement contracts remain unchanged.
+
+A9 MUST NOT add:
+
+```text
+proposalId
+sourceProposalIds
+forecastId
+correlationId
+```
+
+or any other A9 relationship field to `CapabilityMeasurementPayload`.
+
+The measurement surface remains capability-targeted.
+
+A9 owns the relationship externally through `A9Correlation`.
+
+The existing canonical bridge is:
+
+```text
+A9Forecast.subject
+        =
+proposal.submitted.proposalId
+
+A9Forecast.subjectCapability
+        =
+proposal.submitted.payload.target.id
+
+A9Forecast.subjectCapability
+        =
+measurement.capabilityId
+```
+
+The proposal's execution status is separately authorized through:
+
+```text
+proposal.executed
+```
+
+No foreign surface is modified.
+
+---
+
+# 4. A9 Architecture
+
+## 4.1 Module structure
+
+A9 mirrors the architectural shape of A8's `src/evolution/learning/` module without reusing A8 domain contracts.
+
+```text
 src/evolution/a9/
 ├── contracts/
-│   └── a9-contract.ts — A9Forecast, A9Correlation, A9ForecastKind, A9CorrelationKind, A9Adapter
+│   └── a9-contract.ts
+│
 ├── adapters/
-│   ├── proposal-events-adapter.ts   — read-only over EventLog capability.governance.proposal.*
-│   ├── measurement-events-adapter.ts — read-only over EventLog capability.governance.measurement.*
-│   └── enriched-proposals-adapter.ts — read-only over EnrichedProposal[] (P10.8a)
-├── forecast-engine.ts              — runs detectors, aggregates findings → A9Forecast
-├── forecast-builder.ts             — findings → A9Forecast (pure)
-├── correlation-engine.ts           — emits A9Correlation after measurement
-├── correlation-builder.ts          — A9Correlation (pure)
-├── a9-bridge.ts                    — A9Forecast → A2.5 GovernanceRecommendation (parallel to a2-bridge.ts:61-78)
-├── forecasts-adapter.ts            — read-only over forecasts.jsonl (parallel to RecommendationsAdapter)
-├── correlations-adapter.ts         — read-only over correlations.jsonl
-├── a9-cli.ts                       — CLI handler for `alix governance evolution forecast`
-└── index.ts                        — barrel re-exports
+│   ├── proposal-events-adapter.ts
+│   ├── measurement-events-adapter.ts
+│   └── enriched-proposals-adapter.ts
+│
+├── forecast-engine.ts
+├── forecast-builder.ts
+├── correlation-engine.ts
+├── correlation-builder.ts
+│
+├── a9-bridge.ts
+│
+├── forecasts-adapter.ts
+├── correlations-adapter.ts
+│
+├── a9-cli.ts
+└── index.ts
 ```
 
-Each module earns its existence through a distinct contract/seam — no mechanical 1:1 file symmetry with A8. Adapters are read-only; builders are pure functions; engines own no I/O.
+Each module must correspond to a distinct contract or architectural seam.
 
-### 4.2 Core contracts (locked)
+Mechanical file symmetry with A8 is not required.
+
+---
+
+# 5. Core Contracts
+
+## 5.1 Identity types
 
 ```typescript
-// Forecast identifier — A9-owned, content-addressed.
-export type ForecastId = string;  // SHA-256(canonical(A9ForecastWithoutIdentity)) hex
+export type ForecastId = string;
+// SHA-256(canonical(A9ForecastWithoutIdentity))
 
-// Correlation identifier — A9-owned, content-addressed.
-export type CorrelationId = string;  // SHA-256(canonical(A9CorrelationWithoutIdentity)) hex
+export type CorrelationId = string;
+// SHA-256(canonical(A9CorrelationWithoutIdentity))
+```
 
-// Three forecast dimensions, aligned with A8's pure detector pattern.
+---
+
+## 5.2 Forecast kinds
+
+```typescript
 export type A9ForecastKind =
-  | "trust-velocity"          // forecast of trust-impact velocity (high blast-radius change)
-  | "evidence-completeness"   // forecast of evidence-completeness at submission
-  | "fingerprint-coincidence"; // forecast of prior-failure recurrence on same fingerprint
-
-// Risk band — A6's canonical vocabulary, projected from internal 0-1 score.
-export type RiskBand = "low" | "medium" | "high" | "critical";
-// Thresholds: 0.0–0.3 → low; 0.3–0.6 → medium; 0.6–0.85 → high; 0.85–1.0 → critical
-// Source: src/adaptation/risk-score-types.ts:50-61
-
-// A9Forecast — content-addressed, immutable, A9-owned.
-export interface A9Forecast {
-  readonly forecastId: ForecastId;
-  readonly forecastVersion: string;             // `semver` of the contract shape
-  readonly subject: string;                     // canonical subject identity (capabilityId, fingerprint, etc.)
-  readonly prediction: {
-    readonly kind: A9ForecastKind;
-    readonly band: RiskBand;                    // projected from internal score
-    readonly internalScore: number;             // 0-1 float, opaque to consumers
-  };
-  readonly horizon: {
-    readonly from: string;                      // ISO 8601 timestamp
-    readonly to: string;                        // ISO 8601 timestamp
-  };
-  readonly confidence: number;                  // 0-1 float, A9's self-confidence in the forecast
-  readonly provenance: {
-    readonly generatedAt: string;               // ISO 8601 timestamp
-    readonly generatorVersion: string;          // A9 generator version
-    readonly evidenceRefs: ReadonlyArray<string>; // EventLog eventIds / proposalIds — preserved exactly
-  };
-}
-
-// A9Correlation — append-only, positive evidence ledger, A9-owned.
-export interface A9Correlation {
-  readonly correlationId: CorrelationId;
-  readonly correlationVersion: string;          // `semver` of the contract shape
-  readonly forecastId: ForecastId;              // A9-owned reference
-  readonly measurementId: string;               // foreign reference (CAP-10/10.5 CapabilityMeasurement id)
-  readonly foreignProvenance: {
-    readonly proposalId?: string;               // A2.5/A3 free-form OR P5.1c prop-YYYY-MM-DD-NNN OR CAP-9 SHA-256 hex
-    readonly notes?: string;                    // opaque metadata for cross-namespace debugging
-  };
-  readonly resolution: {
-    readonly band: RiskBand;                    // actual realized band (from A9Forecast projection)
-    readonly forecastBand: RiskBand;            // forecasted band
-    readonly delta: "match" | "under-forecast" | "over-forecast";
-  };
-}
-
-// Read-only adapter over a specific evidence source.
-export interface A9Adapter<T> {
-  readonly name: string;
-  list(): Promise<ReadonlyArray<T>>;
-}
+  | "trust-velocity"
+  | "evidence-completeness"
+  | "fingerprint-coincidence";
 ```
 
-### 4.3 Architectural invariants (locked from #546)
+---
 
-1. **A9 owns identity.** every A9-owned artifact has an A9-owned deterministic identity via SHA-256 of the canonical artifact.
-2. **A9 owns persistence.** forecast + correlation live in A9's own JSONL stores (`.alix/governance/forecasts.jsonl` + `.alix/governance/correlations.jsonl`).
-3. **A9 owns correlation.** the relationship lives in `A9Correlation`, not in foreign surfaces.
-4. **Foreign IDs remain references.** never join keys, never substitute identities.
-5. **Measurements remain capability-targeted.** CAP-10/10.5 boundary preserved; A9Correlation.measurementId is a foreign reference, not a write.
-6. **Correlations are positive evidence.** no negative records, no status fields, no "tried but failed" entries.
-7. **Relationships are many-to-many.** independent immutable records; a forecast may have many supporting correlations; a measurement may correlate with many forecasts.
-8. **Artifacts are immutable/append-only.** corrections are new records, never mutations.
-9. **Calibration is interpretation, not persistence.** terminal/primary/expired states belong to A9 calibration/result semantics, not the correlation ledger.
-10. **No speculative artifacts.** failure audit (A9CorrelationAttempt) is NOT built speculatively.
+## 5.3 Risk band
 
-### 4.4 Architectural progression (locked)
-
-```
-EventLog + EnrichedProposal[] (P10.8a)
-   │
-   ├── proposal-events-adapter   ─┐
-   ├── measurement-events-adapter ─┼──► 3 read-only adapters (raw records, NOT A8 normalized)
-   └── enriched-proposals-adapter ┘
-                                     │
-                                     ▼
-                          forecast-engine
-                          (3 pure detectors: trust-velocity, evidence-completeness, fingerprint-coincidence)
-                                     │
-                                     ▼
-                          A9Forecast (content-addressed, A9-owned)
-                                     │
-                                     ▼
-                          a9-bridge.ts → GovernanceRecommendation(kind: "RISK_GATED_REVIEW" | "MONITOR")
-                                     │
-                                     ▼
-                          A3 generateDecision() → APPROVE | REJECT | MONITOR | REQUEST_MORE_EVIDENCE
-                                     │
-                                     ▼
-                          A4 (if APPROVED) / UNDER_REVIEW (if REQUEST_MORE_EVIDENCE)
-
-                  ┌──────────────────────────────────────┐
-                  │   Post-execution (separate flow)    │
-                  └──────────────────────────────────────┘
-
-EventLog (capability.governance.measurement.*)
-   │
-   ▼
-   correlation-engine (deterministic join on forecastId + measurementId)
-   │
-   ▼
-   A9Correlation (append-only, positive evidence ledger)
+```typescript
+export type RiskBand =
+  | "low"
+  | "medium"
+  | "high"
+  | "critical";
 ```
 
-**A9 forecast emission runs before proposal execution.** A9 correlation emission runs after measurement realization. The two flows are independent and asynchronous; the correlation engine does not gate the forecast engine.
+Risk-band projection uses the canonical A6 thresholds:
 
-### 4.5 Adapters (locked from #528)
-
-A9 reads raw adapter records, NOT A8's normalized records. Three independent read-only adapters:
-
-**(a) `proposal-events-adapter`** — consumes `CapabilityGovernanceEvent[]` from EventLog (the 5 `capability.governance.proposal.*` event types). Returns raw records: `{ proposalId, capabilityId, kind, payload, recordedAt }`. A9 inspects `payload` directly to recover `proposal.target.kind` (A8 normalizes this away).
-
-**(b) `measurement-events-adapter`** — consumes `CapabilityMeasurementEvent[]` from EventLog (the 2 `capability.governance.measurement.*` event types). Returns raw records: `{ measurementId, capabilityId, outcome, sourceProposalIds, recordedAt }`. A9 uses `sourceProposalIds` (CAP-10/10.5 preservation) to recover proposal-correlation bridge.
-
-**(c) `enriched-proposals-adapter`** — consumes `EnrichedProposal[]` from P10.8a. Returns raw records: `{ proposalId, capabilityId, enrichedFields, recordedAt }`. A9 reads `enrichedFields` values directly (A8 strips to names-only).
-
-**Why bypass A8 normalization:** 4 A8 contract gaps make A8's normalized records inadequate for A9's correlation needs. A9 reads raw records to recover information A8 strips. A8's read-only adapter boundary (T2 ruling) is preserved — A9 does not amend A8 contracts.
-
-### 4.6 Forecast detectors (locked)
-
-All 3 detectors are **pure functions** over raw adapter input. Each emits a 0-1 score; the engine projects to a `RiskBand` via A6's threshold function.
-
-**(a) `trust-velocity-detector`:**
-- Consumes: `proposal-events-adapter` output (raw `proposal.submitted` events)
-- Input: proposal blast-radius indicators (replacing targets, capability surface area, multi-tenancy impact)
-- Scoring: blast-radius-weighted adjustments to a base trust score
-- Output: `internalScore ∈ [0, 1]`
-
-**(b) `evidence-completeness-detector`:**
-- Consumes: `enriched-proposals-adapter` output (raw `enrichedFields` values)
-- Input: count of populated enriched fields, recency, source diversity
-- Scoring: completeness × recency × diversity
-- Output: `internalScore ∈ [0, 1]`
-
-**(c) `fingerprint-coincidence-detector`:**
-- Consumes: `proposal-events-adapter` output (raw `proposal.execution_failed` events)
-- Input: normalized failure fingerprint (e.g., `errorCategory:capabilityId`)
-- Output: `internalScore ∈ [0, 1]` — measures prior failure-density on the same fingerprint
-
-**Risk band projection:** `internalScore → RiskBand` via A6's canonical thresholds:
 ```typescript
 function internalScoreToBand(score: number): RiskBand {
   if (score < 0.3) return "low";
@@ -240,246 +429,1843 @@ function internalScoreToBand(score: number): RiskBand {
   return "critical";
 }
 ```
-Source: `src/adaptation/risk-score-types.ts:50-61` (LOCKED per #529).
 
-**A2.5 kind selection:** `RiskBand` → `GovernanceRecommendationKind`:
-- `"low"` → `MONITOR` (no gate)
-- `"medium"` → `MONITOR` (no gate)
-- `"high"` → `RISK_GATED_REVIEW` (new 6th kind, maps to A3 REQUEST_MORE_EVIDENCE)
-- `"critical"` → `RISK_GATED_REVIEW` (new 6th kind, maps to A3 REQUEST_MORE_EVIDENCE)
+Thresholds:
 
-**Detector purity invariant:** no I/O, no implicit clock. Engine passes a deterministic timestamp; same input + same timestamp → identical forecasts.
+```text
+0.0 ≤ score < 0.3     → low
+0.3 ≤ score < 0.6     → medium
+0.6 ≤ score < 0.85    → high
+0.85 ≤ score ≤ 1.0    → critical
+```
 
-**Concrete threshold values** (per-detector scoring weights, evidence window duration) are deferred to the plan phase. The spec defines the **predicate structure**; the plan establishes **concrete defaults**.
+---
 
-### 4.7 Forecast + correlation engines (locked)
+# 6. A9Forecast
 
-- `forecastEngine.forecast(timestamp)` runs all 3 detectors against the joined raw adapter outputs. Joins happen here, not in adapters.
-- `forecastEngine.forecast(timestamp)` groups findings by `subject` and returns one `A9Forecast` per subject, or `null` if no detection-worthy signal (the "no trigger → no forecast" invariant).
-- **Aggregation rule (locked):** within a single subject, the engine takes the **maximum** `internalScore` across detectors and projects the highest band. This is a deterministic, monotonic aggregation — a high score from one detector is not diluted by a low score from another. The `prediction.band` is the band of the max score; the `confidence` is the average of detector confidences weighted by internal score.
-- `forecastBuilder.build(findings, subject, timestamp)` constructs the `A9Forecast`. Pure function. Deterministic identity via `forecastId = SHA-256(canonical(forecastWithoutIdentity))`.
-- `correlationEngine.correlate(forecastId, measurementId, timestamp)` emits an `A9Correlation` after measurement realization. Pure function modulo timestamp.
-- `correlationBuilder.build(forecast, measurement, timestamp)` constructs the `A9Correlation`. Pure function. Deterministic identity via `correlationId = SHA-256(canonical(correlationWithoutIdentity))`.
+```typescript
+export interface A9Forecast {
+  readonly forecastId: ForecastId;
 
-**No trigger → no forecast / no correlation:** if no detection-worthy signal, the engine emits no `A9Forecast` and no `A9Correlation`. This avoids polluting the ledger with meaningless entries.
+  readonly forecastVersion: string;
 
-### 4.8 A9 bridge (locked from #531)
+  /**
+   * Foreign proposal identity.
+   *
+   * This is the canonical proposal identifier supplied by the
+   * proposal event surface. It is NOT A9 identity.
+   */
+  readonly subject: string;
 
-`a9-bridge.ts` parallel to `a2-bridge.ts:61-78` (A8 MONITOR-only precedent). The bridge constructs `GovernanceRecommendation` from the `A9Forecast`:
+  /**
+   * Immutable capability-target snapshot copied from:
+   *
+   * proposal.submitted.payload.target.id
+   *
+   * This is a derived bridge attribute, not an independent
+   * source of truth.
+   */
+  readonly subjectCapability: string;
+
+  readonly prediction: {
+    readonly kind: A9ForecastKind;
+    readonly band: RiskBand;
+    readonly internalScore: number;
+  };
+
+  readonly horizon: {
+    readonly from: string;
+    readonly to: string;
+  };
+
+  readonly confidence: number;
+
+  readonly provenance: {
+    readonly generatedAt: string;
+    readonly generatorVersion: string;
+
+    /**
+     * Preserved canonical evidence references.
+     */
+    readonly evidenceRefs: ReadonlyArray<string>;
+  };
+}
+```
+
+### Identity rule
+
+`forecastId` is calculated from the canonical semantic content of the forecast excluding identity and incidental persistence metadata.
+
+The canonical identity input includes:
+
+* `forecastVersion`;
+* `subject`;
+* `subjectCapability`;
+* `prediction`;
+* `horizon`;
+* `confidence`;
+* semantic provenance references.
+
+It excludes:
+
+* storage location;
+* JSONL line number;
+* append sequence;
+* unrelated persistence metadata.
+
+---
+
+# 7. A9Correlation
+
+```typescript
+export interface A9Correlation {
+  readonly correlationId: CorrelationId;
+
+  readonly correlationVersion: string;
+
+  /**
+   * A9-owned reference.
+   */
+  readonly forecastId: ForecastId;
+
+  /**
+   * Foreign CAP-10/10.5 measurement identity.
+   */
+  readonly measurementId: string;
+
+  readonly foreignProvenance: {
+    /**
+     * Foreign proposal identity.
+     *
+     * This is provenance only.
+     */
+    readonly proposalId?: string;
+
+    readonly notes?: string;
+  };
+
+  /**
+   * Evidence relationship metadata.
+   *
+   * This does NOT designate a primary realization.
+   */
+  readonly resolution: {
+    readonly band: RiskBand;
+    readonly forecastBand: RiskBand;
+
+    readonly delta:
+      | "match"
+      | "under-forecast"
+      | "over-forecast";
+  };
+}
+```
+
+`correlationId` is:
+
+```text
+SHA-256(
+  canonical(
+    A9CorrelationWithoutIdentity
+  )
+)
+```
+
+The canonical identity excludes:
+
+* storage location;
+* JSONL position;
+* append sequence;
+* incidental timestamps where they are not semantic content.
+
+---
+
+# 8. Correlation Semantics
+
+`A9Correlation` means:
+
+> This measurement is deterministically established as supporting evidence for this forecast.
+
+It does **not** mean:
+
+> This measurement is the unique realized outcome of this forecast.
+
+It does **not** mean:
+
+> This measurement was caused by this proposal.
+
+It does **not** designate a primary measurement.
+
+It does **not** resolve conflicting measurements.
+
+Calibration/result semantics are a separate future concern.
+
+---
+
+# 9. Foreign Adapters
+
+All foreign adapters are read-only.
+
+```typescript
+export interface A9Adapter<T> {
+  readonly name: string;
+
+  list(): Promise<ReadonlyArray<T>>;
+}
+```
+
+A9 adapters expose no mutation methods.
+
+---
+
+## 9.1 Proposal events adapter
+
+Consumes raw `CapabilityGovernanceEvent` records from EventLog.
+
+It exposes the canonical proposal event information needed by A9:
+
+```typescript
+{
+  proposalId,
+  capabilityId,
+  kind,
+  payload,
+  recordedAt
+}
+```
+
+The adapter does not normalize away:
+
+```text
+proposal.target.kind
+proposal.target.id
+```
+
+A9 reads the raw payload directly.
+
+The canonical proposal bridge is:
+
+```text
+proposal.submitted.proposalId
+proposal.submitted.payload.target.id
+```
+
+The adapter also exposes the canonical:
+
+```text
+proposal.executed
+```
+
+event required by the correlation eligibility gate.
+
+---
+
+## 9.2 Measurement events adapter
+
+Consumes raw:
+
+```text
+capability.governance.measurement.*
+```
+
+events.
+
+The adapter returns:
+
+```typescript
+{
+  measurementId,
+  capabilityId,
+  outcome,
+  recordedAt
+}
+```
+
+It MUST NOT expose or manufacture:
+
+```text
+proposalId
+sourceProposalIds
+forecastId
+correlationId
+```
+
+because those do not belong to the CAP-10/10.5 measurement contract.
+
+---
+
+## 9.3 Enriched proposals adapter
+
+Consumes raw `EnrichedProposal[]` from P10.8a.
+
+It exposes:
+
+```text
+proposalId
+capabilityId
+enrichedFields
+recordedAt
+```
+
+A9 reads `enrichedFields` values directly.
+
+A9 does not consume A8's normalized learning records.
+
+---
+
+# 10. Why A9 bypasses A8 normalization
+
+A8 normalization is intentionally lossy.
+
+A9 requires information that A8 does not preserve in its normalized surface.
+
+Examples include:
+
+* raw proposal target information;
+* proposal target kind;
+* raw enriched field values;
+* heterogeneous evidence references.
+
+Therefore:
+
+```text
+A8 normalized records
+        X
+        │
+        │ not an A9 dependency
+        ▼
+A9 raw adapters
+```
+
+A9 does not amend A8 contracts.
+
+A9 does not alter A8 normalization.
+
+---
+
+# 11. Forecast Detectors
+
+All detectors are pure functions.
+
+They:
+
+* perform no I/O;
+* use no implicit clock;
+* receive deterministic timestamps from the engine;
+* produce deterministic results for identical input.
+
+---
+
+## 11.1 Trust velocity detector
+
+Consumes proposal-event records.
+
+Inputs include proposal blast-radius indicators such as:
+
+* replacing targets;
+* capability surface area;
+* multi-tenancy impact.
+
+Output:
+
+```text
+internalScore ∈ [0, 1]
+```
+
+Concrete scoring weights are deferred to plan phase.
+
+---
+
+## 11.2 Evidence completeness detector
+
+Consumes enriched proposal records.
+
+Inputs include:
+
+* populated enriched fields;
+* evidence recency;
+* source diversity.
+
+Scoring structure:
+
+```text
+completeness × recency × diversity
+```
+
+Output:
+
+```text
+internalScore ∈ [0, 1]
+```
+
+Concrete weights are deferred to plan phase.
+
+---
+
+## 11.3 Fingerprint coincidence detector
+
+Consumes historical `proposal.execution_failed` events.
+
+Input:
+
+```text
+normalized failure fingerprint
+```
+
+Example:
+
+```text
+errorCategory:capabilityId
+```
+
+Output:
+
+```text
+internalScore ∈ [0, 1]
+```
+
+Concrete fingerprint scoring is deferred to plan phase.
+
+---
+
+# 12. Forecast Aggregation
+
+The engine executes all applicable detectors.
+
+Findings are grouped by:
+
+```text
+proposalId
+```
+
+Each proposal receives at most one forecast per forecast operation.
+
+Within a subject:
+
+```text
+aggregateScore =
+  max(detector.internalScore)
+```
+
+The highest score determines the risk band.
+
+This is deterministic and monotonic.
+
+A high-risk detector finding cannot be diluted by a low-risk finding.
+
+Confidence is the detector-confidence weighted by internal score.
+
+---
+
+# 13. No Trigger → No Forecast
+
+If no detector produces a detection-worthy finding:
+
+```text
+forecastEngine.forecast()
+→ null / empty result
+```
+
+No `A9Forecast` is written.
+
+This prevents meaningless forecast records from polluting the ledger.
+
+---
+
+# 14. Forecast Builder
+
+```typescript
+forecastBuilder.build(
+  findings,
+  subject,
+  subjectCapability,
+  timestamp,
+)
+```
+
+is pure.
+
+It:
+
+1. aggregates detector findings;
+2. constructs the semantic forecast;
+3. canonicalizes the forecast;
+4. derives `forecastId`;
+5. returns the immutable `A9Forecast`.
+
+The builder does not perform persistence.
+
+---
+
+# 15. A9 Governance Bridge
+
+`a9-bridge.ts` constructs the A2.5 recommendation.
 
 ```typescript
 export function buildGovernanceRecommendation(
   forecast: A9Forecast,
 ): GovernanceRecommendation {
-  // Locked: high/critical → RISK_GATED_REVIEW (6th A2.5 kind).
-  // Locked: low/medium → MONITOR (no gate).
   const kind: GovernanceRecommendationKind =
-    forecast.prediction.band === "high" || forecast.prediction.band === "critical"
+    forecast.prediction.band === "high" ||
+    forecast.prediction.band === "critical"
       ? "RISK_GATED_REVIEW"
       : "MONITOR";
 
   return {
-    id: forecast.forecastId,  // A9 owns the identity; A2.5 references it
+    id: forecast.forecastId,
     kind,
     confidence: forecast.confidence,
     sourceArtifactId: forecast.forecastId,
-    evidenceRefs: [...forecast.provenance.evidenceRefs],
-    rationale: `A9 forecast: ${forecast.prediction.kind} → ${forecast.prediction.band}`,
+    evidenceRefs: [
+      ...forecast.provenance.evidenceRefs,
+    ],
+    rationale:
+      `A9 forecast: ` +
+      `${forecast.prediction.kind} → ` +
+      `${forecast.prediction.band}`,
   };
 }
 ```
 
-The A2.5 → A3 mapping (`RECOMMENDATION_KIND_MAP`) needs extension to handle the new 6th kind. The minimum extension: `RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE` (UNDER_REVIEW target state). A3's 4 binding kinds and 3 target states are PRESERVED.
+A9 owns the identity.
 
-### 4.9 Persistence (locked from #530 + #546)
+A2.5 references it.
 
-A9 owns two append-only JSONL stores:
+---
 
-- `.alix/governance/forecasts.jsonl` — A9Forecast records, one per line. Mirrors A2.5 recommendations JSONL pattern.
-- `.alix/governance/correlations.jsonl` — A9Correlation records, one per line. Mirrors A2.5 recommendations JSONL pattern.
+# 16. Governance Mapping
 
-**Runtime path:** `.alix/governance/forecasts.jsonl` + `.alix/governance/correlations.jsonl` (alongside A2.5 recommendations JSONL).
-**Module ownership:** `src/evolution/a9/` (alongside A8 `src/evolution/learning/` source module).
+A9 introduces exactly one new A2.5 recommendation kind:
 
-**Canonical correlation key:** `proposalId` (per #530). Forecasts are per-proposal per the locked authority model A9 → A2.5 → A3 → A4. The forecast emits with `subject = proposalId`; the correlation joins on `forecastId` (A9-owned) and adds `proposalId` to `foreignProvenance` for cross-namespace debugging.
+```text
+RISK_GATED_REVIEW
+```
 
-**Reads via:** `ForecastsAdapter` + `CorrelationsAdapter` parallel to `RecommendationsAdapter` (A8 precedent). Adapters are read-only; no write surface.
+Mapping:
 
-**A9 persistence is self-sufficient for A9 provenance.** Foreign stores are NOT required to know a correlation existed; only for dereferencing/enrichment.
+```text
+RISK_GATED_REVIEW
+        ↓
+REQUEST_MORE_EVIDENCE
+        ↓
+UNDER_REVIEW
+```
 
-### 4.10 CLI (locked)
+Existing A2.5 kinds remain unchanged.
 
-`alix governance evolution forecast [--dimension ...] [--json]`
+A3 remains unchanged.
 
-Single namespace. The detector taxonomy is internal; the operator surface is `forecast`. Output: the `A9Forecast` (or a "no findings" notice if no forecast was emitted). High/critical forecasts are surfaced with the `RISK_GATED_REVIEW` A2.5 kind projection.
+A3 still owns the final binding decision.
 
-Correlation runs are emitted asynchronously after measurement; no CLI surface for correlation emission (correlation is automatic, not operator-initiated).
+---
 
-CLI registration via the minimum existing CLI registration seam — A9 does NOT introduce a new CLI binary. The CLI registration touch is the only permitted modification outside `src/evolution/a9/` and A9-specific tests.
+# 17. Risk Band → Governance Recommendation
 
-## 5. Data flow
+```text
+low
+  → MONITOR
 
-### 5.1 Forecast emission (pre-execution)
+medium
+  → MONITOR
 
-1. Engine initializes with 3 raw adapters (composition-root-owned; A9 doesn't instantiate adapters itself).
-2. Operator invokes `alix governance evolution forecast` (or programmatic equivalent).
-3. Engine calls each adapter's `list()`, gets raw evidence records.
-4. Engine runs each of the 3 pure detectors over its assigned raw evidence.
-5. Engine aggregates findings into a single `A9Forecast` (or returns `null` if no detection-worthy signal).
-6. `correlationId-keyless`: A9Forecast is committed to `.alix/governance/forecasts.jsonl` (append-only).
-7. `a9-bridge.ts` builds `GovernanceRecommendation(kind: "RISK_GATED_REVIEW" | "MONITOR")` from the forecast.
-8. A2.5 → A3 mapping routes: `RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE` (UNDER_REVIEW) | `MONITOR → MONITOR` (existing).
-9. A3 `generateDecision()` returns the binding decision.
-10. CLI surfaces the decision + the underlying `A9Forecast`.
+high
+  → RISK_GATED_REVIEW
 
-A9 never writes to EventLog, ProposalStore, or any other store. A9 owns its own JSONL only.
+critical
+  → RISK_GATED_REVIEW
+```
 
-### 5.2 Correlation emission (post-execution)
+A9 does not itself approve or reject a proposal.
 
-1. Measurement event `capability.governance.measurement.measured` arrives in EventLog.
-2. `correlationEngine` observes the event (via `subscription` or scheduled poll — concrete mechanism deferred to plan).
-3. Engine queries `forecasts.jsonl` for **all** `A9Forecast` records whose `subject` matches the `capabilityId` AND whose `horizon.to` is `≥ measurement.recordedAt`. Multiple matches are expected (one-to-many + many-to-many); the engine emits one `A9Correlation` per (forecastId, measurementId) pair.
-4. Engine constructs `A9Correlation` per pair joining `forecastId` (A9-owned) + `measurementId` (foreign) + `proposalId` (foreign provenance, from `sourceProposalIds`).
-5. Each `A9Correlation` is committed to `.alix/governance/correlations.jsonl` (append-only).
-6. No governance re-evaluation. Correlation is evidence, not authorization.
+---
 
-**Deterministic join, not a heuristic.** A9 reads the `subject` (proposalId / capabilityId) directly from the raw adapter record and joins by exact equality. The horizon check is a validity bound (forecast still applies), not a recency preference. There is no "most recent" selection — the engine correlates with every still-valid forecast on the same subject, preserving the many-to-many invariant.
+# 18. Persistence
 
-## 6. Composition root
+A9 owns exactly two initial persistence surfaces:
 
-The 3 raw adapters are constructed by the composition root at `src/capability/platform.ts` (or equivalent) and passed to `ForecastEngine` at construction. The A9 bridge is registered alongside A2.5's `a2-bridge.ts` in the A2.5 → A3 mapping factory. ForecastsAdapter + CorrelationsAdapter are also composition-root-owned.
+```text
+.alix/governance/forecasts.jsonl
+.alix/governance/correlations.jsonl
+```
 
-**CAP-12 forbidden-file carve-out:** A9 adds `src/capability/platform.ts` to the CAP-12 forbidden list (extends CAP-P's carve-out for `capability-service.ts` + `platform.ts`). All other CAP-12 forbidden files remain forbidden. A9 requires the composition-root wiring path; the CLI registration touch is the only permitted modification outside `src/evolution/a9/`.
+Both are:
 
-## 7. Migration boundary
+* append-only;
+* restart-readable;
+* immutable at the record level;
+* independently owned by A9.
 
-No migration. A9 introduces a new module; no existing data structures change. Existing A6, CAP-N, CAP-O, CAP-P, A8, EventLog, A2.5, A3, and P10.8a modules are consumed unchanged.
+Corrections create new records.
 
-The A2.5 → A3 mapping (`RECOMMENDATION_KIND_MAP`) gains exactly one new entry: `RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE`. All existing mapping entries are preserved.
+No destructive pruning is specified for v1.
 
-The 6th A2.5 kind (`RISK_GATED_REVIEW`) is added to the `GovernanceRecommendationKind` union. The 5 existing kinds are preserved. The 7th-kind prohibition is locked.
+---
 
-## 8. Error handling
+# 19. Restart Durability
 
-- **Adapter failure** — engine catches and logs; engine continues with partial evidence (other adapters' results still valid). Findings carry an `evidenceSourceUnavailable` annotation when their source adapter failed.
-- **Detector throw on malformed input** — engine catches per-detector; continues with remaining detectors. Failures are surfaced via the CLI but do not abort the engine run.
-- **Forecast builder identity collision** — SHA-256 collision is astronomically improbable; if detected, the engine throws a deterministic error and emits no forecast. The collision is a load-bearing failure and must surface.
-- **Correlation join miss** —silent absence. No A9Correlation emitted. No negative record. The miss is observable via the gap between forecast count and correlation count in the JSONL.
-- **A3 returns REJECT** — possible if `verificationEvidence` is malformed (per A3's `failClosedOnExpiredEvidence`). A9's bridge constructs minimal evidence so A3 should not reject under normal operation; if it does, surface the failure to the operator.
-- **JSONL write failure** — engine throws; the forecast is NOT committed. The CLI surfaces the write failure. No partial-state risk because JSONL writes are atomic (single line).
+After complete shutdown and memory loss:
 
-## 9. Testing strategy
+A9 can reconstruct its own provenance entirely from:
 
-### 9.1 Unit tests — `tests/evolution/a9-forecast-detectors.vitest.ts`
+```text
+forecasts.jsonl
+correlations.jsonl
+```
 
-Per detector:
-- Empty input → 0 findings → `null` forecast
-- Below threshold → 0 findings → `null` forecast
-- At/above threshold on same identity key → 1 finding → 1 forecast
-- Above threshold split across identity keys → N findings → N forecasts (one per subject, max-score aggregation)
-- Determinism: same input + same timestamp twice → identical forecasts (same `forecastId`)
-- Evidence references preserved exactly in each forecast
-- Internal score → RiskBand projection matches A6 thresholds exactly
+Foreign sources are not needed to establish that an A9 correlation existed.
 
-Engine aggregation:
-- Multiple findings from different detectors → 1 `A9Forecast` (subject-aggregated)
-- 0 findings across all detectors → `null` (no forecast emitted)
+Foreign sources are needed only when A9 needs to:
 
-### 9.2 Adapter tests — `tests/evolution/a9-adapters.vitest.ts`
+* dereference a foreign identity;
+* enrich a record;
+* establish a new correlation eligibility relationship.
 
-- Each adapter's `list()` returns expected raw (un-normalized) record shape
-- Read-only invariant: no mutation surface exposed on adapter interfaces
-- Empty source store → empty list
-- A9 reads `payload` directly (not A8's normalized Records)
-- A9 reads `enrichedFields` values directly (not A8's names-only)
+---
 
-### 9.3 Persistence tests — `tests/evolution/a9-persistence.vitest.ts`
+# 20. Correlation Architecture
 
-- `forecasts.jsonl` append-only on forecast emission
-- `correlations.jsonl` append-only on correlation emission
-- `forecastId` deterministic from canonical forecast (same content → same id)
-- `correlationId` deterministic from canonical correlation (same content → same id)
-- Foreign IDs preserved as references (not joined into identity)
-- Negative-record prohibition: no `A9Correlation` emitted on join miss
-- Read adapters expose the same content that was written
+The correlation relationship is:
 
-### 9.4 Bridge tests — `tests/evolution/a9-bridge.vitest.ts`
+```text
+A9Forecast
+    │
+    ├── subject = proposalId
+    │
+    └── subjectCapability = capabilityId
+              │
+              ▼
+       canonical EventLog
+```
 
-- `low`/`medium` band → `MONITOR` A2.5 kind
-- `high`/`critical` band → `RISK_GATED_REVIEW` A2.5 kind
-- A2.5 → A3 mapping routes `RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE` (UNDER_REVIEW)
-- Existing 5 A2.5 kinds all unchanged (regression)
-- A3 still has 4 binding kinds (regression)
-- A3 still has 3 target states (regression)
+The forecast stores `subjectCapability` as an immutable derived bridge value.
 
-### 9.5 Integration test — `tests/evolution/a9-engine-end-to-end.vitest.ts`
+The authoritative source for that value is:
 
-- Engine runs all 3 detectors on raw EventLog + `EnrichedProposal[]` fixtures
-- Full flow: adapters → detectors → `A9Forecast` → A9 bridge → A2.5 `GovernanceRecommendation` → A3 `generateDecision()` → binding decision
-- 0-finding run → `null` → no A9 bridge call → no A3 call
-- High/critical forecast → `RISK_GATED_REVIEW` → A3 `REQUEST_MORE_EVIDENCE` (UNDER_REVIEW)
-- Low/medium forecast → `MONITOR` → A3 `MONITOR` or `APPROVE` (existing)
+```text
+proposal.submitted.payload.target.id
+```
 
-### 9.6 Sentinel test — `tests/evolution/a9-sentinel.vitest.ts`
+The stored `subjectCapability` is a snapshot.
 
-Structural + behavioral invariants:
-- A9 owns identity: `forecastId` is SHA-256 of canonical forecast
-- A9 owns correlation: `A9Correlation` lives in `correlations.jsonl`, not in foreign surfaces
-- Foreign IDs remain references: `measurementId` is a foreign reference, not a write
-- Measurements remain capability-targeted: no `proposalId` field on `CapabilityMeasurementPayload` (regression)
-- 5-event taxonomy preserved: no 6th `capability.governance.*` event type (regression)
-- A2.5 → A3 mapping has exactly 6 kinds (5 existing + `RISK_GATED_REVIEW`)
-- A3 still has 4 binding kinds (regression)
-- A3 still has 3 target states (regression)
-- A9 source files MUST NOT import from `enriched-proposal-aggregator.ts` or A8 normalization layer (A9 reads raw)
+It is not a second source of truth.
 
-### 9.7 Regression
+---
 
-Full test suite (A6 + A8 + CAP-N + CAP-O + CAP-P + all evolution tests + A9 tests) must remain green. New tests: ≥3 detector unit tests + 3 adapter tests + ≥3 persistence tests + ≥3 bridge tests + ≥1 integration test + ≥1 sentinel test = ≥14 new tests. Zero regressions.
+# 21. Deterministic Correlation Bridge
 
-## 10. Forward compatibility
+The canonical bridge is a two-hop exact-equality relationship.
 
-- **A9 strategy-tuning** (a future capability, not in A9 v1) would be a new architectural increment, not an A9 expansion.
-- **4th forecast detector kind** (e.g., trust-velocity drift, evidence-source diversity) would be a new architectural increment.
-- **A9CorrelationAttempt** (failure audit) — separately authorized; NOT built speculatively.
-- **Calibration/result semantics** — separate concern from correlation; A9 v1 emits forecasts + correlations; calibration interpretation is a future architectural increment.
-- **A9 → A4 conditional execution** — A9 is currently governance-gating only; future A9 → A4 conditional skip (e.g., execute on low risk, skip on critical) would be a new architectural increment.
+### Hop 1 — proposal identity
 
-## 11. Out of scope
+```text
+forecast.subject
+    ==
+proposal.submitted.proposalId
+```
 
-- TUI/Web surfaces (CAP-11 territory)
-- A9 strategy-tuning (governance config mutation, threshold mutation, risk-class remapping)
-- A9CorrelationAttempt (failure audit)
-- A9 calibration/result semantics
-- A9 → A4 conditional execution
-- A9 persistence (CAP-9 / CAP-10 / CAP-10.5 deviation)
-- A9 → A2.5-A3 contract coupling beyond the 6th kind + 1 mapping entry
-- A9 domain type reuse (A6 `CurationProposal`, A8 `LearningProposal`)
-- A9 real-time risk dashboard (would require mutation of A2.5 → A3 mapping semantics)
-- M2/M3 governance signal delivery/replay
+This establishes which canonical proposal produced the forecast.
 
-## 12. References
+### Hop 2 — capability identity
 
-- A9 recon #527 findings: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a9-527-recon-findings.md`
-- A9 recon #546 10 invariants: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a9-546-grilling-locked.md`
-- A9 recon #528-#531 decisions: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a9-528-531-recon-locked.md`
-- A9 wayfinder map #526: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a9-wayfinder-charted.md`
-- A8 spec (pattern template): `docs/superpowers/specs/2026-08-14-a8-organizational-learning-design.md`
-- A8 implementation: `src/evolution/learning/` (architectural pattern, not domain types)
-- A6 `RiskOutcome`: `src/adaptation/risk-score-types.ts:50-61` (vocabulary + thresholds)
-- A6 implementation: `src/evolution/knowledge/` (pattern template)
-- A2.5 `GovernanceRecommendation`: `src/governance/governance-types.ts:172`
-- A2.5 → A3 mapping: `src/evolution/governance/decision-engine.ts` (extended with 6th kind)
-- A8 a2-bridge.ts: `src/evolution/learning/` (parallel pattern for a9-bridge.ts)
-- A3 `generateDecision`: `src/evolution/governance/decision-engine.ts:123`
-- EventLog event types: `src/capability/governance/governance-types.ts:99-103`
-- `EnrichedProposal`: `src/adaptation/intelligence-types.ts`; aggregated by `src/adaptation/bucket-aggregator.ts`
-- A-series lineage: `docs/architecture/ma0-alix-architecture-2-0.md` §A0-A9; `docs/roadmap/a-series-autonomous-evolution.md`
-- A8 organizational learning memory: `~/.claude/projects/-home-babasola-Projects-Monolith/memory/a8-organizational-learning-complete.md`
-- CAP-N spec: `docs/superpowers/specs/2026-08-14-cap-n-end-to-end-create-path-design.md`
-- CAP-O spec: `docs/superpowers/specs/2026-08-14-cap-o-underperformer-update-path-design.md`
-- CAP-P spec: `docs/superpowers/specs/2026-08-15-cap-p-consolidation-execution-design.md`
-- ADR-0008 (A-series evolution)
-- ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)
-- A8 MONITOR-only bridge precedent: `src/evolution/learning/a2-bridge.ts:61-78`
-- A8 RecommendationsAdapter pattern: `src/evolution/learning/` (parallel pattern for ForecastsAdapter)
+```text
+forecast.subjectCapability
+    ==
+measurement.capabilityId
+```
+
+This establishes that the measurement concerns the same capability target.
+
+No temporal proximity is used to identify the proposal.
+
+No payload similarity is used.
+
+No "most recent" selection is used.
+
+No fuzzy matching is used.
+
+---
+
+# 22. Execution Eligibility Gate
+
+Before emitting a correlation, A9 must establish that the forecasted proposal actually reached execution.
+
+The canonical gate is:
+
+```text
+proposal.executed
+```
+
+for:
+
+```text
+forecast.subject
+```
+
+The execution event establishes:
+
+> the proposal associated with this forecast reached execution.
+
+It does **not** establish:
+
+> a particular measurement was caused by this proposal.
+
+That distinction is essential because CAP-10/10.5 intentionally removes proposal identity from measurement events.
+
+---
+
+# 23. Correlation Algorithm
+
+For each measurement event:
+
+### Step 1
+
+Read:
+
+```text
+forecast.subject
+forecast.subjectCapability
+forecast.forecastId
+forecast.horizon
+```
+
+from A9's persisted forecast store.
+
+### Step 2
+
+Resolve the canonical proposal event:
+
+```text
+proposal.submitted.proposalId
+```
+
+and verify:
+
+```text
+proposal.submitted.payload.target.id
+==
+forecast.subjectCapability
+```
+
+### Step 3
+
+Verify execution eligibility:
+
+```text
+proposal.executed.proposalId
+==
+forecast.subject
+```
+
+If the proposal never executed, no correlation is emitted.
+
+### Step 4
+
+Find measurements satisfying:
+
+```text
+measurement.capabilityId
+==
+forecast.subjectCapability
+```
+
+and:
+
+```text
+forecast.horizon.from
+≤ measurement.recordedAt
+≤ forecast.horizon.to
+```
+
+The horizon is a validity bound.
+
+It is not a recency ranking.
+
+### Step 5
+
+For every eligible `(forecastId, measurementId)` pair, build:
+
+```text
+A9Correlation
+```
+
+with:
+
+```text
+foreignProvenance.proposalId =
+    forecast.subject
+```
+
+### Step 6
+
+Persist the correlation append-only.
+
+---
+
+# 24. What the Correlation Algorithm Does NOT Do
+
+A9 MUST NOT:
+
+* select the most recent measurement;
+* select the closest measurement in time;
+* compare payload similarity;
+* infer proposal identity from capability equality alone;
+* add proposal identity to measurement events;
+* modify measurement records;
+* modify proposal records;
+* infer causality;
+* designate a primary measurement;
+* resolve conflicting evidence;
+* create negative correlation records.
+
+---
+
+# 25. Correlation Eligibility Is an Architectural Fact
+
+The governing rule is:
+
+> **A9 may correlate a forecast with a measurement only when an existing canonical, deterministic bridge establishes eligibility. The bridge may span multiple read-only canonical sources. A9 never modifies those sources, never infers missing identity, and never treats capability equality alone as proposal provenance.**
+
+Therefore:
+
+```text
+deterministic bridge exists
+    → A9Correlation may be emitted
+
+deterministic bridge unavailable
+    → no A9Correlation
+```
+
+Absence is unresolved/unestablished.
+
+It is not a failure record.
+
+---
+
+# 26. Many-to-Many Correlation
+
+The resulting graph may be:
+
+```text
+Forecast F1 ──────┐
+                  ├── Measurement M1
+Forecast F2 ──────┤
+                  │
+Forecast F3 ──────┘
+```
+
+and:
+
+```text
+Forecast F1
+   ├── Measurement M1
+   ├── Measurement M2
+   └── Measurement M3
+```
+
+Each relationship is an independent immutable `A9Correlation`.
+
+No shared group artifact exists.
+
+---
+
+# 27. Correlation and Calibration Are Separate
+
+A9 v1 defines:
+
+```text
+forecast
+    +
+evidence correlation
+```
+
+It does not define final calibration semantics.
+
+Correlation answers:
+
+> What evidence is related?
+
+Calibration answers:
+
+> What does that evidence mean relative to the forecast?
+
+Therefore the following are explicitly outside the correlation layer:
+
+* primary realization;
+* terminal realization;
+* expiration;
+* abandonment;
+* outcome interpretation;
+* forecast accuracy policy;
+* recalibration;
+* strategy tuning.
+
+---
+
+# 28. No Primary Measurement
+
+There is deliberately no:
+
+```typescript
+primary: boolean
+```
+
+or:
+
+```typescript
+primaryMeasurementId
+```
+
+on `A9Correlation`.
+
+If several measurements correlate with a forecast:
+
+```text
+F → M1
+F → M2
+F → M3
+```
+
+all three are evidence.
+
+No persistence-layer mechanism decides that one is the "real" outcome.
+
+---
+
+# 29. No Negative Correlation
+
+If correlation cannot be established:
+
+```text
+correlations.jsonl
+```
+
+receives no record.
+
+There is no:
+
+```text
+correlated: false
+```
+
+record.
+
+There is no:
+
+```text
+negativeCorrelation
+```
+
+artifact.
+
+There is no speculative:
+
+```text
+A9CorrelationAttempt
+```
+
+artifact.
+
+---
+
+# 30. Forecast Flow
+
+```text
+EventLog
+   │
+   ├── proposal-events-adapter
+   │
+   ├── measurement-events-adapter
+   │
+   └── enriched-proposals-adapter
+              │
+              ▼
+       forecast-engine
+              │
+       ┌──────┼──────┐
+       ▼      ▼      ▼
+     trust  evidence fingerprint
+    velocity completeness coincidence
+       └──────┼──────┘
+              ▼
+       max-score aggregation
+              │
+              ▼
+          A9Forecast
+              │
+              ▼
+        forecasts.jsonl
+              │
+              ▼
+          a9-bridge
+              │
+              ▼
+      A2.5 GovernanceRecommendation
+              │
+              ▼
+          A3 generateDecision()
+              │
+       ┌──────┴────────┐
+       ▼               ▼
+   APPROVE       REQUEST_MORE_EVIDENCE
+       │               │
+       ▼               ▼
+      A4           UNDER_REVIEW
+```
+
+---
+
+# 31. Correlation Flow
+
+```text
+A9 forecasts.jsonl
+        │
+        ▼
+  correlation-engine
+        │
+        ├── proposal.submitted
+        │       │
+        │       └── target.id
+        │
+        ├── proposal.executed
+        │
+        └── measurement.measured
+                │
+                └── capabilityId
+        │
+        ▼
+ exact deterministic bridge
+        │
+        ▼
+  A9Correlation
+        │
+        ▼
+ correlations.jsonl
+```
+
+The forecast and correlation flows are independent.
+
+Correlation does not gate forecast emission.
+
+Correlation does not trigger governance re-evaluation.
+
+---
+
+# 32. A9 Does Not Enter the Execution Path
+
+A9 is governance-gating only.
+
+The execution sequence remains:
+
+```text
+A9 forecast
+    ↓
+A2.5 recommendation
+    ↓
+A3 decision
+    ↓
+A4 if APPROVED
+```
+
+A9 does not mandate:
+
+```text
+A9 → A4
+```
+
+A9 does not execute capabilities.
+
+A9 does not bypass A3.
+
+---
+
+# 33. CLI
+
+The operator surface is:
+
+```text
+alix governance evolution forecast
+```
+
+Supported options:
+
+```text
+--dimension ...
+--json
+```
+
+The CLI returns:
+
+* the generated `A9Forecast`; or
+* a no-findings result when no forecast is emitted.
+
+For high/critical forecasts it also surfaces:
+
+```text
+RISK_GATED_REVIEW
+```
+
+and the resulting A3 decision.
+
+There is no operator-facing correlation command.
+
+Correlation is automatic/programmatic after measurement realization.
+
+A9 does not introduce a new CLI binary.
+
+---
+
+# 34. Composition Root
+
+The composition root constructs the A9 adapters.
+
+The adapters are passed into `ForecastEngine`.
+
+A9 does not instantiate its own foreign data sources.
+
+The composition root also wires:
+
+* `ForecastsAdapter`;
+* `CorrelationsAdapter`;
+* A9 bridge;
+* A2.5 recommendation mapping.
+
+Required composition-root modification is explicitly authorized.
+
+The relevant platform composition file is added to the CAP-12 forbidden-file carve-out for this increment.
+
+All other CAP-12 forbidden files remain forbidden.
+
+---
+
+# 35. Migration Boundary
+
+No data migration is required.
+
+A9 introduces:
+
+```text
+src/evolution/a9/
+```
+
+and:
+
+```text
+.alix/governance/forecasts.jsonl
+.alix/governance/correlations.jsonl
+```
+
+Existing A6, A8, CAP-N, CAP-O, CAP-P, EventLog, A2.5, A3, and P10.8a contracts remain unchanged except for the explicitly authorized A2.5 recommendation-kind extension.
+
+---
+
+# 36. A2.5 Contract Extension
+
+The existing five A2.5 recommendation kinds remain unchanged.
+
+Exactly one new kind is added:
+
+```typescript
+"RISK_GATED_REVIEW"
+```
+
+The total becomes:
+
+```text
+5 existing
++
+1 A9 kind
+=
+6
+```
+
+No seventh kind is permitted in this increment.
+
+Mapping:
+
+```text
+RISK_GATED_REVIEW
+    →
+REQUEST_MORE_EVIDENCE
+```
+
+A3's four binding kinds remain:
+
+```text
+APPROVE
+REJECT
+MONITOR
+REQUEST_MORE_EVIDENCE
+```
+
+A3's three target states remain unchanged.
+
+---
+
+# 37. Error Handling
+
+## 37.1 Adapter failure
+
+If an adapter fails:
+
+* the engine records the failure;
+* other available evidence may still be processed;
+* findings from unavailable sources are marked accordingly.
+
+Concrete logging/diagnostic shape is deferred to implementation plan.
+
+---
+
+## 37.2 Detector failure
+
+If one detector throws:
+
+* that detector's failure is surfaced;
+* remaining detectors may continue;
+* the engine does not silently invent a result.
+
+---
+
+## 37.3 Identity collision
+
+A detected deterministic identity collision is a load-bearing failure.
+
+The engine must not silently overwrite or mutate an existing record.
+
+---
+
+## 37.4 Correlation join miss
+
+If any required deterministic bridge cannot be established:
+
+```text
+no A9Correlation
+```
+
+No negative record is emitted.
+
+---
+
+## 37.5 A3 rejection
+
+A3 may still reject if its own validation/fail-closed rules reject the recommendation or evidence.
+
+A9 does not override A3.
+
+---
+
+## 37.6 JSONL write failure
+
+A failed write means the artifact is not considered committed.
+
+The failure is surfaced to the caller.
+
+No best-effort partial semantic state is accepted.
+
+---
+
+# 38. Testing Strategy
+
+## 38.1 Detector tests
+
+Tests must establish:
+
+* empty input → no findings;
+* below-threshold input → no forecast;
+* threshold-crossing input → forecast;
+* multiple subjects → one forecast per subject;
+* multiple detectors → max-score aggregation;
+* deterministic input + timestamp → deterministic forecast;
+* evidence references preserved exactly;
+* risk-band thresholds exactly match A6.
+
+---
+
+# 39. Adapter Tests
+
+Each adapter must establish:
+
+* expected raw record shape;
+* read-only API;
+* empty source behavior;
+* raw proposal payload preservation;
+* raw enriched-field value preservation;
+* absence of A8 normalized-record dependency.
+
+Measurement adapter specifically tests:
+
+```text
+CapabilityMeasurementPayload
+```
+
+does not expose:
+
+```text
+proposalId
+sourceProposalIds
+forecastId
+correlationId
+```
+
+---
+
+# 40. Persistence Tests
+
+Tests must establish:
+
+* forecast append-only persistence;
+* correlation append-only persistence;
+* deterministic forecast identity;
+* deterministic correlation identity;
+* foreign IDs remain references;
+* no destructive mutation;
+* restart reload;
+* no correlation on unresolved join;
+* read adapters reproduce persisted content.
+
+---
+
+# 41. Correlation Tests
+
+Explicit tests must cover:
+
+### Proposal bridge
+
+```text
+forecast.subject
+==
+proposal.submitted.proposalId
+```
+
+### Capability bridge
+
+```text
+forecast.subjectCapability
+==
+proposal.submitted.payload.target.id
+```
+
+### Execution gate
+
+```text
+proposal.executed
+```
+
+must exist before correlation.
+
+### Measurement bridge
+
+```text
+measurement.capabilityId
+==
+forecast.subjectCapability
+```
+
+### Horizon
+
+Measurement must fall within:
+
+```text
+forecast.horizon.from
+≤ measurement.recordedAt
+≤ forecast.horizon.to
+```
+
+### Many-to-many
+
+One forecast → multiple measurements.
+
+Multiple forecasts → same measurement.
+
+### No heuristic correlation
+
+Tests prove that:
+
+* same capability + wrong proposal does not invent proposal provenance;
+* nearest-in-time measurement is not preferentially selected;
+* payload similarity is not used;
+* absent execution event prevents correlation.
+
+---
+
+# 42. Bridge Tests
+
+Tests must establish:
+
+```text
+low
+medium
+    → MONITOR
+
+high
+critical
+    → RISK_GATED_REVIEW
+```
+
+and:
+
+```text
+RISK_GATED_REVIEW
+    →
+REQUEST_MORE_EVIDENCE
+```
+
+Regression tests must prove:
+
+* all five existing A2.5 kinds remain unchanged;
+* A3 still has four binding kinds;
+* A3 still has three target states.
+
+---
+
+# 43. End-to-End Test
+
+The full forecast flow must verify:
+
+```text
+raw adapters
+    ↓
+detectors
+    ↓
+A9Forecast
+    ↓
+forecast persistence
+    ↓
+A9 bridge
+    ↓
+A2.5 recommendation
+    ↓
+A3 decision
+```
+
+High/critical:
+
+```text
+RISK_GATED_REVIEW
+    ↓
+REQUEST_MORE_EVIDENCE
+    ↓
+UNDER_REVIEW
+```
+
+Low/medium:
+
+```text
+MONITOR
+    ↓
+existing A3 behavior
+```
+
+---
+
+# 44. Correlation End-to-End Test
+
+Fixture:
+
+```text
+proposal.submitted
+proposal.executed
+measurement.measured
+```
+
+with:
+
+```text
+proposal.submitted.proposalId
+==
+forecast.subject
+
+proposal.submitted.payload.target.id
+==
+forecast.subjectCapability
+
+measurement.capabilityId
+==
+forecast.subjectCapability
+```
+
+Expected:
+
+```text
+one A9Correlation
+```
+
+The test must also prove that the measurement event itself contains no proposal identity.
+
+---
+
+# 45. Sentinel Tests
+
+The A9 sentinel must enforce:
+
+### Identity
+
+```text
+forecastId =
+SHA-256(canonical(forecastWithoutIdentity))
+```
+
+```text
+correlationId =
+SHA-256(canonical(correlationWithoutIdentity))
+```
+
+### Persistence
+
+A9 artifacts live only in A9-owned persistence.
+
+### Foreign identity
+
+Foreign IDs are references/provenance only.
+
+### Measurement boundary
+
+No:
+
+```text
+proposalId
+sourceProposalIds
+forecastId
+correlationId
+```
+
+are added to measurement contracts.
+
+### Event taxonomy
+
+CAP-9's five-event taxonomy remains unchanged.
+
+### A2.5
+
+Exactly six recommendation kinds:
+
+```text
+5 existing + RISK_GATED_REVIEW
+```
+
+### A3
+
+Exactly four binding kinds remain.
+
+Exactly three target states remain.
+
+### A8 isolation
+
+A9 source files MUST NOT import the A8 normalization layer or:
+
+```text
+enriched-proposal-aggregator.ts
+```
+
+for A9's canonical evidence model.
+
+### Correlation
+
+No heuristic join exists.
+
+No negative correlation artifact exists.
+
+No primary measurement exists.
+
+No correlation status field exists.
+
+---
+
+# 46. Forward Compatibility
+
+The following are deliberately future increments:
+
+## A9 strategy tuning
+
+Threshold or strategy mutation requires a new architectural increment.
+
+## Additional forecast detector
+
+A fourth detector is a new architectural increment.
+
+## A9CorrelationAttempt
+
+Failure-audit persistence requires separate authorization.
+
+## Calibration/result semantics
+
+Realized-outcome interpretation is separate from correlation.
+
+## A9 → A4 conditional execution
+
+Any future A9-controlled execution policy requires a new architectural increment.
+
+## TUI/Web
+
+CAP-11 territory.
+
+---
+
+# 47. Explicit Non-Goals
+
+A9 v1 does not:
+
+* modify CAP-9's five-event taxonomy;
+* modify CAP-10/10.5 measurement contracts;
+* add proposal identity to measurements;
+* add forecast identity to measurements;
+* add a sixth governance event;
+* add a seventh A2.5 recommendation kind;
+* modify A3 binding kinds;
+* modify A3 target states;
+* reuse A8 normalized records;
+* modify A8 contracts;
+* use temporal heuristics;
+* use payload similarity;
+* infer causality;
+* designate primary measurements;
+* emit negative correlations;
+* persist correlation status;
+* build `A9CorrelationAttempt`;
+* define calibration semantics;
+* mandate A9 → A4 execution;
+* add TUI/Web surfaces;
+* introduce strategy tuning;
+* introduce a generalized correlation engine;
+* modify foreign stores.
+
+---
+
+# 48. Architectural Invariants
+
+The final A9 invariants are:
+
+1. **A9 owns identity.**
+   Every A9-owned artifact has an A9-owned deterministic identity.
+
+2. **A9 owns persistence.**
+   Forecasts and correlations live in A9-owned JSONL stores.
+
+3. **A9 owns correlation.**
+   The forecast/measurement relationship exists only in `A9Correlation`.
+
+4. **Foreign identities remain references.**
+   They never substitute for A9 identity.
+
+5. **Measurements remain capability-targeted.**
+   CAP-10/10.5 is unchanged.
+
+6. **Correlation is positive evidence.**
+   No negative correlation records exist.
+
+7. **Correlation is many-to-many.**
+   Forecasts and measurements may participate in multiple independent relationships.
+
+8. **Artifacts are immutable.**
+   Corrections are new records.
+
+9. **Calibration is separate from correlation.**
+   The correlation layer does not designate primary/terminal/realized outcomes.
+
+10. **No speculative artifacts.**
+    `A9CorrelationAttempt` is not built.
+
+11. **Correlation is deterministic.**
+    Exact canonical identity and exact canonical bridge relationships are required.
+
+12. **Correlation availability is an architectural fact.**
+    A9 may only assert relationships that existing canonical evidence establishes.
+
+13. **A9 never modifies foreign namespaces.**
+    Foreign data is read-only.
+
+14. **Capability equality is not proposal provenance.**
+    Capability identity alone never proves that a measurement belongs to a particular proposal.
+
+15. **Execution is an eligibility gate, not causality proof.**
+    `proposal.executed` establishes that the forecasted proposal executed; it does not prove that a particular measurement was caused by that proposal.
+
+16. **A3 remains sovereign.**
+    A9 recommends; A3 decides.
+
+---
+
+# 49. Final Architectural Shape
+
+```text
+                         A9 FORECAST DOMAIN
+                         ==================
+
+Proposal EventLog ───────────────┐
+                                 │
+EnrichedProposal[] ──────────────┼──► Read-only A9 adapters
+                                 │
+Measurement EventLog ────────────┘
+                                 │
+                                 ▼
+                         Forecast Engine
+                                 │
+                    ┌────────────┼────────────┐
+                    ▼            ▼            ▼
+               Trust Velocity  Evidence   Fingerprint
+                              Completeness Coincidence
+                    └────────────┼────────────┘
+                                 ▼
+                          Max-score aggregate
+                                 │
+                                 ▼
+                           A9Forecast
+                       ┌─────────┴─────────┐
+                       │                   │
+                       ▼                   ▼
+                forecastId           subjectCapability
+                 (A9-owned)       (derived bridge snapshot)
+                       │
+                       ▼
+                 forecasts.jsonl
+                       │
+                       ▼
+                  A9 → A2.5 bridge
+                       │
+                       ▼
+             GovernanceRecommendation
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+           MONITOR       RISK_GATED_REVIEW
+                                │
+                                ▼
+                     REQUEST_MORE_EVIDENCE
+                                │
+                                ▼
+                           A3 / UNDER_REVIEW
+
+
+                    POST-EXECUTION EVIDENCE
+                    ========================
+
+                    proposal.submitted
+                           │
+                           │ proposalId
+                           ▼
+                    A9Forecast.subject
+                           │
+                           │ target.id
+                           ▼
+                  subjectCapability
+                           │
+                           │ exact equality
+                           ▼
+                 measurement.capabilityId
+
+                    proposal.executed
+                           │
+                           │ exact proposal identity
+                           ▼
+                   execution eligibility
+
+                           │
+                           ▼
+                    Correlation Engine
+                           │
+                 ┌─────────┴─────────┐
+                 │                   │
+                 ▼                   ▼
+            forecastId          measurementId
+            (A9-owned)          (foreign ref)
+                 │                   │
+                 └─────────┬─────────┘
+                           ▼
+                    A9Correlation
+                           │
+                           ▼
+                   correlations.jsonl
+```
+
+---
+
+# 50. Boundary Rule
+
+The most important A9 rule is:
+
+> **A9 owns the forecast and correlation identities and owns the relationship between them. Foreign systems remain canonical read-only sources. A9 may traverse existing deterministic relationships across those sources, but it may never modify a foreign contract, invent a missing identity, or convert a heuristic into a correlation.**
+
+In particular:
+
+```text
+proposal.submitted
+        │
+        ├── proposalId ───────► A9Forecast.subject
+        │
+        └── target.id ────────► A9Forecast.subjectCapability
+                                      │
+                                      ▼
+                             measurement.capabilityId
+```
+
+and:
+
+```text
+proposal.executed
+        │
+        └──► establishes execution eligibility
+```
+
+Neither source is modified by A9.
+
+---
+
+# 51. References
+
+* A9 recon #527 findings
+* A9 recon #528 decision
+* A9 recon #529 decision
+* A9 recon #530 decision
+* A9 recon #531 decision
+* A9 recon #546 locked invariants
+* A9 wayfinder map #526
+* A8 organizational learning specification
+* `src/evolution/learning/`
+* A6 risk vocabulary and thresholds
+* A2.5 `GovernanceRecommendation`
+* A2.5 → A3 decision mapping
+* A3 `generateDecision`
+* CAP-9 proposal event taxonomy
+* CAP-10/10.5 measurement contract
+* P10.8a `EnrichedProposal`
+* A-series architecture
+* ADR-0008
+* ADR-0013
+* CAP-N
+* CAP-O
+* CAP-P
+
+---
+
+# 52. Status
+
+**Q1 — LOCKED:** A9 owns forecast identity.
+
+**Q2 — LOCKED:** `A9Correlation` is immutable positive evidence; absence is unresolved.
+
+**Q3 — LOCKED:** A9 is an identity owner.
+
+**Q4 — LOCKED:** A9 owns separate append-only forecast/correlation JSONL stores.
+
+**Q5 — LOCKED:** One forecast may have many supporting measurements; no primary at correlation layer.
+
+**Q6 — LOCKED:** Many-to-many via independent `A9Correlation` records.
+
+**Q7 — LOCKED:** No correlation-status field and no negative/attempt artifacts.
+
+**Q8 — LOCKED:** CAP-10/10.5 measurement contract remains unchanged; correlation uses the existing canonical proposal → capability bridge.
+
+**Current architectural state:** Ready for plan phase, subject to repository verification of the exact EventLog proposal event payload and execution-event shape before implementation.
+
+```
+
+### One thing I deliberately corrected beyond the two original defects
+
+I also removed the old statement that the measurement adapter provides `sourceProposalIds`, and I **tightened the meaning of `proposal.executed`**.
+
+It is an **execution eligibility gate**, not proof of causal provenance. That distinction is important because otherwise the new bridge would quietly claim more than CAP-10/10.5 actually allows.
+
+The resulting architecture is internally consistent:
+
+**proposal identity → A9 forecast identity → canonical capability bridge → capability measurement evidence**, with A9 owning the relationship and never modifying the foreign namespaces.
+```
+
