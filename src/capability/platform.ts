@@ -8,6 +8,7 @@ import { ProviderExecutorRegistry } from "./provider-registry.js";
 import { NativeProviderExecutor, UnavailableProviderExecutor, type ProviderExecutor } from "./provider-executor.js";
 import { EventBus } from "./event-bus.js";
 import { CapabilityCatalog } from "./canonical/catalog.js";
+import type { CapabilityDefinition } from "./canonical/definition.js";
 import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
@@ -48,6 +49,14 @@ export class CapabilityPlatform {
    *  the service is constructed. Uses the SAME EventLog instance supplied
    *  to the platform (locked ruling #12 — EventLog is authoritative). */
   readonly service: CapabilityService;
+
+  /** P5.5/P5.6 ruling #544 — READ-ONLY definition lookup, exposed so the
+   *  operator CLI (`alix capability consolidate`) can resolve the
+   *  operator-named `--definition=<id@version>`. Read-only by construction:
+   *  the mutable `CapabilityCatalog` stays private (CAP-11 ruling #8), and
+   *  this surface exposes `get` only. It resolves a name the OPERATOR gave —
+   *  it never chooses a survivor, an absorbed set, or a definition. */
+  readonly definitions: { get(id: string): CapabilityDefinition | undefined };
 
   /** CAP-10 — measurement engine instance (optional). Absent when the
    *  platform was constructed without `a5CapabilityMeasurement`
@@ -147,6 +156,11 @@ export class CapabilityPlatform {
       ...(measurementEngine !== undefined ? { measurementEngine } : {}),
     });
     this.measurementEngine = measurementEngine;
+    // Read-only projection of the private catalog (ruling #544 wiring).
+    const catalog = this.catalog;
+    this.definitions = Object.freeze({
+      get: (id: string): CapabilityDefinition | undefined => catalog.get(id),
+    });
   }
 
   register(capability: Capability): void { this.registry.register(capability); }

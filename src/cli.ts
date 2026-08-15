@@ -2223,6 +2223,7 @@ if (command === "capability") {
   const exitCode = await handleCapabilityCommand(args, {
     cwd,
     service: platform.service,
+    definitions: platform.definitions,
   });
   if (typeof exitCode === "number") process.exit(exitCode);
 }
