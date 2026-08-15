@@ -137,6 +137,12 @@ export interface CapabilityEvolutionReport {
 // ---------------------------------------------------------------------------
 
 import type { CapabilityDefinitionPatch } from "../capability/mutation-contract.js";
+import type { CapabilityDefinition } from "../capability/canonical/definition.js";
+import {
+  type ConsolidationIdentity,
+  type SourceDisposition,
+  validateConsolidationIdentity,
+} from "../capability/evolution/consolidation-identity.js";
 
 /** CAP-9 — Evolution target discriminator. A7 emits candidates against a
  *  capability target (the only target kind A7 currently supports). The
@@ -217,5 +223,37 @@ export interface CapabilityEvolutionCandidate {
    * `deprecated` lifecycle) or `"remove"` (sources removed from
    * catalog). Caller-supplied — A7 does NOT infer.
    */
-  readonly sourceDisposition?: "deprecate" | "remove";
+  readonly sourceDisposition?: SourceDisposition;
+}
+
+/**
+ * CAP-P — reconstruct the caller-supplied `ConsolidationIdentity` from a
+ * `consolidation_opportunity` candidate.
+ *
+ * The candidate keeps the four fields flat because it is the WIRE shape
+ * carried through the governance ledger; this helper is the single place
+ * where they are re-bundled into the named identity, so downstream consumers
+ * (execution-step construction, sentinels, the service) stop re-deriving the
+ * clump by hand.
+ *
+ * Reads only. Throws (via `validateConsolidationIdentity`) when the candidate
+ * does not carry a complete, well-formed governed set — it NEVER defaults,
+ * derives, or completes a missing field (rulings #534, #544).
+ */
+export function consolidationIdentityFromCandidate(
+  candidate: CapabilityEvolutionCandidate,
+): ConsolidationIdentity {
+  if (candidate.sourcePatternId !== "consolidation_opportunity") {
+    throw new Error(
+      `consolidationIdentityFromCandidate: candidate '${candidate.candidateId}' has sourcePatternId '${candidate.sourcePatternId}' — only 'consolidation_opportunity' carries a ConsolidationIdentity`,
+    );
+  }
+  const identity = {
+    survivorCapabilityId: candidate.target.id,
+    absorbedCapabilityIds: candidate.absorbedCapabilityIds ?? [],
+    consolidateDefinition: candidate.consolidateDefinition as CapabilityDefinition,
+    sourceDisposition: candidate.sourceDisposition as SourceDisposition,
+  } satisfies ConsolidationIdentity;
+  validateConsolidationIdentity(identity);
+  return identity;
 }
