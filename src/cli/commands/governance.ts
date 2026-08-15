@@ -26,6 +26,11 @@ import { generateRecommendations } from "../../governance/governance-recommendat
 import { generateInvestigations } from "../../governance/investigation-generator.js";
 import { listCompatibleInvestigations } from "../../governance/investigation-compat.js";
 import { runDashboard } from "./governance-dashboard-handler.js";
+// A8 T7 imports — learning CLI surface (4-adapter construction, per A8
+// wayfinder map #517 locked ruling). Imports are dynamic-free at module
+// scope to keep the seam file's load graph small.
+import { runLearnCli } from "../../evolution/learning/learning-cli.js";
+import { EventLog } from "../../events/event-log.js";
 import type {
   GovernanceHealthReport,
   GovernanceAssessment,
@@ -215,6 +220,76 @@ function parseSectionFlag(args: string[]): string | null {
 // Top-level dispatcher
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// A8 T7 — `alix governance evolution learn [--dimension ...] [--json]`
+//
+// Composes EventLog + GovernanceStore + EnrichedProposal[] from the
+// standard `.alix/...` layout and delegates to `runLearnCli`. The
+// engine construction (4 adapters) happens inside the CLI module to
+// keep that seam co-located with the engine contract. We never regress
+// to 3 adapters — per A8 wayfinder map #517, RecommendationsAdapter is
+// structural.
+// ---------------------------------------------------------------------------
+async function runEvolutionLearn(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const dimIdx = args.indexOf("--dimension");
+  const dimension = dimIdx >= 0 ? args[dimIdx + 1] : undefined;
+
+  const cwd = process.cwd();
+
+  // 1. EventLog — pick the most-recent session that has events.jsonl.
+  //    Falls back to a sentinel non-existent path; LearningEngine will
+  //    then observe an empty EventLog and emit no findings (organizational
+  //    patterns surface only when capability governance has run).
+  const sessionsDir = join(cwd, ".alix", "sessions");
+  let sessionDir = join(cwd, ".alix", "sessions", "capability-cmd");
+  try {
+    const { readdir, stat } = await import("node:fs/promises");
+    const entries = await readdir(sessionsDir, { withFileTypes: true });
+    const dirs = await Promise.all(
+      entries
+        .filter((d) => d.isDirectory())
+        .map(async (d) => {
+          const p = join(sessionsDir, d.name);
+          const s = await stat(p);
+          return { name: d.name, mtimeMs: s.mtimeMs };
+        }),
+    );
+    dirs.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    if (dirs.length > 0 && dirs[0]) sessionDir = join(sessionsDir, dirs[0].name);
+  } catch {
+    // sessions dir may not exist on a fresh repo — fall through.
+  }
+  const eventLog = new EventLog(sessionDir);
+
+  // 2. A2.5 recommendations (4th adapter) — sourced from governance-store.
+  //    The default constructor reads `.alix/governance/recommendations.jsonl`
+  //    via `list("recommendations")`; an empty file maps to [].
+  const { GovernanceStore } = await import("../../governance/governance-store.js");
+  const recommendations = new GovernanceStore(join(cwd, ".alix", "governance"));
+
+  // 3. EnrichedProposal[] — the 3rd adapter's source. Currently
+  //    read-and-void-discarded by the engine (T2/T6 ruling, A8 wayfinder
+  //    map #517: "keep the seam alive for a future detector"). Deriving it
+  //    here would require ProposalStore + EffectivenessStore + EvidenceStore
+  //    wiring plus a ProposalLifecycleAnalyzer constructor chain that
+  //    exceeds the v1 scope. Passing [] is safe because no detector
+  //    currently consumes it; a future architectural increment that
+  //    introduces such a detector MUST revisit this seam.
+  const enrichedProposals: ReadonlyArray<never> = [];
+
+  const result = await runLearnCli({
+    eventLog,
+    recommendations,
+    enrichedProposals,
+    json: jsonMode,
+    dimension,
+  });
+
+  console.log(result.output);
+  process.exitCode = result.exitCode;
+}
+
 export async function handleGovernanceCommand(args: string[]): Promise<void> {
   const subcommand = args[0];
   const rest = args.slice(1);
@@ -294,6 +369,15 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
     case "intelligence":
       return runIntelligence(rest);
     case "evolution": {
+      // A8 T7: intercept `learn` subcommand before delegating to A0-A7
+      // evolution-cli.js. The A8 path is structurally distinct: it
+      // consumes EventLog + GovernanceStore + EnrichedProposal[] (NOT
+      // stateMachine/decision-bridge). Adding the route here keeps A8
+      // co-located with the other evolution subcommands while leaving
+      // the A0-A7 handler signature untouched.
+      if (rest[0] === "learn") {
+        return runEvolutionLearn(rest.slice(1));
+      }
       const { handleEvolutionCommand } = await import("../../governance/evolution-cli.js");
       const { EvolutionStateMachine } = await import("../../evolution/evolution-state-machine.js");
       const { ExecutionEvidenceStore } = await import("../../runtime/execution-evidence-store.js");
