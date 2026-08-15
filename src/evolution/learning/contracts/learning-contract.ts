@@ -102,10 +102,20 @@ export interface LearningAdapter<T> {
 /**
  * proposal-events-adapter output: governance lifecycle events for proposals.
  * Source: EventLog capability.governance.proposal.* events (CAP-9).
+ *
+ * Reconciled to actual schemas (A8 wayfinder map #517 spec amendment):
+ * - `proposalId` lives on the event itself (not in payload).
+ * - `capabilityId` is OPTIONAL: populated only for `proposal.submitted`
+ *   events (via `payload.candidate.target.id`); empty string for the
+ *   other 4 event types because the payload does not carry it.
+ * - `recommendation` does NOT exist on any governance payload type and
+ *   is removed from this contract.
+ * - `operatorId` / `operatorReason` are populated only for `proposal.approved`
+ *   / `proposal.rejected` events; absent for the other 3 types.
  */
 export interface ProposalGovernanceRecord {
   readonly proposalId: string;
-  readonly capabilityId: string;
+  readonly capabilityId: string;          // empty for 4/5 event types; populated only for proposal.submitted
   readonly kind:
     | "proposal.submitted"
     | "proposal.approved"
@@ -114,20 +124,25 @@ export interface ProposalGovernanceRecord {
     | "proposal.execution_failed";
   readonly operatorId?: string;          // from ProposalApprovedPayload.approvedBy or ProposalRejectedPayload.rejectedBy
   readonly operatorReason?: string;       // from ProposalRejectedPayload.reason
-  readonly recommendation?: { readonly kind: string; readonly confidence: number };
-  readonly recordedAt: string;
-  readonly eventId: string;               // EventLog eventId for audit
+  readonly recordedAt: string;            // from event.timestamp
+  readonly eventId: string;               // from event.seq (no public eventId field on the type union)
 }
 
 /**
  * measurement-events-adapter output: outcome events.
  * Source: EventLog capability.governance.measurement.* events (CAP-10).
+ *
+ * Reconciled to actual schemas (A8 wayfinder map #517 spec amendment):
+ * - Measurement events are CAPABILITY-targeted, NOT proposal-targeted.
+ *   `proposalId` and `sourceProposalIds` do NOT exist on the measurement
+ *   payload by design. Removed from this contract.
+ * - `capabilityId` reachable at `payload.measurement.capabilityId`.
+ * - `outcome` is a nested object `payload.outcome.kind` (effective /
+ *   ineffective / inconclusive).
  */
 export interface MeasurementOutcomeRecord {
-  readonly proposalId: string;
   readonly capabilityId: string;
   readonly outcome: "effective" | "ineffective" | "inconclusive";
-  readonly sourceProposalIds: ReadonlyArray<string>; // proposals whose execution produced this outcome
   readonly recordedAt: string;
   readonly eventId: string;
 }
@@ -135,12 +150,20 @@ export interface MeasurementOutcomeRecord {
 /**
  * enriched-proposals-adapter output: P10.8a enriched proposal records.
  * Source: EnrichedProposal[] pipeline.
+ *
+ * Reconciled to actual schemas (A8 wayfinder map #517 spec amendment):
+ * - `EnrichedProposal` has nested `proposal: AdaptationProposal`, not flat fields.
+ * - `proposalId` from `proposal.id`.
+ * - `capabilityId` from `proposal.target` (ProposalTarget union; may not be
+ *   capability-typed). For non-capability targets, capabilityId is "".
+ * - `recordedAt` from `proposal.createdAt` (closest analogue; EnrichedProposal
+ *   itself has no timestamp).
  */
 export interface EnrichedProposalRecord {
   readonly proposalId: string;
-  readonly capabilityId: string;
+  readonly capabilityId: string;          // "" if proposal.target is not capability-typed
   readonly enrichedFields: ReadonlyArray<string>;
-  readonly recordedAt: string;
+  readonly recordedAt: string;            // from proposal.createdAt
 }
 
 // ---------------------------------------------------------------------------
