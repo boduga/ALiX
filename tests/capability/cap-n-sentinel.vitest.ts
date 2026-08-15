@@ -47,10 +47,25 @@ function readFunctionBody(name: string): string {
 describe("CAP-N structural sentinel", () => {
   const body = readFunctionBody("candidateToExecutionStep");
 
-  it("axis 1: function body contains all three operation literals (create, remove, transition)", () => {
+  it("axis 1: function body contains all CAP-N/O/P operation literals (create, remove, update, consolidate) — 'transition' is NOT in the default fall-through anymore (CAP-P)", () => {
+    // Pre-CAP-P: the discriminator's default case was
+    // `capability.transition`. CAP-P removed that silent
+    // fall-through — the default now throws. The closed discriminator
+    // set: create (CAP-N), remove (CAP-N), update (CAP-O),
+    // consolidate (CAP-P). `capability.transition` exists only as the
+    // explicit `from → to` case which the producer of the source
+    // signal names — there is no implicit default transition.
     expect(body).toContain('"capability.create"');
     expect(body).toContain('"capability.remove"');
-    expect(body).toContain('"capability.transition"');
+    expect(body).toContain('"capability.update"');
+    expect(body).toContain('"capability.consolidate"');
+    // Sentinel: the discriminator's `default:` case THROWS rather
+    // than emitting `capability.transition` — that was the bug CAP-P
+    // closes. The check looks for the throwing default case marker
+    // (`throw new Error`) following `default:` within a short span;
+    // the regex is intentionally narrow so it doesn't match comment
+    // text in the function's docstring.
+    expect(body).toMatch(/default:\s*[\s\S]{0,1500}throw new Error/);
   });
 
   it("axis 2: function body switches on sourcePatternId with three cases", () => {
