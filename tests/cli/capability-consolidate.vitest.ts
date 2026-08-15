@@ -48,29 +48,13 @@ import { NativeProviderExecutor } from "../../src/capability/provider-executor.j
 import { NativeExecutor } from "../../src/capability/executors.js";
 import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
+import { def } from "../_support/capability-test-fixtures.js";
 import {
   capabilityConsolidateCommand,
   parseConsolidateArgs,
   buildConsolidationInput,
 } from "../../src/cli/commands/capability-consolidate.js";
 import { handleCapabilityCommand } from "../../src/cli/commands/capability.js";
-
-function def(over: Partial<CapabilityDefinition> = {}): CapabilityDefinition {
-  return {
-    id: "core.alpha",
-    version: "1.0.0",
-    kind: "core",
-    title: "Alpha",
-    description: "d",
-    tags: [],
-    category: "core",
-    risk: "low",
-    requiredPermissions: ["operator"],
-    dependencies: [],
-    bindings: [{ id: "core.alpha", type: "native" }],
-    ...over,
-  };
-}
 
 /**
  * Records every `proposeConsolidation` input so the sentinels can compare it

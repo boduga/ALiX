@@ -599,7 +599,7 @@ Also update the discriminator-table docstring comment to reflect the closed 5-ce
   \`\`\`
   pnpm vitest run tests/capability/ tests/evolution/
   Test Files  79 passed (79)
-  Tests       684 passed (684)  # 566 CAP-O baseline + 9 CAP-P sentinels + 12 pre-existing pair-layer + 16 pre-existing CLI + remaining regression tests
+  Tests       684 passed (684)  # 566 CAP-O baseline + 9 CAP-P sentinels + new CAP-P pair-layer + new CAP-P CLI + remaining regression tests
   \`\`\`
 
   ## Commits

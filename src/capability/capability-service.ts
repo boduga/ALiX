@@ -1080,7 +1080,7 @@ function candidateToExecutionStep(
       // mutation that the observer didn't intend. Future
       // sourcePatternIds get added as explicit cases BEFORE this
       // default; this default is the explicit fail-closed boundary.
-      throw new Error(
+      throw new CapabilityValidationError(
         `candidateToExecutionStep: unrecognized sourcePatternId '${candidate.sourcePatternId}' on candidate '${candidate.candidateId}'; discriminator has no explicit case (CAP-N/O/P closed; this default is fail-closed)`,
       );
   }

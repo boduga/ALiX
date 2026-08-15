@@ -61,11 +61,12 @@ describe("CAP-N structural sentinel", () => {
     expect(body).toContain('"capability.consolidate"');
     // Sentinel: the discriminator's `default:` case THROWS rather
     // than emitting `capability.transition` — that was the bug CAP-P
-    // closes. The check looks for the throwing default case marker
-    // (`throw new Error`) following `default:` within a short span;
-    // the regex is intentionally narrow so it doesn't match comment
+    // closes. Code-review pass 3 (S1) tightened the throw site from a
+    // bare `new Error` to `new CapabilityValidationError`, so the
+    // marker regex now matches either throw form within a short span.
+    // The regex is intentionally narrow so it doesn't match comment
     // text in the function's docstring.
-    expect(body).toMatch(/default:\s*[\s\S]{0,1500}throw new Error/);
+    expect(body).toMatch(/default:\s*[\s\S]{0,1500}throw new (CapabilityValidation)?Error/);
   });
 
   it("axis 2: function body switches on sourcePatternId with three cases", () => {

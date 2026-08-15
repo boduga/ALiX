@@ -98,6 +98,53 @@ export function isWellFormedConsolidateDefinition(
 }
 
 /**
+ * Bundle a `consolidation_opportunity` signal's governed quartet into a
+ * `ConsolidationIdentity`.
+ *
+ * Caller-supplied shape only (ruling #534, ruling #544): no derivation,
+ * inference, expansion, or completion. `absorbedCapabilityIds` is copied
+ * defensively so downstream mutations of the original signal array do not
+ * leak into the bundled identity.
+ *
+ * Code-review pass 3 (J1) — extracted from the inline literal in
+ * `a7-proposals.ts` (`signalToCandidate`) so the operator CLI and any other
+ * signal-source seam can build the same bundle without duplication.
+ *
+ * Note: this accepts the `consolidation_opportunity` arm of the
+ * `CapabilityEvolutionSignal` discriminated union directly; callers that
+ * hold a generic `CapabilityEvolutionSignal` MUST narrow before invoking
+ * this helper (see `signalToCandidate`).
+ */
+export function bundleConsolidationIdentity(
+  signal: ConsolidationOpportunitySignal,
+): ConsolidationIdentity {
+  return {
+    survivorCapabilityId: signal.survivorCapabilityId,
+    absorbedCapabilityIds: [...signal.absorbedCapabilityIds],
+    consolidateDefinition: signal.consolidateDefinition,
+    sourceDisposition: signal.sourceDisposition,
+  };
+}
+
+/**
+ * The caller-supplied governed-quartet arm of the `CapabilityEvolutionSignal`
+ * discriminated union.
+ *
+ * Re-exported here so callers of `bundleConsolidationIdentity` can import
+ * the narrow type alongside the bundle helper without depending on
+ * `a7-proposals.ts`.
+ */
+export interface ConsolidationOpportunitySignal {
+  readonly kind: "consolidation_opportunity";
+  readonly survivorCapabilityId: string;
+  readonly absorbedCapabilityIds: readonly string[];
+  readonly consolidateDefinition: CapabilityDefinition;
+  readonly sourceDisposition: SourceDisposition;
+  readonly score: number;
+  readonly evidenceIds: ReadonlyArray<string>;
+}
+
+/**
  * Validate — never complete — a caller-supplied `ConsolidationIdentity`.
  *
  * Throws on violation. Performs NO derivation, inference, expansion, or

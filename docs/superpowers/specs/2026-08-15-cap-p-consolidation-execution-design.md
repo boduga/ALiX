@@ -38,7 +38,7 @@ The architectural progression: `CAP-N → CAP-O → CAP-P` — each CAP adds one
 - **A0 store / A2.5 producer role.** Both were dispositioned STOP_CONDITION in tickets #540/#541; CAP-P does not unblock them.
 - **Mutation contract changes.** `CapabilityConsolidateMutation` already requires `target`, `sources`, `definition`, `sourceDisposition`. CAP-P supplies those via the candidate; no contract changes.
 - **CAP-12 forbidden-file policy partly lifted (under the #539 carve-out).** `src/capability/capability-service.ts` and `src/capability/platform.ts` are on the CAP-12 forbidden list. CAP-P lifts the restriction for **both** files because (a) the discriminator is in `capability-service.ts` (CAP-O precedent), AND (b) the composition-root wiring is locked at `platform.ts:111` per ruling #539. All other CAP-12 forbidden files remain forbidden.
-- **Generalized candidate refactor.** `CapabilityEvolutionCandidate` gains exactly two new optional fields. No `executionHints` abstraction, no discriminated-union overhaul.
+- **Generalized candidate refactor.** `CapabilityEvolutionCandidate` gains exactly three new optional fields. No `executionHints` abstraction, no discriminated-union overhaul.
 
 ## 4. Architecture
 
@@ -327,7 +327,7 @@ The test follows the CAP-N/CAP-O test pattern (`tests/capability/cap-n-candidate
 
 ### 9.5 Regression
 
-Full capability + evolution vitest suite passes with **zero regressions**: all existing tests remain green and the new CAP-P tests pass. Pre-implementation baseline was 559 capability tests (CAP-N + CAP-O closed); post-implementation is 684 capability + evolution tests (559 baseline + 9 new CAP-P consolidation execution sentinels + 12 pre-existing pair-layer + 16 pre-existing CLI + remaining regression tests).
+Full capability + evolution vitest suite passes with **zero regressions**: all existing tests remain green and the new CAP-P tests pass. Pre-implementation baseline was 559 capability tests (CAP-N + CAP-O closed); post-implementation is 684 capability + evolution tests (559 baseline + 9 new CAP-P consolidation execution sentinels + new CAP-P pair-layer + new CAP-P CLI + remaining regression tests).
 
 ## 10. Forward compatibility
 
@@ -375,3 +375,21 @@ Full capability + evolution vitest suite passes with **zero regressions**: all e
 - Pair-layer seam: `src/capability/evolution/overlap-signal-source.ts:105-128` (`OverlapIdentitySupplier`)
 - CAP-P sentinels: `tests/capability/cap-p-consolidate-execution.vitest.ts`
 - ADR-0013 §4/§5/§7 (provider abstraction + execution binding + lifecycle)
+
+## 13. Implementation Notes — DRY Refactors Beyond Spec Literal
+
+The CAP-P implementation introduced six small DRY refactors that go beyond the literal text of §§3–11 but preserve every locked ruling and architectural invariant. This section records each refactor and its one-line rationale; the spec is amended to match the implementation (rather than the implementation being trimmed to match the spec).
+
+1. **`OperatorConsolidationInput.identity: ConsolidationIdentity`** — Bundles the operator-supplied survivor/absorbed/definition/disposition fields into a single named shape so `proposeConsolidation` and the A7 signal validator share one validated identity record instead of carrying four positional fields. Reduces drift between operator input and signal shape.
+
+2. **`consolidationIdentityFromCandidate(candidate)` helper** — Centralizes the conversion from `CapabilityEvolutionCandidate` (carrying `consolidateDefinition`/`sourceDisposition`/`absorbedCapabilityIds`) to the `ConsolidationIdentity` used by the discriminator. Re-exports from `src/adaptation/capability-evolution-types.ts` so the operator CLI, A7 signal validator, and `candidateToExecutionStep` all share one projection rule.
+
+3. **`isWellFormedConsolidateDefinition`** — Moved from A7 (`a7-proposals.ts`) to `consolidation-identity.ts` and renamed from `isValidConsolidateDefinition`. The validator now lives next to the type it validates; the A7 site consumes the named helper. One source of truth for "what counts as a well-formed consolidate definition".
+
+4. **`CapabilityProposeConsolidationResult` extended with `mutation` + `signal` fields** — The result type returns the constructed `CapabilityConsolidateMutation` and the validated `ConsolidationOpportunitySignal` alongside the existing `applied`/`rejected` flags. Callers (CLI, tests) can inspect what was proposed without re-deriving it; no behavior change for existing consumers that ignore the new fields.
+
+5. **`compositeProposalSignalSource()` helper** — Wraps the composition-root wiring of all four A7 signal producers (gap, deprecation_signal, overlap, governance) into one factory so `platform.ts` and tests share a single signal-source construction. Removes the inline `new X()` ladder from `platform.ts:111`.
+
+6. **`platform.definitions: CapabilityDefinitionLookup` exposed** — The platform object gained a `definitions` field (`CapabilityDefinitionLookup`) so the operator CLI can resolve capability IDs to definitions without re-walking the canonical store. Read-only exposure; no mutation surface added.
+
+These six refactors are pure code-shape simplifications — none change behavior, none introduce new exception classes, none relax any locked invariant. They were applied at code-review pass 1 (commit `668a51d1`) and code-review pass 2 (commit `4c2c6e3a`).

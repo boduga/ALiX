@@ -43,7 +43,9 @@ import type { CapabilityDefinition } from "../../capability/canonical/definition
 import type { CapabilityDefinitionPatch } from "../mutation-contract.js";
 import {
   type ConsolidationIdentity,
+  type ConsolidationOpportunitySignal,
   type SourceDisposition,
+  bundleConsolidationIdentity,
   isSourceDisposition,
   isWellFormedConsolidateDefinition,
 } from "./consolidation-identity.js";
@@ -337,15 +339,11 @@ function signalToCandidate(
       // any candidate construction occurs.
       validateConsolidationOpportunitySignal(signal);
       {
-        // The quartet is named once, then unpacked into the candidate's
-        // wire fields. Naming it here keeps the "complete governed set"
-        // a single value at the seam instead of four parallel copies.
-        const identity: ConsolidationIdentity = {
-          survivorCapabilityId: signal.survivorCapabilityId,
-          absorbedCapabilityIds: [...signal.absorbedCapabilityIds],
-          consolidateDefinition: signal.consolidateDefinition,
-          sourceDisposition: signal.sourceDisposition,
-        };
+        // Bundle the governed quartet via the shared helper (ruling #534 +
+        // code-review pass 3 J1) so the bundle rule lives in one place.
+        const identity = bundleConsolidationIdentity(
+          signal as ConsolidationOpportunitySignal,
+        );
         return {
           candidateId,
           sourcePatternId: signal.kind,

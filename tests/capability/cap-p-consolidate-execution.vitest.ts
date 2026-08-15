@@ -70,8 +70,8 @@ import type { ExecutionStep } from "../../src/evolution/execution/contracts/exec
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
 import type { CapabilityResolver } from "../../src/capability/provider-resolver.js";
-import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
 import type { CapabilityEvolutionRiskClass } from "../../src/adaptation/capability-evolution-types.js";
+import { def } from "../_support/capability-test-fixtures.js";
 
 // ---------------------------------------------------------------------------
 // Test doubles — identical pattern to cap-n/cap-o `*candidate-mapping.vitest.ts`.
@@ -118,22 +118,7 @@ class FakeSignalSource implements ProposalSignalSource {
 }
 
 /** Build a definition object with the conservative-merge-required fields. */
-function def(over: Partial<CapabilityDefinition>): CapabilityDefinition {
-  return {
-    id: "core.alpha",
-    version: "1.0.0",
-    kind: "core",
-    title: "Alpha",
-    description: "d",
-    tags: [],
-    category: "core",
-    risk: "low",
-    requiredPermissions: ["operator"],
-    dependencies: [],
-    bindings: [{ id: "core.alpha", type: "native" }],
-    ...over,
-  };
-}
+// `def` is shared via `_support/capability-test-fixtures.ts` (J2).
 
 /**
  * Build a sibling `CapabilityService` sharing the platform's catalog,

@@ -116,18 +116,33 @@ function readFlag(args: readonly string[], name: string): string | undefined {
   return undefined;
 }
 
-function parseRef(raw: string, flag: string, errors: string[]): CapabilityRef | undefined {
+/**
+ * Result of `parseRef`: either a valid `CapabilityRef` or a human-readable
+ * error message keyed to the originating flag. Code-review pass 3 (J3):
+ * replaced the previous `errors`-out-parameter + `undefined` return with a
+ * tuple-like object so the call sites read as pure expressions instead of
+ * side-effecting parsers.
+ */
+type ParseRefResult =
+  | { readonly ref: CapabilityRef; readonly error: undefined }
+  | { readonly ref: undefined; readonly error: string };
+
+function parseRef(raw: string, flag: string): ParseRefResult {
   const trimmed = raw.trim();
   if (trimmed === "") {
-    errors.push(`${flag}: value must not be empty`);
-    return undefined;
+    return { ref: undefined, error: `${flag}: value must not be empty` };
   }
   const at = trimmed.indexOf("@");
   if (at <= 0 || at === trimmed.length - 1) {
-    errors.push(`${flag}: expected <id@version>, received '${trimmed}'`);
-    return undefined;
+    return {
+      ref: undefined,
+      error: `${flag}: expected <id@version>, received '${trimmed}'`,
+    };
   }
-  return { id: trimmed.slice(0, at), version: trimmed.slice(at + 1) };
+  return {
+    ref: { id: trimmed.slice(0, at), version: trimmed.slice(at + 1) },
+    error: undefined,
+  };
 }
 
 /**
@@ -158,10 +173,15 @@ export function parseConsolidateArgs(args: readonly string[]): ParseConsolidateR
   if (rawDisposition === undefined)
     errors.push("--source-disposition is required (deprecate|remove; never defaulted)");
 
-  const survivor =
-    rawSurvivor !== undefined ? parseRef(rawSurvivor, "--survivor", errors) : undefined;
-  const definition =
-    rawDefinition !== undefined ? parseRef(rawDefinition, "--definition", errors) : undefined;
+  const survivorResult =
+    rawSurvivor !== undefined ? parseRef(rawSurvivor, "--survivor") : undefined;
+  if (survivorResult?.error) errors.push(survivorResult.error);
+  const survivor = survivorResult?.ref;
+
+  const definitionResult =
+    rawDefinition !== undefined ? parseRef(rawDefinition, "--definition") : undefined;
+  if (definitionResult?.error) errors.push(definitionResult.error);
+  const definition = definitionResult?.ref;
 
   let absorbed: CapabilityRef[] | undefined;
   if (rawAbsorbed !== undefined) {
@@ -175,8 +195,12 @@ export function parseConsolidateArgs(args: readonly string[]): ParseConsolidateR
     } else if (nonEmpty.length !== segments.length) {
       errors.push("--absorbed contains an empty entry");
     } else {
-      const parsed = segments.map((s) => parseRef(s, "--absorbed", errors));
-      if (parsed.every((r): r is CapabilityRef => r !== undefined)) absorbed = parsed;
+      const parsed = segments.map((s) => parseRef(s, "--absorbed"));
+      for (const r of parsed) {
+        if (r.error) errors.push(r.error);
+      }
+      const refs = parsed.flatMap((r) => (r.ref ? [r.ref] : []));
+      if (refs.length === parsed.length) absorbed = refs;
     }
   }
 
