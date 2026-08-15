@@ -187,4 +187,13 @@ export interface CapabilityEvolutionCandidate {
    * capability definition.
    */
   readonly proposedPatch?: CapabilityDefinitionPatch;
+  /**
+   * P5.5/P5.6 + CAP-P: caller-supplied absorbed-set carried verbatim from
+   * `consolidation_opportunity` signal (ruling #534 — locked 2026-08-14).
+   * Present only when `sourcePatternId === "consolidation_opportunity"`;
+   * absent for every other sourcePatternId. Both survivor and absorbed
+   * identities are caller-supplied and authoritative — A7 transports
+   * without derivation, inference, expansion, or completion.
+   */
+  readonly absorbedCapabilityIds?: readonly string[];
 }

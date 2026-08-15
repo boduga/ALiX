@@ -53,8 +53,16 @@ import type { CapabilityDefinitionPatch } from "../mutation-contract.js";
  *     (no existing capability to target).
  *   - `underperformer` — an existing capability is underperforming;
  *     `capabilityId` is the existing capability id.
- *   - `consolidation_opportunity` — two capabilities overlap and one should
- *     absorb the other; `capabilityId` is the survivor.
+ *   - `consolidation_opportunity` — caller-supplied consolidation: the
+ *     operator/external caller provides BOTH `survivorCapabilityId` (the
+ *     capability that will absorb) AND `absorbedCapabilityIds` (the complete,
+ *     explicit, non-empty set of capabilities being absorbed). Both values
+ *     are caller-supplied and authoritative; A7 transports them verbatim
+ *     (ruling #534 — locked 2026-08-14). A7 MUST NOT derive, infer, expand,
+ *     or complete either identity. The validator
+ *     `validateConsolidationOpportunitySignal` enforces
+ *     `absorbedCapabilityIds.length >= 1` at signal receipt and at
+ *     candidate construction.
  *   - `deprecation_signal` — an existing capability is obsolete;
  *     `capabilityId` is the capability to remove.
  *
@@ -76,7 +84,8 @@ export type CapabilityEvolutionSignal =
     }
   | {
       readonly kind: "consolidation_opportunity";
-      readonly capabilityId: string;
+      readonly survivorCapabilityId: string;
+      readonly absorbedCapabilityIds: readonly string[];
       readonly score: number;
       readonly evidenceIds: ReadonlyArray<string>;
     }
@@ -86,6 +95,41 @@ export type CapabilityEvolutionSignal =
       readonly score: number;
       readonly evidenceIds: ReadonlyArray<string>;
     };
+
+// ---------------------------------------------------------------------------
+// Signal validators (ruling #534 — caller-supplied, non-empty absorbed set)
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate a `consolidation_opportunity` signal at the signal-source seam.
+ *
+ * Locked ruling #534 (2026-08-14): the absorbed set is caller-supplied and
+ * complete. The validator enforces the single shape invariant the
+ * downstream CAP-P contract requires: `absorbedCapabilityIds.length >= 1`.
+ *
+ * Throws `Error` on violation — invalid signals are rejected before they
+ * can reach candidate construction. The validator is intentionally narrow
+ * (just the length invariant); it performs NO derivation, inference,
+ * expansion, or completion of the absorbed set. P5.5/P5.6 producers must
+ * supply the complete governed set themselves; the system MUST NOT fill
+ * in missing identities.
+ *
+ * Called by `signalToCandidate` (candidate-construction seam) and exported
+ * for direct use by `ProposalSignalSink.publish` producers.
+ */
+export function validateConsolidationOpportunitySignal(
+  signal: CapabilityEvolutionSignal,
+): void {
+  if (signal.kind !== "consolidation_opportunity") return;
+  if (
+    !Array.isArray(signal.absorbedCapabilityIds) ||
+    signal.absorbedCapabilityIds.length < 1
+  ) {
+    throw new Error(
+      "consolidation_opportunity signal: absorbedCapabilityIds must be a non-empty array (ruling #534 — caller-supplied complete governed set)",
+    );
+  }
+}
 
 /**
  * Source of evolution signals. P5.5/P5.6 adapters implement this interface.
@@ -160,7 +204,14 @@ export class A7ProposalGenerator {
  * the A7 candidate-body identifier; the two are distinct by design.
  */
 function candidateIdFor(signal: CapabilityEvolutionSignal): string {
-  const id = signal.capabilityId ?? "new";
+  // Ruling #534 (2026-08-14): `consolidation_opportunity` carries
+  // `survivorCapabilityId` (renamed from `capabilityId`) — the surviving
+  // capability identity is caller-supplied. Other signal kinds retain
+  // `capabilityId` as the single identity-bearing field.
+  const id =
+    signal.kind === "consolidation_opportunity"
+      ? signal.survivorCapabilityId
+      : signal.capabilityId ?? "new";
   return `a7-${signal.kind}-${id}`;
 }
 
@@ -232,15 +283,22 @@ function signalToCandidate(
       };
     }
     case "consolidation_opportunity":
+      // Ruling #534 (locked 2026-08-14): both `survivorCapabilityId` and
+      // `absorbedCapabilityIds` are caller-supplied and authoritative.
+      // A7 transports verbatim — no derivation, inference, expansion, or
+      // completion. Validator enforces `absorbedCapabilityIds.length >= 1`
+      // before any candidate construction occurs.
+      validateConsolidationOpportunitySignal(signal);
       return {
         candidateId,
         sourcePatternId: signal.kind,
         confidence: signal.score,
-        target: { kind: "capability", id: signal.capabilityId },
+        target: { kind: "capability", id: signal.survivorCapabilityId },
         description: `Consolidation opportunity (score=${signal.score})`,
         expectedEffect: "Consolidate overlapping capability",
         riskClass: riskClassFor(signal),
         evidenceIds: [...signal.evidenceIds],
+        absorbedCapabilityIds: [...signal.absorbedCapabilityIds],
       };
     case "deprecation_signal":
       return {

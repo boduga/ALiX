@@ -237,7 +237,8 @@ describe("CAP-N T1 — candidate→ExecutionStep operation mapping (4 axes)", ()
     const seedId = "tool.file.read";
     const signal: CapabilityEvolutionSignal = {
       kind: "consolidation_opportunity",
-      capabilityId: seedId,
+      survivorCapabilityId: seedId,
+      absorbedCapabilityIds: ["tool.file.fetch"],
       score: 0.8,
       evidenceIds: ["cap-n-t1-axis-4"],
     };
