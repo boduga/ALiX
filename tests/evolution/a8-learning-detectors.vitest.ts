@@ -685,3 +685,241 @@ describe("detectRepeatedPatternFailures (T5)", () => {
     expect(findings).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// LearningEngine + buildLearningProposal + buildGovernanceRecommendation (T6)
+// ---------------------------------------------------------------------------
+
+import type {
+  EnrichedProposalRecord,
+  LearningAdapter,
+  LearningProposal,
+} from "../../src/evolution/learning/contracts/learning-contract.js";
+import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
+import { buildLearningProposal } from "../../src/evolution/learning/learning-proposal-builder.js";
+import { buildGovernanceRecommendation } from "../../src/evolution/learning/a2-bridge.js";
+
+/** Adapter that returns a fixed record set. */
+function fakeAdapter<T>(records: ReadonlyArray<T>): LearningAdapter<T> {
+  return {
+    name: "fake",
+    list: async () => records,
+  };
+}
+
+const ENGINE_NOW = "2026-08-14T00:00:00.000Z";
+const ENGINE_OPTIONS: LearningEngineOptions = {
+  minCardinality: 3,
+  evidenceWindowDays: 30,
+};
+
+describe("LearningEngine — aggregation axes", () => {
+  it("aggregates findings from 3 detectors into a single LearningProposal when all fire", async () => {
+    // underperformer: 3 ineffective outcomes for cap-A (above threshold).
+    const measurementRecs: MeasurementOutcomeRecord[] = [
+      makeRecord({ capabilityId: "cap-A", outcome: "ineffective", eventId: "m1" }),
+      makeRecord({ capabilityId: "cap-A", outcome: "ineffective", eventId: "m2" }),
+      makeRecord({ capabilityId: "cap-A", outcome: "ineffective", eventId: "m3" }),
+    ];
+
+    // outcome-contradiction: APPROVE recommendation vs operator-rejected.
+    const proposalRecs: ProposalGovernanceRecord[] = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", capabilityId: "cap-B", kind: "proposal.rejected" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-B", kind: "proposal.rejected" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-B", kind: "proposal.rejected" }),
+    ];
+    const recommendationRecs: RecommendationRecord[] = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-3", proposalId: "p3", kind: "APPROVE" }),
+    ];
+
+    // repeated-pattern-failure: 3 timeouts for cap-C.
+    proposalRecs.push(
+      makeProposal({ proposalId: "f1", capabilityId: "cap-C", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "f2", capabilityId: "cap-C", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "f3", capabilityId: "cap-C", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "f1", kind: "proposal.execution_failed", error: "timeout", eventId: "fe-1" }),
+      makeProposal({ proposalId: "f2", kind: "proposal.execution_failed", error: "timeout", eventId: "fe-2" }),
+      makeProposal({ proposalId: "f3", kind: "proposal.execution_failed", error: "timeout", eventId: "fe-3" }),
+    );
+
+    const enrichedRecs: EnrichedProposalRecord[] = [];
+    const engine = new LearningEngine(
+      fakeAdapter(proposalRecs),
+      fakeAdapter(measurementRecs),
+      fakeAdapter(enrichedRecs),
+      fakeAdapter(recommendationRecs),
+      ENGINE_OPTIONS,
+    );
+
+    const proposal = await engine.learn(ENGINE_NOW);
+    expect(proposal).not.toBeNull();
+    expect(proposal).toMatchObject({
+      generatedAt: ENGINE_NOW,
+    });
+    expect(proposal!.proposalId).toMatch(/^a8:2026-08-14T00:00:00\.000Z:/);
+    expect(proposal!.findings).toHaveLength(3);
+    const kinds = proposal!.findings.map((f) => f.kind).sort();
+    expect(kinds).toEqual([
+      "outcome-contradiction",
+      "repeated-pattern-failure",
+      "underperformer",
+    ]);
+    // Findings sorted deterministically by findingId.
+    const ids = proposal!.findings.map((f) => f.findingId);
+    expect(ids).toEqual([...ids].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it("returns null when 0 findings across all detectors", async () => {
+    // All records below threshold / outside window / non-triggering.
+    const measurementRecs: MeasurementOutcomeRecord[] = [
+      makeRecord({ capabilityId: "cap-A", outcome: "effective", eventId: "m1" }),
+      makeRecord({ capabilityId: "cap-A", outcome: "ineffective", eventId: "m2" }),
+    ];
+    const proposalRecs: ProposalGovernanceRecord[] = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.approved" }),
+    ];
+    const recommendationRecs: RecommendationRecord[] = [];
+    const enrichedRecs: EnrichedProposalRecord[] = [];
+
+    const engine = new LearningEngine(
+      fakeAdapter(proposalRecs),
+      fakeAdapter(measurementRecs),
+      fakeAdapter(enrichedRecs),
+      fakeAdapter(recommendationRecs),
+      ENGINE_OPTIONS,
+    );
+
+    const proposal = await engine.learn(ENGINE_NOW);
+    expect(proposal).toBeNull();
+  });
+});
+
+describe("buildGovernanceRecommendation — MONITOR-only emission", () => {
+  it("always returns kind: 'MONITOR'", () => {
+    const proposal: LearningProposal = buildLearningProposal(
+      [
+        {
+          findingId: "underperformer:cap-A",
+          kind: "underperformer",
+          identityKey: "cap-A",
+          evidenceWindow: { from: "2026-07-15T00:00:00.000Z", to: ENGINE_NOW },
+          occurrences: 3,
+          evidenceRefs: ["e1", "e2", "e3"],
+          summary: "3 ineffective outcomes",
+        },
+      ],
+      ENGINE_NOW,
+    );
+
+    const rec = buildGovernanceRecommendation(proposal);
+    expect(rec.kind).toBe("MONITOR");
+  });
+
+  it("keeps kind: 'MONITOR' even when the proposal has zero findings (defensive)", () => {
+    // buildLearningProposal always returns non-null, but in principle
+    // buildGovernanceRecommendation must not assume findings.length > 0.
+    const proposal: LearningProposal = {
+      proposalId: "a8:2026-08-14T00:00:00.000Z:",
+      generatedAt: ENGINE_NOW,
+      findings: [],
+    };
+    const rec = buildGovernanceRecommendation(proposal);
+    expect(rec.kind).toBe("MONITOR");
+    expect(rec.supportingEvidence).toEqual([]);
+    expect(rec.risks).toEqual([]);
+  });
+
+  it("flattens evidenceRefs from all findings into supportingEvidence", () => {
+    const proposal = buildLearningProposal(
+      [
+        {
+          findingId: "underperformer:cap-A",
+          kind: "underperformer",
+          identityKey: "cap-A",
+          evidenceWindow: { from: "2026-07-15T00:00:00.000Z", to: ENGINE_NOW },
+          occurrences: 3,
+          evidenceRefs: ["e1", "e2"],
+          summary: "3 ineffective outcomes",
+        },
+        {
+          findingId: "outcome-contradiction:cap-B",
+          kind: "outcome-contradiction",
+          identityKey: "cap-B",
+          evidenceWindow: { from: "2026-07-15T00:00:00.000Z", to: ENGINE_NOW },
+          occurrences: 2,
+          evidenceRefs: ["r1"],
+          summary: "contradiction pattern",
+        },
+      ],
+      ENGINE_NOW,
+    );
+    const rec = buildGovernanceRecommendation(proposal);
+    expect(rec.supportingEvidence.sort()).toEqual(["e1", "e2", "r1"]);
+  });
+
+  it("threads proposalId and generatedAt through proposalId and createdAt", () => {
+    const proposal = buildLearningProposal(
+      [
+        {
+          findingId: "underperformer:cap-A",
+          kind: "underperformer",
+          identityKey: "cap-A",
+          evidenceWindow: { from: "2026-07-15T00:00:00.000Z", to: ENGINE_NOW },
+          occurrences: 3,
+          evidenceRefs: ["e1"],
+          summary: "ok",
+        },
+      ],
+      ENGINE_NOW,
+    );
+    const rec = buildGovernanceRecommendation(proposal);
+    expect(rec.proposalId).toBe(proposal.proposalId);
+    expect(rec.createdAt).toBe(proposal.generatedAt);
+    expect(rec.recommendationId).toBe(`a8-rec:${proposal.proposalId}`);
+    expect(rec.evidenceId).toMatch(/^[0-9a-f]{64}$/);
+    expect(rec.confidence).toBe(1.0);
+  });
+});
+
+describe("LearningProposal — structural non-executability sentinel (T6)", () => {
+  it("does NOT carry mutation / execution / artifact fields (architectural invariant)", () => {
+    const proposal = buildLearningProposal(
+      [
+        {
+          findingId: "underperformer:cap-A",
+          kind: "underperformer",
+          identityKey: "cap-A",
+          evidenceWindow: { from: "2026-07-15T00:00:00.000Z", to: ENGINE_NOW },
+          occurrences: 3,
+          evidenceRefs: ["e1"],
+          summary: "ok",
+        },
+      ],
+      ENGINE_NOW,
+    );
+    // ARCHITECTURAL SENTINEL: LearningProposal MUST NOT carry any of these
+    // fields. If a future change adds one, this test will fail at compile-time
+    // (because TS would not allow excess property access without `as any`),
+    // which is exactly the structural guard we want. We use a single
+    // assertion that names every forbidden field as a key.
+    const forbiddenKeys = [
+      "mutation",
+      "artifactId",
+      "proposedDefinition",
+      "patch",
+      "command",
+    ] as const;
+    for (const key of forbiddenKeys) {
+      expect((proposal as unknown as Record<string, unknown>)[key]).toBeUndefined();
+    }
+    // Sanity: it DOES carry the allowed fields.
+    expect(typeof proposal.proposalId).toBe("string");
+    expect(typeof proposal.generatedAt).toBe("string");
+    expect(Array.isArray(proposal.findings)).toBe(true);
+  });
+});
