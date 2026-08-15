@@ -36,6 +36,7 @@
 import { describe, it, expect } from "vitest";
 import { CapabilityOverlapAnalyzer } from "../../../src/adaptation/capability-overlap-analyzer.js";
 import type { CapabilityOverlap } from "../../../src/adaptation/capability-evolution-types.js";
+import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
 import {
   A7ProposalGenerator,
   validateConsolidationOpportunitySignal,
@@ -121,14 +122,37 @@ function buildCandidateInputs(
  */
 function supplierIdentityAtoB(
   overlap: CapabilityOverlap,
-): { survivorCapabilityId: string; absorbedCapabilityIds: readonly string[] } | null {
+): {
+  survivorCapabilityId: string;
+  absorbedCapabilityIds: readonly string[];
+  consolidateDefinition: CapabilityDefinition;
+  sourceDisposition: "deprecate" | "remove";
+} | null {
   // Mirror the locked #540 ruling: caller decides direction. Here, the
   // decision rule is "A survives, B is absorbed" — but this is a TEST
   // stub, not a production heuristic. The pair layer itself does not
   // encode any preference.
+  // CAP-P (locked ruling #544, 2026-08-15): the
+  // `consolidateDefinition` and `sourceDisposition` are
+  // operator-supplied identities; this stub returns test fixtures for
+  // those fields. Production wiring binds the operator CLI here.
   return {
     survivorCapabilityId: overlap.capabilityA,
     absorbedCapabilityIds: [overlap.capabilityB],
+    consolidateDefinition: {
+      id: overlap.capabilityA,
+      version: "2.0.0",
+      kind: "core",
+      title: "consolidated",
+      description: "d",
+      tags: [],
+      category: "core",
+      risk: "low",
+      requiredPermissions: ["operator"],
+      dependencies: [],
+      bindings: [{ id: overlap.capabilityA, type: "native" }],
+    },
+    sourceDisposition: "deprecate",
   };
 }
 
@@ -197,6 +221,8 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
     ];
     const supplier: OverlapIdentitySupplier = (overlap) => ({
       survivorCapabilityId: `survivor-of-${overlap.capabilityA}`,
+      consolidateDefinition: { id: `survivor-of-${overlap.capabilityA}`, version: "2.0.0", kind: "core", title: "d", description: "d", tags: [], category: "core", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: `survivor-of-${overlap.capabilityA}`, type: "native" }] },
+      sourceDisposition: "deprecate",
       absorbedCapabilityIds: SUPPLIED_ABSORBED,
     });
     const source = new OverlapProposalSignalSource({
@@ -254,6 +280,8 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
       return {
         survivorCapabilityId: overlap.capabilityA,
         absorbedCapabilityIds: [overlap.capabilityB],
+        consolidateDefinition: { id: overlap.capabilityA, version: "2.0.0", kind: "core", title: "d", description: "d", tags: [], category: "core", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: overlap.capabilityA, type: "native" }] },
+        sourceDisposition: "deprecate",
       };
     };
     const source = new OverlapProposalSignalSource({
@@ -289,12 +317,17 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
     expect(sig.kind).toBe("consolidation_opportunity");
 
     // Top-level keys are exactly the locked A7 signal contract.
+    // CAP-P (locked rulings #534 + #544, 2026-08-14/15) added
+    // `consolidateDefinition` and `sourceDisposition` — both
+    // operator-supplied identities that flow through A7 verbatim.
     const topLevelKeys = Object.keys(sig).sort();
     expect(topLevelKeys).toEqual([
       "absorbedCapabilityIds",
+      "consolidateDefinition",
       "evidenceIds",
       "kind",
       "score",
+      "sourceDisposition",
       "survivorCapabilityId",
     ]);
 
@@ -334,6 +367,25 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
       identitySupplier: () => ({
         survivorCapabilityId: SUPPLIED_SURVIVOR,
         absorbedCapabilityIds: SUPPLIED_ABSORBED,
+        // CAP-P (locked ruling #544): operator-CLI-supplied
+        // `consolidateDefinition` and `sourceDisposition` are
+        // required on the consolidation_opportunity signal. Test
+        // fixtures use simple pass-through values; production
+        // wiring binds the operator CLI here.
+        consolidateDefinition: {
+          id: SUPPLIED_SURVIVOR,
+          version: "4.0.0",
+          kind: "core",
+          title: "consolidated",
+          description: "d",
+          tags: [],
+          category: "core",
+          risk: "low",
+          requiredPermissions: ["operator"],
+          dependencies: [],
+          bindings: [{ id: SUPPLIED_SURVIVOR, type: "native" }],
+        },
+        sourceDisposition: "deprecate",
       }),
     });
 
@@ -369,6 +421,13 @@ describe("OverlapProposalSignalSource — pair layer (ruling #543)", () => {
       identitySupplier: () => ({
         survivorCapabilityId: "cap.A",
         absorbedCapabilityIds: [],
+        // CAP-P (locked ruling #544): validator also checks
+        // `consolidateDefinition` and `sourceDisposition`. This test
+        // pins the empty-array enforcement (ruling #534), so the
+        // other two fields are well-formed so the validator reaches
+        // the empty-array check.
+        consolidateDefinition: { id: "cap.A", version: "2.0.0", kind: "core", title: "d", description: "d", tags: [], category: "core", risk: "low", requiredPermissions: ["operator"], dependencies: [], bindings: [{ id: "cap.A", type: "native" }] },
+        sourceDisposition: "deprecate",
       }),
     });
     const [sig] = await source.signals();

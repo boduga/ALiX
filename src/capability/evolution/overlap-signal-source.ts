@@ -105,6 +105,23 @@ export interface OverlapProposalSignalSourceInputs {
 export type OverlapIdentitySupplier = (overlap: CapabilityOverlap) => {
   readonly survivorCapabilityId: string;
   readonly absorbedCapabilityIds: ReadonlyArray<string>;
+  /**
+   * CAP-P (locked ruling #544, 2026-08-15): the operator-supplied
+   * target definition. Required on the `consolidation_opportunity`
+   * signal — A7 will reject signals missing it
+   * (`validateConsolidationOpportunitySignal`). The pair layer does
+   * NOT derive this; the caller-supplied identity owner (operator
+   * CLI per #544) provides it.
+   */
+  readonly consolidateDefinition: CapabilityDefinition;
+  /**
+   * CAP-P (locked ruling #544, 2026-08-15): the operator-supplied
+   * source disposition. Required on the
+   * `consolidation_opportunity` signal — A7 will reject signals
+   * missing it. The pair layer does NOT infer this; the
+   * caller-supplied identity owner provides it.
+   */
+  readonly sourceDisposition: "deprecate" | "remove";
 } | null;
 
 /**
@@ -184,6 +201,13 @@ export class OverlapProposalSignalSource implements ProposalSignalSource {
         kind: "consolidation_opportunity",
         survivorCapabilityId: identity.survivorCapabilityId,
         absorbedCapabilityIds: [...identity.absorbedCapabilityIds],
+        // CAP-P (locked rulings #534 + #544, 2026-08-14/15): the
+        // operator-CLI-supplied identities pass through verbatim.
+        // The pair layer does NOT derive or synthesize these values;
+        // it transports what the `identitySupplier` callback
+        // (composition-root-bound, operator-side per #544) returns.
+        consolidateDefinition: identity.consolidateDefinition,
+        sourceDisposition: identity.sourceDisposition,
         score: overlap.overlapScore,
         // Pair-evidence provenance. Note: we deliberately encode
         // pair primitives in `evidenceIds` (which the signal contract
