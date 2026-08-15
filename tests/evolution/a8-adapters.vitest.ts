@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
+import type { GovernanceStore } from "../../src/governance/governance-store.js";
 import { ProposalEventsAdapter } from "../../src/evolution/learning/adapters/proposal-events-adapter.js";
 import { MeasurementEventsAdapter } from "../../src/evolution/learning/adapters/measurement-events-adapter.js";
 import { EnrichedProposalsAdapter } from "../../src/evolution/learning/adapters/enriched-proposals-adapter.js";
+import { RecommendationsAdapter } from "../../src/evolution/learning/adapters/recommendations-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -437,6 +439,154 @@ describe("EnrichedProposalsAdapter", () => {
     expect(typeof adapter.list).toBe("function");
     expect((adapter as unknown as Record<string, unknown>)["append"]).toBeUndefined();
     expect((adapter as unknown as Record<string, unknown>)["save"]).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RecommendationsAdapter (T4, 4-adapter pattern, A8 wayfinder map #517)
+// ---------------------------------------------------------------------------
+
+/** Build a GovernanceStore stub that returns a fixed list for "recommendations". */
+function makeGovStoreStub(
+  recs: ReadonlyArray<{
+    recommendationId: string;
+    evidenceId: string;
+    proposalId: string;
+    kind:
+      | "APPROVE"
+      | "MONITOR"
+      | "REQUEST_ADDITIONAL_EVIDENCE"
+      | "REJECT"
+      | "ESCALATE";
+    confidence: number;
+    reasoning: string;
+    supportingEvidence: ReadonlyArray<string>;
+    risks: ReadonlyArray<string>;
+    createdAt: string;
+  }>,
+): GovernanceStore {
+  return {
+    list: vi.fn(async (type: string) =>
+      type === "recommendations" ? (recs as any) : [],
+    ),
+  } as unknown as GovernanceStore;
+}
+
+describe("RecommendationsAdapter", () => {
+  it("has name='recommendations'", () => {
+    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    expect(adapter.name).toBe("recommendations");
+  });
+
+  it("returns [] when governance-store has no recommendations", async () => {
+    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    const out = await adapter.list();
+    expect(out).toEqual([]);
+  });
+
+  it("normalizes GovernanceRecommendation → RecommendationRecord (field mapping)", async () => {
+    const recs = [
+      {
+        recommendationId: "rec-1",
+        evidenceId: "ev-1",
+        proposalId: "prop-1",
+        kind: "APPROVE" as const,
+        confidence: 0.85,
+        reasoning: "all checks passed",
+        supportingEvidence: ["ev-1", "ev-2"],
+        risks: [],
+        createdAt: "2026-08-10T00:00:00.000Z",
+      },
+    ];
+    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const out = await adapter.list();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({
+      recordId: "rec-1", // ← source recommendationId
+      proposalId: "prop-1",
+      kind: "APPROVE",
+      confidence: 0.85,
+      reasoning: "all checks passed",
+      evidenceRefs: ["ev-1", "ev-2"], // ← source supportingEvidence
+      recordedAt: "2026-08-10T00:00:00.000Z", // ← source createdAt
+    });
+  });
+
+  it("preserves all 5 kinds (APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE | REJECT | ESCALATE)", async () => {
+    const recs = [
+      { recommendationId: "r1", evidenceId: "e1", proposalId: "p1", kind: "APPROVE" as const, confidence: 0.9, reasoning: "ok", supportingEvidence: [], risks: [], createdAt: "2026-08-01T00:00:00.000Z" },
+      { recommendationId: "r2", evidenceId: "e2", proposalId: "p2", kind: "MONITOR" as const, confidence: 0.6, reasoning: "watch", supportingEvidence: [], risks: [], createdAt: "2026-08-02T00:00:00.000Z" },
+      { recommendationId: "r3", evidenceId: "e3", proposalId: "p3", kind: "REQUEST_ADDITIONAL_EVIDENCE" as const, confidence: 0.4, reasoning: "need more", supportingEvidence: [], risks: [], createdAt: "2026-08-03T00:00:00.000Z" },
+      { recommendationId: "r4", evidenceId: "e4", proposalId: "p4", kind: "REJECT" as const, confidence: 0.95, reasoning: "broken", supportingEvidence: [], risks: [], createdAt: "2026-08-04T00:00:00.000Z" },
+      { recommendationId: "r5", evidenceId: "e5", proposalId: "p5", kind: "ESCALATE" as const, confidence: 0.3, reasoning: "complex", supportingEvidence: [], risks: [], createdAt: "2026-08-05T00:00:00.000Z" },
+    ];
+    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const out = await adapter.list();
+    expect(out.map((r) => r.kind)).toEqual([
+      "APPROVE",
+      "MONITOR",
+      "REQUEST_ADDITIONAL_EVIDENCE",
+      "REJECT",
+      "ESCALATE",
+    ]);
+  });
+
+  it("preserves proposalId (no silent default — STOP-AND-SURFACE invariant)", async () => {
+    const recs = [
+      {
+        recommendationId: "r1",
+        evidenceId: "e1",
+        proposalId: "prop-XYZ",
+        kind: "APPROVE" as const,
+        confidence: 0.5,
+        reasoning: "x",
+        supportingEvidence: [],
+        risks: [],
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ];
+    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const out = await adapter.list();
+    expect(out[0]!.proposalId).toBe("prop-XYZ");
+    expect(out[0]!.proposalId).not.toBe("");
+    expect(out[0]!.proposalId).not.toBeUndefined();
+  });
+
+  it("passes empty supportingEvidence → empty evidenceRefs (not [evidenceId])", async () => {
+    const recs = [
+      {
+        recommendationId: "r1",
+        evidenceId: "the-evidence-id", // <- not used
+        proposalId: "p1",
+        kind: "APPROVE" as const,
+        confidence: 0.5,
+        reasoning: "x",
+        supportingEvidence: [], // <- empty
+        risks: [],
+        createdAt: "2026-08-01T00:00:00.000Z",
+      },
+    ];
+    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const out = await adapter.list();
+    expect(out[0]!.evidenceRefs).toEqual([]);
+    expect(out[0]!.evidenceRefs).not.toContain("the-evidence-id");
+  });
+
+  it("calls governance-store.list('recommendations') once (read-only path)", async () => {
+    const store = makeGovStoreStub([]);
+    const adapter = new RecommendationsAdapter(store);
+    await adapter.list();
+    expect((store.list as any)).toHaveBeenCalledTimes(1);
+    expect((store.list as any)).toHaveBeenCalledWith("recommendations");
+  });
+
+  it("exposes read-only invariant: no mutation surface", () => {
+    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    expect(adapter.name).toBe("recommendations");
+    expect(typeof adapter.list).toBe("function");
+    expect((adapter as unknown as Record<string, unknown>)["append"]).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>)["save"]).toBeUndefined();
+    expect((adapter as unknown as Record<string, unknown>)["write"]).toBeUndefined();
   });
 });
 

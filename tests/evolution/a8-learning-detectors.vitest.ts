@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
-import type { MeasurementOutcomeRecord, LearningEngineOptions, LearningFinding } from "../../src/evolution/learning/contracts/learning-contract.js";
+import type {
+  MeasurementOutcomeRecord,
+  LearningEngineOptions,
+  LearningFinding,
+  ProposalGovernanceRecord,
+  RecommendationRecord,
+} from "../../src/evolution/learning/contracts/learning-contract.js";
 import { detectUnderperformer, UNDERPERFORMER_DETECTOR_KIND } from "../../src/evolution/learning/detectors/underperformer-detector.js";
+import {
+  detectOutcomeContradictions,
+  OUTCOME_CONTRADICTION_DETECTOR_KIND,
+} from "../../src/evolution/learning/detectors/outcome-contradiction-detector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -228,5 +238,231 @@ describe("detectUnderperformer", () => {
     expect(typeof f.occurrences).toBe("number");
     expect(Array.isArray(f.evidenceRefs)).toBe(true);
     expect(typeof f.summary).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectOutcomeContradictions (T4, 4-adapter pattern, A8 wayfinder map #517)
+// ---------------------------------------------------------------------------
+
+const NOW2 = "2026-08-14T00:00:00.000Z";
+const OPTIONS2: LearningEngineOptions = {
+  evidenceWindowDays: 30,
+  minCardinality: 2,
+};
+
+function makeProposal(
+  overrides: Partial<{
+    proposalId: string;
+    capabilityId: string;
+    kind: ProposalGovernanceRecord["kind"];
+    recordedAt: string;
+    eventId: string;
+  }> = {},
+): ProposalGovernanceRecord {
+  return {
+    proposalId: overrides.proposalId ?? "p-default",
+    capabilityId: overrides.capabilityId ?? "cap-default",
+    kind: overrides.kind ?? "proposal.approved",
+    recordedAt: overrides.recordedAt ?? "2026-08-10T00:00:00.000Z",
+    eventId: overrides.eventId ?? "evt-default",
+  };
+}
+
+function makeRecommendation(
+  overrides: Partial<{
+    recordId: string;
+    proposalId: string;
+    kind: RecommendationRecord["kind"];
+    recordedAt: string;
+  }> = {},
+): RecommendationRecord {
+  return {
+    recordId: overrides.recordId ?? "rec-default",
+    proposalId: overrides.proposalId ?? "p-default",
+    kind: overrides.kind ?? "APPROVE",
+    confidence: 0.8,
+    reasoning: "default",
+    evidenceRefs: [],
+    recordedAt: overrides.recordedAt ?? "2026-08-10T00:00:00.000Z",
+  };
+}
+
+describe("detectOutcomeContradictions", () => {
+  it("exposes detector kind constant", () => {
+    expect(OUTCOME_CONTRADICTION_DETECTOR_KIND).toBe("outcome-contradiction");
+  });
+
+  it("emits [] when there are no proposals", () => {
+    expect(detectOutcomeContradictions([], [], OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("emits [] when there are proposals but no recommendations (no silent default)", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.approved" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, [], OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("detects APPROVE-recommendation + rejected-proposal = contradiction", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+    ];
+    const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.kind).toBe("outcome-contradiction");
+    expect(findings[0]!.identityKey).toBe("cap-A");
+    expect(findings[0]!.occurrences).toBe(2);
+    expect(findings[0]!.findingId).toBe("outcome-contradiction:cap-A");
+  });
+
+  it("detects REJECT-recommendation + approved-proposal = contradiction", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-B", kind: "proposal.approved", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-B", kind: "proposal.approved", eventId: "evt-2" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "REJECT" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "REJECT" }),
+    ];
+    const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.identityKey).toBe("cap-B");
+    expect(findings[0]!.occurrences).toBe(2);
+  });
+
+  it("does NOT detect APPROVE-recommendation + approved-proposal (no contradiction)", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.approved", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.approved", eventId: "evt-2" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("does NOT detect MONITOR/REQUEST_ADDITIONAL_EVIDENCE/ESCALATE (non-binary kinds)", () => {
+    // These kinds are intentionally non-binary — no contradiction can be
+    // established against an operator's approved/rejected decision.
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.approved", eventId: "evt-3" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "MONITOR" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "REQUEST_ADDITIONAL_EVIDENCE" }),
+      makeRecommendation({ recordId: "rec-3", proposalId: "p3", kind: "ESCALATE" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("ignores non-approved/rejected proposal kinds (submitted/executed/etc.)", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.executed", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.reverted", eventId: "evt-3" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "REJECT" }),
+      makeRecommendation({ recordId: "rec-3", proposalId: "p3", kind: "APPROVE" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("ignores proposals outside evidence window", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1", recordedAt: "2026-01-01T00:00:00.000Z" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2", recordedAt: "2026-01-01T00:00:00.000Z" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("respects minCardinality threshold", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+    ];
+    const threshold2 = { ...OPTIONS2, minCardinality: 2 };
+    const threshold1 = { ...OPTIONS2, minCardinality: 1 };
+    expect(detectOutcomeContradictions(proposals, recs, threshold2, NOW2)).toEqual([]);
+    expect(detectOutcomeContradictions(proposals, recs, threshold1, NOW2)).toHaveLength(1);
+  });
+
+  it("groups by capabilityId (one finding per capability)", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-B", kind: "proposal.rejected", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-B", kind: "proposal.rejected", eventId: "evt-4" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-3", proposalId: "p3", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-4", proposalId: "p4", kind: "APPROVE" }),
+    ];
+    const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
+    expect(findings).toHaveLength(2);
+    expect(findings.map((f) => f.identityKey).sort()).toEqual(["cap-A", "cap-B"]);
+  });
+
+  it("skips proposals without matching recommendation (no silent default)", () => {
+    // Per locked ruling: missing recommendation → cannot establish
+    // contradiction; do NOT silently substitute defaults.
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+    ];
+    // Only p1 has a recommendation; p2 does not.
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+    ];
+    expect(detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2)).toEqual([]);
+  });
+
+  it("evidenceRefs contain 'eventId:recordId' pairs for traceability", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-2", proposalId: "p2", kind: "APPROVE" }),
+    ];
+    const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
+    expect(findings[0]!.evidenceRefs).toEqual(["evt-1:rec-1", "evt-2:rec-2"]);
+  });
+
+  it("emits findings sorted by identityKey for deterministic output", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p-zeta", capabilityId: "cap-Z", kind: "proposal.rejected", eventId: "evt-z1" }),
+      makeProposal({ proposalId: "p-zeta2", capabilityId: "cap-Z", kind: "proposal.rejected", eventId: "evt-z2" }),
+      makeProposal({ proposalId: "p-alpha", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-a1" }),
+      makeProposal({ proposalId: "p-alpha2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-a2" }),
+    ];
+    const recs = [
+      makeRecommendation({ recordId: "rec-z1", proposalId: "p-zeta", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-z2", proposalId: "p-zeta2", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-a1", proposalId: "p-alpha", kind: "APPROVE" }),
+      makeRecommendation({ recordId: "rec-a2", proposalId: "p-alpha2", kind: "APPROVE" }),
+    ];
+    const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
+    expect(findings.map((f) => f.identityKey)).toEqual(["cap-A", "cap-Z"]);
   });
 });

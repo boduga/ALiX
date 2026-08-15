@@ -166,6 +166,49 @@ export interface EnrichedProposalRecord {
   readonly recordedAt: string;            // from proposal.createdAt
 }
 
+/**
+ * recommendations-adapter output: A2.5 governance recommendations.
+ * Source: `governance-store` JSONL file `recommendations.jsonl`.
+ *
+ * Architectural decision (A8 wayfinder map #517 ruling, locked):
+ * - `recommendation` was REMOVED from `ProposalGovernanceRecord` during
+ *   T1-reconciliation because governance event payloads do NOT carry the
+ *   recommendation (A2.5 writes recommendations to a separate JSONL).
+ * - This 4th adapter reads that JSONL; correlation by `proposalId` happens
+ *   in the DETECTOR layer (not in the adapter — adapter does not join).
+ *
+ * Field adaptations (T4 reconnaissance, A8 wayfinder map #517):
+ * - Source `GovernanceRecommendation` carries:
+ *     `{ recommendationId, evidenceId, proposalId, kind, confidence,
+ *        reasoning, supportingEvidence, risks, createdAt }`
+ * - `recordId`  ← source `recommendationId`
+ * - `evidenceRefs` ← source `supportingEvidence` (string[]; NOT `evidenceId`)
+ * - `recordedAt` ← source `createdAt`
+ * - `kind`      ← source `kind`
+ * - `confidence` ← source `confidence`
+ * - `reasoning` ← source `reasoning`
+ *
+ * Invariants (per `validateGovernanceRecommendation`):
+ * - `proposalId` is REQUIRED and non-empty (no silent defaults).
+ * - `kind` must be one of APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE |
+ *   REJECT | ESCALATE.
+ * - `confidence` ∈ [0, 1].
+ */
+export interface RecommendationRecord {
+  readonly recordId: string;
+  readonly proposalId: string;
+  readonly kind:
+    | "APPROVE"
+    | "MONITOR"
+    | "REQUEST_ADDITIONAL_EVIDENCE"
+    | "REJECT"
+    | "ESCALATE";
+  readonly confidence: number;
+  readonly reasoning?: string;
+  readonly evidenceRefs: ReadonlyArray<string>;
+  readonly recordedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Engine options
 // ---------------------------------------------------------------------------
