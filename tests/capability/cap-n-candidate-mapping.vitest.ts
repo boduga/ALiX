@@ -210,9 +210,12 @@ describe("CAP-N T1 — candidate→ExecutionStep operation mapping (4 axes)", ()
     expect(calls[0]!.step.operation).toBe("capability.remove");
   });
 
-  // ─── Axis 3: underperformer → capability.transition (preserved) ─────────
-  // PASSING on current code (current default). Expected post-T2: same.
-  it("axis 3: sourcePatternId=underperformer → operation=\"capability.transition\"", async () => {
+  // ─── Axis 3: underperformer — superseded by CAP-O ─────────
+  // CAP-N originally asserted underperformer → capability.transition
+  // (the preserved default at CAP-N's time). CAP-O's locked ruling
+  // supersedes that: underperformer candidates now emit
+  // capability.update rather than capability.transition.
+  it("axis 3: sourcePatternId=underperformer → operation=\"capability.update\"", async () => {
     const seedId = "core.session.show";
     const signal: CapabilityEvolutionSignal = {
       kind: "underperformer",
@@ -225,7 +228,7 @@ describe("CAP-N T1 — candidate→ExecutionStep operation mapping (4 axes)", ()
     const applyResult = await service.apply({ proposalId: proposal.proposalId });
     expect(applyResult.status).toBe("executed");
     expect(calls.length).toBe(1);
-    expect(calls[0]!.step.operation).toBe("capability.transition");
+    expect(calls[0]!.step.operation).toBe("capability.update");
   });
 
   // ─── Axis 4: consolidation_opportunity → capability.transition (preserved)

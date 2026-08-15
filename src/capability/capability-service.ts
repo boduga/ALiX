@@ -557,6 +557,46 @@ export class CapabilityService {
     });
   }
 
+  // CAP-O test seam — not for production use.
+  /**
+   * CAP-O T1 — test-only seam that bypasses A7's `proposalGenerator`
+   * and persists a hand-rolled `CapabilityEvolutionCandidate` directly.
+   * Used by tests that need to exercise `applyProposal` with candidates
+   * A7 cannot produce (e.g. an `underperformer` candidate missing or
+   * with an empty `proposedPatch`, which T2's guard will reject).
+   *
+   * Gated behind `process.env.CAPABILITY_TEST_SEAM === "1"` so production
+   * callers that happen to invoke this method receive a clear error
+   * instead of silently persisting a candidate that bypassed A7's purity
+   * invariants (locked ruling #14).
+   *
+   * Surface mirrors `propose()`'s `CapabilityProposeResult` shape so test
+   * assertions read identically across the two paths.
+   *
+   * Test infrastructure — not for production use.
+   */
+  async proposeDirect(
+    candidate: CapabilityEvolutionCandidate,
+  ): Promise<CapabilityProposeResult> {
+    if (process.env["CAPABILITY_TEST_SEAM"] !== "1") {
+      throw new Error(
+        "proposeDirect is a CAP-O test seam — set CAPABILITY_TEST_SEAM=1 in the test environment",
+      );
+    }
+    const current = this.catalog.get(candidate.target.id);
+    const sourceVersion: string | null = current?.version ?? null;
+    const { proposalId } = await this.proposalStore.submit(
+      candidate,
+      candidate.evidenceIds,
+      sourceVersion,
+    );
+    return Object.freeze({
+      proposalId,
+      status: "pending" as const,
+      candidate,
+    });
+  }
+
   /**
    * CAP-9 ruling #10, #22, #23 — pure projection over the shared
    * EventLog. No catalog reads, no registry reads, no service state.
@@ -682,6 +722,18 @@ function toProjection(
 }
 
 /**
+ * CAP-O: structural emptiness check for a `CapabilityDefinitionPatch`.
+ * Returns true if `patch` is undefined, null, or has no own enumerable keys.
+ * Used by `candidateToExecutionStep` to enforce the underperformer
+ * invariant: every underperformer candidate MUST carry a non-empty patch.
+ */
+function isNonEmptyPatch(patch: unknown): boolean {
+  if (patch === undefined || patch === null) return false;
+  if (typeof patch !== "object") return false;
+  return Object.keys(patch as Record<string, unknown>).length > 0;
+}
+
+/**
  * CAP-N ruling — map a candidate to a CAP-6 `ExecutionStep` per its
  * sourcePatternId. Discriminator table (CAP-N spec §4.1):
  *   - "gap"                   → capability.create
@@ -754,7 +806,30 @@ function candidateToExecutionStep(
         },
       };
 
-    case "underperformer":
+    case "underperformer": {
+      // CAP-O invariant: underperformer candidate MUST carry a non-empty
+      // proposedPatch. Missing/empty patches would emit a structurally
+      // invalid capability.update step (no extensions ⇒ no provenance ⇒
+      // no downstream observer records the a7-underperformer evidence
+      // chain). Throw BEFORE constructing the parameters so the guard
+      // is the only path the executor can possibly see.
+      if (!isNonEmptyPatch(candidate.proposedPatch)) {
+        throw new Error(
+          `capability.update: underperformer candidate '${candidate.candidateId}' must carry a non-empty proposedPatch; observed keys=${Object.keys((candidate.proposedPatch ?? {}) as Record<string, unknown>).join(",") || "<none>"}`,
+        );
+      }
+      return {
+        ...baseStep,
+        operation: "capability.update",
+        parameters: {
+          operation: "capability.update",
+          capabilityId: sourceId,
+          sourceVersion: currentVersion,
+          patch: candidate.proposedPatch,
+        },
+      };
+    }
+
     case "consolidation_opportunity":
     default:
       return {

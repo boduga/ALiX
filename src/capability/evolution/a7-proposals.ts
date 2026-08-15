@@ -39,6 +39,7 @@
 
 import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-evolution-types.js";
 import { CapabilityEvolutionProposalGenerator } from "../../adaptation/capability-evolution-proposal-generator.js";
+import type { CapabilityDefinitionPatch } from "../mutation-contract.js";
 
 // ---------------------------------------------------------------------------
 // Signal discriminator
@@ -203,7 +204,21 @@ function signalToCandidate(
         riskClass: riskClassFor(signal),
         evidenceIds: [...signal.evidenceIds],
       };
-    case "underperformer":
+    case "underperformer": {
+      // CAP-O: candidate carries provenance-only update patch so
+      // apply() can route capability.update. The patch records the
+      // approved evolutionary decision durably; the capability
+      // definition itself is not semantically modified.
+      const proposedPatch: CapabilityDefinitionPatch = {
+        extensions: {
+          provenance: {
+            kind: "a7-underperformer",
+            candidateId,
+            score: signal.score,
+            evidenceIds: [...signal.evidenceIds],
+          },
+        },
+      };
       return {
         candidateId,
         sourcePatternId: signal.kind,
@@ -213,7 +228,9 @@ function signalToCandidate(
         expectedEffect: "Improve observed underperformance",
         riskClass: riskClassFor(signal),
         evidenceIds: [...signal.evidenceIds],
+        proposedPatch,
       };
+    }
     case "consolidation_opportunity":
       return {
         candidateId,

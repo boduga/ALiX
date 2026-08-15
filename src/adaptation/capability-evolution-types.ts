@@ -136,6 +136,8 @@ export interface CapabilityEvolutionReport {
 // CAP-9 A7 proposal candidate (Task 1 — additive)
 // ---------------------------------------------------------------------------
 
+import type { CapabilityDefinitionPatch } from "../capability/mutation-contract.js";
+
 /** CAP-9 — Evolution target discriminator. A7 emits candidates against a
  *  capability target (the only target kind A7 currently supports). The
  *  union is left open for future CAP-10+ targets (agent_card, skill, etc.). */
@@ -178,4 +180,11 @@ export interface CapabilityEvolutionCandidate {
   readonly expectedEffect: string;
   readonly riskClass: CapabilityEvolutionRiskClass;
   readonly evidenceIds: ReadonlyArray<string>;
+  /**
+   * CAP-O: candidate-carried update patch for `underperformer` sourcePatternId.
+   * Present (structurally non-empty) for `underperformer`; absent for other
+   * sourcePatternIds. Provenance-only — no speculative semantic change to the
+   * capability definition.
+   */
+  readonly proposedPatch?: CapabilityDefinitionPatch;
 }
