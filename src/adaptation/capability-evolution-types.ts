@@ -196,4 +196,26 @@ export interface CapabilityEvolutionCandidate {
    * without derivation, inference, expansion, or completion.
    */
   readonly absorbedCapabilityIds?: readonly string[];
+  /**
+   * CAP-P: caller-supplied target definition carried verbatim from the
+   * `consolidation_opportunity` signal (locked decisions #534 and #544 —
+   * 2026-08-14/15). Present only when
+   * `sourcePatternId === "consolidation_opportunity"`; absent for every
+   * other sourcePatternId. The governance caller (operator CLI per #544)
+   * owns construction of this definition — A7 transports it without
+   * derivation, inference, or synthesis. The executor's
+   * `validateConsolidate()` (mutation-contract.ts:464) enforces the
+   * conservative merge invariants against catalog-resolved sources.
+   */
+  readonly consolidateDefinition?: CapabilityDefinition;
+  /**
+   * CAP-P: caller-supplied disposition for absorbed capabilities carried
+   * verbatim from the `consolidation_opportunity` signal (locked
+   * decisions #534 and #544). Present only when
+   * `sourcePatternId === "consolidation_opportunity"`; absent for every
+   * other sourcePatternId. Either `"deprecate"` (sources transition to
+   * `deprecated` lifecycle) or `"remove"` (sources removed from
+   * catalog). Caller-supplied — A7 does NOT infer.
+   */
+  readonly sourceDisposition?: "deprecate" | "remove";
 }
