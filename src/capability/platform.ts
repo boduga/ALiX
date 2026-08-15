@@ -12,8 +12,13 @@ import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
-import { A7ProposalGenerator } from "./evolution/a7-proposals.js";
+import { A7ProposalGenerator, type ProposalSignalSource } from "./evolution/a7-proposals.js";
 import { ProposalSignalChannel } from "./evolution/proposal-signal-channel.js";
+import {
+  CompositeProposalSignalSource,
+  OverlapProposalSignalSource,
+} from "./evolution/overlap-signal-source.js";
+import { CapabilityOverlapAnalyzer } from "../adaptation/capability-overlap-analyzer.js";
 import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
 import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
@@ -55,7 +60,7 @@ export class CapabilityPlatform {
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -105,11 +110,33 @@ export class CapabilityPlatform {
         observationEngine,
       });
     }
+    // P5.5/P5.6 pair layer (ruling #543) — composition-root option to
+    // inject an `overlapSignalSource`. When absent, the composition root
+    // constructs a default `OverlapProposalSignalSource` with a stub
+    // `identitySupplier` that returns `null` for every overlap (no
+    // signals emitted until the operator-CLI binding — ticket #309 /
+    // ruling #544 — is wired). The pair layer is read-only over canonical
+    // sources and emits evidence-only signals; it does NOT derive survivor
+    // identity or absorbed set.
+    const overlapSignalSource: ProposalSignalSource =
+      opts.overlapSignalSource ??
+      new OverlapProposalSignalSource({
+        analyzer: new CapabilityOverlapAnalyzer(),
+        inputs: async () => ({
+          agentCards: [],
+          proposals: [],
+          capabilityEvents: [],
+          registeredCapabilities: [],
+        }),
+        identitySupplier: () => null,
+      });
     // A7 proposal generator — composition root constructs a real
-    // A7ProposalGenerator bound to the channel as signalSource when the
-    // caller does not supply one. Existing test injects are preserved.
+    // A7ProposalGenerator bound to a composite signalSource (the A5
+    // channel + the pair layer) when the caller does not supply one.
+    // Existing test injects are preserved: `opts.proposalGenerator`
+    // bypasses the wiring entirely.
     const proposalGenerator = opts.proposalGenerator ?? new A7ProposalGenerator({
-      signalSource: channel,
+      signalSource: new CompositeProposalSignalSource([channel, overlapSignalSource]),
     });
     this.service = new CapabilityService({
       catalog: this.catalog,
