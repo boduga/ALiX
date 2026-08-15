@@ -124,6 +124,7 @@ export interface ProposalGovernanceRecord {
     | "proposal.execution_failed";
   readonly operatorId?: string;          // from ProposalApprovedPayload.approvedBy or ProposalRejectedPayload.rejectedBy
   readonly operatorReason?: string;       // from ProposalRejectedPayload.reason
+  readonly error?: string;                // from ProposalExecutionFailedPayload.error (T5 amendment; A8 wayfinder map #517)
   readonly recordedAt: string;            // from event.timestamp
   readonly eventId: string;               // from event.seq (no public eventId field on the type union)
 }

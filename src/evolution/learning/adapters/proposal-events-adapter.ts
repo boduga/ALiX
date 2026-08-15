@@ -55,6 +55,11 @@ export class ProposalEventsAdapter implements LearningAdapter<ProposalGovernance
         (payload["approvedBy"] as string | undefined) ??
         (payload["rejectedBy"] as string | undefined),
       operatorReason: payload["reason"] as string | undefined,
+      // T5 amendment: populate `error` on `proposal.execution_failed` events
+      // from `payload.error` so the repeated-pattern-failure detector can
+      // fingerprint by error string. Source:
+      // `ProposalExecutionFailedPayload { error: string; partialState?: ... }`.
+      error: payload["error"] as string | undefined,
       recordedAt: event.timestamp,
       eventId: String(event.seq),
     };

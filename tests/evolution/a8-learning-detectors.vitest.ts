@@ -11,6 +11,10 @@ import {
   detectOutcomeContradictions,
   OUTCOME_CONTRADICTION_DETECTOR_KIND,
 } from "../../src/evolution/learning/detectors/outcome-contradiction-detector.js";
+import {
+  detectRepeatedPatternFailures,
+  REPEATED_PATTERN_FAILURE_DETECTOR_KIND,
+} from "../../src/evolution/learning/detectors/repeated-pattern-failure-detector.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -258,14 +262,22 @@ function makeProposal(
     kind: ProposalGovernanceRecord["kind"];
     recordedAt: string;
     eventId: string;
+    error?: string;
   }> = {},
 ): ProposalGovernanceRecord {
+  // T2 reconciliation: `capabilityId` is populated ONLY on `proposal.submitted`
+  // events (via `payload.candidate.target.id`). For all other event kinds,
+  // the adapter returns an empty string. Mirror that semantics here so the
+  // detector's identity-join behavior is tested against realistic records.
+  const kind = overrides.kind ?? "proposal.approved";
+  const defaultCapabilityId = kind === "proposal.submitted" ? "cap-default" : "";
   return {
     proposalId: overrides.proposalId ?? "p-default",
-    capabilityId: overrides.capabilityId ?? "cap-default",
-    kind: overrides.kind ?? "proposal.approved",
+    capabilityId: overrides.capabilityId ?? defaultCapabilityId,
+    kind,
     recordedAt: overrides.recordedAt ?? "2026-08-10T00:00:00.000Z",
     eventId: overrides.eventId ?? "evt-default",
+    error: overrides.error,
   };
 }
 
@@ -464,5 +476,212 @@ describe("detectOutcomeContradictions", () => {
     ];
     const findings = detectOutcomeContradictions(proposals, recs, OPTIONS2, NOW2);
     expect(findings.map((f) => f.identityKey)).toEqual(["cap-A", "cap-Z"]);
+  });
+});
+
+// ============================================================================
+// T5 — repeated-pattern-failure detector (A8 wayfinder map #517, ruling #2)
+// ============================================================================
+
+const NOW5 = "2026-08-14T00:00:00.000Z";
+const OPTIONS5: LearningEngineOptions = { minCardinality: 3, evidenceWindowDays: 30 };
+
+describe("detectRepeatedPatternFailures (T5)", () => {
+  it("emits no findings when records are empty", () => {
+    const findings = detectRepeatedPatternFailures([], OPTIONS5, NOW5);
+    expect(findings).toEqual([]);
+  });
+
+  it("skips records outside the evidence window", () => {
+    const proposals = [
+      makeProposal({
+        proposalId: "p1",
+        capabilityId: "cap-A",
+        kind: "proposal.execution_failed",
+        error: "timeout",
+        recordedAt: "2026-01-01T00:00:00.000Z",
+        eventId: "evt-1",
+      }),
+      makeProposal({
+        proposalId: "p2",
+        capabilityId: "cap-A",
+        kind: "proposal.execution_failed",
+        error: "timeout",
+        recordedAt: "2026-08-01T00:00:00.000Z",
+        eventId: "evt-2",
+      }),
+      makeProposal({
+        proposalId: "p3",
+        capabilityId: "cap-A",
+        kind: "proposal.execution_failed",
+        error: "timeout",
+        recordedAt: "2026-08-02T00:00:00.000Z",
+        eventId: "evt-3",
+      }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    // Only 2 are within the window (Aug 1, Aug 2); below minCardinality 3.
+    expect(findings).toEqual([]);
+  });
+
+  it("groups by error:capabilityId fingerprint and emits one finding per fingerprint group", () => {
+    const proposals = [
+      // Submitted (for capabilityId join)
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p5", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p6", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p7", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      // Failures: 3x "timeout" on cap-A, 3x "timeout" on cap-B
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p5", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-5" }),
+      makeProposal({ proposalId: "p6", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-6" }),
+      makeProposal({ proposalId: "p7", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-7" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(2);
+    const byKey = Object.fromEntries(findings.map((f) => [f.identityKey, f]));
+    expect(byKey["timeout:cap-A"]?.occurrences).toBe(3);
+    expect(byKey["timeout:cap-B"]?.occurrences).toBe(3);
+  });
+
+  it("differentiates failure modes: same capability, different errors are SEPARATE findings", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p5", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p6", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p4", kind: "proposal.execution_failed", error: "diverged", eventId: "evt-4" }),
+      makeProposal({ proposalId: "p5", kind: "proposal.execution_failed", error: "diverged", eventId: "evt-5" }),
+      makeProposal({ proposalId: "p6", kind: "proposal.execution_failed", error: "diverged", eventId: "evt-6" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(2);
+    const keys = findings.map((f) => f.identityKey).sort();
+    expect(keys).toEqual(["diverged:cap-A", "timeout:cap-A"]);
+  });
+
+  it("requires count >= minCardinality; sub-threshold groups are dropped", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p4", kind: "proposal.execution_failed", error: "diverged", eventId: "evt-4" }),
+    ];
+    // minCardinality 3; "timeout" has 3, "diverged" has 1 -> only "timeout" emits.
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.identityKey).toBe("timeout:cap-A");
+    expect(findings[0]?.occurrences).toBe(3);
+  });
+
+  it("ignores non-execution_failed events entirely", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.rejected", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-A", kind: "proposal.approved", eventId: "evt-4" }),
+      makeProposal({ proposalId: "p5", capabilityId: "cap-A", kind: "proposal.executed", eventId: "evt-5" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toEqual([]);
+  });
+
+  it("recovers capabilityId from proposal.submitted events when the failure record has no capabilityId", () => {
+    // No capabilityId on the failure record itself; the detector must
+    // join proposalId -> capabilityId via the submitted-event index.
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-X", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-X", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-X", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", capabilityId: "", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", capabilityId: "", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", capabilityId: "", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.identityKey).toBe("timeout:cap-X");
+    expect(findings[0]?.occurrences).toBe(3);
+  });
+
+  it("falls back to empty capabilityId when submitted event is missing for proposalId", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.identityKey).toBe("timeout:");
+    expect(findings[0]?.occurrences).toBe(3);
+  });
+
+  it("emits finding with kind='repeated-pattern-failure' and deterministic shape", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings).toHaveLength(1);
+    const f = findings[0]!;
+    expect(f.kind).toBe("repeated-pattern-failure");
+    expect(f.findingId).toBe("repeated-pattern-failure:timeout:cap-A");
+    expect(f.identityKey).toBe("timeout:cap-A");
+    expect(f.evidenceWindow).toEqual({ from: "2026-07-15T00:00:00.000Z", to: NOW5 });
+    expect(f.evidenceRefs).toEqual(["evt-1", "evt-2", "evt-3"]);
+    expect(f.summary).toContain("timeout:cap-A");
+  });
+
+  it("exports REPEATED_PATTERN_FAILURE_DETECTOR_KIND constant", () => {
+    expect(REPEATED_PATTERN_FAILURE_DETECTOR_KIND).toBe("repeated-pattern-failure");
+  });
+
+  it("emits findings sorted by identityKey for deterministic output", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p4", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p5", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p6", capabilityId: "cap-B", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p4", kind: "proposal.execution_failed", error: "aborted", eventId: "evt-4" }),
+      makeProposal({ proposalId: "p5", kind: "proposal.execution_failed", error: "aborted", eventId: "evt-5" }),
+      makeProposal({ proposalId: "p6", kind: "proposal.execution_failed", error: "aborted", eventId: "evt-6" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, OPTIONS5, NOW5);
+    expect(findings.map((f) => f.identityKey).sort()).toEqual(["aborted:cap-B", "timeout:cap-A"]);
+  });
+
+  it("reflects the supplied minCardinality threshold (higher threshold drops groups)", () => {
+    const proposals = [
+      makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.submitted" }),
+      makeProposal({ proposalId: "p1", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-1" }),
+      makeProposal({ proposalId: "p2", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-2" }),
+      makeProposal({ proposalId: "p3", kind: "proposal.execution_failed", error: "timeout", eventId: "evt-3" }),
+    ];
+    const findings = detectRepeatedPatternFailures(proposals, { minCardinality: 4, evidenceWindowDays: 30 }, NOW5);
+    expect(findings).toEqual([]);
   });
 });
