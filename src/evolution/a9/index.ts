@@ -21,4 +21,8 @@ export * from "./forecast-builder.js";
 export * from "./forecast-engine.js";
 export * from "./forecasts-store.js";
 export * from "./forecasts-adapter.js";
+export * from "./correlation-builder.js";
+export * from "./correlation-engine.js";
+export * from "./correlations-store.js";
+export * from "./correlations-adapter.js";
 export * from "./a9-bridge.js";
