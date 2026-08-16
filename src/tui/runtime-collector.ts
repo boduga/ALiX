@@ -65,6 +65,14 @@ export interface RuntimeCollectorOptions {
    *  identity — it only dispatches, snapshots, and coordinates durable
    *  state through this object. */
   projectionRuntime: ProjectionRuntime;
+  /**
+   * Q-C4 — optional sessionless-event relay. Each sample, the collector delivers
+   * ONLY this cycle's newly-read `sessionId === ""` events (the ones the session
+   * filter would otherwise drop) to this callback. The collector never interprets
+   * event types — the caller decides what the events mean. When absent,
+   * sessionless events are dropped as today.
+   */
+  sessionlessEvents?: (events: readonly AlixEvent[]) => void;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -74,6 +82,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly sessionId: string;
   private readonly projectionRuntime: ProjectionRuntime;
+  private readonly sessionlessEvents?: (events: readonly AlixEvent[]) => void;
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
    *  since the most recent workflow.created; trimmed when a new workflow
@@ -88,6 +97,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
     this.checkpointStore = opts.checkpointStore;
     this.sessionId = opts.sessionId;
     this.projectionRuntime = opts.projectionRuntime;
+    this.sessionlessEvents = opts.sessionlessEvents;
     // Sentinel committedAt=0: nothing has been durably saved yet. The first
     // successful sample() overwrites this with a real timestamp.
     this.checkpoint = { cursor: opts.eventLog.beginningCursor(), committedAt: 0 };
@@ -217,8 +227,13 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // session (D1/D3). The checkpoint cursor still advances over the FULL
       // batch (readSince returns all sessions' events; we must not re-read
       // them), while the builders only ever see this session's events.
-      const sessionBatch = batch.events.filter((e) => e.sessionId === this.sessionId);
+      // Q-C4 — split the freshly-read batch: session-matching events go to the
+      // projections; sessionless events (`sessionId === ""`) go to the optional
+      // relay. The relay receives ONLY this cycle's newly-read events — the caller
+      // dedupes across cycles/restarts.
+      const { session: sessionBatch, sessionless } = splitSessionless(batch.events, this.sessionId);
       this.projectionRuntime.updateAll(sessionBatch);
+      this.sessionlessEvents?.(sessionless);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
 
@@ -381,4 +396,21 @@ export function computeWorkflow(events: readonly AlixEvent[]): WorkflowStateSnap
   const totalSteps = Math.max(currentStep, 1 + totalStepEvents);
 
   return { name, currentStep, totalSteps, startedAt };
+}
+
+/** Q-C4 — partition a read batch into session-matching events (delivered to
+ *  the projections) and sessionless events (`sessionId === ""`, which the
+ *  session filter would otherwise drop). The sessionless half is relayed to
+ *  the optional `sessionlessEvents` callback so session-less governance /
+ *  measurement events can feed the evolution projection. */
+export function splitSessionless(
+  events: readonly AlixEvent[],
+  sessionId: string,
+): { readonly session: AlixEvent[]; readonly sessionless: AlixEvent[] } {
+  const session: AlixEvent[] = [];
+  const sessionless: AlixEvent[] = [];
+  for (const e of events) {
+    (e.sessionId === sessionId ? session : sessionless).push(e);
+  }
+  return { session, sessionless };
 }
