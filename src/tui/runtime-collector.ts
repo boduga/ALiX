@@ -68,10 +68,12 @@ export interface RuntimeCollectorOptions {
   projectionRuntime: ProjectionRuntime;
   /**
    * Q-C4 — optional sessionless-event relay. Each sample, the collector delivers
-   * ONLY this cycle's newly-read `sessionId === ""` events (the ones the session
-   * filter would otherwise drop) to this callback. The collector never interprets
-   * event types — the caller decides what the events mean. When absent,
-   * sessionless events are dropped as today.
+   * ONLY this cycle's newly-read non-session-matching events (the ones the
+   * session filter would otherwise drop) to this callback. Delivered events
+   * are NOT strictly `sessionId === ""` — see partitionBySession for the
+   * recorded over-delivery contract; consumers type-filter defensively. The
+   * collector never interprets event types — the caller decides what the
+   * events mean. When absent, non-matching events are dropped as today.
    */
   sessionlessEvents?: (events: readonly AlixEvent[]) => void;
 }
@@ -228,13 +230,14 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // session (D1/D3). The checkpoint cursor still advances over the FULL
       // batch (readSince returns all sessions' events; we must not re-read
       // them), while the builders only ever see this session's events.
-      // Q-C4 — split the freshly-read batch: session-matching events go to the
-      // projections; sessionless events (`sessionId === ""`) go to the optional
-      // relay. The relay receives ONLY this cycle's newly-read events — the caller
-      // dedupes across cycles/restarts.
-      const { session: sessionBatch, sessionless } = splitSessionless(batch.events, this.sessionId);
+      // Q-C4 — partition the freshly-read batch: session-matching events go to
+      // the projections; every OTHER event (non-session-matching, not strictly
+      // `sessionId === ""` — see partitionBySession) goes to the optional
+      // relay. The relay receives ONLY this cycle's newly-read events — the
+      // caller dedupes across cycles/restarts.
+      const { session: sessionBatch, other } = partitionBySession(batch.events, this.sessionId);
       this.projectionRuntime.updateAll(sessionBatch);
-      this.sessionlessEvents?.(sessionless);
+      this.sessionlessEvents?.(other);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
 
@@ -400,19 +403,23 @@ export function computeWorkflow(events: readonly AlixEvent[]): WorkflowStateSnap
   return { name, currentStep, totalSteps, startedAt };
 }
 
-/** Q-C4 — partition a read batch into session-matching events (delivered to
- *  the projections) and sessionless events (`sessionId === ""`, which the
- *  session filter would otherwise drop). The sessionless half is relayed to
- *  the optional `sessionlessEvents` callback so session-less governance /
- *  measurement events can feed the evolution projection. */
-export function splitSessionless(
+/** Q-C4 — partition a freshly-read batch into session-matching events
+ *  (delivered to the projections) and EVERYTHING ELSE (`other` — every event
+ *  whose `sessionId` does not match, i.e. what the session filter would
+ *  otherwise drop). The `other` bucket is NOT strictly `sessionId === ""`: it
+ *  also carries other sessions' events. That over-delivery is the recorded
+ *  Q-C4 deviation (the relayed half is handed to the optional
+ *  `sessionlessEvents` callback so session-less governance / measurement
+ *  events can feed the evolution projection; the consumer type-filters
+ *  defensively). */
+export function partitionBySession(
   events: readonly AlixEvent[],
   sessionId: string,
-): { readonly session: AlixEvent[]; readonly sessionless: AlixEvent[] } {
+): { readonly session: AlixEvent[]; readonly other: AlixEvent[] } {
   const session: AlixEvent[] = [];
-  const sessionless: AlixEvent[] = [];
+  const other: AlixEvent[] = [];
   for (const e of events) {
-    (e.sessionId === sessionId ? session : sessionless).push(e);
+    (e.sessionId === sessionId ? session : other).push(e);
   }
-  return { session, sessionless };
+  return { session, other };
 }

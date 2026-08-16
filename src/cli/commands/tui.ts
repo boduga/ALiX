@@ -141,6 +141,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // A2.5-owned store dir: .alix/verification (Q-A8-REC — the recommendations
   // adapter reads the A2.5 surface EXCLUSIVELY, not the P9.x .alix/governance).
   const evolutionStoreDir = join(process.cwd(), '.alix', 'verification');
+  // One A2.5 store + one read-only adapter shared by both the projection's
+  // recommendations source and the LearningEngine (Q-A8-REC) — the adapter is
+  // stateless over the store, so a single instance is safe to reuse.
+  const recommendationStore = new RecommendationStore(evolutionStoreDir);
+  const recommendationsAdapter = new RecommendationsAdapter(recommendationStore);
   const evolutionProjection = new EvolutionProjection({
     sources: {
       // The platform's service projection types lifecycle as optional
@@ -165,8 +170,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       // mirrors the canonical id, risks stay empty, reasoning/evidence refs map
       // directly.
       recommendations: async (): Promise<ReadonlyArray<GovernanceRecommendation>> => {
-        const store = new RecommendationStore(evolutionStoreDir);
-        const recs = await new RecommendationsAdapter(store).list();
+        const recs = await recommendationsAdapter.list();
         return recs.map((r) => ({
           recommendationId: r.recordId,
           evidenceId: r.recordId,
@@ -183,7 +187,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         new ProposalEventsAdapter(eventLog),
         new MeasurementEventsAdapter(eventLog),
         new EnrichedProposalsAdapter(await createEnrichedProposalsSource(process.cwd())()),
-        new RecommendationsAdapter(new RecommendationStore(evolutionStoreDir)),
+        recommendationsAdapter,
       ),
     },
   });

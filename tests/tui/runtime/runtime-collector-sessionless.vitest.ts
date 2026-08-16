@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RuntimeCollectorImpl, splitSessionless } from '../../../src/tui/runtime-collector.js';
+import { RuntimeCollectorImpl, partitionBySession } from '../../../src/tui/runtime-collector.js';
 import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 import type { ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
@@ -10,19 +10,20 @@ function ev(seq: number, sessionId: string): any {
   return { seq, sessionId, type: 'test.event', timestamp: '', payload: {} };
 }
 
-describe('splitSessionless', () => {
-  it('partitions a batch into session-matching and sessionless events', () => {
-    const batch = [ev(1, 'sess-1'), ev(2, ''), ev(3, 'sess-1'), ev(4, '')];
-    const { session, sessionless } = splitSessionless(batch, 'sess-1');
+describe('partitionBySession', () => {
+  it('partitions a batch into session-matching and non-matching (relayed) events', () => {
+    const batch = [ev(1, 'sess-1'), ev(2, ''), ev(3, 'sess-1'), ev(4, ''), ev(5, 'other-session')];
+    const { session, other } = partitionBySession(batch, 'sess-1');
     expect(session.map((e) => e.seq)).toEqual([1, 3]);
-    expect(sessionless.map((e) => e.seq)).toEqual([2, 4]);
+    // The `other` bucket is every non-matching event — NOT strictly sessionId "".
+    expect(other.map((e) => e.seq)).toEqual([2, 4, 5]);
   });
 
   it('keeps the full batch when everything matches the session', () => {
     const batch = [ev(1, 'a'), ev(2, 'a')];
-    const { session, sessionless } = splitSessionless(batch, 'a');
+    const { session, other } = partitionBySession(batch, 'a');
     expect(session).toHaveLength(2);
-    expect(sessionless).toHaveLength(0);
+    expect(other).toHaveLength(0);
   });
 });
 

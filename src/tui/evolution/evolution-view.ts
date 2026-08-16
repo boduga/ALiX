@@ -14,9 +14,10 @@
  * snapshot); renders via `renderEvolution` (pure) and dispatches keys via
  * `evolutionKeyAction` (pure). handleKey mutates only `ctx.perTab`.
  */
-import type { CapabilitySpineEntry } from '../runtime/evolution/evolution-projection-snapshot.js';
+import type { CapabilitySpineEntry, EvolutionProjectionSnapshot } from '../runtime/evolution/evolution-projection-snapshot.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { TuiView, ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult } from '../views/types.js';
+import { writeRowsToCanvas } from '../canvas.js';
 import { renderEvolution, EVOLUTION_STAGE_ORDER, type EvolutionStageName, evolutionStageItems, evolutionStageNodeType, displayId } from './evolution-render.js';
 import { evolutionKeyAction } from './evolution-keys.js';
 
@@ -26,9 +27,14 @@ export class EvolutionView implements TuiView {
   render(ctx: ViewRenderContext): ViewRenderResult {
     const snap = ctx.snap.runtime?.evolution ?? null;
     if (!snap) {
-      return { rows: ['\x1b[90mevolution unavailable — projection not registered\x1b[0m'], hint: '' };
+      const rows = ['\x1b[90mevolution unavailable — projection not registered\x1b[0m'];
+      if (ctx.canvas) writeRowsToCanvas(ctx.canvas, rows, 0, 4);
+      return { rows, hint: '' };
     }
     const rows = renderEvolution(snap, ctx.perTab as PerTabState, ctx.dimensions);
+    // Paint into the frame canvas (body starts at row 4, below the chrome) —
+    // same writeRowsToCanvas convention as daemon/sops/runtime/policy views.
+    if (ctx.canvas) writeRowsToCanvas(ctx.canvas, rows, 0, 4);
     return { rows, hint: '↑↓ move · Enter expand/select · Esc up · f flat · c spine' };
   }
 
@@ -62,9 +68,10 @@ export class EvolutionView implements TuiView {
     const focus = perTab.evolutionFocus ?? 'capability';
     if (perTab.evolutionExpandedStage) {
       // Artifact cursor within the expanded stage (clamped to its items).
+      const snap = this.snapOf(ctx);
       const spine = this.spineOf(ctx);
-      if (!spine) return;
-      const items = evolutionStageItems(spine, perTab.evolutionExpandedStage);
+      if (!snap || !spine) return;
+      const items = evolutionStageItems(snap, spine, perTab.evolutionExpandedStage);
       const max = Math.max(0, items.length - 1);
       perTab.evolutionArtifactCursor = clamp((perTab.evolutionArtifactCursor ?? 0) + direction, 0, max);
       return;
@@ -99,9 +106,10 @@ export class EvolutionView implements TuiView {
     if (!stage) return;
     const nodeType = evolutionStageNodeType(stage);
     if (!nodeType) return; // lifecycle / learning have no inspectable node type
+    const snap = this.snapOf(ctx);
     const spine = this.spineOf(ctx);
-    if (!spine) return;
-    const items = evolutionStageItems(spine, stage);
+    if (!snap || !spine) return;
+    const items = evolutionStageItems(snap, spine, stage);
     if (items.length === 0) return;
     const idx = clamp(perTab.evolutionArtifactCursor ?? 0, 0, items.length - 1);
     perTab.evolutionInspector = { type: nodeType, id: displayId(items[idx]) };
@@ -129,19 +137,27 @@ export class EvolutionView implements TuiView {
     // Already at the root — no-op.
   }
 
+  private snapOf(ctx: ViewInputContext): EvolutionProjectionSnapshot | null {
+    return ctx.snap.runtime?.evolution ?? null;
+  }
+
   private spineOf(ctx: ViewInputContext): CapabilitySpineEntry | undefined {
     const spine = ctx.snap.runtime?.evolution?.spine ?? [];
     return spine.find((s) => s.capabilityId === ctx.perTab.evolutionSelectedCapabilityId) ?? spine[0];
   }
 }
 
+/** Clamp capability selection at the spine ends (Q-L1 vertically-scrollable
+ *  list — the render windows the list to follow the cursor). No wrap: a long
+ *  spine never jumps from bottom to top on an up-key. */
 function cycleCapability(ctx: ViewInputContext, direction: -1 | 1): string {
   const spine = ctx.snap.runtime?.evolution?.spine ?? [];
   if (spine.length === 0) return ctx.perTab.evolutionSelectedCapabilityId ?? '';
   const current = ctx.perTab.evolutionSelectedCapabilityId;
   if (current === undefined || current === '') return spine[0]!.capabilityId;
   const idx = Math.max(0, spine.findIndex((s) => s.capabilityId === current));
-  return spine[(idx + direction + spine.length) % spine.length]!.capabilityId;
+  const next = clamp(idx + direction, 0, spine.length - 1);
+  return spine[next]!.capabilityId;
 }
 
 function cycleStage(current: string, direction: -1 | 1): EvolutionStageName {

@@ -25,12 +25,14 @@ import { truncate } from '../box.js';
 export const EVOLUTION_STAGE_ORDER: readonly EvolutionStageName[] = ['lifecycle', 'learning', 'forecasts', 'decisions', 'measurements', 'correlations'];
 export type { EvolutionStageName };
 
+/** Subset of PerTabState the render reads — stage-carrying fields typed to
+ *  the canonical `EvolutionStageName` union (never a `string` downgrade). */
 export interface EvolutionRenderState {
   readonly evolutionSelectedCapabilityId?: string;
-  readonly evolutionExpandedStage?: string | null;
+  readonly evolutionExpandedStage?: EvolutionStageName | null;
   readonly evolutionInspector?: { type: EvolutionNodeType; id: string } | null;
-  readonly evolutionFlatView?: string | null;
-  readonly evolutionStageCursor?: string | null;
+  readonly evolutionFlatView?: EvolutionStageName | null;
+  readonly evolutionStageCursor?: EvolutionStageName | null;
   readonly evolutionArtifactCursor?: number | null;
 }
 export interface EvolutionDimensions { readonly columns: number; readonly rows: number; }
@@ -61,11 +63,22 @@ export function renderEvolution(
   }
 
   // Left capability list (CapabilitiesView convention) — compact risk markers.
+  // Vertically scrollable (Q-L1): the window follows the selected capability
+  // so a long spine never overflows the terminal; navigation clamps at the
+  // ends rather than wrapping. Reserve 10 rows below the list for the blank,
+  // the detail header, and the 6 collapsed stage lines.
   const listW = Math.floor(dims.columns / 2) - 1;
-  for (let i = 0; i < snap.spine.length; i++) {
+  const listMax = Math.max(1, dims.rows - 10);
+  const selIdx = Math.max(0, snap.spine.findIndex((s) => s.capabilityId === spine.capabilityId));
+  const listStart = Math.max(0, Math.min(selIdx - Math.floor(listMax / 2), Math.max(0, snap.spine.length - listMax)));
+  const listEnd = Math.min(snap.spine.length, listStart + listMax);
+  for (let i = listStart; i < listEnd; i++) {
     const s = snap.spine[i]!;
-    const marker = s.capabilityId === selected ? '▶ ' : '  ';
+    const marker = s.capabilityId === spine.capabilityId ? '▶ ' : '  ';
     rows.push(`${marker}${riskMarker(s)} ${truncate(s.capabilityId, listW - 3)}`);
+  }
+  if (listEnd < snap.spine.length) {
+    rows.push(`  … ${snap.spine.length - listEnd} more capabilities`);
   }
   rows.push('');
 
@@ -75,13 +88,13 @@ export function renderEvolution(
   const cursorStage = state.evolutionStageCursor ?? 'lifecycle';
   rows.push(`capability ${spine.capabilityId}`);
   for (const stage of EVOLUTION_STAGE_ORDER) {
-    const { items, status } = stageState(spine, stage);
+    const { items, status } = stageState(snap, spine, stage);
     rows.push(stageLine(stage, items, status, state.evolutionExpandedStage, cursorStage));
   }
 
   if (state.evolutionExpandedStage) {
     rows.push('');
-    rows.push(...expandStage(state.evolutionExpandedStage, evolutionStageItems(spine, state.evolutionExpandedStage), state.evolutionArtifactCursor ?? 0));
+    rows.push(...expandStage(state.evolutionExpandedStage, evolutionStageItems(snap, spine, state.evolutionExpandedStage), state.evolutionArtifactCursor ?? 0));
   }
 
   if (state.evolutionInspector) {
@@ -130,46 +143,50 @@ function riskMarker(s: { forecasts: StageState<{ band: string }> }): string {
   return '·';
 }
 
-/** Resolve a spine stage to its artifact array (lifecycle is a nullable row,
- *  not a StageState — normalize it to a one-or-zero item array). Exported so
- *  the view can resolve the artifact under the cursor (Q-L3 selection). */
 /** Resolve a spine stage to its items + status — single source of truth for
  *  both the collapsed-stage lines and the Q-L3 artifact cursor. lifecycle is a
- *  nullable row, not a StageState — normalized to a one-or-zero item array. */
-function stageState(spine: CapabilitySpineEntry, stage: EvolutionStageName): { items: readonly unknown[]; status: StageStatus } {
-  switch (stage) {
-    case 'lifecycle': return { items: spine.lifecycle ? [spine.lifecycle] : [], status: spine.lifecycle ? 'available' : 'empty' };
-    case 'learning': return { items: spine.learning.items, status: spine.learning.status };
-    case 'forecasts': return { items: spine.forecasts.items, status: spine.forecasts.status };
-    case 'decisions': return { items: spine.decisions.items, status: spine.decisions.status };
-    case 'measurements': return { items: spine.measurements.items, status: spine.measurements.status };
-    case 'correlations': return { items: spine.correlations.items, status: spine.correlations.status };
-    default: return { items: [], status: 'unavailable' };
+ *  nullable row, not a StageState — normalized to a one-or-zero item array.
+ *
+ *  Q-C3b: a failed lifecycle source is a STAGE-level condition. The spine's
+ *  nullable row conflates "no row for this capability" (per-capability empty)
+ *  with "whole source failed" (unavailable), so the snapshot's authoritative
+ *  `stages.lifecycle.status` resolves it — unavailable never renders empty.
+ *  The other five stages carry their own StageState on the spine entry, so
+ *  they resolve by indexed access (no per-stage cascade). */
+function stageState(snap: EvolutionProjectionSnapshot, spine: CapabilitySpineEntry, stage: EvolutionStageName): { items: readonly unknown[]; status: StageStatus } {
+  if (stage === 'lifecycle') {
+    const stageStatus = snap.stages.lifecycle.status;
+    if (stageStatus !== 'available') return { items: [], status: stageStatus };
+    return spine.lifecycle ? { items: [spine.lifecycle], status: 'available' } : { items: [], status: 'empty' };
   }
+  const s = spine[stage];
+  return { items: s.items, status: s.status };
 }
 
 /** Items of a stage — exported so the view can resolve the artifact under the
  *  cursor (Q-L3 selection). */
-export function evolutionStageItems(spine: CapabilitySpineEntry, stage: string): readonly unknown[] {
-  return stageState(spine, stage as EvolutionStageName).items;
+export function evolutionStageItems(snap: EvolutionProjectionSnapshot, spine: CapabilitySpineEntry, stage: EvolutionStageName): readonly unknown[] {
+  return stageState(snap, spine, stage).items;
 }
 
 /** Q-L3 — which inspectable node type a stage's artifacts carry. lifecycle /
  *  learning have no node type in the projection and cannot be inspected. */
-export function evolutionStageNodeType(stage: string): EvolutionNodeType | null {
-  switch (stage) {
-    case 'forecasts': return 'forecast';
-    case 'decisions': return 'recommendation'; // DecisionRow is a canonical recommendation row (keyed by recommendationId)
-    case 'measurements': return 'measurement';
-    case 'correlations': return 'correlation';
-    default: return null;
-  }
+const STAGE_NODE_TYPE: Readonly<Record<EvolutionStageName, EvolutionNodeType | null>> = {
+  lifecycle: null,
+  learning: null,
+  forecasts: 'forecast',
+  decisions: 'recommendation', // DecisionRow is a canonical recommendation row (keyed by recommendationId)
+  measurements: 'measurement',
+  correlations: 'correlation',
+};
+export function evolutionStageNodeType(stage: EvolutionStageName): EvolutionNodeType | null {
+  return STAGE_NODE_TYPE[stage];
 }
 
 /** Q-L4a — expanded stage: first 10 artifacts + "… +N more". Decisions render
  *  the RECOMMENDATION / PROJECTED DECISION / TARGET STATE triple. The artifact
  *  cursor (Q-L2) is rendered as a `>` marker. */
-function expandStage(stage: string, items: readonly unknown[], cursor: number): string[] {
+function expandStage(stage: EvolutionStageName, items: readonly unknown[], cursor: number): string[] {
   const shown = items.slice(0, EXPANSION_CAP);
   const more = items.length - shown.length;
   const out: string[] = [];
@@ -202,8 +219,8 @@ export function displayId(it: unknown): string {
 }
 
 /** Q-L2 — flat index mode: 50/page over a flat stage state. */
-function renderFlat(snap: EvolutionProjectionSnapshot, stage: string, rows: string[]): string[] {
-  const s = snap.stages[stage as keyof EvolutionProjectionSnapshot['stages']];
+function renderFlat(snap: EvolutionProjectionSnapshot, stage: EvolutionStageName, rows: string[]): string[] {
+  const s = snap.stages[stage];
   const items = s?.items ?? [];
   const page = items.slice(0, FLAT_PAGE);
   rows.push(`flat — ${stage} (${page.length}/${items.length})`);

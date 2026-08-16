@@ -30,6 +30,7 @@ import type { LifecycleState } from '../../../adaptation/capability-evolution-ty
 import type { EvolutionProjectionSnapshot } from './evolution-projection-snapshot.js';
 import { assembleEvolutionSnapshot, type MeasurementRecord } from './evolution-snapshot-assembler.js';
 import type { CapabilityMeasurementPayload } from '../../../capability/measurement/measurement-event-types.js';
+import type { ProposalSubmittedPayload } from '../../../capability/governance/governance-types.js';
 import { readCandidateTargetId } from '../../../evolution/a9/bridge-target.js';
 import type { LearningProposal } from '../../../evolution/learning/contracts/learning-contract.js';
 import type { A9Correlation, A9Forecast } from '../../../evolution/a9/contracts/a9-contract.js';
@@ -139,8 +140,12 @@ export class EvolutionProjection {
       ];
       this.state.a8 = { ...this.state.a8, pending: true };
     } else if (type === PROPOSAL_SUBMITTED) {
-      const p = e.payload as { proposalId?: unknown; candidate?: { target?: { id?: unknown } } };
-      const target = readCandidateTargetId(p as { candidate: { target: { id: unknown } } });
+      // Named typed payload (CONTRIBUTING: events use typed payloads). The
+      // raw EventLog event carries `proposalId` at the payload top level
+      // (proposal-store.append spreads `{ proposalId, ...payload }`), so the
+      // canonical ProposalSubmittedPayload is extended with the optional id.
+      const p = e.payload as ProposalSubmittedPayload & { readonly proposalId?: unknown };
+      const target = readCandidateTargetId(p as unknown as Readonly<Record<string, unknown>>);
       const proposalId = typeof p.proposalId === 'string' ? p.proposalId : undefined;
       if (target && proposalId) this.state.proposalTargets[proposalId] = target;
       this.state.a8 = { ...this.state.a8, pending: true };
@@ -174,7 +179,7 @@ export class EvolutionProjection {
       this.readStage(this.sources.correlations),
       this.readStage(this.sources.recommendations),
     ]);
-    const lifecycle = this.readStageSync(() =>
+    const lifecycle = await this.readStage(() =>
       this.sources.lifecycle().map((l) => ({ capabilityId: l.capabilityId, state: l.state, eligible: l.eligible })),
     );
 
@@ -197,21 +202,14 @@ export class EvolutionProjection {
     });
   }
 
-  private async readStage<T>(read: () => Promise<ReadonlyArray<T>>) {
+  /** Read one stage's records with a Q-C3b status: `available` / `empty` from
+   *  record count, `unavailable` when the source throws (a failed read degrades
+   *  the stage instead of rejecting snapshot()). Accepts a sync OR async
+   *  source — the bare lifecycle reader and the Promise-based JSONL readers
+   *  share this one path (no readStage/readStageSync twin). */
+  private async readStage<T>(read: () => ReadonlyArray<T> | Promise<ReadonlyArray<T>>) {
     try {
       const records = await read();
-      return { records, status: records.length > 0 ? ('available' as const) : ('empty' as const) };
-    } catch {
-      return { records: [] as ReadonlyArray<T>, status: 'unavailable' as const };
-    }
-  }
-
-  /** Synchronous analogue of `readStage` for the bare (non-Promise) lifecycle
-   *  source — a throwing lifecycle read degrades the stage to 'unavailable'
-   *  (Q-C3b) instead of rejecting snapshot(). */
-  private readStageSync<T>(read: () => ReadonlyArray<T>) {
-    try {
-      const records = read();
       return { records, status: records.length > 0 ? ('available' as const) : ('empty' as const) };
     } catch {
       return { records: [] as ReadonlyArray<T>, status: 'unavailable' as const };

@@ -8,7 +8,7 @@
  * rewritten; no per-stage timestamps.
  */
 import type { A9Correlation, A9Forecast } from '../../../evolution/a9/contracts/a9-contract.js';
-import type { GovernanceRecommendation } from '../../../evolution/verification/contracts/recommendation-contract.js';
+import type { GovernanceRecommendationKind } from '../../../evolution/verification/contracts/recommendation-contract.js';
 import type { GovernanceDecisionKind } from '../../../evolution/governance/contracts/decision-contract.js';
 import type { LifecycleState } from '../../../adaptation/capability-evolution-types.js';
 import type { LearningFinding } from '../../../evolution/learning/contracts/learning-contract.js';
@@ -66,7 +66,8 @@ export interface LearningPatternRow {
  *  are null when the recommendation maps to no decision (e.g. ESCALATE). */
 export interface DecisionRow {
   readonly recommendationId: string;
-  readonly recommendationKind: string;
+  /** Canonical A2.5 kind (6-kind union) — never a string downgrade. */
+  readonly recommendationKind: GovernanceRecommendationKind;
   readonly proposalId: string;
   readonly confidence: number;
   readonly projectedDecision: GovernanceDecisionKind | null;

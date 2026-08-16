@@ -8,7 +8,8 @@
  *
  * `q` returns to the root spine (quit drill-down); the app-level global quit
  * (on non-input tabs) remains untouched — in the live TUI the global handler
- * claims `q` first, so this fallback only fires where that handler does not.
+ * EXEMPTS the evolution tab (`qHandledByTab = activeTab === 'evolution'`,
+ * app.ts), so `q` always reaches this view and never quits the TUI here.
  *
  * Accepts both normalized lowercase labels (as produced by the TUI key
  * dispatcher for control keys, e.g. `enter`, `escape`) and canonical names

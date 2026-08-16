@@ -99,6 +99,52 @@ describe('renderEvolution', () => {
     expect(rows.some((r) => r.includes('Evolution as of'))).toBe(true);
     expect(rows.some((r) => /ago|seconds|old/.test(r))).toBe(false);
   });
+
+  it('renders an unavailable lifecycle stage as "(unavailable)", never "(empty)" (Q-C3b)', () => {
+    // The lifecycle SOURCE failed → the snapshot marks the whole stage
+    // unavailable. The spine's nullable lifecycle row is null for every
+    // capability, so the renderer must consult the snapshot's authoritative
+    // stage status — never degrade to per-capability "empty".
+    const unavailableSnap = {
+      ...snap,
+      stages: { ...snap.stages, lifecycle: { status: 'unavailable', items: [] } },
+      spine: [{ ...snap.spine[0], lifecycle: null }],
+    } as any;
+    const rows = renderEvolution(unavailableSnap, { evolutionSelectedCapabilityId: 'cap-a' } as any, { columns: 120, rows: 40 });
+    const lifecycleLine = rows.find((r) => r.includes('lifecycle'));
+    expect(lifecycleLine).toBeDefined();
+    expect(lifecycleLine!.includes('(empty)')).toBe(false);
+    expect(lifecycleLine!.includes('(unavailable)')).toBe(true);
+  });
+
+  it('windows a long capability list and follows the selected capability (Q-L1 scroll)', () => {
+    const caps = Array.from({ length: 40 }, (_, i) => ({
+      capabilityId: `cap-${String(i).padStart(2, '0')}`,
+      lifecycle: null,
+      learning: { status: 'empty', items: [] },
+      forecasts: { status: 'empty', items: [] },
+      decisions: { status: 'empty', items: [] },
+      measurements: { status: 'empty', items: [] },
+      correlations: { status: 'empty', items: [] },
+    }));
+    const longSnap = {
+      ...snap,
+      stages: { ...snap.stages, lifecycle: { status: 'empty', items: [] } },
+      spine: caps,
+    } as any;
+    const dims = { columns: 120, rows: 24 }; // listMax = 24 - 10 = 14
+    const rows = renderEvolution(longSnap, { evolutionSelectedCapabilityId: 'cap-20' } as any, dims);
+    // Selected capability is inside the window; far capabilities are clipped out.
+    expect(rows.some((r) => r.includes('cap-20'))).toBe(true);
+    expect(rows.some((r) => r.includes('cap-39'))).toBe(false);
+    // The window is bounded: fewer than 40 capability rows emitted, with a
+    // "+N more capabilities" hint for what falls below the fold. The regex
+    // also matches the `capability cap-20` detail header, hence listMax + 1.
+    const capRows = rows.filter((r) => /cap-\d{2}/.test(r));
+    expect(capRows.length).toBeLessThan(40);
+    expect(capRows.length).toBe(14 + 1);
+    expect(rows.some((r) => r.includes('more capabilities'))).toBe(true);
+  });
 });
 
 describe('evolutionKeyAction', () => {
