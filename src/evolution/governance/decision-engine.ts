@@ -66,6 +66,19 @@ const RECOMMENDATION_KIND_MAP: Record<string, GovernanceDecisionKind | undefined
   // ESCALATE intentionally omitted — no A3 equivalent
 };
 
+/**
+ * Map an A2.5 recommendation kind to the A3 decision kind it routes to
+ * (pure, deterministic). ESCALATE has no A3 equivalent → `undefined`.
+ *
+ * Exported so operator surfaces (e.g. the A9 forecast CLI) can surface "the
+ * resulting A3 decision" for a recommendation without fabricating evidence.
+ */
+export function recommendationKindToDecisionKind(
+  kind: string,
+): GovernanceDecisionKind | undefined {
+  return RECOMMENDATION_KIND_MAP[kind];
+}
+
 // ---------------------------------------------------------------------------
 // decisionKindToTargetState
 // ---------------------------------------------------------------------------

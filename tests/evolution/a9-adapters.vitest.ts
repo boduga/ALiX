@@ -317,6 +317,17 @@ describe("EnrichedProposalsAdapter (A9)", () => {
     expect(result).toEqual([]);
   });
 
+  it("accepts a lazy source function (composition-root default; no I/O until list)", async () => {
+    const enriched = makeEnriched("ep-1", "capability", "cap-abc");
+    const supplier = vi.fn(async () => [enriched]);
+    const adapter = new EnrichedProposalsAdapter(supplier);
+    // Construction must not invoke the supplier — only list() does.
+    expect(supplier).not.toHaveBeenCalled();
+    const [rec] = await adapter.list();
+    expect(supplier).toHaveBeenCalledTimes(1);
+    expect(rec!.proposalId).toBe("ep-1");
+  });
+
   it("reads enrichedFields directly and exposes population + source signals", async () => {
     const enriched = makeEnriched("ep-1", "capability", "cap-abc");
     const [rec] = await new EnrichedProposalsAdapter([enriched]).list();

@@ -32,6 +32,7 @@ import { runDashboard } from "./governance-dashboard-handler.js";
 import { runLearnCli } from "../../evolution/learning/learning-cli.js";
 // A9 Slice 5 — pre-execution risk forecast CLI surface.
 import { runForecastCli } from "../../evolution/a9/forecast-cli.js";
+import type { EnrichedProposal } from "../../adaptation/intelligence-types.js";
 import { EventLog } from "../../events/event-log.js";
 import type {
   GovernanceHealthReport,
@@ -305,7 +306,22 @@ async function runEvolutionLearn(args: string[]): Promise<void> {
 async function runEvolutionForecast(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");
   const dimIdx = args.indexOf("--dimension");
-  const dimension = dimIdx >= 0 ? args[dimIdx + 1] : undefined;
+  const rawDimension = dimIdx >= 0 ? args[dimIdx + 1] : undefined;
+  // Validate --dimension against the three locked A9 forecast kinds; an
+  // unknown value is rejected loudly rather than silently filtering to nothing.
+  const dimension =
+    rawDimension === "trust-velocity" ||
+    rawDimension === "evidence-completeness" ||
+    rawDimension === "fingerprint-coincidence"
+      ? rawDimension
+      : undefined;
+  if (rawDimension !== undefined && dimension === undefined) {
+    console.error(
+      `[a9 forecast] unknown --dimension '${rawDimension}' (expected trust-velocity | evidence-completeness | fingerprint-coincidence)`,
+    );
+    process.exitCode = 1;
+    return;
+  }
 
   const cwd = process.cwd();
 
@@ -332,13 +348,29 @@ async function runEvolutionForecast(args: string[]): Promise<void> {
   }
   const eventLog = new EventLog(sessionDir);
 
-  // 2. EnrichedProposal[] — read-and-void-discarded for v1 (same seam the
-  //    A8 `learn` CLI keeps for a future detector). Note: the
-  //    evidence-completeness detector consumes EnrichedProposal, so with []
-  //    it observes empty enrichment and emits no evidence-completeness
-  //    findings on the operator surface; a future increment that derives real
-  //    EnrichedProposal[] (like A8's documented seam) MUST revisit this.
-  const enrichedProposals: ReadonlyArray<never> = [];
+  // 2. EnrichedProposal[] — derive REAL data from the standard `.alix`
+  //    adaptation stores via ProposalLifecycleAnalyzer (the P10.8a pipeline
+  //    output the `alix adaptation intelligence` command uses — the A9
+  //    evidence-completeness detector consumes EnrichedProposal, so an
+  //    empty source would silently disable it on the operator surface).
+  //    Phase 20: a failed source contributes nothing and does not destroy the
+  //    run — fall back to [] and surface the failure on stderr.
+  let enrichedProposals: ReadonlyArray<EnrichedProposal> = [];
+  try {
+    const { ProposalStore } = await import("../../adaptation/proposal-store.js");
+    const { EffectivenessStore } = await import("../../adaptation/effectiveness-store.js");
+    const { EvidenceStore } = await import("../../security/evidence/evidence-store.js");
+    const { ProposalLifecycleAnalyzer } = await import("../../adaptation/proposal-lifecycle-analyzer.js");
+    const analyzer = new ProposalLifecycleAnalyzer(
+      new ProposalStore(join(cwd, ".alix", "adaptation", "proposals")),
+      new EffectivenessStore(join(cwd, ".alix", "adaptation", "effectiveness")),
+      new EvidenceStore({ storeDir: join(cwd, ".alix", "security") }),
+    );
+    enrichedProposals = await analyzer.analyze();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[a9 forecast] enriched-proposal source unavailable: ${message}`);
+  }
 
   // 3. A9-owned forecast store dir — `.alix/governance` (forecasts.jsonl).
   const storeDir = join(cwd, ".alix", "governance");

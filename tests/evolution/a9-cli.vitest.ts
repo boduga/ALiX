@@ -57,6 +57,39 @@ function makeEvent(
   } as AlixEvent;
 }
 
+/** Minimal EnrichedProposal fixture (adapter reads proposal + wrapper fields). */
+function enrichedProposal(
+  overrides: Partial<import("../../src/adaptation/intelligence-types.js").EnrichedProposal["proposal"]> = {},
+  wrapper: Partial<
+    Record<
+      "effectivenessReport" | "revertProposalId" | "timeToApprovalHours" | "timeToApplyHours",
+      unknown
+    >
+  > = {},
+): import("../../src/adaptation/intelligence-types.js").EnrichedProposal {
+  return {
+    proposal: {
+      id: "prop-1",
+      action: "governance_change",
+      target: { kind: "capability", capability: "cap-1" },
+      status: "pending",
+      createdAt: "2026-08-10T00:00:00.000Z",
+      payload: { capabilityId: "cap-1" },
+      sourceRecommendationType: "gap",
+      sourceConfidence: 0.8,
+      evidenceFingerprints: ["fp-1"],
+      reason: "r",
+      ...overrides,
+    },
+    effectivenessReport: (wrapper.effectivenessReport as never) ?? null,
+    wasReverted: false,
+    revertProposalId: (wrapper.revertProposalId as string | null) ?? null,
+    outcome: "pending",
+    timeToApprovalHours: (wrapper.timeToApprovalHours as number | null) ?? null,
+    timeToApplyHours: (wrapper.timeToApplyHours as number | null) ?? null,
+  };
+}
+
 function submittedEvent(
   proposalId: string,
   targetId: string,
@@ -184,13 +217,14 @@ describe("runForecastCli — --json structured output", () => {
 });
 
 // ---------------------------------------------------------------------------
-// --dimension (forward-compatible filter)
+// --dimension (supported option, spec §33)
 // ---------------------------------------------------------------------------
 
-describe("runForecastCli — --dimension forward-compatible filter", () => {
-  it("accepts --dimension and is a no-op in v1 (A8 documented pattern)", async () => {
+describe("runForecastCli — --dimension filter (spec §33 supported option)", () => {
+  it("filters forecasts to the requested detector kind", async () => {
     const dir = await mkdtemp(join(tmpdir(), "a9-cli-dim-"));
-    const withDim = await runForecastCli(
+    // highRiskEvents → trust-velocity forecast.
+    const matching = await runForecastCli(
       {
         eventLog: fakeEventLog(highRiskEvents()),
         enrichedProposals: [],
@@ -200,12 +234,26 @@ describe("runForecastCli — --dimension forward-compatible filter", () => {
       },
       NOW,
     );
-    const withoutDim = await runForecastCli(
-      { eventLog: fakeEventLog(highRiskEvents()), enrichedProposals: [], storeDir: dir, json: false },
+    expect(matching.exitCode).toBe(0);
+    expect(matching.output).toContain("A9 generated 1 pre-execution risk forecast(s).");
+    expect(matching.output).toContain("kind=trust-velocity");
+    expect(matching.output).not.toContain("kind=evidence-completeness");
+  });
+
+  it("a dimension with no forecasts is a deterministic no-findings result", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-cli-dim-none-"));
+    const none = await runForecastCli(
+      {
+        eventLog: fakeEventLog(highRiskEvents()),
+        enrichedProposals: [],
+        storeDir: dir,
+        json: false,
+        dimension: "evidence-completeness",
+      },
       NOW,
     );
-    expect(withDim.exitCode).toBe(0);
-    expect(withDim.output).toBe(withoutDim.output);
+    expect(none.exitCode).toBe(0);
+    expect(none.output).toContain("No pre-execution risk forecasts detected.");
   });
 });
 
@@ -222,6 +270,71 @@ describe("runForecastCli — high/critical output surfaces RISK_GATED_REVIEW", (
     );
     expect(result.exitCode).toBe(0);
     expect(result.output).toContain("RISK_GATED_REVIEW");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A3 decision surface (spec §33: high/critical also surfaces the resulting A3
+// decision — REQUEST_MORE_EVIDENCE → UNDER_REVIEW)
+// ---------------------------------------------------------------------------
+
+describe("runForecastCli — A3 decision surface", () => {
+  it("prints the resulting A3 decision for a high-band forecast (text)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-cli-a3-text-"));
+    const result = await runForecastCli(
+      { eventLog: fakeEventLog(highRiskEvents()), enrichedProposals: [], storeDir: dir, json: false },
+      NOW,
+    );
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("A3 decision: REQUEST_MORE_EVIDENCE → UNDER_REVIEW");
+  });
+
+  it("emits decisions[] in --json output (RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE → UNDER_REVIEW)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-cli-a3-json-"));
+    const result = await runForecastCli(
+      { eventLog: fakeEventLog(highRiskEvents()), enrichedProposals: [], storeDir: dir, json: true },
+      NOW,
+    );
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.output) as {
+      recommendations?: ReadonlyArray<{ kind: string }>;
+      decisions?: ReadonlyArray<{
+        recommendationKind: string;
+        decisionKind: string;
+        targetState: string;
+      }>;
+    };
+    expect(parsed.recommendations?.[0]?.kind).toBe("RISK_GATED_REVIEW");
+    expect(parsed.decisions?.[0]).toEqual({
+      recommendationKind: "RISK_GATED_REVIEW",
+      decisionKind: "REQUEST_MORE_EVIDENCE",
+      targetState: "UNDER_REVIEW",
+    });
+  });
+
+  it("medium-band forecasts surface the A3 MONITOR decision (existing A3 path)", async () => {
+    // trust-velocity below trigger (riskClass low); enriched incomplete but
+    // diverse+fresh → evidence-completeness scores 0.5 → medium → MONITOR.
+    const dir = await mkdtemp(join(tmpdir(), "a9-cli-a3-mid-"));
+    const result = await runForecastCli(
+      {
+        eventLog: fakeEventLog([submittedEvent("prop-1", "cap-1", { riskClass: "low" })]),
+        enrichedProposals: [enrichedProposal({ evidenceFingerprints: ["fp-1", "fp-2", "fp-3"] })],
+        storeDir: dir,
+        json: true,
+      },
+      NOW,
+    );
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.output) as {
+      decisions?: ReadonlyArray<{
+        recommendationKind: string;
+        decisionKind: string;
+        targetState: string;
+      }>;
+    };
+    expect(parsed.decisions?.[0]?.decisionKind).toBe("MONITOR");
+    expect(parsed.decisions?.[0]?.targetState).toBe("UNDER_REVIEW");
   });
 });
 

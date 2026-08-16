@@ -248,11 +248,17 @@ describe("A9 sentinel — A2.5 / A3 taxonomy frozen", () => {
 });
 
 describe("A9 sentinel — correlation bridge uses the canonical two-hop anchors", () => {
-  it("correlation-engine reads proposal.submitted.payload.candidate.target.id and requires proposal.executed", () => {
+  it("reads proposal.submitted.payload.candidate.target.id via the shared accessor and requires proposal.executed", () => {
+    // The bridge anchor is read by ONE shared typed accessor (Std #4), used by
+    // both the proposal adapter and the correlation engine. Pin it here so the
+    // `candidate.target.id` read never drifts back into per-site hand-rolling.
+    const bridgeSrc = readFileSync(join(A9_ROOT, "bridge-target.ts"), "utf-8");
+    expect(bridgeSrc).toContain("candidate");
+    expect(bridgeSrc).toContain("target");
+    expect(bridgeSrc).toContain("ProposalSubmittedPayload");
     const engineSrc = readFileSync(join(A9_ROOT, "correlation-engine.ts"), "utf-8");
-    // Bridge anchor: read the submitted payload's candidate.target.id.
-    expect(engineSrc).toContain('payload["candidate"]');
-    expect(engineSrc).toContain("candidate?.target?.id");
+    // The engine delegates to the shared accessor (does not hand-roll the read).
+    expect(engineSrc).toContain("readCandidateTargetId");
     // Execution requirement: proposal.executed gates correlation.
     expect(engineSrc).toContain('case "proposal.executed"');
     expect(engineSrc).toContain('case "proposal.rejected"');

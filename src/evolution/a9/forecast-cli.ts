@@ -45,10 +45,14 @@ import { ProposalEventsAdapter } from "./adapters/proposal-events-adapter.js";
 import { EnrichedProposalsAdapter } from "./adapters/enriched-proposals-adapter.js";
 import { ForecastsStore } from "./forecasts-store.js";
 import { buildGovernanceRecommendation } from "./a9-bridge.js";
-import type { A9Adapter, A9Forecast } from "./contracts/a9-contract.js";
+import type { A9Adapter, A9Forecast, A9ForecastKind } from "./contracts/a9-contract.js";
 import type { GovernanceRecommendation } from "../verification/contracts/recommendation-contract.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { EnrichedProposal } from "../../adaptation/intelligence-types.js";
+import {
+  recommendationKindToDecisionKind,
+  decisionKindToTargetState,
+} from "../governance/decision-engine.js";
 
 export interface RunForecastCliOpts {
   readonly eventLog: EventLog;
@@ -57,7 +61,16 @@ export interface RunForecastCliOpts {
   /** Directory holding the A9-owned forecasts.jsonl (.alix/governance). */
   readonly storeDir: string;
   readonly json: boolean;
-  readonly dimension?: string;
+  /** Optional detector-dimension filter: restricts output to forecasts of this
+   *  kind (`trust-velocity` | `evidence-completeness` | `fingerprint-coincidence`). */
+  readonly dimension?: A9ForecastKind;
+}
+
+/** The A3 decision a recommendation routes to (kind + target state). */
+export interface A3DecisionSurface {
+  readonly recommendationKind: string;
+  readonly decisionKind: string;
+  readonly targetState: string;
 }
 
 /** Structured forecast-run output so `--json` and tests can assert shape. */
@@ -65,8 +78,26 @@ export interface ForecastCliResult {
   readonly noFindings?: boolean;
   readonly forecasts?: ReadonlyArray<A9Forecast>;
   readonly recommendations?: ReadonlyArray<GovernanceRecommendation>;
+  /** Per-forecast A3 decision surface (the decision each recommendation
+   *  routes to), so the operator sees RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE
+   *  → UNDER_REVIEW without a separate A3 invocation. */
+  readonly decisions?: ReadonlyArray<A3DecisionSurface>;
   readonly warnings?: ReadonlyArray<string>;
   readonly detectorFailures?: ReadonlyArray<{ detector: string; error: string }>;
+}
+
+/** Map a governance recommendation to the A3 decision kind + target state it
+ *  routes to (pure; ESCALATE has no A3 equivalent → undefined). */
+export function recommendationToA3Decision(
+  rec: GovernanceRecommendation,
+): A3DecisionSurface | undefined {
+  const decisionKind = recommendationKindToDecisionKind(rec.kind);
+  if (!decisionKind) return undefined;
+  return {
+    recommendationKind: rec.kind,
+    decisionKind,
+    targetState: decisionKindToTargetState(decisionKind),
+  };
 }
 
 /**
@@ -81,8 +112,6 @@ export async function runForecastCli(
   opts: RunForecastCliOpts,
   now: string = new Date().toISOString(),
 ): Promise<{ readonly output: string; readonly exitCode: 0 | 1 }> {
-  void opts.dimension; // accepted but unused in v1 (forward-compatible filter, A8 pattern)
-
   const warnings: string[] = [];
   const engine = new ForecastEngine({
     // Phase 20 — adapter failure: wrap each read so a failed source yields []
@@ -102,7 +131,15 @@ export async function runForecastCli(
   // Detector failures are surfaced (never silently success) while other
   // detectors continue — `forecastDetailed` isolates each detector.
   const detail = await engine.forecastDetailed(now);
-  const { forecasts, detectorFailures } = detail;
+  const { forecasts: allForecasts, detectorFailures } = detail;
+
+  // Optional --dimension filter (locked operator option, spec §33): restrict
+  // the run to forecasts of one detector kind. A dimension that yields no
+  // forecasts is a deterministic no-findings result for that dimension.
+  const forecasts =
+    opts.dimension !== undefined
+      ? allForecasts.filter((f) => f.prediction.kind === opts.dimension)
+      : allForecasts;
 
   if (forecasts.length === 0) {
     // Deterministic no-findings output. A detector failure with zero findings
@@ -158,10 +195,18 @@ export async function runForecastCli(
     };
   }
 
+  // Surface the A3 decision each recommendation routes to (spec §33: high/
+  // critical forecasts surface RISK_GATED_REVIEW AND the resulting A3 decision
+  // — REQUEST_MORE_EVIDENCE → UNDER_REVIEW — without fabricating evidence).
+  const decisions = recommendations
+    .map((rec) => recommendationToA3Decision(rec))
+    .filter((d): d is A3DecisionSurface => d !== undefined);
+
   if (opts.json) {
     const result: ForecastCliResult = {
       forecasts,
       recommendations,
+      ...(decisions.length > 0 ? { decisions } : {}),
       ...(detectorFailures.length > 0 ? { detectorFailures } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
     };
@@ -179,6 +224,11 @@ export async function runForecastCli(
     );
     // High/critical must visibly surface RISK_GATED_REVIEW.
     lines.push(`    Recommendation: ${rec.kind}`);
+    // ... and the resulting A3 decision.
+    const decision = decisions[i];
+    if (decision) {
+      lines.push(`    A3 decision: ${decision.decisionKind} → ${decision.targetState}`);
+    }
     lines.push(`    Forecast id: ${f.forecastId}`);
   }
   if (detectorFailures.length > 0) {

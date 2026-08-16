@@ -119,7 +119,14 @@ export interface A9Correlation {
   readonly forecastId: ForecastId;
   readonly measurementId: string;
 
-  /** Foreign provenance carried verbatim from the measurement event. */
+  /**
+   * Foreign provenance of the correlation.
+   *
+   * `proposalId` is the correlated forecast's subject (the proposal the
+   * forecast was generated for), NOT a measurement-carried proposal id — Q8
+   * locked ruling: measurement events deliberately carry NO proposal linkage.
+   * `notes` is reserved; the A9 v1 builder never populates it.
+   */
   readonly foreignProvenance: {
     readonly proposalId?: string;
     readonly notes?: string;

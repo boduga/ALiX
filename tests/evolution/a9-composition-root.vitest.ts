@@ -139,4 +139,48 @@ describe("A9 composition-root wiring (CapabilityPlatform.a9)", () => {
     expect(correlations[0]!.forecastId).toBe(forecasts[0]!.forecastId);
     expect(correlations[0]!.measurementId).toBeTruthy();
   });
+
+  it("derives REAL EnrichedProposal[] from .alix stores when none injected (evidence-completeness detector live)", async () => {
+    // Scoped cwd: build a real .alix/adaptation/proposals store, then confirm
+    // the platform's default enriched source reads it (not the old `?? []`).
+    const realCwd = process.cwd();
+    const alixRoot = mkdtempSync(join(tmpdir(), "a9-cr-enriched-"));
+    const proposalsDir = join(alixRoot, ".alix", "adaptation", "proposals");
+    const { ProposalStore } = await import("../../src/adaptation/proposal-store.js");
+    const { EffectivenessStore } = await import("../../src/adaptation/effectiveness-store.js");
+    const { EvidenceStore } = await import("../../src/security/evidence/evidence-store.js");
+    const store = new ProposalStore(proposalsDir);
+    await store.save({
+      id: "prop-1",
+      createdAt: "2026-08-10T00:00:00.000Z",
+      status: "applied",
+      action: "governance_change",
+      target: { kind: "capability", capability: "cap-1" },
+      payload: { capabilityId: "cap-1" },
+      sourceRecommendationType: "underperformer",
+      sourceConfidence: 0.8,
+      evidenceFingerprints: ["fp-1"],
+      reason: "r",
+      approvedAt: "2026-08-11T00:00:00.000Z",
+      appliedAt: "2026-08-12T00:00:00.000Z",
+    });
+    // Required by ProposalLifecycleAnalyzer constructor even though analyze()
+    // only reads proposals + effectiveness.
+    const effectivenessStore = new EffectivenessStore(join(alixRoot, ".alix", "adaptation", "effectiveness"));
+    const evidenceStore = new EvidenceStore({ storeDir: join(alixRoot, ".alix", "security") });
+
+    process.chdir(alixRoot);
+    try {
+      const eventLog = new EventLog(join(alixRoot, ".alix", "sessions", "s1"));
+      const platform = new CapabilityPlatform({ catalogDir, eventLog, a9StoreDir });
+      const records = await platform.a9.enrichedProposals.list();
+      // The real proposal (via the P10.8a analyzer) is surfaced — the detector
+      // is NOT starved of input on the composition-root surface.
+      expect(records.length).toBeGreaterThan(0);
+      expect(records[0]!.proposalId).toBe("prop-1");
+    } finally {
+      process.chdir(realCwd);
+      rmSync(alixRoot, { recursive: true, force: true });
+    }
+  });
 });

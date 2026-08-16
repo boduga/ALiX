@@ -356,12 +356,22 @@ describe("A9 forecast persistence", () => {
 
   describe("No mutation surface", () => {
     it("the store exposes only append/list/getById — no update/delete/remove", () => {
-      const proto = Object.getOwnPropertyNames(ForecastsStore.prototype);
-      expect(proto).toContain("append");
-      expect(proto).toContain("list");
-      expect(proto).toContain("getById");
+      // The store methods live on the shared JsonlStore base (Std #1
+      // extraction); walk the prototype chain so inherited methods count.
+      const methodNames = (() => {
+        const names = new Set<string>();
+        let proto = ForecastsStore.prototype;
+        while (proto && proto !== Object.prototype) {
+          for (const name of Object.getOwnPropertyNames(proto)) names.add(name);
+          proto = Object.getPrototypeOf(proto);
+        }
+        return [...names];
+      })();
+      expect(methodNames).toContain("append");
+      expect(methodNames).toContain("list");
+      expect(methodNames).toContain("getById");
       for (const mutation of ["update", "delete", "remove", "upsert", "replace"]) {
-        expect(proto).not.toContain(mutation);
+        expect(methodNames).not.toContain(mutation);
       }
     });
 

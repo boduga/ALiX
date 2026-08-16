@@ -45,6 +45,7 @@ import type {
 } from "./contracts/a9-contract.js";
 import type { ForecastsAdapter } from "./forecasts-adapter.js";
 import { buildCorrelation } from "./correlation-builder.js";
+import { readCandidateTargetId } from "./bridge-target.js";
 
 /** The engine's composition-root-injected dependencies (no infra instantiation). */
 export interface CorrelationEngineDependencies {
@@ -144,7 +145,7 @@ export class CorrelationEngine {
     // Step 2 — authorize through proposal.submitted.
     const submitted = index.submitted.get(forecast.subject);
     if (!submitted) return null;
-    const targetId = readCandidateTargetId(submitted);
+    const targetId = readCandidateTargetId(submitted.payload);
     // Do not repair or infer a mismatch: strict equality or no correlation.
     if (targetId !== forecast.subjectCapability) return null;
 
@@ -168,13 +169,6 @@ export class CorrelationEngine {
 }
 
 /** Read `proposal.submitted.payload.candidate.target.id` (bridge anchor). */
-function readCandidateTargetId(submitted: ProposalEventRecord): string | undefined {
-  const candidate = submitted.payload["candidate"] as
-    | { target?: { id?: unknown } }
-    | undefined;
-  const id = candidate?.target?.id;
-  return typeof id === "string" ? id : undefined;
-}
 
 /** Build a deterministic per-subject proposal index (first event per kind wins). */
 function indexProposalEvents(

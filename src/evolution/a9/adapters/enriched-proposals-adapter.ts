@@ -22,12 +22,21 @@
 import type { EnrichedProposal } from "../../../adaptation/intelligence-types.js";
 import type { A9Adapter, EnrichedProposalRecord } from "../contracts/a9-contract.js";
 
+/** Source of EnrichedProposal[]: a pre-loaded array, or a lazy async supplier
+ *  (the composition root uses a supplier so no I/O happens at construction —
+ *  the P10.8a analyzer only runs when `.list()` is first called). */
+export type EnrichedProposalsSource =
+  | ReadonlyArray<EnrichedProposal>
+  | (() => Promise<ReadonlyArray<EnrichedProposal>>);
+
 export class EnrichedProposalsAdapter implements A9Adapter<EnrichedProposalRecord> {
   readonly name = "a9-enriched-proposals";
-  constructor(private readonly source: ReadonlyArray<EnrichedProposal>) {}
+  constructor(private readonly source: EnrichedProposalsSource) {}
 
   async list(): Promise<ReadonlyArray<EnrichedProposalRecord>> {
-    return this.source.map((p) => this.toRecord(p));
+    const resolved =
+      typeof this.source === "function" ? await this.source() : this.source;
+    return resolved.map((p) => this.toRecord(p));
   }
 
   private toRecord(p: EnrichedProposal): EnrichedProposalRecord {

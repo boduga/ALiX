@@ -29,6 +29,7 @@
 
 import type { EventLog } from "../../../events/event-log.js";
 import type { A9Adapter, ProposalEventRecord } from "../contracts/a9-contract.js";
+import { readCandidateTargetId } from "../bridge-target.js";
 
 /** Locked governance proposal event prefix (CAP-9 ruling #1/#2) — filter key. */
 export const A9_PROPOSAL_EVENT_PREFIX = "capability.governance.proposal.";
@@ -70,10 +71,7 @@ export class ProposalEventsAdapter implements A9Adapter<ProposalEventRecord> {
         : event.proposalId ?? "";
     // capabilityId only available for proposal.submitted via candidate.target.id.
     const capabilityId =
-      shortKind === "proposal.submitted"
-        ? (((payload["candidate"] as { target?: { id?: unknown } } | undefined)?.target?.id as
-            string | undefined) ?? "")
-        : "";
+      shortKind === "proposal.submitted" ? (readCandidateTargetId(payload) ?? "") : "";
     return {
       proposalId,
       capabilityId,

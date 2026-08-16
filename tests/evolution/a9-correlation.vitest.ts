@@ -762,14 +762,24 @@ describe("A9 correlation layer", () => {
 
   describe("CorrelationsStore — no mutation surface", () => {
     it("exposes only append/list/getById/findByForecastId/findByMeasurementId", () => {
-      const proto = Object.getOwnPropertyNames(CorrelationsStore.prototype);
-      expect(proto).toContain("append");
-      expect(proto).toContain("list");
-      expect(proto).toContain("getById");
-      expect(proto).toContain("findByForecastId");
-      expect(proto).toContain("findByMeasurementId");
+      // append/list/getById live on the shared JsonlStore base (Std #1
+      // extraction); walk the prototype chain so inherited methods count.
+      const methodNames = (() => {
+        const names = new Set<string>();
+        let proto = CorrelationsStore.prototype;
+        while (proto && proto !== Object.prototype) {
+          for (const name of Object.getOwnPropertyNames(proto)) names.add(name);
+          proto = Object.getPrototypeOf(proto);
+        }
+        return [...names];
+      })();
+      expect(methodNames).toContain("append");
+      expect(methodNames).toContain("list");
+      expect(methodNames).toContain("getById");
+      expect(methodNames).toContain("findByForecastId");
+      expect(methodNames).toContain("findByMeasurementId");
       for (const mutation of ["update", "delete", "remove", "upsert", "replace"]) {
-        expect(proto).not.toContain(mutation);
+        expect(methodNames).not.toContain(mutation);
       }
     });
   });

@@ -28,6 +28,7 @@ import { ObservationEngine } from "../evolution/observation/observation-engine.j
 import { ProposalEventsAdapter } from "../evolution/a9/adapters/proposal-events-adapter.js";
 import { MeasurementEventsAdapter } from "../evolution/a9/adapters/measurement-events-adapter.js";
 import { EnrichedProposalsAdapter } from "../evolution/a9/adapters/enriched-proposals-adapter.js";
+import { createEnrichedProposalsSource } from "../evolution/a9/adapters/enriched-proposals-source.js";
 import { ForecastEngine } from "../evolution/a9/forecast-engine.js";
 import { ForecastsStore } from "../evolution/a9/forecasts-store.js";
 import { ForecastsAdapter } from "../evolution/a9/forecasts-adapter.js";
@@ -198,7 +199,14 @@ export class CapabilityPlatform {
     const a9StoreDir = opts.a9StoreDir ?? join(process.cwd(), ".alix", "governance");
     const a9ProposalEvents = new ProposalEventsAdapter(opts.eventLog);
     const a9MeasurementEvents = new MeasurementEventsAdapter(opts.eventLog);
-    const a9Enriched = new EnrichedProposalsAdapter(opts.a9EnrichedProposals ?? []);
+    // Real enriched-proposals source: when the caller doesn't inject one, derive
+    // from the standard `.alix` adaptation stores lazily (P10.8a pipeline). A
+    // supplier runs no I/O at construction — only when `.list()` is first
+    // called — and a failed source yields [] (Phase 20). This keeps the
+    // evidence-completeness detector live on the platform surface (review #377).
+    const a9Enriched = new EnrichedProposalsAdapter(
+      opts.a9EnrichedProposals ?? createEnrichedProposalsSource(process.cwd()),
+    );
     const a9Forecasts = new ForecastsAdapter(new ForecastsStore(a9StoreDir));
     this.a9 = Object.freeze({
       proposalEvents: a9ProposalEvents,
