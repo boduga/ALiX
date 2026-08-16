@@ -5,6 +5,7 @@ import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
 import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
+import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -127,6 +128,12 @@ export interface RuntimeSnapshot {
    * when the projection isn't registered (e.g. older collectors).
    */
   readonly context: ContextProjectionSnapshot | null;
+  /**
+   * Evolution-loop projection (A7 lifecycle → A8 learning → A9 forecasts /
+   * correlations → A2.5/A3 projected decisions → measurements). Null when the
+   * projection isn't registered (e.g. older collectors).
+   */
+  readonly evolution?: EvolutionProjectionSnapshot | null;
   /**
    * Experimental extension boundary only.
    * Runtime consumers MUST NOT depend on keys here.

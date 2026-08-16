@@ -29,6 +29,7 @@ import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
 import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
+import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -262,6 +263,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         capabilities: this.projectionRuntime.snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null,
         metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null,
         context: this.projectionRuntime.snapshotOf<ContextProjectionSnapshot>(ProjectionIds.context) ?? null,
+        evolution: (await this.projectionRuntime.snapshotOfAsync<EvolutionProjectionSnapshot>(ProjectionIds.evolution)) ?? null,
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,
         lastEventAt: sessionLast ? Date.parse(sessionLast.timestamp) || Date.now() : this.cache.lastEventAt,

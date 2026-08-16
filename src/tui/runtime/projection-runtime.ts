@@ -111,6 +111,20 @@ export class ProjectionRuntime {
     return this.byId.get(id.trim())?.snapshot() as TSnapshot | undefined;
   }
 
+  /** Await-able snapshot extraction. A builder whose `snapshot()` returns a
+   *  Promise (an I/O-backed projection like evolution) is awaited; a sync
+   *  builder resolves immediately. Unregistered ids return undefined. */
+  async snapshotOfAsync<TSnapshot>(id: string): Promise<TSnapshot | undefined> {
+    const builder = this.byId.get(id.trim());
+    if (!builder) return undefined;
+    // Registry is heterogeneous (ProjectionBuilder<unknown>) — the caller owns
+    // type agreement (same contract as snapshotOf). Cast to the awaited-union so
+    // `instanceof Promise` narrows: an I/O-backed builder's Promise is awaited,
+    // a sync builder's value resolves immediately.
+    const snap = builder.snapshot() as TSnapshot | Promise<TSnapshot>;
+    return snap instanceof Promise ? await snap : snap;
+  }
+
   exportState(): ProjectionStateSnapshot {
     return this.captureState();
   }
