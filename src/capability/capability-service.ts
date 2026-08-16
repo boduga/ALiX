@@ -318,8 +318,8 @@ export class CapabilityService {
   // and project the executor's output into CapabilityApplyResult.
   // -------------------------------------------------------------------------
 
-  async apply(input: CapabilityApplyInput, ctx?: Record<string, unknown>): Promise<CapabilityApplyResult>;
   async apply(input: { proposalId: string }, ctx?: Record<string, unknown>): Promise<CapabilityApplyProposalResult>;
+  async apply(input: CapabilityApplyInput, ctx?: Record<string, unknown>): Promise<CapabilityApplyResult>;
   async apply(
     input: CapabilityApplyInput | { proposalId: string },
     ctx?: Record<string, unknown>,

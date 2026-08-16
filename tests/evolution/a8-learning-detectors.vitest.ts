@@ -381,7 +381,7 @@ describe("detectOutcomeContradictions", () => {
     const proposals = [
       makeProposal({ proposalId: "p1", capabilityId: "cap-A", kind: "proposal.submitted", eventId: "evt-1" }),
       makeProposal({ proposalId: "p2", capabilityId: "cap-A", kind: "proposal.executed", eventId: "evt-2" }),
-      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.reverted", eventId: "evt-3" }),
+      makeProposal({ proposalId: "p3", capabilityId: "cap-A", kind: "proposal.execution_failed", eventId: "evt-3" }),
     ];
     const recs = [
       makeRecommendation({ recordId: "rec-1", proposalId: "p1", kind: "APPROVE" }),

@@ -6,7 +6,7 @@ import type { NativeExecutor } from "./executors.js";
 /** Pure capability definitions — NO domain dependencies. Existing ALiX
  *  functionality migrates behind these; handlers are wired separately in
  *  src/integrations/ (see session-capabilities.ts, tool-adapter.ts). */
-export function registerInitialCapabilities(reg: CapabilityRegistry, _native: NativeExecutor): void {
+export function registerInitialCapabilities(reg: Pick<CapabilityRegistry, 'register'>, _native: NativeExecutor): void {
   const caps: Capability[] = [
     {
       id: "core.session.list", version: "1.0", kind: "core",

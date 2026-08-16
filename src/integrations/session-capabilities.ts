@@ -4,7 +4,7 @@ import type { NativeExecutor } from "../capability/executors.js";
 /** Wires real session implementation behind core.session.*.
  * Lives in src/integrations/ — NOT capability package — so
  * platform core stays free domain dependencies. */
-export async function registerSessionCapabilities(reg: CapabilityRegistry, native: NativeExecutor): Promise<void> {
+export async function registerSessionCapabilities(reg: Pick<CapabilityRegistry, 'register'>, native: NativeExecutor): Promise<void> {
   const { listSessions, sessionInfo } = await import("../session/resume.js");
 
   native.registerHandler("core.session.list", async (_args, ctx) => {

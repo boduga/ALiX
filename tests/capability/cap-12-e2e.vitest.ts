@@ -595,7 +595,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const newCapId = "test.cap-12.step9";
     const signal: CapabilityEvolutionSignal = {
       kind: "gap",
-      capabilityId: newCapId,
+      capabilityId: undefined,
       score: 0.91,
       evidenceIds: ["cap-12-step9-evidence"],
     };
@@ -641,7 +641,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const newCapId = "test.cap-12.step10";
     const signal: CapabilityEvolutionSignal = {
       kind: "gap",
-      capabilityId: newCapId,
+      capabilityId: undefined,
       score: 0.92,
       evidenceIds: ["cap-12-step10-evidence"],
     };
@@ -679,7 +679,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const newCapId = "test.cap-12.step11";
     const signal: CapabilityEvolutionSignal = {
       kind: "gap",
-      capabilityId: newCapId,
+      capabilityId: undefined,
       score: 0.93,
       evidenceIds: ["cap-12-step11-evidence"],
     };
@@ -725,7 +725,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const newCapId = "test.cap-12.step12";
     const signal: CapabilityEvolutionSignal = {
       kind: "gap",
-      capabilityId: newCapId,
+      capabilityId: undefined,
       score: 0.94,
       evidenceIds: ["cap-12-step12-evidence"],
     };
@@ -788,7 +788,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
       signalSource: new FakeSignalSource([
         {
           kind: "gap",
-          capabilityId: newCapId,
+          capabilityId: undefined,
           score: 0.92,
           evidenceIds: ["cap-n-step12b-evidence"],
         },
@@ -994,7 +994,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const newCapId = "test.cap-12.step14";
     const sibling = buildSiblingService(platform, eventLog, {
       kind: "gap",
-      capabilityId: newCapId,
+      capabilityId: undefined,
       score: 0.96,
       evidenceIds: ["cap-12-step14-evidence"],
     });
