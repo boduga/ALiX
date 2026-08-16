@@ -60,6 +60,9 @@ const RECOMMENDATION_KIND_MAP: Record<string, GovernanceDecisionKind | undefined
   MONITOR: "MONITOR",
   REQUEST_ADDITIONAL_EVIDENCE: "REQUEST_MORE_EVIDENCE",
   REJECT: "REJECT",
+  // A9 pre-execution risk forecasts flagged high/critical gate review until
+  // the risk is resolved — advisory, mapped to the non-binding decision kind.
+  RISK_GATED_REVIEW: "REQUEST_MORE_EVIDENCE",
   // ESCALATE intentionally omitted — no A3 equivalent
 };
 
