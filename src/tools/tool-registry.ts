@@ -357,3 +357,32 @@ export class ToolRetriever {
     return this.registry.getByDomain(domain);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Derived capability views
+// ---------------------------------------------------------------------------
+//
+// Thin, stateless derived lookups over the canonical default registry
+// (`buildDefaultToolIndex`). These are the ONLY reverse/forward capability↔tool
+// lookups callers should use. They are computed from the canonical data at call
+// time — no reverse mapping is independently maintained, so they cannot drift
+// from the registry.
+
+function defaultToolRegistry(): ToolRegistry {
+  return buildDefaultToolIndex().registry;
+}
+
+/** Names of every tool whose canonical `capabilityId` matches. Sorted for determinism. */
+export function getToolsForCapability(capabilityId: string): string[] {
+  return defaultToolRegistry()
+    .getAll()
+    .filter(t => t.capabilityId === capabilityId)
+    .map(t => t.name)
+    .sort();
+}
+
+/** Canonical `capabilityId`(s) for a tool name (`[]` for unknown tools). */
+export function getCapabilitiesForTool(toolName: string): string[] {
+  const entry = defaultToolRegistry().lookup(toolName);
+  return entry ? [entry.capabilityId] : [];
+}

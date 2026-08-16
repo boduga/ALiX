@@ -1,35 +1,54 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { inferCapability, isReadonlyCapability, requiresApproval, legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
+import { inferCapability, canonicalCapabilityOf, isReadonlyCapability, requiresApproval, legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
+import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import { hashArgs } from "../../src/tools/executor.js";
 
 describe("Capability Map", () => {
-  it("maps file tools to file.read", () => {
-    assert.equal(inferCapability("alix_file_read"), "file.read");
+  it("infers policy keys from registry tool names", () => {
+    assert.equal(inferCapability("file.read"), "file.read");
+    assert.equal(inferCapability("file.create"), "file.write");
+    assert.equal(inferCapability("shell.run"), "shell.run");
   });
 
-  it("maps shell tools to shell.run", () => {
-    assert.equal(inferCapability("alix_shell_run"), "shell.run");
+  it("maps mcp tools to mcp.invoke", () => {
+    assert.equal(inferCapability("mcp.github.repos_list"), "mcp.invoke");
   });
 
   it("maps unknown tools to tool.invoke", () => {
     assert.equal(inferCapability("unknown_tool"), "tool.invoke");
   });
 
-  it("identifies readonly capabilities", () => {
-    assert.ok(isReadonlyCapability("file.read"));
-    assert.ok(isReadonlyCapability("shell.readonly"));
-    assert.ok(!isReadonlyCapability("shell.run"));
-    assert.ok(!isReadonlyCapability("file.write"));
+  it("maps tool names to canonical capability ids", () => {
+    assert.equal(canonicalCapabilityOf("file.create"), "filesystem.write");
+    assert.equal(canonicalCapabilityOf("file.read"), "filesystem.read");
+    assert.equal(canonicalCapabilityOf("shell.run"), "shell.exec");
+    assert.equal(canonicalCapabilityOf("mcp.github.repos_list"), "mcp.invoke");
+    assert.equal(canonicalCapabilityOf("unknown_tool"), "tool.invoke");
   });
 
-  it("requiresApproval returns tool policy or default", () => {
-    const policy: import("../../src/tools/capability-map.js").PolicyConfig = {
-      tools: { "file.write": "ask" },
-      default: "deny",
-    };
-    assert.equal(requiresApproval("file.write", policy), "ask");
-    assert.equal(requiresApproval("file.read", policy), "deny");
+  it("registry-derived views agree with buildDefaultToolIndex", () => {
+    const { registry } = buildDefaultToolIndex();
+    for (const t of registry.getAll()) {
+      assert.equal(canonicalCapabilityOf(t.name), t.capabilityId, `${t.name}: canonical mismatch`);
+      if (!t.name.startsWith("mcp.")) {
+        assert.equal(inferCapability(t.name), t.policyKey, `${t.name}: policy mismatch`);
+      }
+    }
+  });
+
+  it("identifies readonly capabilities from the registry", () => {
+    assert.ok(isReadonlyCapability("filesystem.read"));
+    assert.ok(isReadonlyCapability("web.search"));
+    assert.ok(!isReadonlyCapability("filesystem.write"));
+    assert.ok(!isReadonlyCapability("shell.exec"));
+  });
+
+  it("requiresApproval reports non-low-risk capabilities from the registry", () => {
+    assert.ok(requiresApproval("filesystem.write"));
+    assert.ok(requiresApproval("shell.exec"));
+    assert.ok(!requiresApproval("filesystem.read"));
+    assert.ok(!requiresApproval("web.search"));
   });
 });
 

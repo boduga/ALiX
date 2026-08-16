@@ -1,24 +1,23 @@
-type Capability =
-  | "file.read"
-  | "file.write"
-  | "file.delete"
-  | "shell.run"
-  | "shell.readonly"
-  | "git.diff"
-  | "git.commit"
-  | "git.push"
-  | "network.fetch"
-  | "secret.read"
-  | "browser.open"
-  | "mcp.invoke"
-  | "tool.invoke";
+/**
+ * capability-map.ts -- Tool → capability mapping.
+ *
+ * Two responsibilities:
+ *
+ *  1. `legacyCapabilityToCanonical` — the centralized canonicalizer for
+ *     config-facing policy keys. This is the ONLY place legacy policy keys are
+ *     canonicalized to capability ids, including keys no current tool produces
+ *     (git.commit → repo.write, shell.readonly → shell.exec, ...). KEEP AS-IS.
+ *
+ *  2. Registry-derived tool → capability views (`inferCapability`,
+ *     `canonicalCapabilityOf`) and capability predicates
+ *     (`isReadonlyCapability`, `requiresApproval`). These are DERIVED from the
+ *     canonical default tool registry (`buildDefaultToolIndex`) — never
+ *     independently maintained. The single `mcp.*` registry wildcard entry
+ *     covers the dynamic `mcp.<server>.<tool>` family: any tool name beginning
+ *     with "mcp." maps to the `mcp.invoke` capability.
+ */
 
-type ApprovalLevel = "allow" | "ask" | "deny";
-
-interface PolicyConfig {
-  tools: Partial<Record<Capability, ApprovalLevel>>;
-  default: ApprovalLevel;
-}
+import { buildDefaultToolIndex } from "./tool-registry.js";
 
 const LEGACY_TO_CANONICAL: Record<string, string> = {
   "file.read": "filesystem.read",
@@ -46,30 +45,51 @@ export function legacyCapabilityToCanonical(legacy: string): string {
   return LEGACY_TO_CANONICAL[legacy] ?? legacy;
 }
 
-const TOOL_CAPABILITY_MAP: Record<string, Capability> = {
-  "alix_file_read": "file.read",
-  "alix_file_write": "file.write",
-  "alix_file_create": "file.write",
-  "alix_shell_run": "shell.run",
-  "alix_shell_readonly": "shell.readonly",
-  "alix_git_diff": "git.diff",
-  "alix_git_commit": "git.commit",
-  "alix_git_push": "git.push",
-  "mcp_tool": "mcp.invoke",
-};
+const registry = buildDefaultToolIndex().registry;
 
-export function inferCapability(toolName: string): Capability {
-  return TOOL_CAPABILITY_MAP[toolName] ?? "tool.invoke";
+/**
+ * Map a tool name to its config-facing policy key.
+ *
+ * Exactly reproduces the historical executor/policy-gate `inferCapability`
+ * behavior: `mcp.<...>` → `"mcp.invoke"`; a known registry tool → its
+ * `policyKey`; otherwise `"tool.invoke"`.
+ */
+export function inferCapability(toolName: string): string {
+  if (toolName.startsWith("mcp.")) return "mcp.invoke";
+  const entry = registry.lookup(toolName);
+  return entry ? entry.policyKey : "tool.invoke";
 }
 
-const READONLY_CAPABILITIES: readonly Capability[] = ["file.read", "shell.readonly", "git.diff"];
-
-export function isReadonlyCapability(capability: Capability): boolean {
-  return READONLY_CAPABILITIES.includes(capability);
+/**
+ * Map a tool name to its canonical capability id.
+ *
+ * `mcp.<...>` → `"mcp.invoke"`; a known registry tool → its `capabilityId`;
+ * otherwise `"tool.invoke"`. This replaces the
+ * `legacyCapabilityToCanonical(inferCapability(name))` composition at call
+ * sites (the canonicalizer is for config keys, not tool names).
+ */
+export function canonicalCapabilityOf(toolName: string): string {
+  if (toolName.startsWith("mcp.")) return "mcp.invoke";
+  const entry = registry.lookup(toolName);
+  return entry ? entry.capabilityId : "tool.invoke";
 }
 
-export function requiresApproval(capability: Capability, policy: PolicyConfig): ApprovalLevel {
-  return policy.tools[capability] ?? policy.default;
+/** True when no tool for the capability mutates state (registry-derived). */
+export function isReadonlyCapability(capabilityId: string): boolean {
+  return !registry.getAll().some(t => t.capabilityId === capabilityId && t.mutates);
 }
 
-export type { Capability, ApprovalLevel, PolicyConfig };
+/**
+ * True when every tool for the capability carries non-low risk
+ * (registry-derived).
+ *
+ * NOTE: signature changed from the legacy `(capability, policy)` form — the
+ * only consumer was the unit test, which built a `PolicyConfig`. It is now a
+ * pure registry predicate over the canonical taxonomy.
+ */
+export function requiresApproval(capabilityId: string): boolean {
+  return registry
+    .getAll()
+    .filter(t => t.capabilityId === capabilityId)
+    .every(t => t.risk !== "low");
+}
