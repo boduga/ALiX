@@ -1,15 +1,25 @@
 import type { LearningAdapter, RecommendationRecord } from "../contracts/learning-contract.js";
-import type { GovernanceStore } from "../../../governance/governance-store.js";
+import type { RecommendationStore } from "../../../evolution/verification/recommendation/recommendation-store.js";
 
 /**
- * Read-only adapter over `governance-store` JSONL file
- * `recommendations.jsonl` (A2.5 recommendations).
+ * Read-only adapter over the A2.5-owned `RecommendationStore` JSONL file
+ * `recommendations.jsonl` (`.alix/verification/`), returning normalized
+ * `RecommendationRecord[]`.
  *
- * Returns normalized `RecommendationRecord[]`.
+ * Q-A8-REC ruling (LOCKED): the adapter reads EXCLUSIVELY from the A2.5
+ * surface (A2.5 → recommendations.jsonl → A8). It does NOT read the P9.x
+ * `GovernanceStore` `recommendations.jsonl` — that file holds P9.1
+ * governance REPORT records (`{ reportType, recommendations: [] }`), a
+ * different artifact type. The former adapter typed its source as
+ * `GovernanceStore` and mis-read that report wrapper (TS2740 + runtime
+ * `evidenceRefs: undefined` → `[...undefined]` throw, which permanently
+ * marked the decisions stage `unavailable`). The source is now the
+ * A2.5-owned store, whose records ARE the flat A2.5 shape this normalize
+ * step consumes.
  *
- * Architectural decision (A8 wayfinder map #517 ruling, locked):
- * - Recommendations live in a SEPARATE JSONL store (P9.0a governance-store),
- *   NOT in EventLog, NOT on governance event payloads.
+ * Architectural decisions (A8 wayfinder map #517 + Q-A8-REC, locked):
+ * - Recommendations live in a SEPARATE A2.5-owned JSONL store, NOT in
+ *   EventLog, NOT on governance event payloads.
  * - T1-reconciliation correctly REMOVED `recommendation` from
  *   `ProposalGovernanceRecord`; this adapter is the dedicated read-side path.
  * - This adapter does NOT join proposals ↔ recommendations. Correlation by
@@ -25,15 +35,15 @@ import type { GovernanceStore } from "../../../governance/governance-store.js";
  * - `evidenceRefs` ← source `supportingEvidence` (string[]; NOT `evidenceId`)
  * - `recordedAt` ← source `createdAt`
  *
- * NEVER writes. NEVER joins. Pure projection over governance-store output.
+ * NEVER writes. NEVER joins. Pure projection over A2.5 store output.
  */
 export class RecommendationsAdapter implements LearningAdapter<RecommendationRecord> {
   readonly name = "recommendations";
 
-  constructor(private readonly source: GovernanceStore) {}
+  constructor(private readonly source: RecommendationStore) {}
 
   async list(): Promise<ReadonlyArray<RecommendationRecord>> {
-    const all = await this.source.list("recommendations");
+    const all = await this.source.list();
     return all.map((r) => this.normalize(r));
   }
 

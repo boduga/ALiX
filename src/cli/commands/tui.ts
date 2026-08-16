@@ -32,7 +32,7 @@ import { MeasurementEventsAdapter } from "../../evolution/learning/adapters/meas
 import { EnrichedProposalsAdapter } from "../../evolution/learning/adapters/enriched-proposals-adapter.js";
 import { RecommendationsAdapter } from "../../evolution/learning/adapters/recommendations-adapter.js";
 import { createEnrichedProposalsSource } from "../../evolution/a9/adapters/enriched-proposals-source.js";
-import { GovernanceStore } from "../../governance/governance-store.js";
+import { RecommendationStore } from "../../evolution/verification/recommendation/recommendation-store.js";
 import { isLifecycleEligible } from "../../capability/lifecycle-eligibility.js";
 import type { GovernanceRecommendation } from "../../evolution/verification/contracts/recommendation-contract.js";
 export type { PolicyConfig } from "../../tui/helpers/policy-commands.js";
@@ -138,8 +138,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // authoritative). `capabilityService` is declared later in this function;
   // the sources closures capture it and are only invoked when the collector
   // samples (after the service is constructed), so the late capture is safe.
-  // storeDir matches the platform default: .alix/governance.
-  const evolutionStoreDir = join(process.cwd(), '.alix', 'governance');
+  // A2.5-owned store dir: .alix/verification (Q-A8-REC — the recommendations
+  // adapter reads the A2.5 surface EXCLUSIVELY, not the P9.x .alix/governance).
+  const evolutionStoreDir = join(process.cwd(), '.alix', 'verification');
   const evolutionProjection = new EvolutionProjection({
     sources: {
       // The platform's service projection types lifecycle as optional
@@ -164,7 +165,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       // mirrors the canonical id, risks stay empty, reasoning/evidence refs map
       // directly.
       recommendations: async (): Promise<ReadonlyArray<GovernanceRecommendation>> => {
-        const store = new GovernanceStore(evolutionStoreDir);
+        const store = new RecommendationStore(evolutionStoreDir);
         const recs = await new RecommendationsAdapter(store).list();
         return recs.map((r) => ({
           recommendationId: r.recordId,
@@ -182,7 +183,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         new ProposalEventsAdapter(eventLog),
         new MeasurementEventsAdapter(eventLog),
         new EnrichedProposalsAdapter(await createEnrichedProposalsSource(process.cwd())()),
-        new RecommendationsAdapter(new GovernanceStore(evolutionStoreDir)),
+        new RecommendationsAdapter(new RecommendationStore(evolutionStoreDir)),
       ),
     },
   });

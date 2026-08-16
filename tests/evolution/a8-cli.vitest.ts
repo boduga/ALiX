@@ -16,8 +16,8 @@ import { describe, it, expect, vi } from "vitest";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { GovernanceStore } from "../../src/governance/governance-store.js";
-import type { GovernanceRecommendation as GovernanceStoreRecommendation } from "../../src/governance/governance-types.js";
+import type { RecommendationStore } from "../../src/evolution/verification/recommendation/recommendation-store.js";
+import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
 import { runLearnCli } from "../../src/evolution/learning/learning-cli.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
@@ -31,16 +31,13 @@ function fakeEventLog(events: ReadonlyArray<AlixEvent>): EventLog {
   return { readAll: vi.fn(async () => events) } as unknown as EventLog;
 }
 
-/** Stub GovernanceStore returning the supplied recommendations. */
-function fakeGovernanceStore(
-  recs: ReadonlyArray<GovernanceStoreRecommendation>,
-): GovernanceStore {
+/** Stub A2.5 RecommendationStore returning the supplied recommendations. */
+function fakeRecommendationStore(
+  recs: ReadonlyArray<GovernanceRecommendation>,
+): RecommendationStore {
   return {
-    list: vi.fn(async (type: string) => {
-      if (type === "recommendations") return recs;
-      return [];
-    }),
-  } as unknown as GovernanceStore;
+    list: vi.fn(async () => recs),
+  } as unknown as RecommendationStore;
 }
 
 /** Construct an AlixEvent with sensible defaults. */
@@ -64,14 +61,9 @@ function makeEvent(
   };
 }
 
-/** A2.5 verification-framework recommendation (the type the engine cares about).
- *
- * The `GovernanceStoreRecommendation` type alias is the *P9 wrapper* type
- * carried by the store; the RecommendationsAdapter normalize step actually
- * consumes records with the *flat A2.5 shape* (recommendationId,
- * proposalId, kind, confidence, etc.) — see T4 reconciliation notes in
- * `recommendations-adapter.ts` for the field-mapping table. We pass
- * flat rows through the store stub directly. */
+/** A2.5 verification-framework recommendation (the flat A2.5 shape the
+ * RecommendationStore stores and the RecommendationsAdapter normalizes —
+ * Q-A8-REC: the adapter reads the A2.5 surface, NOT the P9.x report wrapper). */
 function makeRecommendation(
   overrides: Partial<{
     recommendationId: string;
@@ -82,14 +74,15 @@ function makeRecommendation(
       | "MONITOR"
       | "REQUEST_ADDITIONAL_EVIDENCE"
       | "REJECT"
-      | "ESCALATE";
+      | "ESCALATE"
+      | "RISK_GATED_REVIEW";
     confidence: number;
     reasoning: string;
-    supportingEvidence: ReadonlyArray<string>;
-    risks: ReadonlyArray<string>;
+    supportingEvidence: string[];
+    risks: string[];
     createdAt: string;
   }> = {},
-): GovernanceStoreRecommendation {
+): GovernanceRecommendation {
   return {
     recommendationId:
       overrides.recommendationId ?? `rec-${Math.random().toString(36).slice(2, 8)}`,
@@ -101,10 +94,7 @@ function makeRecommendation(
     supportingEvidence: overrides.supportingEvidence ?? [],
     risks: overrides.risks ?? [],
     createdAt: overrides.createdAt ?? NOW,
-    // Carry the P9 wrapper fields too so the store stub type checks.
-    reportType: "governance_recommendation",
-    recommendations: [],
-  } as unknown as GovernanceStoreRecommendation;
+  };
 }
 
 /** Build an EnrichedProposal fixture (the 3rd adapter's source). */
@@ -204,7 +194,7 @@ function triggeringEvents(): AlixEvent[] {
   return events;
 }
 
-function triggeringRecommendations(): GovernanceStoreRecommendation[] {
+function triggeringRecommendations(): GovernanceRecommendation[] {
   // The outcome-contradiction detector requires an APPROVE recommendation for
   // each proposal that was REJECTED in governance events, with all rejections
   // grouped to the same capabilityId bucket.
@@ -239,7 +229,7 @@ describe("runLearnCli (A8 T7)", () => {
     const result = await runLearnCli(
       {
         eventLog: fakeEventLog([]),
-        recommendations: fakeGovernanceStore([]),
+        recommendations: fakeRecommendationStore([]),
         enrichedProposals: [],
         json: false,
       },
@@ -254,7 +244,7 @@ describe("runLearnCli (A8 T7)", () => {
     const result = await runLearnCli(
       {
         eventLog: fakeEventLog([]),
-        recommendations: fakeGovernanceStore([]),
+        recommendations: fakeRecommendationStore([]),
         enrichedProposals: [],
         json: true,
       },
@@ -269,7 +259,7 @@ describe("runLearnCli (A8 T7)", () => {
     const result = await runLearnCli(
       {
         eventLog: fakeEventLog(triggeringEvents()),
-        recommendations: fakeGovernanceStore(triggeringRecommendations()),
+        recommendations: fakeRecommendationStore(triggeringRecommendations()),
         enrichedProposals: [makeEnriched("ep-1", "cap-A")],
         json: false,
       },
@@ -289,7 +279,7 @@ describe("runLearnCli (A8 T7)", () => {
     const result = await runLearnCli(
       {
         eventLog: fakeEventLog(triggeringEvents()),
-        recommendations: fakeGovernanceStore(triggeringRecommendations()),
+        recommendations: fakeRecommendationStore(triggeringRecommendations()),
         enrichedProposals: [makeEnriched("ep-1", "cap-A")],
         json: true,
       },
@@ -319,7 +309,7 @@ describe("runLearnCli (A8 T7)", () => {
     const withDimension = await runLearnCli(
       {
         eventLog: fakeEventLog(triggeringEvents()),
-        recommendations: fakeGovernanceStore(triggeringRecommendations()),
+        recommendations: fakeRecommendationStore(triggeringRecommendations()),
         enrichedProposals: [makeEnriched("ep-1", "cap-A")],
         json: false,
         dimension: "underperformer",
@@ -329,7 +319,7 @@ describe("runLearnCli (A8 T7)", () => {
     const withoutDimension = await runLearnCli(
       {
         eventLog: fakeEventLog(triggeringEvents()),
-        recommendations: fakeGovernanceStore(triggeringRecommendations()),
+        recommendations: fakeRecommendationStore(triggeringRecommendations()),
         enrichedProposals: [makeEnriched("ep-1", "cap-A")],
         json: false,
       },
@@ -353,9 +343,9 @@ describe("runLearnCli (A8 T7)", () => {
     const eventLog: EventLog = {
       readAll: vi.fn(async () => []),
     } as unknown as EventLog;
-    const recommendations: GovernanceStore = {
+    const recommendations: RecommendationStore = {
       list: recommendationsCalls,
-    } as unknown as GovernanceStore;
+    } as unknown as RecommendationStore;
 
     await runLearnCli(
       {
@@ -372,9 +362,9 @@ describe("runLearnCli (A8 T7)", () => {
     // verify the 4-adapter pattern by ensuring the 4 underlying read paths
     // were each exercised (proposal-events + measurement-events through
     // eventLog.readAll, enriched through the array, recommendations through
-    // GovernanceStore.list).
+    // the A2.5 RecommendationStore.list()).
     expect((eventLog.readAll as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
-    expect(recommendationsCalls).toHaveBeenCalledWith("recommendations");
+    expect(recommendationsCalls).toHaveBeenCalledTimes(1);
     void proposalStoreCalls;
     void measurementStoreCalls;
     void enrichedStoreCalls;

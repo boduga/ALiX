@@ -92,7 +92,12 @@ function createMocks(initialState: EvolutionState | "__NOT_FOUND__" = EvolutionS
     })),
   } as Record<string, ReturnType<typeof mock.fn>>;
 
-  return { stateMachine, evidenceLedger, decisionBridge };
+  /** Mock A2.5 RecommendationStore — implements only `append` (Q-A8-REC). */
+  const recommendationStore = {
+    append: mock.fn(() => Promise.resolve(true)),
+  } as Record<string, ReturnType<typeof mock.fn>>;
+
+  return { stateMachine, evidenceLedger, decisionBridge, recommendationStore };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +125,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-001",
         false,
@@ -148,6 +154,77 @@ describe("governance-decision-cli", () => {
       assert.equal(process.exitCode, 0);
     });
 
+    it("persists the generated A2.5 recommendation to the A2.5-owned store", async () => {
+      const mocks = createMocks(EvolutionState.UNDER_REVIEW);
+      mocks.evidenceLedger.listByProposal.mock.mockImplementation(
+        () => Promise.resolve([makeEvidence({ proposalId: "evol-persist" })]),
+      );
+
+      const logCalls: string[] = [];
+      mock.method(console, "log", (msg: string) => { logCalls.push(msg); });
+
+      await runDecide(
+        {
+          stateMachine: mocks.stateMachine as never,
+          evidenceLedger: mocks.evidenceLedger as never,
+          decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
+        },
+        "evol-persist",
+        false,
+        [],
+      );
+
+      mock.restoreAll();
+
+      // Q-A8-REC: the A2.5 recommendation generated for this evidence is
+      // appended to the A2.5-owned store exactly once.
+      assert.equal(mocks.recommendationStore.append.mock.callCount(), 1);
+      const appended = mocks.recommendationStore.append.mock.calls[0]?.arguments[0] as {
+        proposalId: string;
+        kind: string;
+      };
+      assert.equal(appended.proposalId, "evol-persist");
+      // RecommendationEngine with DEFAULT config + overallConfidence 0.9 and no
+      // regressions → APPROVE (approve threshold 0.8).
+      assert.equal(appended.kind, "APPROVE");
+      assert.equal(process.exitCode, 0);
+    });
+
+    it("surfaces a recommendation persistence failure (never silent empty)", async () => {
+      const mocks = createMocks(EvolutionState.UNDER_REVIEW);
+      mocks.evidenceLedger.listByProposal.mock.mockImplementation(
+        () => Promise.resolve([makeEvidence({ proposalId: "evol-fail" })]),
+      );
+      mocks.recommendationStore.append.mock.mockImplementation(
+        () => Promise.reject(new Error("disk full")),
+      );
+
+      const logCalls: string[] = [];
+      mock.method(console, "log", (msg: string) => { logCalls.push(msg); });
+
+      await runDecide(
+        {
+          stateMachine: mocks.stateMachine as never,
+          evidenceLedger: mocks.evidenceLedger as never,
+          decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
+        },
+        "evol-fail",
+        false,
+        [],
+      );
+
+      mock.restoreAll();
+
+      // The failure is surfaced, the operation fails, and the decision is NOT
+      // executed (the run aborts before A3).
+      assert.equal(process.exitCode, 1);
+      const output = logCalls.join("\n");
+      assert.ok(output.includes("Recommendation persistence failed: disk full"));
+      assert.equal(mocks.decisionBridge.execute.mock.callCount(), 0);
+    });
+
     it("should fail with exit code when evolution is not found", async () => {
       const mocks = createMocks("__NOT_FOUND__");
 
@@ -159,6 +236,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-unknown",
         false,
@@ -188,6 +266,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-002",
         false,
@@ -217,6 +296,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-003",
         false,
@@ -245,6 +325,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-004",
         true,
@@ -276,6 +357,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-unknown",
         true,
@@ -305,6 +387,7 @@ describe("governance-decision-cli", () => {
           stateMachine: mocks.stateMachine as never,
           evidenceLedger: mocks.evidenceLedger as never,
           decisionBridge: mocks.decisionBridge as never,
+          recommendationStore: mocks.recommendationStore as never,
         },
         "evol-005",
         true,
