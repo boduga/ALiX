@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { assembleEvolutionSnapshot } from '../../../src/tui/runtime/evolution/evolution-snapshot-assembler.js';
+import type { EvolutionAssemblerInputs } from '../../../src/tui/runtime/evolution/evolution-snapshot-assembler.js';
 
 // Minimal canonical-artifact fixtures (A9/A2.5-shaped).
 const forecast = {
-  forecastId: 'forecast-1', forecastVersion: 1,
+  forecastId: 'forecast-1', forecastVersion: '1',
   subject: 'proposal-1', subjectCapability: 'cap-a',
   prediction: { kind: 'trust-velocity', band: 'high', internalScore: 70 },
   horizon: { from: '2026-08-01T00:00:00.000Z', to: '2026-08-31T00:00:00.000Z' },
@@ -12,7 +13,8 @@ const forecast = {
 } as const;
 const recommendation = {
   recommendationId: 'rec-1', evidenceId: 'e1', proposalId: 'proposal-1',
-  kind: 'RISK_GATED_REVIEW', confidence: 0.7, reasoning: 'r', supportingEvidence: [], risks: [],
+  kind: 'RISK_GATED_REVIEW', confidence: 0.7, reasoning: 'r',
+  supportingEvidence: [] as string[], risks: [] as string[],
   createdAt: '2026-08-15T00:00:00.000Z',
 } as const;
 const measurement = {
@@ -20,12 +22,12 @@ const measurement = {
   recordedAt: '2026-08-10T00:00:00.000Z', status: 'pass', outcomeKind: 'effective', confidence: 0.9,
 } as const;
 const correlation = {
-  correlationId: 'corr-1', correlationVersion: 1, forecastId: 'forecast-1', measurementId: 'measurement-1',
+  correlationId: 'corr-1', correlationVersion: '1', forecastId: 'forecast-1', measurementId: 'measurement-1',
   foreignProvenance: { proposalId: 'proposal-1' },
   resolution: { band: 'high', forecastBand: 'high', delta: 'match' },
 } as const;
 
-const inputs = (overrides: Record<string, unknown> = {}) => ({
+const inputs = (overrides: Record<string, unknown> = {}): EvolutionAssemblerInputs => ({
   generatedAt: 1_700_000_000_000,
   lifecycle: { records: [{ capabilityId: 'cap-a', state: 'active', eligible: true }], status: 'available' },
   learning: { result: null, unavailable: false },
