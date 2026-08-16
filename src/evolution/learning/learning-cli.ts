@@ -6,7 +6,8 @@
  *   1. ProposalEventsAdapter   — over EventLog capability.governance.proposal.*
  *   2. MeasurementEventsAdapter — over EventLog capability.governance.measurement.measured
  *   3. EnrichedProposalsAdapter — over P10.8a EnrichedProposal[]
- *   4. RecommendationsAdapter  — over governance-store recommendations.jsonl (A2.5)
+ *   4. RecommendationsAdapter  — over the A2.5-owned RecommendationStore
+ *      (.alix/verification/recommendations.jsonl — Q-A8-REC locked surface)
  *
  * The brief's published code block referenced only 3 adapters; the 4th
  * (RecommendationsAdapter) is the T4-fix ruling (4-adapter pattern) and
@@ -34,12 +35,12 @@ import { RecommendationsAdapter } from "./adapters/recommendations-adapter.js";
 import { buildGovernanceRecommendation } from "./a2-bridge.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { EnrichedProposal } from "../../adaptation/intelligence-types.js";
-import type { GovernanceStore } from "../../governance/governance-store.js";
+import type { RecommendationStore } from "../verification/recommendation/recommendation-store.js";
 
 export interface RunLearnCliOpts {
   readonly eventLog: EventLog;
-  /** A2.5 verification-framework recommendations (source for 4th adapter). */
-  readonly recommendations: GovernanceStore;
+  /** A2.5-owned RecommendationStore (source for the 4th adapter, Q-A8-REC). */
+  readonly recommendations: RecommendationStore;
   /** P10.8a EnrichedProposal[] pipeline (currently consumed + void-discarded). */
   readonly enrichedProposals: ReadonlyArray<EnrichedProposal>;
   readonly json: boolean;

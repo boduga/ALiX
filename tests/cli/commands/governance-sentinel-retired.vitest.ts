@@ -67,6 +67,14 @@ afterEach(() => {
 // Fixtures
 // ---------------------------------------------------------------------------
 
+/** Fixture anchor: "recent" relative to module load so the 30-day calibration
+ *  window always includes the seeded review/outcome. Fixed absolute dates
+ *  (e.g. 2026-07-15) silently fall past the wall-clock cutoff as the real
+ *  clock advances — the lens-calibration handler threads `generatedAt = now`
+ *  (see decision.ts runOutcomeLensCalibration), and `queryByWindow` filters
+ *  strictly inside [now - windowDays, now]. */
+const RECENT_ISO = new Date(Date.now() - 60_000).toISOString();
+
 const councilVote: CouncilVote = {
   agree: 2,
   agreeWithConcerns: 1,
@@ -88,7 +96,7 @@ function makeReview(overrides: Partial<GovernanceReview> = {}): GovernanceReview
     outcome: "reviewed",
     confidence: 0.7,
     reasons: ["council reached quorum"],
-    generatedAt: "2026-07-15T00:00:00.000Z",
+    generatedAt: RECENT_ISO,
     recommendationId: "rec-prop-1-1700000000000",
     proposalId: "prop-1",
     verdict: "agree_with_concerns",
@@ -109,7 +117,7 @@ function makeOutcome(overrides: Partial<OutcomeRecord> = {}): OutcomeRecord {
     outcome: "success",
     confidence: 0.7,
     reasons: ["fixture"],
-    generatedAt: "2026-07-15T00:00:00.000Z",
+    generatedAt: RECENT_ISO,
     subjectId: "prop-1",
     subjectType: "proposal",
     actionTaken: "Applied",

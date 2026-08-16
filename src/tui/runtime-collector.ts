@@ -29,6 +29,7 @@ import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
 import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
+import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -65,6 +66,16 @@ export interface RuntimeCollectorOptions {
    *  identity — it only dispatches, snapshots, and coordinates durable
    *  state through this object. */
   projectionRuntime: ProjectionRuntime;
+  /**
+   * Q-C4 — optional sessionless-event relay. Each sample, the collector delivers
+   * ONLY this cycle's newly-read non-session-matching events (the ones the
+   * session filter would otherwise drop) to this callback. Delivered events
+   * are NOT strictly `sessionId === ""` — see partitionBySession for the
+   * recorded over-delivery contract; consumers type-filter defensively. The
+   * collector never interprets event types — the caller decides what the
+   * events mean. When absent, non-matching events are dropped as today.
+   */
+  sessionlessEvents?: (events: readonly AlixEvent[]) => void;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -74,6 +85,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly sessionId: string;
   private readonly projectionRuntime: ProjectionRuntime;
+  private readonly sessionlessEvents?: (events: readonly AlixEvent[]) => void;
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
    *  since the most recent workflow.created; trimmed when a new workflow
@@ -88,6 +100,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
     this.checkpointStore = opts.checkpointStore;
     this.sessionId = opts.sessionId;
     this.projectionRuntime = opts.projectionRuntime;
+    this.sessionlessEvents = opts.sessionlessEvents;
     // Sentinel committedAt=0: nothing has been durably saved yet. The first
     // successful sample() overwrites this with a real timestamp.
     this.checkpoint = { cursor: opts.eventLog.beginningCursor(), committedAt: 0 };
@@ -217,8 +230,14 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // session (D1/D3). The checkpoint cursor still advances over the FULL
       // batch (readSince returns all sessions' events; we must not re-read
       // them), while the builders only ever see this session's events.
-      const sessionBatch = batch.events.filter((e) => e.sessionId === this.sessionId);
+      // Q-C4 — partition the freshly-read batch: session-matching events go to
+      // the projections; every OTHER event (non-session-matching, not strictly
+      // `sessionId === ""` — see partitionBySession) goes to the optional
+      // relay. The relay receives ONLY this cycle's newly-read events — the
+      // caller dedupes across cycles/restarts.
+      const { session: sessionBatch, other } = partitionBySession(batch.events, this.sessionId);
       this.projectionRuntime.updateAll(sessionBatch);
+      this.sessionlessEvents?.(other);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
 
@@ -247,6 +266,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         capabilities: this.projectionRuntime.snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null,
         metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null,
         context: this.projectionRuntime.snapshotOf<ContextProjectionSnapshot>(ProjectionIds.context) ?? null,
+        evolution: (await this.projectionRuntime.snapshotOfAsync<EvolutionProjectionSnapshot>(ProjectionIds.evolution)) ?? null,
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,
         lastEventAt: sessionLast ? Date.parse(sessionLast.timestamp) || Date.now() : this.cache.lastEventAt,
@@ -381,4 +401,25 @@ export function computeWorkflow(events: readonly AlixEvent[]): WorkflowStateSnap
   const totalSteps = Math.max(currentStep, 1 + totalStepEvents);
 
   return { name, currentStep, totalSteps, startedAt };
+}
+
+/** Q-C4 — partition a freshly-read batch into session-matching events
+ *  (delivered to the projections) and EVERYTHING ELSE (`other` — every event
+ *  whose `sessionId` does not match, i.e. what the session filter would
+ *  otherwise drop). The `other` bucket is NOT strictly `sessionId === ""`: it
+ *  also carries other sessions' events. That over-delivery is the recorded
+ *  Q-C4 deviation (the relayed half is handed to the optional
+ *  `sessionlessEvents` callback so session-less governance / measurement
+ *  events can feed the evolution projection; the consumer type-filters
+ *  defensively). */
+export function partitionBySession(
+  events: readonly AlixEvent[],
+  sessionId: string,
+): { readonly session: AlixEvent[]; readonly other: AlixEvent[] } {
+  const session: AlixEvent[] = [];
+  const other: AlixEvent[] = [];
+  for (const e of events) {
+    (e.sessionId === sessionId ? session : other).push(e);
+  }
+  return { session, other };
 }

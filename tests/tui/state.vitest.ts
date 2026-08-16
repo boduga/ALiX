@@ -50,33 +50,9 @@ describe('PerTabState serializability', () => {
 
 describe('TuiAppState defaults', () => {
   it('starts on the chat tab with empty views', () => {
-    const s: TuiAppState = {
-      lastSnapshot: undefined,
-      activeTab: 'chat' as TabId,
-      views: {
-        dashboard: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-        capabilities: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
-      },
-      refreshGeneration: 0,
-      refreshStatus: 'idle',
-      history: [],
-    };
+    // Self-maintaining fixture: createInitialTuiAppState covers every TabId
+    // (incl. the evolution tab), so adding a tab can't silently break this.
+    const s: TuiAppState = { ...createInitialTuiAppState(), activeTab: 'chat' as TabId };
     expect(s.activeTab).toBe('chat');
     for (const id of ['dashboard', 'chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as TabId[]) {
       expect(s.views[id]).toBeDefined();

@@ -169,14 +169,19 @@ export interface EnrichedProposalRecord {
 
 /**
  * recommendations-adapter output: A2.5 governance recommendations.
- * Source: `governance-store` JSONL file `recommendations.jsonl`.
+ * Source: A2.5-owned `RecommendationStore` — `recommendations.jsonl` under
+ * `.alix/verification/` (Q-A8-REC ruling, locked). This is the dedicated
+ * A2.5 surface; the adapter reads it EXCLUSIVELY and never touches the P9.x
+ * `GovernanceStore` `recommendations.jsonl` (a different artifact type).
  *
- * Architectural decision (A8 wayfinder map #517 ruling, locked):
+ * Architectural decisions (A8 wayfinder map #517 + Q-A8-REC, locked):
  * - `recommendation` was REMOVED from `ProposalGovernanceRecord` during
  *   T1-reconciliation because governance event payloads do NOT carry the
- *   recommendation (A2.5 writes recommendations to a separate JSONL).
- * - This 4th adapter reads that JSONL; correlation by `proposalId` happens
+ *   recommendation — A2.5 owns a separate JSONL surface (RecommendationStore).
+ * - This 4th adapter reads that surface; correlation by `proposalId` happens
  *   in the DETECTOR layer (not in the adapter — adapter does not join).
+ * - A2.5 is the producer/semantic owner; A8 is read-only through this adapter.
+ * - Missing recommendations = missing evidence (empty list), never fabricated.
  *
  * Field adaptations (T4 reconnaissance, A8 wayfinder map #517):
  * - Source `GovernanceRecommendation` carries:
@@ -191,8 +196,10 @@ export interface EnrichedProposalRecord {
  *
  * Invariants (per `validateGovernanceRecommendation`):
  * - `proposalId` is REQUIRED and non-empty (no silent defaults).
- * - `kind` must be one of APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE |
- *   REJECT | ESCALATE.
+ * - `kind` must be one of the SIX A2.5 kinds — APPROVE | MONITOR |
+ *   REQUEST_ADDITIONAL_EVIDENCE | REJECT | ESCALATE | RISK_GATED_REVIEW.
+ *   (Widening from 5 is safe: the only kind-matching detector,
+ *   outcome-contradiction-detector, matches ONLY APPROVE/REJECT.)
  * - `confidence` ∈ [0, 1].
  */
 export interface RecommendationRecord {
@@ -203,7 +210,8 @@ export interface RecommendationRecord {
     | "MONITOR"
     | "REQUEST_ADDITIONAL_EVIDENCE"
     | "REJECT"
-    | "ESCALATE";
+    | "ESCALATE"
+    | "RISK_GATED_REVIEW";
   readonly confidence: number;
   readonly reasoning?: string;
   readonly evidenceRefs: ReadonlyArray<string>;

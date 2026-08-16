@@ -36,6 +36,14 @@ const ALLOWED_BUT_TRACKED = new Set<string>([
   // plumbing); no behavioural divergence. CAP-11 owns the broader
   // TUI-façade migration.
   "src/tui/capabilities/capability-service.ts",
+  // TUI evolution tab — narrowed `registerInitialCapabilities`'s `reg`
+  // parameter from `CapabilityRegistry` to `Pick<CapabilityRegistry, 'register'>`
+  // so the TUI façade can route capability registration through the platform's
+  // public `register` surface (locked ruling #2 — the registry stays private).
+  // The function only ever calls `reg.register(cap)`, so this is a pure
+  // interface narrowing: no behavioural divergence, no legacy-surface
+  // resurrection (CAP-11 already superseded this file).
+  "src/capability/initial-capabilities.ts",
 ]);
 
 function changedFiles(): string[] {

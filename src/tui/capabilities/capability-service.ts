@@ -71,7 +71,9 @@ export class CapabilityService {
     // (EventBus does not replay past events to late subscribers) captures
     // every CapabilityRegistered emission.
     this.wireEventBridge();
-    registerInitialCapabilities(this.platform.registry, this.platform.native);
+    // Register through the platform's public register surface (ruling #2 —
+    // the registry itself stays private).
+    registerInitialCapabilities({ register: (cap) => this.platform.register(cap) }, this.platform.native);
     this.initPromise = this.initialize();
   }
 
@@ -79,7 +81,7 @@ export class CapabilityService {
     // Session integration (core.session.* → real session API).
     try {
       const { registerSessionCapabilities } = await import('../../integrations/session-capabilities.js');
-      await registerSessionCapabilities(this.platform.registry, this.platform.native);
+      await registerSessionCapabilities({ register: (cap) => this.platform.register(cap) }, this.platform.native);
     } catch (err) {
       console.error('[capabilities] session integration unavailable:', err);
     }
@@ -104,7 +106,7 @@ export class CapabilityService {
 
   query(q: CapabilityQuery = {}): Capability[] { return this.platform.query(q); }
   find(id: string): Capability | undefined { return this.platform.find(id); }
-  getStatus(id: string): CapabilityStatus | undefined { return this.platform.registry.getStatus(id); }
+  getStatus(id: string): CapabilityStatus | undefined { return this.platform.capabilityStatus(id); }
 
   /**
    * Bind the presenter. The TUI owns the chat state, so TuiApp supplies

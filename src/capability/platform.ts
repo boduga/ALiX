@@ -39,7 +39,7 @@ import type { EnrichedProposal } from "../adaptation/intelligence-types.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
 import type { CapabilityQuery } from "./registry.js";
-import type { Capability, CapabilityContext, Invocation } from "./types.js";
+import type { Capability, CapabilityContext, CapabilityStatus, Invocation } from "./types.js";
 import type { EventLog } from "../events/event-log.js";
 
 /** Composition root (CAP-4): catalog → registry → mutation port → provider
@@ -229,6 +229,9 @@ export class CapabilityPlatform {
   register(capability: Capability): void { this.registry.register(capability); }
   find(id: string): Capability | undefined { return this.registry.find(id); }
   query(q: CapabilityQuery = {}): Capability[] { return this.registry.query(q); }
+  /** Public status read (TUI facade) — registry.getStatus without exposing
+   *  the registry itself (ruling #2: the service is the public surface). */
+  capabilityStatus(id: string): CapabilityStatus | undefined { return this.registry.getStatus(id); }
 
   invoke(
     capabilityId: string,

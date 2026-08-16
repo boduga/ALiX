@@ -291,7 +291,7 @@ describe("P5.5/P5.6 operator CLI — `alix capability consolidate` (ruling #544)
     });
     expect(exit).toBe(0);
 
-    const printed = JSON.parse(outSpy.mock.calls.map((c) => c[0]).join("")) as {
+    const printed = JSON.parse(outSpy.mock.calls.map((c: unknown[]) => String(c[0])).join("")) as {
       proposalId: string;
       status: string;
       mutation: {

@@ -22,7 +22,9 @@ import type { GovernanceDecisionBridge } from "../evolution/governance/governanc
 import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
 import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
 import type { PatternRegistry } from "../context/pattern-registry.js";
+import { join } from "node:path";
 import { bold, red } from "./ansi.js";
+import { RecommendationStore } from "../evolution/verification/recommendation/recommendation-store.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
 import { CliObservationProvider } from "../evolution/observation/providers/cli-provider.js";
 import { FilesystemObservationProvider } from "../evolution/observation/providers/filesystem-provider.js";
@@ -121,6 +123,11 @@ export async function handleEvolutionCommand(
           stateMachine: deps.stateMachine,
           evidenceLedger: deps.evidenceLedger,
           decisionBridge: deps.decisionBridge,
+          // A2.5-owned store: the decision's recommendation is appended here
+          // (Q-A8-REC — A2.5 → recommendations.jsonl → A8 RecommendationsAdapter).
+          recommendationStore: new RecommendationStore(
+            join(process.cwd(), ".alix", "verification"),
+          ),
           policyConfig: deps.policyConfig,
         }, id, jsonMode, args.slice(1));
       }

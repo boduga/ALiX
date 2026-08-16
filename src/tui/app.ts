@@ -149,6 +149,7 @@ export class TuiApp {
       sops: getView('sops')!,
       policy: getView('policy')!,
       capabilities: getView('capabilities')!,
+      evolution: getView('evolution')!,
     };
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();
@@ -887,9 +888,13 @@ export class TuiApp {
     // (dashboard, daemon, approvals, etc.) — on chat/agent tabs it's
     // a regular character for the input buffer and is handled by the
     // tab-specific handler below after tryHandleGlobal returns false.
+    // The evolution tab maps q → return-to-spine (Q-L2) in its own
+    // handleKey, so it is exempt from the global q-quit here (Ctrl+C
+    // still always quits on every tab).
     const inputTabs: TabId[] = ['chat', 'agent'];
     const isInputTab = inputTabs.includes(this.state.activeTab);
-    if (key === '' || (!isInputTab && (key === 'q' || key === 'Q'))) {
+    const qHandledByTab = this.state.activeTab === 'evolution';
+    if (key === '' || (!isInputTab && !qHandledByTab && (key === 'q' || key === 'Q'))) {
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the

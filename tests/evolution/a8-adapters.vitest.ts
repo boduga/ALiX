@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { GovernanceStore } from "../../src/governance/governance-store.js";
+import type { RecommendationStore } from "../../src/evolution/verification/recommendation/recommendation-store.js";
 import { ProposalEventsAdapter } from "../../src/evolution/learning/adapters/proposal-events-adapter.js";
 import { MeasurementEventsAdapter } from "../../src/evolution/learning/adapters/measurement-events-adapter.js";
 import { EnrichedProposalsAdapter } from "../../src/evolution/learning/adapters/enriched-proposals-adapter.js";
@@ -446,8 +446,11 @@ describe("EnrichedProposalsAdapter", () => {
 // RecommendationsAdapter (T4, 4-adapter pattern, A8 wayfinder map #517)
 // ---------------------------------------------------------------------------
 
-/** Build a GovernanceStore stub that returns a fixed list for "recommendations". */
-function makeGovStoreStub(
+/**
+ * Build an A2.5 RecommendationStore stub that returns the fixed A2.5 record
+ * list (Q-A8-REC: the adapter reads the A2.5 surface exclusively).
+ */
+function makeRecStoreStub(
   recs: ReadonlyArray<{
     recommendationId: string;
     evidenceId: string;
@@ -457,29 +460,28 @@ function makeGovStoreStub(
       | "MONITOR"
       | "REQUEST_ADDITIONAL_EVIDENCE"
       | "REJECT"
-      | "ESCALATE";
+      | "ESCALATE"
+      | "RISK_GATED_REVIEW";
     confidence: number;
     reasoning: string;
     supportingEvidence: ReadonlyArray<string>;
     risks: ReadonlyArray<string>;
     createdAt: string;
   }>,
-): GovernanceStore {
+): RecommendationStore {
   return {
-    list: vi.fn(async (type: string) =>
-      type === "recommendations" ? (recs as any) : [],
-    ),
-  } as unknown as GovernanceStore;
+    list: vi.fn(async () => recs),
+  } as unknown as RecommendationStore;
 }
 
 describe("RecommendationsAdapter", () => {
   it("has name='recommendations'", () => {
-    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub([]));
     expect(adapter.name).toBe("recommendations");
   });
 
   it("returns [] when governance-store has no recommendations", async () => {
-    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub([]));
     const out = await adapter.list();
     expect(out).toEqual([]);
   });
@@ -498,7 +500,7 @@ describe("RecommendationsAdapter", () => {
         createdAt: "2026-08-10T00:00:00.000Z",
       },
     ];
-    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub(recs));
     const out = await adapter.list();
     expect(out).toHaveLength(1);
     expect(out[0]).toEqual({
@@ -512,15 +514,16 @@ describe("RecommendationsAdapter", () => {
     });
   });
 
-  it("preserves all 5 kinds (APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE | REJECT | ESCALATE)", async () => {
+  it("preserves all 6 A2.5 kinds (APPROVE | MONITOR | REQUEST_ADDITIONAL_EVIDENCE | REJECT | ESCALATE | RISK_GATED_REVIEW)", async () => {
     const recs = [
       { recommendationId: "r1", evidenceId: "e1", proposalId: "p1", kind: "APPROVE" as const, confidence: 0.9, reasoning: "ok", supportingEvidence: [], risks: [], createdAt: "2026-08-01T00:00:00.000Z" },
       { recommendationId: "r2", evidenceId: "e2", proposalId: "p2", kind: "MONITOR" as const, confidence: 0.6, reasoning: "watch", supportingEvidence: [], risks: [], createdAt: "2026-08-02T00:00:00.000Z" },
       { recommendationId: "r3", evidenceId: "e3", proposalId: "p3", kind: "REQUEST_ADDITIONAL_EVIDENCE" as const, confidence: 0.4, reasoning: "need more", supportingEvidence: [], risks: [], createdAt: "2026-08-03T00:00:00.000Z" },
       { recommendationId: "r4", evidenceId: "e4", proposalId: "p4", kind: "REJECT" as const, confidence: 0.95, reasoning: "broken", supportingEvidence: [], risks: [], createdAt: "2026-08-04T00:00:00.000Z" },
       { recommendationId: "r5", evidenceId: "e5", proposalId: "p5", kind: "ESCALATE" as const, confidence: 0.3, reasoning: "complex", supportingEvidence: [], risks: [], createdAt: "2026-08-05T00:00:00.000Z" },
+      { recommendationId: "r6", evidenceId: "e6", proposalId: "p6", kind: "RISK_GATED_REVIEW" as const, confidence: 0.75, reasoning: "risk forecast", supportingEvidence: [], risks: [], createdAt: "2026-08-06T00:00:00.000Z" },
     ];
-    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub(recs));
     const out = await adapter.list();
     expect(out.map((r) => r.kind)).toEqual([
       "APPROVE",
@@ -528,6 +531,7 @@ describe("RecommendationsAdapter", () => {
       "REQUEST_ADDITIONAL_EVIDENCE",
       "REJECT",
       "ESCALATE",
+      "RISK_GATED_REVIEW",
     ]);
   });
 
@@ -545,7 +549,7 @@ describe("RecommendationsAdapter", () => {
         createdAt: "2026-08-01T00:00:00.000Z",
       },
     ];
-    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub(recs));
     const out = await adapter.list();
     expect(out[0]!.proposalId).toBe("prop-XYZ");
     expect(out[0]!.proposalId).not.toBe("");
@@ -566,22 +570,23 @@ describe("RecommendationsAdapter", () => {
         createdAt: "2026-08-01T00:00:00.000Z",
       },
     ];
-    const adapter = new RecommendationsAdapter(makeGovStoreStub(recs));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub(recs));
     const out = await adapter.list();
     expect(out[0]!.evidenceRefs).toEqual([]);
     expect(out[0]!.evidenceRefs).not.toContain("the-evidence-id");
   });
 
-  it("calls governance-store.list('recommendations') once (read-only path)", async () => {
-    const store = makeGovStoreStub([]);
+  it("reads the A2.5 RecommendationStore.list() once (exclusive read-only path)", async () => {
+    const store = makeRecStoreStub([]);
     const adapter = new RecommendationsAdapter(store);
     await adapter.list();
-    expect((store.list as any)).toHaveBeenCalledTimes(1);
-    expect((store.list as any)).toHaveBeenCalledWith("recommendations");
+    // Q-A8-REC: the adapter reads the A2.5 store's list() — never
+    // GovernanceStore.list("recommendations") (the P9.x report wrapper).
+    expect((store.list as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
   });
 
   it("exposes read-only invariant: no mutation surface", () => {
-    const adapter = new RecommendationsAdapter(makeGovStoreStub([]));
+    const adapter = new RecommendationsAdapter(makeRecStoreStub([]));
     expect(adapter.name).toBe("recommendations");
     expect(typeof adapter.list).toBe("function");
     expect((adapter as unknown as Record<string, unknown>)["append"]).toBeUndefined();

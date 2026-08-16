@@ -265,11 +265,14 @@ async function runEvolutionLearn(args: string[]): Promise<void> {
   }
   const eventLog = new EventLog(sessionDir);
 
-  // 2. A2.5 recommendations (4th adapter) — sourced from governance-store.
-  //    The default constructor reads `.alix/governance/recommendations.jsonl`
-  //    via `list("recommendations")`; an empty file maps to [].
-  const { GovernanceStore } = await import("../../governance/governance-store.js");
-  const recommendations = new GovernanceStore(join(cwd, ".alix", "governance"));
+  // 2. A2.5 recommendations (4th adapter) — sourced from the A2.5-owned
+  //    RecommendationStore (.alix/verification/recommendations.jsonl,
+  //    Q-A8-REC locked surface). NOT the P9.x GovernanceStore
+  //    `.alix/governance/recommendations.jsonl` (a different artifact type —
+  //    P9.1 governance reports, not A2.5 recommendations). The default
+  //    constructor reads that A2.5 path; an empty file maps to [].
+  const { RecommendationStore } = await import("../../evolution/verification/recommendation/recommendation-store.js");
+  const recommendations = new RecommendationStore(join(cwd, ".alix", "verification"));
 
   // 3. EnrichedProposal[] — the 3rd adapter's source. Currently
   //    read-and-void-discarded by the engine (T2/T6 ruling, A8 wayfinder

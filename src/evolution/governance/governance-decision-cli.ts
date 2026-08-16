@@ -18,6 +18,7 @@ import type { GovernancePolicyConfig, GovernanceDecision, GovernanceDecisionKind
 import { DEFAULT_GOVERNANCE_POLICY } from "./contracts/decision-contract.js";
 import { generateDecision } from "./decision-engine.js";
 import { RecommendationEngine, DEFAULT_RECOMMENDATION_CONFIG } from "../verification/recommendation/recommendation-engine.js";
+import type { RecommendationStore } from "../verification/recommendation/recommendation-store.js";
 import type { EvolutionStateMachine } from "../../evolution/evolution-state-machine.js";
 import { EvolutionState } from "../../evolution/contracts/evolution-contract.js";
 
@@ -31,12 +32,18 @@ import { EvolutionState } from "../../evolution/contracts/evolution-contract.js"
  * @property stateMachine - Evolution lifecycle state machine (validates state).
  * @property evidenceLedger - A2 verification evidence ledger (retrieves evidence).
  * @property decisionBridge - A3 governance decision bridge (executes decisions).
+ * @property recommendationStore - A2.5-owned RecommendationStore; the A2.5
+ *   recommendation generated for this decision is appended here (Q-A8-REC:
+ *   A2.5 → recommendations.jsonl → A8 RecommendationsAdapter). The
+ *   RecommendationEngine itself is pure; this composition root persists its
+ *   output. A write failure FAILS the operation (never silent empty).
  * @property policyConfig - Optional policy config override (defaults to DEFAULT_GOVERNANCE_POLICY).
  */
 export interface DecideDeps {
   stateMachine: EvolutionStateMachine;
   evidenceLedger: VerificationEvidenceLedger;
   decisionBridge: GovernanceDecisionBridge;
+  recommendationStore: RecommendationStore;
   policyConfig?: GovernancePolicyConfig;
 }
 
@@ -151,6 +158,24 @@ export async function runDecide(
   // Step 4: Generate A2.5 GovernanceRecommendation from the evidence
   const engine = new RecommendationEngine(DEFAULT_RECOMMENDATION_CONFIG);
   const recommendation = engine.generate(latestEvidence);
+
+  // Step 4b: Persist the A2.5 recommendation to the A2.5-owned store
+  // (Q-A8-REC ruling: A2.5 → recommendations.jsonl → A8 RecommendationsAdapter).
+  // The RecommendationEngine is pure; this composition root is where its output
+  // is appended. Persistence failure SURFACES (the operation fails) — mirroring
+  // A9's locked persistence behavior; never a silent empty surface.
+  try {
+    await deps.recommendationStore.append(recommendation);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (jsonMode) {
+      console.log(JSON.stringify({ ok: false, error: `recommendation persistence failed: ${message}` }));
+    } else {
+      console.log(red(`Recommendation persistence failed: ${message}`));
+    }
+    process.exitCode = 1;
+    return;
+  }
 
   // Step 5: Generate the decision
   const decision = generateDecision(latestEvidence, recommendation, { policyConfig });
