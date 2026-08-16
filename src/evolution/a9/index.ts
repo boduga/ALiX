@@ -19,3 +19,5 @@ export * from "./detectors/evidence-completeness-detector.js";
 export * from "./detectors/fingerprint-coincidence-detector.js";
 export * from "./forecast-builder.js";
 export * from "./forecast-engine.js";
+export * from "./forecasts-store.js";
+export * from "./forecasts-adapter.js";
