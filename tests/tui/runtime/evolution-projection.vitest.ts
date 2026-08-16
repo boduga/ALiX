@@ -106,6 +106,22 @@ describe('EvolutionProjection', () => {
     expect(snap.stages.forecasts.items).toHaveLength(0);
   });
 
+  it('a throwing lifecycle source degrades to unavailable, never rejects snapshot (Q-C3b)', async () => {
+    const p = makeProjection({ lifecycle: () => { throw new Error('boom'); } });
+    const snap = await p.snapshot();
+    expect(snap.stages.lifecycle.status).toBe('unavailable');
+    expect(snap.stages.lifecycle.items).toHaveLength(0);
+  });
+
+  it('lifecycle success path still maps rows and reports available', async () => {
+    const p = makeProjection();
+    const snap = await p.snapshot();
+    expect(snap.stages.lifecycle.status).toBe('available');
+    expect(snap.stages.lifecycle.items).toEqual([
+      { capabilityId: 'cap-a', state: 'active', eligible: true },
+    ]);
+  });
+
   it('generatedAt is the injected collector-cycle clock, single observation point', async () => {
     const p = makeProjection();
     p.ingestSessionless([measuredEvent(1, 'm1', 'cap-a')]);

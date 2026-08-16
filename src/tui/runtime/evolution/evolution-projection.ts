@@ -173,14 +173,13 @@ export class EvolutionProjection {
       this.readStage(this.sources.correlations),
       this.readStage(this.sources.recommendations),
     ]);
-    const lifecycleRecords = this.sources.lifecycle();
+    const lifecycle = this.readStageSync(() =>
+      this.sources.lifecycle().map((l) => ({ capabilityId: l.capabilityId, state: l.state as never, eligible: l.eligible })),
+    );
 
     return assembleEvolutionSnapshot({
       generatedAt,
-      lifecycle: {
-        records: lifecycleRecords.map((l) => ({ capabilityId: l.capabilityId, state: l.state as never, eligible: l.eligible })),
-        status: lifecycleRecords.length > 0 ? 'available' : 'empty',
-      },
+      lifecycle,
       learning: { result: learningResult, unavailable: learningUnavailable },
       forecasts,
       correlations,
@@ -200,6 +199,18 @@ export class EvolutionProjection {
   private async readStage<T>(read: () => Promise<ReadonlyArray<T>>) {
     try {
       const records = await read();
+      return { records, status: records.length > 0 ? ('available' as const) : ('empty' as const) };
+    } catch {
+      return { records: [] as ReadonlyArray<T>, status: 'unavailable' as const };
+    }
+  }
+
+  /** Synchronous analogue of `readStage` for the bare (non-Promise) lifecycle
+   *  source — a throwing lifecycle read degrades the stage to 'unavailable'
+   *  (Q-C3b) instead of rejecting snapshot(). */
+  private readStageSync<T>(read: () => ReadonlyArray<T>) {
+    try {
+      const records = read();
       return { records, status: records.length > 0 ? ('available' as const) : ('empty' as const) };
     } catch {
       return { records: [] as ReadonlyArray<T>, status: 'unavailable' as const };
