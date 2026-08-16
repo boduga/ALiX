@@ -25,6 +25,16 @@ import { SessionPhase } from "../../tui/state.js";
 import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 import { createAgentSession } from "../../agent/session.js";
 import { webSearchTool } from "../../tools/web-search.js";
+import { EvolutionProjection } from "../../tui/runtime/evolution/evolution-projection.js";
+import { LearningEngine } from "../../evolution/learning/learning-engine.js";
+import { ProposalEventsAdapter } from "../../evolution/learning/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../evolution/learning/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../evolution/learning/adapters/enriched-proposals-adapter.js";
+import { RecommendationsAdapter } from "../../evolution/learning/adapters/recommendations-adapter.js";
+import { createEnrichedProposalsSource } from "../../evolution/a9/adapters/enriched-proposals-source.js";
+import { GovernanceStore } from "../../governance/governance-store.js";
+import { isLifecycleEligible } from "../../capability/lifecycle-eligibility.js";
+import type { GovernanceRecommendation } from "../../evolution/verification/contracts/recommendation-contract.js";
 export type { PolicyConfig } from "../../tui/helpers/policy-commands.js";
 export { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 
@@ -123,22 +133,81 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const runtimeCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'runtime'));
   const chatCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'chat'));
   const agentCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'agent'));
+  // A9/A8 read surfaces for the evolution projection (Q-S3/C3a — the collector
+  // reads fresh through the adapters each snapshot cycle; A7/A8/A9 stay
+  // authoritative). `capabilityService` is declared later in this function;
+  // the sources closures capture it and are only invoked when the collector
+  // samples (after the service is constructed), so the late capture is safe.
+  // storeDir matches the platform default: .alix/governance.
+  const evolutionStoreDir = join(process.cwd(), '.alix', 'governance');
+  const evolutionProjection = new EvolutionProjection({
+    sources: {
+      // The platform's service projection types lifecycle as optional
+      // (CapabilityListItem.lifecycle: LifecycleState | undefined); the
+      // registry always assigns a state (defaults to 'emerging'), so a row
+      // without one carries no lifecycle signal and is dropped.
+      lifecycle: () => capabilityService.platform.service
+        .list().items
+        .flatMap(({ id, lifecycle }) =>
+          lifecycle === undefined ? [] : [{ capabilityId: id, state: lifecycle, eligible: isLifecycleEligible(lifecycle) }]),
+      forecasts: () => capabilityService.platform.a9.forecasts.list(),
+      correlations: () => capabilityService.platform.a9.correlations.list(),
+      // The evolution projection's decisions stage keys DecisionRow by the
+      // canonical A2.5 recommendationId. The A8 RecommendationsAdapter is the
+      // read surface (A8 wayfinder lock), returning RecommendationRecord with
+      // recordId = canonical recommendationId — reshape to the canonical
+      // GovernanceRecommendation contract the projection is typed against.
+      // The A8 normalized form carries no evidenceId/risks and has an optional
+      // reasoning; the projection does not surface those fields (the assembler
+      // consumes only recommendationId/proposalId/kind/confidence), so the
+      // non-canonical fields are carried over without fabrication: evidenceId
+      // mirrors the canonical id, risks stay empty, reasoning/evidence refs map
+      // directly.
+      recommendations: async (): Promise<ReadonlyArray<GovernanceRecommendation>> => {
+        const store = new GovernanceStore(evolutionStoreDir);
+        const recs = await new RecommendationsAdapter(store).list();
+        return recs.map((r) => ({
+          recommendationId: r.recordId,
+          evidenceId: r.recordId,
+          proposalId: r.proposalId,
+          kind: r.kind,
+          confidence: r.confidence,
+          reasoning: r.reasoning ?? '',
+          supportingEvidence: [...r.evidenceRefs],
+          risks: [],
+          createdAt: r.recordedAt,
+        }));
+      },
+      learning: new LearningEngine(
+        new ProposalEventsAdapter(eventLog),
+        new MeasurementEventsAdapter(eventLog),
+        new EnrichedProposalsAdapter(await createEnrichedProposalsSource(process.cwd())()),
+        new RecommendationsAdapter(new GovernanceStore(evolutionStoreDir)),
+      ),
+    },
+  });
   // The OUTER (runtime) collector projects the execution TRACE only — the
   // Runtime tab reads snapshot.runtime.trace (Phase 4). No view consumes its
   // timeline, so the composition root registers trace only (no timeline
-  // projection) — the collector itself is blind to projection identity.
+  // projection) — the collector itself is blind to projection identity. The
+  // evolution projection registers alongside the session projections; its
+  // input arrives via the Q-C4 sessionless relay, not updateAll.
   const runtimeProjectionRuntime = createProjectionRuntime([
     [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
     [ProjectionIds.approval, new ApprovalProjection()],
     [ProjectionIds.capability, new CapabilityProjection()],
     [ProjectionIds.metrics, new MetricsProjection()],
     [ProjectionIds.context, new ContextProjectionBuilder()],
+    [ProjectionIds.evolution, evolutionProjection],
   ]);
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: runtimeCheckpointStore,
     sessionId,
     projectionRuntime: runtimeProjectionRuntime,
+    // Q-C4 — relay each cycle's newly-read sessionless events to the evolution
+    // projection (its A8 change gate + measurement stage consume them).
+    sessionlessEvents: (events) => evolutionProjection.ingestSessionless(events),
   });
   const chatCollector = new RuntimeCollectorImpl({
     eventLog,
