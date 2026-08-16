@@ -21,3 +21,4 @@ export * from "./forecast-builder.js";
 export * from "./forecast-engine.js";
 export * from "./forecasts-store.js";
 export * from "./forecasts-adapter.js";
+export * from "./a9-bridge.js";
