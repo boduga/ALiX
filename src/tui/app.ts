@@ -149,6 +149,7 @@ export class TuiApp {
       sops: getView('sops')!,
       policy: getView('policy')!,
       capabilities: getView('capabilities')!,
+      evolution: getView('evolution')!,
     };
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();

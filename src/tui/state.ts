@@ -10,12 +10,12 @@ export { SessionPhase } from '../agent/session.js';
 
 export type TabId =
   | 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals'
-  | 'runtime' | 'sops' | 'policy' | 'capabilities';
+  | 'runtime' | 'sops' | 'policy' | 'capabilities' | 'evolution';
 
 /** Tab order for the tab row and Ctrl+digit cycling. Single shared copy —
  *  previously forked between app.ts (navigation) and frame-painter.ts (tab
  *  row), so adding a tab forced two edits. */
-export const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
+export const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities', 'evolution'];
 
 /**
  * Approval request surfaced inline in the agent scrollback. Synced from
@@ -123,6 +123,14 @@ export interface PerTabState {
   panelFocus: PanelFocusId | null;
   /** Selected capability in the Capabilities tab (per-tab view state). */
   capabilitiesSelectedId?: string;
+  /** Q-L1 — selected capability in the evolution spine (lazy-init). */
+  evolutionSelectedCapabilityId?: string;
+  /** Q-L2 — expanded stage within the selected capability's spine. */
+  evolutionExpandedStage?: 'lifecycle' | 'learning' | 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  /** Q-L3 — read-only inspector target (reference-by-id). */
+  evolutionInspector?: { type: 'forecast' | 'recommendation' | 'decision' | 'measurement' | 'correlation'; id: string } | null;
+  /** Q-L2 — flat index mode (f key). */
+  evolutionFlatView?: 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
   /** Active execution-trace filter on the Runtime tab. Default 'all'. */
   runtimeTraceFilter: RuntimeTraceFilter;
   /**
@@ -181,6 +189,10 @@ export function createInitialPerTabState(): PerTabState {
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
     runtimeTraceFilter: 'all',
+    evolutionSelectedCapabilityId: undefined,
+    evolutionExpandedStage: null,
+    evolutionInspector: null,
+    evolutionFlatView: null,
     streamingActive: false,
   };
 }
@@ -199,6 +211,7 @@ export function createInitialTuiAppState(): TuiAppState {
       sops: createInitialPerTabState(),
       policy: createInitialPerTabState(),
       capabilities: createInitialPerTabState(),
+      evolution: createInitialPerTabState(),
     },
     refreshGeneration: 0,
     refreshStatus: 'idle',
