@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -155,6 +155,42 @@ describe("A9 forecast persistence", () => {
       await store.append(b);
       expect(await store.list()).toHaveLength(2);
     });
+
+    it("identical content with keys in a different order is deduped, not a false FATAL collision", async () => {
+      const forecast = makeForecast();
+      expect(await store.append(forecast)).toBe(true);
+
+      // The SAME content serialized with keys in a different order. The
+      // content-addressed forecastId is unchanged (identity canonicalizes
+      // keys), so the store's collision check must use the SAME canonical
+      // stringify and recognize this as the SAME artifact — dedupe no-op
+      // (returns false), never a false FATAL identity collision.
+      const reordered: A9Forecast = {
+        forecastId: forecast.forecastId,
+        provenance: {
+          evidenceRefs: forecast.provenance.evidenceRefs,
+          generatorVersion: forecast.provenance.generatorVersion,
+          generatedAt: forecast.provenance.generatedAt,
+        },
+        confidence: forecast.confidence,
+        horizon: { to: forecast.horizon.to, from: forecast.horizon.from },
+        prediction: {
+          internalScore: forecast.prediction.internalScore,
+          band: forecast.prediction.band,
+          kind: forecast.prediction.kind,
+        },
+        subjectCapability: forecast.subjectCapability,
+        subject: forecast.subject,
+        forecastVersion: forecast.forecastVersion,
+      };
+      // Insertion-order stringify would treat these as DIFFERENT content and
+      // throw a false collision; canonical comparison dedupes.
+      expect(await store.append(reordered)).toBe(false);
+
+      const all = await store.list();
+      expect(all).toHaveLength(1);
+      expect(all[0]!.forecastId).toBe(forecast.forecastId);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -189,6 +225,32 @@ describe("A9 forecast persistence", () => {
       // Corrupt line still skipped; both valid records present.
       expect(all).toHaveLength(2);
       expect(all.map((f) => f.subject).sort()).toEqual(["prop-1", "prop-2"]);
+    });
+
+    it("append after an externally-tampered tail line lacking a newline still yields separate records", async () => {
+      const forecast = makeForecast();
+      await store.append(forecast);
+
+      // Simulate external tampering: strip the trailing "\n" so the last JSON
+      // line runs to EOF. Without the separator guard, the next append would
+      // merge its record onto that tail line (corrupting both).
+      const raw = await readFile(join(dir, "forecasts.jsonl"), "utf-8");
+      expect(raw.endsWith("\n")).toBe(true);
+      await writeFile(join(dir, "forecasts.jsonl"), raw.slice(0, -1));
+
+      // Fresh store instance (clean in-memory state) — the append must write a
+      // separate record, and reading back returns both records intact.
+      const fresh = new ForecastsStore(dir);
+      const second = makeForecast({ subject: "prop-2" });
+      expect(await fresh.append(second)).toBe(true);
+
+      const all = await fresh.list();
+      expect(all).toHaveLength(2);
+      expect(all.map((f) => f.subject).sort()).toEqual(["prop-1", "prop-2"]);
+      expect(all.map((f) => f.forecastId)).toEqual([
+        forecast.forecastId,
+        second.forecastId,
+      ]);
     });
 
     it("tmp-then-rename atomic append leaves a valid file and no .tmp leftover", async () => {

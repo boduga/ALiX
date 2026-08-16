@@ -39,6 +39,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { A9Correlation, CorrelationId } from "./contracts/a9-contract.js";
 
 const STORE_DIR = join(".alix", "governance");
@@ -177,12 +178,15 @@ export class CorrelationsStore {
 
 /**
  * Canonical content of a correlation record (everything except its
- * content-addressed id). Two records with the SAME id must have the SAME
- * canonical content — if they differ, a fatal identity collision occurred.
- * Round-tripped JSONL preserves key order, so this comparison is stable for
- * stored records.
+ * content-addressed id), serialized with the SAME canonical stringify the
+ * identity uses (identity.ts → canonicalStringify: recursively sorted keys).
+ * Two records with the SAME id must have the SAME canonical content — if they
+ * differ, a fatal identity collision occurred. Canonical serialization makes
+ * the comparison key-order-independent, so it matches the content-addressed
+ * id (same content in a different key order is the same artifact, not a
+ * false collision).
  */
 function correlationContentOf(correlation: A9Correlation): string {
   const { correlationId: _id, ...content } = correlation;
-  return JSON.stringify(content);
+  return canonicalStringify(content);
 }

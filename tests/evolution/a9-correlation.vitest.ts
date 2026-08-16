@@ -682,6 +682,37 @@ describe("A9 correlation layer", () => {
       await cstore.append(b);
       expect(await cstore.list()).toHaveLength(2);
     });
+
+    it("identical content with keys in a different order is deduped, not a false FATAL collision", async () => {
+      const cstore = new CorrelationsStore(dir);
+      const c = buildCorrelation(makeForecast(), makeMeasurement(), "prop-1", TS);
+      expect(await cstore.append(c)).toBe(true);
+
+      // The SAME content serialized with keys in a different order. The
+      // content-addressed correlationId is unchanged (identity canonicalizes
+      // keys), so the store's collision check must use the SAME canonical
+      // stringify and recognize this as the SAME artifact — dedupe no-op
+      // (returns false), never a false FATAL identity collision.
+      const reordered: A9Correlation = {
+        correlationId: c.correlationId,
+        resolution: {
+          forecastBand: c.resolution.forecastBand,
+          delta: c.resolution.delta,
+          band: c.resolution.band,
+        },
+        foreignProvenance: { proposalId: c.foreignProvenance.proposalId },
+        measurementId: c.measurementId,
+        forecastId: c.forecastId,
+        correlationVersion: c.correlationVersion,
+      };
+      // Insertion-order stringify would treat these as DIFFERENT content and
+      // throw a false collision; canonical comparison dedupes.
+      expect(await cstore.append(reordered)).toBe(false);
+
+      const all = await cstore.list();
+      expect(all).toHaveLength(1);
+      expect(all[0]!.correlationId).toBe(c.correlationId);
+    });
   });
 
   describe("CorrelationsStore — corruption tolerance + atomic writes", () => {

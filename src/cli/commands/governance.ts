@@ -333,8 +333,11 @@ async function runEvolutionForecast(args: string[]): Promise<void> {
   const eventLog = new EventLog(sessionDir);
 
   // 2. EnrichedProposal[] — read-and-void-discarded for v1 (same seam the
-  //    A8 `learn` CLI keeps for a future detector; the enriched adapter
-  //    currently drives no forecast signal in v1). Passing [] is safe.
+  //    A8 `learn` CLI keeps for a future detector). Note: the
+  //    evidence-completeness detector consumes EnrichedProposal, so with []
+  //    it observes empty enrichment and emits no evidence-completeness
+  //    findings on the operator surface; a future increment that derives real
+  //    EnrichedProposal[] (like A8's documented seam) MUST revisit this.
   const enrichedProposals: ReadonlyArray<never> = [];
 
   // 3. A9-owned forecast store dir — `.alix/governance` (forecasts.jsonl).

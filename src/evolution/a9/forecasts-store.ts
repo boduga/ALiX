@@ -34,6 +34,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import type { A9Forecast, ForecastId } from "./contracts/a9-contract.js";
 
 const STORE_DIR = join(".alix", "governance");
@@ -102,6 +103,9 @@ export class ForecastsStore {
       }
     }
 
+    // Guard against an externally-tampered tail line lacking a newline, which
+    // would otherwise merge the new record onto it (Slice-2 review minor).
+    const separator = raw && !raw.endsWith("\n") ? "\n" : "";
     const line = JSON.stringify(forecast) + "\n";
     const tmpPath = this.filePath + TMP_SUFFIX;
     // Atomic write: tmp-then-rename with fsync before the rename. A crash
@@ -109,7 +113,7 @@ export class ForecastsStore {
     // the new record is fully durable.
     const handle = await open(tmpPath, "w");
     try {
-      await handle.writeFile(raw + line, "utf-8");
+      await handle.writeFile(raw + separator + line, "utf-8");
       await handle.sync();
     } finally {
       await handle.close();
@@ -150,12 +154,15 @@ export class ForecastsStore {
 
 /**
  * Canonical content of a forecast record (everything except its
- * content-addressed id). Two records with the SAME id must have the SAME
- * canonical content — if they differ, a fatal identity collision occurred.
- * Round-tripped JSONL preserves key order, so this comparison is stable for
- * stored records.
+ * content-addressed id), serialized with the SAME canonical stringify the
+ * identity uses (identity.ts → canonicalStringify: recursively sorted keys).
+ * Two records with the SAME id must have the SAME canonical content — if they
+ * differ, a fatal identity collision occurred. Canonical serialization makes
+ * the comparison key-order-independent, so it matches the content-addressed
+ * id (same content in a different key order is the same artifact, not a
+ * false collision).
  */
 function forecastContentOf(forecast: A9Forecast): string {
   const { forecastId: _id, ...content } = forecast;
-  return JSON.stringify(content);
+  return canonicalStringify(content);
 }
