@@ -5,6 +5,8 @@ import type {
   ProposalEventRecord,
 } from "../../src/evolution/a9/contracts/a9-contract.js";
 import { ForecastEngine, type ForecastEngineAdapters } from "../../src/evolution/a9/forecast-engine.js";
+import { buildForecast } from "../../src/evolution/a9/forecast-builder.js";
+import type { DetectorFinding } from "../../src/evolution/a9/contracts/a9-contract.js";
 import { A9_GENERATOR_VERSION, A9_FORECAST_VERSION } from "../../src/evolution/a9/contracts/a9-contract.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
@@ -239,5 +241,104 @@ describe("ForecastEngine — does NOT consume measurement events", () => {
     // No measurement adapter exists on the engine to be called.
     expect((engine as unknown as Record<string, unknown>)["measurementEvents"]).toBeUndefined();
     expect((engine as unknown as Record<string, unknown>)["measurementAdapter"]).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 21 — aggregation: the max internal score determines the band and is
+// never diluted (low + high → high; medium + critical → critical).
+// ---------------------------------------------------------------------------
+
+describe("ForecastEngine — aggregation rules (max score never diluted)", () => {
+  const SUBJECT = "prop-1";
+  function finding(score: number, kind: DetectorFinding["kind"] = "trust-velocity"): DetectorFinding {
+    return {
+      subject: SUBJECT,
+      subjectCapability: "cap-1",
+      kind,
+      internalScore: score,
+      confidence: 0.8,
+      evidenceRefs: [`ev-${score}`],
+    };
+  }
+
+  it("low + high → band high (max determines band)", () => {
+    const forecast = buildForecast([finding(0.1), finding(0.7)], SUBJECT, "cap-1", NOW);
+    expect(forecast.prediction.band).toBe("high");
+    expect(forecast.prediction.internalScore).toBe(0.7);
+    expect(forecast.prediction.kind).toBe("trust-velocity");
+  });
+
+  it("medium + critical → band critical (max determines band)", () => {
+    const forecast = buildForecast(
+      [finding(0.4, "evidence-completeness"), finding(0.9, "fingerprint-coincidence")],
+      SUBJECT,
+      "cap-1",
+      NOW,
+    );
+    expect(forecast.prediction.band).toBe("critical");
+    expect(forecast.prediction.internalScore).toBe(0.9);
+    expect(forecast.prediction.kind).toBe("fingerprint-coincidence");
+  });
+
+  it("the maximum score is never diluted (not an average)", () => {
+    const forecast = buildForecast(
+      [finding(0.1), finding(0.2), finding(0.85)],
+      SUBJECT,
+      "cap-1",
+      NOW,
+    );
+    expect(forecast.prediction.internalScore).toBe(0.85);
+    // The weighted-confidence mean of (0.1,0.2,0.85) is far below 0.85 —
+    // proving internalScore is the max, not an average.
+    expect(forecast.confidence).toBeLessThan(0.85);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 20 — detector failure isolation: a throwing detector is SURFACED
+// (never silently success) while the other detectors continue.
+// ---------------------------------------------------------------------------
+
+describe("ForecastEngine — detector failure isolation (forecastDetailed)", () => {
+  it("isolates a throwing detector, surfaces it, and still produces other forecasts", async () => {
+    // A malformed enriched record (assessment undefined) makes the
+    // evidence-completeness detector throw; trust-velocity still fires.
+    const malformed = enrichedRecord({
+      assessment: undefined as never,
+    });
+    const engine = new ForecastEngine({
+      proposalEvents: fakeAdapter<ProposalEventRecord>([submittedRecord("prop-1", "cap-1")]),
+      enrichedProposals: fakeAdapter<EnrichedProposalRecord>([malformed]),
+    });
+
+    const detail = await engine.forecastDetailed(NOW);
+    // The trust-velocity detector still ran and produced a forecast.
+    expect(detail.forecasts).toHaveLength(1);
+    expect(detail.forecasts[0]!.subject).toBe("prop-1");
+    // The failing detector is surfaced, not silently dropped.
+    expect(detail.detectorFailures).toHaveLength(1);
+    expect(detail.detectorFailures[0]!.detector).toBe("evidence-completeness");
+    expect(detail.detectorFailures[0]!.error).toContain("hasEffectivenessReport");
+  });
+
+  it("forecast() stays LOUD — a detector failure never becomes silent success", async () => {
+    const malformed = enrichedRecord({ assessment: undefined as never });
+    const engine = new ForecastEngine({
+      proposalEvents: fakeAdapter<ProposalEventRecord>([submittedRecord("prop-1", "cap-1")]),
+      enrichedProposals: fakeAdapter<EnrichedProposalRecord>([malformed]),
+    });
+    await expect(engine.forecast(NOW)).rejects.toThrow(/detector failure/i);
+  });
+
+  it("a detector failure with no other findings yields no forecasts but a surfaced failure", async () => {
+    const malformed = enrichedRecord({ assessment: undefined as never });
+    const engine = new ForecastEngine({
+      proposalEvents: fakeAdapter<ProposalEventRecord>([]),
+      enrichedProposals: fakeAdapter<EnrichedProposalRecord>([malformed]),
+    });
+    const detail = await engine.forecastDetailed(NOW);
+    expect(detail.forecasts).toEqual([]);
+    expect(detail.detectorFailures).toHaveLength(1);
   });
 });

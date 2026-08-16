@@ -26,6 +26,13 @@ import {
 } from "../../src/evolution/a9/correlation-builder.js";
 import { CorrelationsStore } from "../../src/evolution/a9/correlations-store.js";
 import { CorrelationsAdapter } from "../../src/evolution/a9/correlations-adapter.js";
+// Phase 27 — post-execution integration fixture uses the REAL adapters over
+// EventLog-shaped events (not adapter stubs).
+import { ProposalEventsAdapter } from "../../src/evolution/a9/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/evolution/a9/adapters/measurement-events-adapter.js";
+import type { EventLog } from "../../src/events/event-log.js";
+import type { AlixEvent } from "../../src/events/types.js";
+import { vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -786,6 +793,177 @@ describe("A9 correlation layer", () => {
       for (const mutation of ["append", "update", "delete", "remove", "upsert"]) {
         expect(proto).not.toContain(mutation);
       }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 27 — post-execution correlation INTEGRATION fixture (real adapters
+  // over EventLog-shaped events): proposalId → submitted.target.id →
+  // measurement.capabilityId → exactly one A9Correlation.
+  // -------------------------------------------------------------------------
+
+  describe("Phase 27 — post-execution correlation integration (real adapters)", () => {
+    function fakeEventLog(events: ReadonlyArray<AlixEvent>): EventLog {
+      return { readAll: vi.fn(async () => events) } as unknown as EventLog;
+    }
+
+    function submittedEvt(
+      proposalId: string,
+      targetId: string,
+      seq: number,
+      timestamp = "2026-08-01T00:00:00.000Z",
+    ): AlixEvent {
+      return {
+        id: `sub-${proposalId}`,
+        seq,
+        version: 1,
+        sessionId: "s1",
+        timestamp,
+        type: "capability.governance.proposal.submitted",
+        actor: "system",
+        payload: {
+          proposalId,
+          candidate: { target: { kind: "capability", id: targetId } },
+          signalIds: [],
+          sourceVersion: null,
+        },
+      } as AlixEvent;
+    }
+
+    function executedEvt(proposalId: string, seq: number, timestamp = "2026-08-02T00:00:00.000Z"): AlixEvent {
+      return {
+        id: `exe-${proposalId}`,
+        seq,
+        version: 1,
+        sessionId: "s1",
+        timestamp,
+        type: "capability.governance.proposal.executed",
+        actor: "system",
+        payload: { proposalId },
+      } as AlixEvent;
+    }
+
+    function measuredEvt(
+      measurementId: string,
+      capabilityId: string,
+      seq: number,
+      timestamp = "2026-08-15T00:00:00.000Z",
+    ): AlixEvent {
+      return {
+        id: measurementId,
+        seq,
+        version: 1,
+        sessionId: "s1",
+        timestamp,
+        type: "capability.governance.measurement.measured",
+        actor: "system",
+        payload: {
+          measurement: { capabilityId, version: "v1" },
+          post: { observationId: "obs-1", takenAt: timestamp, status: "complete", confidence: 0.9 },
+          outcome: { kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] },
+        },
+      } as AlixEvent;
+    }
+
+    async function setup(dir: string, events: ReadonlyArray<AlixEvent>): Promise<CorrelationEngine> {
+      const forecastStore = new ForecastsStore(dir);
+      const forecasts = new ForecastsAdapter(forecastStore);
+      return new CorrelationEngine({
+        forecasts,
+        proposalEvents: new ProposalEventsAdapter(fakeEventLog(events)),
+        measurements: new MeasurementEventsAdapter(fakeEventLog(events)),
+      });
+    }
+
+    it("proposalId → submitted.target.id → measurement.capabilityId yields exactly one correlation", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "a9-phase27-one-"));
+      const f1 = makeForecast(); // subject prop-1, capability cap-1, horizon covers 08-15
+      await new ForecastsStore(dir).append(f1);
+
+      const engine = await setup(dir, [
+        submittedEvt("prop-1", "cap-1", 1),
+        executedEvt("prop-1", 2),
+        measuredEvt("m-1", "cap-1", 3),
+      ]);
+      const correlations = await engine.correlate(TS);
+      expect(correlations).toHaveLength(1);
+      expect(correlations[0]!.forecastId).toBe(f1.forecastId);
+      expect(correlations[0]!.measurementId).toBe("m-1");
+      // foreignProvenance carries the proposal reference (foreign, not A9-owned).
+      expect(correlations[0]!.foreignProvenance.proposalId).toBe("prop-1");
+    });
+
+    it("two forecasts sharing one measurement → two independent correlations (many-to-many)", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "a9-phase27-2f-"));
+      const f1 = makeForecast(); // prop-1/cap-1
+      const f2 = makeForecast({ subject: "prop-2", subjectCapability: "cap-1" });
+      await new ForecastsStore(dir).append(f1);
+      await new ForecastsStore(dir).append(f2);
+
+      const engine = await setup(dir, [
+        submittedEvt("prop-1", "cap-1", 1),
+        executedEvt("prop-1", 2),
+        submittedEvt("prop-2", "cap-1", 3),
+        executedEvt("prop-2", 4),
+        measuredEvt("m-1", "cap-1", 5),
+      ]);
+      const correlations = await engine.correlate(TS);
+      expect(correlations).toHaveLength(2);
+      const fids = correlations.map((c) => c.forecastId).sort();
+      expect(fids).toEqual([f1.forecastId, f2.forecastId].sort());
+      for (const c of correlations) expect(c.measurementId).toBe("m-1");
+    });
+
+    it("one forecast with two measurements → two independent correlations (many-to-many)", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "a9-phase27-2m-"));
+      const f1 = makeForecast();
+      await new ForecastsStore(dir).append(f1);
+
+      const engine = await setup(dir, [
+        submittedEvt("prop-1", "cap-1", 1),
+        executedEvt("prop-1", 2),
+        measuredEvt("m-1", "cap-1", 3),
+        measuredEvt("m-2", "cap-1", 4),
+      ]);
+      const correlations = await engine.correlate(TS);
+      expect(correlations).toHaveLength(2);
+      const mids = correlations.map((c) => c.measurementId).sort();
+      expect(mids).toEqual(["m-1", "m-2"]);
+      for (const c of correlations) expect(c.forecastId).toBe(f1.forecastId);
+    });
+
+    it("identical correlation re-append is a deterministic no-op, NOT a collision", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "a9-phase27-dedupe-"));
+      const store = new CorrelationsStore(dir);
+      const f1 = makeForecast();
+      await new ForecastsStore(dir).append(f1);
+      const engine = await setup(dir, [
+        submittedEvt("prop-1", "cap-1", 1),
+        executedEvt("prop-1", 2),
+        measuredEvt("m-1", "cap-1", 3),
+      ]);
+      const correlations = await engine.correlate(TS);
+      expect(correlations).toHaveLength(1);
+      expect(await store.append(correlations[0]!)).toBe(true);
+      expect(await store.append(correlations[0]!)).toBe(false);
+      expect(await store.list()).toHaveLength(1);
+    });
+
+    it("DIFFERENT content mapping to the same correlationId is FATAL (no overwrite/merge)", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "a9-phase27-collision-"));
+      const store = new CorrelationsStore(dir);
+      const base = buildCorrelation(makeForecast(), makeMeasurement(), "prop-1", TS);
+      await store.append(base);
+      // Same correlationId but different resolution content → different content
+      // mapping to the same id is impossible via canonical hashing, but the
+      // store must not silently dedupe such a record — it must throw.
+      const tampered: A9Correlation = {
+        ...base,
+        resolution: { band: "critical", forecastBand: "high", delta: "match" },
+      };
+      // Craft an explicit same-id collision by aliasing the id.
+      const sameIdDifferentContent: A9Correlation = { ...tampered, correlationId: base.correlationId };
+      await expect(store.append(sameIdDifferentContent)).rejects.toThrow(/identity collision/i);
     });
   });
 });

@@ -13,6 +13,9 @@ import {
 import { forecastIdFor } from "../../src/evolution/a9/identity.js";
 import { ForecastsStore } from "../../src/evolution/a9/forecasts-store.js";
 import { ForecastsAdapter } from "../../src/evolution/a9/forecasts-adapter.js";
+import { CorrelationsStore } from "../../src/evolution/a9/correlations-store.js";
+import { buildCorrelation } from "../../src/evolution/a9/correlation-builder.js";
+import type { CapabilityMeasurementRecord } from "../../src/evolution/a9/contracts/a9-contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -310,5 +313,124 @@ describe("A9 forecast persistence", () => {
         expect(proto).not.toContain(mutation);
       }
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 23/32 — restart / persistence verification (Q4)
+//
+// Simulates: process 1 writes a forecast + correlation → shutdown → process 2
+// clears memory, reloads BOTH JSONL stores, queries by forecastId and
+// measurementId. The forecast → correlation → measurement reference must
+// reconstruct ENTIRELY from A9-owned persistence (forecasts.jsonl +
+// correlations.jsonl) — no foreign A9-relationship record is required.
+// ---------------------------------------------------------------------------
+
+describe("A9 restart verification — forecast → correlation → measurement reference reconstructs from A9-owned persistence", () => {
+  const TS = "2026-08-15T00:00:00.000Z";
+
+  /** Content-addressed forecast (process-1 artifact). */
+  function makeForecast(): A9Forecast {
+    const content: A9ForecastContent = {
+      forecastVersion: A9_FORECAST_VERSION,
+      subject: "prop-1",
+      subjectCapability: "cap-1",
+      prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
+      horizon: { from: "2026-08-01T00:00:00.000Z", to: "2026-08-31T00:00:00.000Z" },
+      confidence: 0.8,
+      provenance: {
+        generatedAt: "2026-08-01T00:00:00.000Z",
+        generatorVersion: A9_GENERATOR_VERSION,
+        evidenceRefs: ["ev-1"],
+      },
+    };
+    return { forecastId: forecastIdFor(content), ...content };
+  }
+
+  function makeMeasurement(overrides: Partial<CapabilityMeasurementRecord> = {}): CapabilityMeasurementRecord {
+    return {
+      measurementId: "m-1",
+      capabilityId: "cap-1",
+      outcome: "effective",
+      recordedAt: "2026-08-15T00:00:00.000Z",
+      eventId: "10",
+      ...overrides,
+    };
+  }
+
+  it("process-2 rebuilds the reference from only the two A9 JSONL stores", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-restart-"));
+
+    // ---- process 1: write forecast + correlation, then "shutdown" ----
+    const forecast = makeForecast();
+    const correlation = buildCorrelation(forecast, makeMeasurement(), forecast.subject, TS);
+    const p1ForecastStore = new ForecastsStore(dir);
+    const p1CorrelationStore = new CorrelationsStore(dir);
+    expect(await p1ForecastStore.append(forecast)).toBe(true);
+    expect(await p1CorrelationStore.append(correlation)).toBe(true);
+    // (no in-memory references survive — the next block constructs fresh stores)
+
+    // ---- process 2: memory cleared, both stores reloaded from disk ----
+    const p2ForecastStore = new ForecastsStore(dir);
+    const p2CorrelationStore = new CorrelationsStore(dir);
+
+    // Query by forecastId.
+    const reloadedForecast = await p2ForecastStore.getById(forecast.forecastId);
+    expect(reloadedForecast).not.toBeNull();
+    expect(reloadedForecast!.forecastId).toBe(forecast.forecastId);
+    expect(reloadedForecast!.subject).toBe("prop-1");
+
+    // Query by measurementId → the correlation carrying forecast + measurement refs.
+    const byMeasurement = await p2CorrelationStore.findByMeasurementId("m-1");
+    expect(byMeasurement).toHaveLength(1);
+    expect(byMeasurement[0]!.correlationId).toBe(correlation.correlationId);
+
+    // The full reference chain reconstructs entirely from A9-owned records:
+    // forecast(forecastId) → correlation(forecastId + measurementId) → measurement ref.
+    const byForecast = await p2CorrelationStore.findByForecastId(forecast.forecastId);
+    expect(byForecast).toHaveLength(1);
+    expect(byForecast[0]!.measurementId).toBe("m-1");
+    // The correlation references the forecast by its content-addressed id.
+    expect(byForecast[0]!.forecastId).toBe(reloadedForecast!.forecastId);
+
+    // Only the two A9-owned JSONL files exist — no foreign relationship record.
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".jsonl"));
+    expect(files.sort()).toEqual(["correlations.jsonl", "forecasts.jsonl"]);
+  });
+
+  it("same data reconstructs the SAME A9 artifacts (deterministic identity, no mutation)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-restart2-"));
+    const forecast = makeForecast();
+    const correlation = buildCorrelation(forecast, makeMeasurement(), forecast.subject, TS);
+    await new ForecastsStore(dir).append(forecast);
+    await new CorrelationsStore(dir).append(correlation);
+
+    // Re-construct the artifacts from scratch and compare — identical content
+    // yields identical ids (content addressing), so the "reconstructed" and
+    // "stored" artifacts are byte-identical.
+    const forecast2 = makeForecast();
+    const correlation2 = buildCorrelation(forecast2, makeMeasurement(), forecast.subject, TS);
+    expect(forecast2.forecastId).toBe(forecast.forecastId);
+    expect(correlation2.correlationId).toBe(correlation.correlationId);
+    expect(await new ForecastsStore(dir).list()).toEqual([forecast]);
+    expect(await new CorrelationsStore(dir).list()).toEqual([correlation]);
+  });
+
+  it("a forecast identity collision (different content, same id) is FATAL — throws, no silent continue", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "a9-collision-"));
+    const store = new ForecastsStore(dir);
+    const forecast = makeForecast();
+    await store.append(forecast);
+
+    // Craft an explicit same-id different-content collision (impossible via the
+    // canonical hash, but the store must not silently dedupe/merge it).
+    const tampered: A9Forecast = {
+      ...forecast,
+      confidence: 0.99,
+      forecastId: forecast.forecastId, // alias the content-addressed id
+    };
+    await expect(store.append(tampered)).rejects.toThrow(/identity collision/i);
+    // The original artifact is untouched — no overwrite, no merge.
+    expect(await store.list()).toEqual([forecast]);
   });
 });
