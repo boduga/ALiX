@@ -337,6 +337,46 @@ describe("detectFingerprintCoincidence", () => {
     ];
     expect(detectFingerprintCoincidence(records, NOW)).toEqual([]);
   });
+
+  it("detects colon-bearing error fingerprints with the exact capabilityId (no colon-slice corruption)", () => {
+    // Regression: the error string itself contains a colon ("TypeError: …").
+    // The capabilityId must be recovered as a first-class value, NOT by slicing
+    // the fingerprint at the first colon (which would corrupt it to
+    // " cannot read properties of undefined:cap-1" and zero the density).
+    const records: ProposalEventRecord[] = [
+      submittedRecord("f1", "cap-1"),
+      submittedRecord("f2", "cap-1"),
+      failedRecord("f1", "TypeError: Cannot read properties of undefined", { recordedAt: "2026-08-10T00:00:00.000Z" }),
+      failedRecord("f2", "TypeError: Cannot read properties of undefined", { recordedAt: "2026-08-11T00:00:00.000Z" }),
+    ];
+    const findings = detectFingerprintCoincidence(records, NOW);
+    expect(findings).toHaveLength(1);
+    const f = findings[0]!;
+    expect(f.subjectCapability).toBe("cap-1"); // exact, not colon-truncated
+    expect(f.subject).toBe("f2");
+    // Density computed correctly: 2 failures / 2 submitted for cap-1 → 1.0.
+    // 0.6 * (2/5) + 0.4 * 1.0 = 0.24 + 0.4 = 0.64.
+    expect(f.internalScore).toBeCloseTo(0.64, 10);
+    expect(f.confidence).toBeCloseTo(1.0, 10);
+  });
+
+  it("keeps colon-bearing error groups distinct per capability (no cross-capability merge)", () => {
+    const records: ProposalEventRecord[] = [
+      submittedRecord("f1", "cap-1"),
+      submittedRecord("f2", "cap-1"),
+      submittedRecord("g1", "cap-2"),
+      submittedRecord("g2", "cap-2"),
+      failedRecord("f1", "TypeError: x is not a function", { recordedAt: "2026-08-10T00:00:00.000Z" }),
+      failedRecord("f2", "TypeError: x is not a function", { recordedAt: "2026-08-11T00:00:00.000Z" }),
+      failedRecord("g1", "TypeError: x is not a function", { recordedAt: "2026-08-10T00:00:00.000Z" }),
+      failedRecord("g2", "TypeError: x is not a function", { recordedAt: "2026-08-11T00:00:00.000Z" }),
+    ];
+    const findings = detectFingerprintCoincidence(records, NOW);
+    expect(findings).toHaveLength(2);
+    const bySubject = Object.fromEntries(findings.map((f) => [f.subject, f]));
+    expect(bySubject["f2"]?.subjectCapability).toBe("cap-1");
+    expect(bySubject["g2"]?.subjectCapability).toBe("cap-2");
+  });
 });
 
 // ---------------------------------------------------------------------------

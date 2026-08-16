@@ -70,6 +70,22 @@ function fakeAdapter<T>(records: ReadonlyArray<T>): A9Adapter<T> {
   return { name: "fake", list: vi.fn(async () => records) };
 }
 
+function failedRecord(
+  proposalId: string,
+  error: string,
+  overrides: Partial<ProposalEventRecord> = {},
+): ProposalEventRecord {
+  return {
+    proposalId,
+    capabilityId: "",
+    kind: "proposal.execution_failed",
+    payload: { error, partialState: "not_committed" },
+    recordedAt: "2026-08-10T00:00:00.000Z",
+    eventId: `evt-${proposalId}`,
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // ForecastEngine — no-trigger rule
 // ---------------------------------------------------------------------------
@@ -160,6 +176,39 @@ describe("ForecastEngine — aggregation by subject", () => {
     const second = await new ForecastEngine(adapters).forecast(NOW);
     expect(first).toEqual(second);
     expect(first[0]!.forecastId).toBe(second[0]!.forecastId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ForecastEngine — fingerprint-coincidence flow with colon-bearing errors
+// ---------------------------------------------------------------------------
+
+describe("ForecastEngine — fingerprint-coincidence with colon-bearing error fingerprints", () => {
+  it("forecasts the exact subjectCapability (never a colon-truncated value)", async () => {
+    // Regression: "TypeError: …" contains a colon. The capabilityId must flow
+    // through the detector as a first-class value, so the forecast's
+    // subjectCapability (and therefore the content-addressed forecastId) is exact.
+    const engine = new ForecastEngine({
+      proposalEvents: fakeAdapter<ProposalEventRecord>([
+        submittedRecord("f1", "cap-1", { riskClass: "low" }),
+        submittedRecord("f2", "cap-1", { riskClass: "low" }),
+        failedRecord("f1", "TypeError: Cannot read properties of undefined", {
+          recordedAt: "2026-08-10T00:00:00.000Z",
+        }),
+        failedRecord("f2", "TypeError: Cannot read properties of undefined", {
+          recordedAt: "2026-08-11T00:00:00.000Z",
+        }),
+      ]),
+      enrichedProposals: fakeAdapter<EnrichedProposalRecord>([]),
+    });
+    const forecasts = await engine.forecast(NOW);
+    expect(forecasts).toHaveLength(1);
+    const forecast = forecasts[0]!;
+    expect(forecast.prediction.kind).toBe("fingerprint-coincidence");
+    expect(forecast.subjectCapability).toBe("cap-1");
+    expect(forecast.subject).toBe("f2");
+    // Sanity: forecastId is a 64-hex content address of the exact content.
+    expect(forecast.forecastId).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 

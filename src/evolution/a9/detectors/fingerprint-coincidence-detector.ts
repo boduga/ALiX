@@ -51,6 +51,15 @@ export function normalizeFingerprint(error: string): string {
   return error.trim().toLowerCase();
 }
 
+/** Compose a collision-free group key from a normalized failure fingerprint and
+ *  its capabilityId. The separator is a NUL byte (U+0000), which cannot appear
+ *  in JSON payload strings, so a colon-bearing error ("TypeError: x",
+ *  "Error: timeout") can never be confused with the separator. The capabilityId
+ *  is recovered from the group MEMBERS, never by slicing this key. */
+function fingerprintGroupKey(fingerprint: string, capabilityId: string): string {
+  return `${fingerprint}\u0000${capabilityId}`;
+}
+
 /**
  * Detect fingerprint-coincidence risk from proposal.execution_failed evidence.
  *
@@ -83,14 +92,19 @@ export function detectFingerprintCoincidence(
     });
   }
 
-  // Group by normalized failure fingerprint (error:capabilityId).
+  // Group by (normalized failure fingerprint, capabilityId). The capabilityId
+  // is carried as a first-class value on each member (the A8 repeated-pattern
+  // pattern) — it is NEVER re-derived by slicing the group key, because the
+  // error text may itself contain colons ("Error: timeout", "TypeError: x"),
+  // which would corrupt a colon-slice (e.g. "TypeError: x" -> " x:cap-1").
   const groups = new Map<string, Array<{ rec: ProposalEventRecord; capabilityId: string }>>();
   for (const item of failures) {
     const error = typeof item.rec.payload["error"] === "string" ? item.rec.payload["error"] : "";
-    const fingerprint = `${normalizeFingerprint(error)}:${item.capabilityId}`;
-    const list = groups.get(fingerprint) ?? [];
+    const fingerprint = normalizeFingerprint(error);
+    const groupKey = fingerprintGroupKey(fingerprint, item.capabilityId);
+    const list = groups.get(groupKey) ?? [];
     list.push(item);
-    groups.set(fingerprint, list);
+    groups.set(groupKey, list);
   }
 
   // Prior failure density per capability (over the resolved evidence set).
@@ -106,10 +120,13 @@ export function detectFingerprintCoincidence(
   }
 
   const findings: DetectorFinding[] = [];
-  for (const [fingerprint, members] of groups) {
+  for (const members of groups.values()) {
     if (members.length < FINGERPRINT_COINCIDENCE_MIN_OCCURRENCES) continue;
 
-    const capabilityId = fingerprint.slice(fingerprint.indexOf(":") + 1);
+    // capabilityId is a first-class value on the members — all members of a
+    // group share it (the group key includes it), so reading members[0] is
+    // exact and never colon-corrupted.
+    const capabilityId = members[0]!.capabilityId;
     const totalProposals = submittedCount.get(capabilityId) ?? 0;
     const totalFailures = failureCount.get(capabilityId) ?? 0;
     const priorFailureRate = totalProposals > 0 ? totalFailures / totalProposals : 0;
