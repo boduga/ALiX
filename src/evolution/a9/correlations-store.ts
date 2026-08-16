@@ -64,12 +64,17 @@ export class CorrelationsStore {
    * Append one correlation to the store, stored verbatim (the content-addressed
    * `correlationId` is preserved exactly as given — never recomputed or altered).
    *
-   * Duplicate-identity policy: if a correlation with the same `correlationId`
-   * is already present, the append is a deterministic NO-OP and `false` is
-   * returned (no bytes are written). An existing correlation is never mutated.
+   * Duplicate-identity policy (deterministic): if a stored correlation has the
+   * SAME `correlationId` AND the SAME content, the append is a NO-OP and
+   * `false` is returned (no bytes written). If DIFFERENT content maps to the
+   * SAME `correlationId`, the append THROWS — a deterministic identity
+   * collision is FATAL: no overwrite, no merge, no silent continue (Phase 20
+   * locked). An existing correlation is never mutated.
    *
    * @returns true when the correlation was written; false when an identical
-   *          `correlationId` was already present (dedupe no-op).
+   *          correlation was already present (dedupe no-op).
+   * @throws {Error} when different content maps to an already-present
+   *          `correlationId` (fatal identity collision).
    */
   async append(correlation: A9Correlation): Promise<boolean> {
     await this.ensureStoreDir();
@@ -83,12 +88,23 @@ export class CorrelationsStore {
     for (const line of raw.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+      let stored: A9Correlation | undefined;
       try {
-        if ((JSON.parse(trimmed) as A9Correlation).correlationId === correlation.correlationId) {
-          return false;
-        }
+        stored = JSON.parse(trimmed) as A9Correlation;
       } catch {
         // Skip corrupt line — it carries no usable identity.
+      }
+      if (!stored || typeof stored.correlationId !== "string") continue;
+      if (stored.correlationId === correlation.correlationId) {
+        if (correlationContentOf(stored) === correlationContentOf(correlation)) {
+          // Identical content → deterministic dedupe no-op (never rewritten).
+          return false;
+        }
+        // Deterministic identity collision: DIFFERENT content maps to the SAME
+        // content-addressed id. Fatal — no overwrite, no merge, no silent continue.
+        throw new Error(
+          `CorrelationsStore: identity collision — different content maps to correlationId '${correlation.correlationId}' (fatal: no overwrite, no merge)`,
+        );
       }
     }
 
@@ -157,4 +173,16 @@ export class CorrelationsStore {
     const all = await this.list();
     return all.filter((c) => c.measurementId === measurementId);
   }
+}
+
+/**
+ * Canonical content of a correlation record (everything except its
+ * content-addressed id). Two records with the SAME id must have the SAME
+ * canonical content — if they differ, a fatal identity collision occurred.
+ * Round-tripped JSONL preserves key order, so this comparison is stable for
+ * stored records.
+ */
+function correlationContentOf(correlation: A9Correlation): string {
+  const { correlationId: _id, ...content } = correlation;
+  return JSON.stringify(content);
 }

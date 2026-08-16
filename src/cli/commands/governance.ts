@@ -30,6 +30,8 @@ import { runDashboard } from "./governance-dashboard-handler.js";
 // wayfinder map #517 locked ruling). Imports are dynamic-free at module
 // scope to keep the seam file's load graph small.
 import { runLearnCli } from "../../evolution/learning/learning-cli.js";
+// A9 Slice 5 — pre-execution risk forecast CLI surface.
+import { runForecastCli } from "../../evolution/a9/forecast-cli.js";
 import { EventLog } from "../../events/event-log.js";
 import type {
   GovernanceHealthReport,
@@ -290,6 +292,66 @@ async function runEvolutionLearn(args: string[]): Promise<void> {
   process.exitCode = result.exitCode;
 }
 
+// ---------------------------------------------------------------------------
+// A9 Slice 5 — `alix governance evolution forecast [--dimension ...] [--json]`
+//
+// Composes EventLog + EnrichedProposal[] from the standard `.alix/...`
+// layout and delegates to `runForecastCli`. The engine construction (2
+// adapters) happens inside the CLI module to keep that seam co-located with
+// the engine contract (mirrors the A8 `learn` seam). The forecast is
+// persisted to the A9-owned `.alix/governance/forecasts.jsonl` store.
+// Correlation is automatic and is NOT exposed here.
+// ---------------------------------------------------------------------------
+async function runEvolutionForecast(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const dimIdx = args.indexOf("--dimension");
+  const dimension = dimIdx >= 0 ? args[dimIdx + 1] : undefined;
+
+  const cwd = process.cwd();
+
+  // 1. EventLog — pick the most-recent session that has events.jsonl
+  //    (same fallback semantics as runEvolutionLearn).
+  const sessionsDir = join(cwd, ".alix", "sessions");
+  let sessionDir = join(cwd, ".alix", "sessions", "capability-cmd");
+  try {
+    const { readdir, stat } = await import("node:fs/promises");
+    const entries = await readdir(sessionsDir, { withFileTypes: true });
+    const dirs = await Promise.all(
+      entries
+        .filter((d) => d.isDirectory())
+        .map(async (d) => {
+          const p = join(sessionsDir, d.name);
+          const s = await stat(p);
+          return { name: d.name, mtimeMs: s.mtimeMs };
+        }),
+    );
+    dirs.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    if (dirs.length > 0 && dirs[0]) sessionDir = join(sessionsDir, dirs[0].name);
+  } catch {
+    // sessions dir may not exist on a fresh repo — fall through.
+  }
+  const eventLog = new EventLog(sessionDir);
+
+  // 2. EnrichedProposal[] — read-and-void-discarded for v1 (same seam the
+  //    A8 `learn` CLI keeps for a future detector; the enriched adapter
+  //    currently drives no forecast signal in v1). Passing [] is safe.
+  const enrichedProposals: ReadonlyArray<never> = [];
+
+  // 3. A9-owned forecast store dir — `.alix/governance` (forecasts.jsonl).
+  const storeDir = join(cwd, ".alix", "governance");
+
+  const result = await runForecastCli({
+    eventLog,
+    enrichedProposals,
+    storeDir,
+    json: jsonMode,
+    dimension,
+  });
+
+  console.log(result.output);
+  process.exitCode = result.exitCode;
+}
+
 export async function handleGovernanceCommand(args: string[]): Promise<void> {
   const subcommand = args[0];
   const rest = args.slice(1);
@@ -377,6 +439,12 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       // the A0-A7 handler signature untouched.
       if (rest[0] === "learn") {
         return runEvolutionLearn(rest.slice(1));
+      }
+      // A9 Slice 5: intercept `forecast` alongside `learn`. The A9 path is
+      // structurally distinct (forecast pipeline + A9-owned forecasts.jsonl);
+      // it never exposes correlation as an operator command.
+      if (rest[0] === "forecast") {
+        return runEvolutionForecast(rest.slice(1));
       }
       const { handleEvolutionCommand } = await import("../../governance/evolution-cli.js");
       const { EvolutionStateMachine } = await import("../../evolution/evolution-state-machine.js");

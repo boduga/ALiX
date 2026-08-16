@@ -59,12 +59,16 @@ export class ForecastsStore {
    * Append one forecast to the store, stored verbatim (the content-addressed
    * `forecastId` is preserved exactly as given — never recomputed or altered).
    *
-   * Duplicate-identity policy: if a forecast with the same `forecastId` is
-   * already present, the append is a deterministic NO-OP and `false` is
-   * returned (no bytes are written).
+   * Duplicate-identity policy (deterministic): if a stored forecast has the
+   * SAME `forecastId` AND the SAME content, the append is a NO-OP and `false`
+   * is returned (no bytes written). If DIFFERENT content maps to the SAME
+   * `forecastId`, the append THROWS — a deterministic identity collision is
+   * FATAL: no overwrite, no merge, no silent continue (Phase 20 locked).
    *
    * @returns true when the forecast was written; false when an identical
-   *          `forecastId` was already present (dedupe no-op).
+   *          forecast was already present (dedupe no-op).
+   * @throws {Error} when different content maps to an already-present
+   *          `forecastId` (fatal identity collision).
    */
   async append(forecast: A9Forecast): Promise<boolean> {
     await this.ensureStoreDir();
@@ -78,12 +82,23 @@ export class ForecastsStore {
     for (const line of raw.split("\n")) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+      let stored: A9Forecast | undefined;
       try {
-        if ((JSON.parse(trimmed) as A9Forecast).forecastId === forecast.forecastId) {
-          return false;
-        }
+        stored = JSON.parse(trimmed) as A9Forecast;
       } catch {
         // Skip corrupt line — it carries no usable identity.
+      }
+      if (!stored || typeof stored.forecastId !== "string") continue;
+      if (stored.forecastId === forecast.forecastId) {
+        if (forecastContentOf(stored) === forecastContentOf(forecast)) {
+          // Identical content → deterministic dedupe no-op (never rewritten).
+          return false;
+        }
+        // Deterministic identity collision: DIFFERENT content maps to the SAME
+        // content-addressed id. Fatal — no overwrite, no merge, no silent continue.
+        throw new Error(
+          `ForecastsStore: identity collision — different content maps to forecastId '${forecast.forecastId}' (fatal: no overwrite, no merge)`,
+        );
       }
     }
 
@@ -131,4 +146,16 @@ export class ForecastsStore {
     }
     return out;
   }
+}
+
+/**
+ * Canonical content of a forecast record (everything except its
+ * content-addressed id). Two records with the SAME id must have the SAME
+ * canonical content — if they differ, a fatal identity collision occurred.
+ * Round-tripped JSONL preserves key order, so this comparison is stable for
+ * stored records.
+ */
+function forecastContentOf(forecast: A9Forecast): string {
+  const { forecastId: _id, ...content } = forecast;
+  return JSON.stringify(content);
 }

@@ -50,29 +50,83 @@ export interface ForecastEngineAdapters {
   readonly enrichedProposals: A9Adapter<EnrichedProposalRecord>;
 }
 
+/** Structured forecast-run result (Slice 5, Phase 20). Detector failures are
+ *  isolated so the operator surface can surface them while other detectors
+ *  continue — a failing detector is NEVER silently dropped. */
+export interface ForecastRunDetail {
+  readonly forecasts: ReadonlyArray<A9Forecast>;
+  readonly detectorFailures: ReadonlyArray<{ detector: string; error: string }>;
+}
+
 export class ForecastEngine {
   constructor(private readonly adapters: ForecastEngineAdapters) {}
 
   /**
    * Produce the forecast set for the given evaluation timestamp.
    *
+   * Loud surface: if ANY detector fails, `forecast()` throws — a detector
+   * failure never silently becomes a successful result here. Callers that
+   * need per-detector isolation (the operator CLI) use `forecastDetailed`.
+   *
    * @param now ISO 8601 evaluation timestamp (explicit — no implicit clock)
    * @returns forecasts ([]) when no detector fires
+   * @throws {Error} when any detector throws (fail-loud; see forecastDetailed)
    */
   async forecast(now: string): Promise<ReadonlyArray<A9Forecast>> {
+    const detail = await this.forecastDetailed(now);
+    if (detail.detectorFailures.length > 0) {
+      throw new Error(
+        `ForecastEngine: detector failure(s) — ${detail.detectorFailures
+          .map((f) => `${f.detector}: ${f.error}`)
+          .join("; ")}`,
+      );
+    }
+    return detail.forecasts;
+  }
+
+  /**
+   * Produce the forecast set with per-detector failure isolation (Phase 20).
+   *
+   * Each detector runs independently: a throwing detector is recorded in
+   * `detectorFailures` (SURFACED — never silently success) and the other
+   * detectors still run. Forecasts are built only from the detectors that
+   * succeeded.
+   *
+   * @param now ISO 8601 evaluation timestamp (explicit — no implicit clock)
+   */
+  async forecastDetailed(now: string): Promise<ForecastRunDetail> {
     const [proposalRecs, enrichedRecs] = await Promise.all([
       this.adapters.proposalEvents.list(),
       this.adapters.enrichedProposals.list(),
     ]);
 
-    const findings: ReadonlyArray<DetectorFinding> = [
-      ...detectTrustVelocity(proposalRecs),
-      ...detectEvidenceCompleteness(enrichedRecs, now),
-      ...detectFingerprintCoincidence(proposalRecs, now),
-    ];
+    const detectorFailures: Array<{ detector: string; error: string }> = [];
+    const findings: DetectorFinding[] = [];
+
+    const runDetector = (
+      detector: string,
+      fn: () => ReadonlyArray<DetectorFinding>,
+    ): void => {
+      try {
+        findings.push(...fn());
+      } catch (err) {
+        detectorFailures.push({
+          detector,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
+    runDetector("trust-velocity", () => detectTrustVelocity(proposalRecs));
+    runDetector("evidence-completeness", () =>
+      detectEvidenceCompleteness(enrichedRecs, now),
+    );
+    runDetector("fingerprint-coincidence", () =>
+      detectFingerprintCoincidence(proposalRecs, now),
+    );
 
     // No-trigger rule: never emit an empty forecast artifact.
-    if (findings.length === 0) return [];
+    if (findings.length === 0) return { forecasts: [], detectorFailures };
 
     // Group findings by subject; subjectCapability from the first finding for
     // the subject (deterministic — findings are emitted in sorted order).
@@ -89,8 +143,11 @@ export class ForecastEngine {
     for (const [subject, subjectFindings] of bySubject) {
       forecasts.push(buildForecast(subjectFindings, subject, subjectCapability.get(subject) ?? "", now));
     }
-    return forecasts.sort(
-      (a, b) => a.subject.localeCompare(b.subject) || a.forecastId.localeCompare(b.forecastId),
-    );
+    return {
+      forecasts: forecasts.sort(
+        (a, b) => a.subject.localeCompare(b.subject) || a.forecastId.localeCompare(b.forecastId),
+      ),
+      detectorFailures,
+    };
   }
 }
