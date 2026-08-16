@@ -60,8 +60,24 @@ const RECOMMENDATION_KIND_MAP: Record<string, GovernanceDecisionKind | undefined
   MONITOR: "MONITOR",
   REQUEST_ADDITIONAL_EVIDENCE: "REQUEST_MORE_EVIDENCE",
   REJECT: "REJECT",
+  // A9 pre-execution risk forecasts flagged high/critical gate review until
+  // the risk is resolved — advisory, mapped to the non-binding decision kind.
+  RISK_GATED_REVIEW: "REQUEST_MORE_EVIDENCE",
   // ESCALATE intentionally omitted — no A3 equivalent
 };
+
+/**
+ * Map an A2.5 recommendation kind to the A3 decision kind it routes to
+ * (pure, deterministic). ESCALATE has no A3 equivalent → `undefined`.
+ *
+ * Exported so operator surfaces (e.g. the A9 forecast CLI) can surface "the
+ * resulting A3 decision" for a recommendation without fabricating evidence.
+ */
+export function recommendationKindToDecisionKind(
+  kind: string,
+): GovernanceDecisionKind | undefined {
+  return RECOMMENDATION_KIND_MAP[kind];
+}
 
 // ---------------------------------------------------------------------------
 // decisionKindToTargetState

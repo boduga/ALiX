@@ -25,6 +25,8 @@ import type { ValidationResult } from "../../contracts/evolution-contract.js";
  * - `REQUEST_ADDITIONAL_EVIDENCE`: Coverage insufficient for decision.
  * - `REJECT`: Critical regressions or confidence below minimum.
  * - `ESCALATE`: Cannot determine — human review required.
+ * - `RISK_GATED_REVIEW`: Pre-execution risk forecast flagged high/critical —
+ *   A3 routes to REQUEST_MORE_EVIDENCE (UNDER_REVIEW) until the risk is gated.
  *
  * @invariant Recommendations are advisory. Governance (A3) owns the decision.
  */
@@ -33,7 +35,8 @@ export type GovernanceRecommendationKind =
   | "MONITOR"
   | "REQUEST_ADDITIONAL_EVIDENCE"
   | "REJECT"
-  | "ESCALATE";
+  | "ESCALATE"
+  | "RISK_GATED_REVIEW";
 
 export const GOVERNANCE_RECOMMENDATION_KINDS: readonly GovernanceRecommendationKind[] = [
   "APPROVE",
@@ -41,6 +44,7 @@ export const GOVERNANCE_RECOMMENDATION_KINDS: readonly GovernanceRecommendationK
   "REQUEST_ADDITIONAL_EVIDENCE",
   "REJECT",
   "ESCALATE",
+  "RISK_GATED_REVIEW",
 ];
 
 // ---------------------------------------------------------------------------

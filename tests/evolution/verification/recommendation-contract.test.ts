@@ -13,18 +13,20 @@ import {
 } from "../../../src/evolution/verification/index.js";
 
 describe("GovernanceRecommendationKind", () => {
-  it("has 5 recommendation kinds", () => {
-    assert.strictEqual(GOVERNANCE_RECOMMENDATION_KINDS.length, 5);
+  it("has 6 recommendation kinds", () => {
+    assert.strictEqual(GOVERNANCE_RECOMMENDATION_KINDS.length, 6);
     assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("APPROVE"));
     assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("MONITOR"));
     assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("REQUEST_ADDITIONAL_EVIDENCE"));
     assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("REJECT"));
     assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("ESCALATE"));
+    assert.ok(GOVERNANCE_RECOMMENDATION_KINDS.includes("RISK_GATED_REVIEW"));
   });
 
   it("isValidGovernanceRecommendationKind validates correctly", () => {
     assert.ok(isValidGovernanceRecommendationKind("APPROVE"));
     assert.ok(isValidGovernanceRecommendationKind("ESCALATE"));
+    assert.ok(isValidGovernanceRecommendationKind("RISK_GATED_REVIEW"));
     assert.ok(!isValidGovernanceRecommendationKind("MAYBE"));
     assert.ok(!isValidGovernanceRecommendationKind(""));
   });

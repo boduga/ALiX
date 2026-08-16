@@ -23,6 +23,19 @@ import { CapabilityOverlapAnalyzer } from "../adaptation/capability-overlap-anal
 import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
 import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
+// A9 — pre-execution risk forecast + correlation wiring (CAP-12 carve-out:
+// this file is the ONLY authorized composition-root wiring point for A9).
+import { ProposalEventsAdapter } from "../evolution/a9/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../evolution/a9/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../evolution/a9/adapters/enriched-proposals-adapter.js";
+import { createEnrichedProposalsSource } from "../evolution/a9/adapters/enriched-proposals-source.js";
+import { ForecastEngine } from "../evolution/a9/forecast-engine.js";
+import { ForecastsStore } from "../evolution/a9/forecasts-store.js";
+import { ForecastsAdapter } from "../evolution/a9/forecasts-adapter.js";
+import { CorrelationsStore } from "../evolution/a9/correlations-store.js";
+import { CorrelationsAdapter } from "../evolution/a9/correlations-adapter.js";
+import { CorrelationEngine } from "../evolution/a9/correlation-engine.js";
+import type { EnrichedProposal } from "../adaptation/intelligence-types.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
 import type { CapabilityQuery } from "./registry.js";
@@ -64,12 +77,28 @@ export class CapabilityPlatform {
    *  remains the public surface (CAP-8 ruling #2). */
   readonly measurementEngine?: CapabilityMeasurementEngine;
 
+  /** A9 — pre-execution risk forecast + correlation wiring (additive; CAP-12
+   *  carve-out). Read-only adapters over the platform's SAME EventLog
+   *  (ruling #12) and the A9-owned governance JSONL stores, plus the two
+   *  engines. A9 modules never instantiate EventLog / global infra
+   *  themselves — the composition root does. Correlation stays automatic
+   *  (never an operator mutation command). */
+  readonly a9: {
+    readonly proposalEvents: ProposalEventsAdapter;
+    readonly measurementEvents: MeasurementEventsAdapter;
+    readonly enrichedProposals: EnrichedProposalsAdapter;
+    readonly forecasts: ForecastsAdapter;
+    readonly correlations: CorrelationsAdapter;
+    readonly forecastEngine: ForecastEngine;
+    readonly correlationEngine: CorrelationEngine;
+  };
+
   /** CapabilityPlatform constructor opts (locked ruling #12 — `eventLog`
    *  is REQUIRED; the platform never instantiates an EventLog internally).
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource; a9StoreDir?: string; a9EnrichedProposals?: ReadonlyArray<EnrichedProposal> }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -160,6 +189,40 @@ export class CapabilityPlatform {
     const catalog = this.catalog;
     this.definitions = Object.freeze({
       get: (id: string): CapabilityDefinition | undefined => catalog.get(id),
+    });
+
+    // A9 — pre-execution risk forecast + correlation wiring (additive; CAP-12
+    // carve-out, Phase 18). All read-only adapters are bound to the SAME
+    // EventLog the platform received (ruling #12); stores are A9-owned under
+    // the governance JSONL dir (default `.alix/governance`). Construction is
+    // lazy — no I/O until the adapters/engines are called.
+    const a9StoreDir = opts.a9StoreDir ?? join(process.cwd(), ".alix", "governance");
+    const a9ProposalEvents = new ProposalEventsAdapter(opts.eventLog);
+    const a9MeasurementEvents = new MeasurementEventsAdapter(opts.eventLog);
+    // Real enriched-proposals source: when the caller doesn't inject one, derive
+    // from the standard `.alix` adaptation stores lazily (P10.8a pipeline). A
+    // supplier runs no I/O at construction — only when `.list()` is first
+    // called — and a failed source yields [] (Phase 20). This keeps the
+    // evidence-completeness detector live on the platform surface (review #377).
+    const a9Enriched = new EnrichedProposalsAdapter(
+      opts.a9EnrichedProposals ?? createEnrichedProposalsSource(process.cwd()),
+    );
+    const a9Forecasts = new ForecastsAdapter(new ForecastsStore(a9StoreDir));
+    this.a9 = Object.freeze({
+      proposalEvents: a9ProposalEvents,
+      measurementEvents: a9MeasurementEvents,
+      enrichedProposals: a9Enriched,
+      forecasts: a9Forecasts,
+      correlations: new CorrelationsAdapter(new CorrelationsStore(a9StoreDir)),
+      forecastEngine: new ForecastEngine({
+        proposalEvents: a9ProposalEvents,
+        enrichedProposals: a9Enriched,
+      }),
+      correlationEngine: new CorrelationEngine({
+        forecasts: a9Forecasts,
+        proposalEvents: a9ProposalEvents,
+        measurements: a9MeasurementEvents,
+      }),
     });
   }
 
