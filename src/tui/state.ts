@@ -8,6 +8,10 @@
  */
 export { SessionPhase } from '../agent/session.js';
 
+// Evolution-tab state reuses the canonical evolution-stage / node-type unions
+// from the snapshot contract (single source of truth — no re-declared unions).
+import type { EvolutionNodeType, EvolutionStageName } from './runtime/evolution/evolution-projection-snapshot.js';
+
 export type TabId =
   | 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals'
   | 'runtime' | 'sops' | 'policy' | 'capabilities' | 'evolution';
@@ -126,17 +130,17 @@ export interface PerTabState {
   /** Q-L1 — selected capability in the evolution spine (lazy-init). */
   evolutionSelectedCapabilityId?: string;
   /** Q-L2 — expanded stage within the selected capability's spine. */
-  evolutionExpandedStage?: 'lifecycle' | 'learning' | 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  evolutionExpandedStage?: EvolutionStageName | null;
   /** Q-L3 — read-only inspector target (reference-by-id). */
-  evolutionInspector?: { type: 'forecast' | 'recommendation' | 'decision' | 'measurement' | 'correlation'; id: string } | null;
+  evolutionInspector?: { type: EvolutionNodeType; id: string } | null;
   /** Q-L2 — flat index mode (f key). */
-  evolutionFlatView?: 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  evolutionFlatView?: EvolutionStageName | null;
   /**
    * Q-L2 — stage cursor within the selected capability's spine (right pane).
    * Which of the six stage rows owns the arrow keys when the right pane has
    * focus and no stage is expanded. Defaults to 'lifecycle'.
    */
-  evolutionStageCursor?: 'lifecycle' | 'learning' | 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  evolutionStageCursor?: EvolutionStageName | null;
   /** Q-L2 — artifact cursor within the expanded stage (right pane, deep level). Defaults to 0. */
   evolutionArtifactCursor?: number | null;
   /**

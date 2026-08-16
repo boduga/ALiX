@@ -26,6 +26,7 @@
  * round-trip), and `isDurable` detects it by the presence of both state methods.
  */
 import type { AlixEvent } from '../../../events/types.js';
+import type { LifecycleState } from '../../../adaptation/capability-evolution-types.js';
 import type { EvolutionProjectionSnapshot } from './evolution-projection-snapshot.js';
 import { assembleEvolutionSnapshot, type MeasurementRecord } from './evolution-snapshot-assembler.js';
 import type { CapabilityMeasurementPayload } from '../../../capability/measurement/measurement-event-types.js';
@@ -40,7 +41,7 @@ import type { GovernanceRecommendation } from '../../../evolution/verification/c
  *  satisfied structurally — the projection stays decoupled from HOW each source
  *  persists (JSONL-backed adapters in the composition root). */
 export interface EvolutionReadSources {
-  readonly lifecycle: () => ReadonlyArray<{ capabilityId: string; state: string; eligible: boolean }>;
+  readonly lifecycle: () => ReadonlyArray<{ capabilityId: string; state: LifecycleState; eligible: boolean }>;
   readonly forecasts: () => Promise<ReadonlyArray<A9Forecast>>;
   readonly correlations: () => Promise<ReadonlyArray<A9Correlation>>;
   readonly recommendations: () => Promise<ReadonlyArray<GovernanceRecommendation>>;
@@ -174,7 +175,7 @@ export class EvolutionProjection {
       this.readStage(this.sources.recommendations),
     ]);
     const lifecycle = this.readStageSync(() =>
-      this.sources.lifecycle().map((l) => ({ capabilityId: l.capabilityId, state: l.state as never, eligible: l.eligible })),
+      this.sources.lifecycle().map((l) => ({ capabilityId: l.capabilityId, state: l.state, eligible: l.eligible })),
     );
 
     return assembleEvolutionSnapshot({

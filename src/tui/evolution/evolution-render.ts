@@ -14,13 +14,16 @@ import type {
   DecisionRow,
   EvolutionNodeType,
   EvolutionProjectionSnapshot,
+  EvolutionStageName,
   StageState,
+  StageStatus,
 } from '../runtime/evolution/evolution-projection-snapshot.js';
 import { truncate } from '../box.js';
 
-/** Q-L2 — the six spine stages, in display order (also the stage cursor cycle). */
-export const EVOLUTION_STAGE_ORDER = ['lifecycle', 'learning', 'forecasts', 'decisions', 'measurements', 'correlations'] as const;
-export type EvolutionStageName = (typeof EVOLUTION_STAGE_ORDER)[number];
+/** Q-L2 — the six spine stages, in display order (also the stage cursor cycle).
+ *  The stage-name union itself is canonical in the snapshot contract. */
+export const EVOLUTION_STAGE_ORDER: readonly EvolutionStageName[] = ['lifecycle', 'learning', 'forecasts', 'decisions', 'measurements', 'correlations'];
+export type { EvolutionStageName };
 
 export interface EvolutionRenderState {
   readonly evolutionSelectedCapabilityId?: string;
@@ -71,12 +74,10 @@ export function renderEvolution(
   // arrow keys and is rendered with a `>` marker.
   const cursorStage = state.evolutionStageCursor ?? 'lifecycle';
   rows.push(`capability ${spine.capabilityId}`);
-  rows.push(stageLine('lifecycle', spine.lifecycle ? [spine.lifecycle.capabilityId] : [], spine.lifecycle ? 'available' : 'empty', 'lifecycle', state.evolutionExpandedStage, cursorStage));
-  rows.push(stageLine('learning', spine.learning.items, spine.learning.status, 'learning', state.evolutionExpandedStage, cursorStage));
-  rows.push(stageLine('forecasts', spine.forecasts.items, spine.forecasts.status, 'forecasts', state.evolutionExpandedStage, cursorStage));
-  rows.push(stageLine('decisions', spine.decisions.items, spine.decisions.status, 'decisions', state.evolutionExpandedStage, cursorStage));
-  rows.push(stageLine('measurements', spine.measurements.items, spine.measurements.status, 'measurements', state.evolutionExpandedStage, cursorStage));
-  rows.push(stageLine('correlations', spine.correlations.items, spine.correlations.status, 'correlations', state.evolutionExpandedStage, cursorStage));
+  for (const stage of EVOLUTION_STAGE_ORDER) {
+    const { items, status } = stageState(spine, stage);
+    rows.push(stageLine(stage, items, status, state.evolutionExpandedStage, cursorStage));
+  }
 
   if (state.evolutionExpandedStage) {
     rows.push('');
@@ -91,23 +92,33 @@ export function renderEvolution(
   return rows;
 }
 
-/** Q-L4c/Q-L4b — collapsed stage line: "N artifacts" + status; learning uses
- *  the live-pattern format (Q-L4b). available/empty/unavailable distinct —
- *  an unavailable stage NEVER renders as an empty section (Q-L2/Q-C3b). */
+/** Q-L4c/Q-L4b — collapsed stage line: "N artifacts" + status. Learning uses
+ *  the live-pattern format (Q-L4b): available ⇒ "N patterns (computed live)",
+ *  empty ⇒ "0 patterns", failure ⇒ UNAVAILABLE (never a false "0 patterns").
+ *  Status stays visually distinct — an unavailable stage never renders as an
+ *  empty section (Q-L2/Q-C3b). */
 function stageLine(
-  name: string,
+  stage: EvolutionStageName,
   items: readonly unknown[],
-  status: string,
-  stage: string,
+  status: StageStatus,
   expanded: string | null | undefined,
   cursorStage: string,
 ): string {
   const n = items.length;
-  const label = name === 'learning'
-    ? `LEARNING — ${n} pattern${n === 1 ? '' : 's'} (computed live)`
-    : `${name} — ${n} artifact${n === 1 ? '' : 's'}`;
+  let label: string;
+  if (stage === 'learning' && status === 'unavailable') {
+    label = 'LEARNING — UNAVAILABLE';
+  } else if (stage === 'learning') {
+    label = `LEARNING — ${n} pattern${n === 1 ? '' : 's'} (computed live)`;
+  } else {
+    label = `${stage} — ${n} artifact${n === 1 ? '' : 's'}`;
+  }
   const open = expanded === stage ? '▼' : '▶';
-  const statusSuffix = status === 'unavailable' ? ' (unavailable)' : status === 'empty' ? ' (empty)' : '';
+  // Learning's UNAVAILABLE / "0 patterns" labels already carry the status —
+  // no redundant suffix. Other stages suffix unavailable/empty distinctly.
+  const statusSuffix = status === 'unavailable' || status === 'empty'
+    ? (stage === 'learning' ? '' : ` (${status})`)
+    : '';
   const cursorMark = cursorStage === stage ? '>' : ' ';
   return `${cursorMark} ${open} ${label}${statusSuffix}`;
 }
@@ -122,16 +133,25 @@ function riskMarker(s: { forecasts: StageState<{ band: string }> }): string {
 /** Resolve a spine stage to its artifact array (lifecycle is a nullable row,
  *  not a StageState — normalize it to a one-or-zero item array). Exported so
  *  the view can resolve the artifact under the cursor (Q-L3 selection). */
-export function evolutionStageItems(spine: CapabilitySpineEntry, stage: string): readonly unknown[] {
+/** Resolve a spine stage to its items + status — single source of truth for
+ *  both the collapsed-stage lines and the Q-L3 artifact cursor. lifecycle is a
+ *  nullable row, not a StageState — normalized to a one-or-zero item array. */
+function stageState(spine: CapabilitySpineEntry, stage: EvolutionStageName): { items: readonly unknown[]; status: StageStatus } {
   switch (stage) {
-    case 'lifecycle': return spine.lifecycle ? [spine.lifecycle] : [];
-    case 'learning': return spine.learning.items;
-    case 'forecasts': return spine.forecasts.items;
-    case 'decisions': return spine.decisions.items;
-    case 'measurements': return spine.measurements.items;
-    case 'correlations': return spine.correlations.items;
-    default: return [];
+    case 'lifecycle': return { items: spine.lifecycle ? [spine.lifecycle] : [], status: spine.lifecycle ? 'available' : 'empty' };
+    case 'learning': return { items: spine.learning.items, status: spine.learning.status };
+    case 'forecasts': return { items: spine.forecasts.items, status: spine.forecasts.status };
+    case 'decisions': return { items: spine.decisions.items, status: spine.decisions.status };
+    case 'measurements': return { items: spine.measurements.items, status: spine.measurements.status };
+    case 'correlations': return { items: spine.correlations.items, status: spine.correlations.status };
+    default: return { items: [], status: 'unavailable' };
   }
+}
+
+/** Items of a stage — exported so the view can resolve the artifact under the
+ *  cursor (Q-L3 selection). */
+export function evolutionStageItems(spine: CapabilitySpineEntry, stage: string): readonly unknown[] {
+  return stageState(spine, stage as EvolutionStageName).items;
 }
 
 /** Q-L3 — which inspectable node type a stage's artifacts carry. lifecycle /

@@ -24,6 +24,16 @@ export interface StageState<T> {
   readonly items: readonly T[];
 }
 
+/** The six evolution-loop stages — the canonical stage-name union (Q-L1..L4),
+ *  shared by the snapshot, the view state (`PerTabState`), and the renderer. */
+export type EvolutionStageName =
+  | 'lifecycle'
+  | 'learning'
+  | 'forecasts'
+  | 'decisions'
+  | 'measurements'
+  | 'correlations';
+
 /** A7 lifecycle row (canonical registry state, eligibility is a pure lookup). */
 export interface LifecycleRow {
   readonly capabilityId: string;

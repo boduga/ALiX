@@ -1039,16 +1039,21 @@ describe('TuiApp — evolution tab keys (Task 7 stage cursor regression)', () =>
     state.activeTab = 'evolution'; // tab-cycling lands here
     const ev = state.views.evolution;
 
-    // Drive the drill-down path through handleRaw (Enter is not intercepted by
-    // global navigation; q would be — it quits the process on non-input tabs).
+    // Drive the drill-down path through handleRaw. Enter is not intercepted by
+    // global navigation. q IS exempt from the global non-input-tab q-quit on
+    // this tab (app.ts tryHandleGlobal) so it reaches the view and returns to
+    // the spine root instead of terminating the process (Q-L2).
     internal.handleRaw(Buffer.from([0x0d])); // Enter: capability focus → stage focus
     internal.handleRaw(Buffer.from('j'));
     internal.handleRaw(Buffer.from('j'));    // stage cursor → forecasts
     internal.handleRaw(Buffer.from([0x0d])); // Enter: expand forecasts
     expect(ev.evolutionExpandedStage).toBe('forecasts');
     internal.handleRaw(Buffer.from('k'));    // artifact cursor (clamped, single item)
+    internal.handleRaw(Buffer.from('q'));    // q → spine (must NOT process.exit)
+    expect(ev.evolutionFocus).toBe('capability');
+    expect(ev.evolutionExpandedStage).toBeNull();
     internal.handleRaw(Buffer.from('f'));    // flat toggle
-    internal.handleRaw(Buffer.from('c'));    // spine root
+    internal.handleRaw(Buffer.from('c'));    // spine root (idempotent)
 
     // Frame-painter views[activeTab]! path: Ctrl+l repaints the active view.
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);

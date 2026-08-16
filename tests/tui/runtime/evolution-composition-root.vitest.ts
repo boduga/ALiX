@@ -11,63 +11,7 @@ import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
 import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
 import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
 import { EvolutionProjection } from '../../../src/tui/runtime/evolution/evolution-projection.js';
-import { EventLogCursorError } from '../../../src/events/event-log.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
-import type { AlixEvent } from '../../../src/events/types.js';
-import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-
-const SESSION_ID = 's';
-
-// ---- In-memory EventLog fake (same harness as runtime-collector-sessionless
-// and runtime-collector tests). `readSince` mirrors the real EventLog: a cursor
-// whose seq lies past the head throws EventLogCursorError; serialized cursors
-// round-trip through the same versioned JSON envelope.
-function makeEventLog(): { log: EventLog; append: (type: string, payload?: Record<string, unknown>, sessionId?: string) => Promise<void> } {
-  let seq = 0;
-  const events: AlixEvent[] = [];
-  const owner = Symbol('test-owner');
-  const makeCursor = (s: number) => ({ seq: s, owner }) as unknown as EventLogCursor;
-  const beginning = makeCursor(0);
-  const log = {
-    beginningCursor: () => beginning,
-    getCursor: () => makeCursor(seq),
-    readSince: async (c: EventLogCursor) => {
-      const internal = c as unknown as { seq: number; owner: symbol };
-      if (internal.owner !== owner) throw new Error('foreign');
-      if (internal.seq > seq) throw new EventLogCursorError('Cursor position beyond current EventLog head');
-      const newer = events.filter(e => e.seq > internal.seq);
-      const last = newer.length ? newer[newer.length - 1]!.seq : internal.seq;
-      return { events: newer, cursor: makeCursor(last) };
-    },
-    cursorsEqual: (a: EventLogCursor, b: EventLogCursor) =>
-      (a as unknown as { seq: number }).seq === (b as unknown as { seq: number }).seq,
-    serializeCursor: (c: EventLogCursor) => JSON.stringify({ version: 1, seq: (c as unknown as { seq: number }).seq }),
-    deserializeCursor: (s: string) => {
-      const p = JSON.parse(s) as { version: number; seq: number };
-      if (p.version !== 1) throw new Error('unknown version');
-      if (p.seq > seq) throw new EventLogCursorError('Serialized cursor position is beyond the current EventLog head');
-      return makeCursor(p.seq);
-    },
-  } as unknown as EventLog;
-  return {
-    log,
-    append: async (type, payload = {}, sessionId = SESSION_ID) => {
-      seq++;
-      events.push({ id: `e${seq}`, seq, version: 1, sessionId, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload });
-    },
-  };
-}
-
-/** In-memory ProjectionCheckpointStore. */
-function makeCheckpointStore(): ProjectionCheckpointStore & { saved: Array<{ cursor: string; committedAt: number }> } {
-  let stored: PersistedProjectionCheckpoint | null = null;
-  const saved: Array<{ cursor: string; committedAt: number }> = [];
-  return {
-    saved,
-    async load() { return stored; },
-    async save(cp) { stored = cp; saved.push(cp); },
-  };
-}
+import { makeEventLog, makeCheckpointStore, SESSION_ID } from './collector-harness.js';
 
 /** The composition-root source wiring — in-memory stand-ins for the tui.ts
  *  platform/a9/governance reads (lifecycle/forecasts/correlations empty; A8

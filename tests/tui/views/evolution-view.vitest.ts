@@ -74,6 +74,16 @@ describe('renderEvolution', () => {
     expect(rows.some((r) => r.includes('LEARNING') && r.includes('1 pattern'))).toBe(true);
   });
 
+  it('renders learning as UNAVAILABLE (never "0 patterns") when the live recompute failed (Q-L4b)', () => {
+    const rows = renderEvolution({
+      ...snap,
+      spine: [{ ...snap.spine[0], learning: { status: 'unavailable', items: [] } }],
+      stages: { ...snap.stages, learning: { status: 'unavailable', items: [] } },
+    } as any, { evolutionSelectedCapabilityId: 'cap-a' } as any, { columns: 120, rows: 40 });
+    expect(rows.some((r) => r.includes('LEARNING') && r.includes('UNAVAILABLE'))).toBe(true);
+    expect(rows.some((r) => r.includes('LEARNING') && r.includes('0 patterns'))).toBe(false);
+  });
+
   it('caps expanded stage at 10 with "+N more" (Q-L4c — presentation limit)', () => {
     const many = Array.from({ length: 13 }, (_, i) => ({ findingId: `f${i}`, kind: 'underperformer', occurrences: 1, summary: `s${i}` }));
     const rows = renderEvolution({
