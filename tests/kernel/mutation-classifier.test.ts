@@ -35,7 +35,7 @@ describe("classifyCapabilities", () => {
   });
 
   it("matches capability IDs", () => {
-    assert.equal(classifyCapabilities(["filesystem.create"], registry), "known-write");
+    assert.equal(classifyCapabilities(["filesystem.write"], registry), "known-write");
   });
 
   it("known-write wins over unknown capability", () => {

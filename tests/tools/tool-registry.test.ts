@@ -18,6 +18,7 @@ test("ToolRegistry.register and lookup", () => {
   const cap: ToolCapability = {
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read file contents",
     risk: "low",
     domain: "filesystem",
@@ -43,6 +44,7 @@ test("ToolRegistry.lookupByName returns capability for plain string", () => {
   const cap: ToolCapability = {
     name: "shell.run",
     capabilityId: "shell.exec",
+    policyKey: "shell.run",
     description: "Execute a shell command",
     risk: "high",
     domain: "shell",
@@ -69,6 +71,7 @@ test("ToolRegistry.getAll returns all registered tools", () => {
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -79,6 +82,7 @@ test("ToolRegistry.getAll returns all registered tools", () => {
   registry.register({
     name: "done",
     capabilityId: "task.complete",
+    policyKey: "task.complete",
     description: "Done",
     risk: "low",
     domain: "system",
@@ -95,6 +99,7 @@ test("ToolRegistry.getByDomain filters correctly", () => {
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -105,6 +110,7 @@ test("ToolRegistry.getByDomain filters correctly", () => {
   registry.register({
     name: "shell.run",
     capabilityId: "shell.exec",
+    policyKey: "shell.run",
     description: "Run",
     risk: "high",
     domain: "shell",
@@ -127,6 +133,7 @@ test("ToolRegistry.getByRisk filters correctly", () => {
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -137,6 +144,7 @@ test("ToolRegistry.getByRisk filters correctly", () => {
   registry.register({
     name: "file.delete",
     capabilityId: "filesystem.write",
+    policyKey: "file.write",
     description: "Delete",
     risk: "high",
     domain: "filesystem",
@@ -160,6 +168,7 @@ test("ToolRegistry.getMutating returns only mutating tools", () => {
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -170,6 +179,7 @@ test("ToolRegistry.getMutating returns only mutating tools", () => {
   registry.register({
     name: "file.create",
     capabilityId: "filesystem.write",
+    policyKey: "file.write",
     description: "Create",
     risk: "medium",
     domain: "filesystem",
@@ -179,7 +189,8 @@ test("ToolRegistry.getMutating returns only mutating tools", () => {
   });
   registry.register({
     name: "patch.apply",
-    capabilityId: "code.patch",
+    capabilityId: "patch.apply",
+    policyKey: "patch.apply",
     description: "Patch",
     risk: "high",
     domain: "code",
@@ -200,6 +211,7 @@ test("ToolRegistry.getEssential returns only alwaysInclude tools", () => {
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -210,6 +222,7 @@ test("ToolRegistry.getEssential returns only alwaysInclude tools", () => {
   registry.register({
     name: "file.create",
     capabilityId: "filesystem.write",
+    policyKey: "file.write",
     description: "Create",
     risk: "medium",
     domain: "filesystem",
@@ -220,6 +233,7 @@ test("ToolRegistry.getEssential returns only alwaysInclude tools", () => {
   registry.register({
     name: "done",
     capabilityId: "task.complete",
+    policyKey: "task.complete",
     description: "Done",
     risk: "low",
     domain: "system",
@@ -244,6 +258,7 @@ test("CapabilityIndex.findByTag returns tools for a tag", () => {
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -264,6 +279,7 @@ test("CapabilityIndex.findByTags returns union of tags", () => {
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -274,6 +290,7 @@ test("CapabilityIndex.findByTags returns union of tags", () => {
   idx.index({
     name: "file.delete",
     capabilityId: "filesystem.write",
+    policyKey: "file.write",
     description: "Delete",
     risk: "high",
     domain: "filesystem",
@@ -293,6 +310,7 @@ test("CapabilityIndex.getAllTags returns all registered tags", () => {
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -312,6 +330,7 @@ test("CapabilityIndex.findByTag returns empty array for unknown tag", () => {
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -329,6 +348,7 @@ test("CapabilityIndex.findByTag returns a copy — mutating result does not affe
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -359,6 +379,7 @@ test("ToolRetriever.selectForIntent includes essential tools plus tag matches", 
   registry.register({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -369,6 +390,7 @@ test("ToolRetriever.selectForIntent includes essential tools plus tag matches", 
   registry.register({
     name: "shell.run",
     capabilityId: "shell.exec",
+    policyKey: "shell.run",
     description: "Shell",
     risk: "high",
     domain: "shell",
@@ -380,6 +402,7 @@ test("ToolRetriever.selectForIntent includes essential tools plus tag matches", 
   idx.index({
     name: "file.read",
     capabilityId: "filesystem.read",
+    policyKey: "file.read",
     description: "Read",
     risk: "low",
     domain: "filesystem",
@@ -390,6 +413,7 @@ test("ToolRetriever.selectForIntent includes essential tools plus tag matches", 
   idx.index({
     name: "shell.run",
     capabilityId: "shell.exec",
+    policyKey: "shell.run",
     description: "Shell",
     risk: "high",
     domain: "shell",
@@ -429,37 +453,63 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(fsTools.every(t => t.domain === "filesystem"));
 
   const systemTools = retriever.selectForDomain("system");
-  assert.strictEqual(systemTools.length, 1);
-  assert.strictEqual(systemTools[0].name, "done");
+  assert.strictEqual(systemTools.length, 5);
+  assert.ok(systemTools.every(t => t.domain === "system"));
+  assert.ok(systemTools.some(t => t.name === "done"));
+  assert.ok(systemTools.some(t => t.name === "create_skill"));
+  assert.ok(systemTools.some(t => t.name === "list_extensions"));
+  assert.ok(systemTools.some(t => t.name === "inspect_extension"));
+  assert.ok(systemTools.some(t => t.name === "create_hook"));
 });
 
 test("ToolRetriever.selectForDomain returns empty array when domain has no tools", () => {
   const { registry, index } = buildDefaultToolIndex();
   const retriever = new ToolRetriever(registry, index);
 
+  // "memory" and "policy" have no default entries
+  const memoryTools = retriever.selectForDomain("memory" as ToolDomain);
+  assert.deepStrictEqual(memoryTools, []);
+  const policyTools = retriever.selectForDomain("policy" as ToolDomain);
+  assert.deepStrictEqual(policyTools, []);
+});
+
+test("ToolRetriever.selectForDomain returns web tools in the network domain", () => {
+  const { registry, index } = buildDefaultToolIndex();
+  const retriever = new ToolRetriever(registry, index);
+
   const networkTools = retriever.selectForDomain("network" as ToolDomain);
-  assert.deepStrictEqual(networkTools, []);
+  assert.strictEqual(networkTools.length, 2);
+  const names = networkTools.map(t => t.name).sort();
+  assert.deepStrictEqual(names, ["web_fetch", "web_search"]);
 });
 
 // ---------------------------------------------------------------------------
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 8 tools", () => {
+test("buildDefaultToolIndex registers 16 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 8);
+  assert.strictEqual(all.length, 16);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
+    "create_hook",
+    "create_skill",
+    "delegate",
     "dir.search",
     "done",
     "file.create",
     "file.delete",
     "file.exists",
     "file.read",
+    "inspect_extension",
+    "list_extensions",
+    "mcp.*",
     "patch.apply",
     "shell.run",
+    "web_fetch",
+    "web_search",
   ]);
 });
 
@@ -469,11 +519,12 @@ test("buildDefaultToolIndex indexes all tags", () => {
 
   // Verify all expected tags are present
   const expectedTags = [
-    "check", "code", "command", "complete", "config",
-    "create", "delete", "directory", "done", "edit",
-    "execute", "file", "finish", "modify", "patch",
-    "read", "remove", "run", "search", "shell",
-    "write",
+    "agent", "check", "code", "command", "complete", "config",
+    "create", "delete", "delegate", "directory", "done", "edit",
+    "execute", "extension", "fetch", "file", "finish", "hook",
+    "inspect", "list", "mcp", "modify", "patch", "read",
+    "remove", "run", "search", "self-extend", "shell", "skill",
+    "subtask", "tool", "web", "write",
   ];
   for (const tag of expectedTags) {
     assert.ok(tags.includes(tag), `Expected tag "${tag}" to be indexed`);
