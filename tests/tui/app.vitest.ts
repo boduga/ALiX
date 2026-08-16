@@ -1009,3 +1009,51 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
     for (const e of events) expect(e.sessionId).toBe('sess-agent');
   });
 });
+
+describe('TuiApp — evolution tab keys (Task 7 stage cursor regression)', () => {
+  it('tab-cycling to evolution and pressing keys never crashes (frame-painter views[activeTab] path)', async () => {
+    const { internal } = await makeApp({});
+    const state = internal.getStateForTest() as any;
+    const evolutionSnap = {
+      generatedAt: 1_700_000_000_000,
+      stages: {
+        lifecycle: { status: 'available', items: [{ capabilityId: 'cap-a', state: 'active', eligible: true }] },
+        learning: { status: 'empty', items: [] },
+        forecasts: { status: 'available', items: [{ forecastId: 'forecast-1', kind: 'trust-velocity', band: 'high', confidence: 0.8, subject: 'p1', subjectCapability: 'cap-a' }] },
+        decisions: { status: 'available', items: [{ recommendationId: 'rec-1', recommendationKind: 'RISK_GATED_REVIEW', proposalId: 'p1', confidence: 0.7, projectedDecision: 'REQUEST_MORE_EVIDENCE', targetState: 'UNDER_REVIEW' }] },
+        measurements: { status: 'available', items: [{ measurementId: 'measurement-1', capabilityId: 'cap-a', recordedAt: '2026-08-10', status: 'pass', outcomeKind: 'effective', confidence: 0.9 }] },
+        correlations: { status: 'empty', items: [] },
+      },
+      spine: [{
+        capabilityId: 'cap-a',
+        lifecycle: { capabilityId: 'cap-a', state: 'active', eligible: true },
+        learning: { status: 'empty', items: [] },
+        forecasts: { status: 'available', items: [{ forecastId: 'forecast-1', kind: 'trust-velocity', band: 'high', confidence: 0.8, subject: 'p1', subjectCapability: 'cap-a' }] },
+        decisions: { status: 'available', items: [{ recommendationId: 'rec-1', recommendationKind: 'RISK_GATED_REVIEW', proposalId: 'p1', confidence: 0.7, projectedDecision: 'REQUEST_MORE_EVIDENCE', targetState: 'UNDER_REVIEW' }] },
+        measurements: { status: 'available', items: [{ measurementId: 'measurement-1', capabilityId: 'cap-a', recordedAt: '2026-08-10', status: 'pass', outcomeKind: 'effective', confidence: 0.9 }] },
+        correlations: { status: 'empty', items: [] },
+      }],
+      links: [],
+    };
+    state.lastSnapshot = { ...state.lastSnapshot, runtime: { evolution: evolutionSnap } };
+    state.activeTab = 'evolution'; // tab-cycling lands here
+    const ev = state.views.evolution;
+
+    // Drive the drill-down path through handleRaw (Enter is not intercepted by
+    // global navigation; q would be — it quits the process on non-input tabs).
+    internal.handleRaw(Buffer.from([0x0d])); // Enter: capability focus → stage focus
+    internal.handleRaw(Buffer.from('j'));
+    internal.handleRaw(Buffer.from('j'));    // stage cursor → forecasts
+    internal.handleRaw(Buffer.from([0x0d])); // Enter: expand forecasts
+    expect(ev.evolutionExpandedStage).toBe('forecasts');
+    internal.handleRaw(Buffer.from('k'));    // artifact cursor (clamped, single item)
+    internal.handleRaw(Buffer.from('f'));    // flat toggle
+    internal.handleRaw(Buffer.from('c'));    // spine root
+
+    // Frame-painter views[activeTab]! path: Ctrl+l repaints the active view.
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    internal.handleRaw(Buffer.from([0x0c])); // Ctrl+l → paintFullFrame
+    expect(writeSpy).toHaveBeenCalled();
+    writeSpy.mockRestore();
+  });
+});

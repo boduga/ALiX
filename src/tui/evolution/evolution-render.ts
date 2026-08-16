@@ -5,7 +5,9 @@
  *
  * Stage health is read from the projection's real `StageState.status`:
  * `unavailable` renders `(unavailable)` and NEVER `(empty)` (Q-L2/Q-C3b).
- * No I/O, no clocks — `generatedAt` comes from the snapshot.
+ * The stage cursor (Q-L2, right pane) and the artifact cursor (inside an
+ * expanded stage) are rendered as `>` markers. No I/O, no clocks —
+ * `generatedAt` comes from the snapshot.
  */
 import type {
   CapabilitySpineEntry,
@@ -16,11 +18,17 @@ import type {
 } from '../runtime/evolution/evolution-projection-snapshot.js';
 import { truncate } from '../box.js';
 
+/** Q-L2 — the six spine stages, in display order (also the stage cursor cycle). */
+export const EVOLUTION_STAGE_ORDER = ['lifecycle', 'learning', 'forecasts', 'decisions', 'measurements', 'correlations'] as const;
+export type EvolutionStageName = (typeof EVOLUTION_STAGE_ORDER)[number];
+
 export interface EvolutionRenderState {
   readonly evolutionSelectedCapabilityId?: string;
   readonly evolutionExpandedStage?: string | null;
   readonly evolutionInspector?: { type: EvolutionNodeType; id: string } | null;
   readonly evolutionFlatView?: string | null;
+  readonly evolutionStageCursor?: string | null;
+  readonly evolutionArtifactCursor?: number | null;
 }
 export interface EvolutionDimensions { readonly columns: number; readonly rows: number; }
 
@@ -58,18 +66,21 @@ export function renderEvolution(
   }
   rows.push('');
 
-  // Right: selected capability's spine, stage-collapsed (Q-L2).
+  // Right: selected capability's spine, stage-collapsed (Q-L2). The stage
+  // cursor (evolutionStageCursor, default 'lifecycle') owns the right pane's
+  // arrow keys and is rendered with a `>` marker.
+  const cursorStage = state.evolutionStageCursor ?? 'lifecycle';
   rows.push(`capability ${spine.capabilityId}`);
-  rows.push(stageLine('lifecycle', spine.lifecycle ? [spine.lifecycle.capabilityId] : [], spine.lifecycle ? 'available' : 'empty', 'lifecycle', state.evolutionExpandedStage));
-  rows.push(stageLine('learning', spine.learning.items, spine.learning.status, 'learning', state.evolutionExpandedStage));
-  rows.push(stageLine('forecasts', spine.forecasts.items, spine.forecasts.status, 'forecasts', state.evolutionExpandedStage));
-  rows.push(stageLine('decisions', spine.decisions.items, spine.decisions.status, 'decisions', state.evolutionExpandedStage));
-  rows.push(stageLine('measurements', spine.measurements.items, spine.measurements.status, 'measurements', state.evolutionExpandedStage));
-  rows.push(stageLine('correlations', spine.correlations.items, spine.correlations.status, 'correlations', state.evolutionExpandedStage));
+  rows.push(stageLine('lifecycle', spine.lifecycle ? [spine.lifecycle.capabilityId] : [], spine.lifecycle ? 'available' : 'empty', 'lifecycle', state.evolutionExpandedStage, cursorStage));
+  rows.push(stageLine('learning', spine.learning.items, spine.learning.status, 'learning', state.evolutionExpandedStage, cursorStage));
+  rows.push(stageLine('forecasts', spine.forecasts.items, spine.forecasts.status, 'forecasts', state.evolutionExpandedStage, cursorStage));
+  rows.push(stageLine('decisions', spine.decisions.items, spine.decisions.status, 'decisions', state.evolutionExpandedStage, cursorStage));
+  rows.push(stageLine('measurements', spine.measurements.items, spine.measurements.status, 'measurements', state.evolutionExpandedStage, cursorStage));
+  rows.push(stageLine('correlations', spine.correlations.items, spine.correlations.status, 'correlations', state.evolutionExpandedStage, cursorStage));
 
   if (state.evolutionExpandedStage) {
     rows.push('');
-    rows.push(...expandStage(state.evolutionExpandedStage, stageItems(spine, state.evolutionExpandedStage)));
+    rows.push(...expandStage(state.evolutionExpandedStage, evolutionStageItems(spine, state.evolutionExpandedStage), state.evolutionArtifactCursor ?? 0));
   }
 
   if (state.evolutionInspector) {
@@ -89,6 +100,7 @@ function stageLine(
   status: string,
   stage: string,
   expanded: string | null | undefined,
+  cursorStage: string,
 ): string {
   const n = items.length;
   const label = name === 'learning'
@@ -96,7 +108,8 @@ function stageLine(
     : `${name} — ${n} artifact${n === 1 ? '' : 's'}`;
   const open = expanded === stage ? '▼' : '▶';
   const statusSuffix = status === 'unavailable' ? ' (unavailable)' : status === 'empty' ? ' (empty)' : '';
-  return `  ${open} ${label}${statusSuffix}`;
+  const cursorMark = cursorStage === stage ? '>' : ' ';
+  return `${cursorMark} ${open} ${label}${statusSuffix}`;
 }
 
 function riskMarker(s: { forecasts: StageState<{ band: string }> }): string {
@@ -107,8 +120,9 @@ function riskMarker(s: { forecasts: StageState<{ band: string }> }): string {
 }
 
 /** Resolve a spine stage to its artifact array (lifecycle is a nullable row,
- *  not a StageState — normalize it to a one-or-zero item array). */
-function stageItems(spine: CapabilitySpineEntry, stage: string): readonly unknown[] {
+ *  not a StageState — normalize it to a one-or-zero item array). Exported so
+ *  the view can resolve the artifact under the cursor (Q-L3 selection). */
+export function evolutionStageItems(spine: CapabilitySpineEntry, stage: string): readonly unknown[] {
   switch (stage) {
     case 'lifecycle': return spine.lifecycle ? [spine.lifecycle] : [];
     case 'learning': return spine.learning.items;
@@ -120,27 +134,46 @@ function stageItems(spine: CapabilitySpineEntry, stage: string): readonly unknow
   }
 }
 
+/** Q-L3 — which inspectable node type a stage's artifacts carry. lifecycle /
+ *  learning have no node type in the projection and cannot be inspected. */
+export function evolutionStageNodeType(stage: string): EvolutionNodeType | null {
+  switch (stage) {
+    case 'forecasts': return 'forecast';
+    case 'decisions': return 'recommendation'; // DecisionRow is a canonical recommendation row (keyed by recommendationId)
+    case 'measurements': return 'measurement';
+    case 'correlations': return 'correlation';
+    default: return null;
+  }
+}
+
 /** Q-L4a — expanded stage: first 10 artifacts + "… +N more". Decisions render
- *  the RECOMMENDATION / PROJECTED DECISION / TARGET STATE triple. */
-function expandStage(stage: string, items: readonly unknown[]): string[] {
+ *  the RECOMMENDATION / PROJECTED DECISION / TARGET STATE triple. The artifact
+ *  cursor (Q-L2) is rendered as a `>` marker. */
+function expandStage(stage: string, items: readonly unknown[], cursor: number): string[] {
   const shown = items.slice(0, EXPANSION_CAP);
   const more = items.length - shown.length;
   const out: string[] = [];
   if (stage === 'decisions') {
-    for (const it of shown) {
-      const d = it as DecisionRow;
-      out.push(`    RECOMMENDATION ${d.recommendationKind} (${d.recommendationId})`);
-      out.push(`    PROJECTED DECISION ${d.projectedDecision ?? '—'}`);
-      out.push(`    TARGET STATE ${d.targetState ?? '—'}`);
+    for (let i = 0; i < shown.length; i++) {
+      const d = shown[i] as DecisionRow;
+      const mark = i === cursor ? '>' : ' ';
+      out.push(`  ${mark} RECOMMENDATION ${d.recommendationKind} (${d.recommendationId})`);
+      out.push(`  ${mark} PROJECTED DECISION ${d.projectedDecision ?? '—'}`);
+      out.push(`  ${mark} TARGET STATE ${d.targetState ?? '—'}`);
     }
   } else {
-    for (const it of shown) out.push(`    ${displayId(it)}`);
+    for (let i = 0; i < shown.length; i++) {
+      const mark = i === cursor ? '>' : ' ';
+      out.push(`  ${mark} ${displayId(shown[i])}`);
+    }
   }
   if (more > 0) out.push(`    … +${more} more`);
   return out;
 }
 
-function displayId(it: unknown): string {
+/** Canonical artifact id for a stage row. Exported so the view can build the
+ *  Q-L3 inspector target `{ type, id }` for the artifact under the cursor. */
+export function displayId(it: unknown): string {
   if (it && typeof it === 'object') {
     const r = it as Record<string, unknown>;
     return (r.forecastId as string) ?? (r.recommendationId as string) ?? (r.measurementId as string) ?? (r.correlationId as string) ?? (r.findingId as string) ?? (r.capabilityId as string) ?? (r.id as string) ?? '?';

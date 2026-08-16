@@ -131,6 +131,20 @@ export interface PerTabState {
   evolutionInspector?: { type: 'forecast' | 'recommendation' | 'decision' | 'measurement' | 'correlation'; id: string } | null;
   /** Q-L2 — flat index mode (f key). */
   evolutionFlatView?: 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  /**
+   * Q-L2 — stage cursor within the selected capability's spine (right pane).
+   * Which of the six stage rows owns the arrow keys when the right pane has
+   * focus and no stage is expanded. Defaults to 'lifecycle'.
+   */
+  evolutionStageCursor?: 'lifecycle' | 'learning' | 'forecasts' | 'decisions' | 'measurements' | 'correlations' | null;
+  /** Q-L2 — artifact cursor within the expanded stage (right pane, deep level). Defaults to 0. */
+  evolutionArtifactCursor?: number | null;
+  /**
+   * Q-L2 — which pane owns the arrow keys (hierarchy depth). 'capability' =
+   * left capability list, 'stage' = right spine's six stage rows, 'artifact' =
+   * the expanded stage's artifact list. Esc ascends one level, Enter descends.
+   */
+  evolutionFocus?: 'capability' | 'stage' | 'artifact' | null;
   /** Active execution-trace filter on the Runtime tab. Default 'all'. */
   runtimeTraceFilter: RuntimeTraceFilter;
   /**
@@ -193,6 +207,9 @@ export function createInitialPerTabState(): PerTabState {
     evolutionExpandedStage: null,
     evolutionInspector: null,
     evolutionFlatView: null,
+    evolutionStageCursor: 'lifecycle',
+    evolutionArtifactCursor: 0,
+    evolutionFocus: 'capability',
     streamingActive: false,
   };
 }
