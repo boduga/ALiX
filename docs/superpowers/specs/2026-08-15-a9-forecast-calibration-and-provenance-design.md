@@ -331,7 +331,7 @@ proposal.submitted.proposalId
 
 A9Forecast.subjectCapability
         =
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 
 A9Forecast.subjectCapability
         =
@@ -460,7 +460,7 @@ export interface A9Forecast {
   /**
    * Immutable capability-target snapshot copied from:
    *
-   * proposal.submitted.payload.target.id
+   * proposal.submitted.payload.candidate.target.id
    *
    * This is a derived bridge attribute, not an independent
    * source of truth.
@@ -647,7 +647,7 @@ The canonical proposal bridge is:
 
 ```text
 proposal.submitted.proposalId
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 The adapter also exposes the canonical:
@@ -1042,7 +1042,7 @@ The forecast stores `subjectCapability` as an immutable derived bridge value.
 The authoritative source for that value is:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 The stored `subjectCapability` is a snapshot.
@@ -1141,7 +1141,7 @@ proposal.submitted.proposalId
 and verify:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ==
 forecast.subjectCapability
 ```
@@ -1741,7 +1741,7 @@ proposal.submitted.proposalId
 ```text
 forecast.subjectCapability
 ==
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 ### Execution gate
@@ -1874,7 +1874,7 @@ proposal.submitted.proposalId
 ==
 forecast.subject
 
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ==
 forecast.subjectCapability
 

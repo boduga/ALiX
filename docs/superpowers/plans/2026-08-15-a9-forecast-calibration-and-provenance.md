@@ -2,7 +2,7 @@ Yes. Given the locked Q1–Q8 decisions and the defects you just identified, the
 
 The key correction is that the plan must implement the **two-hop canonical bridge**:
 
-`A9Forecast.subject (proposalId)` → `proposal.submitted.payload.target.id (capabilityId)` → `CapabilityMeasurement.capabilityId`
+`A9Forecast.subject (proposalId)` → `proposal.submitted.payload.candidate.target.id (capabilityId)` → `CapabilityMeasurement.capabilityId`
 
 with `proposal.executed` as the authorization gate.
 
@@ -143,7 +143,7 @@ subject
 
 subjectCapability
   = derived capability bridge
-  = proposal.submitted.payload.target.id
+  = proposal.submitted.payload.candidate.target.id
 ```
 
 `subjectCapability` is copied into the immutable forecast at emission time.
@@ -163,7 +163,7 @@ A9Forecast.subject
         ▼
 proposal.submitted.proposalId
         │
-        │ payload.target.id
+        │ payload.candidate.target.id
         ▼
 proposal capabilityId
         │
@@ -189,7 +189,7 @@ A9Forecast.subject = proposalId
    ↓
 proposal.submitted
    ↓
-payload.target.id = capabilityId
+payload.candidate.target.id = capabilityId
    ↓
 proposal.executed exists
    ↓
@@ -245,7 +245,7 @@ Specifically locate:
 Confirm that:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 actually contains the canonical capability identity required by the bridge.
@@ -508,7 +508,7 @@ Required information includes:
 The adapter must preserve the raw payload because A9 needs:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 Do not normalize the target away.
@@ -946,7 +946,7 @@ proposal.submitted.proposalId === forecast.subject
 Then verify:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
     === forecast.subjectCapability
 ```
 
@@ -1426,7 +1426,7 @@ tests/evolution/a9-adapters.vitest.ts
 Required tests:
 
 1. proposal adapter preserves raw payload;
-2. proposal adapter exposes `payload.target.id`;
+2. proposal adapter exposes `payload.candidate.target.id`;
 3. measurement adapter exposes capability identity;
 4. measurement adapter does not introduce proposal identity;
 5. enriched adapter preserves enriched values;
@@ -1776,7 +1776,7 @@ or the A8 normalization layer.
 Assert the implementation uses:
 
 ```text
-proposal.submitted.payload.target.id
+proposal.submitted.payload.candidate.target.id
 ```
 
 and:
@@ -1999,7 +1999,7 @@ If the actual current contract differs from the locked Q8 finding, stop and reco
 
 Do not simply use the field.
 
-### STOP-2 — `proposal.submitted.payload.target.id` cannot establish capability identity
+### STOP-2 — `proposal.submitted.payload.candidate.target.id` cannot establish capability identity
 
 Do not substitute another source without architectural approval.
 
@@ -2063,7 +2063,7 @@ A9 v1 is accepted only when:
 * [ ] `A9Forecast` is immutable.
 * [ ] `forecastId` is deterministic and A9-owned.
 * [ ] forecast subject is `proposalId`.
-* [ ] `subjectCapability` is copied from `proposal.submitted.payload.target.id`.
+* [ ] `subjectCapability` is copied from `proposal.submitted.payload.candidate.target.id`.
 * [ ] forecasts persist independently in A9 JSONL.
 * [ ] no-trigger runs emit no forecast.
 
