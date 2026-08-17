@@ -123,13 +123,18 @@ export class SubagentManager {
               try { parsed = JSON.parse(lines[i]) as Partial<SubagentResult>; break; } catch { /* skip non-JSON lines */ }
             }
           }
+          const status: SubagentResult["status"] =
+            parsed?.status === "success" || parsed?.status === "failed" || parsed?.status === "rejected"
+              ? parsed.status
+              : exitCode === 0 ? "success" : "failed";
+
           const result: SubagentResult = {
             id: task.id,
             role: task.role,
-            status: exitCode === 0 ? "success" : "failed",
+            status,
             findings: parsed?.findings ?? [],
             events: parsed?.events ?? [],
-            error: exitCode !== 0 ? (stderr || parsed?.error || `Exit code ${exitCode}`) : undefined,
+            error: status !== "success" ? (parsed?.error || stderr || `Exit code ${exitCode}`) : undefined,
           };
 
           for (const cb of this.callbacks) cb(result);
@@ -142,10 +147,13 @@ export class SubagentManager {
             payload: { role: task.role, taskId: task.id, status: result.status, findings: result.findings },
           });
 
-          if (exitCode === 0) {
+          // Resolve whenever we have a structured result (even a failed one, so the
+          // parent keeps findings) or the child exited cleanly. Reject only on a
+          // genuine crash: no parseable JSON AND a non-zero exit code.
+          if (parsed || exitCode === 0) {
             resolvePromise(result);
           } else {
-            reject(new Error(stderr || `Subagent exited with code ${exitCode}`));
+            reject(new Error(result.error ?? `Subagent exited with code ${exitCode}`));
           }
         });
 
