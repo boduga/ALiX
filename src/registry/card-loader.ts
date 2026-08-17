@@ -93,7 +93,7 @@ export function deriveNlpAgentCards(): AgentCard[] {
     description: def.description,
     version: "1.0.0",
     domains: [
-      def.toolCategory === "research"
+      def.policyBucket === "research"
         ? "research"
         : "general",
     ],

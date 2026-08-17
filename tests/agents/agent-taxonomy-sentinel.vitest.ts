@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_REGISTRY,
-  getToolCategory,
+  getPolicyBucket,
 } from "../../src/agents/agent-registry.js";
 import { getToolPolicy } from "../../src/agents/tool-policy.js";
 import {
@@ -11,7 +11,7 @@ import {
 } from "../../src/registry/card-loader.js";
 
 describe("agent taxonomy architecture sentinels", () => {
-  it("Sentinel L: getToolPolicy buckets match registry toolCategory", () => {
+  it("Sentinel L: getToolPolicy buckets match registry policyBucket", () => {
     const expectedByCategory: Record<string, string[]> = {
       read: ["read"],
       write: ["read", "write", "mcp"],
@@ -19,12 +19,23 @@ describe("agent taxonomy architecture sentinels", () => {
     };
 
     for (const def of AGENT_REGISTRY) {
-      const category = getToolCategory(def.role)!;
+      const category = getPolicyBucket(def.role)!;
 
       expect(
         getToolPolicy(def.role).allowedCategories,
         def.role,
       ).toEqual(expectedByCategory[category]);
+    }
+  });
+
+  it("Sentinel K: AGENT_REGISTRY is exactly the 6 concrete delegate roles (no auto/workflow/control-plane)", () => {
+    const roles = AGENT_REGISTRY.map((a) => a.role);
+    expect(roles).toHaveLength(6);
+    expect([...roles].sort()).toEqual(["docs_researcher", "explorer", "researcher", "reviewer", "test_investigator", "worker"]);
+    for (const r of roles) {
+      expect(r).not.toBe("auto");
+      expect(r.startsWith("workflow.")).toBe(false);
+      expect(["operator", "governor", "executor", "verifier"]).not.toContain(r);
     }
   });
 

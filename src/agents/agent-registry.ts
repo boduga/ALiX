@@ -21,15 +21,15 @@ import type {
   SubagentStyle,
 } from "../config/schema.js";
 
-export type AgentToolCategory = "read" | "write" | "research";
+export type AgentPolicyBucket = "read" | "write" | "research";
 
 export type AgentCapability = {
   role: SubagentRole;
   name: string;
   description: string;
   instructions: string;
-  toolCategory: AgentToolCategory;
-  mode: "read_only" | "write";
+  policyBucket: AgentPolicyBucket;
+  retryCount: number;
   style: SubagentStyle;
   capabilities: string[];
   executionProfile?: "research";
@@ -46,8 +46,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "Read-only codebase exploration: find files, trace code paths, summarize structure.",
     instructions:
       "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols.",
-    toolCategory: "read",
-    mode: "read_only",
+    policyBucket: "read",
+    retryCount: 1,
     style: "fast",
     capabilities: ["filesystem.read", "filesystem.search"],
   },
@@ -58,8 +58,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "Independent code/design review for correctness, quality, and risks.",
     instructions:
       "You are a code reviewer. Analyze code quality, style, and potential issues. Be constructive and specific. Flag risks and suggest improvements.",
-    toolCategory: "read",
-    mode: "read_only",
+    policyBucket: "read",
+    retryCount: 1,
     style: "critic",
     capabilities: [],
   },
@@ -70,8 +70,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "Map tests to code, diagnose failures, and suggest fixes.",
     instructions:
       "You are a test investigator. Map tests to code, diagnose failures, and suggest fixes. Be precise. Use test names and file paths.",
-    toolCategory: "read",
-    mode: "read_only",
+    policyBucket: "read",
+    retryCount: 1,
     style: "thinking",
     capabilities: ["filesystem.read", "filesystem.search"],
   },
@@ -82,8 +82,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "Find and summarize relevant documentation; cite sources.",
     instructions:
       "You are a docs researcher. Find and summarize relevant documentation. Cite file paths and sources. Be thorough.",
-    toolCategory: "read",
-    mode: "read_only",
+    policyBucket: "read",
+    retryCount: 1,
     style: "fast",
     capabilities: ["filesystem.read"],
   },
@@ -94,8 +94,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "Implementation worker that applies changes to owned files.",
     instructions:
       "You are a worker subagent. Apply changes to owned files only. Do NOT delete files you create — leave them in place. Always explain what you changed.",
-    toolCategory: "write",
-    mode: "write",
+    policyBucket: "write",
+    retryCount: 0,
     style: "coding",
     capabilities: ["filesystem.write", "shell.exec"],
   },
@@ -106,8 +106,8 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
       "External research and synthesis using web search; cite sources.",
     instructions:
       "You are a researcher subagent. Search for information, analyze findings, and report concisely. Use web search for external knowledge. Cite sources.",
-    toolCategory: "research",
-    mode: "read_only",
+    policyBucket: "research",
+    retryCount: 1,
     style: "fast",
     capabilities: ["web.search", "web.fetch"],
     executionProfile: "research",
@@ -120,24 +120,33 @@ export function getAgentDefinition(
   return AGENT_REGISTRY.find((a) => a.role === role);
 }
 
-export function getToolCategory(
+export function getPolicyBucket(
   role: SubagentRole,
-): AgentToolCategory | undefined {
-  return getAgentDefinition(role)?.toolCategory;
+): AgentPolicyBucket | undefined {
+  return getAgentDefinition(role)?.policyBucket;
+}
+
+export function getRoleMode(
+  def: AgentCapability,
+): "read_only" | "write" {
+  return def.policyBucket === "write" ? "write" : "read_only";
 }
 
 export const ROLE_INSTRUCTIONS: Readonly<Record<SubagentRole, string>> = {
   auto: DEFAULT_SUBAGENT_INSTRUCTIONS,
-  ...(Object.fromEntries(
-    AGENT_REGISTRY.map((a) => [a.role, a.instructions]),
-  ) as Record<string, string>),
-} as Record<SubagentRole, string>;
+  explorer: getAgentDefinition("explorer")!.instructions,
+  reviewer: getAgentDefinition("reviewer")!.instructions,
+  test_investigator: getAgentDefinition("test_investigator")!.instructions,
+  docs_researcher: getAgentDefinition("docs_researcher")!.instructions,
+  worker: getAgentDefinition("worker")!.instructions,
+  researcher: getAgentDefinition("researcher")!.instructions,
+};
 
 export function defaultRoleConfigs(): SubagentRoleConfig[] {
   return AGENT_REGISTRY.map((a) => ({
     role: a.role,
-    mode: a.mode,
+    mode: getRoleMode(a),
     style: a.style,
-    retryCount: a.role === "worker" ? 0 : 1,
+    retryCount: a.retryCount,
   }));
 }

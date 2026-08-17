@@ -4,7 +4,7 @@ import {
   ROLE_INSTRUCTIONS,
   DEFAULT_SUBAGENT_INSTRUCTIONS,
   getAgentDefinition,
-  getToolCategory,
+  getPolicyBucket,
   defaultRoleConfigs,
 } from "../../src/agents/agent-registry.js";
 
@@ -35,11 +35,11 @@ describe("canonical agent registry", () => {
     expect(ROLE_INSTRUCTIONS["auto"]).toBe(DEFAULT_SUBAGENT_INSTRUCTIONS);
   });
 
-  it("getToolCategory returns the tool category per role", () => {
-    expect(getToolCategory("worker")).toBe("write");
-    expect(getToolCategory("researcher")).toBe("research");
-    expect(getToolCategory("explorer")).toBe("read");
-    expect(getToolCategory("auto")).toBeUndefined();
+  it("getPolicyBucket returns the policy bucket per role", () => {
+    expect(getPolicyBucket("worker")).toBe("write");
+    expect(getPolicyBucket("researcher")).toBe("research");
+    expect(getPolicyBucket("explorer")).toBe("read");
+    expect(getPolicyBucket("auto")).toBeUndefined();
   });
 
   it("defaultRoleConfigs returns 6 entries including researcher with fast/read_only", () => {
@@ -54,6 +54,11 @@ describe("canonical agent registry", () => {
       mode: "read_only",
       style: "fast",
     });
+
+    expect(
+      configs.find((c) => c.role === "worker")!.retryCount,
+    ).toBe(0);
+    expect(researcher.retryCount).toBe(1);
   });
 
   it("getAgentDefinition returns the definition for a role and undefined for auto", () => {
