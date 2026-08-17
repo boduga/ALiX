@@ -284,13 +284,24 @@ export class PolicyGate {
       if (targets.length === 0) {
         // Unscoped (unparseable targets) — fall through to default/ask; headless
         // subagents have no approval store so this fails closed.
-      } else if (targets.every((t) => isWithinOwned(resolvePolicyPath(request.cwd, t), request.ownedPaths!, request.cwd))) {
-        return {
-          requestId: request.requestId, capability, decision: "allow",
-          reason: "Write targets owned path", matchedRuleId: "owned-path-rule", policyRevision,
-        };
       } else {
-        const outside = targets.filter((t) => !isWithinOwned(resolvePolicyPath(request.cwd, t), request.ownedPaths!, request.cwd));
+        const resolvedTargets = targets.map((t) => resolvePolicyPath(request.cwd, t));
+        // Protected paths are a hard deny even when owned (patch.apply has no
+        // args.path, so step 1 never sees its targets — check them here).
+        const protectedTarget = resolvedTargets.find((t) => isProtectedPath(this.config.permissions.protectedPaths, t));
+        if (protectedTarget) {
+          return {
+            requestId: request.requestId, capability, decision: "deny",
+            reason: `Path protected: ${protectedTarget}`, matchedRuleId: "protected-path-rule", policyRevision,
+          };
+        }
+        if (resolvedTargets.every((t) => isWithinOwned(t, request.ownedPaths!, request.cwd))) {
+          return {
+            requestId: request.requestId, capability, decision: "allow",
+            reason: "Write targets owned path", matchedRuleId: "owned-path-rule", policyRevision,
+          };
+        }
+        const outside = resolvedTargets.filter((t) => !isWithinOwned(t, request.ownedPaths!, request.cwd));
         return {
           requestId: request.requestId, capability, decision: "deny",
           reason: `Write target outside owned paths: ${outside.join(", ")}`, matchedRuleId: "owned-path-rule", policyRevision,

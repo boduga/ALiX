@@ -328,4 +328,36 @@ describe("PolicyGate", () => {
     });
     assert.equal(decision.decision, "deny"); // approval-store-missing, unchanged behavior
   });
+
+  it("owned-path rule denies patch.apply targeting a protected path even when owned", async () => {
+    const config = makeConfig(); // protectedPaths: ["/etc/**", "/home/*/.ssh/**"]
+    const gate = new PolicyGate(config);
+    // Absolute diff headers keep /etc/passwd absolute through extractPatchPaths,
+    // so step 1 (args.path only) never sees it and step 5.5 must deny.
+    const decision = await gate.evaluateToolCall({
+      requestId: "r8", toolName: "patch.apply",
+      args: {
+        format: "unified_diff",
+        patchText: "--- /etc/passwd\n+++ /etc/passwd\n@@ -1,1 +1,1 @@\n-old\n+new\n",
+      },
+      cwd: "/ws", sessionMode: "ask", source: "tool", ownedPaths: ["/etc"],
+    });
+    assert.equal(decision.decision, "deny");
+    assert.equal(decision.matchedRuleId, "protected-path-rule");
+  });
+
+  it("owned-path rule still auto-approves patch.apply on an owned, non-protected path", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r9", toolName: "patch.apply",
+      args: {
+        format: "unified_diff",
+        patchText: "--- a/config/app.json\n+++ b/config/app.json\n@@ -1,1 +1,1 @@\n-old\n+new\n",
+      },
+      cwd: "/ws", sessionMode: "ask", source: "tool", ownedPaths: ["config"],
+    });
+    assert.equal(decision.decision, "allow");
+    assert.equal(decision.matchedRuleId, "owned-path-rule");
+  });
 });
