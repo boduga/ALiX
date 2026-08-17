@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TOOL_NAME_MAP } from '../../src/agents/tool-name-map.js';
 import { buildDefaultToolIndex, getToolsForCapability, getCapabilitiesForTool } from '../../src/tools/tool-registry.js';
 
 const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
@@ -48,6 +49,23 @@ describe('taxonomy unification architecture sentinels', () => {
     }
     for (const [cap, names] of derived) {
       expect([...getToolsForCapability(cap)].sort(), cap).toEqual([...names].sort());
+    }
+  });
+
+  it('Sentinel H: TOOL_NAME_MAP mirrors the canonical tool surface (no phantom/missing tools)', () => {
+    const { registry } = buildDefaultToolIndex();
+    const mapNames = new Set(Object.values(TOOL_NAME_MAP));
+    const registryNames = new Set(registry.getAll().map((t) => t.name));
+    // Every map value must be a real tool (or the MCP search sentinel / runtime-added mcp.*).
+    for (const v of mapNames) {
+      if (v === 'mcp_search_tools') continue;        // MCP tool-search sentinel
+      if (v.startsWith('mcp.')) continue;            // runtime-added MCP tools
+      expect(registryNames.has(v), `TOOL_NAME_MAP phantom: ${v}`).toBe(true);
+    }
+    // The registry tools that must be reachable by the model.
+    for (const t of registry.getAll()) {
+      if (t.name === 'mcp.*') continue;              // dynamic family, added at runtime
+      expect([...mapNames].some((v) => v === t.name), `TOOL_NAME_MAP missing: ${t.name}`).toBe(true);
     }
   });
 });
