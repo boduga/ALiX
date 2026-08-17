@@ -195,6 +195,59 @@ test("rejects unsupported full file format", async () => {
   }
 });
 
+test("applies a unified diff (modify)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await writeFile(join(dir, "a.ts"), "const x = 1;\n");
+    const patch = "--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-const x = 1;\n+const x = 2;\n";
+    const result = await applyPatch(dir, "unified_diff", patch);
+    assert.equal(result.status, "applied");
+    assert.deepEqual(result.changedFiles, ["a.ts"]);
+    assert.equal(await readFile(join(dir, "a.ts"), "utf8"), "const x = 2;\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("creates and deletes files via unified diff /dev/null", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await writeFile(join(dir, "old.ts"), "gone\n");
+    const create = "--- /dev/null\n+++ b/new.ts\n@@ -0,0 +1,1 @@\n+fresh\n";
+    assert.equal((await applyPatch(dir, "unified_diff", create)).status, "applied");
+    assert.equal(await readFile(join(dir, "new.ts"), "utf8"), "fresh\n");
+    const del = "--- a/old.ts\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-gone\n";
+    assert.equal((await applyPatch(dir, "unified_diff", del)).status, "applied");
+    assert.equal(existsSync(join(dir, "old.ts")), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("rejects a conflicting unified diff", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await writeFile(join(dir, "a.ts"), "const x = 1;\n");
+    const patch = "--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,1 @@\n-const x = 999;\n+const x = 2;\n";
+    await assert.rejects(() => applyPatch(dir, "unified_diff", patch), /conflict/i);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("normalizes aider *** Begin Patch text", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await writeFile(join(dir, "a.ts"), "old\n");
+    const patch = "*** Begin Patch\n*** Update File: a.ts\n@@ -1,1 +1,1 @@\n-old\n+new\n*** End Patch";
+    const result = await applyPatch(dir, "unified_diff", patch);
+    assert.equal(result.status, "applied");
+    assert.equal(await readFile(join(dir, "a.ts"), "utf8"), "new\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("google provider defaults to search replace", () => {
   assert.equal(defaultEditFormatForProvider("google"), "search_replace");
 });
