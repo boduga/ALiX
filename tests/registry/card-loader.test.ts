@@ -9,7 +9,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadCardRegistry, defaultAgentCards, defaultToolCards } from "../../src/registry/card-loader.js";
+import {
+  loadCardRegistry,
+  defaultAgentCards,
+  defaultToolCards,
+  defaultWorkflowAgentCards,
+} from "../../src/registry/card-loader.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 
 function makeTemp(): string {
@@ -135,9 +140,46 @@ describe("CardLoader", () => {
 
   it("defaultAgentCards returns expected set", () => {
     const cards = defaultAgentCards();
-    assert.ok(cards.find(c => c.id === "orchestrator.core"));
-    assert.ok(cards.find(c => c.id === "research.scout"));
-    assert.ok(cards.find(c => c.id === "workflow.execution")); assert.equal(cards.length, 11);
+
+    // 6 NLP delegate roles + 5 workflow agents = 11
+    assert.equal(cards.length, 11);
+
+    // NLP-derived card ids == registry role ids
+    for (const id of [
+      "explorer",
+      "reviewer",
+      "test_investigator",
+      "docs_researcher",
+      "worker",
+      "researcher",
+    ]) {
+      assert.ok(cards.find((c) => c.id === id), `missing NLP card ${id}`);
+    }
+
+    // workflow cards remain present
+    assert.ok(cards.find((c) => c.id === "workflow.execution"));
+
+    // dead + legacy display cards retired
+    for (const id of [
+      "orchestrator.core",
+      "planner.graph",
+      "memory.curator",
+      "research.scout",
+      "critic.general",
+      "artifact.writer",
+    ]) {
+      assert.ok(
+        !cards.find((c) => c.id === id),
+        `dead card ${id} should be retired`,
+      );
+    }
+
+    // workflow cards remain a separate surface
+    const workflowCards = cards.filter((c) =>
+      c.id.startsWith("workflow."),
+    );
+
+    assert.equal(workflowCards.length, 5);
   });
 
   it("defaultToolCards returns expected set", () => {

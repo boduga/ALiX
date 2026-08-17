@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { CardRegistry } from "./card-registry.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
+import { AGENT_REGISTRY } from "../agents/agent-registry.js";
 import type { AgentCard } from "./agent-card.js";
 import type { ToolCard } from "./tool-card.js";
 
@@ -19,21 +20,106 @@ function displayName(name: string): string {
   return name.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Built-in agent cards for the default registry. */
+/**
+ * The 5 P4.5 workflow agents.
+ *
+ * This is catalog metadata only. It does not activate or instantiate
+ * workflow agents. Runtime activation remains owned by the P4.5
+ * workflow orchestration surface.
+ */
+export function defaultWorkflowAgentCards(): AgentCard[] {
+  return [
+    {
+      id: "workflow.intake",
+      name: "Issue Intake Agent",
+      description:
+        "Reads GitHub issues, validates labels, estimates priority/complexity",
+      version: "1.0.0",
+      domains: ["workflow"],
+      capabilities: ["workflow.intake"],
+      enabled: true,
+    },
+    {
+      id: "workflow.planning",
+      name: "Planning Agent",
+      description:
+        "Converts WorkPackages into ExecutionPlans with subtask decomposition",
+      version: "1.0.0",
+      domains: ["workflow"],
+      capabilities: ["workflow.planning"],
+      enabled: true,
+    },
+    {
+      id: "workflow.review",
+      name: "Review Agent",
+      description:
+        "Reviews ExecutionPlans for completeness, governance, and risk",
+      version: "1.0.0",
+      domains: ["workflow"],
+      capabilities: ["workflow.review"],
+      enabled: true,
+    },
+    {
+      id: "workflow.execution",
+      name: "Execution Agent",
+      description:
+        "Executes one subtask at a time with test gating and permit validation",
+      version: "1.0.0",
+      domains: ["workflow"],
+      capabilities: ["workflow.execution"],
+      enabled: true,
+    },
+    {
+      id: "workflow.pr",
+      name: "PR Agent",
+      description:
+        "Creates draft PRs with issue links, evidence fingerprints, and review findings",
+      version: "1.0.0",
+      domains: ["workflow"],
+      capabilities: ["workflow.pr"],
+      enabled: true,
+    },
+  ];
+}
+
+/**
+ * NLP delegate cards are a display projection of the canonical
+ * agent registry. They do not instantiate delegates.
+ */
+export function deriveNlpAgentCards(): AgentCard[] {
+  return AGENT_REGISTRY.map((def) => ({
+    id: def.role,
+    name: def.name,
+    description: def.description,
+    version: "1.0.0",
+    domains: [
+      def.policyBucket === "research"
+        ? "research"
+        : "general",
+    ],
+    capabilities: def.capabilities,
+    ...(def.executionProfile
+      ? { executionProfile: def.executionProfile }
+      : {}),
+    enabled: true,
+  }));
+}
+
+/**
+ * Aggregate catalog surface:
+ *
+ * 6 canonical NLP delegate cards
+ * +
+ * 5 separate workflow cards
+ * =
+ * 11 default cards.
+ *
+ * This aggregation does not merge runtime taxonomies.
+ */
 export function defaultAgentCards(): AgentCard[] {
   return [
-    { id: "orchestrator.core", name: "Core Orchestrator", description: "Owns workflow run and final response", version: "1.0.0", domains: ["general"], capabilities: ["graph.mutate", "agent.spawn"], enabled: true },
-    { id: "planner.graph", name: "Graph Planner", description: "Decomposes goals into TaskGraphs", version: "1.0.0", domains: ["general"], capabilities: [], executionProfile: "coding", enabled: true },
-    { id: "research.scout", name: "Research Scout", description: "Searches the web for sources", version: "1.0.0", domains: ["research"], capabilities: ["web.search", "web.fetch"], executionProfile: "research", enabled: true },
-    { id: "critic.general", name: "General Critic", description: "Reviews outputs for correctness and gaps", version: "1.0.0", domains: ["general"], capabilities: [], enabled: true },
-    { id: "artifact.writer", name: "Artifact Writer", description: "Writes report artifacts to disk", version: "1.0.0", domains: ["research"], capabilities: ["filesystem.write"], executionProfile: "artifact", enabled: true },
-    { id: "memory.curator", name: "Memory Curator", description: "Manages memory records and conflicts", version: "1.0.0", domains: ["general"], capabilities: ["memory.read", "memory.write.session"], enabled: true },
-    // P4.5 workflow agents
-    { id: "workflow.intake", name: "Issue Intake Agent", description: "Reads GitHub issues, validates labels, estimates priority/complexity", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.intake"], enabled: true },
-    { id: "workflow.planning", name: "Planning Agent", description: "Converts WorkPackages into ExecutionPlans with subtask decomposition", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.planning"], enabled: true },
-    { id: "workflow.review", name: "Review Agent", description: "Reviews ExecutionPlans for completeness, governance, and risk", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.review"], enabled: true },
-    { id: "workflow.execution", name: "Execution Agent", description: "Executes one subtask at a time with test gating and permit validation", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.execution"], enabled: true },
-    { id: "workflow.pr", name: "PR Agent", description: "Creates draft PRs with issue links, evidence fingerprints, and review findings", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.pr"], enabled: true },
+    ...deriveNlpAgentCards(),
+    ...defaultWorkflowAgentCards(),
   ];
 }
 

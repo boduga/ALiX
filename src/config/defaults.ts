@@ -5,6 +5,7 @@ import {
   DEFAULT_OUTPUT_FLOOR,
   DEFAULT_OUTPUT_CAP,
 } from "./context-budget.js";
+import { defaultRoleConfigs } from "../agents/agent-registry.js";
 
 export const DEFAULT_CONFIG: AlixConfig = {
   version: 1,
@@ -94,13 +95,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
   },
   subagents: {
     enabled: true,
-    roles: [
-      { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "reviewer",          mode: "read_only", style: "critic", retryCount: 1 },
-      { role: "test_investigator", mode: "read_only", style: "thinking", retryCount: 1 },
-      { role: "docs_researcher",   mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "worker",            mode: "write",     style: "coding",  retryCount: 0 },
-    ],
+    roles: defaultRoleConfigs(),
   },
   ownership: {
     enabled: true,
