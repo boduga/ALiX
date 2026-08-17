@@ -12,6 +12,7 @@ import type { EventLog } from "../events/event-log.js";
 import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
+import { inferCapability } from "../tools/capability-map.js";
 import { resolve } from "node:path";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -66,23 +67,6 @@ export type CapabilityPolicyRequest = {
 function resolvePolicyPath(cwd: string, path: string): string {
   if (path.startsWith("/")) return path;
   return resolve(cwd, path);
-}
-
-/** Infer capability from tool name — mirrors executor.ts inferCapability exactly. */
-function inferCapability(toolName: string): string {
-  if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  if (toolName === "file.read") return "file.read";
-  if (toolName === "file.create") return "file.write";
-  if (toolName === "file.delete") return "file.write";
-  if (toolName === "file.exists") return "file.read";
-  if (toolName === "dir.search") return "file.search";
-  if (toolName === "shell.run") return "shell.run";
-  if (toolName === "patch.apply") return "patch.apply";
-  if (toolName === "done") return "task.complete";
-  if (toolName === "delegate") return "delegate";
-  if (toolName === "web_search") return "web.search";
-  if (toolName === "web_fetch") return "web.fetch";
-  return "tool.invoke";
 }
 
 // ─── Evasion patterns (from policy-engine.ts) ────────────────────────
