@@ -64,6 +64,31 @@ export function buildSubagentFindings(text: string, toolOutputs: string[]): Suba
     : [];
 }
 
+/**
+ * Rewrite single-block, path-less search_replace patch to canonical
+ * `<<<<<<< SEARCH path=<owned>` form, inferring target worker's sole
+ * owned path. No-op for already-scoped patches, multi-owned-path workers,
+ * read-only mode, non-search_replace formats, anything without
+ * `old\n---\nnew` block shape.
+ */
+export function inferSingleOwnedPatchPath(
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): void {
+  if (opts.mode !== "write") return;
+  if (!opts.ownedPaths || opts.ownedPaths.length !== 1) return;
+  if (args.format !== "search_replace") return;
+  const patchText = typeof args.patchText === "string" ? args.patchText : "";
+  if (!patchText) return;
+  // Already scoped — leave alone.
+  if (/<<<<<<< SEARCH path=/.test(patchText) || /^[+-]{3} (?:[ab]\/)?/m.test(patchText)) return;
+  // Dialect: exactly two parts around a line that is `---`, optionally
+  // `---replace`, optionally `---replace---` (deepseek plain-dialect variant).
+  const parts = patchText.split(/^---(?:replace)?-*\s*$/m).map((s) => s.trim()).filter(Boolean);
+  if (parts.length !== 2) return; // ambiguous — fail closed
+  args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths[0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
+}
+
 export type SubagentOutputFormat = "json" | "text";
 
 export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
@@ -277,6 +302,7 @@ Task: ${prompt}${contextSection}
 - Stop after copying the tool output.
 - Report the EXACT output from each tool call. Do NOT summarize or rephrase.
 - NEVER emit aider '*** Begin Patch' format. Use only 'search_replace', 'structured_patch', or 'unified_diff'.
+- When calling alix_patch_apply with format 'search_replace', ALWAYS start the patch with a '<<<<<<< SEARCH path=<file>' line naming the target file.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
@@ -321,6 +347,12 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             }
             continue;
           }
+
+          // Path-less single-block search_replace patches from models that
+          // omit the `<<<<<<< SEARCH path=` marker are rewritten to target the
+          // worker's sole owned path so owned-path auto-approval and the patch
+          // engine both accept them. Self-guards on tool/format/mode/ambiguity.
+          inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
 
           const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
