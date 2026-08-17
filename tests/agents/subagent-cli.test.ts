@@ -1,6 +1,6 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, formatSubagentResult, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, formatSubagentResult, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -159,5 +159,41 @@ describe("inferSingleOwnedPatchPath", () => {
     const args: Record<string, unknown> = { format: "search_replace", patchText };
     inferSingleOwnedPatchPath(args, { mode: "write", ownedPaths: ["a.ts"] });
     assert.equal(args.patchText, patchText);
+  });
+});
+
+describe("shouldInferPatchPath (call-site tool-name guard)", () => {
+  it("returns false for a non-patch.apply tool whose args carry format + patchText (never rewritten)", () => {
+    const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
+    assert.equal(shouldInferPatchPath("mcp_custom_write", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
+    assert.equal(args.patchText, "old\n---\nnew");
+  });
+
+  it("returns false for a base non-patch tool with patch-shaped args", () => {
+    const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
+    assert.equal(shouldInferPatchPath("alix_file_create", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
+  });
+
+  it("returns true for patch.apply with a path-less search_replace patch", () => {
+    const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
+    assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "write", ownedPaths: ["a.ts"] }), true);
+  });
+
+  it("returns false for patch.apply with an already-scoped patch", () => {
+    const args: Record<string, unknown> = {
+      format: "search_replace",
+      patchText: "<<<<<<< SEARCH path=a.ts\nold\n=======\nnew\n>>>>>>> REPLACE",
+    };
+    assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
+  });
+
+  it("returns false for patch.apply in read-only mode", () => {
+    const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
+    assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "read_only", ownedPaths: ["a.ts"] }), false);
+  });
+
+  it("returns false for patch.apply on a multi-owned-path worker", () => {
+    const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
+    assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "write", ownedPaths: ["a.ts", "b.ts"] }), false);
   });
 });

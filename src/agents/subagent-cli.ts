@@ -65,6 +65,45 @@ export function buildSubagentFindings(text: string, toolOutputs: string[]): Suba
 }
 
 /**
+ * Split a path-less search_replace patch text into its [old, new] blocks,
+ * or return null when it is not an unambiguous single-block patch. Fail-closed
+ * on ambiguity: already-scoped patches, multi-owned-path workers, read-only
+ * mode, non-search_replace formats, and anything without an `old\n---\nnew`
+ * block shape are all null.
+ */
+function pathlessSearchReplaceParts(
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): [string, string] | null {
+  if (opts.mode !== "write") return null;
+  if (!opts.ownedPaths || opts.ownedPaths.length !== 1) return null;
+  if (args.format !== "search_replace") return null;
+  const patchText = typeof args.patchText === "string" ? args.patchText : "";
+  if (!patchText) return null;
+  // Already scoped — leave alone.
+  if (/<<<<<<< SEARCH path=/.test(patchText) || /^[+-]{3} (?:[ab]\/)?/m.test(patchText)) return null;
+  // Dialect: exactly two parts around a line that is `---`, optionally
+  // `---replace`, optionally `---replace---` (deepseek plain-dialect variant).
+  const parts = patchText.split(/^---(?:replace)?-*\s*$/m).map((s) => s.trim()).filter(Boolean);
+  if (parts.length !== 2) return null; // ambiguous — fail closed
+  return [parts[0], parts[1]];
+}
+
+/**
+ * True when a tool call should have its patchText re-scoped to the worker's
+ * sole owned path. Guards on the tool name (`patch.apply` only) on top of all
+ * `inferSingleOwnedPatchPath` applicability checks, so non-patch tools whose
+ * schemas happen to expose `format` + `patchText` args are never rewritten.
+ */
+export function shouldInferPatchPath(
+  execName: string,
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): boolean {
+  return execName === "patch.apply" && pathlessSearchReplaceParts(args, opts) !== null;
+}
+
+/**
  * Rewrite single-block, path-less search_replace patch to canonical
  * `<<<<<<< SEARCH path=<owned>` form, inferring target worker's sole
  * owned path. No-op for already-scoped patches, multi-owned-path workers,
@@ -75,18 +114,9 @@ export function inferSingleOwnedPatchPath(
   args: Record<string, unknown>,
   opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
 ): void {
-  if (opts.mode !== "write") return;
-  if (!opts.ownedPaths || opts.ownedPaths.length !== 1) return;
-  if (args.format !== "search_replace") return;
-  const patchText = typeof args.patchText === "string" ? args.patchText : "";
-  if (!patchText) return;
-  // Already scoped — leave alone.
-  if (/<<<<<<< SEARCH path=/.test(patchText) || /^[+-]{3} (?:[ab]\/)?/m.test(patchText)) return;
-  // Dialect: exactly two parts around a line that is `---`, optionally
-  // `---replace`, optionally `---replace---` (deepseek plain-dialect variant).
-  const parts = patchText.split(/^---(?:replace)?-*\s*$/m).map((s) => s.trim()).filter(Boolean);
-  if (parts.length !== 2) return; // ambiguous — fail closed
-  args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths[0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
+  const parts = pathlessSearchReplaceParts(args, opts);
+  if (!parts) return;
+  args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths![0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
 }
 
 export type SubagentOutputFormat = "json" | "text";
@@ -351,8 +381,12 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // Path-less single-block search_replace patches from models that
           // omit the `<<<<<<< SEARCH path=` marker are rewritten to target the
           // worker's sole owned path so owned-path auto-approval and the patch
-          // engine both accept them. Self-guards on tool/format/mode/ambiguity.
-          inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          // engine both accept them. Guards on tool name (patch.apply only) in
+          // addition to format/mode/ambiguity, so non-patch tools whose schemas
+          // happen to expose format + patchText args are never rewritten.
+          if (shouldInferPatchPath(execName, toolCall.args as Record<string, unknown>, { mode, ownedPaths })) {
+            inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          }
 
           const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
