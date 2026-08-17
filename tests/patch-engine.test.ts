@@ -257,7 +257,7 @@ test("buildEditFormatPolicy uses provider preference as the preferred allowed fo
 
   assert.equal(policy.provider, "openai");
   assert.equal(policy.preferred, "structured_patch");
-  assert.deepEqual(policy.allowed, ["structured_patch", "search_replace"]);
+  assert.deepEqual(policy.allowed, ["structured_patch", "search_replace", "unified_diff"]);
   assert.equal(policy.fullFileRewrite, "deny");
 });
 
@@ -265,20 +265,21 @@ test("buildEditFormatPolicy keeps Gemini on search_replace even with explicit pr
   const policy = buildEditFormatPolicy({ provider: "google", preferred: "structured_patch" });
 
   assert.equal(policy.preferred, "search_replace");
-  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch"]);
+  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch", "unified_diff"]);
 });
 
 test("buildEditFormatPolicy falls back to search_replace for unsafe full_file preference", () => {
   const policy = buildEditFormatPolicy({ provider: "local", preferred: "full_file" });
 
   assert.equal(policy.preferred, "search_replace");
-  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch"]);
+  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch", "unified_diff"]);
   assert.equal(policy.fullFileRewrite, "deny");
 });
 
-test("buildEditFormatPolicy does not allow unsupported unified_diff until engine supports it", () => {
+test("buildEditFormatPolicy allows unified_diff once engine supports it", () => {
   const policy = buildEditFormatPolicy({ provider: "custom", preferred: "unified_diff" });
 
-  assert.equal(policy.preferred, "structured_patch");
-  assert.deepEqual(policy.allowed, ["structured_patch", "search_replace"]);
+  assert.equal(policy.preferred, "unified_diff");
+  assert.ok(policy.allowed.includes("unified_diff"));
+  assert.deepEqual(policy.allowed, ["unified_diff", "search_replace", "structured_patch"]);
 });

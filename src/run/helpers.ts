@@ -115,8 +115,8 @@ export const BASE_TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        format: { type: "string", description: "Patch format: 'search_replace' or 'structured_patch'" },
-        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE" }
+        format: { type: "string", description: "Patch format: 'search_replace', 'structured_patch', or 'unified_diff'. Unified diff is auto-detected; aider '*** Begin Patch' is normalized automatically." },
+        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE\nFor unified_diff, use standard git diff: --- a/<file> / +++ b/<file> / @@ hunk headers." }
       },
       required: ["format", "patchText"]
     }

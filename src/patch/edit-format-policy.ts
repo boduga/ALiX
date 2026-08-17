@@ -1,5 +1,7 @@
 export type EditFormat = "structured_patch" | "unified_diff" | "search_replace" | "full_file";
 
+export type ExecutableFormat = Extract<EditFormat, "structured_patch" | "search_replace" | "unified_diff">;
+
 export type EditFormatPolicy = {
   provider: string;
   preferred: EditFormat;
@@ -12,9 +14,10 @@ export type EditFormatPolicyInput = {
   preferred?: EditFormat;
 };
 
-const EXECUTABLE_PATCH_FORMATS: Array<Extract<EditFormat, "structured_patch" | "search_replace">> = [
+const EXECUTABLE_PATCH_FORMATS: ExecutableFormat[] = [
   "structured_patch",
   "search_replace",
+  "unified_diff",
 ];
 
 export function defaultEditFormatForProvider(provider: string): EditFormat {
@@ -33,16 +36,16 @@ export function buildEditFormatPolicy(input: EditFormatPolicyInput): EditFormatP
   return {
     provider: input.provider,
     preferred,
-    allowed: [preferred, alternate],
+    allowed: Array.from(new Set([preferred, alternate, ...EXECUTABLE_PATCH_FORMATS])),
     fullFileRewrite: "deny",
   };
 }
 
-function normalizePreferredFormat(provider: string, preferred: EditFormat): Extract<EditFormat, "structured_patch" | "search_replace"> {
+function normalizePreferredFormat(provider: string, preferred: EditFormat): ExecutableFormat {
   if (provider === "google") return "search_replace";
   if (preferred === "full_file") return "search_replace";
-  if (EXECUTABLE_PATCH_FORMATS.includes(preferred as Extract<EditFormat, "structured_patch" | "search_replace">)) {
-    return preferred as Extract<EditFormat, "structured_patch" | "search_replace">;
+  if (EXECUTABLE_PATCH_FORMATS.includes(preferred as ExecutableFormat)) {
+    return preferred as ExecutableFormat;
   }
   const fallback = defaultEditFormatForProvider(provider);
   return fallback === "search_replace" ? "search_replace" : "structured_patch";

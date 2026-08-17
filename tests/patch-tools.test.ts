@@ -70,7 +70,7 @@ test("patch.apply logs edit format policy telemetry", async () => {
       provider: "google",
       requestedFormat: "search_replace",
       preferredFormat: "search_replace",
-      allowedFormats: ["search_replace", "structured_patch"],
+      allowedFormats: ["search_replace", "structured_patch", "unified_diff"],
       matchesPreference: true,
       allowed: true,
       fullFileRewrite: "deny",
@@ -184,6 +184,31 @@ test("patch.apply rolls back prior file changes when a later patch block fails",
     const events = await log.readAll();
     assert.ok(events.some((event) => event.type === "patch.rollback_started"));
     assert.ok(events.some((event) => event.type === "patch.rollback_completed"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("patch.apply accepts unified_diff through the executor", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src/a.ts"), "old\n");
+    const log = new EventLog(join(dir, "session"));
+    await log.init();
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
+    const result = await executor.execute({
+      toolCallId: "p-unified",
+      name: "patch.apply",
+      args: {
+        root: dir,
+        format: "unified_diff",
+        patchText: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-old\n+new\n"
+      }
+    });
+    assert.equal(result.kind, "success");
+    const content = await readFile(join(dir, "src/a.ts"), "utf8");
+    assert.equal(content, "new\n");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
