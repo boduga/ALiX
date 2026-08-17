@@ -455,12 +455,21 @@ The registry manages agent and tool identity. Every capability (e.g. `web.search
 
 | Agents | Tools |
 |--------|-------|
-| orchestrator.core | web_search |
-| planner.graph | file_read |
-| research.scout | file_write |
-| critic.general | shell_exec |
-| artifact.writer | |
-| memory.curator | |
+| explorer | web_search |
+| reviewer | file_read |
+| test_investigator | file_write |
+| docs_researcher | shell_exec |
+| worker | |
+| researcher | |
+
+The 6 delegate cards derive from the canonical NLP agent registry
+(`src/agents/agent-registry.ts`).
+
+The 5 `workflow.*` cards are a separate P4.5 workflow surface and also
+appear in `alix registry agents`.
+
+Agent cards are catalog metadata; they do not themselves activate an
+NLP delegate or workflow execution.
 
 ### Viewing cards
 
