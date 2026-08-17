@@ -14,8 +14,10 @@ function makeResult(status: SubagentResult["status"], content?: string): Subagen
 }
 
 test("validateResult: partial behaves identically to success for expected-output checks", () => {
-  const partial = validateResult(makeResult("partial", "edited foo to 42"), "42");
-  const success = validateResult(makeResult("success", "edited foo to 42"), "42");
+  // Content must not contain the expected token, or the missing-warning check
+  // would pass even if partial were dropped from the expected-output branch.
+  const partial = validateResult(makeResult("partial", "edited foo to 41"), "42");
+  const success = validateResult(makeResult("success", "edited foo to 41"), "42");
   assert.deepEqual(partial.warnings, success.warnings);
   assert.equal(partial.valid, success.valid);
 });

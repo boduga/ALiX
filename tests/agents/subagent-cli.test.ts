@@ -315,6 +315,13 @@ test("recordWriteOutcome: non-write tools are ignored", () => {
   assert.equal(p.fatalWriteFailures.length, 0);
 });
 
+test("recordWriteOutcome: repeated failures of the same tool deduplicate in the ledger", () => {
+  const p = P();
+  recordWriteOutcome(p, "patch.apply", { kind: "error", message: "Search block not found" });
+  recordWriteOutcome(p, "patch.apply", { kind: "error", message: "No patch changes found" });
+  assert.deepEqual(p.fatalWriteFailures, ["patch.apply"]);
+});
+
 test("formatSubagentResult: partial renders [partial] note with detail", () => {
   const result: SubagentResult = {
     id: "t", role: "worker",

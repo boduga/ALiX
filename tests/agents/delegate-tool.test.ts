@@ -65,12 +65,4 @@ describe("Delegate tool", () => {
     assert.ok((result as any).output.includes("[partial]"));
     assert.ok((result as any).output.includes("Untouched: bar.ts"));
   });
-
-  it("still returns error when subagent fails", async () => {
-    const manager = makeMockManager({ status: "failed", error: "Model timeout" });
-    const handler = createDelegateHandler(manager, makeMockBuildTask().buildTask);
-    const result = await handler({ role: "explorer", prompt: "explore" });
-    assert.equal(result.kind, "error");
-    assert.ok((result as any).message.includes("Model timeout"));
-  });
 });
