@@ -1,6 +1,6 @@
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import { appendSubagentResponseText, buildSubagentFindings, formatSubagentResult, SubagentCLI } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, formatSubagentResult, subagentToolError, SubagentCLI } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -75,4 +75,24 @@ describe("SubagentCLI", () => {
 
     assert.deepEqual(JSON.parse(output).findings[0].content, "babasola");
   });
+});
+
+test("computeSubagentStatus: success when no write tool failed", () => {
+  assert.equal(computeSubagentStatus([]), "success");
+});
+
+test("computeSubagentStatus: failed when a write tool failed (error)", () => {
+  assert.equal(computeSubagentStatus(["patch.apply"]), "failed");
+});
+
+test("computeSubagentStatus: failed when a write tool was denied", () => {
+  assert.equal(computeSubagentStatus(["file.create"]), "failed");
+});
+
+test("subagentToolError: uses reason for denied results", () => {
+  assert.equal(subagentToolError({ kind: "denied", reason: "Path protected: /x" }), "Path protected: /x");
+});
+
+test("subagentToolError: uses message for error results", () => {
+  assert.equal(subagentToolError({ kind: "error", message: "No patch changes found" }), "No patch changes found");
 });

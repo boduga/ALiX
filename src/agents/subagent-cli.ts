@@ -73,6 +73,35 @@ export function formatSubagentResult(result: SubagentResult, format: SubagentOut
   return content || "(no findings)";
 }
 
+/** Executor-side names of mutation tools the worker may call. (file.write is a policy key, not a tool.) */
+const WRITE_EXEC_NAMES = new Set(["file.create", "file.delete", "patch.apply"]);
+
+export function computeSubagentStatus(fatalWriteFailures: string[]): "success" | "failed" {
+  return fatalWriteFailures.length > 0 ? "failed" : "success";
+}
+
+export function subagentToolError(result: { kind: string; message?: string; reason?: string }): string {
+  if (result.kind === "denied") return result.reason ?? "Tool call denied";
+  return result.message ?? "Tool call failed";
+}
+
+function buildResult(
+  taskId: string, role: SubagentRole, mode: "read_only" | "write",
+  text: string, toolOutputs: string[], fatalWriteFailures: string[],
+): SubagentResult {
+  const status = computeSubagentStatus(fatalWriteFailures);
+  return {
+    id: taskId, role, status,
+    findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
+    events: [],
+    error: status === "failed"
+      ? (fatalWriteFailures.length
+          ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
+          : "Subagent failed")
+      : undefined,
+  };
+}
+
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
     const args = parseArgs({
@@ -247,12 +276,14 @@ Task: ${prompt}${contextSection}
 - When the tools return output, copy it EXACTLY into a code block. Do NOT interpret it.
 - Stop after copying the tool output.
 - Report the EXACT output from each tool call. Do NOT summarize or rephrase.
+- NEVER emit aider '*** Begin Patch' format. Use only 'search_replace', 'structured_patch', or 'unified_diff'.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
+      const fatalWriteFailures: string[] = [];
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
@@ -296,7 +327,11 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           const resultContent =
             execResult.kind === "success"
               ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
-              : `Error: ${(execResult as { kind: "error"; message: string }).message}`;
+              : `Error: ${subagentToolError(execResult)}`;
+
+          if (execResult.kind !== "success" && WRITE_EXEC_NAMES.has(execName)) {
+            if (!fatalWriteFailures.includes(execName)) fatalWriteFailures.push(execName);
+          }
           if (execResult.kind === "success" && resultContent.trim()) {
             toolOutputs.push(resultContent);
           }
@@ -306,15 +341,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            const result: SubagentResult = {
-              id: taskId,
-              role,
-              status: "success" as const,
-              findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
-              events: [],
-            };
+            const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
             console.log(formatSubagentResult(result, outputFormat));
-            process.exit(0);
+            process.exit(result.status === "success" ? 0 : 1);
           }
         }
       }
@@ -329,15 +358,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      const result: SubagentResult = {
-        id: taskId,
-        role,
-        status: "success" as const,
-        findings: buildSubagentFindings(text, toolOutputs),
-        events: [],
-      };
+      const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
       console.log(formatSubagentResult(result, outputFormat));
-      process.exit(0);
+      process.exit(result.status === "success" ? 0 : 1);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 
