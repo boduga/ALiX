@@ -72,8 +72,7 @@ const READ_ONLY_TOOLS = new Set([
 ]);
 
 // Built-in write tool names
-const WRITE_TOOLS = new Set([
-  "alix_file_write",
+export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   "alix_file_create",
   "alix_file_delete",
   "alix_file_exists",

@@ -24,14 +24,15 @@ function mcpTool(
 }
 
 describe("CORE_TOOL_NAMES", () => {
-  it("includes the six always-mandatory tools", () => {
+  it("includes the five always-mandatory tools", () => {
     expect(CORE_TOOL_NAMES.has("alix_shell_run")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_file_read")).toBe(true);
-    expect(CORE_TOOL_NAMES.has("alix_file_write")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_patch_apply")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_patch_create")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_done")).toBe(true);
-    expect(CORE_TOOL_NAMES.size).toBe(6);
+    // `file.write` is not an executable tool — no `alix_file_write` in core.
+    expect(CORE_TOOL_NAMES.has("alix_file_write")).toBe(false);
+    expect(CORE_TOOL_NAMES.size).toBe(5);
   });
 });
 
