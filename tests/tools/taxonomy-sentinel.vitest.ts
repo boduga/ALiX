@@ -87,5 +87,7 @@ describe('taxonomy unification architecture sentinels', () => {
     expect(WRITE_TOOLS.has('alix_file_create')).toBe(true);
     expect(WRITE_TOOLS.has('alix_file_delete')).toBe(true);
     expect(WRITE_TOOLS.has('alix_file_exists')).toBe(true);
+    expect(WRITE_TOOLS.has('alix_patch_preview')).toBe(true);
+    expect(WRITE_TOOLS.has('alix_patch_apply')).toBe(true);
   });
 });
