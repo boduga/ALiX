@@ -1,6 +1,5 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { CapabilityRegistry } from "../../src/policy/capability-registry.js";
 import { SecretScanner } from "../../src/security/secret-scanner.js";
 import { PolicyEngine } from "../../src/policy/policy-engine.js";
 import type { AlixConfig } from "../../src/config/schema.js";
@@ -38,33 +37,6 @@ describe("PolicyEngine Tool Security Integration", () => {
     assert.equal(findings[0].type, "api_key");
   });
 
-  it("uses CapabilityRegistry for risk classification", () => {
-    const registry = new CapabilityRegistry();
-    const risk = registry.getRiskLevel("shell.exec");
-    assert.equal(risk, "critical");
-  });
-
-  it("CapabilityRegistry blocks critical risk tools", () => {
-    const registry = new CapabilityRegistry();
-    const needsApproval = registry.requiresApproval("shell.exec");
-    assert.equal(needsApproval, true);
-  });
-
-  it("low risk tools don't require approval", () => {
-    const registry = new CapabilityRegistry();
-    const needsApproval = registry.requiresApproval("file.read");
-    assert.equal(needsApproval, false);
-  });
-
-  it("PolicyEngine integrates CapabilityRegistry", () => {
-    const config = createMinimalConfig();
-    const registry = new CapabilityRegistry();
-    const engine = new PolicyEngine(config, { capabilityRegistry: registry });
-
-    const risk = engine.getCapabilityRisk("shell.exec");
-    assert.equal(risk, "critical");
-  });
-
   it("PolicyEngine checks secrets in shell commands", () => {
     const config = createMinimalConfig();
     const scanner = new SecretScanner();
@@ -76,12 +48,19 @@ describe("PolicyEngine Tool Security Integration", () => {
     assert.equal(result.findings[0].type, "api_key");
   });
 
-  it("PolicyEngine requires approval for critical tools via registry", () => {
+  it("PolicyEngine requires approval for high-risk capabilities via config policy", () => {
     const config = createMinimalConfig();
-    const registry = new CapabilityRegistry();
-    const engine = new PolicyEngine(config, { capabilityRegistry: registry });
+    config.permissions.tools = { "shell.exec": "ask" };
+    const engine = new PolicyEngine(config);
 
-    const requiresApproval = engine.requiresCapabilityApproval("shell.exec");
-    assert.equal(requiresApproval, true);
+    const result = engine.check({
+      toolCallId: "sec-2",
+      toolName: "shell.exec",
+      args: {},
+      capability: "shell.exec",
+      sessionMode: "ask",
+    });
+    // Config-driven tool policy still gates high-risk capabilities to "ask".
+    assert.equal(result.decision, "ask");
   });
 });

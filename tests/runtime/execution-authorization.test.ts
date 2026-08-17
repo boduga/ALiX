@@ -12,7 +12,6 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { ExecutionAuthorization, type AuthorizationDeps } from "../../src/runtime/execution-authorization.js";
 import { type ExecutionDecision, type ExecutionDecisionRequest, decisionAllowed, decisionDenied, decisionApprovalRequired } from "../../src/runtime/execution-decision.js";
-import { CapabilityRegistry } from "../../src/policy/capability-registry.js";
 
 // ── Fake PolicyGate ──────────────────────────────────────────────────
 
@@ -161,15 +160,6 @@ describe("ExecutionAuthorization", () => {
     deps.toolRegistry = makeFakeToolRegistry();
     const auth = new ExecutionAuthorization(deps);
     const result = await auth.evaluate(makeRequest({ toolName: "file.write", args: { path: "/safe/file.txt" } }));
-    assert.equal(result.status, "allowed");
-  });
-
-  it("uses capability metadata when registry provided", async () => {
-    const capReg = new CapabilityRegistry();
-    deps.policyGate = new FakePolicyGate({ toolResult: { decision: "allow" } }) as any;
-    deps.capabilityRegistry = capReg;
-    const auth = new ExecutionAuthorization(deps);
-    const result = await auth.evaluate(makeRequest({ capability: "file.read" }));
     assert.equal(result.status, "allowed");
   });
 
