@@ -268,7 +268,7 @@ export type SubagentTask = {
 export type SubagentResult = {
   id: string;
   role: SubagentRole;
-  status: "success" | "failed" | "rejected";
+  status: "success" | "failed" | "rejected" | "partial";
   findings: SubagentFinding[];
   events: string[]; // serialized session events
   error?: string;

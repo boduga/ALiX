@@ -6,6 +6,7 @@ import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle } from "../config/schema.js";
+import { resolvePolicyPath } from "../policy/policy-gate.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 
 /**
@@ -131,8 +132,70 @@ export function formatSubagentResult(result: SubagentResult, format: SubagentOut
 /** Executor-side names of mutation tools the worker may call. (file.write is a policy key, not a tool.) */
 const WRITE_EXEC_NAMES = new Set(["file.create", "file.delete", "patch.apply"]);
 
-export function computeSubagentStatus(fatalWriteFailures: string[]): "success" | "failed" {
-  return fatalWriteFailures.length > 0 ? "failed" : "success";
+/** Durable write progress + failure observations for objective-aware completion. */
+export type WriteProgress = {
+  successfulPaths: Set<string>;
+  fatalWriteFailures: string[];
+};
+
+/** Paths a successful write actually affected. Failed writes never receive credit. */
+export function extractSuccessfulPaths(
+  execName: string,
+  result: { kind: string; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
+): string[] {
+  if (result.kind !== "success") return [];
+  switch (execName) {
+    case "file.create":
+      return result.createdPath ? [result.createdPath] : result.changedFiles ?? [];
+    case "file.delete":
+      return result.deletedPath ? [result.deletedPath] : result.changedFiles ?? [];
+    case "patch.apply":
+      return result.changedFiles ?? [];
+    default:
+      return [];
+  }
+}
+
+/** Record one tool outcome into the progress ledger. Only write tools are tracked. */
+export function recordWriteOutcome(
+  progress: WriteProgress,
+  execName: string,
+  execResult: { kind: string; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
+): void {
+  if (!WRITE_EXEC_NAMES.has(execName)) return;
+  if (execResult.kind !== "success") {
+    if (!progress.fatalWriteFailures.includes(execName)) progress.fatalWriteFailures.push(execName);
+  } else {
+    for (const p of extractSuccessfulPaths(execName, execResult)) progress.successfulPaths.add(p);
+  }
+}
+
+/** True when a path is covered by a successful write (equality or direct child, canonicalized). */
+function pathIsCovered(path: string, successful: string[], cwd: string): boolean {
+  const oc = resolvePolicyPath(cwd, path);
+  return successful.some((s) => {
+    const sc = resolvePolicyPath(cwd, s);
+    return sc === oc || sc.startsWith(oc + "/");
+  });
+}
+
+/** True when every owned path is covered by a successful write. */
+export function isObjectiveComplete(successfulPaths: Set<string>, ownedPaths: string[], cwd: string): boolean {
+  if (ownedPaths.length === 0) return true;
+  const successful = [...successfulPaths];
+  return ownedPaths.every((owned) => pathIsCovered(owned, successful, cwd));
+}
+
+/** Objective-aware status: failures matter only when there is no durable progress. */
+export function computeSubagentStatus(
+  progress: WriteProgress,
+  ownedPaths: string[],
+  cwd: string,
+): SubagentResult["status"] {
+  const { successfulPaths, fatalWriteFailures } = progress;
+  if (successfulPaths.size === 0) return fatalWriteFailures.length > 0 ? "failed" : "success";
+  if (ownedPaths.length === 0) return "success";
+  return isObjectiveComplete(successfulPaths, ownedPaths, cwd) ? "success" : "partial";
 }
 
 export function subagentToolError(result: { kind: string; message?: string; reason?: string }): string {
@@ -144,7 +207,13 @@ function buildResult(
   taskId: string, role: SubagentRole, mode: "read_only" | "write",
   text: string, toolOutputs: string[], fatalWriteFailures: string[],
 ): SubagentResult {
-  const status = computeSubagentStatus(fatalWriteFailures);
+  // Legacy path: no objective tracking yet, so status is purely failure-driven.
+  // (recordWriteOutcome + owned-path coverage wiring lands in a later task.)
+  const status = computeSubagentStatus(
+    { successfulPaths: new Set(), fatalWriteFailures },
+    [],
+    process.cwd(),
+  );
   return {
     id: taskId, role, status,
     findings: buildSubagentFindings(text || "Task completed.", toolOutputs),

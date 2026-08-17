@@ -1,6 +1,6 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, formatSubagentResult, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -77,16 +77,113 @@ describe("SubagentCLI", () => {
   });
 });
 
-test("computeSubagentStatus: success when no write tool failed", () => {
-  assert.equal(computeSubagentStatus([]), "success");
+const CWD = "/project";
+const P = (paths: string[] = [], failures: string[] = []): WriteProgress =>
+  ({ successfulPaths: new Set(paths), fatalWriteFailures: failures });
+
+test("computeSubagentStatus: success when nothing written and no failure", () => {
+  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "success");
 });
 
-test("computeSubagentStatus: failed when a write tool failed (error)", () => {
-  assert.equal(computeSubagentStatus(["patch.apply"]), "failed");
+test("computeSubagentStatus: failed when a write failed with no durable progress", () => {
+  assert.equal(computeSubagentStatus(P([], ["patch.apply"]), ["foo.ts"], CWD), "failed");
 });
 
-test("computeSubagentStatus: failed when a write tool was denied", () => {
-  assert.equal(computeSubagentStatus(["file.create"]), "failed");
+test("computeSubagentStatus: failed when a write was denied with no durable progress", () => {
+  assert.equal(computeSubagentStatus(P([], ["file.create"]), ["foo.ts"], CWD), "failed");
+});
+
+// Spec 32.1 Test A — v3 regression: complete objective stays success despite later write noise
+test("matrix: complete objective stays success despite later write noise (v3)", () => {
+  assert.equal(
+    computeSubagentStatus(P(["/project/verify-scratch.ts"], ["patch.apply", "patch.apply"]), ["verify-scratch.ts"], CWD),
+    "success",
+  );
+});
+
+// Spec 32.1 Test B
+test("matrix: complete with no failures", () => {
+  assert.equal(computeSubagentStatus(P(["/project/foo.ts", "/project/bar.ts"], []), ["foo.ts", "bar.ts"], CWD), "success");
+});
+
+// Spec 32.1 Test C
+test("matrix: complete despite failed later write", () => {
+  assert.equal(computeSubagentStatus(P(["/project/foo.ts", "/project/bar.ts"], ["patch.apply"]), ["foo.ts", "bar.ts"], CWD), "success");
+});
+
+// Spec 32.1 Test D — partial does not require a write failure
+test("matrix: partial without failures", () => {
+  assert.equal(computeSubagentStatus(P(["/project/foo.ts"], []), ["foo.ts", "bar.ts"], CWD), "partial");
+});
+
+// Spec 32.1 Test E
+test("matrix: partial with write failure", () => {
+  assert.equal(computeSubagentStatus(P(["/project/foo.ts"], ["patch.apply"]), ["foo.ts", "bar.ts"], CWD), "partial");
+});
+
+// Spec 32.1 Test F
+test("matrix: no progress + failed write", () => {
+  assert.equal(computeSubagentStatus(P([], ["patch.apply"]), ["foo.ts"], CWD), "failed");
+});
+
+// Spec 32.1 Test G
+test("matrix: clean no-progress", () => {
+  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "success");
+});
+
+// Spec 32.1 Test H
+test("matrix: empty owned paths, no writes", () => {
+  assert.equal(computeSubagentStatus(P(), [], CWD), "success");
+});
+
+// Spec 32.1 Test I
+test("matrix: empty owned paths with write failure is still success", () => {
+  assert.equal(computeSubagentStatus(P(["/project/foo.ts"], ["patch.apply"]), [], CWD), "success");
+});
+
+// Spec 33 — normalization
+test("isObjectiveComplete: relative owned vs absolute successful match", () => {
+  assert.equal(isObjectiveComplete(new Set(["/project/src/foo.ts"]), ["src/foo.ts"], "/project"), true);
+});
+test("isObjectiveComplete: absolute owned vs relative successful match", () => {
+  assert.equal(isObjectiveComplete(new Set(["src/foo.ts"]), ["/project/src/foo.ts"], "/project"), true);
+});
+
+// Spec 34 — directory coverage
+test("isObjectiveComplete: owned directory covers children", () => {
+  assert.equal(isObjectiveComplete(new Set(["/project/src/foo.ts"]), ["src"], "/project"), true);
+});
+test("isObjectiveComplete: prefix without separator does not match", () => {
+  assert.equal(isObjectiveComplete(new Set(["/project/src/foo.ts.bak"]), ["/project/src/foo.ts"], "/project"), false);
+});
+test("isObjectiveComplete: unrelated path does not cover", () => {
+  assert.equal(isObjectiveComplete(new Set(["/project/src/bar.ts"]), ["/project/src/foo.ts"], "/project"), false);
+});
+test("isObjectiveComplete: empty owned paths is always complete", () => {
+  assert.equal(isObjectiveComplete(new Set(), [], "/project"), true);
+});
+
+// Spec 35 — path extraction
+test("extractSuccessfulPaths: patch.apply uses changedFiles", () => {
+  assert.deepEqual(extractSuccessfulPaths("patch.apply", { kind: "success", changedFiles: ["a.ts"] }), ["a.ts"]);
+});
+test("extractSuccessfulPaths: file.create prefers createdPath", () => {
+  assert.deepEqual(extractSuccessfulPaths("file.create", { kind: "success", createdPath: "a.ts", changedFiles: ["a.ts"] }), ["a.ts"]);
+});
+test("extractSuccessfulPaths: file.create falls back to changedFiles", () => {
+  assert.deepEqual(extractSuccessfulPaths("file.create", { kind: "success", changedFiles: ["a.ts"] }), ["a.ts"]);
+});
+test("extractSuccessfulPaths: file.delete prefers deletedPath", () => {
+  assert.deepEqual(extractSuccessfulPaths("file.delete", { kind: "success", deletedPath: "a.ts" }), ["a.ts"]);
+});
+test("extractSuccessfulPaths: failed write gets no credit", () => {
+  assert.deepEqual(extractSuccessfulPaths("patch.apply", { kind: "error", message: "Search block not found" }), []);
+});
+test("extractSuccessfulPaths: success with no recognized path contributes nothing", () => {
+  assert.deepEqual(extractSuccessfulPaths("patch.apply", { kind: "success", output: "ok" }), []);
+});
+test("extractSuccessfulPaths: non-write tools contribute nothing", () => {
+  assert.deepEqual(extractSuccessfulPaths("file.read", { kind: "success", output: "x" }), []);
 });
 
 test("subagentToolError: uses reason for denied results", () => {

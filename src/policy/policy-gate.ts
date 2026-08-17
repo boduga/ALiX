@@ -68,7 +68,7 @@ export type CapabilityPolicyRequest = {
 // ─── Path resolution helper ──────────────────────────────────────────
 
 /** Normalize a path argument against cwd for policy checks. */
-function resolvePolicyPath(cwd: string, path: string): string {
+export function resolvePolicyPath(cwd: string, path: string): string {
   if (path.startsWith("/")) return path;
   return resolve(cwd, path);
 }
