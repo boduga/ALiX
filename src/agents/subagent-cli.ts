@@ -485,6 +485,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
+            console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
             const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
             console.log(formatSubagentResult(result, outputFormat));
             process.exit(result.status === "success" ? 0 : 1);
@@ -502,6 +503,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
+      console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
       const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
       console.log(formatSubagentResult(result, outputFormat));
       process.exit(result.status === "success" ? 0 : 1);
