@@ -167,9 +167,9 @@ export class GraphExecutor {
       const isResearch = (node as any).executionProfile === "research";
       let researchPrefix = "";
       if (isResearch && node.id !== "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: web_search, web_fetch, and done. Do NOT read or write local project files.";
+        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: alix_web_search, alix_web_fetch, and alix_done. Do NOT read or write local project files.";
       } else if (node.id === "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
+        researchPrefix = "\n\nIMPORTANT: You may ONLY use: alix_file_create, alix_file_exists, and alix_done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
 
       // Composed enforcement gate (capability + policy + approval)
@@ -303,9 +303,9 @@ export class GraphExecutor {
       const isResearch = (node as any).executionProfile === "research";
       let researchPrefix = "";
       if (isResearch && node.id !== "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: web_search, web_fetch, and done. Do NOT read or write local project files.";
+        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: alix_web_search, alix_web_fetch, and alix_done. Do NOT read or write local project files.";
       } else if (node.id === "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
+        researchPrefix = "\n\nIMPORTANT: You may ONLY use: alix_file_create, alix_file_exists, and alix_done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
       const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
         planMode: false,

@@ -164,7 +164,7 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: { type: "object", properties: {} }
   },
   {
-    name: "create_hook",
+    name: "alix_create_hook",
     description: "Create a hook that runs before or after tool calls or events. Hooks can log, audit, or modify behavior. For example: 'log every file deletion to audit.log'. Describe what you want in the prompt parameter and provide valid JavaScript code in the body.",
     input_schema: {
       type: "object",
@@ -201,7 +201,7 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "web_search",
+    name: "alix_web_search",
     description: "Search the web for current information. Use for questions about current events, recent data, or facts beyond the model's training cutoff. Requires BRAVE_API_KEY env var.",
     input_schema: {
       type: "object",
@@ -213,8 +213,8 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "web_fetch",
-    description: "Fetch a URL and return its text content. Use after web_search to read full articles. HTML is automatically stripped.",
+    name: "alix_web_fetch",
+    description: "Fetch a URL and return its text content. Use after alix_web_search to read full articles. HTML is automatically stripped.",
     input_schema: {
       type: "object",
       properties: {
@@ -237,8 +237,8 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "alix_shell_run",
   "alix_file_exists",
   "alix_done",
-  "web_search",
-  "web_fetch",
+  "alix_web_search",
+  "alix_web_fetch",
 ]);
 
 

@@ -45,10 +45,10 @@ export function buildResearchDeepReportGraph(topic: string, reportId: string): {
 
   const nodes: TaskNode[] = [
     { ...makeNode("scope_topic", graphId, "Define research scope",
-      `Define the research scope for: ${topic}. Output 3-5 research questions. Use ONLY web_search. Do NOT read local project files.`,
+      `Define the research scope for: ${topic}. Output 3-5 research questions. Use ONLY alix_web_search. Do NOT read local project files.`,
       "research", [], ["web.search"], 60000, 2) as any, executionProfile: "research" },
     { ...makeNode("search_sources", graphId, "Search for sources",
-      `Search the web for sources related to: ${topic}. Use ONLY web_search. Do NOT read local project files. Find at least 5 credible sources.`,
+      `Search the web for sources related to: ${topic}. Use ONLY alix_web_search. Do NOT read local project files. Find at least 5 credible sources.`,
       "research", ["scope_topic"], ["web.search"], 120000, 3) as any, executionProfile: "research" },
     { ...makeNode("extract_claims", graphId, "Extract claims from sources",
       `Review the search results and extract key claims. Map each claim to its source URL. Note any contradictions. Use ONLY the provided search results. Do NOT read local project files.`,
