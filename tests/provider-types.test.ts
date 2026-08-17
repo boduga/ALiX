@@ -58,7 +58,7 @@ test("buildToolsForProvider makes search_replace the active provider patch defau
   const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
   const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
 
-  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch"]);
+  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch", "unified_diff"]);
   assert.match(properties.format.description ?? "", /Preferred: search_replace/);
   assert.match(properties.patchText.description ?? "", /<<<<<<< SEARCH path=<file>/);
 });
@@ -70,7 +70,7 @@ test("buildToolsForProvider makes structured_patch the active provider patch def
   const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
   const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
 
-  assert.deepEqual(properties.format.enum, ["structured_patch", "search_replace"]);
+  assert.deepEqual(properties.format.enum, ["structured_patch", "search_replace", "unified_diff"]);
   assert.match(properties.format.description ?? "", /Preferred: structured_patch/);
   assert.match(properties.patchText.description ?? "", /JSON object/);
 });
@@ -82,7 +82,7 @@ test("buildToolsForProvider never advertises full_file as the default edit forma
   const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
   const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
 
-  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch"]);
+  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch", "unified_diff"]);
   assert.match(properties.format.description ?? "", /Preferred: search_replace/);
   assert.doesNotMatch(properties.format.description ?? "", /Preferred: full_file/);
 });
