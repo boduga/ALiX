@@ -117,3 +117,33 @@ test("manager resolves with failed status even on exit 0 when the child reports 
   });
   assert.equal(result.status, "failed");
 });
+
+test("manager preserves child-reported partial status on exit 1", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(1);`],
+    },
+  });
+  const result = await manager.spawn({
+    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
+  });
+  assert.equal(result.status, "partial");
+});
+
+test("manager preserves child-reported partial status on exit 0", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "delegated objective incomplete" })); process.exit(0);`],
+    },
+  });
+  const result = await manager.spawn({
+    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
+  });
+  assert.equal(result.status, "partial");
+});

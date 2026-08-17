@@ -6,6 +6,7 @@ import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle } from "../config/schema.js";
+import { resolvePolicyPath } from "../policy/policy-gate.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 
 /**
@@ -123,16 +124,90 @@ export type SubagentOutputFormat = "json" | "text";
 
 export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
   if (format === "json") return JSON.stringify(result);
-  if (result.status !== "success") return result.error ?? "Subagent failed.";
+  if (result.status === "failed" || result.status === "rejected") return result.error ?? "Subagent failed.";
   const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
+  if (result.status === "partial") return `[partial] ${result.error ?? "delegated objective incomplete"}\n\n${content}`.trim();
   return content || "(no findings)";
 }
 
 /** Executor-side names of mutation tools the worker may call. (file.write is a policy key, not a tool.) */
 const WRITE_EXEC_NAMES = new Set(["file.create", "file.delete", "patch.apply"]);
 
-export function computeSubagentStatus(fatalWriteFailures: string[]): "success" | "failed" {
-  return fatalWriteFailures.length > 0 ? "failed" : "success";
+/** Durable write progress + failure observations for objective-aware completion. */
+export type WriteProgress = {
+  successfulPaths: Set<string>;
+  fatalWriteFailures: string[];
+};
+
+/** Paths a successful write actually affected. Failed writes never receive credit. */
+export function extractSuccessfulPaths(
+  execName: string,
+  result: { kind: string; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
+): string[] {
+  if (result.kind !== "success") return [];
+  switch (execName) {
+    case "file.create":
+      return result.createdPath ? [result.createdPath] : result.changedFiles ?? [];
+    case "file.delete":
+      return result.deletedPath ? [result.deletedPath] : result.changedFiles ?? [];
+    case "patch.apply":
+      return result.changedFiles ?? [];
+    default:
+      return [];
+  }
+}
+
+/** Record one tool outcome into the progress ledger. Only write tools are tracked. */
+export function recordWriteOutcome(
+  progress: WriteProgress,
+  execName: string,
+  execResult: { kind: string; changedFiles?: string[]; createdPath?: string; deletedPath?: string; output?: string; message?: string },
+): void {
+  if (!WRITE_EXEC_NAMES.has(execName)) return;
+  if (execResult.kind !== "success") {
+    if (!progress.fatalWriteFailures.includes(execName)) progress.fatalWriteFailures.push(execName);
+  } else {
+    for (const p of extractSuccessfulPaths(execName, execResult)) progress.successfulPaths.add(p);
+  }
+}
+
+/** True when a path is covered by a successful write (equality or direct child, canonicalized). */
+function pathIsCovered(path: string, successful: string[], cwd: string): boolean {
+  const oc = resolvePolicyPath(cwd, path);
+  return successful.some((s) => {
+    const sc = resolvePolicyPath(cwd, s);
+    return sc === oc || sc.startsWith(oc + "/");
+  });
+}
+
+/** True when every owned path is covered by a successful write. */
+export function isObjectiveComplete(successfulPaths: Set<string>, ownedPaths: string[], cwd: string): boolean {
+  if (ownedPaths.length === 0) return true;
+  const successful = [...successfulPaths];
+  return ownedPaths.every((owned) => pathIsCovered(owned, successful, cwd));
+}
+
+/** Objective-aware status: failures matter only when there is no durable progress. */
+export function computeSubagentStatus(
+  progress: WriteProgress,
+  ownedPaths: string[],
+  cwd: string,
+): SubagentResult["status"] {
+  const { successfulPaths, fatalWriteFailures } = progress;
+  if (successfulPaths.size === 0) return fatalWriteFailures.length > 0 ? "failed" : "success";
+  if (ownedPaths.length === 0) return "success";
+  return isObjectiveComplete(successfulPaths, ownedPaths, cwd) ? "success" : "partial";
+}
+
+/** Describe a partial result: what changed, what remains untouched, write failures. */
+function partialDetail(successfulPaths: Set<string>, ownedPaths: string[], fatalWriteFailures: string[], cwd: string): string {
+  const successful = [...successfulPaths];
+  const untouched = ownedPaths.filter((owned) => !pathIsCovered(owned, successful, cwd));
+  const lines = ["delegated objective incomplete"];
+  if (successfulPaths.size) lines.push(`Changed: ${[...successfulPaths].join(", ")}`);
+  lines.push(`Untouched: ${untouched.length ? untouched.join(", ") : "(none)"}`);
+  lines.push(`Write failures: ${fatalWriteFailures.length ? fatalWriteFailures.join(", ") : "none"}`);
+  return lines.join("\n");
 }
 
 export function subagentToolError(result: { kind: string; message?: string; reason?: string }): string {
@@ -140,20 +215,25 @@ export function subagentToolError(result: { kind: string; message?: string; reas
   return result.message ?? "Tool call failed";
 }
 
-function buildResult(
+export function buildResult(
   taskId: string, role: SubagentRole, mode: "read_only" | "write",
-  text: string, toolOutputs: string[], fatalWriteFailures: string[],
+  text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
 ): SubagentResult {
-  const status = computeSubagentStatus(fatalWriteFailures);
+  const status = computeSubagentStatus(progress, ownedPaths, process.cwd());
+  const { successfulPaths, fatalWriteFailures } = progress;
+  const error =
+    status === "failed"
+      ? fatalWriteFailures.length
+        ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
+        : "Subagent failed"
+      : status === "partial"
+        ? partialDetail(successfulPaths, ownedPaths, fatalWriteFailures, process.cwd())
+        : undefined;
   return {
     id: taskId, role, status,
     findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
     events: [],
-    error: status === "failed"
-      ? (fatalWriteFailures.length
-          ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
-          : "Subagent failed")
-      : undefined,
+    error,
   };
 }
 
@@ -180,7 +260,7 @@ export class SubagentCLI {
     const prompt = args.values.prompt ?? "";
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
-    const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
+    const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
@@ -339,7 +419,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
-      const fatalWriteFailures: string[] = [];
+      const progress: WriteProgress = { successfulPaths: new Set(), fatalWriteFailures: [] };
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
@@ -395,9 +475,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
               ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
               : `Error: ${subagentToolError(execResult)}`;
 
-          if (execResult.kind !== "success" && WRITE_EXEC_NAMES.has(execName)) {
-            if (!fatalWriteFailures.includes(execName)) fatalWriteFailures.push(execName);
-          }
+          recordWriteOutcome(progress, execName, execResult);
           if (execResult.kind === "success" && resultContent.trim()) {
             toolOutputs.push(resultContent);
           }
@@ -407,7 +485,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
+            console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
+            const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
             console.log(formatSubagentResult(result, outputFormat));
             process.exit(result.status === "success" ? 0 : 1);
           }
@@ -424,7 +503,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
+      console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
+      const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
       console.log(formatSubagentResult(result, outputFormat));
       process.exit(result.status === "success" ? 0 : 1);
     } catch (err) {

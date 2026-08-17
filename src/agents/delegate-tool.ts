@@ -43,12 +43,14 @@ export function createDelegateHandler(
     try {
       const result = await subagentManager.spawn(task);
 
-      if (result.status === "success") {
+      if (result.status === "success" || result.status === "partial") {
         if (onResult) onResult(result);
-        return {
-          kind: "success",
-          output: result.findings.map(f => `[${f.type}] ${f.content}`).join("\n") || "(no findings)",
-        };
+        const body = result.findings.map((f) => `[${f.type}] ${f.content}`).join("\n") || "(no findings)";
+        const output =
+          result.status === "partial"
+            ? `[partial] ${result.error ?? "delegated objective incomplete"}\n\n${body}`
+            : body;
+        return { kind: "success", output };
       } else {
         if (onResult) onResult(result);
         return {

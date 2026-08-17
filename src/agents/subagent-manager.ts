@@ -124,7 +124,7 @@ export class SubagentManager {
             }
           }
           const status: SubagentResult["status"] =
-            parsed?.status === "success" || parsed?.status === "failed" || parsed?.status === "rejected"
+            parsed?.status === "success" || parsed?.status === "failed" || parsed?.status === "rejected" || parsed?.status === "partial"
               ? parsed.status
               : exitCode === 0 ? "success" : "failed";
 
