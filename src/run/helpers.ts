@@ -55,7 +55,7 @@ export function buildStateSummary(state: SessionState): string {
 export function patchFormatDescription(policy: EditFormatPolicy): string {
   const preferred = policy.preferred;
   const alternate = preferred === "search_replace" ? "structured_patch" : "search_replace";
-  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}.`;
+  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. unified_diff is also accepted and auto-detected. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}.`;
 }
 
 /**
@@ -63,9 +63,12 @@ export function patchFormatDescription(policy: EditFormatPolicy): string {
  */
 export function patchTextDescription(preferred: EditFormatPolicy["preferred"]): string {
   if (preferred === "structured_patch") {
-    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer.`;
+    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer. unified_diff is also accepted and auto-detected.`;
   }
-  return "The patch content. Preferred search_replace format:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE";
+  if (preferred === "unified_diff") {
+    return "The patch content. Preferred unified_diff format is a standard git diff: --- a/<file> / +++ b/<file> / @@ hunk headers. search_replace and structured_patch are also accepted.";
+  }
+  return "The patch content. Preferred search_replace format:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE\nunified_diff is also accepted and auto-detected.";
 }
 
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
@@ -115,8 +118,8 @@ export const BASE_TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        format: { type: "string", description: "Patch format: 'search_replace' or 'structured_patch'" },
-        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE" }
+        format: { type: "string", description: "Patch format: 'search_replace', 'structured_patch', or 'unified_diff'. Unified diff is auto-detected; aider '*** Begin Patch' is normalized automatically." },
+        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE\nFor unified_diff, use standard git diff: --- a/<file> / +++ b/<file> / @@ hunk headers." }
       },
       required: ["format", "patchText"]
     }

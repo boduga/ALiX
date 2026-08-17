@@ -51,6 +51,7 @@ export class ExecutionAuthorization {
           args: request.args ?? {},
           cwd: request.cwd,
           sessionMode: request.sessionMode,
+          ownedPaths: request.ownedPaths,
           sessionId: request.sessionId,
           source: request.source === "agent" ? "tool" : request.source,
         })

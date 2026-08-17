@@ -64,6 +64,61 @@ export function buildSubagentFindings(text: string, toolOutputs: string[]): Suba
     : [];
 }
 
+/**
+ * Split a path-less search_replace patch text into its [old, new] blocks,
+ * or return null when it is not an unambiguous single-block patch. Fail-closed
+ * on ambiguity: already-scoped patches, multi-owned-path workers, read-only
+ * mode, non-search_replace formats, and anything without an `old\n---\nnew`
+ * block shape are all null.
+ */
+function pathlessSearchReplaceParts(
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): [string, string] | null {
+  if (opts.mode !== "write") return null;
+  if (!opts.ownedPaths || opts.ownedPaths.length !== 1) return null;
+  if (args.format !== "search_replace") return null;
+  const patchText = typeof args.patchText === "string" ? args.patchText : "";
+  if (!patchText) return null;
+  // Already scoped — leave alone.
+  if (/<<<<<<< SEARCH path=/.test(patchText) || /^[+-]{3} (?:[ab]\/)?/m.test(patchText)) return null;
+  // Dialect: exactly two parts around a line that is `---`, optionally
+  // `---replace`, optionally `---replace---` (deepseek plain-dialect variant).
+  const parts = patchText.split(/^---(?:replace)?-*\s*$/m).map((s) => s.trim()).filter(Boolean);
+  if (parts.length !== 2) return null; // ambiguous — fail closed
+  return [parts[0], parts[1]];
+}
+
+/**
+ * True when a tool call should have its patchText re-scoped to the worker's
+ * sole owned path. Guards on the tool name (`patch.apply` only) on top of all
+ * `inferSingleOwnedPatchPath` applicability checks, so non-patch tools whose
+ * schemas happen to expose `format` + `patchText` args are never rewritten.
+ */
+export function shouldInferPatchPath(
+  execName: string,
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): boolean {
+  return execName === "patch.apply" && pathlessSearchReplaceParts(args, opts) !== null;
+}
+
+/**
+ * Rewrite single-block, path-less search_replace patch to canonical
+ * `<<<<<<< SEARCH path=<owned>` form, inferring target worker's sole
+ * owned path. No-op for already-scoped patches, multi-owned-path workers,
+ * read-only mode, non-search_replace formats, anything without
+ * `old\n---\nnew` block shape.
+ */
+export function inferSingleOwnedPatchPath(
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): void {
+  const parts = pathlessSearchReplaceParts(args, opts);
+  if (!parts) return;
+  args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths![0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
+}
+
 export type SubagentOutputFormat = "json" | "text";
 
 export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
@@ -71,6 +126,35 @@ export function formatSubagentResult(result: SubagentResult, format: SubagentOut
   if (result.status !== "success") return result.error ?? "Subagent failed.";
   const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
   return content || "(no findings)";
+}
+
+/** Executor-side names of mutation tools the worker may call. (file.write is a policy key, not a tool.) */
+const WRITE_EXEC_NAMES = new Set(["file.create", "file.delete", "patch.apply"]);
+
+export function computeSubagentStatus(fatalWriteFailures: string[]): "success" | "failed" {
+  return fatalWriteFailures.length > 0 ? "failed" : "success";
+}
+
+export function subagentToolError(result: { kind: string; message?: string; reason?: string }): string {
+  if (result.kind === "denied") return result.reason ?? "Tool call denied";
+  return result.message ?? "Tool call failed";
+}
+
+function buildResult(
+  taskId: string, role: SubagentRole, mode: "read_only" | "write",
+  text: string, toolOutputs: string[], fatalWriteFailures: string[],
+): SubagentResult {
+  const status = computeSubagentStatus(fatalWriteFailures);
+  return {
+    id: taskId, role, status,
+    findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
+    events: [],
+    error: status === "failed"
+      ? (fatalWriteFailures.length
+          ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
+          : "Subagent failed")
+      : undefined,
+  };
 }
 
 export class SubagentCLI {
@@ -211,7 +295,13 @@ export class SubagentCLI {
       eventLog,
       projectRoot,
       mcpManager ?? undefined,
-      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference })
+      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
+      undefined, // extraHandlers
+      undefined, // checkpointManager
+      undefined, // approvalStore
+      undefined, // workspacePathResolver
+      undefined, // ownershipRegistry
+      mode === "write" ? ownedPaths : undefined,
     );
 
     // Build system prompt with role instructions and context
@@ -241,12 +331,15 @@ Task: ${prompt}${contextSection}
 - When the tools return output, copy it EXACTLY into a code block. Do NOT interpret it.
 - Stop after copying the tool output.
 - Report the EXACT output from each tool call. Do NOT summarize or rephrase.
+- NEVER emit aider '*** Begin Patch' format. Use only 'search_replace', 'structured_patch', or 'unified_diff'.
+- When calling alix_patch_apply with format 'search_replace', ALWAYS start the patch with a '<<<<<<< SEARCH path=<file>' line naming the target file.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
+      const fatalWriteFailures: string[] = [];
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
@@ -285,12 +378,26 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             continue;
           }
 
+          // Path-less single-block search_replace patches from models that
+          // omit the `<<<<<<< SEARCH path=` marker are rewritten to target the
+          // worker's sole owned path so owned-path auto-approval and the patch
+          // engine both accept them. Guards on tool name (patch.apply only) in
+          // addition to format/mode/ambiguity, so non-patch tools whose schemas
+          // happen to expose format + patchText args are never rewritten.
+          if (shouldInferPatchPath(execName, toolCall.args as Record<string, unknown>, { mode, ownedPaths })) {
+            inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          }
+
           const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
           const resultContent =
             execResult.kind === "success"
               ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
-              : `Error: ${(execResult as { kind: "error"; message: string }).message}`;
+              : `Error: ${subagentToolError(execResult)}`;
+
+          if (execResult.kind !== "success" && WRITE_EXEC_NAMES.has(execName)) {
+            if (!fatalWriteFailures.includes(execName)) fatalWriteFailures.push(execName);
+          }
           if (execResult.kind === "success" && resultContent.trim()) {
             toolOutputs.push(resultContent);
           }
@@ -300,15 +407,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            const result: SubagentResult = {
-              id: taskId,
-              role,
-              status: "success" as const,
-              findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
-              events: [],
-            };
+            const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
             console.log(formatSubagentResult(result, outputFormat));
-            process.exit(0);
+            process.exit(result.status === "success" ? 0 : 1);
           }
         }
       }
@@ -323,15 +424,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      const result: SubagentResult = {
-        id: taskId,
-        role,
-        status: "success" as const,
-        findings: buildSubagentFindings(text, toolOutputs),
-        events: [],
-      };
+      const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
       console.log(formatSubagentResult(result, outputFormat));
-      process.exit(0);
+      process.exit(result.status === "success" ? 0 : 1);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 

@@ -38,6 +38,8 @@ export interface ExecutionDecisionRequest {
   nodeId?: string;
   graphId?: string;
   metadata?: Record<string, unknown>;
+  /** Paths this subagent is scoped to write (owned-path auto-approval). */
+  ownedPaths?: string[];
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

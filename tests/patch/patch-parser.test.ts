@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { PatchParser } from "../../src/patch/patch-parser.js";
+import { PatchParser, normalizeAiderFormat } from "../../src/patch/patch-parser.js";
 
 describe("PatchParser", () => {
   it("parses unified diff format", () => {
@@ -61,5 +61,32 @@ describe("PatchParser", () => {
     const output = parser.serialize(parsed);
     assert.ok(output.includes("--- a/file.ts"));
     assert.ok(output.includes("+const b = 3;"));
+  });
+
+  it("normalizeAiderFormat converts *** Update File header to unified diff headers", () => {
+    const input = [
+      "*** Begin Patch",
+      "*** Update File: src/foo.ts",
+      "@@ -1,2 +1,2 @@",
+      "-old",
+      "+new",
+      "*** End Patch",
+    ].join("\n");
+    assert.equal(
+      normalizeAiderFormat(input),
+      "--- a/src/foo.ts\n+++ b/src/foo.ts\n@@ -1,2 +1,2 @@\n-old\n+new"
+    );
+  });
+
+  it("normalizeAiderFormat converts *** Add File / Delete File headers", () => {
+    const add = normalizeAiderFormat("*** Add File: a.ts\n@@ -0,0 +1,1 @@\n+hi");
+    assert.ok(add.startsWith("--- /dev/null\n+++ b/a.ts\n"));
+    const del = normalizeAiderFormat("*** Delete File: b.ts\n@@ -1,1 +0,0 @@\n-gone");
+    assert.ok(del.startsWith("--- a/b.ts\n+++ /dev/null\n"));
+  });
+
+  it("normalizeAiderFormat passes through non-aider text unchanged", () => {
+    const plain = "--- a/x.ts\n+++ b/x.ts\n@@ -1,1 +1,1 @@\n-a\n+b";
+    assert.equal(normalizeAiderFormat(plain), plain);
   });
 });

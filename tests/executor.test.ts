@@ -83,3 +83,30 @@ test("file.delete removes existing file", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("executor auto-approves an owned-path write for a subagent with ownedPaths", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ["src"]);
+    const result = await executor.execute({ toolCallId: "t1", name: "file.create", args: { path: "src/new.ts", content: "// hi" } });
+    assert.equal(result.kind, "success");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("executor denies a write outside ownedPaths with the owned-path reason", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ["src"]);
+    const result = await executor.execute({ toolCallId: "t2", name: "file.create", args: { path: "config.json", content: "{}" } });
+    assert.equal(result.kind, "denied");
+    assert.match(result.reason, /outside owned paths/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

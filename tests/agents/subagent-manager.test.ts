@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
 import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/config/schema.js";
@@ -85,4 +85,35 @@ describe("SubagentManager", () => {
     const result = await fresh.spawn(makeTask({ role: "worker" as SubagentRole, ownedPaths: ["src/bar.ts"] }));
     assert.equal(result.status, "success");
   });
+});
+
+test("manager resolves with the child's failed status instead of overriding to success", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "write blocked" })); process.exit(1);`],
+    },
+  });
+  const result = await manager.spawn({
+    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
+  });
+  assert.equal(result.status, "failed");
+  assert.equal(result.error, "write blocked");
+});
+
+test("manager resolves with failed status even on exit 0 when the child reports failed", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "failed", findings: [], events: [], error: "no writes applied" })); process.exit(0);`],
+    },
+  });
+  const result = await manager.spawn({
+    id: "w", role: "worker", mode: "write", ownedPaths: ["src"], prompt: "fix", contextBundle: "s1",
+  });
+  assert.equal(result.status, "failed");
 });

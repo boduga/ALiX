@@ -22,10 +22,12 @@ type FakePolicyConfig = {
 
 class FakePolicyGate {
   private config: FakePolicyConfig;
+  lastToolRequest?: any;
   constructor(config: FakePolicyConfig = {}) {
     this.config = config;
   }
   async evaluateToolCall(req: any) {
+    this.lastToolRequest = req;
     return {
       requestId: req.requestId,
       capability: req.capability,
@@ -126,6 +128,15 @@ describe("ExecutionAuthorization", () => {
     const auth = new ExecutionAuthorization(deps);
     const result = await auth.evaluate(makeRequest());
     assert.equal(result.status, "allowed");
+  });
+
+  it("forwards ownedPaths to policyGate.evaluateToolCall", async () => {
+    const fake = new FakePolicyGate({ toolResult: { decision: "allow" } }) as any;
+    deps.policyGate = fake;
+    const auth = new ExecutionAuthorization(deps);
+    const result = await auth.evaluate(makeRequest({ ownedPaths: ["src"] }));
+    assert.equal(result.status, "allowed");
+    assert.deepEqual(fake.lastToolRequest.ownedPaths, ["src"]);
   });
 
   it("denies when PolicyGate returns deny", async () => {

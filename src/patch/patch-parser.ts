@@ -18,6 +18,32 @@ export interface ParsedPatch {
   normalized: boolean;
 }
 
+const AIDER_FILE_RE = /^\*\*\* (Update File|Add File|Delete File): (.+)$/;
+
+/** Convert aider-style "*** Begin Patch" / "*** Update File: P" framing to unified-diff headers. */
+export function normalizeAiderFormat(patch: string): string {
+  const lines = patch.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    if (/^\*\*\* Begin Patch/.test(line) || /^\*\*\* End Patch/.test(line)) continue;
+    const m = line.match(AIDER_FILE_RE);
+    if (m) {
+      const kind = m[1] as "Update File" | "Add File" | "Delete File";
+      const path = m[2].trim();
+      if (kind === "Add File") {
+        out.push(`--- /dev/null`, `+++ b/${path}`);
+      } else if (kind === "Delete File") {
+        out.push(`--- a/${path}`, `+++ /dev/null`);
+      } else {
+        out.push(`--- a/${path}`, `+++ b/${path}`);
+      }
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 export class PatchParser {
   /**
    * Parse a patch string into structured format.
@@ -25,7 +51,10 @@ export class PatchParser {
    * @param _format - Format type (reserved for future multi-format support: unified, context, unified_minimal)
    */
   parse(patch: string, _format: "unified" | "context" | "unified_minimal" = "unified"): ParsedPatch {
-    const normalized = patch.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    let normalized = patch.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    if (/^\*\*\* Begin Patch/m.test(normalized)) {
+      normalized = normalizeAiderFormat(normalized);
+    }
     const lines = normalized.split("\n");
 
     const files: ParsedFile[] = [];

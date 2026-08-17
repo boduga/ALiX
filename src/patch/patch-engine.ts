@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { EventLog } from "../events/event-log.js";
@@ -15,6 +15,8 @@ import type {
 import type { EditFormat } from "./edit-format-policy.js";
 import { applySearchReplace, parseSearchReplace, validateSearchReplace } from "./search-replace.js";
 import { parseStructuredPatch } from "./structured-patch.js";
+import { PatchParser, type ParsedFile, type ParsedPatch } from "./patch-parser.js";
+import { StructuredPatchApplier } from "./structured-patch-applier.js";
 import { validatePatchOperations, DEFAULT_PATCH_GUARD_CONFIG, type PatchOperation } from "./patch-guard.js";
 import type { CheckpointManager } from "./checkpoint.js";
 
@@ -69,15 +71,17 @@ export async function applyPatch(
   let validationErrors: string[] = [];
 
   // Reject unsupported edit formats
-  if (format !== "search_replace" && format !== "structured_patch") {
+  if (format !== "search_replace" && format !== "structured_patch" && format !== "unified_diff") {
     throw new Error(`Unsupported edit format: ${format}`);
   }
 
   try {
     if (format === "search_replace") {
       parsedBlocks = parseSearchReplace(patchText);
-    } else {
+    } else if (format === "structured_patch") {
       parsedBlocks = parseStructuredPatch(patchText);
+    } else {
+      parsedBlocks = new PatchParser().parse(patchText);
     }
   } catch (err) {
     validationFailed = true;
@@ -252,7 +256,47 @@ async function applyPatchBody(root: string, format: EditFormat, patchData: unkno
     return { status: "applied", changedFiles, proposalId: undefined, checkpointId: undefined };
   }
 
+  if (format === "unified_diff") {
+    const patch = patchData as ParsedPatch;
+    if (patch.files.length === 0) throw new Error("No patch changes found");
+    const ops: PatchOperation[] = patch.files.map((f) => ({
+      path: f.newPath === "/dev/null" ? f.oldPath : f.newPath || f.oldPath,
+      operation: f.newPath === "/dev/null" ? "delete" : f.oldPath === "/dev/null" ? "create" : "modify",
+      content: undefined,
+    }));
+    const guard = validatePatchOperations(ops, DEFAULT_PATCH_GUARD_CONFIG);
+    if (!guard.valid) throw new Error("Patch blocked by safety guard: " + guard.reason);
+
+    const changedFiles: string[] = [];
+    const parser = new PatchParser();
+    const applier = new StructuredPatchApplier({ strict: true });
+    for (const file of patch.files) {
+      const targetPath = fpath(file);
+      const absPath = resolvePatchPath(root, targetPath);
+      const single: ParsedPatch = { files: [file], raw: "", normalized: false };
+      const patchText = parser.serialize(single);
+      if (file.newPath === "/dev/null") {
+        const original = await readFile(absPath, "utf8");
+        const applied = applier.apply(original, patchText);
+        if (!applied.success) throw new Error(`Unified diff failed for ${targetPath}: ${applied.error ?? "unknown error"}`);
+        await rm(absPath);
+      } else {
+        const original = file.oldPath === "/dev/null" ? "" : await readFile(absPath, "utf8");
+        const applied = applier.apply(original, patchText);
+        if (!applied.success) throw new Error(`Unified diff failed for ${targetPath}: ${applied.error ?? "unknown error"}`);
+        if (file.oldPath === "/dev/null") await mkdir(dirname(absPath), { recursive: true });
+        await writeFile(absPath, applied.content ?? "", "utf8");
+      }
+      changedFiles.push(targetPath);
+    }
+    return { status: "applied", changedFiles, proposalId, checkpointId };
+  }
+
   throw new Error(`Unsupported edit format: ${format}`);
+}
+
+function fpath(f: ParsedFile): string {
+  return f.newPath === "/dev/null" ? f.oldPath : f.newPath || f.oldPath;
 }
 
 export function sha256(content: string): string {
@@ -274,6 +318,13 @@ function extractPatchFiles(patchText: string, format: EditFormat): Array<{ path:
     const blocks = parseSearchReplace(patchText);
     return blocks.map((b) => ({ path: b.path, operation: "modify" }));
   }
+  if (format === "unified_diff") {
+    const patch = new PatchParser().parse(patchText);
+    return patch.files.map((f) => ({
+      path: fpath(f),
+      operation: f.newPath === "/dev/null" ? "delete" : f.oldPath === "/dev/null" ? "create" : "modify",
+    }));
+  }
   const patch = parseStructuredPatch(patchText);
   return patch.files.map((f) => ({ path: f.path, operation: f.operation }));
 }
@@ -283,6 +334,10 @@ function extractPatchFilePaths(patchData: unknown, format: EditFormat): string[]
   if (format === "search_replace") {
     const blocks = patchData as Array<{ path: string }>;
     return blocks.map((b) => b.path);
+  }
+  if (format === "unified_diff") {
+    const patch = patchData as ParsedPatch;
+    return patch.files.map((f) => fpath(f));
   }
   const patch = patchData as { files: Array<{ path: string }> };
   return patch.files.map((f) => f.path);
