@@ -52,4 +52,25 @@ describe("Delegate tool", () => {
     assert.equal(result.kind, "success");
     assert.equal((result as any).output, "(no findings)");
   });
+
+  it("returns success with [partial] note when subagent is partial", async () => {
+    const manager = makeMockManager({
+      status: "partial",
+      findings: [{ type: "summary", content: "edited foo", confidence: "high", refs: [] }],
+      error: "delegated objective incomplete\nChanged: foo.ts\nUntouched: bar.ts\nWrite failures: none",
+    });
+    const handler = createDelegateHandler(manager, makeMockBuildTask().buildTask);
+    const result = await handler({ role: "worker", prompt: "fix both", ownedPaths: ["foo.ts", "bar.ts"] });
+    assert.equal(result.kind, "success");
+    assert.ok((result as any).output.includes("[partial]"));
+    assert.ok((result as any).output.includes("Untouched: bar.ts"));
+  });
+
+  it("still returns error when subagent fails", async () => {
+    const manager = makeMockManager({ status: "failed", error: "Model timeout" });
+    const handler = createDelegateHandler(manager, makeMockBuildTask().buildTask);
+    const result = await handler({ role: "explorer", prompt: "explore" });
+    assert.equal(result.kind, "error");
+    assert.ok((result as any).message.includes("Model timeout"));
+  });
 });
