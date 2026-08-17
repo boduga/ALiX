@@ -124,8 +124,9 @@ export type SubagentOutputFormat = "json" | "text";
 
 export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
   if (format === "json") return JSON.stringify(result);
-  if (result.status !== "success") return result.error ?? "Subagent failed.";
+  if (result.status === "failed" || result.status === "rejected") return result.error ?? "Subagent failed.";
   const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
+  if (result.status === "partial") return `[partial] ${result.error ?? "delegated objective incomplete"}\n\n${content}`.trim();
   return content || "(no findings)";
 }
 
@@ -198,31 +199,41 @@ export function computeSubagentStatus(
   return isObjectiveComplete(successfulPaths, ownedPaths, cwd) ? "success" : "partial";
 }
 
+/** Describe a partial result: what changed, what remains untouched, write failures. */
+function partialDetail(successfulPaths: Set<string>, ownedPaths: string[], fatalWriteFailures: string[], cwd: string): string {
+  const successful = [...successfulPaths];
+  const untouched = ownedPaths.filter((owned) => !pathIsCovered(owned, successful, cwd));
+  const lines = ["delegated objective incomplete"];
+  if (successfulPaths.size) lines.push(`Changed: ${[...successfulPaths].join(", ")}`);
+  lines.push(`Untouched: ${untouched.length ? untouched.join(", ") : "(none)"}`);
+  lines.push(`Write failures: ${fatalWriteFailures.length ? fatalWriteFailures.join(", ") : "none"}`);
+  return lines.join("\n");
+}
+
 export function subagentToolError(result: { kind: string; message?: string; reason?: string }): string {
   if (result.kind === "denied") return result.reason ?? "Tool call denied";
   return result.message ?? "Tool call failed";
 }
 
-function buildResult(
+export function buildResult(
   taskId: string, role: SubagentRole, mode: "read_only" | "write",
-  text: string, toolOutputs: string[], fatalWriteFailures: string[],
+  text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
 ): SubagentResult {
-  // Legacy path: no objective tracking yet, so status is purely failure-driven.
-  // (recordWriteOutcome + owned-path coverage wiring lands in a later task.)
-  const status = computeSubagentStatus(
-    { successfulPaths: new Set(), fatalWriteFailures },
-    [],
-    process.cwd(),
-  );
+  const status = computeSubagentStatus(progress, ownedPaths, process.cwd());
+  const { successfulPaths, fatalWriteFailures } = progress;
+  const error =
+    status === "failed"
+      ? fatalWriteFailures.length
+        ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
+        : "Subagent failed"
+      : status === "partial"
+        ? partialDetail(successfulPaths, ownedPaths, fatalWriteFailures, process.cwd())
+        : undefined;
   return {
     id: taskId, role, status,
     findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
     events: [],
-    error: status === "failed"
-      ? (fatalWriteFailures.length
-          ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
-          : "Subagent failed")
-      : undefined,
+    error,
   };
 }
 
@@ -249,7 +260,7 @@ export class SubagentCLI {
     const prompt = args.values.prompt ?? "";
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
-    const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
+    const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
@@ -408,7 +419,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
-      const fatalWriteFailures: string[] = [];
+      const progress: WriteProgress = { successfulPaths: new Set(), fatalWriteFailures: [] };
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
@@ -464,9 +475,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
               ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
               : `Error: ${subagentToolError(execResult)}`;
 
-          if (execResult.kind !== "success" && WRITE_EXEC_NAMES.has(execName)) {
-            if (!fatalWriteFailures.includes(execName)) fatalWriteFailures.push(execName);
-          }
+          recordWriteOutcome(progress, execName, execResult);
           if (execResult.kind === "success" && resultContent.trim()) {
             toolOutputs.push(resultContent);
           }
@@ -476,7 +485,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
+            const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
             console.log(formatSubagentResult(result, outputFormat));
             process.exit(result.status === "success" ? 0 : 1);
           }
@@ -493,7 +502,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      const result = buildResult(taskId, role, mode, text, toolOutputs, fatalWriteFailures);
+      const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
       console.log(formatSubagentResult(result, outputFormat));
       process.exit(result.status === "success" ? 0 : 1);
     } catch (err) {

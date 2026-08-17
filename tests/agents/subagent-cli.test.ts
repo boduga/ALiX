@@ -1,6 +1,7 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
-import { appendSubagentResponseText, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import type { SubagentResult } from "../../src/config/schema.js";
+import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -293,4 +294,63 @@ describe("shouldInferPatchPath (call-site tool-name guard)", () => {
     const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
     assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "write", ownedPaths: ["a.ts", "b.ts"] }), false);
   });
+});
+
+test("recordWriteOutcome: failed write records a failure", () => {
+  const p = P();
+  recordWriteOutcome(p, "patch.apply", { kind: "error", message: "Search block not found" });
+  assert.deepEqual(p.fatalWriteFailures, ["patch.apply"]);
+});
+
+test("recordWriteOutcome: successful write records affected paths", () => {
+  const p = P();
+  recordWriteOutcome(p, "patch.apply", { kind: "success", changedFiles: ["a.ts"] });
+  assert.deepEqual([...p.successfulPaths], ["a.ts"]);
+});
+
+test("recordWriteOutcome: non-write tools are ignored", () => {
+  const p = P();
+  recordWriteOutcome(p, "file.read", { kind: "success", output: "x" });
+  assert.equal(p.successfulPaths.size, 0);
+  assert.equal(p.fatalWriteFailures.length, 0);
+});
+
+test("formatSubagentResult: partial renders [partial] note with detail", () => {
+  const result: SubagentResult = {
+    id: "t", role: "worker",
+    status: "partial",
+    findings: [{ type: "summary", content: "edited foo", confidence: "high" }],
+    events: [],
+    error: "delegated objective incomplete\nChanged: foo.ts\nUntouched: bar.ts\nWrite failures: none",
+  };
+  const out = formatSubagentResult(result, "text");
+  assert.ok(out.includes("[partial]"));
+  assert.ok(out.includes("Untouched: bar.ts"));
+});
+
+test("extractSuccessfulPaths: file.delete falls back to changedFiles", () => {
+  assert.deepEqual(
+    extractSuccessfulPaths("file.delete", { kind: "success", changedFiles: ["a.ts"] }),
+    ["a.ts"],
+  );
+});
+
+test("matrix: completed objective is monotonic despite arbitrary later failures", () => {
+  const progress = P(
+    ["/project/foo.ts"],
+    ["patch.apply", "patch.apply", "file.create"],
+  );
+  assert.equal(
+    computeSubagentStatus(progress, ["foo.ts"], "/project"),
+    "success",
+  );
+});
+
+test("buildResult: progress + incomplete objective yields partial with untouched detail", () => {
+  // buildResult canonicalizes against process.cwd(), so use cwd-consistent paths.
+  const cwd = process.cwd();
+  const progress = P([`${cwd}/foo.ts`], []);
+  const result = buildResult("t", "worker", "write", "done", [], progress, ["foo.ts", "bar.ts"]);
+  assert.equal(result.status, "partial");
+  assert.ok(result.error?.includes("Untouched: bar.ts"));
 });

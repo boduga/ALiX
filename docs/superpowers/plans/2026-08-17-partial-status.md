@@ -87,8 +87,11 @@ test("matrix: completed objective is monotonic despite arbitrary later failures"
 });
 
 // Review point 8 — buildResult wiring: progress → computeSubagentStatus → buildResult → partial.
+// NOTE: buildResult canonicalizes against process.cwd(), so the successful path must be
+// cwd-consistent (use `${process.cwd()}/foo.ts`), not a synthetic absolute path.
 test("buildResult: progress + incomplete objective yields partial with untouched detail", () => {
-  const progress = P(["/project/foo.ts"], []); // foo.ts landed, bar.ts never attempted
+  const cwd = process.cwd();
+  const progress = P([`${cwd}/foo.ts`], []); // foo.ts landed, bar.ts never attempted
   const result = buildResult("t", "worker", "write", "done", [], progress, ["foo.ts", "bar.ts"]);
   assert.equal(result.status, "partial");
   assert.ok(result.error?.includes("Untouched: bar.ts"));
