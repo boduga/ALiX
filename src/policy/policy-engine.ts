@@ -5,8 +5,6 @@ import type { PolicyDecisionPayload } from "../events/types.js";
 import type { CommandClassifier } from "./command-classifier.js";
 import { NetworkPolicyMatcher } from "./network-policy-matcher.js";
 import type { NetworkPolicy } from "./network-policy-matcher.js";
-import type { CapabilityRegistry } from "./capability-registry.js";
-import type { RiskLevel } from "./capability-registry.js";
 import { SecretScanner } from "../security/secret-scanner.js";
 import type { SecretFinding } from "../security/secret-scanner.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
@@ -51,7 +49,6 @@ export type PolicyEngineOptions = {
 };
 
 export type PolicyEngineSubsystems = {
-  capabilityRegistry?: CapabilityRegistry;
   commandClassifier?: CommandClassifier;
   networkMatcher?: NetworkPolicyMatcher;
   secretScanner?: SecretScanner;
@@ -69,14 +66,6 @@ export class PolicyEngine {
     private options: PolicyEngineOptions = {}
   ) {}
 
-  getCapabilityRisk(capability: string): RiskLevel | undefined {
-    return this.subsystems.capabilityRegistry?.getRiskLevel(capability);
-  }
-
-  requiresCapabilityApproval(capability: string): boolean {
-    return this.subsystems.capabilityRegistry?.requiresApproval(capability) ?? false;
-  }
-
   checkSecretExposure(content: string): SecretScanResult {
     const findings = this.subsystems.secretScanner?.scan(content) ?? [];
     return {
@@ -87,16 +76,6 @@ export class PolicyEngine {
 
   check(request: ToolCallRequest): PolicyDecision & { toolCallId: string; capability: Capability } {
     const { toolCallId, toolName, args, capability, sessionMode } = request;
-
-    // Check capability approval requirement via CapabilityRegistry
-    if (this.subsystems.capabilityRegistry?.requiresApproval(capability)) {
-      return {
-        toolCallId,
-        capability: capability as Capability,
-        decision: "ask",
-        reason: `Capability '${capability}' requires approval (${this.subsystems.capabilityRegistry.getRiskLevel(capability)} risk)`,
-      };
-    }
 
     // Check shell command risk
     if (toolName === "shell.run" && this.subsystems.commandClassifier) {
@@ -407,7 +386,6 @@ function isProtectedPath(patterns: string[], path: string): boolean {
 
 export class PolicyEngineBuilder {
   private _config: AlixConfig;
-  private _capabilityRegistry?: CapabilityRegistry;
   private _commandClassifier?: CommandClassifier;
   private _networkMatcher?: NetworkPolicyMatcher;
   private _secretScanner?: SecretScanner;
@@ -416,11 +394,6 @@ export class PolicyEngineBuilder {
 
   constructor(config: AlixConfig) {
     this._config = config;
-  }
-
-  withCapabilityRegistry(registry: CapabilityRegistry): this {
-    this._capabilityRegistry = registry;
-    return this;
   }
 
   withCommandClassifier(classifier: CommandClassifier): this {
@@ -446,7 +419,6 @@ export class PolicyEngineBuilder {
 
   build(): PolicyEngine {
     return new PolicyEngine(this._config, {
-      capabilityRegistry: this._capabilityRegistry,
       commandClassifier: this._commandClassifier,
       networkMatcher: this._networkMatcher,
       secretScanner: this._secretScanner,

@@ -1,15 +1,20 @@
 /**
- * tool-registry.ts -- Searchable tool capability index.
+ * tool-registry.ts -- Canonical searchable tool capability index.
  *
  * Pure data structures for registering tool capabilities, indexing them by
  * intent tag, and retrieving subsets by domain, risk, or intent keywords.
  * No execution, no I/O, no side effects.
  *
- * Compatible with existing CompositeToolRouter and ToolName types.
+ * This module is the single canonical source of tool/capability metadata for
+ * the repo. It covers the fixed executable surface (file.*, shell.run,
+ * patch.apply, done, delegate, web_*, self-extend tools) plus the dynamic
+ * `mcp.<server>.<tool>` family via the single `mcp.*` wildcard entry.
+ *
+ * Compatible with existing CompositeToolRouter. The registry keys tool names
+ * as plain strings (not the legacy ToolName union) so it can represent tools
+ * beyond the typed-arg subset, including the dynamic MCP tool family.
  * No runtime integration with routers or PolicyGate yet.
  */
-
-import type { ToolName } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,15 +27,20 @@ export type ToolDomain =
   | "agent" | "memory" | "policy" | "system" | "mcp";
 
 export type ToolCapability = {
-  name: ToolName;
-  /** Policy-facing capability ID (e.g. "filesystem.read", "shell.exec") */
+  /** Tool name exposed to the model (e.g. "file.read", "mcp.github.repos.list"). */
+  name: string;
+  /** Canonical capability id (e.g. "filesystem.write"). Shared across tools that mutate the same underlying capability. */
   capabilityId: string;
+  /** Config-facing policy key, read by the policy gate against config.permissions.tools[policyKey]. */
+  policyKey: string;
   description: string;
   risk: CapabilityRisk;
   domain: ToolDomain;
   mutates: boolean;
   alwaysInclude: boolean;
   tags: string[];
+  /** Optional execution-profile labels (e.g. "artifact", "research"). */
+  executionProfiles?: string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -38,7 +48,7 @@ export type ToolCapability = {
 // ---------------------------------------------------------------------------
 
 export class ToolRegistry {
-  private tools = new Map<ToolName, ToolCapability>();
+  private tools = new Map<string, ToolCapability>();
 
   register(capability: ToolCapability): void {
     // Warn on duplicate registration — prevents CapabilityIndex sync drift
@@ -48,12 +58,12 @@ export class ToolRegistry {
     this.tools.set(capability.name, capability);
   }
 
-  lookup(name: ToolName): ToolCapability | undefined {
+  lookup(name: string): ToolCapability | undefined {
     return this.tools.get(name);
   }
 
   lookupByName(name: string): ToolCapability | undefined {
-    return this.tools.get(name as ToolName);
+    return this.tools.get(name);
   }
 
   getAll(): ToolCapability[] {
@@ -84,7 +94,7 @@ export class ToolRegistry {
 export type IntentTag = string;
 
 export class CapabilityIndex {
-  private tagToTools = new Map<IntentTag, ToolName[]>();
+  private tagToTools = new Map<IntentTag, string[]>();
 
   index(capability: ToolCapability): void {
     for (const tag of capability.tags) {
@@ -96,13 +106,13 @@ export class CapabilityIndex {
     }
   }
 
-  findByTag(tag: IntentTag): ToolName[] {
+  findByTag(tag: IntentTag): string[] {
     // Return a copy to prevent callers from mutating internal state
     return [...(this.tagToTools.get(tag) ?? [])];
   }
 
-  findByTags(tags: IntentTag[]): ToolName[] {
-    const results = new Set<ToolName>();
+  findByTags(tags: IntentTag[]): string[] {
+    const results = new Set<string>();
     for (const tag of tags) {
       for (const tool of this.findByTag(tag)) {
         results.add(tool);
@@ -128,6 +138,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     {
       name: "file.read",
       capabilityId: "filesystem.read",
+      policyKey: "file.read",
       description: "Read the contents of a file",
       risk: "low",
       domain: "filesystem",
@@ -137,27 +148,32 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     },
     {
       name: "file.create",
-      capabilityId: "filesystem.create",
+      capabilityId: "filesystem.write",
+      policyKey: "file.write",
       description: "Create or overwrite a file",
       risk: "medium",
       domain: "filesystem",
       mutates: true,
       alwaysInclude: false,
       tags: ["write", "file", "create"],
+      executionProfiles: ["artifact"],
     },
     {
       name: "file.delete",
-      capabilityId: "filesystem.delete",
+      capabilityId: "filesystem.write",
+      policyKey: "file.write",
       description: "Delete a file",
       risk: "high",
       domain: "filesystem",
       mutates: true,
       alwaysInclude: false,
       tags: ["delete", "file", "remove"],
+      executionProfiles: ["artifact"],
     },
     {
       name: "file.exists",
       capabilityId: "filesystem.read",
+      policyKey: "file.read",
       description: "Check if a file exists",
       risk: "low",
       domain: "filesystem",
@@ -168,6 +184,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     {
       name: "dir.search",
       capabilityId: "filesystem.search",
+      policyKey: "file.search",
       description: "Search directory for files matching a pattern",
       risk: "low",
       domain: "filesystem",
@@ -178,6 +195,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     {
       name: "shell.run",
       capabilityId: "shell.exec",
+      policyKey: "shell.run",
       description: "Execute a shell command",
       risk: "high",
       domain: "shell",
@@ -187,7 +205,8 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     },
     {
       name: "patch.apply",
-      capabilityId: "code.patch",
+      capabilityId: "patch.apply",
+      policyKey: "patch.apply",
       description: "Apply a structured patch to the codebase",
       risk: "high",
       domain: "code",
@@ -198,12 +217,103 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     {
       name: "done",
       capabilityId: "task.complete",
+      policyKey: "task.complete",
       description: "Signal that the task is complete",
       risk: "low",
       domain: "system",
       mutates: false,
       alwaysInclude: true,
       tags: ["done", "complete", "finish"],
+    },
+    {
+      name: "delegate",
+      capabilityId: "agent.delegate",
+      policyKey: "delegate",
+      description: "Delegate a subtask to a sub-agent",
+      risk: "medium",
+      domain: "agent",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["delegate", "agent", "subtask"],
+    },
+    {
+      name: "web_search",
+      capabilityId: "web.search",
+      policyKey: "web.search",
+      description: "Search the web",
+      risk: "low",
+      domain: "network",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["web", "search"],
+      executionProfiles: ["research"],
+    },
+    {
+      name: "web_fetch",
+      capabilityId: "web.fetch",
+      policyKey: "web.fetch",
+      description: "Fetch a web page",
+      risk: "medium",
+      domain: "network",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["web", "fetch"],
+      executionProfiles: ["research"],
+    },
+    {
+      name: "create_skill",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Create a reusable skill",
+      risk: "medium",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["skill", "create", "self-extend"],
+    },
+    {
+      name: "list_extensions",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "List installed extensions",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["extension", "list", "self-extend"],
+    },
+    {
+      name: "inspect_extension",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Inspect an extension",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["extension", "inspect", "self-extend"],
+    },
+    {
+      name: "create_hook",
+      capabilityId: "tool.invoke",
+      policyKey: "tool.invoke",
+      description: "Create a hook",
+      risk: "high",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["hook", "create", "self-extend"],
+    },
+    {
+      name: "mcp.*",
+      capabilityId: "mcp.invoke",
+      policyKey: "mcp.invoke",
+      description: "Invoke an MCP server tool",
+      risk: "high",
+      domain: "mcp",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["mcp", "tool"],
     },
   ];
 
@@ -226,7 +336,7 @@ export class ToolRetriever {
   ) {}
 
   selectForIntent(intentKeywords: string[]): ToolCapability[] {
-    const selected = new Map<ToolName, ToolCapability>();
+    const selected = new Map<string, ToolCapability>();
 
     // Always include essential tools
     for (const tool of this.registry.getEssential()) {
@@ -246,4 +356,33 @@ export class ToolRetriever {
   selectForDomain(domain: ToolDomain): ToolCapability[] {
     return this.registry.getByDomain(domain);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Derived capability views
+// ---------------------------------------------------------------------------
+//
+// Thin, stateless derived lookups over the canonical default registry
+// (`buildDefaultToolIndex`). These are the ONLY reverse/forward capability↔tool
+// lookups callers should use. They are computed from the canonical data at call
+// time — no reverse mapping is independently maintained, so they cannot drift
+// from the registry.
+
+function defaultToolRegistry(): ToolRegistry {
+  return buildDefaultToolIndex().registry;
+}
+
+/** Names of every tool whose canonical `capabilityId` matches. Sorted for determinism. */
+export function getToolsForCapability(capabilityId: string): string[] {
+  return defaultToolRegistry()
+    .getAll()
+    .filter(t => t.capabilityId === capabilityId)
+    .map(t => t.name)
+    .sort();
+}
+
+/** Canonical `capabilityId`(s) for a tool name (`[]` for unknown tools). */
+export function getCapabilitiesForTool(toolName: string): string[] {
+  const entry = defaultToolRegistry().lookup(toolName);
+  return entry ? [entry.capabilityId] : [];
 }

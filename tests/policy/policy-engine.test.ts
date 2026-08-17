@@ -117,13 +117,13 @@ describe("PolicyEngineBuilder", () => {
   it("creates engine with all deps", () => {
     const engine = new PolicyEngineBuilder(createTestConfig())
       .withCommandClassifier(new CommandClassifier())
-      .withCapabilityRegistry({ getRiskLevel: () => "low", requiresApproval: () => false } as any)
       .withNetworkPolicy({ defaultAction: "ask", allowlist: [], blocklist: [] })
       .withSecretScanner({ scan: () => [] } as any)
       .build();
 
     assert.ok(engine instanceof PolicyEngine);
-    assert.strictEqual(engine.getCapabilityRisk("shell.readonly"), "low");
+    // The wired secret scanner returns no findings for benign content.
+    assert.deepEqual(engine.checkSecretExposure("plain text"), { hasSecret: false, findings: [] });
   });
 
   it("creates engine with minimal config", () => {

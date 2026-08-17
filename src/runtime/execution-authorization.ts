@@ -11,7 +11,6 @@
 
 import type { PolicyGate } from "../policy/policy-gate.js";
 import type { OwnershipGateConfig } from "../ownership/ownership-gate.js";
-import type { CapabilityRegistry } from "../policy/capability-registry.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
 import type { ToolRegistry } from "../tools/tool-registry.js";
@@ -22,7 +21,6 @@ import { decisionAllowed, decisionDenied, decisionApprovalRequired } from "./exe
 export type AuthorizationDeps = {
   policyGate: PolicyGate;
   ownershipGateConfig?: OwnershipGateConfig;
-  capabilityRegistry?: CapabilityRegistry;
   toolRegistry?: ToolRegistry;
   auditStore?: AuditStore;
   eventLog?: EventLog;
@@ -35,19 +33,14 @@ export class ExecutionAuthorization {
    * Evaluate one execution request through the full authorization pipeline.
    *
    * Pipeline:
-   *   1. Capability check—resolve risk level, requiresApproval flag
-   *   2. Policy evaluation—delegate to PolicyGate
-   *   3. Approval lifecycle - delegated to PolicyGate handleAskDecision()
-   *   4. Ownership gate—verify mutation targets are covered
-   *   5. Audit emission—one canonical record
+   *   1. Policy evaluation—delegate to PolicyGate
+   *   2. Approval lifecycle - delegated to PolicyGate handleAskDecision()
+   *   3. Ownership gate—verify mutation targets are covered
+   *   4. Audit emission—one canonical record
    */
   async evaluate(request: ExecutionDecisionRequest): Promise<ExecutionDecision> {
-    const { policyGate, ownershipGateConfig, capabilityRegistry, auditStore, eventLog } = this.deps;
+    const { policyGate, ownershipGateConfig, auditStore, eventLog } = this.deps;
     const agentId = request.agentId ?? "alix";
-
-    // ── Step 1: Capability metadata ──────────────────────────────
-    const capDef = capabilityRegistry?.get(request.capability);
-    const riskLevel = capDef?.riskLevel;
 
     // ── Step 2: Policy evaluation ───────────────────────────────
     const policyDecision = request.toolName
@@ -76,7 +69,7 @@ export class ExecutionAuthorization {
       const finalDecision = decisionDenied(policyDecision.reason, {
         policyRuleId: policyDecision.matchedRuleId,
       });
-      await this.emitAudit(auditStore, eventLog, request, finalDecision, { riskLevel, policyDecision });
+      await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision });
       return finalDecision;
     }
 
@@ -88,7 +81,7 @@ export class ExecutionAuthorization {
         policyDecision.reason,
         { policyRuleId: policyDecision.matchedRuleId },
       );
-      await this.emitAudit(auditStore, eventLog, request, finalDecision, { riskLevel, policyDecision });
+      await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision });
       return finalDecision;
     }
 
@@ -112,7 +105,7 @@ export class ExecutionAuthorization {
             `Ownership check failed: ${errMsg}`,
             { policyRuleId: "ownership-gate" },
           );
-          await this.emitAudit(auditStore, eventLog, request, finalDecision, { riskLevel, policyDecision, ownershipResult });
+          await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision, ownershipResult });
           return finalDecision;
         }
       }
@@ -123,7 +116,7 @@ export class ExecutionAuthorization {
       policyRuleId: policyDecision.matchedRuleId,
       approvalId: policyDecision.approvalId,
     });
-    await this.emitAudit(auditStore, eventLog, request, finalDecision, { riskLevel, policyDecision });
+    await this.emitAudit(auditStore, eventLog, request, finalDecision, { policyDecision });
     return finalDecision;
   }
 
@@ -132,7 +125,7 @@ export class ExecutionAuthorization {
     eventLog: EventLog | undefined,
     request: ExecutionDecisionRequest,
     decision: ExecutionDecision,
-    extras: { riskLevel?: string; policyDecision?: unknown; ownershipResult?: unknown },
+    extras: { policyDecision?: unknown; ownershipResult?: unknown },
   ): Promise<void> {
     // Narrow the discriminated union for field access — no `as any` casts
     let reason: string | undefined;
@@ -170,7 +163,6 @@ export class ExecutionAuthorization {
         reason,
         policyRuleId,
         approvalId,
-        riskLevel: extras.riskLevel,
       },
     }).catch(() => {});
 

@@ -12,7 +12,7 @@ import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult, ToolCallRequest } from "./types.js";
-import { legacyCapabilityToCanonical } from "./capability-map.js";
+import { inferCapability, canonicalCapabilityOf } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import { buildDefaultToolIndex } from "./tool-registry.js";
 import {
@@ -136,7 +136,7 @@ export class ToolExecutor {
     const { toolCallId, name } = request;
     let args = request.args;
     const capability = inferCapability(name);
-    const canonicalCapability = legacyCapabilityToCanonical(capability);
+    const canonicalCapability = canonicalCapabilityOf(name);
 
     // === TOOL REPAIR LAYER — runs before policy so hash and decision use repaired args ===
     let repairHint: string | undefined;
@@ -445,25 +445,6 @@ export function classifyError(result: ErrorResult): ErrorResult {
 
   // Unknown/ambiguous — retry once, model decides
   return { ...result, retryable: true };
-}
-
-const CAPABILITY_MAP: Record<string, string> = {
-  "file.read": "file.read",
-  "file.create": "file.write",
-  "file.delete": "file.write",
-  "file.exists": "file.read",
-  "dir.search": "file.search",
-  "shell.run": "shell.run",
-  "patch.apply": "patch.apply",
-  "done": "task.complete",
-  "delegate": "delegate",
-  "web_search": "web.search",
-  "web_fetch": "web.fetch",
-};
-
-function inferCapability(toolName: string): string {
-  if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  return CAPABILITY_MAP[toolName] ?? "tool.invoke";
 }
 
 function truncateOutput(output: unknown, maxLen = 200): string {

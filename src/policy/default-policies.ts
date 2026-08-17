@@ -61,14 +61,6 @@ export function defaultPolicyRules(): PolicyRule[] {
       reason: "Shell execution can modify system state",
       enabled: true,
     },
-    {
-      id: "ask-file-delete",
-      description: "Ask before deleting files",
-      match: { capability: "filesystem.delete" },
-      decision: "ask",
-      reason: "File deletion is destructive",
-      enabled: true,
-    },
 
     // By risk level
     {

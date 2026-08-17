@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ToolsRuntimeHealthProvider } from "../../../src/baseline/providers/tools-health-provider.js";
+import { buildDefaultToolIndex } from "../../../src/tools/tool-registry.js";
 
 describe("ToolsRuntimeHealthProvider", () => {
   const provider = new ToolsRuntimeHealthProvider();
@@ -34,5 +35,12 @@ describe("ToolsRuntimeHealthProvider", () => {
     expect(typeof d.healthyTools).toBe("number");
     expect(typeof d.failedTools).toBe("number");
     expect(typeof d.averageLatency).toBe("number");
+  });
+
+  it("registeredTools tracks the canonical registry count (Sentinel F)", async () => {
+    const provider = new ToolsRuntimeHealthProvider();
+    const artifact = await provider.captureBaseline();
+    const d = artifact.data as { registeredTools: number };
+    expect(d.registeredTools).toBe(buildDefaultToolIndex().registry.getAll().length);
   });
 });

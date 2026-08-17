@@ -9,8 +9,15 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { CardRegistry } from "./card-registry.js";
+import { buildDefaultToolIndex } from "../tools/tool-registry.js";
 import type { AgentCard } from "./agent-card.js";
 import type { ToolCard } from "./tool-card.js";
+
+/** Derive a display name from a canonical tool name (e.g. "file.read" → "File Read"). */
+function displayName(name: string): string {
+  if (name === "mcp.*") return "MCP Tool";
+  return name.replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 /** Built-in agent cards for the default registry. */
 export function defaultAgentCards(): AgentCard[] {
@@ -30,55 +37,72 @@ export function defaultAgentCards(): AgentCard[] {
   ];
 }
 
-/** Built-in tool cards for the default registry. */
+/** Built-in tool cards for the default registry.
+ *
+ * Tool cards are a DISPLAY PROJECTION of the canonical tool registry — never a
+ * hand-maintained list. The canonical registry (src/tools/tool-registry.ts) is
+ * the single source of truth for which tools exist and their capability/risk/
+ * side-effect metadata; this derivation keeps the card taxonomy in lockstep. */
 export function defaultToolCards(): ToolCard[] {
-  return [
-    { id: "web_search", name: "Web Search", description: "Search the web", version: "1.0.0", capabilities: ["web.search", "web.fetch"], riskLevel: "low", approvalMode: "auto", allowedExecutionProfiles: ["research"], sideEffects: "read", enabled: true },
-    { id: "file_read", name: "File Read", description: "Read files", version: "1.0.0", capabilities: ["filesystem.read"], riskLevel: "low", approvalMode: "auto", sideEffects: "read", enabled: true },
-    { id: "file_write", name: "File Write", description: "Write files", version: "1.0.0", capabilities: ["filesystem.write"], riskLevel: "medium", approvalMode: "ask", allowedExecutionProfiles: ["artifact"], sideEffects: "write", enabled: true },
-    { id: "shell_exec", name: "Shell Exec", description: "Execute shell commands", version: "1.0.0", capabilities: ["shell.exec"], riskLevel: "high", approvalMode: "ask", sideEffects: "system", enabled: true },
-  ];
+  return buildDefaultToolIndex().registry.getAll().map((t) => ({
+    id: t.name,
+    name: displayName(t.name),
+    description: t.description,
+    version: "1.0.0",
+    capabilities: [t.capabilityId],
+    riskLevel: t.risk,
+    approvalMode: t.risk === "low" ? "auto" : "ask",
+    ...(t.executionProfiles ? { allowedExecutionProfiles: t.executionProfiles } : {}),
+    sideEffects: t.mutates ? "write" : "read",
+    enabled: true,
+  }));
 }
 
-/** Load or create a CardRegistry from card files or defaults. */
+/** Load or create a CardRegistry from card files or defaults.
+ *
+ * Agents and tools default INDEPENDENTLY: a config that only ships tools dir
+ * files (or only agents dir files) no longer suppresses the other kind's
+ * defaults. Previously a single `hasFiles` flag caused a partial config to
+ * strip the other kind entirely. */
 export async function loadCardRegistry(cwd: string): Promise<CardRegistry> {
   const registry = new CardRegistry();
   const cardsDir = join(cwd, ".alix", "cards");
-  let hasFiles = false;
 
-  // Load agent cards from .alix/cards/agents/*.json
+  // Load agent cards from .alix/cards/agents/*.json; fall back per-kind
   const agentsDir = join(cardsDir, "agents");
+  let agentsLoaded = false;
   if (existsSync(agentsDir)) {
     const files = await readdir(agentsDir);
     for (const f of files.filter(f => f.endsWith(".json"))) {
       try {
         const card = JSON.parse(await readFile(join(agentsDir, f), "utf-8")) as AgentCard;
         registry.registerAgent(card);
-        hasFiles = true;
+        agentsLoaded = true;
       } catch (err) {
         console.error(`Failed to load agent card ${f}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }
+  if (!agentsLoaded) {
+    for (const card of defaultAgentCards()) registry.registerAgent(card);
+  }
 
-  // Load tool cards from .alix/cards/tools/*.json
+  // Load tool cards from .alix/cards/tools/*.json; fall back per-kind
   const toolsDir = join(cardsDir, "tools");
+  let toolsLoaded = false;
   if (existsSync(toolsDir)) {
     const files = await readdir(toolsDir);
     for (const f of files.filter(f => f.endsWith(".json"))) {
       try {
         const card = JSON.parse(await readFile(join(toolsDir, f), "utf-8")) as ToolCard;
         registry.registerTool(card);
-        hasFiles = true;
+        toolsLoaded = true;
       } catch (err) {
         console.error(`Failed to load tool card ${f}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }
-
-  // Fall back to defaults if no card files exist
-  if (!hasFiles) {
-    for (const card of defaultAgentCards()) registry.registerAgent(card);
+  if (!toolsLoaded) {
     for (const card of defaultToolCards()) registry.registerTool(card);
   }
 

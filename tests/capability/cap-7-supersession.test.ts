@@ -30,6 +30,13 @@ const ALLOWED_BUT_TRACKED = new Set<string>([
   // interface narrowing: no behavioural divergence, no legacy-surface
   // resurrection (CAP-11 already superseded this file).
   "src/capability/initial-capabilities.ts",
+  // Tool/Capability Taxonomy Unification — this plan intentionally rewrites
+  // `src/tools/tool-registry.ts` (canonical tool-metadata source) and deletes
+  // `src/policy/capability-registry.ts` (dead policy registry). Explicit
+  // supersession precedent (CAP-8 pattern): intentional supersession, not
+  // test weakening.
+  "src/tools/tool-registry.ts",
+  "src/policy/capability-registry.ts",
 ]);
 
 function changedFiles(): string[] {
