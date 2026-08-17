@@ -11,14 +11,14 @@ export type ValidationResult = {
 export function validateResult(result: SubagentResult, expected?: string): ValidationResult {
   const warnings: string[] = [];
 
-  if (expected && result.status === "success") {
+  if (expected && (result.status === "success" || result.status === "partial")) {
     const hasExpected = result.findings.some(f => f.content.includes(expected));
     if (!hasExpected) {
       warnings.push(`Expected output "${expected}" not found in findings`);
     }
   }
 
-  if (result.findings.length === 0 && result.status === "success") {
+  if (result.findings.length === 0 && (result.status === "success" || result.status === "partial")) {
     warnings.push("Subagent returned success but no findings were recorded");
   }
 
