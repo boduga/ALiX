@@ -257,4 +257,75 @@ describe("PolicyGate", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  // ── Owned-path rule (headless write subagents) ──
+
+  it("owned-path rule auto-approves file.create on an owned path", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r1", toolName: "file.create", args: { path: "src/new.ts" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.equal(decision.decision, "allow");
+    assert.equal(decision.matchedRuleId, "owned-path-rule");
+  });
+
+  it("owned-path rule auto-approves patch.apply when its targets are owned (search_replace + unified_diff)", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const sr = await gate.evaluateToolCall({
+      requestId: "r2", toolName: "patch.apply",
+      args: { format: "search_replace", patchText: "<<<<<<< SEARCH path=src/a.ts\nold\n=======\nnew\n>>>>>>> REPLACE" },
+      cwd: "/ws", sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.equal(sr.decision, "allow");
+    const ud = await gate.evaluateToolCall({
+      requestId: "r3", toolName: "patch.apply",
+      args: { format: "unified_diff", patchText: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-old\n+new\n" },
+      cwd: "/ws", sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.equal(ud.decision, "allow");
+  });
+
+  it("owned-path rule denies a write outside owned paths with a clear reason", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r4", toolName: "file.create", args: { path: "config.json" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.equal(decision.decision, "deny");
+    assert.match(decision.reason, /outside owned paths/);
+  });
+
+  it("owned-path rule does NOT auto-approve shell.run even with ownedPaths", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r5", toolName: "shell.run", args: { command: "rm -rf src" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool", ownedPaths: ["src"],
+    });
+    assert.notEqual(decision.decision, "allow");
+  });
+
+  it("protected paths still deny even when owned", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r6", toolName: "file.create", args: { path: "/etc/passwd" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool", ownedPaths: ["/etc"],
+    });
+    assert.equal(decision.decision, "deny");
+  });
+
+  it("owned-path rule is inert without ownedPaths (still approval-store-missing)", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const decision = await gate.evaluateToolCall({
+      requestId: "r7", toolName: "file.create", args: { path: "src/new.ts" }, cwd: "/ws",
+      sessionMode: "ask", source: "tool",
+    });
+    assert.equal(decision.decision, "deny"); // approval-store-missing, unchanged behavior
+  });
 });

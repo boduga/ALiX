@@ -13,6 +13,7 @@ import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../tools/capability-map.js";
+import { extractPatchPaths } from "../patch/patch-paths.js";
 import { resolve } from "node:path";
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -42,6 +43,9 @@ export type ToolPolicyRequest = {
   workerAttempt?: number;
   ownershipClaims?: WorkerOwnershipClaim[];
   requestFingerprint?: string;
+  // Owned-path auto-approval (headless write subagents): paths this caller
+  // is authorized to mutate without approval.
+  ownedPaths?: string[];
 };
 
 export type CapabilityPolicyRequest = {
@@ -67,6 +71,27 @@ export type CapabilityPolicyRequest = {
 function resolvePolicyPath(cwd: string, path: string): string {
   if (path.startsWith("/")) return path;
   return resolve(cwd, path);
+}
+
+// ─── Owned-path auto-approval helpers ─────────────────────────────────
+
+/** Write tools whose mutation targets can be scoped to ownedPaths. */
+const OWNED_WRITE_TOOLS = new Set(["file.create", "file.delete", "patch.apply"]);
+
+/** Extract the mutation targets from a write-tool's args. */
+function mutationTargets(args: Record<string, unknown>): string[] {
+  const path = typeof args.path === "string" ? args.path : undefined;
+  if (path) return [path];
+  const format = typeof args.format === "string" ? args.format : undefined;
+  return extractPatchPaths(format, args.patchText);
+}
+
+/** True when a resolved target is inside (or equals) one of the owned paths. */
+function isWithinOwned(resolvedTarget: string, ownedPaths: string[], cwd: string): boolean {
+  return ownedPaths.some((owned) => {
+    const resolvedOwned = resolvePolicyPath(cwd, owned);
+    return resolvedTarget === resolvedOwned || resolvedTarget.startsWith(resolvedOwned + "/");
+  });
 }
 
 // ─── Evasion patterns (from policy-engine.ts) ────────────────────────
@@ -248,6 +273,28 @@ export class PolicyGate {
       }
       if (effective === "deny") {
         return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
+      }
+    }
+
+    // 5.5 Owned-path auto-approval (headless write subagents).
+    // The subagent's ownedPaths ARE the authorization: a write scoped entirely to
+    // owned paths is allowed; a write touching anything outside them is denied.
+    if (request.ownedPaths?.length && OWNED_WRITE_TOOLS.has(request.toolName)) {
+      const targets = mutationTargets(args);
+      if (targets.length === 0) {
+        // Unscoped (unparseable targets) — fall through to default/ask; headless
+        // subagents have no approval store so this fails closed.
+      } else if (targets.every((t) => isWithinOwned(resolvePolicyPath(request.cwd, t), request.ownedPaths!, request.cwd))) {
+        return {
+          requestId: request.requestId, capability, decision: "allow",
+          reason: "Write targets owned path", matchedRuleId: "owned-path-rule", policyRevision,
+        };
+      } else {
+        const outside = targets.filter((t) => !isWithinOwned(resolvePolicyPath(request.cwd, t), request.ownedPaths!, request.cwd));
+        return {
+          requestId: request.requestId, capability, decision: "deny",
+          reason: `Write target outside owned paths: ${outside.join(", ")}`, matchedRuleId: "owned-path-rule", policyRevision,
+        };
       }
     }
 

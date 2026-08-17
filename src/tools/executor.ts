@@ -77,6 +77,7 @@ export class ToolExecutor {
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
     private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate
+    private ownedPaths?: string[],  // OwnedPaths — owned-path auto-approval for headless write subagents
   ) {
     // Create router with all handlers
     const composite = new CompositeToolRouter([
@@ -200,6 +201,7 @@ export class ToolExecutor {
       sessionId: this.sessionId(),
       agentId: request.agentId ?? "alix",
       source: "tool",
+      ownedPaths: this.ownedPaths,
     });
 
     // Denied — policy or ownership rejected this call

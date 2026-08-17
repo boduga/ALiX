@@ -211,7 +211,13 @@ export class SubagentCLI {
       eventLog,
       projectRoot,
       mcpManager ?? undefined,
-      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference })
+      buildEditFormatPolicy({ provider: effectiveProvider, preferred: provider.editFormatPreference }),
+      undefined, // extraHandlers
+      undefined, // checkpointManager
+      undefined, // approvalStore
+      undefined, // workspacePathResolver
+      undefined, // ownershipRegistry
+      mode === "write" ? ownedPaths : undefined,
     );
 
     // Build system prompt with role instructions and context
