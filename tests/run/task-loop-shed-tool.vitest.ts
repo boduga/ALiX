@@ -195,14 +195,13 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     // in `scopedOutNames`. Model then calls the shed tool to trigger the path.
     const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
     const coreTool2: ToolDef = { name: 'alix_file_read', description: 'Read a file', input_schema: { type: 'object', properties: {} } };
-    const coreTool3: ToolDef = { name: 'alix_file_write', description: 'Write a file', input_schema: { type: 'object', properties: {} } };
     const coreTool4: ToolDef = { name: 'alix_patch_apply', description: 'Apply a patch', input_schema: { type: 'object', properties: {} } };
     const coreTool5: ToolDef = { name: 'alix_patch_create', description: 'Create a patch', input_schema: { type: 'object', properties: {} } };
     const coreTool6: ToolDef = { name: 'alix_done', description: 'Signal completion', input_schema: { type: 'object', properties: {} } };
     const matchingExtended: ToolDef = { name: 'alix_docs_search', description: 'Search docs and findings', input_schema: { type: 'object', properties: {} } };
     const shedTool: ToolDef = { name: 'langfuse_trace_export', description: 'Export trace to Langfuse', input_schema: { type: 'object', properties: {} } };
 
-    const providerTools = [coreTool, coreTool2, coreTool3, coreTool4, coreTool5, coreTool6, matchingExtended, shedTool];
+    const providerTools = [coreTool, coreTool2, coreTool4, coreTool5, coreTool6, matchingExtended, shedTool];
 
     // Task text matches alix_docs_search (token "search") but does NOT match
     // langfuse_trace_export (no shared token). So langfuse_trace_export ends up
@@ -258,14 +257,13 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
   it('retry-once guardrail: second call to same shed tool falls through to invalid-tool path', async () => {
     const coreTool: ToolDef = { name: 'alix_shell_run', description: 'Run a shell command', input_schema: { type: 'object', properties: {} } };
     const coreTool2: ToolDef = { name: 'alix_file_read', description: 'Read a file', input_schema: { type: 'object', properties: {} } };
-    const coreTool3: ToolDef = { name: 'alix_file_write', description: 'Write a file', input_schema: { type: 'object', properties: {} } };
     const coreTool4: ToolDef = { name: 'alix_patch_apply', description: 'Apply a patch', input_schema: { type: 'object', properties: {} } };
     const coreTool5: ToolDef = { name: 'alix_patch_create', description: 'Create a patch', input_schema: { type: 'object', properties: {} } };
     const coreTool6: ToolDef = { name: 'alix_done', description: 'Signal completion', input_schema: { type: 'object', properties: {} } };
     const matchingExtended: ToolDef = { name: 'alix_docs_search', description: 'Search docs and findings', input_schema: { type: 'object', properties: {} } };
     const shedTool: ToolDef = { name: 'langfuse_trace_export', description: 'Export trace to Langfuse', input_schema: { type: 'object', properties: {} } };
 
-    const providerTools = [coreTool, coreTool2, coreTool3, coreTool4, coreTool5, coreTool6, matchingExtended, shedTool];
+    const providerTools = [coreTool, coreTool2, coreTool4, coreTool5, coreTool6, matchingExtended, shedTool];
 
     // Model calls shed tool in iteration 0 AND again in iteration 1 (after retry)
     const provider = createMockProvider({

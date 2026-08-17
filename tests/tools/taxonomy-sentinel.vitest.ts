@@ -18,6 +18,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TOOL_NAME_MAP } from '../../src/agents/tool-name-map.js';
+import { WRITE_TOOLS } from '../../src/agents/tool-policy.js';
+import { CORE_TOOL_NAMES } from '../../src/config/tool-scoping.js';
 import { buildDefaultToolIndex, getToolsForCapability, getCapabilitiesForTool } from '../../src/tools/tool-registry.js';
 
 const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
@@ -67,5 +69,23 @@ describe('taxonomy unification architecture sentinels', () => {
       if (t.name === 'mcp.*') continue;              // dynamic family, added at runtime
       expect([...mapNames].some((v) => v === t.name), `TOOL_NAME_MAP missing: ${t.name}`).toBe(true);
     }
+  });
+
+  it('Sentinel I: no phantom alix_file_write in NLP admission/policy lists', () => {
+    // `file.write` is only a policy key for file.create/file.delete, NOT an
+    // executable tool name — no `alix_file_write` alias exists. If it ever
+    // reappears in the always-mandatory admission set (CORE_TOOL_NAMES) or the
+    // write classification set (WRITE_TOOLS), it admits/classifies a tool that
+    // fails at dispatch (CompositeToolRouter → "No router found").
+    expect(CORE_TOOL_NAMES.has('alix_file_write')).toBe(false);
+    expect(WRITE_TOOLS.has('alix_file_write')).toBe(false);
+  });
+
+  it('Sentinel I: real write tools stay classified', () => {
+    // The retirement must not gut WRITE_TOOLS — these real, dispatchable
+    // write tools must remain classified as write tools.
+    expect(WRITE_TOOLS.has('alix_file_create')).toBe(true);
+    expect(WRITE_TOOLS.has('alix_file_delete')).toBe(true);
+    expect(WRITE_TOOLS.has('alix_file_exists')).toBe(true);
   });
 });

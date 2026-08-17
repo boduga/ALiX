@@ -14,7 +14,6 @@ import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 export const CORE_TOOL_NAMES: ReadonlySet<string> = new Set([
   "alix_shell_run",
   "alix_file_read",
-  "alix_file_write",
   "alix_patch_apply",
   "alix_patch_create",
   "alix_done",

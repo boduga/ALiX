@@ -33,7 +33,7 @@ test("getToolPolicy returns read-only for docs_researcher", () => {
 test("filterTools removes write tools for read-only roles", () => {
   const tools: ToolDef[] = [
     { name: "alix_file_read", description: "read files", input_schema: { type: "object", properties: {} } },
-    { name: "alix_file_write", description: "write files", input_schema: { type: "object", properties: {} } },
+    { name: "alix_file_create", description: "create files", input_schema: { type: "object", properties: {} } },
     { name: "alix_done", description: "done", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
@@ -41,19 +41,19 @@ test("filterTools removes write tools for read-only roles", () => {
   const names = filtered.map(t => t.name);
   assert.ok(names.includes("alix_file_read"), "should include read tool");
   assert.ok(names.includes("alix_done"), "should include done tool");
-  assert.ok(!names.includes("alix_file_write"), "should NOT include write tool");
+  assert.ok(!names.includes("alix_file_create"), "should NOT include write tool");
 });
 
 test("filterTools includes write tools for worker role", () => {
   const tools: ToolDef[] = [
     { name: "alix_file_read", description: "read", input_schema: { type: "object", properties: {} } },
-    { name: "alix_file_write", description: "write", input_schema: { type: "object", properties: {} } },
+    { name: "alix_file_create", description: "create", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("worker");
   const filtered = filterTools(tools, policy);
   const names = filtered.map(t => t.name);
   assert.ok(names.includes("alix_file_read"));
-  assert.ok(names.includes("alix_file_write"));
+  assert.ok(names.includes("alix_file_create"));
 });
 
 test("filterTools blocks MCP tools for read-only roles", () => {
