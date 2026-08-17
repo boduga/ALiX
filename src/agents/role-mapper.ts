@@ -35,6 +35,16 @@ export function recommendRole(taskType: TaskType, prompt: string): RoleRecommend
     return { role: "docs_researcher", confidence: "high", reason: "documentation tasks" };
   }
 
+  // Research → researcher subagent
+  if (taskType === "research") {
+    return {
+      role: "researcher",
+      confidence: "high",
+      reason:
+        "research tasks require the researcher subagent",
+    };
+  }
+
   // Default → explorer (read-only exploration)
   return { role: "explorer", confidence: "low", reason: "no specific role match" };
 }
