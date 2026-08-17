@@ -66,3 +66,6 @@ alix-*.sbom.json
 
 # Temporary analysis output
 tmp-*.json
+
+# Runtime EventLog artifacts (regenerated each session)
+events.jsonl
