@@ -1,4 +1,8 @@
 import type { SubagentRole } from "../config/schema.js";
+import {
+  AGENT_REGISTRY,
+  getPolicyBucket,
+} from "./agent-registry.js";
 
 export type ToolCategory = "read" | "write" | "mcp";
 
@@ -10,16 +14,17 @@ export type ToolPolicy = {
 };
 
 // Policies keyed by role or style
-const READ_ONLY_ROLES: SubagentRole[] = [
-  "explorer",
-  "reviewer",
-  "test_investigator",
-  "docs_researcher",
-];
+const READ_ONLY_ROLES: SubagentRole[] = AGENT_REGISTRY
+  .filter((a) => getPolicyBucket(a.role) === "read")
+  .map((a) => a.role);
 
-const WRITE_ROLES: SubagentRole[] = ["worker"];
+const WRITE_ROLES: SubagentRole[] = AGENT_REGISTRY
+  .filter((a) => getPolicyBucket(a.role) === "write")
+  .map((a) => a.role);
 
-const RESEARCH_ROLES: SubagentRole[] = ["researcher"];
+const RESEARCH_ROLES: SubagentRole[] = AGENT_REGISTRY
+  .filter((a) => getPolicyBucket(a.role) === "research")
+  .map((a) => a.role);
 
 export function getToolPolicy(role: SubagentRole): ToolPolicy {
   if (READ_ONLY_ROLES.includes(role)) {

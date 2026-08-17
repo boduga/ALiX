@@ -91,3 +91,16 @@ test("filterTools allows git and shell tools for read-only roles", () => {
   const filtered = filterTools(tools, policy);
   assert.equal(filtered.length, 2);
 });
+
+test("getToolPolicy returns research access for researcher role", () => {
+  const policy = getToolPolicy("researcher");
+
+  assert.deepEqual(policy.allowedCategories, ["read", "mcp"]);
+});
+
+test("getToolPolicy returns read-only fallback for auto", () => {
+  const policy = getToolPolicy("auto");
+
+  assert.deepEqual(policy.allowedCategories, ["read"]);
+  assert.equal(policy.maxIterations, 3);
+});

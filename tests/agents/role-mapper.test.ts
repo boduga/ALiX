@@ -38,4 +38,14 @@ describe("role-mapper", () => {
     assert.equal(result.role, "explorer");
     assert.equal(result.confidence, "low");
   });
+
+  it("maps research to researcher with high confidence", () => {
+    const result = recommendRole(
+      "research",
+      "research auth tokens",
+    );
+
+    assert.equal(result.role, "researcher");
+    assert.equal(result.confidence, "high");
+  });
 });

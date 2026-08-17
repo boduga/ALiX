@@ -338,7 +338,7 @@ test("loadConfig prefers project config API key over global and XDG keys", async
 test("subagent roles are loaded from defaults", () => {
   const result = mergeConfig(DEFAULT_CONFIG, {});
   assert.equal(result.subagents!.enabled, true);
-  assert.equal(result.subagents!.roles.length, 5);
+  assert.equal(result.subagents!.roles.length, 6);
 
   // Check each role's mode, retryCount, and style where applicable
   for (const r of result.subagents!.roles) {
@@ -362,6 +362,10 @@ test("subagent roles are loaded from defaults", () => {
       assert.equal(r.mode, "write");
       assert.equal(r.retryCount, 0);
       assert.equal(r.style, "coding");
+    } else if (r.role === "researcher") {
+      assert.equal(r.mode, "read_only");
+      assert.equal(r.retryCount, 1);
+      assert.equal(r.style, "fast");
     }
   }
 
