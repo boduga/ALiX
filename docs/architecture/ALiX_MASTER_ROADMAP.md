@@ -148,11 +148,11 @@ Observe → Assess → Propose → Review → Approve → Apply → Measure → 
 
 ## A7 — Capability Lifecycle Governance
 
-**Status:** Greenfield refactor proposed.
+**Status:** ✅ Complete — greenfield refactor shipped (CAP-1…CAP-12, CAP-N, CAP-O, CAP-P).
 
-A7's responsibility survives: govern the lifecycle of capabilities through proposal, decision, application, and measurement.
+A7 governs the lifecycle of capabilities through proposal, decision, application, and measurement, against the canonical CapabilityRegistry.
 
-The previous A7.0/A7.1 implementation is historical and superseded architecturally. The replacement is defined by ADR-0013 and the greenfield capability design/plan.
+The previous A7.0/A7.1 implementation is historical and superseded architecturally. The replacement defined by ADR-0013 and the greenfield capability design/plan has shipped.
 
 ### Canonical A7 boundary
 
@@ -208,14 +208,16 @@ This namespace is a consumer of the canonical registry, not a separate capabilit
 
 | Milestone | Focus | Status |
 |---|---|---|
-| A8 | Organizational Learning | 🔲 Proposed |
-| A9 | Self-Directed Engineering | 🔲 Proposed |
+| A8 | Organizational Learning | ✅ Complete (PR #525) |
+| A9 | Pre-Execution Risk Forecast & Governance Gating | ✅ Complete (PR #552) |
+
+> Note: the aspirational "Self-Directed Engineering" (ALiX autonomously planning + executing its own improvements) is unbuilt — it is not what A9 shipped. A9's shipped focus is pre-execution risk forecast and governance gating.
 
 ---
 
-# 8. Capability Greenfield Refactor
+# 8. Capability Greenfield Refactor — SHIPPED
 
-The next capability increment must proceed in this order:
+The greenfield capability increment is complete (CAP-1…CAP-12, CAP-N, CAP-O, CAP-P). It proceeded in this order:
 
 ```text
 Canonical contract
@@ -262,9 +264,9 @@ PHASE 3 — Maintain sealed governance foundation P14–P30
 
 PHASE 4 — Build/extend X-Series controlled execution
 
-PHASE 5 — Greenfield A7 capability architecture
+PHASE 5 — ✅ Greenfield A7 capability architecture (COMPLETE)
 
-PHASE 6 — A8/A9 autonomous evolution frontier
+PHASE 6 — ✅ A8/A9 autonomous evolution (COMPLETE)
 ```
 
 ---

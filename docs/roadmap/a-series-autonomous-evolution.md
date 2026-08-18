@@ -6,17 +6,13 @@ The A-Series sits above both M and P, consuming platform and product capabilitie
 
 ## Status
 
-**A0–A6 are complete.** A7's first implementation (A7.0/A7.1) was completed and merged, but its capability-surface architecture has been **superseded** by the greenfield capability-platform refactor defined by ADR-0013.
+**A0–A9 are complete.** Completion is verified by annotated git tags (`alix-a*-complete`) and source; the roadmap reflects shipped state, not aspiration.
 
-The A7 implementation remains a historical checkpoint; new capability work must follow:
+A7's first implementation (A7.0/A7.1) was completed and merged, then **superseded** by the greenfield capability-platform refactor defined by ADR-0013 — which is itself complete (CAP-1…CAP-12, CAP-N, CAP-O, CAP-P). A7 now governs capabilities through the canonical M-series CapabilityRegistry.
 
-- `docs/architecture/adrs/ADR-0013-capability-system-and-provider-architecture.md`
-- `docs/superpowers/specs/2026-08-10-capability-platform-greenfield-architecture-design.md`
-- `docs/superpowers/plans/2026-08-10-capability-platform-greenfield-refactor.md`
+A8 (Organizational Learning, PR #525) and A9 (Pre-Execution Risk Forecast & Governance Gating, PR #552) are complete and merged.
 
-A7 is therefore **architecturally reset, not deleted**: the lifecycle governance responsibility survives, while its implementation boundary is rebuilt around the canonical M-series CapabilityRegistry.
-
-**A8–A9 remain the frontier** — designed at roadmap level only, with no active implementation dependency on the superseded A7 surface.
+Note: the aspirational "Self-Directed Engineering" (ALiX autonomously planning + executing its own improvements) is unbuilt — it is not what A9 shipped. A9's shipped focus is pre-execution risk forecast and governance gating.
 
 ## Evolution Pipeline (A0–A6)
 
@@ -40,9 +36,9 @@ Observe → Discover → Verify → Govern → Execute → Observe Outcome
 
 | Milestone | Focus | Status |
 |-----------|-------|--------|
-| A7 | Capability Lifecycle Governance — propose, decide, apply, and measure capability changes through the canonical CapabilityRegistry | 🔄 Greenfield refactor proposed |
-| A8 | Organizational Learning — learn from all past proposals and outcomes | 🔲 Proposed |
-| A9 | Self-Directed Engineering — autonomous plan-execute lifecycle | 🔲 Proposed |
+| A7 | Capability Lifecycle Governance — propose, decide, apply, and measure capability changes through the canonical CapabilityRegistry | ✅ Complete — greenfield refactor shipped (CAP-1…CAP-12, CAP-N, CAP-O, CAP-P) |
+| A8 | Organizational Learning — learn from all past proposals and outcomes | ✅ Complete (PR #525) |
+| A9 | Pre-Execution Risk Forecast & Governance Gating — forecast execution risk before governed change | ✅ Complete (PR #552) |
 
 ### A7 architectural boundary
 
