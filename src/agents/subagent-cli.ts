@@ -194,7 +194,16 @@ export function computeSubagentStatus(
   cwd: string,
 ): SubagentResult["status"] {
   const { successfulPaths, fatalWriteFailures } = progress;
-  if (successfulPaths.size === 0) return fatalWriteFailures.length > 0 ? "failed" : "success";
+  if (successfulPaths.size === 0) {
+    // No durable progress.
+    if (fatalWriteFailures.length > 0) return "failed"; // attempted + failed
+    // Matrix-G (locked ruling 2026-08-17): a write-mode worker with an owned
+    // objective that made ZERO write attempts has not demonstrated completion —
+    // report failed, not success. Only when there is no owned objective
+    // (read-only / empty ownedPaths) is zero-activity genuinely "success".
+    if (ownedPaths.length > 0) return "failed";
+    return "success";
+  }
   if (ownedPaths.length === 0) return "success";
   return isObjectiveComplete(successfulPaths, ownedPaths, cwd) ? "success" : "partial";
 }
@@ -225,7 +234,9 @@ export function buildResult(
     status === "failed"
       ? fatalWriteFailures.length
         ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
-        : "Subagent failed"
+        : successfulPaths.size === 0 && ownedPaths.length > 0
+          ? `No write attempts against owned paths: ${ownedPaths.join(", ")}`
+          : "Subagent failed"
       : status === "partial"
         ? partialDetail(successfulPaths, ownedPaths, fatalWriteFailures, process.cwd())
         : undefined;

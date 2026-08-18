@@ -82,8 +82,10 @@ const CWD = "/project";
 const P = (paths: string[] = [], failures: string[] = []): WriteProgress =>
   ({ successfulPaths: new Set(paths), fatalWriteFailures: failures });
 
-test("computeSubagentStatus: success when nothing written and no failure", () => {
-  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "success");
+// Matrix-G (locked ruling 2026-08-17): a write-mode worker with an owned
+// objective that made ZERO write attempts is "failed" — not "success".
+test("computeSubagentStatus: failed when nothing written and no failure but owned objective unmet", () => {
+  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "failed");
 });
 
 test("computeSubagentStatus: failed when a write failed with no durable progress", () => {
@@ -128,8 +130,8 @@ test("matrix: no progress + failed write", () => {
 });
 
 // Spec 32.1 Test G
-test("matrix: clean no-progress", () => {
-  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "success");
+test("matrix: clean no-progress (Matrix-G: zero attempts, owned objective unmet)", () => {
+  assert.equal(computeSubagentStatus(P(), ["foo.ts"], CWD), "failed");
 });
 
 // Spec 32.1 Test H
