@@ -47,8 +47,8 @@ export function buildContextBundleEventPayload(contextBundle: ContextBundle) {
   };
 }
 
-export function buildModelUsageEventPayload(provider: string, model: string, usage: { inputTokens: number; outputTokens: number }) {
-  return { provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+export function buildModelUsageEventPayload(provider: string, model: string, usage: { inputTokens: number; outputTokens: number }, resolvedModel?: string) {
+  return { provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, ...(resolvedModel ? { resolvedModel } : {}) };
 }
 
 export function renderContextBundleForPrompt(contextBundle: ContextBundle): string {

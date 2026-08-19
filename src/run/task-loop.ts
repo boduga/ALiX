@@ -744,6 +744,7 @@ for (const hook of hooks.pre_task ?? []) {
 let text = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
+let resolvedModel: string | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
@@ -758,6 +759,7 @@ let usage: TokenUsage | undefined;
 	  text = result.text;
 	  toolCalls = result.toolCalls;
 	  usage = result.usage;
+	  resolvedModel = result.resolvedModel;
 	} else {
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
@@ -771,6 +773,7 @@ let usage: TokenUsage | undefined;
 	  text = resp.text ?? "";
 	  toolCalls = resp.toolCalls ?? [];
 	  usage = resp.usage;
+	  resolvedModel = resp.resolvedModel;
 }
 
   // Fallback: model emitted XML-style tool calls as raw text instead of
@@ -812,11 +815,11 @@ if (text.length > 0) {
 // Emit model call metric for every call regardless of usage data
 await log.append({
   ...session, actor: "system", type: "m09.metric",
-  payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: model.provider }, timestamp: new Date().toISOString() },
+  payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: model.provider, ...(resolvedModel ? { resolved_model: resolvedModel } : {}) }, timestamp: new Date().toISOString() },
 });
 
 if (usage) {
-  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(model.provider, model.name, usage) });
+  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(model.provider, model.name, usage, resolvedModel) });
   // §1 — compare our estimated raw+padded against the provider's actual input
   // tokens. Keyed by the same invocationId as context.snapshot.created.
   await log.append({
