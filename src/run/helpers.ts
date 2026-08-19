@@ -331,6 +331,9 @@ export async function streamToResponse(
     }
     return { text, toolCalls, usage, resolvedModel };
   } catch (err) {
+    // Routing adapters already made their fallback decision (INV-5); their
+    // post-commit failure is final — do not re-run the chain and concatenate.
+    if ((provider as { isRoutingAdapter?: boolean }).isRoutingAdapter) throw err;
     // Fail-soft: a mid-stream error (network hiccup, dropped chunk, malformed
     // SSE) must not abort the task run. Fall back to a blocking complete();
     // the tokens streamed so far remain, the rest arrives as one block.

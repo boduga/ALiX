@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { RoutingModelAdapter, type RoutingCandidate } from "../../src/providers/routing-adapter.js";
+import { streamToResponse } from "../../src/run/helpers.js";
 import { ApiError } from "../../src/providers/base.js";
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
 
@@ -182,5 +183,92 @@ const fallback = fake({}, {
     // Now both candidates are open for the streaming path too.
     const gen2 = adapter.stream(req);
     await expect(gen2.next()).rejects.toThrow("Circuit breaker is open");
+  });
+
+  it("does not fall back after text has been emitted (INV-5)", async () => {
+    const primary = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "hello" };
+        yield { type: "error", error: "mid-stream drop" };
+      })(),
+    });
+    const fallback = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "fallback" };
+        yield { type: "done" };
+      })(),
+    });
+    const adapter = new RoutingModelAdapter([candidate(primary, "primary"), candidate(fallback, "free")]);
+    const out: { type: string; text?: string }[] = [];
+    for await (const c of adapter.stream(req)) {
+      if (c.type === "text_delta" || c.type === "error") out.push(c);
+    }
+    // Committed text forwards, then the error chunk — fallback never runs.
+    expect(out).toEqual([{ type: "text_delta", text: "hello" }, { type: "error", error: "mid-stream drop" }]);
+  });
+
+  it("falls back when stream fails before any committed chunk", async () => {
+    const primary = fake({}, {
+      stream: () => (async function* () {
+        throw err(503);
+      })(),
+    });
+    const fallback = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "fallback" };
+        yield { type: "done" };
+      })(),
+    });
+    const adapter = new RoutingModelAdapter([candidate(primary, "primary"), candidate(fallback, "free")]);
+    const out: string[] = [];
+    for await (const c of adapter.stream(req)) {
+      if (c.type === "text_delta") out.push(c.text);
+    }
+    expect(out).toEqual(["fallback"]);
+  });
+
+  it("returns fallback resolvedModel when fallback stream succeeds", async () => {
+    const primary = fake({}, {
+      stream: () => (async function* () {
+        throw err(503);
+      })(),
+    });
+    const fallback = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "fallback" };
+        yield { type: "done" };
+      })(),
+    });
+    const adapter = new RoutingModelAdapter([candidate(primary, "primary"), candidate(fallback, "free")]);
+    const out: { type: string; text?: string; resolvedModel?: string }[] = [];
+    for await (const c of adapter.stream(req)) out.push(c);
+    const done = out.find((c) => c.type === "done");
+    expect(done?.resolvedModel).toBe("free");
+  });
+
+  it("forwards committed chunks verbatim", async () => {
+    const primary = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "a" };
+        yield { type: "tool_call", toolCall: { name: "t", args: {} } as never };
+        yield { type: "usage", usage: { inputTokens: 1, outputTokens: 1 } };
+        yield { type: "done" };
+      })(),
+    });
+    const adapter = new RoutingModelAdapter([candidate(primary, "primary")]);
+    const out: { type: string }[] = [];
+    for await (const c of adapter.stream(req)) out.push(c);
+    expect(out.map((c) => c.type)).toEqual(["text_delta", "tool_call", "usage", "done"]);
+  });
+
+  it("streamToResponse rejects (no concatenation) after post-commit stream error on a routed provider (INV-5)", async () => {
+    const routed = fake({}, {
+      stream: () => (async function* () {
+        yield { type: "text_delta", text: "partial" };
+        yield { type: "error", error: "mid-stream drop" };
+      })(),
+    });
+    const adapter = new RoutingModelAdapter([candidate(routed, "primary")]);
+    await expect(streamToResponse(adapter, req)).rejects.toThrow("mid-stream drop");
   });
 });
