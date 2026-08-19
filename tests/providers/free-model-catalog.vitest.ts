@@ -12,21 +12,22 @@ afterEach(() => {
 });
 
 describe("fetchFreeModelCatalog", () => {
-  it("filters to models where prompt AND request pricing are zero", async () => {
+  it("filters to models where prompt AND completion pricing are zero", async () => {
     _setCatalogFetchForTesting(async () => sample([
-      { id: "a/free", name: "A Free", context_length: 32_000, pricing: { prompt: "0", completion: "0", request: "0", image: "0", web_search: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
-      { id: "b/paid", name: "B Paid", context_length: 200_000, pricing: { prompt: "1.5", completion: "2", request: "1" }, supported_parameters: { tools: true, structured_outputs: true, vision: true } },
-      { id: "c/free-request", name: "C", context_length: 8192, pricing: { prompt: "0", completion: "0", request: "0.1" }, supported_parameters: {} },
-      { id: "d/zero-completion", name: "D", context_length: 4096, pricing: { prompt: "1", completion: "0", request: "0" }, supported_parameters: {} },
+      { id: "a/free", name: "A Free", context_length: 32_000, pricing: { prompt: "0", completion: "0", image: "0", web_search: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
+      { id: "b/paid", name: "B Paid", context_length: 200_000, pricing: { prompt: "1.5", completion: "2", image: "1" }, supported_parameters: { tools: true, structured_outputs: true, vision: true } },
+      { id: "c/free-request", name: "C", context_length: 8192, pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
+      { id: "d/zero-completion", name: "D", context_length: 4096, pricing: { prompt: "1", completion: "0" }, supported_parameters: {} },
+      { id: "e/no-pricing", name: "E", context_length: 4096, pricing: {}, supported_parameters: {} },
     ]));
     const catalog = await fetchFreeModelCatalog();
-    expect(catalog.map((m) => m.id)).toEqual(["a/free"]);
+    expect(catalog.map((m) => m.id)).toEqual(["a/free", "c/free-request"]);
   });
 
   it("maps capabilities and preserves unknown context length", async () => {
     _setCatalogFetchForTesting(async () => sample([
-      { id: "a/free", name: "A Free", context_length: 32_000, pricing: { prompt: "0", request: "0" }, supported_parameters: { tools: true, structured_outputs: false, vision: true } },
-      { id: "b/free", name: "B Free", pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
+      { id: "a/free", name: "A Free", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true, structured_outputs: false, vision: true } },
+      { id: "b/free", name: "B Free", pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
     ]));
     const catalog = await fetchFreeModelCatalog();
     expect(catalog[0]).toEqual({
@@ -40,9 +41,21 @@ describe("fetchFreeModelCatalog", () => {
     expect(catalog[1]!.inputTokenLimit).toBeUndefined();
   });
 
+  it("parses supported_parameters in OpenRouter array form", async () => {
+    _setCatalogFetchForTesting(async () => sample([
+      { id: "a/free", name: "A", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools", "structured_outputs"] },
+      { id: "b/free", name: "B", context_length: 8192, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["temperature"] },
+    ]));
+    const catalog = await fetchFreeModelCatalog();
+    expect(catalog[0]!.supportsTools).toBe(true);
+    expect(catalog[0]!.supportsStructuredOutput).toBe(true);
+    expect(catalog[0]!.supportsVision).toBe(false);
+    expect(catalog[1]!.supportsTools).toBe(false);
+  });
+
   it("caches the catalog across calls (TTL)", async () => {
     const fetchFn = vi.fn(async () => sample([
-      { id: "a/free", name: "A Free", pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
+      { id: "a/free", name: "A Free", pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
     ]));
     _setCatalogFetchForTesting(fetchFn);
     await fetchFreeModelCatalog();
@@ -57,7 +70,7 @@ describe("fetchFreeModelCatalog", () => {
 
   it("uses a non-expired cache after a fetch failure", async () => {
     _setCatalogFetchForTesting(async () => sample([
-      { id: "a/free", name: "A Free", pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
+      { id: "a/free", name: "A Free", pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
     ]));
     await fetchFreeModelCatalog();
     _setCatalogFetchForTesting(async () => { throw new Error("network down"); });

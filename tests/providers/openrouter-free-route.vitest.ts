@@ -19,7 +19,7 @@ afterEach(() => {
 describe("openrouter/free route", () => {
   it("resolves a concrete free model per request and completes through it", async () => {
     _setCatalogFetchForTesting(async () => catalog([
-      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", request: "0" }, supported_parameters: { tools: true } },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
     ]));
     let requestedModel: string | undefined;
     _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
@@ -38,8 +38,8 @@ describe("openrouter/free route", () => {
     _setCatalogFetchForTesting(async () => {
       catalogFetchCount++;
       return catalog([
-        { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
-        { id: "b/free", name: "B", context_length: 64_000, pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
+        { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
+        { id: "b/free", name: "B", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
       ]);
     });
     let requested: string[] = [];
@@ -59,7 +59,7 @@ describe("openrouter/free route", () => {
 
   it("throws a clear error when no free model satisfies the request", async () => {
     _setCatalogFetchForTesting(async () => catalog([
-      { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", request: "0" }, supported_parameters: { tools: false } },
+      { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: false } },
     ]));
     const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
     await expect(provider.complete({ ...req, tools: [{ name: "t", description: "d", input_schema: { type: "object", properties: {} } }] }))
@@ -79,7 +79,7 @@ describe("openrouter/free route", () => {
 
   it("resolves per request in the streaming path", async () => {
     _setCatalogFetchForTesting(async () => catalog([
-      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", request: "0" }, supported_parameters: { tools: true } },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
     ]));
     let requestedModel: string | undefined;
     _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {

@@ -30,19 +30,30 @@ function isFree(m: unknown): boolean {
   if (!isRecord(m)) return false;
   const pricing = m.pricing;
   if (!isRecord(pricing)) return false;
-  return pricing.prompt === "0" && pricing.request === "0";
+  // OpenRouter pricing is `{ prompt, completion, ... }` — a model is free when
+  // both prompt and completion pricing are zero. `request` is not a field.
+  return pricing.prompt === "0" && pricing.completion === "0";
+}
+
+function supports(name: string, params: unknown): boolean {
+  // OpenRouter returns `supported_parameters` as an ARRAY of parameter names
+  // (e.g. `["tools","structured_outputs",...]`). Older fixtures/tests use an
+  // object-of-booleans shape. Accept both.
+  if (Array.isArray(params)) return params.includes(name);
+  if (isRecord(params)) return params[name] === true;
+  return false;
 }
 
 function toFreeModelInfo(m: Record<string, unknown>): FreeModelInfo {
-  const params = isRecord(m.supported_parameters) ? m.supported_parameters : {};
+  const params = m.supported_parameters;
   const inputTokenLimit = typeof m.context_length === "number" ? m.context_length : undefined;
   return {
     id: typeof m.id === "string" ? m.id : "",
     name: typeof m.name === "string" ? m.name : "",
     inputTokenLimit,
-    supportsTools: params.tools === true,
-    supportsStructuredOutput: params.structured_outputs === true,
-    supportsVision: params.vision === true,
+    supportsTools: supports("tools", params),
+    supportsStructuredOutput: supports("structured_outputs", params),
+    supportsVision: supports("vision", params),
   };
 }
 

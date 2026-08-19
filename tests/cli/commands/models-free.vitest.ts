@@ -23,7 +23,7 @@ describe("models free", () => {
   it("lists free models with context and capability flags", async () => {
     _setCatalogFetchForTesting(async () => sample([
       { id: "qwen/qwen3-14b:free", name: "Qwen 3 14B", context_length: 32_000, pricing: { prompt: "0", completion: "0", request: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
-      { id: "a/no-ctx:free", name: "A", pricing: { prompt: "0", request: "0" }, supported_parameters: {} },
+      { id: "a/no-ctx:free", name: "A", pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
     ]));
     const out = await capture(() => handleModelsCommand(["free"]));
     const text = out.join("\n");
@@ -38,7 +38,7 @@ describe("models free", () => {
 
   it("emits valid JSON with --json", async () => {
     _setCatalogFetchForTesting(async () => sample([
-      { id: "qwen/qwen3-14b:free", name: "Qwen 3 14B", context_length: 32_000, pricing: { prompt: "0", request: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
+      { id: "qwen/qwen3-14b:free", name: "Qwen 3 14B", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
     ]));
     const out = await capture(() => handleModelsCommand(["free", "--json"]));
     const parsed = JSON.parse(out.join("\n")) as unknown[];
