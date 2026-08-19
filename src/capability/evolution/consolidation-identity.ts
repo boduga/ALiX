@@ -107,7 +107,7 @@ export function isWellFormedConsolidateDefinition(
  * leak into the bundled identity.
  *
  * Code-review pass 3 (J1) — extracted from the inline literal in
- * `a7-proposals.ts` (`signalToCandidate`) so the operator CLI and any other
+ * `proposals.ts` (`signalToCandidate`) so the operator CLI and any other
  * signal-source seam can build the same bundle without duplication.
  *
  * Note: this accepts the `consolidation_opportunity` arm of the
@@ -132,7 +132,7 @@ export function bundleConsolidationIdentity(
  *
  * Re-exported here so callers of `bundleConsolidationIdentity` can import
  * the narrow type alongside the bundle helper without depending on
- * `a7-proposals.ts`.
+ * `proposals.ts`.
  */
 export interface ConsolidationOpportunitySignal {
   readonly kind: "consolidation_opportunity";

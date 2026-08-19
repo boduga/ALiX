@@ -77,8 +77,15 @@ export interface NewRecommendationReport {
   loadWarnings: string[];
 }
 
+/** Current envelope schema version (domain-named per ADR-0014).
+ *  `p10.7b.0` is the deprecated legacy value — accepted on read for
+ *  backward compatibility with pre-0.6.0 persisted records. */
+export type RecommendationReportVersion = "recommendation_report_v1" | "p10.7b.0";
+export const RECOMMENDATION_REPORT_VERSION: RecommendationReportVersion = "recommendation_report_v1";
+export const LEGACY_RECOMMENDATION_REPORT_VERSION: RecommendationReportVersion = "p10.7b.0";
+
 export interface RecommendationReport {
-  schemaVersion: "p10.7b.0";
+  schemaVersion: RecommendationReportVersion;
   id: string;
   contentHash: string;
   report: NewRecommendationReport;
@@ -124,7 +131,7 @@ export class RecommendationReportStore {
     const contentHash = sha256(JSON.stringify(payload));
 
     const wrapper: RecommendationReport = {
-      schemaVersion: "p10.7b.0",
+      schemaVersion: RECOMMENDATION_REPORT_VERSION,
       id,
       contentHash,
       report: payload,
@@ -161,7 +168,7 @@ export class RecommendationReportStore {
       );
     }
 
-    if (parsed.schemaVersion !== "p10.7b.0") {
+    if (parsed.schemaVersion !== RECOMMENDATION_REPORT_VERSION && parsed.schemaVersion !== LEGACY_RECOMMENDATION_REPORT_VERSION) {
       throw new RecommendationReportIntegrityError(
         `Recommendation report ${reportId}: unknown schemaVersion "${parsed.schemaVersion}"`,
       );

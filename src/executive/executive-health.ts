@@ -60,7 +60,7 @@ export interface ExecutiveDashboardOptions {
 }
 
 export interface ExecutiveHealthReport {
-  schemaVersion: "p10.0.0";
+  schemaVersion: "executive_health_v1";
   generatedAt: string;
   windowDays: number;
   /** Unweighted mean subsystem scores, rounded integer. */
@@ -140,7 +140,7 @@ export async function buildExecutiveHealthReport(
   );
 
   return {
-    schemaVersion: "p10.0.0",
+    schemaVersion: "executive_health_v1",
     generatedAt,
     windowDays,
     overallScore,

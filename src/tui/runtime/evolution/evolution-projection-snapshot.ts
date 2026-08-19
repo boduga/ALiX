@@ -7,7 +7,7 @@
  * A2.5/measurements) — never a new domain store; domain identities are never
  * rewritten; no per-stage timestamps.
  */
-import type { A9Correlation, A9Forecast } from '../../../evolution/a9/contracts/a9-contract.js';
+import type { Correlation, Forecast } from '../../../evolution/forecast/contracts/contract.js';
 import type { GovernanceRecommendationKind } from '../../../evolution/verification/contracts/recommendation-contract.js';
 import type { GovernanceDecisionKind } from '../../../evolution/governance/contracts/decision-contract.js';
 import type { LifecycleState } from '../../../adaptation/capability-evolution-types.js';

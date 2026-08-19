@@ -25,7 +25,7 @@ function makeReport(
   currentScore = 50 + delta,
 ): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt,
     planId: "plan-1",
     planStatus: "completed",

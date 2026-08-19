@@ -18,6 +18,8 @@ This directory contains ALiX's Architecture Decision Records (ADRs).
 | [ADR-0010](ADR-0010-executive-intelligence-architecture.md) | Executive Intelligence Architecture | Accepted |
 | [ADR-0011](ADR-0011-evolution-verification-model.md) | Evolution Verification Model | Accepted |
 | [ADR-0012](ADR-0012-patch-mutation-architecture.md) | Patch and Mutation Architecture | Accepted |
+| [ADR-0013](ADR-0013-capability-system-and-provider-architecture.md) | Capability System and Provider Architecture | Accepted |
+| [ADR-0014](ADR-0014-naming-convention-milestone-vs-domain.md) | Naming Convention: Milestone vs Domain Identifiers | Accepted |
 
 ## What is an ADR?
 

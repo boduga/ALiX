@@ -20,7 +20,7 @@ function captureConsole() {
 
 function makeReport(planId: string, evaluationStatus: string): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: new Date().toISOString(),
     planId,
     planStatus: "completed",

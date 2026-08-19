@@ -41,7 +41,7 @@ export function renderTerminalDashboard(report: ExecutiveDashboardReport, brief 
   console.log("");
   const title = brief ? "Executive Dashboard (brief)" : "Executive Dashboard";
   console.log(`╔════════════════════════════════════════════════════════════════╗`);
-  const titleLine = `║ ${title.padEnd(36)} schema: 1  p10.9.0        ║`;
+  const titleLine = `║ ${title.padEnd(36)} schema: 1  executive_dashboard_v1   ║`;
   console.log(titleLine);
   console.log(`╚════════════════════════════════════════════════════════════════╝`);
   console.log("");

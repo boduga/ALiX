@@ -237,7 +237,7 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
       direction: "insufficient_evidence",
       severity: "none",
       confidence: 1,
-      sampleSize: { p22CalibrationCount: 0, p23ReplayCount: 0, pairedLifecycleCount: 0 },
+      sampleSize: { calibrationCount: 0, replayCount: 0, pairedLifecycleCount: 0 },
       rates: {},
       implicatedPolicyAreas: [],
       evidenceRefs: [],
@@ -295,8 +295,8 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
         severity,
         confidence: calibrations.length >= 50 ? 0.9 : calibrations.length >= 20 ? 0.7 : 0.5,
         sampleSize: {
-          p22CalibrationCount: calibrations.length,
-          p23ReplayCount: replayDiffs.length,
+          calibrationCount: calibrations.length,
+          replayCount: replayDiffs.length,
           pairedLifecycleCount: pairedInfo.pairedCount,
         },
         rates: {
@@ -345,8 +345,8 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
         severity,
         confidence: replayDiffs.length >= 30 ? 0.9 : replayDiffs.length >= 15 ? 0.7 : 0.5,
         sampleSize: {
-          p22CalibrationCount: calibrations.length,
-          p23ReplayCount: replayDiffs.length,
+          calibrationCount: calibrations.length,
+          replayCount: replayDiffs.length,
           pairedLifecycleCount: pairedInfo.pairedCount,
         },
         rates: {
@@ -385,8 +385,8 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
         severity,
         confidence: pairedInfo.pairedCount >= 20 ? 0.9 : pairedInfo.pairedCount >= 12 ? 0.7 : 0.5,
         sampleSize: {
-          p22CalibrationCount: calibrations.length,
-          p23ReplayCount: replayDiffs.length,
+          calibrationCount: calibrations.length,
+          replayCount: replayDiffs.length,
           pairedLifecycleCount: pairedInfo.pairedCount,
         },
         rates: {
@@ -422,8 +422,8 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
         severity: "medium",
         confidence: calibrations.length >= 20 ? 0.7 : 0.5,
         sampleSize: {
-          p22CalibrationCount: calibrations.length,
-          p23ReplayCount: replayDiffs.length,
+          calibrationCount: calibrations.length,
+          replayCount: replayDiffs.length,
           pairedLifecycleCount: pairedInfo.pairedCount,
         },
         rates: {
@@ -452,8 +452,8 @@ export function detectPolicyDrift(opts: DetectPolicyDriftOpts): PolicyDriftSigna
       severity: "low",
       confidence: 1,
       sampleSize: {
-        p22CalibrationCount: calibrations.length,
-        p23ReplayCount: replayDiffs.length,
+        calibrationCount: calibrations.length,
+        replayCount: replayDiffs.length,
         pairedLifecycleCount: pairedInfo.pairedCount,
       },
       rates: {

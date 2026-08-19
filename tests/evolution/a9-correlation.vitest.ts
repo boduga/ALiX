@@ -3,33 +3,33 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
-  A9Adapter,
-  A9Correlation,
-  A9CorrelationContent,
-  A9Forecast,
-  A9ForecastContent,
+  ForecastAdapter,
+  Correlation,
+  CorrelationContent,
+  Forecast,
+  ForecastContent,
   CapabilityMeasurementRecord,
   ProposalEventRecord,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/contracts/contract.js";
 import {
-  A9_CORRELATION_VERSION,
-  A9_FORECAST_VERSION,
-  A9_GENERATOR_VERSION,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
-import { canonicalizeCorrelation, correlationIdFor, forecastIdFor } from "../../src/evolution/a9/identity.js";
-import { ForecastsStore } from "../../src/evolution/a9/forecasts-store.js";
-import { ForecastsAdapter } from "../../src/evolution/a9/forecasts-adapter.js";
-import { CorrelationEngine } from "../../src/evolution/a9/correlation-engine.js";
+  CORRELATION_VERSION,
+  FORECAST_VERSION,
+  GENERATOR_VERSION,
+} from "../../src/evolution/forecast/contracts/contract.js";
+import { canonicalizeCorrelation, correlationIdFor, forecastIdFor } from "../../src/evolution/forecast/identity.js";
+import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
+import { ForecastsAdapter } from "../../src/evolution/forecast/forecasts-adapter.js";
+import { CorrelationEngine } from "../../src/evolution/forecast/correlation-engine.js";
 import {
   buildCorrelation,
   measurementOutcomeToBand,
-} from "../../src/evolution/a9/correlation-builder.js";
-import { CorrelationsStore } from "../../src/evolution/a9/correlations-store.js";
-import { CorrelationsAdapter } from "../../src/evolution/a9/correlations-adapter.js";
+} from "../../src/evolution/forecast/correlation-builder.js";
+import { CorrelationsStore } from "../../src/evolution/forecast/correlations-store.js";
+import { CorrelationsAdapter } from "../../src/evolution/forecast/correlations-adapter.js";
 // Phase 27 — post-execution integration fixture uses the REAL adapters over
 // EventLog-shaped events (not adapter stubs).
-import { ProposalEventsAdapter } from "../../src/evolution/a9/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/a9/adapters/measurement-events-adapter.js";
+import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/evolution/forecast/adapters/measurement-events-adapter.js";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import { vi } from "vitest";
@@ -40,12 +40,12 @@ import { vi } from "vitest";
 
 const TS = "2026-08-15T00:00:00.000Z";
 
-/** Content-addressed A9Forecast — same content always yields the same forecastId. */
+/** Content-addressed Forecast — same content always yields the same forecastId. */
 function makeForecast(
-  overrides: Partial<A9ForecastContent> = {},
-): A9Forecast {
-  const content: A9ForecastContent = {
-    forecastVersion: A9_FORECAST_VERSION,
+  overrides: Partial<ForecastContent> = {},
+): Forecast {
+  const content: ForecastContent = {
+    forecastVersion: FORECAST_VERSION,
     subject: "prop-1",
     subjectCapability: "cap-1",
     prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -56,7 +56,7 @@ function makeForecast(
     confidence: 0.8,
     provenance: {
       generatedAt: "2026-08-01T00:00:00.000Z",
-      generatorVersion: A9_GENERATOR_VERSION,
+      generatorVersion: GENERATOR_VERSION,
       evidenceRefs: ["ev-1"],
     },
     ...overrides,
@@ -112,13 +112,13 @@ function makeProposal(
 
 function fakeProposalAdapter(
   records: ReadonlyArray<ProposalEventRecord>,
-): A9Adapter<ProposalEventRecord> {
+): ForecastAdapter<ProposalEventRecord> {
   return { name: "test-proposal-events", list: async () => records };
 }
 
 function fakeMeasurementAdapter(
   records: ReadonlyArray<CapabilityMeasurementRecord>,
-): A9Adapter<CapabilityMeasurementRecord> {
+): ForecastAdapter<CapabilityMeasurementRecord> {
   return { name: "test-measurement-events", list: async () => records };
 }
 
@@ -185,7 +185,7 @@ describe("A9 correlation layer", () => {
       const c = buildCorrelation(forecast, measurement, forecast.subject, TS);
 
       expect(c.correlationId).toMatch(/^[0-9a-f]{64}$/);
-      expect(c.correlationVersion).toBe(A9_CORRELATION_VERSION);
+      expect(c.correlationVersion).toBe(CORRELATION_VERSION);
       expect(c.forecastId).toBe(forecast.forecastId);
       expect(c.measurementId).toBe(measurement.measurementId);
       // foreignProvenance carries the bridge-authorized proposal id.
@@ -280,7 +280,7 @@ describe("A9 correlation layer", () => {
 
     it("built correlationId equals correlationIdFor(content) — the canonical id", () => {
       const c = buildCorrelation(makeForecast(), makeMeasurement(), "prop-1", TS);
-      const content: A9CorrelationContent = {
+      const content: CorrelationContent = {
         correlationVersion: c.correlationVersion,
         forecastId: c.forecastId,
         measurementId: c.measurementId,
@@ -292,7 +292,7 @@ describe("A9 correlation layer", () => {
 
     it("correlationId excludes storage/position — canonical content never mentions them", () => {
       const c = buildCorrelation(makeForecast(), makeMeasurement(), "prop-1", TS);
-      const content: A9CorrelationContent = {
+      const content: CorrelationContent = {
         correlationVersion: c.correlationVersion,
         forecastId: c.forecastId,
         measurementId: c.measurementId,
@@ -564,7 +564,7 @@ describe("A9 correlation layer", () => {
 
   describe("CorrelationsStore — append/list/getById round-trip", () => {
     let cstore: CorrelationsStore;
-    let correlations: A9Correlation[];
+    let correlations: Correlation[];
 
     beforeEach(() => {
       cstore = new CorrelationsStore(dir);
@@ -622,8 +622,8 @@ describe("A9 correlation layer", () => {
 
   describe("CorrelationsStore — findByForecastId / findByMeasurementId query projections", () => {
     let cstore: CorrelationsStore;
-    let f1: A9Forecast;
-    let f2: A9Forecast;
+    let f1: Forecast;
+    let f2: Forecast;
 
     beforeEach(async () => {
       cstore = new CorrelationsStore(dir);
@@ -693,7 +693,7 @@ describe("A9 correlation layer", () => {
       // keys), so the store's collision check must use the SAME canonical
       // stringify and recognize this as the SAME artifact — dedupe no-op
       // (returns false), never a false FATAL identity collision.
-      const reordered: A9Correlation = {
+      const reordered: Correlation = {
         correlationId: c.correlationId,
         resolution: {
           forecastBand: c.resolution.forecastBand,
@@ -791,8 +791,8 @@ describe("A9 correlation layer", () => {
   describe("CorrelationsAdapter — byForecast / byMeasurement", () => {
     let cstore: CorrelationsStore;
     let cadapter: CorrelationsAdapter;
-    let f1: A9Forecast;
-    let f2: A9Forecast;
+    let f1: Forecast;
+    let f2: Forecast;
 
     beforeEach(async () => {
       cstore = new CorrelationsStore(dir);
@@ -840,7 +840,7 @@ describe("A9 correlation layer", () => {
   // -------------------------------------------------------------------------
   // Phase 27 — post-execution correlation INTEGRATION fixture (real adapters
   // over EventLog-shaped events): proposalId → submitted.target.id →
-  // measurement.capabilityId → exactly one A9Correlation.
+  // measurement.capabilityId → exactly one Correlation.
   // -------------------------------------------------------------------------
 
   describe("Phase 27 — post-execution correlation integration (real adapters)", () => {
@@ -998,12 +998,12 @@ describe("A9 correlation layer", () => {
       // Same correlationId but different resolution content → different content
       // mapping to the same id is impossible via canonical hashing, but the
       // store must not silently dedupe such a record — it must throw.
-      const tampered: A9Correlation = {
+      const tampered: Correlation = {
         ...base,
         resolution: { band: "critical", forecastBand: "high", delta: "match" },
       };
       // Craft an explicit same-id collision by aliasing the id.
-      const sameIdDifferentContent: A9Correlation = { ...tampered, correlationId: base.correlationId };
+      const sameIdDifferentContent: Correlation = { ...tampered, correlationId: base.correlationId };
       await expect(store.append(sameIdDifferentContent)).rejects.toThrow(/identity collision/i);
     });
   });

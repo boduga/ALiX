@@ -37,7 +37,7 @@ function makeExecRec(over = {}) {
 
 function makeReport(recs: any[], generatedAt = "2026-06-15T12:00:00.000Z"): RecommendationReport {
   return {
-    schemaVersion: "p10.7b.0", id: "recommendation-test",
+    schemaVersion: "recommendation_report_v1", id: "recommendation-test",
     contentHash: "x",
     report: {
       generatedAt, requestedWindow: 10, recommendationStatus: "ok",
@@ -101,7 +101,7 @@ describe("executive dashboard CLI", () => {
     await runDashboard(["--json"]);
     const parsed = JSON.parse(c.out().join("\n"));
     expect(parsed.metadata.schemaVersion).toBe(1);
-    expect(parsed.metadata.dashboardVersion).toBe("p10.9.0");
+    expect(parsed.metadata.dashboardVersion).toBe("executive_dashboard_v1");
     expect(parsed.summary).toBeDefined();
     expect(parsed.panels).toBeDefined();
     expect(parsed.alerts).toBeDefined();

@@ -14,7 +14,7 @@ function signal(overrides: Partial<PolicyDriftSignal> = {}): PolicyDriftSignal {
     direction: "too_loose",
     severity: "medium",
     confidence: 0.7,
-    sampleSize: { p22CalibrationCount: 20, p23ReplayCount: 15, pairedLifecycleCount: 10 },
+    sampleSize: { calibrationCount: 20, replayCount: 15, pairedLifecycleCount: 10 },
     rates: { overconfidentRate: 0.65 },
     implicatedPolicyAreas: [],
     evidenceRefs: [],
@@ -34,7 +34,7 @@ describe("buildConfidenceBands", () => {
   it("high confidence band for adequate samples + low volatility + clear signal", () => {
     const signals = [
       signal({
-        sampleSize: { p22CalibrationCount: 30, p23ReplayCount: 25, pairedLifecycleCount: 15 },
+        sampleSize: { calibrationCount: 30, replayCount: 25, pairedLifecycleCount: 15 },
         confidence: 0.9,
         kind: "calibration_skew",
       }),
@@ -47,7 +47,7 @@ describe("buildConfidenceBands", () => {
   it("low confidence band for few samples", () => {
     const signals = [
       signal({
-        sampleSize: { p22CalibrationCount: 3, p23ReplayCount: 1, pairedLifecycleCount: 0 },
+        sampleSize: { calibrationCount: 3, replayCount: 1, pairedLifecycleCount: 0 },
         confidence: 0.5,
       }),
     ];
@@ -90,7 +90,7 @@ describe("buildConfidenceBands", () => {
   it("moderate confidence for adequate samples with mixed signals", () => {
     const signals = [
       signal({
-        sampleSize: { p22CalibrationCount: 15, p23ReplayCount: 12, pairedLifecycleCount: 5 },
+        sampleSize: { calibrationCount: 15, replayCount: 12, pairedLifecycleCount: 5 },
         confidence: 0.5,
       }),
     ];

@@ -22,7 +22,7 @@ before(() => {
   // Minimal P24 bundle
   writeFileSync(bundlePath, JSON.stringify({
     signals: [
-      { signalId: "s-1", kind: "calibration_skew", severity: "medium", direction: "too_loose", windowStart: "2026-06-01T00:00:00.000Z", windowEnd: "2026-07-01T00:00:00.000Z", confidence: 0.7, sampleSize: { p22CalibrationCount: 20, p23ReplayCount: 15, pairedLifecycleCount: 10 }, rates: { overconfidentRate: 0.65 }, implicatedPolicyAreas: [], evidenceRefs: [], rationale: [] },
+      { signalId: "s-1", kind: "calibration_skew", severity: "medium", direction: "too_loose", windowStart: "2026-06-01T00:00:00.000Z", windowEnd: "2026-07-01T00:00:00.000Z", confidence: 0.7, sampleSize: { calibrationCount: 20, replayCount: 15, pairedLifecycleCount: 10 }, rates: { overconfidentRate: 0.65 }, implicatedPolicyAreas: [], evidenceRefs: [], rationale: [] },
     ],
   }));
 });

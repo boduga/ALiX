@@ -3,26 +3,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
-  A9Forecast,
-  A9ForecastContent,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+  Forecast,
+  ForecastContent,
+} from "../../src/evolution/forecast/contracts/contract.js";
 import {
-  A9_FORECAST_VERSION,
-  A9_GENERATOR_VERSION,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
-import { forecastIdFor } from "../../src/evolution/a9/identity.js";
-import { ForecastsStore } from "../../src/evolution/a9/forecasts-store.js";
-import { ForecastsAdapter } from "../../src/evolution/a9/forecasts-adapter.js";
-import { CorrelationsStore } from "../../src/evolution/a9/correlations-store.js";
-import { buildCorrelation } from "../../src/evolution/a9/correlation-builder.js";
-import type { CapabilityMeasurementRecord } from "../../src/evolution/a9/contracts/a9-contract.js";
+  FORECAST_VERSION,
+  GENERATOR_VERSION,
+} from "../../src/evolution/forecast/contracts/contract.js";
+import { forecastIdFor } from "../../src/evolution/forecast/identity.js";
+import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
+import { ForecastsAdapter } from "../../src/evolution/forecast/forecasts-adapter.js";
+import { CorrelationsStore } from "../../src/evolution/forecast/correlations-store.js";
+import { buildCorrelation } from "../../src/evolution/forecast/correlation-builder.js";
+import type { CapabilityMeasurementRecord } from "../../src/evolution/forecast/contracts/contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
 /**
- * Build a valid A9Forecast whose forecastId is the content-addressed id of its
+ * Build a valid Forecast whose forecastId is the content-addressed id of its
  * canonical content — same content always yields the same forecastId, so the
  * duplicate-identity policy is exercised against the REAL identity function.
  */
@@ -34,9 +34,9 @@ function makeForecast(
     to?: string;
     generatedAt?: string;
   } = {},
-): A9Forecast {
-  const content: A9ForecastContent = {
-    forecastVersion: A9_FORECAST_VERSION,
+): Forecast {
+  const content: ForecastContent = {
+    forecastVersion: FORECAST_VERSION,
     subject: overrides.subject ?? "prop-1",
     subjectCapability: overrides.subjectCapability ?? "cap-1",
     prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -47,7 +47,7 @@ function makeForecast(
     confidence: 0.8,
     provenance: {
       generatedAt: overrides.generatedAt ?? "2026-08-01T00:00:00.000Z",
-      generatorVersion: A9_GENERATOR_VERSION,
+      generatorVersion: GENERATOR_VERSION,
       evidenceRefs: ["ev-1"],
     },
   };
@@ -165,7 +165,7 @@ describe("A9 forecast persistence", () => {
       // keys), so the store's collision check must use the SAME canonical
       // stringify and recognize this as the SAME artifact — dedupe no-op
       // (returns false), never a false FATAL identity collision.
-      const reordered: A9Forecast = {
+      const reordered: Forecast = {
         forecastId: forecast.forecastId,
         provenance: {
           evidenceRefs: forecast.provenance.evidenceRefs,
@@ -402,9 +402,9 @@ describe("A9 restart verification — forecast → correlation → measurement r
   const TS = "2026-08-15T00:00:00.000Z";
 
   /** Content-addressed forecast (process-1 artifact). */
-  function makeForecast(): A9Forecast {
-    const content: A9ForecastContent = {
-      forecastVersion: A9_FORECAST_VERSION,
+  function makeForecast(): Forecast {
+    const content: ForecastContent = {
+      forecastVersion: FORECAST_VERSION,
       subject: "prop-1",
       subjectCapability: "cap-1",
       prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -412,7 +412,7 @@ describe("A9 restart verification — forecast → correlation → measurement r
       confidence: 0.8,
       provenance: {
         generatedAt: "2026-08-01T00:00:00.000Z",
-        generatorVersion: A9_GENERATOR_VERSION,
+        generatorVersion: GENERATOR_VERSION,
         evidenceRefs: ["ev-1"],
       },
     };
@@ -496,7 +496,7 @@ describe("A9 restart verification — forecast → correlation → measurement r
 
     // Craft an explicit same-id different-content collision (impossible via the
     // canonical hash, but the store must not silently dedupe/merge it).
-    const tampered: A9Forecast = {
+    const tampered: Forecast = {
       ...forecast,
       confidence: 0.99,
       forecastId: forecast.forecastId, // alias the content-addressed id

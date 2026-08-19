@@ -37,7 +37,7 @@ const unpublished: MeasurementSignalsUnpublishedEvent = {
     signalIds: ["a".repeat(64), "b".repeat(64)],
     failure: baseFailure,
     occurredAt: "2026-08-14T00:00:00.000Z",
-    actor: { kind: "system", component: "A5CapabilityMeasurement" },
+    actor: { kind: "system", component: "CapabilityMeasurement" },
   },
 };
 
@@ -64,10 +64,10 @@ describe("MeasurementSignalsUnpublishedEvent (CAP-10.5 ruling #R5)", () => {
     expect([c1.classification, c2.classification].sort()).toEqual(["sink_threw", "sink_timeout"]);
   });
 
-  it("actor shape is locked to system + A5CapabilityMeasurement", () => {
+  it("actor shape is locked to system + CapabilityMeasurement", () => {
     expect(unpublished.payload.actor).toEqual({
       kind: "system",
-      component: "A5CapabilityMeasurement",
+      component: "CapabilityMeasurement",
     });
   });
 });

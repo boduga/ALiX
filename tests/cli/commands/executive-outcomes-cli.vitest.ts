@@ -28,7 +28,7 @@ function mockExit() {
 
 function makeReport(planId: string, generatedAt: string, delta: number, status: string) {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt,
     planId,
     planStatus: "completed" as const,

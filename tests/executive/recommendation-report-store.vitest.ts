@@ -56,7 +56,7 @@ describe("RecommendationReportStore.save", () => {
     const loaded = store.load(id);
 
     expect(loaded).not.toBeNull();
-    expect(loaded!.schemaVersion).toBe("p10.7b.0");
+    expect(loaded!.schemaVersion).toBe("recommendation_report_v1");
     expect(loaded!.id).toBe(id);
     expect(loaded!.report.recommendationStatus).toBe("ok");
     expect(loaded!.report.evidenceReportIds).toEqual(["outcome-a", "outcome-b", "outcome-c"]);
@@ -100,6 +100,19 @@ describe("RecommendationReportStore.load — integrity", () => {
     writeFileSync(path, JSON.stringify(raw, null, 2), "utf-8");
 
     expect(() => store.load(id)).toThrow(RecommendationReportIntegrityError);
+  });
+
+  it("loads a report persisted with the legacy p10.7b.0 envelope schemaVersion", () => {
+    const store = new RecommendationReportStore(storeDir);
+    const id = store.save(newPayload());
+    const path = join(storeDir, `${id}.json`);
+    const raw = JSON.parse(require("node:fs").readFileSync(path, "utf-8")) as any;
+    raw.schemaVersion = "p10.7b.0";
+    writeFileSync(path, JSON.stringify(raw, null, 2), "utf-8");
+
+    const loaded = store.load(id);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.report.recommendationStatus).toBe("ok");
   });
 
   it("returns null for a missing report id", () => {

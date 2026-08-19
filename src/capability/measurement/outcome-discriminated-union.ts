@@ -6,7 +6,7 @@
  * @module capability/measurement/outcome-discriminated-union
  */
 
-import type { CapabilityEvolutionSignal } from "../evolution/a7-proposals.js";
+import type { CapabilityEvolutionSignal } from "../evolution/proposals.js";
 
 export type CapabilityMeasurementOutcomeKind = "effective" | "ineffective" | "inconclusive";
 

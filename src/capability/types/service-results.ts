@@ -179,7 +179,7 @@ export interface CapabilityServiceOptions {
   readonly eventLog: import("../../events/event-log.js").EventLog;
   /** CAP-9 ruling #5 — A7 proposal intelligence. Required by
    *  `service.propose()`. Backward-compat absent. */
-  readonly proposalGenerator?: import("../evolution/a7-proposals.js").A7ProposalGenerator;
+  readonly proposalGenerator?: import("../evolution/proposals.js").CapabilityProposalGenerator;
   /** CAP-10 ruling #22 — measurement engine. Optional. Absent →
    *  `service.measure()` throws `CapabilityServiceNotImplementedError`
    *  (CAP-8 ruling #4 preserved). NEVER required. */

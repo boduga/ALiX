@@ -29,10 +29,10 @@ const SECTION_ORDER: ExplanationSectionKind[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// P28_FOOTER
+// EXPLAINABILITY_REPORT_FOOTER
 // ---------------------------------------------------------------------------
 
-export const P28_FOOTER = `P28 explains governance decisions already made.
+export const EXPLAINABILITY_REPORT_FOOTER = `P28 explains governance decisions already made.
 It does not recommend, predict, or prescribe actions.
 No policy was changed. No thresholds were adjusted.
 No reviewers were ranked. No outcomes were predicted.`;
@@ -82,7 +82,7 @@ export function renderExplanationText(explanation: GovernanceExplanation): strin
     }
   }
 
-  lines.push(P28_FOOTER);
+  lines.push(EXPLAINABILITY_REPORT_FOOTER);
   lines.push("");
   lines.push("P28-EXPLAIN-END");
 

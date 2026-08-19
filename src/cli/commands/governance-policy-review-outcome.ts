@@ -47,7 +47,7 @@ function getLedger(cwd: string) {
 // P25 candidate reader
 // ---------------------------------------------------------------------------
 
-function readP25Candidate(cwd: string, candidateId: string): { title: string; status: string } | null {
+function readPolicyReviewCandidate(cwd: string, candidateId: string): { title: string; status: string } | null {
   const candidatePath = join(cwd, ".alix", "governance", "policy-review-candidates", candidateId + ".json");
   if (!existsSync(candidatePath)) {
     return null;
@@ -90,7 +90,7 @@ async function handleRecord(args: string[], cwd: string): Promise<string> {
   }
 
   // Validate P25 candidate exists and read candidate metadata
-  const candidateData = readP25Candidate(cwd, candidateId);
+  const candidateData = readPolicyReviewCandidate(cwd, candidateId);
   if (!candidateData) {
     return `ERROR: P25 candidate not found: ${candidateId}\n`;
   }

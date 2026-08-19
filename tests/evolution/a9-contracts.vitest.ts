@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type {
-  A9Forecast,
-  A9Correlation,
+  Forecast,
+  Correlation,
   CapabilityMeasurementRecord,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/contracts/contract.js";
 import {
-  A9_FORECAST_VERSION,
-  A9_CORRELATION_VERSION,
-  A9_GENERATOR_VERSION,
-  A9_FORECAST_HORIZON_DAYS,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+  FORECAST_VERSION,
+  CORRELATION_VERSION,
+  GENERATOR_VERSION,
+  FORECAST_HORIZON_DAYS,
+} from "../../src/evolution/forecast/contracts/contract.js";
 
 // ---------------------------------------------------------------------------
 // Type-level guard helpers
@@ -20,15 +20,15 @@ import {
 type AssertNever<T> = [T] extends [never] ? true : false;
 
 // ---------------------------------------------------------------------------
-// Phase 1 — A9Forecast contract shape
+// Phase 1 — Forecast contract shape
 // ---------------------------------------------------------------------------
 
-describe("A9Forecast contract", () => {
+describe("Forecast contract", () => {
   it("exposes the exact locked fields (no primary / correlationStatus / correlation semantics)", () => {
     // Runtime structural guard on a canonical instance.
-    const forecast: A9Forecast = {
+    const forecast: Forecast = {
       forecastId: "a9-" + "0".repeat(63),
-      forecastVersion: A9_FORECAST_VERSION,
+      forecastVersion: FORECAST_VERSION,
       subject: "prop-1",
       subjectCapability: "cap-1",
       prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -36,7 +36,7 @@ describe("A9Forecast contract", () => {
       confidence: 0.8,
       provenance: {
         generatedAt: "2026-08-14T00:00:00.000Z",
-        generatorVersion: A9_GENERATOR_VERSION,
+        generatorVersion: GENERATOR_VERSION,
         evidenceRefs: ["ev-1"],
       },
     };
@@ -57,19 +57,19 @@ describe("A9Forecast contract", () => {
     }
   });
 
-  it("pins the 'do not add' rule at the type level (A9Forecast)", () => {
-    // If a future change adds `primary` or `correlationStatus` to A9Forecast,
+  it("pins the 'do not add' rule at the type level (Forecast)", () => {
+    // If a future change adds `primary` or `correlationStatus` to Forecast,
     // the intersection below stops being `never` and this assignment fails to
     // compile — a hard, static guard.
     type ForecastForbidden = "primary" | "correlationStatus";
-    type ForecastLeak = Extract<keyof A9Forecast, ForecastForbidden>;
+    type ForecastLeak = Extract<keyof Forecast, ForecastForbidden>;
     const guard: AssertNever<ForecastLeak> = true;
     expect(guard).toBe(true);
   });
 
-  it("pins the 'do not add' rule at the type level (A9Correlation)", () => {
+  it("pins the 'do not add' rule at the type level (Correlation)", () => {
     type CorrelationForbidden = "primary" | "correlationStatus";
-    type CorrelationLeak = Extract<keyof A9Correlation, CorrelationForbidden>;
+    type CorrelationLeak = Extract<keyof Correlation, CorrelationForbidden>;
     const guard: AssertNever<CorrelationLeak> = true;
     expect(guard).toBe(true);
   });
@@ -119,9 +119,9 @@ describe("Q8 sentinel — CapabilityMeasurementRecord exposes no proposal linkag
 
 describe("A9 version constants", () => {
   it("exposes forecast/correlation/generator versions and horizon", () => {
-    expect(A9_FORECAST_VERSION).toBe("1.0.0");
-    expect(A9_CORRELATION_VERSION).toBe("1.0.0");
-    expect(A9_GENERATOR_VERSION).toBe("1.0.0");
-    expect(A9_FORECAST_HORIZON_DAYS).toBeGreaterThan(0);
+    expect(FORECAST_VERSION).toBe("1.0.0");
+    expect(CORRELATION_VERSION).toBe("1.0.0");
+    expect(GENERATOR_VERSION).toBe("1.0.0");
+    expect(FORECAST_HORIZON_DAYS).toBeGreaterThan(0);
   });
 });

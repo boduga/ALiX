@@ -3,12 +3,12 @@
  *
  * Exercises the COMPLETE path from raw evidence to a binding A3 decision:
  *
- *   raw adapters → detectors → A9Forecast → forecast JSONL (A9-owned store)
+ *   raw adapters → detectors → Forecast → forecast JSONL (A9-owned store)
  *     → A9 bridge → A2.5 GovernanceRecommendation → A3 generateDecision()
  *
  * Paths pinned:
- *   high/critical: A9Forecast → RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE → UNDER_REVIEW
- *   low/medium:    A9Forecast → MONITOR        → MONITOR (existing A3 MONITOR path)
+ *   high/critical: Forecast → RISK_GATED_REVIEW → REQUEST_MORE_EVIDENCE → UNDER_REVIEW
+ *   low/medium:    Forecast → MONITOR        → MONITOR (existing A3 MONITOR path)
  *   no finding:    null/empty → no recommendation → no A3 call
  *
  * @module a9-engine-end-to-end
@@ -21,12 +21,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import type { A9Forecast } from "../../src/evolution/a9/contracts/a9-contract.js";
-import { ForecastEngine } from "../../src/evolution/a9/forecast-engine.js";
-import { ProposalEventsAdapter } from "../../src/evolution/a9/adapters/proposal-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/a9/adapters/enriched-proposals-adapter.js";
-import { ForecastsStore } from "../../src/evolution/a9/forecasts-store.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/a9/a9-bridge.js";
+import type { Forecast } from "../../src/evolution/forecast/contracts/contract.js";
+import { ForecastEngine } from "../../src/evolution/forecast/forecast-engine.js";
+import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/evolution/forecast/adapters/enriched-proposals-adapter.js";
+import { ForecastsStore } from "../../src/evolution/forecast/forecasts-store.js";
+import { buildGovernanceRecommendation } from "../../src/evolution/forecast/bridge.js";
 import {
   generateDecision,
   decisionKindToTargetState,
@@ -189,7 +189,7 @@ function evidenceForDecision(kind: GovernanceDecisionKind): ReturnType<typeof cr
 // ---------------------------------------------------------------------------
 
 interface PreExecutionResult {
-  forecasts: ReadonlyArray<A9Forecast>;
+  forecasts: ReadonlyArray<Forecast>;
   recommendation: GovernanceRecommendation | null;
   decision: ReturnType<typeof generateDecision> | null;
 }
@@ -308,10 +308,10 @@ describe("A9 pre-execution path — low/medium → MONITOR → existing A3 MONIT
 
   it("a low-band forecast artifact → MONITOR → MONITOR decision (existing A3 MONITOR path)", async () => {
     // The engine cannot emit a low-band forecast (every detector trigger ≥ 0.3),
-    // so the low path is exercised from the A9Forecast artifact down — the
+    // so the low path is exercised from the Forecast artifact down — the
     // bridge + A3 mapping are the lock under test.
     const dir = await mkdtemp(join(tmpdir(), "a9-e2e-low-"));
-    const { buildForecast } = await import("../../src/evolution/a9/forecast-builder.js");
+    const { buildForecast } = await import("../../src/evolution/forecast/forecast-builder.js");
     const forecast = buildForecast(
       [
         {

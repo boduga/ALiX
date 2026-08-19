@@ -35,7 +35,7 @@ function __nextIsoTimestamp(): string {
 /** A completed report whose single objective degraded `workflow` by 4 points. */
 function makeDegradedReport(planId: string): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: __nextIsoTimestamp(),
     planId,
     planStatus: "completed",
@@ -56,7 +56,7 @@ function makeDegradedReport(planId: string): ExecutiveOutcomeEvaluationReport {
 
 function makeInsufficientReport(planId: string): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: __nextIsoTimestamp(),
     planId,
     planStatus: "completed",
@@ -75,7 +75,7 @@ function makeInsufficientReport(planId: string): ExecutiveOutcomeEvaluationRepor
  */
 function makeUnchangedReport(planId: string): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: __nextIsoTimestamp(),
     planId,
     planStatus: "completed",
@@ -239,7 +239,7 @@ describe("executive recommend CLI", () => {
     await handleRecommendCommand(["--window", "10", "--save", "--json"]);
 
     const parsed = JSON.parse(c.out().join("\n"));
-    expect(parsed.schemaVersion).toBe("p10.7b.0");
+    expect(parsed.schemaVersion).toBe("recommendation_report_v1");
     expect(parsed.id).toMatch(/^recommendation-/);
     expect(typeof parsed.contentHash).toBe("string");
     expect(parsed.report.evidenceReportIds.length).toBeGreaterThan(0);

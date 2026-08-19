@@ -48,7 +48,7 @@ function readSrc(rel: string): string {
 
 describe("CAP-9 supersession — forbidden files", () => {
   it("CAP-8 forbidden files preserved", () => {
-    const a7 = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7 = readSrc("src/capability/evolution/proposals.ts");
     // Module has imports (sanity check — would be a regression if it
     // suddenly had no imports).
     assert.equal(a7.includes("from"), true);
@@ -56,19 +56,19 @@ describe("CAP-9 supersession — forbidden files", () => {
     assert.equal(
       /from\s+["'].*capability\/canonical\/catalog["']/.test(a7),
       false,
-      `a7-proposals.ts MUST NOT import from capability/canonical/catalog — found forbidden import.`,
+      `proposals.ts MUST NOT import from capability/canonical/catalog — found forbidden import.`,
     );
     // No tool-registry imports.
     assert.equal(
       /from\s+["'].*tools\/tool-registry/.test(a7),
       false,
-      `a7-proposals.ts MUST NOT import from tools/tool-registry — found forbidden import.`,
+      `proposals.ts MUST NOT import from tools/tool-registry — found forbidden import.`,
     );
     // No policy-registry imports.
     assert.equal(
       /from\s+["'].*policy\/capability-registry/.test(a7),
       false,
-      `a7-proposals.ts MUST NOT import from policy/capability-registry — found forbidden import.`,
+      `proposals.ts MUST NOT import from policy/capability-registry — found forbidden import.`,
     );
   });
 

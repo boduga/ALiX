@@ -35,7 +35,7 @@ export interface ExecutionReadinessReportItem {
   readinessLevel: ExecutionReadinessLevel;
   disposition: ReadinessDisposition | "not_evaluated";
   simulationStatus: string;
-  p18TracePresent: boolean;
+  tracePresent: boolean;
   futureControlledExecutionCandidate: boolean;
   controlledExecutionAuthorization: "not_available_in_p19";
   requiresAttention: boolean;
@@ -52,7 +52,7 @@ export interface ExecutionReadinessReportTotals {
   irreversible: number;
   reversible: number;
   dryRunCapable: number;
-  missingP18Visibility: number;
+  missingVisibility: number;
   futureCandidates: number;
 }
 
@@ -144,14 +144,14 @@ export function buildExecutionReadinessReport(
     const simulation = simByAssessment.get(assessment.assessmentId) ?? null;
     const decision = decByAssessment.get(assessment.assessmentId) ?? null;
     const trace = traceByRemediation.get(assessment.remediationId);
-    const p18TracePresent = traceMatches(trace, assessment);
+    const tracePresent = traceMatches(trace, assessment);
     const disposition: ExecutionReadinessReportItem["disposition"] =
-      !p18TracePresent
+      !tracePresent
         ? "blocked"
         : decision?.disposition ?? "not_evaluated";
     const reasonCodes = [
       ...(decision?.reasonCodes ?? []),
-      ...(!p18TracePresent ? ["p18_visibility_missing"] : []),
+      ...(!tracePresent ? ["p18_visibility_missing"] : []),
     ].filter((value, index, all) => all.indexOf(value) === index).sort();
     const updatedAt =
       decision?.evaluatedAt ??
@@ -168,12 +168,12 @@ export function buildExecutionReadinessReport(
       readinessLevel: assessment.readinessLevel,
       disposition,
       simulationStatus: simulation?.status ?? "not_simulated",
-      p18TracePresent,
+      tracePresent,
       futureControlledExecutionCandidate:
-        p18TracePresent && (decision?.futureControlledExecutionCandidate ?? false),
+        tracePresent && (decision?.futureControlledExecutionCandidate ?? false),
       controlledExecutionAuthorization: "not_available_in_p19",
       requiresAttention:
-        !p18TracePresent ||
+        !tracePresent ||
         disposition === "blocked" ||
         disposition === "not_evaluated",
       reasonCodes,
@@ -208,7 +208,7 @@ export function buildExecutionReadinessReport(
       irreversible: countLevel("irreversible"),
       reversible: countLevel("reversible"),
       dryRunCapable: countLevel("dry_run_capable"),
-      missingP18Visibility: items.filter((i) => !i.p18TracePresent).length,
+      missingVisibility: items.filter((i) => !i.tracePresent).length,
       futureCandidates: items.filter((i) => i.futureControlledExecutionCandidate).length,
     },
     items,

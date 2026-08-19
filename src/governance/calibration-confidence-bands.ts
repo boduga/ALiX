@@ -98,7 +98,7 @@ export function buildConfidenceBands(
   if (analyzableSignals.length > 0) {
     const avgConfidence = analyzableSignals.reduce((sum, s) => sum + s.confidence, 0) / analyzableSignals.length;
     const maxSampleSize = Math.max(
-      ...analyzableSignals.map(s => s.sampleSize.p22CalibrationCount + s.sampleSize.p23ReplayCount),
+      ...analyzableSignals.map(s => s.sampleSize.calibrationCount + s.sampleSize.replayCount),
     );
 
     let label: ConfidenceBandLabel;

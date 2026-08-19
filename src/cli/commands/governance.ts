@@ -31,7 +31,7 @@ import { runDashboard } from "./governance-dashboard-handler.js";
 // scope to keep the seam file's load graph small.
 import { runLearnCli } from "../../evolution/learning/learning-cli.js";
 // A9 Slice 5 — pre-execution risk forecast CLI surface.
-import { runForecastCli } from "../../evolution/a9/forecast-cli.js";
+import { runForecastCli } from "../../evolution/forecast/forecast-cli.js";
 import type { EnrichedProposal } from "../../adaptation/intelligence-types.js";
 import { EventLog } from "../../events/event-log.js";
 import type {
@@ -2146,7 +2146,7 @@ async function runInboxRefresh(args: string[]): Promise<void> {
   const { computeFailureAnalysis } = await import("../../governance/failure-clustering.js");
   const { computePolicySuggestions } = await import("../../governance/policy-suggestions.js");
   const { computeFrictionReport } = await import("../../governance/approval-friction.js");
-  const { FileSignalStore, normalizeAllP13Outputs } = await import("../../governance/governance-signal.js");
+  const { FileSignalStore, normalizeSignalOutputs } = await import("../../governance/governance-signal.js");
 
   // Read P13 store data (same pattern as runReport)
   const entries = await windowed(new FileLedgerStore(cwd));
@@ -2168,7 +2168,7 @@ async function runInboxRefresh(args: string[]): Promise<void> {
   const existingSignals = await signalStore.list();
 
   // Normalise and dedup
-  const newSignals = normalizeAllP13Outputs(
+  const newSignals = normalizeSignalOutputs(
     existingSignals,
     analytics,
     rollups,
@@ -3145,12 +3145,12 @@ function renderReadinessReport(report: any): void {
   console.log(`    Manual only: ${report.totals.manualOnly}`);
   console.log(`    Dry-run allowed: ${report.totals.dryRunAllowed}`);
   console.log(`    Not evaluated: ${report.totals.notEvaluated}`);
-  console.log(`    Missing P18 visibility: ${report.totals.missingP18Visibility}`);
+  console.log(`    Missing P18 visibility: ${report.totals.missingVisibility}`);
   console.log(`    Future candidates: ${report.totals.futureCandidates}`);
   for (const item of report.items) {
     const flag = item.requiresAttention ? " ⚠" : "  ";
     console.log(`${flag} ${item.remediationId} | ${item.disposition}`);
-    console.log(`     Plan: ${item.planId} | P18:${item.p18TracePresent}`);
+    console.log(`     Plan: ${item.planId} | P18:${item.tracePresent}`);
   }
 }
 

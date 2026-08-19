@@ -21,7 +21,7 @@ import { CapabilityMeasurementEngine } from "../../src/capability/measurement/ca
 import { CapabilityMeasureFailedError } from "../../src/capability/errors/measure-failed.js";
 import { CapabilityMeasureInvalidTargetError } from "../../src/capability/errors/measure-invalid-target.js";
 import { MEASUREMENT_EVENT_PREFIX } from "../../src/capability/measurement/measurement-event-types.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
+import type { Measurement } from "../../src/capability/measurement/measurement-contract.js";
 import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import type { ObservationProvider, Observation, ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
@@ -40,7 +40,7 @@ class FakePassProvider implements ObservationProvider {
   }
 }
 
-function mkA5(outcome: CapabilityMeasurementOutcome): A5Measurement {
+function mkA5(outcome: CapabilityMeasurementOutcome): Measurement {
   return {
     async measureCapability(_target, _baseline) {
       return outcome;
@@ -70,7 +70,7 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
   it("throws CapabilityMeasureInvalidTargetError when target absent in catalog (ruling #8)", async () => {
     const m = new CapabilityMeasurementEngine({
       catalog,
-      a5: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
+      measurement: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
     await expect(
@@ -94,7 +94,7 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     });
     const m = new CapabilityMeasurementEngine({
       catalog,
-      a5: mkA5({ kind: "effective", evidenceRefs: ["obs-1"], confidence: 0.9, summary: "ok", signals: [] }),
+      measurement: mkA5({ kind: "effective", evidenceRefs: ["obs-1"], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
     const result = await m.measure({ capabilityId: "tool.file.read", version: "1.0.0" });
@@ -125,14 +125,14 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
       dependencies: [],
       bindings: [{ id: "x.native", type: "native" }],
     });
-    const a5: A5Measurement = {
+    const measurement: Measurement = {
       async measureCapability() {
         throw new Error("a5 down");
       },
     };
     const m = new CapabilityMeasurementEngine({
       catalog,
-      a5,
+      measurement,
       observationEngine: engine,
     });
     await expect(
@@ -159,7 +159,7 @@ describe("CapabilityMeasurementEngine (CAP-10 ruling #5, #13, #14, #16)", () => 
     });
     const m = new CapabilityMeasurementEngine({
       catalog,
-      a5: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
+      measurement: mkA5({ kind: "effective", evidenceRefs: [], confidence: 0.9, summary: "ok", signals: [] }),
       observationEngine: engine,
     });
     await m.measure({ capabilityId: "tool.y", version: "1.0.0" });

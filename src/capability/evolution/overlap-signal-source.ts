@@ -10,7 +10,7 @@
  * assignment (survivor + absorbed set) remains the authorized caller's
  * responsibility.
  *
- * This module implements `ProposalSignalSource` (`a7-proposals.ts`). Its
+ * This module implements `ProposalSignalSource` (`proposals.ts`). Its
  * `signals()` method:
  *   1. Reads canonical inputs via the injected `inputs()` function.
  *   2. Calls the injected `CapabilityOverlapAnalyzer` with a
@@ -47,7 +47,7 @@ import type { CapabilityOverlap } from "../../adaptation/capability-evolution-ty
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "./a7-proposals.js";
+} from "./proposals.js";
 import type { ConsolidationIdentity } from "./consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ export function buildOverlapSignals(
         // survivor, absorbed set, definition, or disposition; whatever
         // the caller assembles is what propagates.
         // Validator (`validateConsolidationOpportunitySignal` in
-        // a7-proposals.ts) enforces `absorbedCapabilityIds.length >= 1`
+        // proposals.ts) enforces `absorbedCapabilityIds.length >= 1`
         // downstream — `signalToCandidate` reacts by throwing on
         // empty arrays, so any caller error surfaces here too.
         const signal: CapabilityEvolutionSignal = {

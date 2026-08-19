@@ -46,8 +46,8 @@ function makeSignal(overrides: Partial<PolicyDriftSignal> = {}): PolicyDriftSign
     severity: "medium",
     confidence: 0.7,
     sampleSize: {
-      p22CalibrationCount: 20,
-      p23ReplayCount: 15,
+      calibrationCount: 20,
+      replayCount: 15,
       pairedLifecycleCount: 10,
     },
     rates: { overconfidentRate: 0.65 },
@@ -248,12 +248,12 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(record.lineageId, lid);
 
     // phasePresence — all true (execution not populated)
-    assert.equal(record.phasePresence.p24, true);
-    assert.equal(record.phasePresence.p25, true);
-    assert.equal(record.phasePresence.p26, true);
-    assert.equal(record.phasePresence.p27, true);
-    assert.equal(record.phasePresence.p28, true);
-    assert.equal(record.phasePresence.p29, true);
+    assert.equal(record.phasePresence.signal, true);
+    assert.equal(record.phasePresence.candidate, true);
+    assert.equal(record.phasePresence.outcome, true);
+    assert.equal(record.phasePresence.trace, true);
+    assert.equal(record.phasePresence.explanation, true);
+    assert.equal(record.phasePresence.compliance, true);
     assert.equal(record.phasePresence.execution, false);
 
     // Shallow refs — all present
@@ -324,12 +324,12 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(record.lineageId, lid);
 
     // phasePresence — only p25 true
-    assert.equal(record.phasePresence.p24, false);
-    assert.equal(record.phasePresence.p25, true);
-    assert.equal(record.phasePresence.p26, false);
-    assert.equal(record.phasePresence.p27, false);
-    assert.equal(record.phasePresence.p28, false);
-    assert.equal(record.phasePresence.p29, false);
+    assert.equal(record.phasePresence.signal, false);
+    assert.equal(record.phasePresence.candidate, true);
+    assert.equal(record.phasePresence.outcome, false);
+    assert.equal(record.phasePresence.trace, false);
+    assert.equal(record.phasePresence.explanation, false);
+    assert.equal(record.phasePresence.compliance, false);
     assert.equal(record.phasePresence.execution, false);
 
     // candidateRef present

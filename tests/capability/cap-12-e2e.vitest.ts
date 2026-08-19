@@ -50,11 +50,11 @@ import { registerInitialCapabilities } from "../../src/capability/initial-capabi
 import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
 import { CapabilityRegistry } from "../../src/capability/registry.js";
 import { EventLog } from "../../src/events/event-log.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import { handleCapabilityCommand } from "../../src/cli/commands/capability.js";
 import { CapabilityService as TuiCapabilityService } from "../../src/tui/capabilities/capability-service.js";
 import type { CapabilityListItem } from "../../src/capability/types/service-results.js";
@@ -165,7 +165,7 @@ function buildSiblingService(
   eventLog: EventLog,
   signal: CapabilityEvolutionSignal,
 ): CapabilityService {
-  const generator = new A7ProposalGenerator({
+  const generator = new CapabilityProposalGenerator({
     signalSource: new FakeSignalSource([signal]),
   });
   const platformCatalog = (platform.service as unknown as { readonly catalog: CapabilityCatalog }).catalog;
@@ -252,7 +252,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     // signal source -> `service.propose()` throws), so we exercise
     // the propose-then-apply path through a sibling service that
     // shares the same catalog/resolver/eventLog.
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["cap-12-e2e-evidence"] },
       ]),
@@ -586,7 +586,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
   // ─── Step 9: service.propose() submits new proposal ──────────────────────
   // API note: `service.propose()` ignores its input argument and reads
   // from the injected A7 `proposalGenerator`. The candidate body comes
-  // from the `FakeSignalSource` driving `A7ProposalGenerator.generate()`
+  // from the `FakeSignalSource` driving `CapabilityProposalGenerator.generate()`
   // (T4 step 2's sibling-service pattern, reused here). For a `gap`
   // signal with no `capabilityId`, the candidate target id is
   // `new.a7-gap-new`; for an explicit `capabilityId` it is that id.
@@ -763,7 +763,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
   // `catalog.register(...)` and the catalog grows by exactly one.
   //
   // Note: per A7's `signalToCandidate` (`src/capability/evolution/
-  // a7-proposals.ts:194-205`), `gap` signals always yield
+  // proposals.ts:194-205`), `gap` signals always yield
   // `target.id = "new.${candidateId}"` where
   // `candidateId = "a7-${kind}-${signal.capabilityId ?? 'new'}"`.
   // The test reads `proposal.candidate.target.id` after `propose()`
@@ -784,7 +784,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
       registry: platformRegistry,
     });
     const newCapId = "test.cap-n.step12b";
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "gap",
@@ -862,7 +862,7 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
       catalog: platformCatalog,
       registry: platformRegistry,
     });
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([signal]),
     });
     const sibling = new CapabilityService({

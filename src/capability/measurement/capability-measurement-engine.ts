@@ -6,7 +6,7 @@
  *
  * Owns the measurement boundary:
  *   1. Resolves the id@version target via the catalog (ruling #8).
- *   2. Calls `A5Measurement.measureCapability(target, baseline?)`
+ *   2. Calls `Measurement.measureCapability(target, baseline?)`
  *      (ruling #8). The A5 implementation is injected via the
  *      composition root (`src/capability/platform.ts` — ruling #18).
  *   3. Builds the post observation reference from the `ObservationEngine`
@@ -23,13 +23,13 @@
  * Lives in `capability/measurement/`, NOT `evolution/`.
  *
  * Forbidden (ruling #9, axis 5):
- *   - MUST NOT import `src/evolution/observation/a5-capability-measurement`.
+ *   - MUST NOT import `src/evolution/observation/capability-measurement`.
  *
  * @module capability/measurement/capability-measurement-engine
  */
 
 import type { CapabilityCatalog } from "../canonical/catalog.js";
-import type { A5Measurement, A5MeasurementTarget } from "./a5.js";
+import type { Measurement, MeasurementTarget } from "./measurement-contract.js";
 import type { CapabilityMeasurementOutcome } from "./outcome-discriminated-union.js";
 import type { CapabilityMeasureInput, CapabilityMeasureResult } from "../types/service-results.js";
 import type { ObservationEngine, Observation, ObservationResult } from "../../evolution/observation/index.js";
@@ -38,23 +38,23 @@ import { CapabilityMeasureInvalidTargetError } from "../errors/measure-invalid-t
 
 export interface CapabilityMeasurementEngineOptions {
   readonly catalog: CapabilityCatalog;
-  readonly a5: A5Measurement;
+  readonly measurement: Measurement;
   readonly observationEngine: ObservationEngine;
 }
 
 export class CapabilityMeasurementEngine {
   private readonly catalog: CapabilityCatalog;
-  private readonly a5: A5Measurement;
+  private readonly measurement: Measurement;
   private readonly observationEngine: ObservationEngine;
 
   constructor(options: CapabilityMeasurementEngineOptions) {
     this.catalog = options.catalog;
-    this.a5 = options.a5;
+    this.measurement = options.measurement;
     this.observationEngine = options.observationEngine;
   }
 
   async measure(input: CapabilityMeasureInput): Promise<CapabilityMeasureResult> {
-    const target: A5MeasurementTarget = {
+    const target: MeasurementTarget = {
       capabilityId: input.capabilityId,
       version: input.version,
     };
@@ -70,7 +70,7 @@ export class CapabilityMeasurementEngine {
     // frozen error (ruling #16).
     let outcome: CapabilityMeasurementOutcome;
     try {
-      outcome = await this.a5.measureCapability(target, input.baselineObservationId);
+      outcome = await this.measurement.measureCapability(target, input.baselineObservationId);
     } catch (cause) {
       const err = cause instanceof Error ? cause : new Error(String(cause));
       throw new CapabilityMeasureFailedError(
@@ -112,7 +112,7 @@ export class CapabilityMeasurementEngine {
     });
   }
 
-  private buildPostObservation(target: A5MeasurementTarget): Observation {
+  private buildPostObservation(target: MeasurementTarget): Observation {
     return {
       observationId: `post-${target.capabilityId}-${target.version}-${Date.now()}`,
       provider: "native",

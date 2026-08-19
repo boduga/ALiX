@@ -39,7 +39,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { LearningProposal } from "../../src/evolution/learning/contracts/learning-contract.js";
 import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/a2-bridge.js";
+import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
 
 // ---------------------------------------------------------------------------
 // Helpers — source-tree walker

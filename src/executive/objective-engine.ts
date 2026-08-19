@@ -67,7 +67,7 @@ export interface ExecutiveObjective {
 }
 
 export interface ExecutiveObjectiveReport {
-  schemaVersion: "p10.2.0";
+  schemaVersion: "executive_objective_v1";
   generatedAt: string;
   windowDays: number;
   /** Sorted by objectiveScore descending. 0–8 entries. */
@@ -288,7 +288,7 @@ export function buildObjectiveReport(
   objectives.sort((a, b) => b.objectiveScore - a.objectiveScore);
 
   return {
-    schemaVersion: "p10.2.0",
+    schemaVersion: "executive_objective_v1",
     generatedAt,
     windowDays: healthReport.windowDays,
     objectives,

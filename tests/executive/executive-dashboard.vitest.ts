@@ -286,7 +286,7 @@ describe("executive-dashboard", () => {
         correlationMode: "loose",
         correlationLagDays: 30,
         schemaVersion: 1,
-        dashboardVersion: "p10.9.0",
+        dashboardVersion: "executive_dashboard_v1",
         sources: {
           trendsLoaded: false,
           recommendationsLoaded: false,
@@ -322,7 +322,7 @@ describe("executive-dashboard", () => {
         extensions: [],
       };
 
-      expect(report.metadata.dashboardVersion).toBe("p10.9.0");
+      expect(report.metadata.dashboardVersion).toBe("executive_dashboard_v1");
       expect(report.panels).toEqual([]);
     });
   });
@@ -400,7 +400,7 @@ describe("executive-dashboard", () => {
     it("returns a valid report even from a fully empty snapshot", () => {
       const report = buildDashboardReport(mockSnapshot(), { brief: false });
       expect(report.metadata.schemaVersion).toBe(1);
-      expect(report.metadata.dashboardVersion).toBe("p10.9.0");
+      expect(report.metadata.dashboardVersion).toBe("executive_dashboard_v1");
       expect(report.panels.length).toBeGreaterThanOrEqual(1);
       expect(report.summary.empty).toBe(false); // always renders
     });

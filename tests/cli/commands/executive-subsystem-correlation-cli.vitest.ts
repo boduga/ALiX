@@ -50,7 +50,7 @@ function makeExecRec(over: Partial<ExecutiveRecommendation> = {}): ExecutiveReco
 function makeReport(recs: ExecutiveRecommendation[], generatedAt?: string): RecommendationReport {
   const ts = generatedAt ?? "2026-01-15T12:00:00.000Z";
   return {
-    schemaVersion: "p10.7b.0",
+    schemaVersion: "recommendation_report_v1",
     id: "recommendation-test",
     contentHash: "x",
     report: {
@@ -76,7 +76,7 @@ function persist(report: RecommendationReport): RecommendationReport {
 
 function makeOutcomeReport(generatedAt: string, subsystem: ExecutiveSubsystemName, delta: number): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt,
     planId: "plan-test",
     planStatus: "completed",
@@ -99,7 +99,7 @@ function seedOutcomeReport(report: ExecutiveOutcomeEvaluationReport, id: string)
   const dir = join(tempRoot, ".alix", "executive", "outcomes");
   mkdirSync(dir, { recursive: true });
   const contentHash = createHash("sha256").update(JSON.stringify(report)).digest("hex");
-  const wrapper = { schemaVersion: "p10.5b.0", id, contentHash, report };
+  const wrapper = { schemaVersion: "outcome_envelope_v1", id, contentHash, report };
   writeFileSync(join(dir, `${id}.json`), JSON.stringify(wrapper, null, 2), "utf-8");
 }
 

@@ -17,7 +17,7 @@ function makeHealthReport(
   overrides?: Partial<ExecutiveHealthReport>,
 ): ExecutiveHealthReport {
   return {
-    schemaVersion: "p10.0.0",
+    schemaVersion: "executive_health_v1",
     generatedAt: "2026-06-24T00:00:00.000Z",
     windowDays: 90,
     overallScore: 78,
@@ -82,10 +82,10 @@ describe("computeTrendScore", () => {
 });
 
 describe("buildPriorityReport", () => {
-  it("returns schemaVersion p10.1.0 and 8 entries", () => {
+  it("returns schemaVersion executive_priority_v1 and 8 entries", () => {
     const health = makeHealthReport();
     const report = buildPriorityReport(health, null);
-    expect(report.schemaVersion).toBe("p10.1.0");
+    expect(report.schemaVersion).toBe("executive_priority_v1");
     expect(report.priorities.length).toBe(8);
   });
 

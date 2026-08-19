@@ -29,7 +29,7 @@ const read = (rel: string) => readFileSync(resolve(SRC, rel), "utf8");
 
 describe("CAP-10.5 emission-sentinel (6-axis)", () => {
   it("axis 1: a5 does not import ProposalSignalSource (read-only)", () => {
-    const src = read("evolution/observation/a5-capability-measurement.ts");
+    const src = read("evolution/observation/capability-measurement.ts");
     expect(src).not.toMatch(/ProposalSignalSource\b/);
     expect(src).toMatch(/ProposalSignalSink\b/);
   });
@@ -71,7 +71,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
       "capability/platform.ts",
       "capability/evolution/proposal-signal-channel.ts",
       "capability/measurement/capability-measurement-engine.ts",
-      "evolution/observation/a5-capability-measurement.ts",
+      "evolution/observation/capability-measurement.ts",
     ]) {
       walk(rel);
     }
@@ -85,7 +85,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
   });
 
   it("axis 6: default decider emits underperformer for ineffective", () => {
-    const src = read("evolution/observation/a5-capability-measurement.ts");
+    const src = read("evolution/observation/capability-measurement.ts");
     expect(src).toMatch(/kind:\s*"ineffective"/);
     expect(src).toMatch(/kind:\s*"underperformer"/);
     expect(src).toMatch(/defaultSignalsFor/);

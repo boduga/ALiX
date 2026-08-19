@@ -4,7 +4,7 @@
  * Two static guards pin corrected facts verified during Phase 0:
  *
  *   1. A9 does NOT consume A8's normalized aggregation layer. A9 is its own
- *      module (`src/evolution/a9/`); adapters preserve RAW evidence. A9 source
+ *      module (`src/evolution/forecast/`); adapters preserve RAW evidence. A9 source
  *      files MUST NOT import `src/evolution/learning/` or its adapters.
  *      (Corrected fact #3; brief adapter test item 6.)
  *
@@ -20,11 +20,11 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 // Runtime re-pins for identity determinism (Phase 28).
-import { forecastIdFor, correlationIdFor } from "../../src/evolution/a9/identity.js";
-import type { A9ForecastContent, A9CorrelationContent } from "../../src/evolution/a9/contracts/a9-contract.js";
-import { A9_FORECAST_VERSION, A9_GENERATOR_VERSION, A9_CORRELATION_VERSION } from "../../src/evolution/a9/contracts/a9-contract.js";
+import { forecastIdFor, correlationIdFor } from "../../src/evolution/forecast/identity.js";
+import type { ForecastContent, CorrelationContent } from "../../src/evolution/forecast/contracts/contract.js";
+import { FORECAST_VERSION, GENERATOR_VERSION, CORRELATION_VERSION } from "../../src/evolution/forecast/contracts/contract.js";
 
-const A9_ROOT = join(process.cwd(), "src", "evolution", "a9");
+const A9_ROOT = join(process.cwd(), "src", "evolution", "forecast");
 const A9_DETECTORS_ROOT = join(A9_ROOT, "detectors");
 const SRC_ROOT = join(process.cwd(), "src");
 
@@ -92,8 +92,8 @@ describe("A9 sentinel — forecast detectors do NOT consume measurement events (
 
 describe("A9 sentinel — identity is a deterministic canonical hash (Phase 28)", () => {
   it("forecastId and correlationId are 64-hex content addresses, deterministic", () => {
-    const forecastContent: A9ForecastContent = {
-      forecastVersion: A9_FORECAST_VERSION,
+    const forecastContent: ForecastContent = {
+      forecastVersion: FORECAST_VERSION,
       subject: "prop-1",
       subjectCapability: "cap-1",
       prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -101,12 +101,12 @@ describe("A9 sentinel — identity is a deterministic canonical hash (Phase 28)"
       confidence: 0.8,
       provenance: {
         generatedAt: "2026-08-01T00:00:00.000Z",
-        generatorVersion: A9_GENERATOR_VERSION,
+        generatorVersion: GENERATOR_VERSION,
         evidenceRefs: ["ev-1"],
       },
     };
-    const correlationContent: A9CorrelationContent = {
-      correlationVersion: A9_CORRELATION_VERSION,
+    const correlationContent: CorrelationContent = {
+      correlationVersion: CORRELATION_VERSION,
       forecastId: "f1",
       measurementId: "m1",
       foreignProvenance: { proposalId: "p1" },
@@ -127,7 +127,7 @@ describe("A9 sentinel — identity is a deterministic canonical hash (Phase 28)"
 });
 
 describe("A9 sentinel — persistence stays A9-owned (forecasts.jsonl / correlations.jsonl)", () => {
-  it("only src/evolution/a9 defines the two A9-owned store files", () => {
+  it("only src/evolution/forecast defines the two A9-owned store files", () => {
     const offenders: string[] = [];
     for (const file of walkTsFiles(SRC_ROOT)) {
       const src = readFileSync(file, "utf-8");
@@ -157,7 +157,7 @@ describe("A9 sentinel — foreign IDs are references; measurement namespace carr
   });
 
   it("A9's CapabilityMeasurementRecord contract exposes no proposal linkage (foreign ids are references only)", () => {
-    const contractSrc = readFileSync(join(A9_ROOT, "contracts", "a9-contract.ts"), "utf-8");
+    const contractSrc = readFileSync(join(A9_ROOT, "contracts", "contract.ts"), "utf-8");
     for (const forbidden of ["proposalId", "sourceProposalIds", "forecastId", "correlationId"]) {
       // The A9 measurement record region must not declare these fields.
       const recordRegion = contractSrc.slice(

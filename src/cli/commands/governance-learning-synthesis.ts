@@ -139,9 +139,9 @@ interface BuildResult {
   report: LearningSynthesisReport;
 }
 
-function build(cwd: string, p24BundlePath: string): BuildResult | string {
+function build(cwd: string, bundlePath: string): BuildResult | string {
   // 1. Load P24 bundle
-  const bundle = readJson<any>(p24BundlePath);
+  const bundle = readJson<any>(bundlePath);
   if (!bundle) return "ERROR: Could not load P24 bundle.\n";
   const signals = Array.isArray(bundle) ? bundle : (bundle.signals ?? []);
   if (signals.length === 0) return "ERROR: No P24 signals found in bundle.\n";
@@ -175,12 +175,12 @@ function build(cwd: string, p24BundlePath: string): BuildResult | string {
 // ---------------------------------------------------------------------------
 
 function handleBuild(args: string[], cwd: string): string {
-  const p24BundlePath = flag(args, "--p24-bundle");
-  if (!p24BundlePath) {
+  const bundlePath = flag(args, "--p24-bundle");
+  if (!bundlePath) {
     return "ERROR: --p24-bundle <path> is required.\n" + usage();
   }
 
-  const result = build(cwd, p24BundlePath);
+  const result = build(cwd, bundlePath);
   if (typeof result === "string") return result;
 
   if (hasFlag(args, "--json")) {
@@ -200,12 +200,12 @@ function handleBuild(args: string[], cwd: string): string {
 // ---------------------------------------------------------------------------
 
 function handleReport(args: string[], cwd: string): string {
-  const p24BundlePath = flag(args, "--p24-bundle");
-  if (!p24BundlePath) {
+  const bundlePath = flag(args, "--p24-bundle");
+  if (!bundlePath) {
     return "ERROR: --p24-bundle <path> is required.\n" + usage();
   }
 
-  const result = build(cwd, p24BundlePath);
+  const result = build(cwd, bundlePath);
   if (typeof result === "string") return result;
 
   const report = result.report;

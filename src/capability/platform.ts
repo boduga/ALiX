@@ -13,28 +13,28 @@ import { CapabilityDefinitionStore } from "./canonical/catalog-store.js";
 import { CatalogBackedCapabilityMutationPort } from "./mutation-port.js";
 import { CapabilityService } from "./capability-service.js";
 import { CapabilityMutationExecutor } from "../evolution/execution/capability-mutation-executor.js";
-import { A7ProposalGenerator, type ProposalSignalSource } from "./evolution/a7-proposals.js";
+import { CapabilityProposalGenerator, type ProposalSignalSource } from "./evolution/proposals.js";
 import { ProposalSignalChannel } from "./evolution/proposal-signal-channel.js";
 import {
   buildOverlapSignals,
   compositeProposalSignalSource,
 } from "./evolution/overlap-signal-source.js";
 import { CapabilityOverlapAnalyzer } from "../adaptation/capability-overlap-analyzer.js";
-import { A5CapabilityMeasurement } from "../evolution/observation/a5-capability-measurement.js";
+import { CapabilityMeasurement } from "../evolution/observation/capability-measurement.js";
 import { CapabilityMeasurementEngine } from "./measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../evolution/observation/observation-engine.js";
 // A9 — pre-execution risk forecast + correlation wiring (CAP-12 carve-out:
 // this file is the ONLY authorized composition-root wiring point for A9).
-import { ProposalEventsAdapter } from "../evolution/a9/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../evolution/a9/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../evolution/a9/adapters/enriched-proposals-adapter.js";
-import { createEnrichedProposalsSource } from "../evolution/a9/adapters/enriched-proposals-source.js";
-import { ForecastEngine } from "../evolution/a9/forecast-engine.js";
-import { ForecastsStore } from "../evolution/a9/forecasts-store.js";
-import { ForecastsAdapter } from "../evolution/a9/forecasts-adapter.js";
-import { CorrelationsStore } from "../evolution/a9/correlations-store.js";
-import { CorrelationsAdapter } from "../evolution/a9/correlations-adapter.js";
-import { CorrelationEngine } from "../evolution/a9/correlation-engine.js";
+import { ProposalEventsAdapter } from "../evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../evolution/forecast/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../evolution/forecast/adapters/enriched-proposals-adapter.js";
+import { createEnrichedProposalsSource } from "../evolution/forecast/adapters/enriched-proposals-source.js";
+import { ForecastEngine } from "../evolution/forecast/forecast-engine.js";
+import { ForecastsStore } from "../evolution/forecast/forecasts-store.js";
+import { ForecastsAdapter } from "../evolution/forecast/forecasts-adapter.js";
+import { CorrelationsStore } from "../evolution/forecast/correlations-store.js";
+import { CorrelationsAdapter } from "../evolution/forecast/correlations-adapter.js";
+import { CorrelationEngine } from "../evolution/forecast/correlation-engine.js";
 import type { EnrichedProposal } from "../adaptation/intelligence-types.js";
 import { join } from "node:path";
 import type { ProviderType } from "./canonical/provider.js";
@@ -72,7 +72,7 @@ export class CapabilityPlatform {
   readonly definitions: { get(id: string): CapabilityDefinition | undefined };
 
   /** CAP-10 — measurement engine instance (optional). Absent when the
-   *  platform was constructed without `a5CapabilityMeasurement`
+   *  platform was constructed without `capabilityMeasurement`
    *  (ruling #18). Exposed for tests + downstream wiring; service.measure()
    *  remains the public surface (CAP-8 ruling #2). */
   readonly measurementEngine?: CapabilityMeasurementEngine;
@@ -83,7 +83,7 @@ export class CapabilityPlatform {
    *  engines. A9 modules never instantiate EventLog / global infra
    *  themselves — the composition root does. Correlation stays automatic
    *  (never an operator mutation command). */
-  readonly a9: {
+  readonly forecast: {
     readonly proposalEvents: ProposalEventsAdapter;
     readonly measurementEvents: MeasurementEventsAdapter;
     readonly enrichedProposals: EnrichedProposalsAdapter;
@@ -98,7 +98,7 @@ export class CapabilityPlatform {
    *  Production bootstrap (cli.ts / tui.ts) supplies the authoritative
    *  EventLog; existing platform tests MUST pass an explicit test
    *  EventLog fixture. The same instance flows through to the service. */
-  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: A7ProposalGenerator; a5CapabilityMeasurement?: A5CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource; a9StoreDir?: string; a9EnrichedProposals?: ReadonlyArray<EnrichedProposal> }) {
+  constructor(opts: { catalogDir?: string; catalog?: CapabilityCatalog; eventLog: EventLog; proposalGenerator?: CapabilityProposalGenerator; capabilityMeasurement?: CapabilityMeasurement; overlapSignalSource?: ProposalSignalSource; storeDir?: string; enrichedProposals?: ReadonlyArray<EnrichedProposal> }) {
     if (!opts.eventLog) {
       throw new Error("CapabilityPlatform requires an EventLog (locked ruling #12) — supply opts.eventLog");
     }
@@ -133,18 +133,18 @@ export class CapabilityPlatform {
     const observationEngine = new ObservationEngine();
     // CAP-10 ruling #18 — compose A5 implementation into a measurement engine (optional).
     // When not supplied by the caller, the composition root constructs a real
-    // A5CapabilityMeasurement bound to the channel.
-    const a5 = opts.a5CapabilityMeasurement ?? new A5CapabilityMeasurement({
+    // CapabilityMeasurement bound to the channel.
+    const measurement = opts.capabilityMeasurement ?? new CapabilityMeasurement({
       observationEngine,
       signalSink: channel,
       catalog: this.catalog,
       eventLog: opts.eventLog,
     });
     let measurementEngine: CapabilityMeasurementEngine | undefined;
-    if (a5) {
+    if (measurement) {
       measurementEngine = new CapabilityMeasurementEngine({
         catalog: this.catalog,
-        a5,
+        measurement,
         observationEngine,
       });
     }
@@ -169,11 +169,11 @@ export class CapabilityPlatform {
         identitySupplier: () => null,
       });
     // A7 proposal generator — composition root constructs a real
-    // A7ProposalGenerator bound to a composite signalSource (the A5
+    // CapabilityProposalGenerator bound to a composite signalSource (the A5
     // channel + the pair layer) when the caller does not supply one.
     // Existing test injects are preserved: `opts.proposalGenerator`
     // bypasses the wiring entirely.
-    const proposalGenerator = opts.proposalGenerator ?? new A7ProposalGenerator({
+    const proposalGenerator = opts.proposalGenerator ?? new CapabilityProposalGenerator({
       signalSource: compositeProposalSignalSource([channel, overlapSignalSource]),
     });
     this.service = new CapabilityService({
@@ -196,32 +196,32 @@ export class CapabilityPlatform {
     // EventLog the platform received (ruling #12); stores are A9-owned under
     // the governance JSONL dir (default `.alix/governance`). Construction is
     // lazy — no I/O until the adapters/engines are called.
-    const a9StoreDir = opts.a9StoreDir ?? join(process.cwd(), ".alix", "governance");
-    const a9ProposalEvents = new ProposalEventsAdapter(opts.eventLog);
-    const a9MeasurementEvents = new MeasurementEventsAdapter(opts.eventLog);
+    const storeDir = opts.storeDir ?? join(process.cwd(), ".alix", "governance");
+    const proposalEvents = new ProposalEventsAdapter(opts.eventLog);
+    const measurementEvents = new MeasurementEventsAdapter(opts.eventLog);
     // Real enriched-proposals source: when the caller doesn't inject one, derive
     // from the standard `.alix` adaptation stores lazily (P10.8a pipeline). A
     // supplier runs no I/O at construction — only when `.list()` is first
     // called — and a failed source yields [] (Phase 20). This keeps the
     // evidence-completeness detector live on the platform surface (review #377).
-    const a9Enriched = new EnrichedProposalsAdapter(
-      opts.a9EnrichedProposals ?? createEnrichedProposalsSource(process.cwd()),
+    const enriched = new EnrichedProposalsAdapter(
+      opts.enrichedProposals ?? createEnrichedProposalsSource(process.cwd()),
     );
-    const a9Forecasts = new ForecastsAdapter(new ForecastsStore(a9StoreDir));
-    this.a9 = Object.freeze({
-      proposalEvents: a9ProposalEvents,
-      measurementEvents: a9MeasurementEvents,
-      enrichedProposals: a9Enriched,
-      forecasts: a9Forecasts,
-      correlations: new CorrelationsAdapter(new CorrelationsStore(a9StoreDir)),
+    const forecasts = new ForecastsAdapter(new ForecastsStore(storeDir));
+    this.forecast = Object.freeze({
+      proposalEvents: proposalEvents,
+      measurementEvents: measurementEvents,
+      enrichedProposals: enriched,
+      forecasts: forecasts,
+      correlations: new CorrelationsAdapter(new CorrelationsStore(storeDir)),
       forecastEngine: new ForecastEngine({
-        proposalEvents: a9ProposalEvents,
-        enrichedProposals: a9Enriched,
+        proposalEvents: proposalEvents,
+        enrichedProposals: enriched,
       }),
       correlationEngine: new CorrelationEngine({
-        forecasts: a9Forecasts,
-        proposalEvents: a9ProposalEvents,
-        measurements: a9MeasurementEvents,
+        forecasts: forecasts,
+        proposalEvents: proposalEvents,
+        measurements: measurementEvents,
       }),
     });
   }

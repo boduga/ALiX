@@ -53,10 +53,10 @@ import {
   MEASUREMENT_GOVERNANCE_PREFIX,
 } from "./measurement/measurement-event-types.js";
 import {
-  A7ProposalGenerator,
+  CapabilityProposalGenerator,
   validateConsolidationOpportunitySignal,
   type CapabilityEvolutionSignal,
-} from "./evolution/a7-proposals.js";
+} from "./evolution/proposals.js";
 import {
   type ConsolidationIdentity,
   validateConsolidationIdentity,
@@ -137,7 +137,7 @@ export class CapabilityService {
   private readonly eventLog: EventLog;
   /** CAP-9 ruling #5 — A7 proposal intelligence. Optional so backward-compat
    *  CAP-8 read-only consumers keep constructing the service without it. */
-  private readonly proposalGenerator?: A7ProposalGenerator;
+  private readonly proposalGenerator?: CapabilityProposalGenerator;
   /** CAP-10 ruling #22 — measurement engine. Optional. Absent →
    *  `service.measure()` throws `CapabilityServiceNotImplementedError`
    *  (CAP-8 ruling #4 preserved). NEVER required. */

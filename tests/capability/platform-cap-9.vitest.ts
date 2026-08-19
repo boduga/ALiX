@@ -16,7 +16,7 @@
  *   - When constructed with `proposalGenerator`, `service.propose()`
  *     succeeds (does not throw).
  *   - Without `proposalGenerator`, the composition root (CAP-10.5) auto-constructs
- *     an A7ProposalGenerator bound to the empty ProposalSignalChannel —
+ *     an CapabilityProposalGenerator bound to the empty ProposalSignalChannel —
  *     `service.propose()` surfaces the stable A7-zero-candidates error.
  */
 
@@ -25,12 +25,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
   ProposalSignalSink,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import { EventLog } from "../../src/events/event-log.js";
 
 class FakeSignalChannel implements ProposalSignalSink, ProposalSignalSource {
@@ -69,7 +69,7 @@ describe("CapabilityPlatform — CAP-9 wiring (proposalGenerator)", () => {
   });
 
   it("wires proposalGenerator through to the service (observable via propose())", async () => {
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalChannel([
         { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-1"] },
       ]),
@@ -88,7 +88,7 @@ describe("CapabilityPlatform — CAP-9 wiring (proposalGenerator)", () => {
 
   it("auto-constructs A7 with channel signalSource when proposalGenerator not provided (CAP-10.5 ruling #R4); empty channel surfaces stable A7-zero-candidates error", async () => {
     const platform = new CapabilityPlatform({ eventLog });
-    // CAP-10.5 — composition root constructs an A7ProposalGenerator bound to the
+    // CAP-10.5 — composition root constructs an CapabilityProposalGenerator bound to the
     // ProposalSignalChannel. Empty channel → A7 produces no candidates → the
     // service surfaces its stable "no candidates" error (no fallback to the
     // CAP-8 not-implemented stub).

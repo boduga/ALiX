@@ -30,11 +30,11 @@ import { ProviderResolver, CapabilityResolver } from "../../src/capability/provi
 import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
 import { NativeProviderExecutor } from "../../src/capability/provider-executor.js";
 import { NativeExecutor } from "../../src/capability/executors.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import type { CapabilityDefinition } from "../../src/capability/canonical/definition.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
@@ -123,11 +123,11 @@ describe("CAP-9 service.apply({ proposalId }) — ruling #17 / #4 / happy-path",
   });
 
   function buildService(executor: ScriptedExecutor): CapabilityService {
-    // The A7ProposalGenerator emit `underperformer` candidates whose
+    // The CapabilityProposalGenerator emit `underperformer` candidates whose
     // target.id is the signal's capabilityId — meaning the capability
     // MUST already exist in the catalog (CAP-9's transition step maps
     // to emerging→active against that target).
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "underperformer",
@@ -354,7 +354,7 @@ describe("CAP-9 service.apply({ proposalId }) — ruling #17 / #4 / happy-path",
     // Gap signal targets `new.a7-gap-new` — which is intentionally NOT
     // registered in the catalog. So `catalog.get()` returns undefined at
     // both submit and apply time.
-    const gapGenerator = new A7ProposalGenerator({
+    const gapGenerator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-gap"] },
       ]),

@@ -56,8 +56,8 @@ function makeSignal(overrides: Partial<PolicyDriftSignal> = {}): PolicyDriftSign
     severity: "medium",
     confidence: 0.7,
     sampleSize: {
-      p22CalibrationCount: 20,
-      p23ReplayCount: 15,
+      calibrationCount: 20,
+      replayCount: 15,
       pairedLifecycleCount: 10,
     },
     rates: { overconfidentRate: 0.65 },
@@ -329,7 +329,7 @@ describe("P30.3 — governance-lineage CLI", () => {
       const parsed = JSON.parse(jsonShow);
       assert.ok(parsed !== null && typeof parsed === "object", "show --json should produce valid JSON object");
       assert.equal(parsed.candidateRef?.candidateId, "cand-1");
-      assert.equal(parsed.phasePresence.p25, true);
+      assert.equal(parsed.phasePresence.candidate, true);
 
       // Test unknown candidate --json
       const jsonUnknown = await handleGovernanceLineageCommand(
@@ -430,8 +430,8 @@ describe("P30.3 — governance-lineage CLI", () => {
 
     const record = buildLineageRecord("cand-immut", index);
     assert(record !== null);
-    assert.equal(record.phasePresence.p24, true);
-    assert.equal(record.phasePresence.p25, true);
+    assert.equal(record.phasePresence.signal, true);
+    assert.equal(record.phasePresence.candidate, true);
   });
 
   // -----------------------------------------------------------------------

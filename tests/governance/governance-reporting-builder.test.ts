@@ -42,7 +42,7 @@ function signal(
     direction: "too_loose",
     severity: "medium",
     confidence: 0.7,
-    sampleSize: { p22CalibrationCount: 20, p23ReplayCount: 15, pairedLifecycleCount: 10 },
+    sampleSize: { calibrationCount: 20, replayCount: 15, pairedLifecycleCount: 10 },
     rates: { overconfidentRate: 0.65 },
     implicatedPolicyAreas: ["calibration"],
     evidenceRefs: [{ source: "p22_calibration", lifecycleId: "life-1" }],

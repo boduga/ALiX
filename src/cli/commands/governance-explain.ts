@@ -88,7 +88,7 @@ function loadOutcomes(cwd: string): unknown[] {
 // Handler
 // ---------------------------------------------------------------------------
 
-function handleTrace(args: string[], cwd: string, p24BundlePath: string): string {
+function handleTrace(args: string[], cwd: string, bundlePath: string): string {
   const candidateId = args[0];
   if (!candidateId) {
     return "ERROR: Usage: alix governance explain trace <candidateId> [--p24-bundle <path>] [--json]\n";
@@ -97,7 +97,7 @@ function handleTrace(args: string[], cwd: string, p24BundlePath: string): string
   const jsonMode = hasFlag(args, "--json");
 
   // Load P24 bundle
-  const bundle = readJson<Record<string, unknown>>(p24BundlePath);
+  const bundle = readJson<Record<string, unknown>>(bundlePath);
   if (!bundle) return "ERROR: Could not load P24 bundle.\n";
   const signals = Array.isArray(bundle) ? (bundle as unknown[]) : ((bundle.signals as unknown[]) ?? []);
   if (signals.length === 0) return "ERROR: No P24 signals found in bundle.\n";
@@ -128,11 +128,11 @@ function handleTrace(args: string[], cwd: string, p24BundlePath: string): string
   return renderExplanationText(explanation) + "\n";
 }
 
-function handleWindow(args: string[], cwd: string, p24BundlePath: string): string {
+function handleWindow(args: string[], cwd: string, bundlePath: string): string {
   const jsonMode = hasFlag(args, "--json");
 
   // Load P24 bundle
-  const bundle = readJson<Record<string, unknown>>(p24BundlePath);
+  const bundle = readJson<Record<string, unknown>>(bundlePath);
   if (!bundle) return "ERROR: Could not load P24 bundle.\n";
   const signals = Array.isArray(bundle) ? (bundle as unknown[]) : ((bundle.signals as unknown[]) ?? []);
   if (signals.length === 0) return "ERROR: No P24 signals found in bundle.\n";
@@ -193,16 +193,16 @@ export function handleGovernanceExplainCommand(
     return usage();
   }
 
-  const p24BundlePath = flag(args, "--p24-bundle");
-  if (!p24BundlePath) {
+  const bundlePath = flag(args, "--p24-bundle");
+  if (!bundlePath) {
     return "ERROR: --p24-bundle <path> is required.\n";
   }
 
   switch (subcommand) {
     case "trace":
-      return handleTrace(args.slice(1), cwd, p24BundlePath);
+      return handleTrace(args.slice(1), cwd, bundlePath);
     case "window":
-      return handleWindow(args.slice(1), cwd, p24BundlePath);
+      return handleWindow(args.slice(1), cwd, bundlePath);
     default:
       return usage();
   }
