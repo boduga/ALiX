@@ -40,7 +40,7 @@ function makeStubObservationProvider(): {
   };
 }
 
-const FIXED_ALIX_VERSION = "0.5.0";
+const FIXED_ALIX_VERSION = "0.6.0";
 const FIXED_ENGINE_VERSION = "1.0";
 
 // ---------------------------------------------------------------------------

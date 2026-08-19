@@ -3,5 +3,5 @@ import assert from "node:assert/strict";
 import { ALIX_VERSION } from "../src/index.js";
 
 test("exports ALiX version", () => {
-  assert.equal(ALIX_VERSION, "0.5.0");
+  assert.equal(ALIX_VERSION, "0.6.0");
 });

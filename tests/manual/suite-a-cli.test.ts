@@ -65,7 +65,7 @@ describe("Suite A: Basic CLI (alix run)", () => {
   it("A.10: --version prints version string", () => {
     const r = runCli(["--version"]);
     assertSuccess(r);
-    assert.equal(r.stdout, "0.2.0-rc.1", "version should match package.json");
+    assert.equal(r.stdout, "0.6.0", "version should match package.json");
   });
 
   // ── A.6: Detail view ───────────────────────────────────────────

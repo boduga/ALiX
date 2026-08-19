@@ -166,7 +166,7 @@ function makeStubSnapshot(): ExecutivePlanSnapshot {
   return {
     metadata: {
       snapshotVersion: 1,
-      alixVersion: "0.5.0",
+      alixVersion: "0.6.0",
       executiveEngineVersion: "1.0",
       createdBy: "ExecutionEngine",
       reason: "execution-start",

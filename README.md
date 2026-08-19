@@ -339,7 +339,7 @@ Level 1: Execute       ✅  Core agent loop, tool execution
 Level 2: Coordinate    ✅  Multi-agent, subagents, daemon
 Level 3: Reflect       ✅  P5.0 — Reflection engine
 Level 4: Learn         ✅  P5.3 — Effectiveness intelligence, organizational memory
-Level 5: Evolve        ✅  v0.5.0 — Governed self-improvement lifecycle
+Level 5: Evolve        ✅  v0.6.0 — Governed self-improvement lifecycle
 Level 6: Autonomous    ⬜  Future
 ```
 
