@@ -293,6 +293,7 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "set-default": handleModelsSetDefault,
   "set-tier": handleModelsSetTier,
   "free": handleModelsFree,
+  "routing": handleModelsRouting,
 };
 
 export async function handleModelsFree(args: string[]): Promise<void> {
@@ -322,6 +323,31 @@ export async function handleModelsFree(args: string[]): Promise<void> {
     console.log(`  ${m.id.padEnd(28)} ${ctx.padEnd(6)}${capText}`);
   }
   console.log(`\n${models.length} free models.`);
+}
+
+export async function handleModelsRouting(args: string[]): Promise<void> {
+  const { loadConfig } = await import("../../config/loader.js");
+  const { describeRoutingChain } = await import("../../models/routing-cli.js");
+  const { NO_MODEL_CONFIGURED_MESSAGE } = await import("../../config/model-resolver.js");
+  const config = await loadConfig(process.cwd(), { requireModel: false });
+  let chain: Array<{ provider: string; model: string; role: string }>;
+  try {
+    chain = describeRoutingChain(config);
+  } catch (err) {
+    if (err instanceof Error && err.message === NO_MODEL_CONFIGURED_MESSAGE) {
+      console.log(`\n${NO_MODEL_CONFIGURED_MESSAGE}`);
+      process.exit(1);
+    }
+    throw err;
+  }
+  if (args.includes("--json")) { console.log(JSON.stringify(chain, null, 2)); return; }
+  console.log("\nConfigured Routing Chain\n");
+  for (const c of chain) console.log(`  ${c.role.padEnd(9)} ${c.provider}/${c.model}`);
+  if (chain.length === 1) {
+    console.log("\nNo fallbacks configured. Add under models.default in config:");
+    console.log('  "routing": { "freeFallback": true }    # OpenRouter free-tier fallback');
+    console.log('  "routing": { "fallbacks": [...] }      # explicit ordered candidates');
+  }
 }
 
 export async function handleModelsCommand(args: string[]): Promise<void> {
