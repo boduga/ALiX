@@ -6,7 +6,7 @@ import { resolveModelConfig } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { ApprovalManager } from "../policy/approvals.js";
 import { buildRepoMapLite } from "../repomap/repomap-lite.js";
-import { createProvider } from "../providers/registry.js";
+import { buildRoutingAdapter } from "../providers/routing-adapter.js";
 import type { ModelAdapter } from "../providers/types.js";
 import type { McpManager } from "../mcp/manager.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -113,15 +113,11 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
-  const { provider: modelProvider, name: modelName } = resolveModelConfig(config);
-  const apiKey = config.apiKeys?.[modelProvider]
-    ?? process.env[`${modelProvider.toUpperCase()}_API_KEY`]
-    ?? "";
-  const provider = await createProvider(
-    { provider: modelProvider, model: modelName },
-    apiKey,
-  );
-  const editFormatPolicy = buildEditFormatPolicy({ provider: modelProvider, preferred: provider.editFormatPreference });
+  const model = resolveModelConfig(config);
+  const apiKeyFor = (pid: string): string =>
+    config.apiKeys?.[pid] ?? process.env[`${pid.toUpperCase()}_API_KEY`] ?? "";
+  const provider = await buildRoutingAdapter(model, apiKeyFor);
+  const editFormatPolicy = buildEditFormatPolicy({ provider: model.provider, preferred: provider.editFormatPreference });
 
   // Initialize MCP manager (lazy - only needed if config.mcpServers?.length > 0)
   let mcpManager: McpManager | null = null;
@@ -178,7 +174,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   const hookRunner = new HookRunner();
 
   // Register tool-repair hooks for monitoring and error recovery
-  const modelKey = `${modelProvider}-${modelName}`;
+  const modelKey = `${model.provider}-${model.name}`;
   const repairHooks = createToolRepairHooks(modelKey);
   for (const hook of repairHooks) {
     hookRunner.register(hook.name, hook.fn);

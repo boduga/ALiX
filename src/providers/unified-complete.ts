@@ -282,7 +282,26 @@ export async function complete(
     throw new ApiError(res.status, spec.toErrorMessage(res.status, errBody));
   }
   const json = await res.json();
-  return spec.fromResponse(json);
+  const response = spec.fromResponse(json);
+  if (spec.resolveModel) {
+    const resolvedModel = spec.resolveModel(json);
+    if (resolvedModel) response.resolvedModel = resolvedModel;
+  }
+  return response;
+}
+
+/**
+ * Augment a parsed stream chunk with the sniffed provider-reported model on the
+ * terminal done chunk. Shared by the line-loop body and the trailing-buffer
+ * flush so the done-chunk enrichment is not duplicated.
+ */
+function withResolvedModel(
+  chunk: StreamChunk | null,
+  streamModel: string | undefined,
+): StreamChunk | undefined {
+  if (chunk === null) return undefined;
+  if (chunk.type === "done" && streamModel) return { ...chunk, resolvedModel: streamModel };
+  return chunk;
 }
 
 export async function* stream(
@@ -337,6 +356,7 @@ export async function* stream(
   const decoder = new TextDecoder();
   let buffer = "";
   const partialTools = new Map<number, PartialToolCall>();
+  let streamModel: string | undefined;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -346,6 +366,10 @@ export async function* stream(
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         const trimmedLine = line.trim();
+
+        const sse = tryParseSseLine(trimmedLine);
+        if (sse && typeof sse.model === "string" && Array.isArray(sse.choices)) streamModel = sse.model;
+
         const toolDelta = parseOpenAiToolDeltaLine(trimmedLine, partialTools);
         if (toolDelta.handled) {
           for (const chunk of toolDelta.chunks) yield chunk;
@@ -359,8 +383,18 @@ export async function* stream(
         }
 
         const chunk = spec.fromStreamChunk(trimmedLine);
-        if (chunk) yield chunk;
+        const out = withResolvedModel(chunk, streamModel);
+        if (out) yield out;
       }
+    }
+
+    // A stream that ends without a trailing newline (common for SSE) leaves the
+    // final event in `buffer` — flush it so a terminal `[DONE]` is not dropped.
+    if (buffer.trim() !== "") {
+      const trimmedLine = buffer.trim();
+      const chunk = spec.fromStreamChunk(trimmedLine);
+      const out = withResolvedModel(chunk, streamModel);
+      if (out) yield out;
     }
   } catch (e: any) {
     yield { type: "error", error: `Stream read failed: ${e.message}` };

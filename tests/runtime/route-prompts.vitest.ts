@@ -304,7 +304,7 @@ describe("buildExternalRetrievalPrompt — Layer 3 grounded_chat prompt pair (T1
     it("tool manifest exposes retrieval tools only", () => {
       const p = buildExternalRetrievalPrompt("external_retrieval");
       const names = p.toolManifest.map((t) => t.name);
-      expect(names).toContain("web.search");
+      expect(names).toContain("web_search");
       expect(names).toContain("web_fetch");
       // No mutation tools.
       expect(names).not.toContain("shell.run");
@@ -339,7 +339,7 @@ describe("buildExternalRetrievalPrompt — Layer 3 grounded_chat prompt pair (T1
       it(`${intent} still returns retrieval prompt (defensive)`, () => {
         const p = buildExternalRetrievalPrompt(intent);
         expect(p.systemPrompt).toContain("ALiX");
-        expect(p.toolManifest.map((t) => t.name)).toContain("web.search");
+        expect(p.toolManifest.map((t) => t.name)).toContain("web_search");
         expect(p.permissions.networkAccess).toBe(true);
       });
     }

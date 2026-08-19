@@ -78,7 +78,7 @@ describe("taskRouter", async () => {
     const r = await taskRouter("latest Node.js LTS version");
     assert.equal(r.kind, "grounded_chat");
     if (r.kind === "grounded_chat") {
-      assert.ok(r.allowedTools.includes("web.search"), "should include web.search");
+      assert.ok(r.allowedTools.includes("web_search"), "should include web_search");
       assert.equal(r.prompt, "latest Node.js LTS version");
       assert.equal(r.diagnostic.classification, "external_retrieval");
       assert.equal(r.diagnostic.route, "grounded_chat");
@@ -304,7 +304,7 @@ describe("taskRouter — workspace_action dominates retrieval", async () => {
     const r = await taskRouter("what is the latest linux LTS version");
     assert.equal(r.kind, "grounded_chat");
     if (r.kind === "grounded_chat") {
-      assert.deepEqual(r.allowedTools, ["web.search", "web_fetch"]);
+      assert.deepEqual(r.allowedTools, ["web_search", "web_fetch"]);
     }
   });
 });

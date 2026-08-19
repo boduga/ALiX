@@ -140,7 +140,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = {
       kind: "grounded_chat",
       prompt: "latest Node.js version",
-      allowedTools: ["web.search", "web_fetch"],
+      allowedTools: ["web_search", "web_fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as TaskRoute;
 
@@ -181,7 +181,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = await taskRouter("what is the latest linux LTS version");
     assert.equal(route.kind, "grounded_chat");
     if (route.kind === "grounded_chat") {
-      assert.deepEqual(route.allowedTools, ["web.search", "web_fetch"]);
+      assert.deepEqual(route.allowedTools, ["web_search", "web_fetch"]);
       assert.ok(
         !route.allowedTools.some((t) => t.includes("shell")),
         "grounded_chat must not expose a shell tool",
@@ -200,7 +200,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "what is my os",
-      allowedTools: ["web.search", "web_fetch"],
+      allowedTools: ["web_search", "web_fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 
@@ -210,6 +210,38 @@ describe("route executor parity — local vs daemon", () => {
       providerFactory: async () => rejectingProvider,
     });
     assert.equal(rejected, 'Tool "alix_shell_run" is not allowed for this query type.');
+  });
+
+  it("grounded_chat passes the web tool schemas to the provider (no stale-memory answers)", async () => {
+    // Regression: the model must be given the web_search/web_fetch schemas so
+    // it can issue a real tool call instead of answering from training data.
+    let call1: any;
+    const provider = {
+      complete: async (opts: any) => {
+        if (!call1) call1 = opts;
+        return { text: "answered", toolCalls: [] };
+      },
+    } as any;
+
+    const grounded = {
+      kind: "grounded_chat",
+      prompt: "Search the web for the current US president",
+      allowedTools: ["web_search", "web_fetch"],
+      diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
+    } as any;
+
+    const out = await executeGroundedChatBehavior(grounded, config, {
+      eventLog: makeEventLog(),
+      cwd: tmpDir,
+      providerFactory: async () => provider,
+    });
+
+    assert.equal(out, "answered");
+    assert.ok(Array.isArray(call1?.tools), "first call must carry a tools array");
+    const names = (call1?.tools ?? []).map((t: any) => t.name);
+    assert.ok(names.includes("web_search"), "web_search schema must be offered");
+    assert.ok(names.includes("web_fetch"), "web_fetch schema must be offered");
+    assert.equal(names.length, 2, "only the allowlisted web tools may be offered");
   });
 
   it("config is loaded exactly once for a daemon request", async () => {

@@ -111,7 +111,7 @@ describe("Daemon server route execution", { timeout: 30000 }, () => {
 
   it("executes grounded_chat route via daemon (mock falls through to direct answer)", async () => {
     const messages = await submitWithRoute("latest Node.js version", {
-      kind: "grounded_chat", prompt: "latest Node.js version", allowedTools: ["web.search"],
+      kind: "grounded_chat", prompt: "latest Node.js version", allowedTools: ["web_search"],
     });
     assert.ok(messages.some(m => m.includes("assistant.text")), "expected assistant.text");
     assert.ok(messages.some(m => m.includes("task.completed")), "expected task.completed");

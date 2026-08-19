@@ -428,7 +428,7 @@ export async function taskRouter(
       return {
         kind: "grounded_chat",
         prompt: task,
-        allowedTools: ["web.search", "web_fetch"],
+        allowedTools: ["web_search", "web_fetch"],
         diagnostic: toDiagnostic(classification, "grounded_chat"),
       };
     }
@@ -470,7 +470,7 @@ export async function taskRouter(
         return {
           kind: "grounded_chat",
           prompt: task,
-          allowedTools: ["web.search", "web_fetch"],
+          allowedTools: ["web_search", "web_fetch"],
           diagnostic: toDiagnostic(modelResult, "grounded_chat"),
         };
       }
