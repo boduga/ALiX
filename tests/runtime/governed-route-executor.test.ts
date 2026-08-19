@@ -69,7 +69,7 @@ const DIRECT_ROUTE: TaskRoute = {
 const GROUNDED_ROUTE: TaskRoute = {
   kind: "grounded_chat",
   prompt: "latest news",
-  allowedTools: ["web.search"],
+  allowedTools: ["web_search"],
   diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "needs current info" },
 };
 const AGENT_ROUTE: TaskRoute = {

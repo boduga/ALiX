@@ -14,7 +14,7 @@
 import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
-import type { ModelAdapter } from "../providers/types.js";
+import type { ModelAdapter, ToolDef } from "../providers/types.js";
 
 /**
  * Environment-specific dependencies an execution behavior needs beyond the
@@ -219,10 +219,14 @@ export async function executeToolBehavior(
  * provider calls (model → optional tool → synthesis).
  *
  * The allowlist (`route.allowedTools`) is the sole gate on what the model may
- * call. A route that offers only `web.search`/`web_fetch` has no shell
+ * call. A route that offers only `web_search`/`web_fetch` has no shell
  * capability, and a model that attempts any other tool is rejected with the
  * same message everywhere — this is the single implementation both adapters
  * share, so the allowlist can never diverge between local and daemon.
+ *
+ * The web tool schemas ARE passed to the provider (via the `tools` field) so
+ * the model can actually issue a structured tool call instead of answering
+ * from stale training memory.
  */
 export async function executeGroundedChatBehavior(
   route: TaskRoute & { kind: "grounded_chat" },
@@ -239,10 +243,20 @@ export async function executeGroundedChatBehavior(
   const intent = route.diagnostic?.classification ?? "external_retrieval";
   const retrievalPrompt = buildExternalRetrievalPrompt(intent);
 
+  // Web tool schemas, filtered to the route's allowlist. Kept behind a
+  // dynamic import so the shared route layer never statically pulls in the
+  // tool modules.
+  const { webSearchTool } = await import("../tools/web-search.js");
+  const { webFetchTool } = await import("../tools/web-fetch.js");
+  const allowedSet = new Set(route.allowedTools);
+  const tools = ([webSearchTool(), webFetchTool()] as ToolDef[])
+    .filter((t) => allowedSet.has(t.name));
+
   // First call: model may issue a tool call for fresh information
   const response = await provider.complete({
     systemPrompt: retrievalPrompt.systemPrompt,
     messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
+    tools: tools.length > 0 ? tools : undefined,
     ...tokenCap(deps),
   });
 
@@ -253,7 +267,7 @@ export async function executeGroundedChatBehavior(
     const tc = response.toolCalls[0];
 
     // Enforce allowedTools allowlist
-    if (!route.allowedTools.includes(tc.name)) {
+    if (!allowedSet.has(tc.name)) {
       return `Tool "${tc.name}" is not allowed for this query type.`;
     }
 

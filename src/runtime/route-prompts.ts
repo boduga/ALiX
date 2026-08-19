@@ -112,7 +112,7 @@ export function threadCanonicalIntent(
 
 const RETRIEVAL_TOOLS: PromptToolDef[] = [
   {
-    name: "web.search",
+    name: "web_search",
     description: "Search the web for current information.",
   },
   {

@@ -58,12 +58,12 @@ describe("executeRoute dispatch", () => {
       {
         kind: "grounded_chat",
         prompt: "latest news",
-        allowedTools: ["web.search"],
+        allowedTools: ["web_search"],
         diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
       },
       mockCtx, mockExecutor,
     );
-    assert.equal(result, "grounded:latest news:web.search");
+    assert.equal(result, "grounded:latest news:web_search");
   });
 
   it("dispatches agent route to executeAgent", async () => {
