@@ -2078,36 +2078,36 @@ Then final verification commit only if repository conventions require one.
 
 The implementation is complete only when all of the following are true:
 
-* [ ] Existing no-routing execution path is behaviorally unchanged.
-* [ ] OpenRouter free catalog is fetched from `/models`.
-* [ ] Free semantics require both zero prompt and zero request pricing.
-* [ ] Catalog is cached.
-* [ ] Concrete free-model selection is **not globally cached**.
-* [ ] Free selection is request/capability-aware.
-* [ ] Unknown context metadata is not treated as verified large capacity.
-* [ ] Selection is deterministic.
-* [ ] Explicit fallback candidates are capability-filtered.
-* [ ] Retryable HTTP errors fall through.
-* [ ] Non-retryable errors propagate.
-* [ ] Streaming can fall back before commitment.
-* [ ] Streaming **cannot** fall back after committed output.
-* [ ] `streamToResponse` fail-soft re-run is suppressed for routing adapters.
-* [ ] Circuit-breaker state is not duplicated by a second cooldown machine.
-* [ ] Breaker gains additive `shouldAttempt()`; `call`/`onSuccess`/`onFailure`/`reset` unchanged.
-* [ ] Non-retryable errors (e.g. 400) never trip the breaker.
-* [ ] `deriveRequestRequirements` + `supportsRequest` are exported from `free-model-resolver.ts` and unit-tested.
-* [ ] `models routing` with no `models.default` exits gracefully (no stack trace).
-* [ ] `resolvedModel` is captured from OpenRouter.
-* [ ] `resolvedModel` survives complete and streaming paths.
-* [ ] `model.usage.resolvedModel` is populated.
-* [ ] `resolved_model` metric label is populated.
-* [ ] `models free` works.
-* [ ] `models routing` works.
-* [ ] Existing provider/TUI/executive tests remain green.
-* [ ] Full Vitest suite passes.
-* [ ] Node tests pass.
-* [ ] Typecheck passes.
-* [ ] Build passes.
+* [x] Existing no-routing execution path is behaviorally unchanged.
+* [x] OpenRouter free catalog is fetched from `/models`.
+* [x] Free semantics require both zero prompt and zero request pricing.
+* [x] Catalog is cached.
+* [x] Concrete free-model selection is **not globally cached**.
+* [x] Free selection is request/capability-aware.
+* [x] Unknown context metadata is not treated as verified large capacity.
+* [x] Selection is deterministic.
+* [x] Explicit fallback candidates are capability-filtered.
+* [x] Retryable HTTP errors fall through.
+* [x] Non-retryable errors propagate.
+* [x] Streaming can fall back before commitment.
+* [x] Streaming **cannot** fall back after committed output.
+* [x] `streamToResponse` fail-soft re-run is suppressed for routing adapters.
+* [x] Circuit-breaker state is not duplicated by a second cooldown machine.
+* [x] Breaker gains additive `shouldAttempt()`; `call`/`onSuccess`/`onFailure`/`reset` unchanged.
+* [x] Non-retryable errors (e.g. 400) never trip the breaker.
+* [x] `deriveRequestRequirements` + `supportsRequest` are exported from `free-model-resolver.ts` and unit-tested.
+* [x] `models routing` with no `models.default` exits gracefully (no stack trace).
+* [x] `resolvedModel` is captured from OpenRouter.
+* [x] `resolvedModel` survives complete and streaming paths.
+* [x] `model.usage.resolvedModel` is populated.
+* [x] `resolved_model` metric label is populated.
+* [x] `models free` works.
+* [x] `models routing` works.
+* [x] Existing provider/TUI/executive tests remain green.
+* [x] Full Vitest suite passes.
+* [x] Node tests pass.
+* [x] Typecheck passes.
+* [x] Build passes.
 
 ---
 
