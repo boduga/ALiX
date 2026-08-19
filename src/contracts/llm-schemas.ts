@@ -36,6 +36,7 @@ export const NormalizedResponseSchema = Schema.Struct({
   toolCalls: Schema.Array(ToolCallSchema),
   usage: Schema.optional(TokenUsageSchema),
   finishReason: Schema.optional(Schema.String),
+  resolvedModel: Schema.optional(Schema.String),
 });
 export type NormalizedResponseFromSchema = typeof NormalizedResponseSchema.Type;
 
@@ -105,6 +106,7 @@ export const UsageChunkSchema = Schema.Struct({
 
 export const DoneChunkSchema = Schema.Struct({
   type: Schema.Literal("done"),
+  resolvedModel: Schema.optional(Schema.String),
 });
 
 export const ErrorChunkSchema = Schema.Struct({

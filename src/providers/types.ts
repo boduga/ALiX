@@ -122,6 +122,8 @@ export type NormalizedResponse = {
   toolCalls: ToolCall[];
   usage?: TokenUsage;
   finishReason?: string;
+  /** Provider-reported model actually served (e.g. `openrouter/free` → concrete free id). */
+  resolvedModel?: string;
 };
 
 // Streaming chunks
@@ -129,7 +131,7 @@ export type StreamChunk =
   | { type: "text_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCall }
   | { type: "usage"; usage: TokenUsage }
-  | { type: "done" }
+  | { type: "done"; resolvedModel?: string }
   | { type: "error"; error: string };
 
 // Negotiated capabilities (result of capability negotiation)

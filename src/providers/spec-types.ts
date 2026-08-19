@@ -40,4 +40,7 @@ export type ProviderSpec = {
 
   /** Format a provider error response into a human-readable message */
   toErrorMessage: (status: number, body: unknown) => string;
+
+  /** Extract the provider-reported model actually served, if the response reports one. */
+  resolveModel?: (res: unknown) => string | undefined;
 };

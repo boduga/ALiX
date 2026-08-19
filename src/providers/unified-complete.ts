@@ -282,7 +282,12 @@ export async function complete(
     throw new ApiError(res.status, spec.toErrorMessage(res.status, errBody));
   }
   const json = await res.json();
-  return spec.fromResponse(json);
+  const response = spec.fromResponse(json);
+  if (spec.resolveModel) {
+    const resolvedModel = spec.resolveModel(json);
+    if (resolvedModel) response.resolvedModel = resolvedModel;
+  }
+  return response;
 }
 
 export async function* stream(
@@ -337,6 +342,7 @@ export async function* stream(
   const decoder = new TextDecoder();
   let buffer = "";
   const partialTools = new Map<number, PartialToolCall>();
+  let streamModel: string | undefined;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -346,6 +352,10 @@ export async function* stream(
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         const trimmedLine = line.trim();
+
+        const sse = tryParseSseLine(trimmedLine);
+        if (sse && typeof sse.model === "string" && Array.isArray(sse.choices)) streamModel = sse.model;
+
         const toolDelta = parseOpenAiToolDeltaLine(trimmedLine, partialTools);
         if (toolDelta.handled) {
           for (const chunk of toolDelta.chunks) yield chunk;
@@ -359,8 +369,18 @@ export async function* stream(
         }
 
         const chunk = spec.fromStreamChunk(trimmedLine);
-        if (chunk) yield chunk;
+        if (chunk && chunk.type === "done" && streamModel) yield { ...chunk, resolvedModel: streamModel };
+        else if (chunk) yield chunk;
       }
+    }
+
+    // A stream that ends without a trailing newline (common for SSE) leaves the
+    // final event in `buffer` — flush it so a terminal `[DONE]` is not dropped.
+    if (buffer.trim() !== "") {
+      const trimmedLine = buffer.trim();
+      const chunk = spec.fromStreamChunk(trimmedLine);
+      if (chunk && chunk.type === "done" && streamModel) yield { ...chunk, resolvedModel: streamModel };
+      else if (chunk) yield chunk;
     }
   } catch (e: any) {
     yield { type: "error", error: `Stream read failed: ${e.message}` };

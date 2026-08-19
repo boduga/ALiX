@@ -309,11 +309,12 @@ export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
   options?: { onStream?: (chunk: { type: "text"; text: string }) => void }
-): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
+): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage; resolvedModel?: string }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   let text = "";
   let toolCalls: ToolCall[] = [];
   let usage: TokenUsage | undefined;
+  let resolvedModel: string | undefined;
   try {
     for await (const chunk of provider.stream(request)) {
       if (chunk.type === "text_delta") {
@@ -325,15 +326,16 @@ export async function streamToResponse(
       }
       if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
       if (chunk.type === "usage") usage = chunk.usage;
+      if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
       if (chunk.type === "error") throw new Error(chunk.error);
     }
-    return { text, toolCalls, usage };
+    return { text, toolCalls, usage, resolvedModel };
   } catch (err) {
     // Fail-soft: a mid-stream error (network hiccup, dropped chunk, malformed
     // SSE) must not abort the task run. Fall back to a blocking complete();
     // the tokens streamed so far remain, the rest arrives as one block.
     const resp = await provider.complete(request);
-    return { text: text + (resp.text ?? ""), toolCalls, usage: usage ?? resp.usage };
+    return { text: text + (resp.text ?? ""), toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel };
   }
 }
 

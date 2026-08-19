@@ -292,13 +292,43 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "resolve": handleModelsResolve,
   "set-default": handleModelsSetDefault,
   "set-tier": handleModelsSetTier,
+  "free": handleModelsFree,
 };
+
+export async function handleModelsFree(args: string[]): Promise<void> {
+  const { fetchFreeModelCatalog } = await import("../../providers/free-model-catalog.js");
+  let models: Awaited<ReturnType<typeof fetchFreeModelCatalog>>;
+  try {
+    models = await fetchFreeModelCatalog();
+  } catch (err) {
+    console.log("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+    if (process.env.NODE_ENV === "test") console.error(String((err as Error)?.message ?? err));
+    return;
+  }
+  if (models.length === 0) {
+    console.log("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+    return;
+  }
+  if (args.includes("--json")) { console.log(JSON.stringify(models, null, 2)); return; }
+  console.log("\nOpenRouter Free Models\n");
+  for (const m of models) {
+    const ctx = m.inputTokenLimit ? `${(m.inputTokenLimit / 1000).toFixed(0)}k` : "?";
+    const caps = [
+      ...(m.supportsTools ? ["tools"] : []),
+      ...(m.supportsStructuredOutput ? ["structured"] : []),
+      ...(m.supportsVision ? ["vision"] : []),
+    ];
+    const capText = caps.length > 0 ? ` [${caps.join(",")}]` : "";
+    console.log(`  ${m.id.padEnd(28)} ${ctx.padEnd(6)}${capText}`);
+  }
+  console.log(`\n${models.length} free models.`);
+}
 
 export async function handleModelsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const handler = HANDLERS[sub];
   if (!handler) {
-    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile|resolve|set-default|set-tier>");
+    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile|resolve|set-default|set-tier|free|routing>");
     console.error("  alix models doctor               Run system and profile diagnostic");
     console.error("  alix models fit                   Rank profiles by hardware fit");
     console.error("  alix models list-profiles         List available profiles");
@@ -309,6 +339,8 @@ export async function handleModelsCommand(args: string[]): Promise<void> {
     console.error("  alix models resolve <role>        Show effective model for a specific role");
     console.error("  alix models set-default           Set the default model (interactive)");
     console.error("  alix models set-tier <tier>       Set a subagent tier model (thinking/coding/fast/critic/tiny/image)");
+    console.error("  alix models free                  List OpenRouter free models");
+    console.error("  alix models routing               Show the configured routing chain");
     process.exit(1);
   }
   await handler(args.slice(1));
