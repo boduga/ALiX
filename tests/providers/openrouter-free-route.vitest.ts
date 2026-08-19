@@ -38,8 +38,8 @@ describe("openrouter/free route", () => {
     _setCatalogFetchForTesting(async () => {
       catalogFetchCount++;
       return catalog([
-        { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
-        { id: "b/free", name: "B", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
+        { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+        { id: "b/free", name: "B", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       ]);
     });
     let requested: string[] = [];
@@ -64,6 +64,23 @@ describe("openrouter/free route", () => {
     const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
     await expect(provider.complete({ ...req, tools: [{ name: "t", description: "d", input_schema: { type: "object", properties: {} } }] }))
       .rejects.toThrow("No OpenRouter free model satisfies the request requirements");
+  });
+
+  it("always resolves to a tools-capable model, even for plain requests", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "big/no-tools", name: "Big", context_length: 128_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: [] },
+      { id: "small/with-tools", name: "Small", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    let requestedModel: string | undefined;
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      requestedModel = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model;
+      return new Response(JSON.stringify({ model: requestedModel, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+    // Plain request (no tools) must still skip the no-tools model and pick
+    // the tools-capable one — the agent always needs tool calling.
+    await provider.complete(req);
+    expect(requestedModel).toBe("small/with-tools");
   });
 
   it("leaves non-free models untouched", async () => {

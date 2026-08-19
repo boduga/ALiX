@@ -17,7 +17,10 @@ function isFreeRoute(model: string): boolean {
 
 async function resolveConcreteModel(request: NormalizedRequest): Promise<string> {
   const catalog = await fetchFreeModelCatalog();
-  const resolved = resolveConcreteFreeModel(catalog, deriveRequestRequirements(request));
+  // The agent tab always runs tool loops, so the free route must always land
+  // on a tools-capable model regardless of the request's tools array.
+  const requirements = { ...deriveRequestRequirements(request), needsTools: true };
+  const resolved = resolveConcreteFreeModel(catalog, requirements);
   if (!resolved) {
     throw new Error("No OpenRouter free model satisfies the request requirements");
   }
