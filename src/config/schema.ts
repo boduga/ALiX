@@ -12,6 +12,13 @@ export type ModelConfig = {
   maxContextTokens?: number;
   maxIterations?: number;
   streaming?: boolean;
+  routing?: {
+    freeFallback?: boolean;
+    fallbacks?: Array<{
+      provider: string;
+      name: string;
+    }>;
+  };
 };
 
 /**

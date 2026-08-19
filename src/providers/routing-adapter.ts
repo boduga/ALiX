@@ -9,6 +9,8 @@
 import { ApiError } from "./base.js";
 import { CircuitBreaker } from "./circuit-breaker.js";
 import { supportsRequest, deriveRequestRequirements } from "./free-model-resolver.js";
+import { createProvider } from "./registry.js";
+import type { ModelConfig } from "../config/schema.js";
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type RoutingCandidate = {
@@ -16,6 +18,38 @@ export type RoutingCandidate = {
   label: string;
   adapter: ModelAdapter;
 };
+
+export async function buildRoutingAdapter(
+  model: ModelConfig,
+  apiKeyFor: (providerId: string) => string,
+): Promise<ModelAdapter> {
+  const routing = model.routing;
+  const fallbackModels: ModelConfig[] = [];
+  if (routing?.freeFallback && model.provider === "openrouter") {
+    fallbackModels.push({ provider: "openrouter", name: "openrouter/free" });
+  }
+  if (routing?.fallbacks) fallbackModels.push(...routing.fallbacks);
+
+  if (fallbackModels.length === 0) {
+    return createProvider({ provider: model.provider, model: model.name }, apiKeyFor(model.provider));
+  }
+
+  const candidates: RoutingCandidate[] = [
+    {
+      key: `${model.provider}/${model.name}`,
+      label: `${model.provider}/${model.name}`,
+      adapter: await createProvider({ provider: model.provider, model: model.name }, apiKeyFor(model.provider)),
+    },
+  ];
+  for (const fb of fallbackModels) {
+    candidates.push({
+      key: `${fb.provider}/${fb.name}`,
+      label: `${fb.provider}/${fb.name}`,
+      adapter: await createProvider({ provider: fb.provider, model: fb.name }, apiKeyFor(fb.provider)),
+    });
+  }
+  return new RoutingModelAdapter(candidates);
+}
 
 export type RoutingOptions = {
   breakerFailureThreshold?: number;
