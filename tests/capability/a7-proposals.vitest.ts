@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * CAP-9 Task 5 — A7ProposalGenerator (pure, signal-only).
+ * CAP-9 Task 5 — CapabilityProposalGenerator (pure, signal-only).
  *
- * Asserts that A7ProposalGenerator:
+ * Asserts that CapabilityProposalGenerator:
  *   - emits one candidate per signal (pure transformation signal → candidate)
  *   - gap signal → candidate target.id starts with "new." (new capability)
  *   - underperformer / consolidation_opportunity / deprecation_signal →
@@ -21,10 +21,10 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  A7ProposalGenerator,
+  CapabilityProposalGenerator,
   type CapabilityEvolutionSignal,
   type ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 
 class FakeSignalSource implements ProposalSignalSource {
   constructor(private readonly items: ReadonlyArray<CapabilityEvolutionSignal>) {}
@@ -45,9 +45,9 @@ class RejectingSignalSource implements ProposalSignalSource {
   }
 }
 
-describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)", () => {
+describe("CapabilityProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)", () => {
   it("gap signal → create candidate (target.id starts with 'new.')", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "gap",
@@ -67,7 +67,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("underperformer signal → update candidate (target.id === signal.capabilityId)", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "underperformer",
@@ -84,7 +84,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("consolidation_opportunity → consolidate candidate (target.id === signal.survivorCapabilityId)", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "consolidation_opportunity",
@@ -104,7 +104,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("consolidation_opportunity: empty absorbedCapabilityIds → validator rejects (ruling #534)", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "consolidation_opportunity",
@@ -122,7 +122,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
 
   it("consolidation_opportunity: round-trip — caller-supplied absorbed set passes through mapper verbatim", async () => {
     const absorbed = ["cap.a@1.0.0", "cap.b@2.1.0", "cap.c@0.5.0"];
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "consolidation_opportunity",
@@ -145,7 +145,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("deprecation_signal → remove candidate (target.id === signal.capabilityId)", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "deprecation_signal",
@@ -162,7 +162,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("empty signal source → empty candidate list", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new EmptySignalSource(),
     });
     const candidates = await gen.generate();
@@ -170,7 +170,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("rejects ProposalSignalSource signals() rejection — propagates", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new RejectingSignalSource(),
     });
     await expect(gen.generate()).rejects.toThrow("signal source offline");
@@ -183,10 +183,10 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
       score: 0.6,
       evidenceIds: [],
     };
-    const gen1 = new A7ProposalGenerator({
+    const gen1 = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([signal]),
     });
-    const gen2 = new A7ProposalGenerator({
+    const gen2 = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([signal]),
     });
     const [c1] = await gen1.generate();
@@ -195,7 +195,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("description carries the signal score (downstream consumers read it)", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "underperformer",
@@ -239,7 +239,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
         evidenceIds: [],
       },
     ];
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource(signals),
     });
     const candidates = await gen.generate();
@@ -253,7 +253,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("confidence tracks signal score", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "gap",
@@ -268,7 +268,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
   });
 
   it("evidenceIds are propagated to candidate", async () => {
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         {
           kind: "gap",
@@ -312,7 +312,7 @@ describe("A7ProposalGenerator — pure proposal intelligence (CAP-9 ruling #5)",
         evidenceIds: [],
       },
     ];
-    const gen = new A7ProposalGenerator({
+    const gen = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource(signals),
     });
     const candidates = await gen.generate();

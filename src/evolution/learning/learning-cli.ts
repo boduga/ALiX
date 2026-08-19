@@ -32,7 +32,7 @@ import { ProposalEventsAdapter } from "./adapters/proposal-events-adapter.js";
 import { MeasurementEventsAdapter } from "./adapters/measurement-events-adapter.js";
 import { EnrichedProposalsAdapter } from "./adapters/enriched-proposals-adapter.js";
 import { RecommendationsAdapter } from "./adapters/recommendations-adapter.js";
-import { buildGovernanceRecommendation } from "./a2-bridge.js";
+import { buildGovernanceRecommendation } from "./governance-bridge.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { EnrichedProposal } from "../../adaptation/intelligence-types.js";
 import type { RecommendationStore } from "../verification/recommendation/recommendation-store.js";

@@ -35,7 +35,7 @@ before(() => {
         windowStart: "2026-06-01T00:00:00.000Z",
         windowEnd: "2026-07-01T00:00:00.000Z",
         confidence: 0.78,
-        sampleSize: { p22CalibrationCount: 30, p23ReplayCount: 20, pairedLifecycleCount: 8 },
+        sampleSize: { calibrationCount: 30, replayCount: 20, pairedLifecycleCount: 8 },
         rates: { overconfidentRate: 0.3 },
         implicatedPolicyAreas: ["thresholds"],
         evidenceRefs: [],

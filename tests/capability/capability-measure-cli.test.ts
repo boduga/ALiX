@@ -25,11 +25,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CapabilityPlatform } from "../../src/capability/platform.js";
-import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
+import { CapabilityMeasurement } from "../../src/evolution/observation/capability-measurement.js";
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import { EventLog } from "../../src/events/event-log.js";
 import { capabilityMeasureCommand } from "../../src/cli/commands/capability-measure.js";
-import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import type { ProposalSignalSink, ProposalSignalSource, CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
 
 /** CAP-10.5 — sink+source fake for tests; implements both contracts so a
  *  single instance can stand in for either side of the channel. */
@@ -76,7 +76,7 @@ describe("CLI: alix capability measure (CAP-10 ruling #11)", () => {
     const platform = new CapabilityPlatform({
       catalogDir: dir,
       eventLog,
-      a5CapabilityMeasurement: new A5CapabilityMeasurement({
+      capabilityMeasurement: new CapabilityMeasurement({
         observationEngine: new ObservationEngine(),
         signalSink: new FakeSignalChannel(),
         catalog: { get: () => undefined } as never,

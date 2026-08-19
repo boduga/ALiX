@@ -14,12 +14,12 @@ import { describe, it, expect } from "vitest";
 import {
   buildGovernanceRecommendation,
   forecastBandToRecommendationKind,
-} from "../../src/evolution/a9/a9-bridge.js";
-import type { A9Forecast } from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/bridge.js";
+import type { Forecast } from "../../src/evolution/forecast/contracts/contract.js";
 import {
-  A9_FORECAST_VERSION,
-  A9_GENERATOR_VERSION,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+  FORECAST_VERSION,
+  GENERATOR_VERSION,
+} from "../../src/evolution/forecast/contracts/contract.js";
 import {
   GOVERNANCE_RECOMMENDATION_KINDS,
   isValidGovernanceRecommendationKind,
@@ -41,13 +41,13 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Build an A9Forecast literal. Default band is "high". */
+/** Build an Forecast literal. Default band is "high". */
 function makeForecast(
-  overrides: Partial<A9Forecast> = {},
-): A9Forecast {
+  overrides: Partial<Forecast> = {},
+): Forecast {
   return {
     forecastId: "a9-" + "1".repeat(63),
-    forecastVersion: A9_FORECAST_VERSION,
+    forecastVersion: FORECAST_VERSION,
     subject: "prop-001",
     subjectCapability: "cap-001",
     prediction: { kind: "trust-velocity", band: "high", internalScore: 0.7 },
@@ -55,15 +55,15 @@ function makeForecast(
     confidence: 0.8,
     provenance: {
       generatedAt: "2026-08-14T00:00:00.000Z",
-      generatorVersion: A9_GENERATOR_VERSION,
+      generatorVersion: GENERATOR_VERSION,
       evidenceRefs: ["ev-1", "ev-2"],
     },
     ...overrides,
   };
 }
 
-/** Build an A9Forecast with the given risk band. */
-function forecastWithBand(band: A9Forecast["prediction"]["band"]): A9Forecast {
+/** Build an Forecast with the given risk band. */
+function forecastWithBand(band: Forecast["prediction"]["band"]): Forecast {
   const internalScore =
     band === "low" ? 0.1 : band === "medium" ? 0.4 : band === "high" ? 0.7 : 0.9;
   return makeForecast({

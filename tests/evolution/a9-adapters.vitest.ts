@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixEvent } from "../../src/events/types.js";
 import type { EnrichedProposal } from "../../src/adaptation/intelligence-types.js";
-import { ProposalEventsAdapter } from "../../src/evolution/a9/adapters/proposal-events-adapter.js";
-import { MeasurementEventsAdapter } from "../../src/evolution/a9/adapters/measurement-events-adapter.js";
-import { EnrichedProposalsAdapter } from "../../src/evolution/a9/adapters/enriched-proposals-adapter.js";
+import { ProposalEventsAdapter } from "../../src/evolution/forecast/adapters/proposal-events-adapter.js";
+import { MeasurementEventsAdapter } from "../../src/evolution/forecast/adapters/measurement-events-adapter.js";
+import { EnrichedProposalsAdapter } from "../../src/evolution/forecast/adapters/enriched-proposals-adapter.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -245,7 +245,7 @@ describe("MeasurementEventsAdapter (A9)", () => {
       makeEvent(
         "capability.governance.measurement.signals_unpublished",
         { seq: 22 },
-        { measurementEventId: "evt-21", signalCount: 3, signalIds: ["s1"], failure: { classification: "sink_threw", cause: "down" }, occurredAt: "2026-08-14T00:01:00.000Z", actor: { kind: "system", component: "A5CapabilityMeasurement" } },
+        { measurementEventId: "evt-21", signalCount: 3, signalIds: ["s1"], failure: { classification: "sink_threw", cause: "down" }, occurredAt: "2026-08-14T00:01:00.000Z", actor: { kind: "system", component: "CapabilityMeasurement" } },
       ),
     ]);
     const result = await new MeasurementEventsAdapter(eventLog).list();

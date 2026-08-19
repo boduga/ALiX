@@ -21,13 +21,13 @@
  *      service does NOT bypass engine / A5 implementation.
  *
  * Notable brief bugs fixed inline:
- *   - Brief assumed `service.ts` would `import type { A5Measurement }` from
- *     `capability/measurement/a5`, but the architecture is service -> engine
+ *   - Brief assumed `service.ts` would `import type { Measurement }` from
+ *     `capability/measurement/measurement-contract`, but the architecture is service -> engine
  *     -> A5 (service consumes the orchestrator, never the A5 interface or
  *     impl directly). Last assertion re-cast as a non-bypass check.
  *   - Brief's positive regex `/from\s+["'].*capability\/measurement\/a5/`
- *     did not match the engine's relative import `./a5.js`. Replaced with a
- *     path-suffix check `/from\s+["'][^"']*\/a5(\.js)?["']/` that accepts the
+ *     did not match the engine's relative import `./measurement-contract.js`. Replaced with a
+ *     path-suffix check `/from\s+["'][^"']*\/measurement-contract(\.js)?["']/` that accepts the
  *     canonical relative form.
  */
 
@@ -45,7 +45,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   it("axis 1: new CapabilityRegistry/Resolver only in composition root", () => {
     const platformSrc = readSrc("src/capability/platform.ts");
     const serviceSrc = readSrc("src/capability/capability-service.ts");
-    const a5Src = readSrc("src/evolution/observation/a5-capability-measurement.ts");
+    const a5Src = readSrc("src/evolution/observation/capability-measurement.ts");
     const engineSrc = readSrc("src/capability/measurement/capability-measurement-engine.ts");
     expect(platformSrc, "platform constructs CapabilityRegistry").toMatch(/new\s+CapabilityRegistry\(/);
     expect(platformSrc, "platform constructs CapabilityResolver").toMatch(/new\s+CapabilityResolver\(/);
@@ -66,7 +66,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 4: A7 module contains no capability mutator call sites (CAP-9 preserved)", () => {
-    const a7Src = readSrc("src/capability/evolution/a7-proposals.ts");
+    const a7Src = readSrc("src/capability/evolution/proposals.ts");
     expect(a7Src, "axis 4: catalog.register forbidden in A7").not.toMatch(/catalog\.register/);
     expect(a7Src, "axis 4: catalog.remove forbidden in A7").not.toMatch(/catalog\.remove/);
     expect(a7Src, "axis 4: registry.setLifecycleState forbidden in A7").not.toMatch(/registry\.setLifecycleState/);
@@ -84,7 +84,7 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
   });
 
   it("axis 5 NEW: A5 implementation contains no capability mutators (ruling #5, #9, #10)", () => {
-    const a5Src = readSrc("src/evolution/observation/a5-capability-measurement.ts");
+    const a5Src = readSrc("src/evolution/observation/capability-measurement.ts");
     expect(a5Src, "axis 5: A5 must not call catalog.register").not.toMatch(/catalog\.register/);
     expect(a5Src, "axis 5: A5 must not call catalog.remove").not.toMatch(/catalog\.remove/);
     expect(a5Src, "axis 5: A5 must not call registry.setLifecycleState").not.toMatch(/registry\.setLifecycleState/);
@@ -99,12 +99,12 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
     const engineSrc = readSrc("src/capability/measurement/capability-measurement-engine.ts");
     expect(
       engineSrc,
-      "axis 5: engine must not import a5-capability-measurement implementation (ruling #7)",
-    ).not.toMatch(/from\s+["'].*evolution\/observation\/a5-capability-measurement/);
+      "axis 5: engine must not import capability-measurement implementation (ruling #7)",
+    ).not.toMatch(/from\s+["'].*evolution\/observation\/capability-measurement/);
     expect(
       engineSrc,
-      "axis 5: engine must import A5Measurement interface from capability/measurement/a5",
-    ).toMatch(/from\s+["'][^"']*\/a5(\.js)?["']/);
+      "axis 5: engine must import Measurement interface from capability/measurement/measurement-contract",
+    ).toMatch(/from\s+["'][^"']*\/measurement-contract(\.js)?["']/);
     expect(
       engineSrc,
       "axis 5: engine must not import capability-lifecycle-measurer (ruling #9)",
@@ -127,14 +127,14 @@ describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
     expect(
       serviceSrc,
       "axis 5: service must not import the A5 implementation",
-    ).not.toMatch(/from\s+["'].*evolution\/observation\/a5-capability-measurement/);
+    ).not.toMatch(/from\s+["'].*evolution\/observation\/capability-measurement/);
     expect(
       serviceSrc,
       "axis 5: service must not import capability-lifecycle-measurer (ruling #9)",
     ).not.toMatch(/from\s+["'].*capability-lifecycle-measurer/);
     expect(
       serviceSrc,
-      "axis 5: service must consume A5MeasurementEngine (the orchestrator) so it does not bypass capability measurement",
+      "axis 5: service must consume CapabilityMeasurementEngine (the orchestrator) so it does not bypass capability measurement",
     ).toMatch(/CapabilityMeasurementEngine/);
   });
 });

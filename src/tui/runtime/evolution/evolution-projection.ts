@@ -31,9 +31,9 @@ import type { EvolutionProjectionSnapshot } from './evolution-projection-snapsho
 import { assembleEvolutionSnapshot, type MeasurementRecord } from './evolution-snapshot-assembler.js';
 import type { CapabilityMeasurementPayload } from '../../../capability/measurement/measurement-event-types.js';
 import type { ProposalSubmittedPayload } from '../../../capability/governance/governance-types.js';
-import { readCandidateTargetId } from '../../../evolution/a9/bridge-target.js';
+import { readCandidateTargetId } from '../../../evolution/forecast/bridge-target.js';
 import type { LearningProposal } from '../../../evolution/learning/contracts/learning-contract.js';
-import type { A9Correlation, A9Forecast } from '../../../evolution/a9/contracts/a9-contract.js';
+import type { Correlation, Forecast } from '../../../evolution/forecast/contracts/contract.js';
 import type { GovernanceRecommendation } from '../../../evolution/verification/contracts/recommendation-contract.js';
 
 /** Fresh-read persisted sources, re-read every snapshot cycle (Q-C3a).
@@ -43,8 +43,8 @@ import type { GovernanceRecommendation } from '../../../evolution/verification/c
  *  persists (JSONL-backed adapters in the composition root). */
 export interface EvolutionReadSources {
   readonly lifecycle: () => ReadonlyArray<{ capabilityId: string; state: LifecycleState; eligible: boolean }>;
-  readonly forecasts: () => Promise<ReadonlyArray<A9Forecast>>;
-  readonly correlations: () => Promise<ReadonlyArray<A9Correlation>>;
+  readonly forecasts: () => Promise<ReadonlyArray<Forecast>>;
+  readonly correlations: () => Promise<ReadonlyArray<Correlation>>;
   readonly recommendations: () => Promise<ReadonlyArray<GovernanceRecommendation>>;
   readonly learning: { learn(now: string): Promise<LearningProposal | null> };
 }
@@ -61,7 +61,7 @@ export interface EvolutionProjectionState {
   readonly seenSeqs: Record<string, true>;
   readonly measurements: readonly MeasurementRecord[];
   readonly proposalTargets: Record<string, string>;
-  readonly a8: {
+  readonly learning: {
     readonly pending: boolean;
     readonly unavailable: boolean;
     readonly lastSuccessful: LearningProposal | null;
@@ -77,7 +77,7 @@ const MEASUREMENT_EVENT = 'capability.governance.measurement.measured';
 const PROPOSAL_SUBMITTED = 'capability.governance.proposal.submitted';
 const PROPOSAL_PREFIX = 'capability.governance.proposal.';
 
-function isA8Relevant(type: string): boolean {
+function isLearningRelevant(type: string): boolean {
   return type.startsWith(PROPOSAL_PREFIX) || type === MEASUREMENT_EVENT;
 }
 
@@ -97,7 +97,7 @@ export class EvolutionProjection {
       seenSeqs: {},
       measurements: [],
       proposalTargets: {},
-      a8: { pending: false, unavailable: false, lastSuccessful: null },
+      learning: { pending: false, unavailable: false, lastSuccessful: null },
     };
   }
 
@@ -138,7 +138,7 @@ export class EvolutionProjection {
           confidence: p.post.confidence,
         },
       ];
-      this.state.a8 = { ...this.state.a8, pending: true };
+      this.state.learning = { ...this.state.learning, pending: true };
     } else if (type === PROPOSAL_SUBMITTED) {
       // Named typed payload (CONTRIBUTING: events use typed payloads). The
       // raw EventLog event carries `proposalId` at the payload top level
@@ -148,9 +148,9 @@ export class EvolutionProjection {
       const target = readCandidateTargetId(p as unknown as Readonly<Record<string, unknown>>);
       const proposalId = typeof p.proposalId === 'string' ? p.proposalId : undefined;
       if (target && proposalId) this.state.proposalTargets[proposalId] = target;
-      this.state.a8 = { ...this.state.a8, pending: true };
-    } else if (isA8Relevant(type)) {
-      this.state.a8 = { ...this.state.a8, pending: true };
+      this.state.learning = { ...this.state.learning, pending: true };
+    } else if (isLearningRelevant(type)) {
+      this.state.learning = { ...this.state.learning, pending: true };
     }
   }
 
@@ -158,18 +158,18 @@ export class EvolutionProjection {
    *  NEVER throws — a failed source becomes an unavailable stage (Q-C3b). */
   async snapshot(): Promise<EvolutionProjectionSnapshot> {
     const generatedAt = this.clock();
-    let learningResult = this.state.a8.lastSuccessful;
-    let learningUnavailable = this.state.a8.unavailable;
-    if (this.state.a8.pending) {
+    let learningResult = this.state.learning.lastSuccessful;
+    let learningUnavailable = this.state.learning.unavailable;
+    if (this.state.learning.pending) {
       try {
         const result = await this.sources.learning.learn(new Date(generatedAt).toISOString());
-        this.state.a8 = { pending: false, unavailable: false, lastSuccessful: result };
+        this.state.learning = { pending: false, unavailable: false, lastSuccessful: result };
         learningResult = result;
         learningUnavailable = false;
       } catch {
         // Q-C2 — relevant change + failure ⇒ unavailable (never empty).
         // lastSuccessful is retained (not wiped) for a later successful restore.
-        this.state.a8 = { ...this.state.a8, pending: false, unavailable: true };
+        this.state.learning = { ...this.state.learning, pending: false, unavailable: true };
         learningUnavailable = true;
       }
     }
@@ -230,7 +230,7 @@ export class EvolutionProjection {
       seenSeqs: { ...state.seenSeqs },
       measurements: [...state.measurements],
       proposalTargets: { ...state.proposalTargets },
-      a8: { ...state.a8, lastSuccessful: state.a8.lastSuccessful },
+      learning: { ...state.learning, lastSuccessful: state.learning.lastSuccessful },
     };
   }
 }

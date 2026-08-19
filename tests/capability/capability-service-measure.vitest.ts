@@ -25,10 +25,10 @@ import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
 import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
 import { CapabilityMeasurementEngine } from "../../src/capability/measurement/capability-measurement-engine.js";
 import { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
-import type { A5Measurement } from "../../src/capability/measurement/a5.js";
+import type { Measurement } from "../../src/capability/measurement/measurement-contract.js";
 import type { CapabilityMeasurementOutcome } from "../../src/capability/measurement/outcome-discriminated-union.js";
 
-function mkA5(): A5Measurement {
+function mkA5(): Measurement {
   return {
     async measureCapability(_target, _baseline) {
       const outcome: CapabilityMeasurementOutcome = {
@@ -88,7 +88,7 @@ describe("CapabilityService.measure() (CAP-10 ruling #2, #22)", () => {
     } as never;
     const engine = new CapabilityMeasurementEngine({
       catalog,
-      a5: mkA5(),
+      measurement: mkA5(),
       observationEngine: new ObservationEngine(),
     });
     const service = new CapabilityService({

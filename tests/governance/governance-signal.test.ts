@@ -27,7 +27,7 @@ import {
   normalizeFailureClusters,
   normalizePolicySuggestions,
   normalizeFrictionAlerts,
-  normalizeAllP13Outputs,
+  normalizeSignalOutputs,
   type GovernanceSignal,
   type SignalStatus,
   type SignalType,
@@ -677,7 +677,7 @@ describe("normalizeFrictionAlerts", () => {
 // Aggregate normalisation with dedup
 // ---------------------------------------------------------------------------
 
-describe("normalizeAllP13Outputs", () => {
+describe("normalizeSignalOutputs", () => {
   it("produces signals from all four P13 modules", () => {
     const analytics: LedgerAnalytics = {
       totalRuns: 100,
@@ -706,7 +706,7 @@ describe("normalizeAllP13Outputs", () => {
       timeframeDays: 30,
     };
 
-    const signals = normalizeAllP13Outputs(
+    const signals = normalizeSignalOutputs(
       [],
       analytics,
       [],
@@ -734,7 +734,7 @@ describe("normalizeAllP13Outputs", () => {
     };
 
     // First run — signals created
-    const firstRun = normalizeAllP13Outputs([], analytics, [], {
+    const firstRun = normalizeSignalOutputs([], analytics, [], {
       total: 0, clusters: [], dominantType: null, recurringFilePaths: [], recurringFilePathCounts: {}, timeframeDays: 0,
     }, [], { gates: [], highestFrictionGate: null, totalApprovalsRequested: 0, overallFrictionScore: 0 }, NOW);
 
@@ -743,7 +743,7 @@ describe("normalizeAllP13Outputs", () => {
     assert.ok(improvingSignal);
 
     // Second run with existing signals — dedup should prevent duplicates
-    const secondRun = normalizeAllP13Outputs(
+    const secondRun = normalizeSignalOutputs(
       firstRun, // existing
       analytics, [], {
         total: 0, clusters: [], dominantType: null, recurringFilePaths: [], recurringFilePathCounts: {}, timeframeDays: 0,

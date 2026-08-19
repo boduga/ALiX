@@ -117,12 +117,12 @@ export interface LineageRecord {
 
   /** Which P24–P29 phases have data in this lineage. */
   phasePresence: {
-    p24: boolean;
-    p25: boolean;
-    p26: boolean;
-    p27: boolean;
-    p28: boolean;
-    p29: boolean;
+    signal: boolean;
+    candidate: boolean;
+    outcome: boolean;
+    trace: boolean;
+    explanation: boolean;
+    compliance: boolean;
     execution: boolean;
   };
 

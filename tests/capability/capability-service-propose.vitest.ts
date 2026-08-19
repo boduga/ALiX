@@ -27,11 +27,11 @@ import { ProviderResolver, CapabilityResolver } from "../../src/capability/provi
 import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
 import { NativeProviderExecutor } from "../../src/capability/provider-executor.js";
 import { NativeExecutor } from "../../src/capability/executors.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import { CapabilityProposalDuplicateError } from "../../src/capability/errors/proposal-duplicate.js";
 import { CapabilityServiceNotImplementedError } from "../../src/capability/errors/service-not-implemented.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
@@ -76,7 +76,7 @@ describe("CapabilityService.propose (CAP-9 ruling #3 — sole submission route)"
     eventLog = new EventLog(dir);
     await eventLog.init();
 
-    const generator = new A7ProposalGenerator({
+    const generator = new CapabilityProposalGenerator({
       signalSource: new FakeSignalSource([
         { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-1"] },
       ]),

@@ -623,7 +623,7 @@ export function normalizeFrictionAlerts(
  * @param now - ISO timestamp for signal creation.
  * @returns Array of new (non-duplicate) signals ready for append.
  */
-export function normalizeAllP13Outputs(
+export function normalizeSignalOutputs(
   allExisting: GovernanceSignal[],
   analytics: LedgerAnalytics,
   rollups: PeriodRollup[],

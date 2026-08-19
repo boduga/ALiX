@@ -697,7 +697,7 @@ import type {
 } from "../../src/evolution/learning/contracts/learning-contract.js";
 import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
 import { buildLearningProposal } from "../../src/evolution/learning/learning-proposal-builder.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/a2-bridge.js";
+import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
 
 /** Adapter that returns a fixed record set. */
 function fakeAdapter<T>(records: ReadonlyArray<T>): LearningAdapter<T> {

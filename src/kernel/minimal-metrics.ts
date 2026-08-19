@@ -1,12 +1,12 @@
 /**
- * minimal-metrics.ts — M0.9 minimum metrics.
+ * minimal-metrics.ts — minimum metrics.
  *
  * Increment counters for workflow/model/tool/policy events.
  * Duration timers for workflow execution.
  * All metrics are stored in-memory and exposed via alix metrics.
  */
 
-export type M09MetricName =
+export type MetricName =
   | "workflow_runs_total"
   | "model_calls_total"
   | "tool_calls_total"
@@ -29,19 +29,19 @@ export type M09MetricName =
   | "collaboration_conflict_context_included_total"
   | "collaboration_conflict_context_omitted_total";
 
-export type M09CounterName = Exclude<
-  M09MetricName,
+export type CounterName = Exclude<
+  MetricName,
   | "workflow_duration_ms"
   | "collaboration_conflict_detection_duration_ms"
 >;
 
-export type M09DurationName = Extract<
-  M09MetricName,
+export type DurationName = Extract<
+  MetricName,
   "workflow_duration_ms" | "collaboration_conflict_detection_duration_ms"
 >;
 
 export interface MetricEvent {
-  name: M09MetricName;
+  name: MetricName;
   type: "counter" | "timer";
   value: number;
   labels?: Record<string, string>;
@@ -57,12 +57,12 @@ export class MinimalMetrics {
    * itself is one call). Defaults to 1 so existing call sites are
    * unaffected.
    */
-  increment(name: M09CounterName, labels?: Record<string, string>, by: number = 1): void {
+  increment(name: CounterName, labels?: Record<string, string>, by: number = 1): void {
     if (by <= 0) return;
     this.events.push({ name, type: "counter", value: by, labels, timestamp: new Date().toISOString() });
   }
 
-  duration(name: M09DurationName, value: number, labels?: Record<string, string>): void {
+  duration(name: DurationName, value: number, labels?: Record<string, string>): void {
     this.events.push({ name, type: "timer", value, labels, timestamp: new Date().toISOString() });
   }
 

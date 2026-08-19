@@ -72,8 +72,8 @@ export interface PolicyDriftSignal {
   confidence: number;
 
   sampleSize: {
-    p22CalibrationCount: number;
-    p23ReplayCount: number;
+    calibrationCount: number;
+    replayCount: number;
     pairedLifecycleCount: number;
   };
 

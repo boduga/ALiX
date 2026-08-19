@@ -25,7 +25,7 @@
 
 import { describe, it, expect } from "vitest";
 import { LearningEngine } from "../../src/evolution/learning/learning-engine.js";
-import { buildGovernanceRecommendation } from "../../src/evolution/learning/a2-bridge.js";
+import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
 import { generateDecision } from "../../src/evolution/governance/decision-engine.js";
 import type {
   EnrichedProposalRecord,

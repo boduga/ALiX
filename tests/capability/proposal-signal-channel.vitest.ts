@@ -7,7 +7,7 @@ import type {
   ProposalSignalSink,
   ProposalSignalSource,
   CapabilityEvolutionSignal,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 
 const sig = (kind: "gap" | "underperformer"): CapabilityEvolutionSignal =>
   kind === "gap"

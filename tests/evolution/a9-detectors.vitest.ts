@@ -3,25 +3,25 @@ import type {
   DetectorFinding,
   EnrichedProposalRecord,
   ProposalEventRecord,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/contracts/contract.js";
 import {
   detectTrustVelocity,
   TRUST_VELOCITY_KIND,
   TRUST_VELOCITY_TRIGGER_SCORE,
   TRUST_VELOCITY_WEIGHTS,
-} from "../../src/evolution/a9/detectors/trust-velocity-detector.js";
+} from "../../src/evolution/forecast/detectors/trust-velocity-detector.js";
 import {
   detectEvidenceCompleteness,
   EVIDENCE_COMPLETENESS_KIND,
   EVIDENCE_COMPLETENESS_TRIGGER_SCORE,
-} from "../../src/evolution/a9/detectors/evidence-completeness-detector.js";
+} from "../../src/evolution/forecast/detectors/evidence-completeness-detector.js";
 import {
   detectFingerprintCoincidence,
   FINGERPRINT_COINCIDENCE_KIND,
   FINGERPRINT_COINCIDENCE_TRIGGER_SCORE,
   FINGERPRINT_COINCIDENCE_MIN_OCCURRENCES,
   normalizeFingerprint,
-} from "../../src/evolution/a9/detectors/fingerprint-coincidence-detector.js";
+} from "../../src/evolution/forecast/detectors/fingerprint-coincidence-detector.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 

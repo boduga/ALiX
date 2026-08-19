@@ -27,7 +27,7 @@ const BLAST_RADIUS: Record<ExecutiveSubsystemName, number> = {
   tools:       40,
 };
 
-const P10_1_FACTORS: PriorityFactorDef[] = [
+const PRIORITY_FACTOR_DEFS: PriorityFactorDef[] = [
   { name: "Health Deficit", weight: 0.60 },
   { name: "Trend",          weight: 0.25 },
   { name: "Blast Radius",   weight: 0.15 },
@@ -63,7 +63,7 @@ export interface ExecutivePriorityEntry {
   blastRadius: number;
   /**
    * Weighted composite: (weight x value) across all registered factors.
-   * Weighted by P10_1_FACTORS. Higher = higher priority.
+   * Weighted by PRIORITY_FACTOR_DEFS. Higher = higher priority.
    */
   priorityScore: number;
   /** Per-factor breakdown for display. */
@@ -96,8 +96,8 @@ export function computePriorityScore(
 ): number {
   const values = [healthDeficit, trendScore, blastRadius];
   let composite = 0;
-  for (let i = 0; i < P10_1_FACTORS.length; i++) {
-    composite += P10_1_FACTORS[i].weight * values[i];
+  for (let i = 0; i < PRIORITY_FACTOR_DEFS.length; i++) {
+    composite += PRIORITY_FACTOR_DEFS[i].weight * values[i];
   }
   return composite;
 }

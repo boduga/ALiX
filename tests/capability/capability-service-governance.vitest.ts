@@ -28,12 +28,12 @@ import { ProviderResolver, CapabilityResolver } from "../../src/capability/provi
 import { ProviderExecutorRegistry } from "../../src/capability/provider-registry.js";
 import { NativeProviderExecutor } from "../../src/capability/provider-executor.js";
 import { NativeExecutor } from "../../src/capability/executors.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
   ProposalSignalSink,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import type { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
 
@@ -77,7 +77,7 @@ describe("CapabilityService.governance (CAP-9 rulings #10, #22, #23)", () => {
       resolver,
       mutationExecutor: new StubExecutor() as unknown as CapabilityMutationExecutor,
       eventLog,
-      proposalGenerator: new A7ProposalGenerator({
+      proposalGenerator: new CapabilityProposalGenerator({
         signalSource: new FakeSignalChannel([
           { kind: "gap", capabilityId: undefined, score: 0.9, evidenceIds: ["e-1"] },
         ]),

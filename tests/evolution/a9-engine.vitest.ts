@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import type {
-  A9Adapter,
+  ForecastAdapter,
   EnrichedProposalRecord,
   ProposalEventRecord,
-} from "../../src/evolution/a9/contracts/a9-contract.js";
-import { ForecastEngine, type ForecastEngineAdapters } from "../../src/evolution/a9/forecast-engine.js";
-import { buildForecast } from "../../src/evolution/a9/forecast-builder.js";
-import type { DetectorFinding } from "../../src/evolution/a9/contracts/a9-contract.js";
-import { A9_GENERATOR_VERSION, A9_FORECAST_VERSION } from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/contracts/contract.js";
+import { ForecastEngine, type ForecastEngineAdapters } from "../../src/evolution/forecast/forecast-engine.js";
+import { buildForecast } from "../../src/evolution/forecast/forecast-builder.js";
+import type { DetectorFinding } from "../../src/evolution/forecast/contracts/contract.js";
+import { GENERATOR_VERSION, FORECAST_VERSION } from "../../src/evolution/forecast/contracts/contract.js";
 
 const NOW = "2026-08-14T00:00:00.000Z";
 
@@ -68,7 +68,7 @@ function enrichedRecord(overrides: Partial<EnrichedProposalRecord> = {}): Enrich
   };
 }
 
-function fakeAdapter<T>(records: ReadonlyArray<T>): A9Adapter<T> {
+function fakeAdapter<T>(records: ReadonlyArray<T>): ForecastAdapter<T> {
   return { name: "fake", list: vi.fn(async () => records) };
 }
 
@@ -151,8 +151,8 @@ describe("ForecastEngine — aggregation by subject", () => {
     // Evidence references preserved across detectors (detector order: trust, completeness, fingerprint).
     expect(forecast.provenance.evidenceRefs).toEqual(["ev-1", "fp-1", "fp-2", "fp-3"]);
     expect(forecast.provenance.generatedAt).toBe(NOW);
-    expect(forecast.provenance.generatorVersion).toBe(A9_GENERATOR_VERSION);
-    expect(forecast.forecastVersion).toBe(A9_FORECAST_VERSION);
+    expect(forecast.provenance.generatorVersion).toBe(GENERATOR_VERSION);
+    expect(forecast.forecastVersion).toBe(FORECAST_VERSION);
     expect(forecast.horizon.from).toBe(NOW);
     expect(forecast.forecastId).toMatch(/^[0-9a-f]{64}$/);
   });

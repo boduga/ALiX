@@ -35,7 +35,7 @@
 import { join } from "node:path";
 import { canonicalStringify } from "../../../security/audit/canonical-json.js";
 import type { GovernanceRecommendation } from "../contracts/recommendation-contract.js";
-import { JsonlStore } from "../../../evolution/a9/jsonl-store.js";
+import { JsonlStore } from "../../../evolution/forecast/jsonl-store.js";
 
 const STORE_DIR = join(".alix", "verification");
 const STORE_FILE = "recommendations.jsonl";

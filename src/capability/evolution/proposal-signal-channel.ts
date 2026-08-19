@@ -22,7 +22,7 @@ import type {
   CapabilityEvolutionSignal,
   ProposalSignalSink,
   ProposalSignalSource,
-} from "./a7-proposals.js";
+} from "./proposals.js";
 
 export class ProposalSignalChannel
   implements ProposalSignalSink, ProposalSignalSource

@@ -31,7 +31,7 @@ import { ProposalEventsAdapter } from "../../evolution/learning/adapters/proposa
 import { MeasurementEventsAdapter } from "../../evolution/learning/adapters/measurement-events-adapter.js";
 import { EnrichedProposalsAdapter } from "../../evolution/learning/adapters/enriched-proposals-adapter.js";
 import { RecommendationsAdapter } from "../../evolution/learning/adapters/recommendations-adapter.js";
-import { createEnrichedProposalsSource } from "../../evolution/a9/adapters/enriched-proposals-source.js";
+import { createEnrichedProposalsSource } from "../../evolution/forecast/adapters/enriched-proposals-source.js";
 import { RecommendationStore } from "../../evolution/verification/recommendation/recommendation-store.js";
 import { isLifecycleEligible } from "../../capability/lifecycle-eligibility.js";
 import type { GovernanceRecommendation } from "../../evolution/verification/contracts/recommendation-contract.js";
@@ -156,8 +156,8 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         .list().items
         .flatMap(({ id, lifecycle }) =>
           lifecycle === undefined ? [] : [{ capabilityId: id, state: lifecycle, eligible: isLifecycleEligible(lifecycle) }]),
-      forecasts: () => capabilityService.platform.a9.forecasts.list(),
-      correlations: () => capabilityService.platform.a9.correlations.list(),
+      forecasts: () => capabilityService.platform.forecast.forecasts.list(),
+      correlations: () => capabilityService.platform.forecast.correlations.list(),
       // The evolution projection's decisions stage keys DecisionRow by the
       // canonical A2.5 recommendationId. The A8 RecommendationsAdapter is the
       // read surface (A8 wayfinder lock), returning RecommendationRecord with

@@ -19,7 +19,7 @@
  */
 
 import type { ObservationStatus } from "../../evolution/observation/contracts/observation-contract.js";
-import type { CapabilityEvolutionSignal } from "../evolution/a7-proposals.js";
+import type { CapabilityEvolutionSignal } from "../evolution/proposals.js";
 
 export type CapabilityMeasurementEventType =
   | "capability.governance.measurement.measured"
@@ -121,7 +121,7 @@ export interface MeasurementSignalsUnpublishedEvent {
     readonly occurredAt: string;
     readonly actor: {
       readonly kind: "system";
-      readonly component: "A5CapabilityMeasurement";
+      readonly component: "CapabilityMeasurement";
     };
   };
 }

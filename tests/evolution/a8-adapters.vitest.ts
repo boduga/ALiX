@@ -263,7 +263,7 @@ describe("MeasurementEventsAdapter", () => {
           signalIds: ["s1", "s2", "s3"],
           failure: { classification: "sink_threw", cause: "down" },
           occurredAt: "2026-08-14T00:01:00.000Z",
-          actor: { kind: "system", component: "A5CapabilityMeasurement" },
+          actor: { kind: "system", component: "CapabilityMeasurement" },
         },
       ),
     ]);

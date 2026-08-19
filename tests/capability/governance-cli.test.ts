@@ -34,12 +34,12 @@ import { NativeProviderExecutor } from "../../src/capability/provider-executor.j
 import { NativeExecutor } from "../../src/capability/executors.js";
 import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
 import { CapabilityMutationExecutor } from "../../src/evolution/execution/capability-mutation-executor.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
   ProposalSignalSink,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import type { CapabilityServiceOptions } from "../../src/capability/types/service-results.js";
 import type { CapabilityApplyProposalResult } from "../../src/capability/types/service-results.js";
 
@@ -115,7 +115,7 @@ async function buildHarness(
   const eventLog = new EventLog(dir);
   await eventLog.init();
   const mutationExecutor = executor as unknown as CapabilityMutationExecutor;
-  const proposalGenerator = new A7ProposalGenerator({
+  const proposalGenerator = new CapabilityProposalGenerator({
     signalSource: new FakeSignalChannel(signals),
   });
   const options: CapabilityServiceOptions = {

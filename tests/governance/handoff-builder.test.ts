@@ -23,7 +23,7 @@ const POLICY: ExecutionReadinessPolicy = {
   requireCompleteRollbackForReversible: true,
   blockExternalSideEffects: true,
   blockIrreversibleActions: true,
-  requireP18Visibility: true,
+  requireVisibility: true,
 };
 
 function action(

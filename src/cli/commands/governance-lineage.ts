@@ -118,11 +118,11 @@ interface LoadedData {
   executionLineageRefs: readonly ExecutionLineageRef[];
 }
 
-async function loadData(cwd: string, p24BundlePath?: string | null): Promise<LoadedData> {
+async function loadData(cwd: string, bundlePath?: string | null): Promise<LoadedData> {
   // Load P24 signals from bundle file (if provided)
   let signals: PolicyDriftSignal[] = [];
-  if (p24BundlePath && existsSync(p24BundlePath)) {
-    const raw = readFileSync(p24BundlePath, "utf-8");
+  if (bundlePath && existsSync(bundlePath)) {
+    const raw = readFileSync(bundlePath, "utf-8");
     const bundle = JSON.parse(raw) as unknown;
     signals = (Array.isArray(bundle) ? bundle : (bundle as Record<string, unknown>).signals ?? []) as PolicyDriftSignal[];
   }
@@ -186,9 +186,9 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
 
 async function buildIndexFromStores(
   cwd: string,
-  p24BundlePath?: string | null,
+  bundlePath?: string | null,
 ): Promise<{ index: LineageIndex; data: LoadedData }> {
-  const data = await loadData(cwd, p24BundlePath);
+  const data = await loadData(cwd, bundlePath);
 
   const index = buildLineageIndex({
     signals: data.signals,
@@ -214,10 +214,10 @@ async function handleShow(args: string[], cwd: string): Promise<string> {
     return "ERROR: <candidateId> required.\n" + usage();
   }
 
-  const p24BundlePath = flag(args, "--p24-bundle");
+  const bundlePath = flag(args, "--p24-bundle");
   const jsonMode = hasFlag(args, "--json");
 
-  const { index } = await buildIndexFromStores(cwd, p24BundlePath);
+  const { index } = await buildIndexFromStores(cwd, bundlePath);
   const record = buildLineageRecord(candidateId, index);
 
   if (!record) {
@@ -237,10 +237,10 @@ async function handleShow(args: string[], cwd: string): Promise<string> {
 async function handleList(args: string[], cwd: string): Promise<string> {
   const kindFilter = flag(args, "--kind");
   const outcomeFilter = flag(args, "--outcome");
-  const p24BundlePath = flag(args, "--p24-bundle");
+  const bundlePath = flag(args, "--p24-bundle");
   const jsonMode = hasFlag(args, "--json");
 
-  const { index } = await buildIndexFromStores(cwd, p24BundlePath);
+  const { index } = await buildIndexFromStores(cwd, bundlePath);
 
   // Resolve matching lineageIds
   let matchedLineageIds: string[] | null = null;
@@ -290,12 +290,12 @@ export function renderLineageShow(record: LineageRecord): string {
 
   // Phase presence
   out += `Phase Presence:\n`;
-  out += `  P24 (signal):     ${record.phasePresence.p24 ? "YES" : "no"}\n`;
-  out += `  P25 (candidate):  ${record.phasePresence.p25 ? "YES" : "no"}\n`;
-  out += `  P26 (outcome):    ${record.phasePresence.p26 ? "YES" : "no"}\n`;
-  out += `  P27 (trace):      ${record.phasePresence.p27 ? "YES" : "no"}\n`;
-  out += `  P28 (explanation):${record.phasePresence.p28 ? "YES" : "no"}\n`;
-  out += `  P29 (compliance): ${record.phasePresence.p29 ? "YES" : "no"}\n`;
+  out += `  P24 (signal):     ${record.phasePresence.signal ? "YES" : "no"}\n`;
+  out += `  P25 (candidate):  ${record.phasePresence.candidate ? "YES" : "no"}\n`;
+  out += `  P26 (outcome):    ${record.phasePresence.outcome ? "YES" : "no"}\n`;
+  out += `  P27 (trace):      ${record.phasePresence.trace ? "YES" : "no"}\n`;
+  out += `  P28 (explanation):${record.phasePresence.explanation ? "YES" : "no"}\n`;
+  out += `  P29 (compliance): ${record.phasePresence.compliance ? "YES" : "no"}\n`;
   out += `\n`;
 
   // Phase refs

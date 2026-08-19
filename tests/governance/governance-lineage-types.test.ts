@@ -74,12 +74,12 @@ describe("GovernanceLineageTypes", () => {
       lineageId: "lineage-001",
       assembledAt: "2026-07-10T00:00:00.000Z",
       phasePresence: {
-        p24: true,
-        p25: true,
-        p26: true,
-        p27: true,
-        p28: true,
-        p29: true,
+        signal: true,
+        candidate: true,
+        outcome: true,
+        trace: true,
+        explanation: true,
+        compliance: true,
         execution: false,
       },
       signalRef,
@@ -137,55 +137,55 @@ describe("GovernanceLineageTypes", () => {
   it("phasePresence has all 7 boolean fields (p24 through p29 plus execution)", () => {
     // All true
     const allPresent: LineageRecord["phasePresence"] = {
-      p24: true,
-      p25: true,
-      p26: true,
-      p27: true,
-      p28: true,
-      p29: true,
+      signal: true,
+      candidate: true,
+      outcome: true,
+      trace: true,
+      explanation: true,
+      compliance: true,
       execution: true,
     };
     // All false
     const nonePresent: LineageRecord["phasePresence"] = {
-      p24: false,
-      p25: false,
-      p26: false,
-      p27: false,
-      p28: false,
-      p29: false,
+      signal: false,
+      candidate: false,
+      outcome: false,
+      trace: false,
+      explanation: false,
+      compliance: false,
       execution: false,
     };
     // Mixed
     const mixed: LineageRecord["phasePresence"] = {
-      p24: true,
-      p25: false,
-      p26: true,
-      p27: false,
-      p28: true,
-      p29: false,
+      signal: true,
+      candidate: false,
+      outcome: true,
+      trace: false,
+      explanation: true,
+      compliance: false,
       execution: true,
     };
 
-    assert.equal(allPresent.p24, true);
-    assert.equal(allPresent.p25, true);
-    assert.equal(allPresent.p26, true);
-    assert.equal(allPresent.p27, true);
-    assert.equal(allPresent.p28, true);
-    assert.equal(allPresent.p29, true);
+    assert.equal(allPresent.signal, true);
+    assert.equal(allPresent.candidate, true);
+    assert.equal(allPresent.outcome, true);
+    assert.equal(allPresent.trace, true);
+    assert.equal(allPresent.explanation, true);
+    assert.equal(allPresent.compliance, true);
 
-    assert.equal(nonePresent.p24, false);
-    assert.equal(nonePresent.p25, false);
-    assert.equal(nonePresent.p26, false);
-    assert.equal(nonePresent.p27, false);
-    assert.equal(nonePresent.p28, false);
-    assert.equal(nonePresent.p29, false);
+    assert.equal(nonePresent.signal, false);
+    assert.equal(nonePresent.candidate, false);
+    assert.equal(nonePresent.outcome, false);
+    assert.equal(nonePresent.trace, false);
+    assert.equal(nonePresent.explanation, false);
+    assert.equal(nonePresent.compliance, false);
 
-    assert.equal(mixed.p24, true);
-    assert.equal(mixed.p25, false);
-    assert.equal(mixed.p26, true);
-    assert.equal(mixed.p27, false);
-    assert.equal(mixed.p28, true);
-    assert.equal(mixed.p29, false);
+    assert.equal(mixed.signal, true);
+    assert.equal(mixed.candidate, false);
+    assert.equal(mixed.outcome, true);
+    assert.equal(mixed.trace, false);
+    assert.equal(mixed.explanation, true);
+    assert.equal(mixed.compliance, false);
   });
 
   // -----------------------------------------------------------------------
@@ -220,7 +220,7 @@ describe("GovernanceLineageTypes", () => {
       lineageId: "l2",
       assembledAt: "2026-07-10T00:00:00.000Z",
       phasePresence: {
-        p24: false, p25: false, p26: false, p27: false, p28: false, p29: false, execution: false,
+        signal: false, candidate: false, outcome: false, trace: false, explanation: false, compliance: false, execution: false,
       },
       executionRef: null,
       readOnly: true as const,

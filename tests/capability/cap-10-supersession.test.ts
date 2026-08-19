@@ -18,9 +18,9 @@ import { join } from "node:path";
  * after `pnpm run build` per repo convention.
  *
  * Bug 2 amendment (CAP-9 retro): brief's "service imports
- * A5Measurement from capability/measurement/a5" assertion was
+ * Measurement from capability/measurement/measurement-contract" assertion was
  * architecturally incorrect — the actual design is
- *   service → CapabilityMeasurementEngine → A5Measurement
+ *   service → CapabilityMeasurementEngine → Measurement
  * so the type-only import lives in the engine. Re-aimed at engine.
  *
  * Bug 3 amendment (CAP-9 retro): brief's sample had malformed
@@ -42,8 +42,8 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     it("CAP-10 measurement files MUST NOT import capability-lifecycle-measurer", () => {
       const files = [
         "src/capability/measurement/capability-measurement-engine.ts",
-        "src/capability/measurement/a5.ts",
-        "src/evolution/observation/a5-capability-measurement.ts",
+        "src/capability/measurement/measurement-contract.ts",
+        "src/evolution/observation/capability-measurement.ts",
         "src/capability/capability-service.ts",
         "src/capability/platform.ts",
         "src/cli/commands/capability-measure.ts",
@@ -61,7 +61,7 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
     it("CAP-10 measurement files MUST NOT import src/evolution/capability-lifecycle/*", () => {
       const files = [
         "src/capability/measurement/capability-measurement-engine.ts",
-        "src/capability/measurement/a5.ts",
+        "src/capability/measurement/measurement-contract.ts",
         "src/capability/capability-service.ts",
         "src/capability/platform.ts",
         "src/cli/commands/capability-measure.ts",
@@ -86,33 +86,33 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
   });
 
   describe("CAP-10 type-only A5 import (ruling #7)", () => {
-    it("A5 interface lives at capability/measurement/a5.ts", () => {
-      const a5Ifc = readSrc("src/capability/measurement/a5.ts");
-      assert.match(a5Ifc, /interface\s+A5Measurement/);
+    it("A5 interface lives at capability/measurement/measurement-contract.ts", () => {
+      const a5Ifc = readSrc("src/capability/measurement/measurement-contract.ts");
+      assert.match(a5Ifc, /interface\s+Measurement/);
       assert.match(a5Ifc, /measureCapability/);
     });
 
-    it("engine imports A5Measurement as TYPE only from capability/measurement/a5", () => {
-      // Bug 2 amendment: service -> engine -> A5Measurement; the
+    it("engine imports Measurement as TYPE only from capability/measurement/measurement-contract", () => {
+      // Bug 2 amendment: service -> engine -> Measurement; the
       // type-only import lives in the engine (the architecture
       // surface that bridges to A5).
-      // The import path may be relative ('./a5.js') or absolute
-      // ('capability/measurement/a5'); match either form ending
-      // in the a5 module.
+      // The import path may be relative ('./measurement-contract.js') or absolute
+      // ('capability/measurement/measurement-contract'); match either form ending
+      // in the measurement-contract module.
       const engine = readSrc(
         "src/capability/measurement/capability-measurement-engine.ts",
       );
       assert.match(
         engine,
-        /import\s+type\s+\{[^}]*A5Measurement[^}]*\}\s+from\s+["'][^"']*a5/,
-        "engine MUST import type A5Measurement from capability/measurement/a5 (ruling #7)",
+        /import\s+type\s+\{[^}]*Measurement[^}]*\}\s+from\s+["'][^"']*measurement-contract/,
+        "engine MUST import type Measurement from capability/measurement/measurement-contract (ruling #7)",
       );
     });
 
     it("service MUST NOT import the A5 implementation", () => {
       const service = readSrc("src/capability/capability-service.ts");
       assert.equal(
-        /from\s+["'].*evolution\/observation\/a5-capability-measurement/.test(service),
+        /from\s+["'].*evolution\/observation\/capability-measurement/.test(service),
         false,
         "service MUST NOT import the A5 implementation — ruling #7 violated.",
       );
@@ -157,9 +157,9 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
       const paths = [
         "src/capability/measurement/measurement-event-types.ts",
         "src/capability/measurement/outcome-discriminated-union.ts",
-        "src/capability/measurement/a5.ts",
+        "src/capability/measurement/measurement-contract.ts",
         "src/capability/measurement/capability-measurement-engine.ts",
-        "src/evolution/observation/a5-capability-measurement.ts",
+        "src/evolution/observation/capability-measurement.ts",
         "src/capability/errors/measure-failed.ts",
         "src/capability/errors/measure-invalid-target.ts",
         "src/cli/commands/capability-measure.ts",

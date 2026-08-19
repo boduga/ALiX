@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * CAP-10.5 Task 5 — A5CapabilityMeasurement locked pipeline.
+ * CAP-10.5 Task 5 — CapabilityMeasurement locked pipeline.
  *
- * Asserts that A5CapabilityMeasurement:
+ * Asserts that CapabilityMeasurement:
  *   - uses the new sink-based emission pipeline (ruling #R1, #R2)
  *   - default decider emits `underperformer` for `ineffective` ONLY (ruling #R3)
  *   - records `measured` event BEFORE publishing signals (commit point)
@@ -15,9 +15,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { A5CapabilityMeasurement } from "../../src/evolution/observation/a5-capability-measurement.js";
-import type { OutcomeDecider } from "../../src/evolution/observation/a5-capability-measurement.js";
-import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityMeasurement } from "../../src/evolution/observation/capability-measurement.js";
+import type { OutcomeDecider } from "../../src/evolution/observation/capability-measurement.js";
+import type { ProposalSignalSink, CapabilityEvolutionSignal } from "../../src/capability/evolution/proposals.js";
 import type { ObservationEngine } from "../../src/evolution/observation/observation-engine.js";
 import type { ObservationResult } from "../../src/evolution/observation/contracts/observation-contract.js";
 import type { CapabilityCatalog } from "../../src/capability/canonical/catalog.js";
@@ -74,7 +74,7 @@ function buildMeasurement(opts: {
   const engine = new FakeEngine(post);
   const sink = opts.sink ?? new CollectingSink();
   const eventLog = opts.eventLog ?? new FakeEventLog();
-  const m = new A5CapabilityMeasurement({
+  const m = new CapabilityMeasurement({
     observationEngine: engine as unknown as ObservationEngine,
     signalSink: sink,
     catalog: new FakeCatalog() as unknown as CapabilityCatalog,
@@ -86,7 +86,7 @@ function buildMeasurement(opts: {
 
 // --- tests ---
 
-describe("A5CapabilityMeasurement default decider (CAP-10.5 ruling #R3)", () => {
+describe("CapabilityMeasurement default decider (CAP-10.5 ruling #R3)", () => {
   it("effective → no signals published", async () => {
     const { m, sink } = buildMeasurement({ postStatus: "pass" });
     const out = await m.measureCapability({ capabilityId: "cap", version: "1" });
@@ -116,7 +116,7 @@ describe("A5CapabilityMeasurement default decider (CAP-10.5 ruling #R3)", () => 
   });
 });
 
-describe("A5CapabilityMeasurement custom decider (CAP-10.5 ruling #R3)", () => {
+describe("CapabilityMeasurement custom decider (CAP-10.5 ruling #R3)", () => {
   it("decider can emit a gap signal", async () => {
     const gap: CapabilityEvolutionSignal = { kind: "gap", score: 0.7, evidenceIds: [] };
     const { m, sink } = buildMeasurement({
@@ -153,7 +153,7 @@ describe("A5CapabilityMeasurement custom decider (CAP-10.5 ruling #R3)", () => {
   });
 });
 
-describe("A5CapabilityMeasurement locked pipeline (CAP-10.5 ruling #R2)", () => {
+describe("CapabilityMeasurement locked pipeline (CAP-10.5 ruling #R2)", () => {
   it("measured event appended before publish (commit point is step 3)", async () => {
     const order: string[] = [];
     const sink = new CollectingSink();
@@ -191,7 +191,7 @@ describe("A5CapabilityMeasurement locked pipeline (CAP-10.5 ruling #R2)", () => 
     expect(p.signalCount).toBe(p.signalIds.length);
     expect(p.signalIds).toHaveLength(1);
     expect(p.failure.classification).toBe("sink_threw");
-    expect(p.actor).toEqual({ kind: "system", component: "A5CapabilityMeasurement" });
+    expect(p.actor).toEqual({ kind: "system", component: "CapabilityMeasurement" });
   });
 
   it("partial publish failure → signals_unpublished lists only the failed signals", async () => {

@@ -58,11 +58,11 @@ import { registerSessionCapabilities } from "../../src/integrations/session-capa
 import { CapabilityRegistry } from "../../src/capability/registry.js";
 import { EventLog } from "../../src/events/event-log.js";
 import { CapabilityService } from "../../src/capability/capability-service.js";
-import { A7ProposalGenerator } from "../../src/capability/evolution/a7-proposals.js";
+import { CapabilityProposalGenerator } from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionSignal,
   ProposalSignalSource,
-} from "../../src/capability/evolution/a7-proposals.js";
+} from "../../src/capability/evolution/proposals.js";
 import type {
   CapabilityEvolutionCandidate,
 } from "../../src/adaptation/capability-evolution-types.js";
@@ -133,7 +133,7 @@ function buildSpiedSiblingService(
   eventLog: EventLog,
   signal: CapabilityEvolutionSignal,
 ): { service: CapabilityService; calls: ExecutorCall[] } {
-  const generator = new A7ProposalGenerator({
+  const generator = new CapabilityProposalGenerator({
     signalSource: new FakeSignalSource([signal]),
   });
   const { executor, calls } = makeExecutorSpy();
@@ -160,7 +160,7 @@ function buildSpyServiceWithSeam(
   platform: CapabilityPlatform,
   eventLog: EventLog,
 ): { service: CapabilityService; calls: ExecutorCall[] } {
-  const generator = new A7ProposalGenerator({
+  const generator = new CapabilityProposalGenerator({
     signalSource: new FakeSignalSource([]),
   });
   const { executor, calls } = makeExecutorSpy();

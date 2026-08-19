@@ -1,7 +1,7 @@
 /** Pure read-model assembly: canonical artifacts + source health → one
  *  immutable EvolutionProjectionSnapshot (Q-S1..S4, Q-C3b). Never a domain
  *  store; never rewrites canonical identities. */
-import type { A9Correlation, A9Forecast } from '../../../evolution/a9/contracts/a9-contract.js';
+import type { Correlation, Forecast } from '../../../evolution/forecast/contracts/contract.js';
 import type { GovernanceRecommendation } from '../../../evolution/verification/contracts/recommendation-contract.js';
 import { decisionKindToTargetState, recommendationKindToDecisionKind } from '../../../evolution/governance/decision-engine.js';
 import type { LearningFinding, LearningProposal } from '../../../evolution/learning/contracts/learning-contract.js';
@@ -42,8 +42,8 @@ export interface EvolutionAssemblerInputs {
   readonly generatedAt: number;
   readonly lifecycle: StageInput<LifecycleRow>;
   readonly learning: { readonly result: LearningProposal | null; readonly unavailable: boolean };
-  readonly forecasts: StageInput<A9Forecast>;
-  readonly correlations: StageInput<A9Correlation>;
+  readonly forecasts: StageInput<Forecast>;
+  readonly correlations: StageInput<Correlation>;
   readonly recommendations: StageInput<GovernanceRecommendation>;
   readonly measurements: StageInput<MeasurementRecord>;
   /** proposalId → target capabilityId (relayed proposal.submitted payloads). */
@@ -192,7 +192,7 @@ function collectCapabilityIds(inputs: EvolutionAssemblerInputs): string[] {
 
 /** Resolve a correlation's measurement to its capability (the spine groups
  *  correlations under the measured capability). Accepts the minimal structural
- *  shape (CorrelationRow or A9Correlation) — only `measurementId` is read. */
+ *  shape (CorrelationRow or Correlation) — only `measurementId` is read. */
 function measurementCapabilityId(c: { readonly measurementId: string }, measurements: StageState<MeasurementRow>): string | undefined {
   if (measurements.status !== 'available') return undefined;
   return measurements.items.find((m) => m.measurementId === c.measurementId)?.capabilityId;

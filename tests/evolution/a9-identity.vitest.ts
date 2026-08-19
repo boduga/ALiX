@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import type { A9ForecastContent, A9CorrelationContent } from "../../src/evolution/a9/contracts/a9-contract.js";
+import type { ForecastContent, CorrelationContent } from "../../src/evolution/forecast/contracts/contract.js";
 import {
   canonicalizeForecast,
   forecastIdFor,
   canonicalizeCorrelation,
   correlationIdFor,
-} from "../../src/evolution/a9/identity.js";
-import { buildForecast } from "../../src/evolution/a9/forecast-builder.js";
-import type { DetectorFinding } from "../../src/evolution/a9/contracts/a9-contract.js";
+} from "../../src/evolution/forecast/identity.js";
+import { buildForecast } from "../../src/evolution/forecast/forecast-builder.js";
+import type { DetectorFinding } from "../../src/evolution/forecast/contracts/contract.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -15,7 +15,7 @@ import type { DetectorFinding } from "../../src/evolution/a9/contracts/a9-contra
 
 const TIMESTAMP = "2026-08-14T00:00:00.000Z";
 
-function makeContent(overrides: Partial<A9ForecastContent> = {}): A9ForecastContent {
+function makeContent(overrides: Partial<ForecastContent> = {}): ForecastContent {
   return {
     forecastVersion: "1.0.0",
     subject: "prop-1",
@@ -66,7 +66,7 @@ describe("forecastIdFor — canonical forecast identity", () => {
   it("property insertion order does not change the ID (canonical key sorting)", () => {
     const a = makeContent();
     // Rebuild the same content with keys inserted in a different order.
-    const b: A9ForecastContent = {
+    const b: ForecastContent = {
       provenance: { ...a.provenance },
       confidence: a.confidence,
       horizon: { ...a.horizon },
@@ -89,7 +89,7 @@ describe("forecastIdFor — canonical forecast identity", () => {
     const forecast = buildForecast([makeFinding()], "prop-1", "cap-1", TIMESTAMP);
     // Rebuild the content (all fields except forecastId) and re-hash — the id
     // must not be part of its own canonical form.
-    const content: A9ForecastContent = {
+    const content: ForecastContent = {
       forecastVersion: forecast.forecastVersion,
       subject: forecast.subject,
       subjectCapability: forecast.subjectCapability,
@@ -112,7 +112,7 @@ describe("forecastIdFor — canonical forecast identity", () => {
   });
 
   it("storage order / JSONL sequence are not identity inputs (no such fields on content)", () => {
-    // A9ForecastContent has no seq / position / storage fields by construction;
+    // ForecastContent has no seq / position / storage fields by construction;
     // the type-level contract excludes them. Behaviorally, two content objects
     // that differ only in hypothetical storage metadata do not exist — but the
     // canonical form never mentions one, so identity is position-independent.
@@ -132,7 +132,7 @@ describe("forecastIdFor — canonical forecast identity", () => {
 // ---------------------------------------------------------------------------
 
 describe("correlationIdFor — canonical correlation identity", () => {
-  function makeCorrelation(overrides: Partial<A9CorrelationContent> = {}): A9CorrelationContent {
+  function makeCorrelation(overrides: Partial<CorrelationContent> = {}): CorrelationContent {
     return {
       correlationVersion: "1.0.0",
       forecastId: "f-1",
@@ -155,7 +155,7 @@ describe("correlationIdFor — canonical correlation identity", () => {
 
   it("correlationId is excluded from its own canonical content", () => {
     const content = makeCorrelation();
-    // A9CorrelationContent structurally lacks correlationId; canonicalization
+    // CorrelationContent structurally lacks correlationId; canonicalization
     // cannot include it.
     expect(canonicalizeCorrelation(content)).not.toContain("correlationId");
     expect(canonicalizeCorrelation(content)).not.toContain("seq");

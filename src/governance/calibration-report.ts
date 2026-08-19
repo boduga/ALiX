@@ -47,7 +47,7 @@ export interface CalibrationReport {
     direction: string;
     severity: string;
     confidence: number;
-    sampleSize: { p22CalibrationCount: number; p23ReplayCount: number; pairedLifecycleCount: number };
+    sampleSize: { calibrationCount: number; replayCount: number; pairedLifecycleCount: number };
     rates: Record<string, number | undefined>;
     rationale: readonly string[];
   }>;
@@ -134,7 +134,7 @@ export function renderCalibrationReportText(report: CalibrationReport): string {
     for (const s of report.signals) {
       out += `\n  [${s.kind}] ${s.direction} (${s.severity})\n`;
       out += `    Confidence: ${s.confidence}\n`;
-      out += `    Sample: P22=${s.sampleSize.p22CalibrationCount} P23=${s.sampleSize.p23ReplayCount} paired=${s.sampleSize.pairedLifecycleCount}\n`;
+      out += `    Sample: P22=${s.sampleSize.calibrationCount} P23=${s.sampleSize.replayCount} paired=${s.sampleSize.pairedLifecycleCount}\n`;
       for (const r of s.rationale) {
         out += `    ${r}\n`;
       }

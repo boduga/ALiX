@@ -21,7 +21,7 @@ const POLICY: ExecutionReadinessPolicy = {
   requireCompleteRollbackForReversible: true,
   blockExternalSideEffects: true,
   blockIrreversibleActions: true,
-  requireP18Visibility: true,
+  requireVisibility: true,
 };
 
 function action(
@@ -173,7 +173,7 @@ describe("buildExecutionReadinessReport", () => {
       irreversible: 0,
       reversible: 0,
       dryRunCapable: 0,
-      missingP18Visibility: 0,
+      missingVisibility: 0,
       futureCandidates: 0,
     });
   });
@@ -190,7 +190,7 @@ describe("buildExecutionReadinessReport", () => {
     assert.equal(report.items[0]!.assessmentId, pipeline.assessment.assessmentId);
     assert.equal(report.items[0]!.simulationId, pipeline.simulation.simulationId);
     assert.equal(report.items[0]!.decisionId, pipeline.decision.decisionId);
-    assert.equal(report.items[0]!.p18TracePresent, true);
+    assert.equal(report.items[0]!.tracePresent, true);
     assert.equal(report.totals.dryRunAllowed, 1);
   });
 
@@ -203,7 +203,7 @@ describe("buildExecutionReadinessReport", () => {
       lifecycleTraces: [],
       options: { now: NOW, since: WINDOW_START, until: "2026-07-09T00:00:00.000Z" },
     });
-    assert.equal(report.items[0]!.p18TracePresent, false);
+    assert.equal(report.items[0]!.tracePresent, false);
     assert.equal(report.items[0]!.requiresAttention, true);
     assert.equal(report.items[0]!.futureControlledExecutionCandidate, false);
     assert.ok(report.items[0]!.reasonCodes.includes("p18_visibility_missing"));

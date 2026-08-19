@@ -22,7 +22,7 @@ export interface ExecutionReadinessPolicy {
   requireCompleteRollbackForReversible: boolean;
   blockExternalSideEffects: true;
   blockIrreversibleActions: true;
-  requireP18Visibility: true;
+  requireVisibility: true;
 }
 
 export interface WorkbenchVisibilityEvidence {

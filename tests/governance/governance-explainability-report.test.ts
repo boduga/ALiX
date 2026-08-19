@@ -3,7 +3,7 @@
  *
  * Tests that text and JSON renderers produce correct output:
  * - stable section ordering
- * - P28_FOOTER included in text output
+ * - EXPLAINABILITY_REPORT_FOOTER included in text output
  * - JSON is parseable and structurally correct
  * - No I/O, no side effects, no writes
  *
@@ -17,7 +17,7 @@ import type { GovernanceExplanation, ExplanationSection } from "../../src/govern
 import {
   renderExplanationText,
   renderExplanationJson,
-  P28_FOOTER,
+  EXPLAINABILITY_REPORT_FOOTER,
 } from "../../src/governance/governance-explainability-report.js";
 
 // ---------------------------------------------------------------------------
@@ -120,13 +120,13 @@ describe("P28.3 — Governance Explainability Report", () => {
       }
     });
 
-    it("includes P28_FOOTER in output before P28-EXPLAIN-END", () => {
+    it("includes EXPLAINABILITY_REPORT_FOOTER in output before P28-EXPLAIN-END", () => {
       const explanation = fullExplanation();
       const output = renderExplanationText(explanation);
 
-      assert.ok(output.includes(P28_FOOTER), "output must contain P28_FOOTER");
+      assert.ok(output.includes(EXPLAINABILITY_REPORT_FOOTER), "output must contain EXPLAINABILITY_REPORT_FOOTER");
 
-      const footerIdx = output.indexOf(P28_FOOTER);
+      const footerIdx = output.indexOf(EXPLAINABILITY_REPORT_FOOTER);
       const endIdx = output.indexOf("P28-EXPLAIN-END");
       assert.ok(footerIdx < endIdx, "footer must appear before P28-EXPLAIN-END");
     });
@@ -241,12 +241,12 @@ describe("P28.3 — Governance Explainability Report", () => {
     });
   });
 
-  describe("P28_FOOTER constant", () => {
+  describe("EXPLAINABILITY_REPORT_FOOTER constant", () => {
     it("contains expected sections", () => {
-      assert.ok(P28_FOOTER.includes("P28 explains governance decisions already made."));
-      assert.ok(P28_FOOTER.includes("does not recommend, predict, or prescribe actions."));
-      assert.ok(P28_FOOTER.includes("No policy was changed. No thresholds were adjusted."));
-      assert.ok(P28_FOOTER.includes("No reviewers were ranked. No outcomes were predicted."));
+      assert.ok(EXPLAINABILITY_REPORT_FOOTER.includes("P28 explains governance decisions already made."));
+      assert.ok(EXPLAINABILITY_REPORT_FOOTER.includes("does not recommend, predict, or prescribe actions."));
+      assert.ok(EXPLAINABILITY_REPORT_FOOTER.includes("No policy was changed. No thresholds were adjusted."));
+      assert.ok(EXPLAINABILITY_REPORT_FOOTER.includes("No reviewers were ranked. No outcomes were predicted."));
     });
   });
 

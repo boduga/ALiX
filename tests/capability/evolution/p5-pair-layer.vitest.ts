@@ -38,11 +38,11 @@ import { CapabilityOverlapAnalyzer } from "../../../src/adaptation/capability-ov
 import type { CapabilityOverlap } from "../../../src/adaptation/capability-evolution-types.js";
 import type { CapabilityDefinition } from "../../../src/capability/canonical/definition.js";
 import {
-  A7ProposalGenerator,
+  CapabilityProposalGenerator,
   validateConsolidationOpportunitySignal,
   type CapabilityEvolutionSignal,
   type ProposalSignalSource,
-} from "../../../src/capability/evolution/a7-proposals.js";
+} from "../../../src/capability/evolution/proposals.js";
 import { ProposalSignalChannel } from "../../../src/capability/evolution/proposal-signal-channel.js";
 import {
   buildOverlapSignals,
@@ -390,7 +390,7 @@ describe("buildOverlapSignals — pair layer (ruling #543)", () => {
       signals: async () => overlapSource.signals(),
     };
 
-    const gen = new A7ProposalGenerator({ signalSource: a7Source });
+    const gen = new CapabilityProposalGenerator({ signalSource: a7Source });
     const candidates = await gen.generate();
     expect(candidates).toHaveLength(1);
     const [c] = candidates;
@@ -507,7 +507,7 @@ describe("compositeProposalSignalSource — composition-root helper", () => {
       identitySupplier: testStubIdentityAtoB,
     });
     const composite = compositeProposalSignalSource([channel, overlapSource]);
-    const gen = new A7ProposalGenerator({ signalSource: composite });
+    const gen = new CapabilityProposalGenerator({ signalSource: composite });
     const candidates = await gen.generate();
     expect(candidates).toHaveLength(2);
     const sourcePatterns = candidates.map((c) => c.sourcePatternId).sort();
