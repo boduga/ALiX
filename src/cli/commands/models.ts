@@ -296,18 +296,20 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "routing": handleModelsRouting,
 };
 
+const NO_FREE_MODELS_MESSAGE = "No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.";
+
 export async function handleModelsFree(args: string[]): Promise<void> {
   const { fetchFreeModelCatalog } = await import("../../providers/free-model-catalog.js");
   let models: Awaited<ReturnType<typeof fetchFreeModelCatalog>>;
   try {
     models = await fetchFreeModelCatalog();
   } catch (err) {
-    console.log("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+    console.log(NO_FREE_MODELS_MESSAGE);
     if (process.env.NODE_ENV === "test") console.error(String((err as Error)?.message ?? err));
     return;
   }
   if (models.length === 0) {
-    console.log("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+    console.log(NO_FREE_MODELS_MESSAGE);
     return;
   }
   if (args.includes("--json")) { console.log(JSON.stringify(models, null, 2)); return; }

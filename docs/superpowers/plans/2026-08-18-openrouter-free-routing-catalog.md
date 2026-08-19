@@ -619,12 +619,18 @@ tests/providers/free-model-catalog.vitest.ts
 
 ## Free semantics
 
+> **Correction (live-verified against the OpenRouter `/models` API):** the real
+> `pricing` object exposes `prompt` and `completion` only — the `pricing.request`
+> field documented at authoring time is **not present** on any catalog entry
+> (verified: 0/415 models carry it). `pricing.prompt === "0" && pricing.request === "0"`
+> therefore matches zero models and was a wrong assumption.
+
 A model is free when:
 
 ```ts
 pricing.prompt === "0"
 &&
-pricing.request === "0"
+pricing.completion === "0"
 ```
 
 This deliberately matches the intended `openrouter/free` semantics.
@@ -634,6 +640,7 @@ Do not infer free status merely from:
 ```text
 pricing.completion === "0"
 ```
+
 
 ---
 
@@ -993,6 +1000,28 @@ input-token requirement      → not derivable from the request; passed explicit
 ```
 
 Use `deriveRequestRequirements(request)` from Task 3. Do NOT invent a second request-capability vocabulary. If a future caller needs a concrete input-token requirement, it passes `maxInputTokens` explicitly — the resolver then applies the Task 3 conservative rule (unknown context capacity is rejected when a concrete requirement exists).
+
+> **Agent-tab tools requirement (post-authoring user directive):** the agent tab
+> always executes a tool loop, so the `openrouter/free` route forces
+> `needsTools: true` on the resolved requirements (`resolveConcreteModel` in
+> `openrouter-provider.ts` overrides `deriveRequestRequirements(request).needsTools`
+> to `true`). A plain request therefore still skips tool-less free models and lands
+> on a tools-capable one (e.g. `nvidia/nemotron-3-ultra-550b-a55b:free`). This is an
+> intentional, live-verified deviation from Task 3's "request-derived, as-is" rule, scoped to
+> the agent's tool-running need. `RoutingModelAdapter.complete/stream` (the explicit
+> fallback path) continue to use request-derived requirements unchanged.
+
+> **Streaming flush (post-review correction):** the SSE loop in `unified-complete.ts`
+> also drains the trailing `buffer` after the reader closes (when the final event has no
+> terminating newline — common for OpenRouter SSE). Without this flush a terminal
+> `[DONE]`/`done` chunk can be dropped, losing the `resolvedModel`. This flush is required by
+> INV-8 (the done chunk must carry `resolvedModel`) even though Task 1 Step 3 only sketched the
+> in-loop sniff. The shared `withResolvedModel()` helper keeps the enrichment in one place.
+
+> **Shared eligibility:** `resolveConcreteFreeModel` delegates to the shared
+> `supportsRequest` vocabulary via a `FreeModelInfo → ModelCapabilities` mapper (unknown
+> context maps to `-1` so the conservative rejection rule is preserved) — there is no
+> parallel eligibility check.
 
 ---
 

@@ -150,6 +150,8 @@ export type ModelAdapter = {
   capabilities: ModelCapabilities;
   editFormatPreference: "structured_patch" | "unified_diff" | "search_replace" | "full_file";
   longContextStrategy: "expanded_context" | "trimmed_context";
+  /** True for routing adapters that own their own fallback/committed-stream decision. */
+  isRoutingAdapter?: boolean;
   complete(request: NormalizedRequest): Promise<NormalizedResponse>;
   stream?(request: NormalizedRequest): AsyncGenerator<StreamChunk>;
   negotiate?(request: NormalizedRequest): Promise<NegotiatedCapabilities>;

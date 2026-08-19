@@ -50,12 +50,34 @@ export function supportsRequest(
 }
 
 /**
+ * Map a catalog entry onto the capability vocabulary shared with `supportsRequest`.
+ *
+ * `ModelCapabilities.inputTokenLimit` is `number` (never undefined); unknown
+ * catalog context maps to `-1` so the conservative rule in `supportsRequest`
+ * ("unknown context + required context → rejected") fires without re-implementing
+ * the eligibility checks here. This keeps the eligibility logic in ONE place
+ * (`supportsRequest`) shared by the free route and the routing candidates.
+ */
+function freeModelCapabilities(m: FreeModelInfo): ModelCapabilities {
+  return {
+    provider: "openrouter",
+    model: m.id,
+    inputTokenLimit: m.inputTokenLimit ?? -1,
+    outputTokenLimit: 0,
+    supportsTools: m.supportsTools,
+    supportsStreaming: true,
+    supportsStructuredOutput: m.supportsStructuredOutput,
+    supportsVision: m.supportsVision,
+  };
+}
+
+/**
  * Select the concrete free model for the given requirements.
  *
- * Eligibility: tools / structured-output / vision requirements plus context
- * capacity. Unknown context capacity is NOT treated as verified capacity — an
- * unknown-context model is ineligible when a concrete context requirement
- * exists (conservative rule).
+ * Eligibility is delegated to `supportsRequest` (the ONE capability vocabulary),
+ * with unknown context capacity treated as not-verified via the `-1` mapping in
+ * `freeModelCapabilities` — an unknown-context model is ineligible when a concrete
+ * context requirement exists (conservative rule).
  *
  * Selection is deterministic: largest verified input context first, then
  * lexical model-ID tie-break.
@@ -67,18 +89,7 @@ export function resolveConcreteFreeModel(
   catalog: FreeModelInfo[],
   requirements: FreeModelRequirements,
 ): FreeModelInfo | undefined {
-  const eligible = catalog.filter((m) => {
-    if (requirements.needsTools && !m.supportsTools) return false;
-    if (requirements.needsStructuredOutput && !m.supportsStructuredOutput) return false;
-    if (requirements.needsVision && !m.supportsVision) return false;
-    if (
-      requirements.maxInputTokens !== undefined &&
-      (m.inputTokenLimit === undefined || m.inputTokenLimit < requirements.maxInputTokens)
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const eligible = catalog.filter((m) => supportsRequest(freeModelCapabilities(m), requirements));
 
   if (eligible.length === 0) return undefined;
 

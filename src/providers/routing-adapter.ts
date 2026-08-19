@@ -19,16 +19,30 @@ export type RoutingCandidate = {
   adapter: ModelAdapter;
 };
 
-export async function buildRoutingAdapter(
-  model: ModelConfig,
-  apiKeyFor: (providerId: string) => string,
-): Promise<ModelAdapter> {
+/**
+ * Derive the ordered fallback `ModelConfig` list for a model config.
+ *
+ * Shared by `buildRoutingAdapter` (composition) and `describeRoutingChain`
+ * (CLI) so the fallback-chain shape is defined in exactly one place:
+ *
+ *   1. OpenRouter free fallback, if enabled and the primary is OpenRouter
+ *   2. explicit configured fallbacks
+ */
+export function buildFallbackChain(model: ModelConfig): ModelConfig[] {
   const routing = model.routing;
   const fallbackModels: ModelConfig[] = [];
   if (routing?.freeFallback && model.provider === "openrouter") {
     fallbackModels.push({ provider: "openrouter", name: "openrouter/free" });
   }
   if (routing?.fallbacks) fallbackModels.push(...routing.fallbacks);
+  return fallbackModels;
+}
+
+export async function buildRoutingAdapter(
+  model: ModelConfig,
+  apiKeyFor: (providerId: string) => string,
+): Promise<ModelAdapter> {
+  const fallbackModels = buildFallbackChain(model);
 
   if (fallbackModels.length === 0) {
     return createProvider({ provider: model.provider, model: model.name }, apiKeyFor(model.provider));

@@ -290,6 +290,20 @@ export async function complete(
   return response;
 }
 
+/**
+ * Augment a parsed stream chunk with the sniffed provider-reported model on the
+ * terminal done chunk. Shared by the line-loop body and the trailing-buffer
+ * flush so the done-chunk enrichment is not duplicated.
+ */
+function withResolvedModel(
+  chunk: StreamChunk | null,
+  streamModel: string | undefined,
+): StreamChunk | undefined {
+  if (chunk === null) return undefined;
+  if (chunk.type === "done" && streamModel) return { ...chunk, resolvedModel: streamModel };
+  return chunk;
+}
+
 export async function* stream(
   provider: string,
   model: string,
@@ -369,8 +383,8 @@ export async function* stream(
         }
 
         const chunk = spec.fromStreamChunk(trimmedLine);
-        if (chunk && chunk.type === "done" && streamModel) yield { ...chunk, resolvedModel: streamModel };
-        else if (chunk) yield chunk;
+        const out = withResolvedModel(chunk, streamModel);
+        if (out) yield out;
       }
     }
 
@@ -379,8 +393,8 @@ export async function* stream(
     if (buffer.trim() !== "") {
       const trimmedLine = buffer.trim();
       const chunk = spec.fromStreamChunk(trimmedLine);
-      if (chunk && chunk.type === "done" && streamModel) yield { ...chunk, resolvedModel: streamModel };
-      else if (chunk) yield chunk;
+      const out = withResolvedModel(chunk, streamModel);
+      if (out) yield out;
     }
   } catch (e: any) {
     yield { type: "error", error: `Stream read failed: ${e.message}` };
