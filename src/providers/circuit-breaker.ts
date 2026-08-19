@@ -51,6 +51,21 @@ export class CircuitBreaker {
     if (this.state === "half-open") this.state = "closed";
   }
 
+  /**
+   * Request entry check. Fast-fails while open and still cooling down;
+   * transitions open → half-open (probe) once cooldownMs elapses.
+   */
+  shouldAttempt(): boolean {
+    if (this.state === "open") {
+      if (Date.now() - this.lastFailureTime > this.opts.cooldownMs) {
+        this.state = "half-open";
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
   onFailure(): void {
     this.failureCount++;
     this.lastFailureTime = Date.now();
