@@ -85,7 +85,7 @@ function makeObjectiveReport(windowDays: number): ExecutiveObjectiveReport {
     derivedFrom: { priorityReportGeneratedAt: now, investigationIds: [] },
   };
   return {
-    schemaVersion: "p10.2.0",
+    schemaVersion: "executive_objective_v1",
     generatedAt: now,
     windowDays,
     objectives: [objective],

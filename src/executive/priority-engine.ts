@@ -73,7 +73,7 @@ export interface ExecutivePriorityEntry {
 }
 
 export interface ExecutivePriorityReport {
-  schemaVersion: "p10.1.0";
+  schemaVersion: "executive_priority_v1";
   generatedAt: string;
   windowDays: number;
   /** Sorted descending by priorityScore (highest priority first). */
@@ -151,7 +151,7 @@ export function buildPriorityReport(
   entries.sort((a, b) => b.priorityScore - a.priorityScore);
 
   return {
-    schemaVersion: "p10.1.0",
+    schemaVersion: "executive_priority_v1",
     generatedAt,
     windowDays: healthReport.windowDays,
     priorities: entries,

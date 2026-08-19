@@ -155,3 +155,22 @@ The 2026-08-18 sweep found zero collisions for the domain names, so all former �
 - CLI display labels `P24 (signal):`…`P29 (compliance):`, `P22=`/`P23=`, section headers `P24 Signal:`… — display text (field access renamed, labels kept).
 - Event/producer type strings `m09.metric`, `a9_pre_execution_risk_forecast`, `a8_organizational_learning`, telemetry namespace map `"m09."` → `"memory"`, SQL migration `0001_m09_kernel.sql` — persisted event-log / telemetry / migration contracts (renaming breaks history or parsers).
 - Test-local constants (`A9_ROOT` etc. in `a9-sentinel.vitest.ts`), milestone-labeled test file names (§4).
+
+### Schema-version tags — `p10.x` deprecated (2026-08-18)
+
+Executive subsystem `schemaVersion`/`dashboardVersion` tags were milestone-named (`p10.0.0`…`p10.9.0`). Deprecated to domain names:
+
+| Record | Legacy `p10.x` | Current |
+|---|---|---|
+| `ExecutiveHealthReport` | `p10.0.0` | `executive_health_v1` |
+| `ExecutivePriorityReport` | `p10.1.0` | `executive_priority_v1` |
+| `ExecutiveObjectiveReport` | `p10.2.0` | `executive_objective_v1` |
+| `ExecutiveOutcomeEvaluationReport` (inner) | `p10.5.0` | `outcome_evaluation_v1` |
+| `PersistedOutcomeReport` (envelope, gated) | `p10.5b.0` | `outcome_envelope_v1` |
+| `RecommendationReport` (envelope, gated) | `p10.7b.0` | `recommendation_report_v1` |
+| `ExecutiveDashboardReport.dashboardVersion` | `p10.9.0` | `executive_dashboard_v1` |
+
+- Envelope stores (`outcome-store.ts`, `recommendation-report-store.ts`) **dual-accept** the legacy value on read (`OUTCOME_ENVELOPE_VERSION`/`LEGACY_OUTCOME_ENVELOPE_VERSION`), so pre-0.6.0 persisted records still load. New writes stamp the domain tag.
+- In-memory reports (health/priority/objective/dashboard/outcome-inner) have no read-gate; writers + fixtures updated directly.
+- Policy for new code: **schema versions are domain-named** (`<record>_v<N>`). Milestone-named tags are only ever *frozen* legacy values, retired by dual-accept migration, never extended.
+- Not part of this deprecation: `p11.1.0` (correlation graph store), `p13.x` sourcePhase, `P14`/`X4` — separate milestone families left as-is (same frozen-legacy status).

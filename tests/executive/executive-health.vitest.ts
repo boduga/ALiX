@@ -117,9 +117,9 @@ afterEach(() => {
 });
 
 describe("buildExecutiveHealthReport", () => {
-  it("returns a p10.0.0 report with the expected top-level shape", async () => {
+  it("returns a executive_health_v1 report with the expected top-level shape", async () => {
     const report = await buildExecutiveHealthReport({ cwd, windowDays: 30, generatedAt: GENERATED_AT });
-    expect(report.schemaVersion).toBe("p10.0.0");
+    expect(report.schemaVersion).toBe("executive_health_v1");
     expect(report.generatedAt).toBe(GENERATED_AT);
     expect(report.windowDays).toBe(30);
     expect(typeof report.overallScore).toBe("number");

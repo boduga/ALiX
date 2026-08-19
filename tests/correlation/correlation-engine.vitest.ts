@@ -55,7 +55,7 @@ describe("CorrelationEngine", () => {
     // findBaseline can walk back through distinct older snapshots.
     for (let i = 7; i >= 0; i--) {
       await trendStore.save({
-        schemaVersion: "p10.0.0",
+        schemaVersion: "executive_health_v1",
         generatedAt: new Date(Date.now() - i * 86400000).toISOString(),
         windowDays: 7,
         overallScore: 80,
@@ -84,7 +84,7 @@ describe("CorrelationEngine", () => {
     // Save oldest-first: 4 snapshots at 7-day intervals
     for (let i = 3; i >= 0; i--) {
       await trendStore.save({
-        schemaVersion: "p10.0.0",
+        schemaVersion: "executive_health_v1",
         generatedAt: new Date(Date.now() - i * 7 * 86400000).toISOString(),
         windowDays: 7,
         overallScore: 80,

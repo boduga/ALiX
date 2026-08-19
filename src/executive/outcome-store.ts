@@ -31,8 +31,15 @@ import { buildOutcomeReportId } from "./outcome-report-id.js";
 // Public types
 // ---------------------------------------------------------------------------
 
+/** Current envelope schema version (domain-named per ADR-0014).
+ *  `p10.5b.0` is the deprecated legacy value — accepted on read for
+ *  backward compatibility with pre-0.6.0 persisted records. */
+export type OutcomeEnvelopeVersion = "outcome_envelope_v1" | "p10.5b.0";
+export const OUTCOME_ENVELOPE_VERSION: OutcomeEnvelopeVersion = "outcome_envelope_v1";
+export const LEGACY_OUTCOME_ENVELOPE_VERSION: OutcomeEnvelopeVersion = "p10.5b.0";
+
 export interface PersistedOutcomeReport {
-  schemaVersion: "p10.5b.0";
+  schemaVersion: OutcomeEnvelopeVersion;
   id: string;
   contentHash: string;
   report: ExecutiveOutcomeEvaluationReport;
@@ -79,7 +86,7 @@ export class OutcomeReportStore {
     const contentHash = sha256(JSON.stringify(report));
 
     const wrapper: PersistedOutcomeReport = {
-      schemaVersion: "p10.5b.0",
+      schemaVersion: OUTCOME_ENVELOPE_VERSION,
       id,
       contentHash,
       report,
@@ -116,7 +123,7 @@ export class OutcomeReportStore {
       );
     }
 
-    if (parsed.schemaVersion !== "p10.5b.0") {
+    if (parsed.schemaVersion !== OUTCOME_ENVELOPE_VERSION && parsed.schemaVersion !== LEGACY_OUTCOME_ENVELOPE_VERSION) {
       throw new OutcomeReportIntegrityError(
         `Outcome report ${reportId}: unknown schemaVersion "${parsed.schemaVersion}"`,
       );

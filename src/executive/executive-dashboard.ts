@@ -165,7 +165,7 @@ export interface DashboardMetadata {
   readonly correlationLagDays: number;
   readonly subsystemFilter?: string;
   readonly schemaVersion: 1;
-  readonly dashboardVersion: "p10.9.0";
+  readonly dashboardVersion: "executive_dashboard_v1";
   readonly sources: DashboardSources;
   readonly loadWarnings: readonly string[];
 }
@@ -592,7 +592,7 @@ export function buildDashboardReport(
     correlationLagDays: snapshot.subsystemCorrelationReport?.correlationLagDays ?? DEFAULT_CORRELATION_LAG,
     subsystemFilter: options.subsystemFilter,
     schemaVersion: 1,
-    dashboardVersion: "p10.9.0",
+    dashboardVersion: "executive_dashboard_v1",
     sources: {
       trendsLoaded: snapshot.trends !== null,
       recommendationsLoaded: snapshot.effectivenessResult !== null,

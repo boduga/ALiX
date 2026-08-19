@@ -372,7 +372,7 @@ describe("AutomaticOutcomeEvaluator", () => {
     writeFileSync(
       corruptPath,
       JSON.stringify({
-        schemaVersion: "p10.5b.0",
+        schemaVersion: "outcome_envelope_v1",
         id: reportId,
         contentHash: "0000000000000000000000000000000000000000000000000000000000000000",
         report: {

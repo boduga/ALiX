@@ -16,7 +16,7 @@ function makeReport(
 ): ExecutiveOutcomeEvaluationReport {
   const { planId, objectives, ...rest } = overrides;
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: "2026-06-25T00:00:00.000Z",
     planId,
     planStatus: "completed",

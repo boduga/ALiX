@@ -47,7 +47,7 @@ const OUTCOMES_DIR = join(".alix", "executive", "outcomes");
 
 function errorReport(planId: string, warnings: string[]): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: new Date().toISOString(),
     planId,
     planStatus: "draft" as PlanStatus,

@@ -52,7 +52,7 @@ function makeExecRec(over: Partial<ExecutiveRecommendation> = {}): ExecutiveReco
 function makeReport(recs: ExecutiveRecommendation[], generatedAt?: string): RecommendationReport {
   const ts = generatedAt ?? new Date().toISOString();
   return {
-    schemaVersion: "p10.7b.0",
+    schemaVersion: "recommendation_report_v1",
     id: "recommendation-test",
     contentHash: "x",
     report: {

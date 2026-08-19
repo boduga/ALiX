@@ -7,7 +7,7 @@ import type { ExecutiveOutcomeEvaluationReport } from "../../src/executive/outco
 
 function makeReport(overrides: Partial<ExecutiveOutcomeEvaluationReport> = {}): ExecutiveOutcomeEvaluationReport {
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt: "2026-06-25T12:00:00.000Z",
     planId: "plan-abc",
     planStatus: "completed",
@@ -97,6 +97,18 @@ describe("OutcomeReportStore", () => {
     expect(list.length).toBe(1);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it("loads a report persisted with the legacy p10.5b.0 envelope schemaVersion", () => {
+    const report = makeReport();
+    const id = store.save(report);
+    const path = join(tmpDir, `${id}.json`);
+    const raw = JSON.parse(readFileSync(path, "utf-8"));
+    raw.schemaVersion = "p10.5b.0";
+    writeFileSync(path, JSON.stringify(raw), "utf-8");
+    const loaded = store.load(id);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.planId).toBe("plan-abc");
   });
 
   it("save creates directory if missing", () => {

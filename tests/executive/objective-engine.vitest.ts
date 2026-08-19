@@ -34,7 +34,7 @@ function makePriorityEntry(overrides: Partial<ExecutivePriorityEntry> = {}): Exe
 
 function makeHealthReport(overrides: Partial<ExecutiveHealthReport> = {}): ExecutiveHealthReport {
   return {
-    schemaVersion: "p10.0.0",
+    schemaVersion: "executive_health_v1",
     generatedAt: "2026-06-24T12:00:00.000Z",
     windowDays: 90,
     overallScore: 75,
@@ -54,7 +54,7 @@ function makeHealthReport(overrides: Partial<ExecutiveHealthReport> = {}): Execu
 
 function makePriorityReport(overrides: Partial<ExecutivePriorityReport> = {}): ExecutivePriorityReport {
   return {
-    schemaVersion: "p10.1.0",
+    schemaVersion: "executive_priority_v1",
     generatedAt: "2026-06-24T12:00:00.000Z",
     windowDays: 90,
     priorities: [
@@ -174,9 +174,9 @@ describe("buildObjectiveReport", () => {
     expect(report.generatedAt).toBe("2026-06-24T12:00:00.000Z");
   });
 
-  it("sets schemaVersion to p10.2.0", () => {
+  it("sets schemaVersion to executive_objective_v1", () => {
     const report = buildObjectiveReport(makeHealthReport(), makePriorityReport(), []);
-    expect(report.schemaVersion).toBe("p10.2.0");
+    expect(report.schemaVersion).toBe("executive_objective_v1");
   });
 
   it("has status proposed on all new objectives", () => {

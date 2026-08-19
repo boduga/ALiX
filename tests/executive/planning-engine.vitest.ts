@@ -212,7 +212,7 @@ describe("resolveLocalDependencies", () => {
 describe("buildExecutionPlan", () => {
   function makeObjectiveReport(overrides: Partial<ExecutiveObjectiveReport> = {}): ExecutiveObjectiveReport {
     return {
-      schemaVersion: "p10.2.0",
+      schemaVersion: "executive_objective_v1",
       generatedAt: "2026-06-24T12:00:00.000Z",
       windowDays: 90,
       objectives: [

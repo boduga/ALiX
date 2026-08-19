@@ -13,7 +13,7 @@ import type { ExecutiveHealthReport } from "../../src/executive/executive-health
 
 function makeHealthReport(generatedAt: string): ExecutiveHealthReport {
   return {
-    schemaVersion: "p10.0.0",
+    schemaVersion: "executive_health_v1",
     generatedAt,
     windowDays: 90,
     overallScore: 78,

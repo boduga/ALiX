@@ -48,7 +48,7 @@ export interface ObjectiveOutcome {
 }
 
 export interface ExecutiveOutcomeEvaluationReport {
-  schemaVersion: "p10.5.0";
+  schemaVersion: "outcome_evaluation_v1";
   generatedAt: string;
   planId: string;
   planStatus: PlanStatus;
@@ -168,7 +168,7 @@ export function evaluatePlanOutcome(
   // ── Guard: plan not in a terminal/executed state ─────────────
   if (NOT_EXECUTED_STATUSES.includes(state.status)) {
     return {
-      schemaVersion: "p10.5.0",
+      schemaVersion: "outcome_evaluation_v1",
       generatedAt,
       planId: plan.id,
       planStatus: state.status,
@@ -183,7 +183,7 @@ export function evaluatePlanOutcome(
   // ── Guard: insufficient data ─────────────────────────────────
   if (!baseline || !current) {
     return {
-      schemaVersion: "p10.5.0",
+      schemaVersion: "outcome_evaluation_v1",
       generatedAt,
       planId: plan.id,
       planStatus: state.status,
@@ -239,7 +239,7 @@ export function evaluatePlanOutcome(
     : 0;
 
   return {
-    schemaVersion: "p10.5.0",
+    schemaVersion: "outcome_evaluation_v1",
     generatedAt,
     planId: plan.id,
     planStatus: state.status,
