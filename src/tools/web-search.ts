@@ -1,3 +1,5 @@
+import { getSavedApiKey } from "../cli/helpers/api-keys.js";
+
 export type WebSearchArgs = {
   query: string;
   count?: number;
@@ -24,9 +26,9 @@ export function webSearchTool() {
       required: ["query"],
     },
     async execute(args: WebSearchArgs): Promise<WebSearchResult> {
-      const apiKey = process.env.BRAVE_API_KEY;
+      const apiKey = await getSavedApiKey("brave");
       if (!apiKey) {
-        return { ok: false, error: "BRAVE_API_KEY env var not set. Get a free key at https://api.search.brave.com/app/dashboard" };
+        return { ok: false, error: "Brave API key not configured. Store it with: alix credential set brave apiKey <value> (get a free key at https://api.search.brave.com/app/dashboard)" };
       }
 
       const count = Math.min(Math.max(args.count ?? 5, 1), 10);

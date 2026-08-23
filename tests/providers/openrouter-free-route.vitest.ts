@@ -116,4 +116,51 @@ describe("openrouter/free route", () => {
     const done = chunks.find((c) => c.type === "done");
     expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
   });
+
+  it("retries with a different free model on account-rejection (404 allowed-providers) — complete", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "stealth/ox-alpha", name: "Stealth", context_length: 200_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    const requested: string[] = [];
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      const m = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model ?? "";
+      requested.push(m);
+      if (m === "stealth/ox-alpha") {
+        return new Response(JSON.stringify({ error: { message: "No allowed providers are available for the selected model. Providers serving stealth/ox-alpha: stealth, but your account's allowed-providers setting permits only: openai, deepseek" } }), { status: 404, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ model: m, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+    const res = await provider.complete(req);
+    expect(requested).toEqual(["stealth/ox-alpha", "qwen/qwen3-14b:free"]);
+    expect(res.resolvedModel).toBe("qwen/qwen3-14b:free");
+  });
+
+  it("retries with a different free model on account-rejection in streaming", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "stealth/ox-alpha", name: "Stealth", context_length: 200_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    const requested: string[] = [];
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      const m = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model ?? "";
+      requested.push(m);
+      if (m === "stealth/ox-alpha") {
+        return new Response(JSON.stringify({ error: { message: "No allowed providers are available for the selected model." } }), { status: 404, headers: { "Content-Type": "application/json" } });
+      }
+      const lines = [
+        `data: {"id":"x","model":"${m}","choices":[{"delta":{"content":"hi"}}]}`,
+        `data: {"id":"x","model":"${m}","choices":[{"delta":{},"finish_reason":"stop"}]}`,
+        "data: [DONE]",
+      ];
+      return new Response(lines.join("\n"), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+    const chunks = [];
+    for await (const c of provider.stream(req)) chunks.push(c);
+    expect(requested).toEqual(["stealth/ox-alpha", "qwen/qwen3-14b:free"]);
+    const done = chunks.find((c) => c.type === "done");
+    expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
+  });
 });

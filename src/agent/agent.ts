@@ -114,8 +114,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   });
 
   const model = resolveModelConfig(config);
-  const apiKeyFor = (pid: string): string =>
-    config.apiKeys?.[pid] ?? process.env[`${pid.toUpperCase()}_API_KEY`] ?? "";
+  const apiKeyFor = (pid: string): string => config.apiKeys?.[pid] ?? "";
   const provider = await buildRoutingAdapter(model, apiKeyFor);
   const editFormatPolicy = buildEditFormatPolicy({ provider: model.provider, preferred: provider.editFormatPreference });
 

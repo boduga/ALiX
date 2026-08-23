@@ -1,11 +1,15 @@
 /**
  * API-key resolution shared by all CLI commands that touch a provider's key.
  *
- * Resolution order (spec §7):
- *   1. Environment variable -> process.env[<provider.env>]
- *   2. User config         -> ~/.config/alix/config.json `apiKeys[providerId]`
- *   3. Ollama              -> empty string ("") - local, no key needed
- *   4. Otherwise           -> undefined
+ * API key resolution (store-only; spec §7, amended — durable user decision:
+ * no environment-variable-first resolution for any current or future key).
+ *
+ *   1. User config / credential store -> ~/.config/alix/config.json
+ *      `apiKeys[providerId]` (a literal key, or a `cred://<provider>/<keyLabel>`
+ *      reference resolved through the encrypted credential store).
+ *      Environment variables are NOT consulted.
+ *   2. Ollama                         -> empty string ("") - local, no key
+ *   3. Otherwise                     -> undefined
  *
  * Never throws. Missing files / malformed JSON / absent providers all resolve
  * safely to "no key found" without surfacing I/O errors to callers.
@@ -141,16 +145,13 @@ export async function getApiKey(providerId: string): Promise<string | undefined>
   const provider = PROVIDERS.find((p) => p.id === providerId);
   if (!provider) return undefined;
 
-  // 1. Environment variable - always wins.
-  if (process.env[provider.env]) return process.env[provider.env];
-
-  // 2. User config.
+  // 1. User config / credential store (cred://<provider>/<keyLabel>).
   const saved = await getSavedApiKey(providerId);
   if (saved) return saved;
 
-  // 3. Ollama - empty string (spec §7: "Empty string for Ollama").
+  // 2. Ollama - empty string (spec §7: "Empty string for Ollama").
   if (providerId === "ollama") return "";
 
-  // 4. None.
+  // 3. None.
   return undefined;
 }

@@ -113,16 +113,16 @@ describe("setApiKey", () => {
 });
 
 describe("getApiKey", () => {
-  it("returns env var value when set, ignoring user config", async () => {
+  it("ignores env var and returns user-config value when both are set", async () => {
     const path = join(tmpDir, "config.json");
     const fs = await import("node:fs/promises");
     await fs.writeFile(path, JSON.stringify({ apiKeys: { openai: "sk-user" } }));
     _setUserConfigPathOverride(path);
     process.env.OPENAI_API_KEY = "sk-env";
-    expect(await getApiKey("openai")).toBe("sk-env");
+    expect(await getApiKey("openai")).toBe("sk-user");
   });
 
-  it("falls back to user config when no env var set", async () => {
+  it("returns user config value when no env var is set", async () => {
     const path = join(tmpDir, "config.json");
     const fs = await import("node:fs/promises");
     await fs.writeFile(path, JSON.stringify({ apiKeys: { openai: "sk-user" } }));
@@ -130,12 +130,19 @@ describe("getApiKey", () => {
     expect(await getApiKey("openai")).toBe("sk-user");
   });
 
-  it("returns empty string for ollama with no env or user config", async () => {
+  it("ignores a stray env var when no config key exists", async () => {
+    // Store-only: an env var must never authenticate on its own.
+    _setUserConfigPathOverride(join(tmpDir, "missing.json"));
+    process.env.OPENAI_API_KEY = "sk-env";
+    expect(await getApiKey("openai")).toBeUndefined();
+  });
+
+  it("returns empty string for ollama with no user config", async () => {
     _setUserConfigPathOverride(join(tmpDir, "missing.json"));
     expect(await getApiKey("ollama")).toBe("");
   });
 
-  it("returns undefined for non-ollama with no env or user config", async () => {
+  it("returns undefined for non-ollama with no user config", async () => {
     _setUserConfigPathOverride(join(tmpDir, "missing.json"));
     expect(await getApiKey("openai")).toBeUndefined();
   });

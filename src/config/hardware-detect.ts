@@ -86,8 +86,7 @@ function detectAPIProviders(config: Record<string, unknown>): Record<string, { c
   const models = config.models as Record<string, Record<string, unknown>> | undefined;
 
   for (const p of known) {
-    const envKey = `${p.toUpperCase()}_API_KEY`;
-    const hasKey = !!apiKeys[p] || !!process.env[envKey];
+    const hasKey = !!apiKeys[p];
     const configured = model?.provider === p || (models && Object.values(models).some((m: any) => m?.provider === p)) || !!apiKeys[p];
     providers[p] = { configured, hasKey };
   }

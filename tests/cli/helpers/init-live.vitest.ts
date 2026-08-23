@@ -10,23 +10,11 @@
 import { describe, it, expect } from "vitest";
 import { getAvailableModels } from "../../../src/cli/helpers/provider-selection.js";
 
+// Store-only auth: env vars no longer authenticate providers, so the live
+// suites gate exclusively on the explicit *_LIVE=1 opt-in. A key in the
+// credential store is required to actually run (set via `alix credential set`).
 function live(providerId: string): boolean {
-  const providerEnv = process.env[`${providerId.toUpperCase()}_LIVE`] === "1";
-  const hasKey = Boolean(process.env[getEnvName(providerId)]);
-  return providerEnv || hasKey;
-}
-
-function getEnvName(providerId: string): string {
-  const map: Record<string, string> = {
-    openai: "OPENAI_API_KEY",
-    anthropic: "ANTHROPIC_API_KEY",
-    google: "GEMINI_API_KEY",
-    deepseek: "DEEPSEEK_API_KEY",
-    groq: "GROQ_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    perplexity: "PERPLEXITY_API_KEY",
-  };
-  return map[providerId] ?? `${providerId.toUpperCase()}_API_KEY`;
+  return process.env[`${providerId.toUpperCase()}_LIVE`] === "1";
 }
 
 // vitest 4.x: `describe.skipIf(condition)(name, fn)` or `describe.runIf(condition)(name, fn)`.

@@ -22,7 +22,7 @@ export interface ProviderAvailability {
   env: string;
   hint: string;
   available: boolean;
-  apiKeySource: "environment" | "user-config" | "ollama" | "none";
+  apiKeySource: "user-config" | "ollama" | "none";
   reason?: string;
 }
 
@@ -57,12 +57,7 @@ export async function resolveProviders(): Promise<ProviderAvailability[]> {
       out.push({ id: p.id, name: p.name, env: p.env, hint: p.hint, available: false, apiKeySource: "none" });
       continue;
     }
-    // Distinguish env vs user-config by checking env first.
-    if (process.env[p.env]) {
-      out.push({ id: p.id, name: p.name, env: p.env, hint: p.hint, available: true, apiKeySource: "environment" });
-    } else {
-      out.push({ id: p.id, name: p.name, env: p.env, hint: p.hint, available: true, apiKeySource: "user-config" });
-    }
+    out.push({ id: p.id, name: p.name, env: p.env, hint: p.hint, available: true, apiKeySource: "user-config" });
   }
   return out;
 }
@@ -273,15 +268,14 @@ export async function selectFromList<T>(
  * Interactive provider picker — only considers providers with
  * `available === true`. Returns the chosen provider id or `null`.
  *
- * Ordering (spec §13): environment → user-config → ollama. Within each
+ * Ordering (spec §13): user-config → ollama. Within each
  * tier, original `avail` array order (i.e. PROVIDERS array order) is
  * preserved.
  */
 const SOURCE_PRIORITY: Record<ProviderAvailability["apiKeySource"], number> = {
-  environment: 0,
-  "user-config": 1,
-  ollama: 2,
-  none: 3,
+  "user-config": 0,
+  ollama: 1,
+  none: 2,
 };
 
 export async function selectProviderInteractive(

@@ -82,14 +82,20 @@ function freeModelCapabilities(m: FreeModelInfo): ModelCapabilities {
  * Selection is deterministic: largest verified input context first, then
  * lexical model-ID tie-break.
  *
+ * `exclude` holds model ids already attempted in this request's self-healing
+ * retry loop (openrouter-provider free route) and must not be re-selected.
+ *
  * Returns undefined when no model is eligible. The selection is computed per
  * call — it is never cached (the catalog is cached, the choice is not).
  */
 export function resolveConcreteFreeModel(
   catalog: FreeModelInfo[],
   requirements: FreeModelRequirements,
+  exclude: Set<string> = new Set(),
 ): FreeModelInfo | undefined {
-  const eligible = catalog.filter((m) => supportsRequest(freeModelCapabilities(m), requirements));
+  const eligible = catalog.filter(
+    (m) => !exclude.has(m.id) && supportsRequest(freeModelCapabilities(m), requirements),
+  );
 
   if (eligible.length === 0) return undefined;
 

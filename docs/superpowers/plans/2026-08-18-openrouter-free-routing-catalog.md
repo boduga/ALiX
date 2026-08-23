@@ -218,6 +218,15 @@ Non-retryable errors such as:
 
 must not be silently converted into fallback attempts.
 
+> **OpenRouter `openrouter/free` route exception:** a 403/404 whose body carries
+> OpenRouter's account-`allowed-providers` rejection (message matches
+> `allowed-providers|No allowed providers are available`) is *not* a retryable
+> transport error — it is a signal that the resolved free model is served by a
+> provider the caller's account has not opted into. The free route re-resolves to a
+> *different* concrete free model (excluding the rejected id) and retries once per
+> candidate via the catalog; other 403/404 bodies remain terminal. This re-resolution is
+> exclude-driven, not a blanket retry, so INV-7's no-silent-fallback guarantee holds.
+
 ---
 
 ## INV-8 — `resolvedModel` is optional and additive
@@ -960,27 +969,57 @@ function isFreeRoute(model: string): boolean {
   return model === FREE_ROUTE_MODEL || model.endsWith(":free");
 }
 
-async function resolveConcreteModel(request: NormalizedRequest): Promise<string> {
+async function resolveConcreteModel(
+  request: NormalizedRequest,
+  exclude: Set<string> = new Set(),
+): Promise<FreeModelInfo | undefined> {
   const catalog = await fetchFreeModelCatalog();
-  const resolved = resolveConcreteFreeModel(catalog, deriveRequestRequirements(request));
-  if (!resolved) {
-    throw new Error("No OpenRouter free model satisfies the request requirements");
-  }
-  return resolved.id;
+  // The agent tab always runs a tool loop, so the free route must always land
+  // on a tools-capable model regardless of the request's tools array.
+  const requirements = { ...deriveRequestRequirements(request), needsTools: true };
+  return resolveConcreteFreeModel(catalog, requirements, exclude);
 }
 ```
 
-No `cachedConcrete` holder exists anywhere — the catalog caches, the selection never does. `complete` and `stream` resolve per request:
+No `cachedConcrete` holder exists anywhere — the catalog caches, the selection never does. `complete`/`stream` resolve per request and re-resolve (excluding rejected ids) on an account-rejection:
 
 ```ts
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    const model = isFreeRoute(this._model) ? await resolveConcreteModel(request) : this._model;
-    return complete("openrouter", model, request, { apiKey: this._apiKey });
+    if (!isFreeRoute(this._model)) return complete("openrouter", this._model, request, { apiKey: this._apiKey });
+    const tried: string[] = [];
+    for (;;) {
+      const resolved = await resolveConcreteModel(request, new Set(tried));
+      if (!resolved) throw new Error("No OpenRouter free model satisfies the request requirements");
+      try {
+        const res = await complete("openrouter", resolved.id, request, { apiKey: this._apiKey });
+        if (!res.resolvedModel) res.resolvedModel = resolved.id;
+        return res;
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 403 || err.status === 404) && isAccountRejection(err.detail)) {
+          tried.push(resolved.id);
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
-    const model = isFreeRoute(this._model) ? await resolveConcreteModel(request) : this._model;
-    yield* stream("openrouter", model, request, { apiKey: this._apiKey });
+    if (!isFreeRoute(this._model)) { yield* stream("openrouter", this._model, request, { apiKey: this._apiKey }); return; }
+    const tried: string[] = [];
+    for (;;) {
+      const resolved = await resolveConcreteModel(request, new Set(tried));
+      if (!resolved) throw new Error("No OpenRouter free model satisfies the request requirements");
+      let committed = false;
+      let rejectedByAccount = false;
+      for await (const chunk of stream("openrouter", resolved.id, request, { apiKey: this._apiKey })) {
+        if (chunk.type !== "done" && chunk.type !== "error") committed = true;
+        if (chunk.type === "error" && !committed && isAccountRejection(chunk.error)) { rejectedByAccount = true; break; }
+        yield chunk;
+      }
+      if (rejectedByAccount) { tried.push(resolved.id); continue; }
+      return;
+    }
   }
 ```
 
@@ -1036,6 +1075,9 @@ request requiring tools rejects tool-less models
 request requiring large context rejects undersized models
 no eligible model produces clear error
 two sequential incompatible requests resolve independently
+account-rejected free model retries a different concrete free model (complete, exclude-driven)
+account-rejected free model retries a different concrete free model (streaming, before first token)
+non-account 403/404 remains terminal (no retry)
 ```
 
 ---

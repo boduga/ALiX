@@ -1,24 +1,34 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { webSearchTool } from "../../src/tools/web-search.js";
+import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
 
 describe("webSearchTool", () => {
+  let tmpDir: string;
   let originalFetch: typeof fetch;
-  let originalKey: string | undefined;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
-    originalKey = process.env.BRAVE_API_KEY;
+    tmpDir = mkdtempSync(join(tmpdir(), "alix-ws-test-"));
+    // Store-only: the Brave key is supplied via user-config (a literal key is
+    // returned directly by getSavedApiKey), never via a BRAVE_API_KEY env var.
+    _setUserConfigPathOverride(join(tmpDir, "missing.json"));
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    if (originalKey !== undefined) {
-      process.env.BRAVE_API_KEY = originalKey;
-    } else {
-      delete process.env.BRAVE_API_KEY;
-    }
+    _setUserConfigPathOverride(undefined);
+    rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  function setBraveKey(key: string) {
+    const path = join(tmpDir, "config.json");
+    writeFileSync(path, JSON.stringify({ apiKeys: { brave: key } }));
+    _setUserConfigPathOverride(path);
+  }
 
   it("returns a tool definition", () => {
     const tool = webSearchTool();
@@ -28,7 +38,7 @@ describe("webSearchTool", () => {
   });
 
   it("returns top results from Brave API", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
+    setBraveKey("test-key");
     const mockResults = {
       web: {
         results: [
@@ -53,7 +63,7 @@ describe("webSearchTool", () => {
   });
 
   it("respects count parameter", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
+    setBraveKey("test-key");
     let capturedUrl = "";
     globalThis.fetch = (async (url) => {
       capturedUrl = String(url);
@@ -66,15 +76,15 @@ describe("webSearchTool", () => {
   });
 
   it("returns error when API key missing", async () => {
-    delete process.env.BRAVE_API_KEY;
     const tool = webSearchTool();
     const result = await tool.execute({ query: "test" });
     assert.equal(result.ok, false);
-    assert.ok(result.error?.includes("BRAVE_API_KEY"));
+    assert.ok(result.error?.includes("credential"));
+    assert.ok(!String(result.error).includes("BRAVE_API_KEY"));
   });
 
   it("returns error on API failure", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
+    setBraveKey("test-key");
     globalThis.fetch = (async () => {
       return new Response("rate limited", { status: 429 });
     }) as typeof fetch;
@@ -86,7 +96,7 @@ describe("webSearchTool", () => {
   });
 
   it("URL-encodes the query", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
+    setBraveKey("test-key");
     let capturedUrl = "";
     globalThis.fetch = (async (url) => {
       capturedUrl = String(url);

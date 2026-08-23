@@ -82,6 +82,19 @@ describe("resolveConcreteFreeModel", () => {
     expect(forPlain?.id).toBe("plain");
     expect(forVision?.id).toBe("vision");
   });
+
+  it("excludes already-tried ids from the self-healing retry loop", () => {
+    const catalog = [
+      model({ id: "a/free", inputTokenLimit: 64_000 }),
+      model({ id: "b/free", inputTokenLimit: 64_000 }),
+    ];
+    const reqs = { needsTools: false, needsStructuredOutput: false, needsVision: false };
+    // Same-size tie breaks lexical -> "a/free" first.
+    expect(resolveConcreteFreeModel(catalog, reqs)?.id).toBe("a/free");
+    // Excluding "a/free" must yield "b/free" without reordering the input.
+    expect(resolveConcreteFreeModel(catalog, reqs, new Set(["a/free"]))?.id).toBe("b/free");
+    expect(resolveConcreteFreeModel(catalog, reqs, new Set(["a/free", "b/free"]))).toBeUndefined();
+  });
 });
 
 describe("deriveRequestRequirements", () => {

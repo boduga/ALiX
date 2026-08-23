@@ -120,6 +120,7 @@ Default section order:
 ## User Preferences
 
 - When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md.
+- **Store-only API key resolution (durable).** Provider API keys are resolved exclusively from the user config / credential store (`~/.config/alix/config.json` `apiKeys` — literals or `cred://<provider>/<keyLabel>` references). Environment variables are NOT consulted at any key-resolution site: `getApiKey` (cli/helpers/api-keys.ts), `agent.ts apiKeyFor`, `skills/factory.ts`, `tools/web-search.ts` (Brave), and `cli/commands/tui.ts`. The config loader still injects resolved store secrets into `process.env` at load time (ephemeral in-memory only) so provider SDKs keep working — this is injection, not env-first resolution. Tests that previously set `*_API_KEY` env vars now write a user-config file via `writeApiKeyConfig`.
 - Always use the `caveman` skill for user-facing communication. Keep full technical accuracy; suspend compression only when its auto-clarity exception applies.
 - Prefer subagent-driven development with two-stage review (spec compliance → code quality).
 - Keep Inspector read-only; do not add POST endpoints for execution.

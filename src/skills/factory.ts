@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { getSavedApiKey } from "../cli/helpers/api-keys.js";
 import { createProvider } from "../providers/registry.js";
 import type { SkillFactoryConfig } from "../config/schema.js";
 import type { DispatchParams } from "./dispatcher.js";
@@ -25,9 +26,10 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
   const prompt = buildDistillationPrompt(params);
 
   // Call Ollama
+  const apiKey = (await getSavedApiKey(params.config.provider)) ?? "";
   const provider = await createProvider(
     { provider: params.config.provider, model: params.config.model },
-    process.env[`${params.config.provider.toUpperCase()}_API_KEY`]
+    apiKey
   );
 
   let skillContent = "";

@@ -278,10 +278,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     const configuredModel = tryResolveModelConfig(config);
     const braveSearch = webSearchTool();
     const chatSearchTool = async (query: string): Promise<string> => {
-      // Brave Search is opt-in via BRAVE_API_KEY. When unset, return ''
-      // so the chat path gracefully degrades (still gets the model's
-      // training-data answer, no search context).
-      if (!process.env.BRAVE_API_KEY) return '';
+      // Brave Search is opt-in via the credential store (`cred://brave/apiKey`).
+      // When unset, execute() returns a graceful error and we return '' so the
+      // chat path degrades (still gets the model's training-data answer).
       const result = await braveSearch.execute({ query, count: 5 });
       if (!result.ok || !result.data) return '';
       return result.data.results

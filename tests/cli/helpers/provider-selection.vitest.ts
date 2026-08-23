@@ -18,6 +18,16 @@ import { _setUserConfigPathOverride } from "../../../src/cli/helpers/api-keys.js
 import { PROVIDERS } from "../../../src/providers/catalog.js";
 import { parseInitArgs } from "../../../src/cli/helpers/init-args.js";
 
+/** Write a user-config `apiKeys` file into the per-test tmp dir and point the
+ *  config seam at it. Replaces env-var key injection now that provider key
+ *  resolution is store-only (env vars never authenticate — spec §7 amended). */
+async function writeApiKeyConfig(apiKeys: Record<string, string>) {
+  const path = join(tmpDir, "config.json");
+  const fs = await import("node:fs/promises");
+  await fs.writeFile(path, JSON.stringify({ apiKeys }));
+  _setUserConfigPathOverride(path);
+}
+
 const ALL_ENV_VARS = PROVIDERS.map((p) => p.env);
 let savedEnv: Record<string, string | undefined>;
 let tmpDir: string;
@@ -54,12 +64,12 @@ describe("resolveProviders", () => {
     expect(result.map((p) => p.id)).toEqual(PROVIDERS.map((p) => p.id));
   });
 
-  it("marks providers with env-var key as available + apiKeySource='environment'", async () => {
+  it("does not authenticate from env var alone (store-only)", async () => {
     process.env.OPENAI_API_KEY = "sk-x";
     const result = await resolveProviders();
     const openai = result.find((p) => p.id === "openai")!;
-    expect(openai.available).toBe(true);
-    expect(openai.apiKeySource).toBe("environment");
+    expect(openai.available).toBe(false);
+    expect(openai.apiKeySource).toBe("none");
   });
 
   it("marks providers with user-config key as available + apiKeySource='user-config'", async () => {
@@ -90,7 +100,7 @@ describe("resolveProviders", () => {
 describe("getAvailableModels", () => {
   it("returns the live list when fetch succeeds", async () => {
     // Provide an env key so getApiKey resolves, then verify model list comes back.
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () =>
       new Response(JSON.stringify({ data: [{ id: "gpt-5", display_name: "GPT-5" }] }), {
         status: 200,
@@ -103,7 +113,7 @@ describe("getAvailableModels", () => {
   });
 
   it("retries once on transient 5xx and returns the second result", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     let calls = 0;
     const fakeFetch = vi.fn(async () => {
       calls++;
@@ -119,7 +129,7 @@ describe("getAvailableModels", () => {
   });
 
   it("falls back to getDefaultModel single-entry list after retry also fails", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
     const result = await getAvailableModels("openai", fakeFetch);
     expect(result).toEqual([{ id: "gpt-4o", displayName: "gpt-4o" }]); // DEFAULT_MODELS.openai
@@ -128,7 +138,7 @@ describe("getAvailableModels", () => {
   });
 
   it("caches the result and does not re-fetch on subsequent calls", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () =>
       new Response(JSON.stringify({ data: [{ id: "gpt-5" }] }), {
         status: 200,
@@ -141,7 +151,7 @@ describe("getAvailableModels", () => {
   });
 
   it("warns once per provider per process even when called multiple times", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
     await getAvailableModels("openai", fakeFetch);
     await getAvailableModels("openai", fakeFetch);
@@ -149,7 +159,7 @@ describe("getAvailableModels", () => {
   });
 
   it("does not retry on permanent 4xx failures (auth/not-found) — only 1 fetch call", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
     const result = await getAvailableModels("openai", fakeFetch);
     expect(fakeFetch).toHaveBeenCalledTimes(1);
@@ -159,7 +169,7 @@ describe("getAvailableModels", () => {
   });
 
   it("warns exactly once per provider even after a cache reset between two failures", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
     await getAvailableModels("openai", fakeFetch);
     _clearModelCache();
@@ -221,17 +231,16 @@ describe("selectProviderInteractive", () => {
     expect(id).toBe("openai");
   });
 
-  it("orders providers by apiKeySource priority: environment > user-config > ollama", async () => {
-    // Force deterministic ordering: openai=env, anthropic=user-config, ollama=available.
-    process.env.OPENAI_API_KEY = "sk-x";
-    const path = join(tmpDir, "config.json");
-    const fs = await import("node:fs/promises");
-    await fs.writeFile(path, JSON.stringify({ apiKeys: { anthropic: "sk-a" } }));
-    _setUserConfigPathOverride(path);
-
+  it("orders providers by apiKeySource priority: user-config > ollama", async () => {
+    // openai gets a user-config (store) key; ollama is local. user-config
+    // (priority 0) must rank before ollama (priority 1).
+    await writeApiKeyConfig({ openai: "sk-x" });
     const avail = await resolveProviders();
+    const openai = avail.find((p) => p.id === "openai")!;
+    expect(openai && openai.available && openai.apiKeySource === "user-config").toBeTruthy();
+
     const providers = [
-      ...avail.filter((p) => p.id === "openai" || p.id === "anthropic"),
+      openai,
       {
         id: "ollama",
         name: "Ollama",
@@ -241,26 +250,17 @@ describe("selectProviderInteractive", () => {
         apiKeySource: "ollama" as const,
       },
     ];
-    // The function is called indirectly via selectFromList; we verify by
-    // the rendered list order — capture promptFn calls.
     const calls: string[] = [];
     const promptFn = async (q: string) => {
       calls.push(q);
       return "1";
     };
     const id = await selectProviderInteractive(providers, promptFn);
-    expect(id).toBe("openai"); // env-first wins selection of "1"
-    // The header should mention env-sourced openai before user-sourced anthropic.
+    expect(id).toBe("openai");
     const header = calls[0] ?? "";
-    const idxOpenai = header.indexOf("OpenAI");
-    const idxAnthropic = header.indexOf("Anthropic");
-    const idxOllama = header.indexOf("Ollama");
-    expect(idxOpenai).toBeGreaterThan(-1);
-    expect(idxAnthropic).toBeGreaterThan(-1);
-    expect(idxOllama).toBeGreaterThan(-1);
-    expect(idxOpenai).toBeLessThan(idxAnthropic);
-    expect(idxOllama).toBeGreaterThan(idxOpenai);
-    expect(idxOllama).toBeGreaterThan(idxAnthropic);
+    expect(header.indexOf("OpenAI")).toBeGreaterThanOrEqual(0);
+    expect(header.indexOf("Ollama")).toBeGreaterThanOrEqual(0);
+    expect(header.indexOf("OpenAI")).toBeLessThan(header.indexOf("Ollama"));
   });
 });
 
@@ -281,7 +281,7 @@ describe("resolveInitialProviderAndModel — auto mode", () => {
     const origIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
     try {
-      process.env.OPENAI_API_KEY = "sk-x";
+      await writeApiKeyConfig({ openai: "sk-x" });
       const res = await resolveInitialProviderAndModel({ help: false });
       expect(res.providerId).toBe("openai");
       expect(typeof res.modelId).toBe("string");
@@ -293,7 +293,7 @@ describe("resolveInitialProviderAndModel — auto mode", () => {
 
 describe("resolveInitialProviderAndModel — flagged mode", () => {
   it("uses --provider + validates --model against live list", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () =>
       new Response(JSON.stringify({ data: [{ id: "gpt-5" }, { id: "gpt-4o" }] }), {
         status: 200,
@@ -312,7 +312,7 @@ describe("resolveInitialProviderAndModel — flagged mode", () => {
   });
 
   it("throws on invalid --model not present in live list", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () =>
       new Response(JSON.stringify({ data: [{ id: "gpt-5" }] }), {
         status: 200,
@@ -329,7 +329,7 @@ describe("resolveInitialProviderAndModel — flagged mode", () => {
 
 describe("resolveInitialProviderAndModel — interactive mode", () => {
   it("prompts for provider + model when TTY + no flags", async () => {
-    process.env.OPENAI_API_KEY = "sk-x";
+    await writeApiKeyConfig({ openai: "sk-x" });
     const origIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
     try {
