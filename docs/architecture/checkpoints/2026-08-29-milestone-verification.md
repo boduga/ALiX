@@ -78,8 +78,8 @@ Corrections align with locations already documented in `docs/architecture/` (run
 
 ---
 
-## 5. Non-blocking follow-ups (not done)
+## 5. Non-blocking follow-ups
 
-1. **P17/P18 dead-store reads** — `governance.ts` execution-report + workbench CLI read empty arrays until remediation/plan/approval stores land (pure-function layers exist).
+1. ~~**P17/P18 dead-store reads**~~ — **DONE 2026-08-29** (see `docs/architecture/checkpoints/2026-08-29-p17-p18-execution-persistence-wiring.md`): added `RemediationStore`, `ExecutionPlanStore`, `ExecutionApprovalStore`, wired `alix governance execution` lifecycle write subcommands, corrected the `ExecutionStore` dir (`.alix/governance/`), and pointed the report/workbench reads at the stores.
 2. **Missing child AGENTS.md** for `src/observability/` and `src/utils/memory/` — both durable subsystem boundaries (M8/M2 homes) with no child doc yet.
 3. (Optional) Sentinels for key M-series milestones — the M-series currently relies on general test coverage, not milestone-specific sentinels.
