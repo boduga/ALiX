@@ -140,4 +140,6 @@ Default section order:
 | `src/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |
 | `src/runtime/AGENTS.md` | RuntimeIndex — on-demand aggregation across all backends |
+| `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
+| `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
