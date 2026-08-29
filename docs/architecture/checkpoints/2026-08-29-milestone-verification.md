@@ -81,5 +81,5 @@ Corrections align with locations already documented in `docs/architecture/` (run
 ## 5. Non-blocking follow-ups
 
 1. ~~**P17/P18 dead-store reads**~~ — **DONE 2026-08-29** (see `docs/architecture/checkpoints/2026-08-29-p17-p18-execution-persistence-wiring.md`): added `RemediationStore`, `ExecutionPlanStore`, `ExecutionApprovalStore`, wired `alix governance execution` lifecycle write subcommands, corrected the `ExecutionStore` dir (`.alix/governance/`), and pointed the report/workbench reads at the stores.
-2. **Missing child AGENTS.md** for `src/observability/` and `src/utils/memory/` — both durable subsystem boundaries (M8/M2 homes) with no child doc yet.
-3. (Optional) Sentinels for key M-series milestones — the M-series currently relies on general test coverage, not milestone-specific sentinels.
+2. ~~**Missing child AGENTS.md** for `src/observability/` and `src/utils/memory/`~~ — **DONE 2026-08-29** (`7544fcda`): both child docs written and added to the root Child DOX Index.
+3. ~~**Sentinels for key M-series milestones**~~ — **DONE 2026-08-29**: `tests/m-series-sentinels.vitest.ts` pins M0–M8 canonical entry points (static imports + disk anchors) and asserts M9 Distributed is ABSENT. Vitest total 5265 → 5284.
