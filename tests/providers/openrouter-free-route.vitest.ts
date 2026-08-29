@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { OpenRouterProvider } from "../../src/providers/openrouter-provider.js";
+import { OpenRouterProvider, ProviderAccessError } from "../../src/providers/openrouter-provider.js";
 import { _setCatalogFetchForTesting, _resetCatalogCacheForTesting } from "../../src/providers/free-model-catalog.js";
+import { _setAccessRestrictionTtlForTesting, _resetAccessRestrictionRegistryForTesting } from "../../src/providers/access-restriction-registry.js";
 import { _setFetchForTesting } from "../../src/providers/unified-complete.js";
 
 const catalog = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
@@ -12,6 +13,7 @@ const req = { systemPrompt: "s", messages: [{ role: "user" as const, content: "h
 
 afterEach(() => {
   _resetCatalogCacheForTesting();
+  _resetAccessRestrictionRegistryForTesting();
   _setCatalogFetchForTesting(globalThis.fetch);
   _setFetchForTesting(globalThis.fetch);
 });
@@ -162,5 +164,65 @@ describe("openrouter/free route", () => {
     expect(requested).toEqual(["stealth/ox-alpha", "qwen/qwen3-14b:free"]);
     const done = chunks.find((c) => c.type === "done");
     expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
+  });
+
+  it("throws ProviderAccessError on a harness-restricted 403, and excludes the model on the next request", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "thinkingmachines/inkling-small:free", name: "Inkling", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    const requested: string[] = [];
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      const m = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model ?? "";
+      requested.push(m);
+      if (m === "thinkingmachines/inkling-small:free") {
+        return new Response(JSON.stringify({ error: { message: "thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps" } }), { status: 403, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ model: m, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+
+    // Request 1: largest-context model (inkling) is selected and refused.
+    await expect(provider.complete(req)).rejects.toBeInstanceOf(ProviderAccessError);
+
+    // Request 2: inkling is access-restricted (bounded lifetime), so the
+    // resolver falls through to the next eligible free model.
+    const res = await provider.complete(req);
+    expect(requested[1]).toBe("qwen/qwen3-14b:free");
+    expect(res.resolvedModel).toBe("qwen/qwen3-14b:free");
+  });
+
+  it("revalidates an access-restricted model after the TTL expires", async () => {
+    _setAccessRestrictionTtlForTesting(20);
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "thinkingmachines/inkling-small:free", name: "Inkling", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    let requestCount = 0;
+    const requested: string[] = [];
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      const m = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model ?? "";
+      requested.push(m);
+      requestCount++;
+      if (m === "thinkingmachines/inkling-small:free") {
+        return new Response(JSON.stringify({ error: { message: "thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps" } }), { status: 403, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ model: m, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+
+    // Request 1: inkling refused → recorded access-restricted for TTL=20ms.
+    await expect(provider.complete(req)).rejects.toBeInstanceOf(ProviderAccessError);
+    // Request 2 (within TTL): inkling excluded → qwen selected.
+    await provider.complete(req);
+    expect(requested[requestCount - 1]).toBe("qwen/qwen3-14b:free");
+
+    // Wait past the TTL: inkling is revalidated (no longer excluded) and, as
+    // the largest-context model, is selected again — the restriction was not
+    // permanent. The mock refuses it again, so the request throws, but that the
+    // resolver ATTEMPTED inkling proves the restriction expired.
+    await new Promise((r) => setTimeout(r, 30));
+    await expect(provider.complete(req)).rejects.toBeInstanceOf(ProviderAccessError);
+    expect(requested[requestCount - 1]).toBe("thinkingmachines/inkling-small:free");
   });
 });

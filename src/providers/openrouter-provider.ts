@@ -2,6 +2,7 @@ import { ApiError, BaseProvider } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
 import { fetchFreeModelCatalog } from "./free-model-catalog.js";
 import { resolveConcreteFreeModel, deriveRequestRequirements } from "./free-model-resolver.js";
+import { recordAccessRestricted, accessRestrictedModelIds } from "./access-restriction-registry.js";
 import type { FreeModelInfo } from "./free-model-catalog.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
@@ -27,6 +28,15 @@ const ACCOUNT_REJECTION_RE = /allowed-providers|No allowed providers are availab
 
 function isAccountRejection(message: string): boolean {
   return ACCOUNT_REJECTION_RE.test(message ?? "");
+}
+
+/**
+ * Whether a classified refusal is an access-control class (vs. account
+ * rejection, which self-heals per-request, or unknown). Access-control classes
+ * are what the bounded-lifetime restriction registry records.
+ */
+function isAccessControlClass(c: ProviderAccessClass): boolean {
+  return c === "model_access_restricted" || c === "guardrail_blocked";
 }
 
 /**
@@ -86,7 +96,11 @@ async function resolveConcreteModel(
   // The agent tab always runs tool loops, so the free route must always land
   // on a tools-capable model regardless of the request's tools array.
   const requirements = { ...deriveRequestRequirements(request), needsTools: true };
-  return resolveConcreteFreeModel(catalog, requirements, exclude);
+  // Merge bounded-lifetime access-control exclusions so a model refused by an
+  // access-control 403 stays out of the pool (across requests) until its TTL
+  // expires — while never excluding it permanently.
+  const excludeAll = new Set<string>([...exclude, ...accessRestrictedModelIds()]);
+  return resolveConcreteFreeModel(catalog, requirements, excludeAll);
 }
 
 export class OpenRouterProvider extends BaseProvider {
@@ -142,9 +156,12 @@ export class OpenRouterProvider extends BaseProvider {
             continue;
           }
           // Access-control refusal (harness restriction, guardrail block, or an
-          // unresolved 403): propagate with a distinct classification so
-          // fallback/governance do not blindly re-resolve and resend.
+          // unresolved 403): record as bounded-lifetime access-restricted so it
+          // is excluded from future selection until the TTL expires, then
+          // propagate with a distinct classification so fallback/governance do
+          // not blindly re-resolve and resend.
           const accessClass = classifyProviderAccess(err.status, err.detail);
+          if (isAccessControlClass(accessClass)) recordAccessRestricted(resolved.id);
           throw err instanceof ProviderAccessError
             ? err
             : new ProviderAccessError(err.status, err.detail, accessClass);
@@ -184,6 +201,7 @@ export class OpenRouterProvider extends BaseProvider {
         if (chunk.type === "error" && !committed) {
           const accessClass = classifyProviderAccess(403, chunk.error);
           if (accessClass !== "unknown") {
+            if (isAccessControlClass(accessClass)) recordAccessRestricted(resolved.id);
             throw new ProviderAccessError(403, chunk.error, accessClass);
           }
         }
