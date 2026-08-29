@@ -8,7 +8,9 @@
 
 import { ApiError } from "./base.js";
 import { CircuitBreaker } from "./circuit-breaker.js";
-import { supportsRequest, deriveRequestRequirements } from "./free-model-resolver.js";
+import { supportsRequest, deriveRequestRequirements, resolveModelBySelectionPolicy } from "./free-model-resolver.js";
+import { fetchFreeModelCatalog } from "./free-model-catalog.js";
+import { accessRestrictedModelIds } from "./access-restriction-registry.js";
 import { createProvider } from "./registry.js";
 import type { ModelConfig } from "../config/schema.js";
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
@@ -38,21 +40,53 @@ export function buildFallbackChain(model: ModelConfig): ModelConfig[] {
   return fallbackModels;
 }
 
+/**
+ * Resolve a `ModelSelectionPolicy` to a concrete model id from the catalog.
+ * Honors the bounded-lifetime access-restriction registry so a model refused
+ * by an access-control 403 within its window is skipped. Returns undefined when
+ * the policy cannot be satisfied (e.g. `cost: paid`, unsupported provider, or
+ * no currently eligible free model).
+ */
+async function resolveSelection(model: ModelConfig): Promise<{ id: string } | undefined> {
+  const catalog = await fetchFreeModelCatalog();
+  return resolveModelBySelectionPolicy(model.selection!, catalog, accessRestrictedModelIds());
+}
+
 export async function buildRoutingAdapter(
   model: ModelConfig,
   apiKeyFor: (providerId: string) => string,
 ): Promise<ModelAdapter> {
-  const fallbackModels = buildFallbackChain(model);
+  // Policy-driven selection: when `model.selection` is present, configuration
+  // expresses requirements and discovery supplies the concrete model identity.
+  // Resolved now so every downstream consumer (primary, capability filter, the
+  // derived `model` projection) sees a concrete `name`. If the policy cannot be
+  // satisfied and no explicit name exists, fail clearly.
+  let effective = model;
+  if (model.selection !== undefined) {
+    const resolved = await resolveSelection(model);
+    if (resolved) {
+      effective = { ...model, name: resolved.id, selection: undefined };
+    } else if (model.name && model.name.length > 0) {
+      // Policy unsatisfiable but an explicit model is configured: use it.
+      effective = { ...model, selection: undefined };
+    } else {
+      throw new Error(
+        `Model selection policy could not be satisfied: ${JSON.stringify(model.selection)}`,
+      );
+    }
+  }
+
+  const fallbackModels = buildFallbackChain(effective);
 
   if (fallbackModels.length === 0) {
-    return createProvider({ provider: model.provider, model: model.name }, apiKeyFor(model.provider));
+    return createProvider({ provider: effective.provider, model: effective.name }, apiKeyFor(effective.provider));
   }
 
   const candidates: RoutingCandidate[] = [
     {
-      key: `${model.provider}/${model.name}`,
-      label: `${model.provider}/${model.name}`,
-      adapter: await createProvider({ provider: model.provider, model: model.name }, apiKeyFor(model.provider)),
+      key: `${effective.provider}/${effective.name}`,
+      label: `${effective.provider}/${effective.name}`,
+      adapter: await createProvider({ provider: effective.provider, model: effective.name }, apiKeyFor(effective.provider)),
     },
   ];
   for (const fb of fallbackModels) {

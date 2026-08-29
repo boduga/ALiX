@@ -7,6 +7,7 @@
 
 import type { FreeModelInfo } from "./free-model-catalog.js";
 import type { NormalizedRequest, ModelCapabilities } from "./types.js";
+import type { ModelSelectionPolicy } from "../config/schema.js";
 
 export type FreeModelRequirements = {
   needsTools: boolean;
@@ -102,4 +103,35 @@ export function resolveConcreteFreeModel(
   return [...eligible].sort((a, b) =>
     (b.inputTokenLimit ?? -1) - (a.inputTokenLimit ?? -1) || a.id.localeCompare(b.id),
   )[0];
+}
+
+/**
+ * Resolve a `ModelSelectionPolicy` to a concrete model from the catalog.
+ *
+ * Maps the policy onto the ONE capability vocabulary (`supportsRequest`):
+ *   - `capabilities` → the corresponding `needs*` flags
+ *   - `minContext`   → `maxInputTokens` (conservative lower bound on context)
+ *   - `cost: "free"` is served by the (already free-filtered) catalog;
+ *     `cost: "paid"` cannot be served here and yields `undefined`.
+ *   - a `provider` other than `openrouter` is unsupported by the free catalog
+ *     and yields `undefined`.
+ *
+ * Configuration expresses requirements; discovery supplies the model id. The
+ * free-model list is never hard-coded — "free" is derived from catalog pricing.
+ */
+export function resolveModelBySelectionPolicy(
+  policy: ModelSelectionPolicy,
+  catalog: FreeModelInfo[],
+  exclude: Set<string> = new Set(),
+): FreeModelInfo | undefined {
+  if (policy.provider !== undefined && policy.provider !== "openrouter") return undefined;
+  if (policy.cost === "paid") return undefined;
+
+  const requirements: FreeModelRequirements = {
+    needsTools: policy.capabilities?.includes("tools") ?? false,
+    needsStructuredOutput: policy.capabilities?.includes("structured_output") ?? false,
+    needsVision: policy.capabilities?.includes("vision") ?? false,
+    ...(policy.minContext !== undefined ? { maxInputTokens: policy.minContext } : {}),
+  };
+  return resolveConcreteFreeModel(catalog, requirements, exclude);
 }

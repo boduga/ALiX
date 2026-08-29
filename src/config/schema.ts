@@ -4,9 +4,32 @@ export type SessionMode = "auto" | "ask" | "bypass";
 
 export type Decision = "ask" | "allow" | "deny";
 
+export type ModelCapabilityName = "tools" | "structured_output" | "vision";
+
+/**
+ * Selection policy for a model tier: a declarative requirement instead of a
+ * concrete model id. `models.<tier>.selection` expresses WHAT the model must
+ * provide; discovery (the OpenRouter catalog) supplies the concrete model id.
+ *
+ * `cost`: "free" selects only zero-priced models (derived from catalog pricing,
+ * not the `:free` suffix); "paid" only nonzero-priced; "any" both.
+ * `capabilities`: required capability intersection.
+ * `minContext`: minimum verified input-token context.
+ *
+ * Design principle: configuration expresses requirements; discovery supplies
+ * model identities — the current free-model list is never hard-coded.
+ */
+export type ModelSelectionPolicy = {
+  provider?: string;
+  cost?: "free" | "paid" | "any";
+  capabilities?: ModelCapabilityName[];
+  minContext?: number;
+};
+
 export type ModelConfig = {
   provider: string;
   name: string;
+  selection?: ModelSelectionPolicy;
   temperature?: number;
   maxOutputTokens?: number;
   maxContextTokens?: number;
@@ -84,8 +107,8 @@ export function isModelTier(
 }
 
 /**
- * Validity predicate for a resolved model — a model is usable only when it
- * names both a provider and a model.
+ * Validity predicate for a resolved model — a model is usable when it names a
+ * provider plus either a concrete model or a selection policy.
  *
  * Shared by the loader projection (`normalizeModelConfig`) and
  * `resolveModelConfig()` so both agree on what counts as "configured".
@@ -100,8 +123,8 @@ export function isValidModelConfig(
     model !== undefined &&
     typeof model.provider === "string" &&
     model.provider.length > 0 &&
-    typeof model.name === "string" &&
-    model.name.length > 0
+    ((typeof model.name === "string" && model.name.length > 0) ||
+      model.selection !== undefined)
   );
 }
 
