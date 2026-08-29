@@ -32,6 +32,7 @@ const lazyProviders = {
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
   "local-llama": lazy(() => import("./local-llama-provider.js").then(m => m.LocalLlamaProvider)),
   mock: lazy(() => import("./mock-provider.js").then(m => m.MockProvider)),
+  "scripted-mock": lazy(() => import("../evals/providers/scripted-mock-provider.js").then(m => m.ScriptedMockProvider)),
 } as const;
 
 type ProviderId = keyof typeof lazyProviders;

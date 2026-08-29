@@ -270,6 +270,8 @@ export type SubagentTask = {
   ownedPaths?: string[];
   expectedOutput?: string;
   contextBundle?: string; // serialized context from ContextCompiler
+  cwd?: string; // working directory for the spawned subagent process
+  scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
 };
 
 export type SubagentResult = {

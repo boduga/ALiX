@@ -38,6 +38,7 @@
     "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use pnpm test:vitest\"",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
     "test:vitest": "vitest run --config vitest.config.mts",
+    "test:evals": "vitest run tests/evals --config vitest.config.mts",
     "test:manual": "node scripts/run-node-tests.mjs --manual",
     "test:slow": "node scripts/run-node-tests.mjs --slow",
     "test:coverage": "c8 node --test dist/tests/*.test.js dist/tests/**/*.test.js && c8 vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",

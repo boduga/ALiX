@@ -1416,19 +1416,16 @@ if (command === "agent" && agentRole) {
 }
 
 // --- alix run --subagent <role> --- subagent process entry point (called by parent) ---
-// Contract: args[1]=role, args[2]=task-id, args[3]=prompt, args[4]=mode, args[5]=session-id
-// args[6..n] = extra flags (e.g. --model, --owned-paths)
+// Contract: args[0]=--subagent, args[1]=role, args[2..]=remaining flag-style args
+// (--task-id, --prompt, --mode, --session-id, --provider, --model, --owned-paths...).
+// These are passed through verbatim to SubagentCLI.main, which parses them with
+// node parseArgs (flag-style). The parent (SubagentManager.spawn) emits them in
+// flag style, so no positional reshuffling is performed here.
 if (command === "run" && args[0] === "--subagent") {
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
-  const extraArgs = process.argv.slice(7);
-  const subagentArgs = ["--subagent", args[1],
-    "--task-id", args[2] ?? crypto.randomUUID(),
-    "--prompt", args[3] ?? "",
-    "--mode", args[4] ?? "read_only",
-    "--session-id", args[5] ?? `cli-${Date.now()}`,
-    ...extraArgs,
-  ];
-  await SubagentCLI.main(subagentArgs);
+  const subagentRole = args[1];
+  const restFlags = args.slice(2);
+  await SubagentCLI.main(["--subagent", subagentRole, ...restFlags]);
   process.exit(1);
 }
 
@@ -2326,6 +2323,11 @@ if (command === "models") {
 if (command === "benchmark") {
   const { handleBenchmarkCommand } = await import("./cli/commands/benchmark.js");
   await handleBenchmarkCommand(args);
+  process.exit(0);
+}
+if (command === "evals") {
+  const { handleEvalsCommand } = await import("./cli/commands/evals.js");
+  await handleEvalsCommand(args);
   process.exit(0);
 }
 

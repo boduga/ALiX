@@ -499,7 +499,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
             const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
             console.log(formatSubagentResult(result, outputFormat));
-            process.exit(result.status === "success" ? 0 : 1);
+            process.exitCode = result.status === "success" ? 0 : 1;
+            return;
           }
         }
       }
@@ -517,7 +518,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
       const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
       console.log(formatSubagentResult(result, outputFormat));
-      process.exit(result.status === "success" ? 0 : 1);
+      process.exitCode = result.status === "success" ? 0 : 1;
+      return;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
 
@@ -539,7 +541,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         error: errorMsg,
       };
       console.error(formatSubagentResult(result, outputFormat));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
   }
 }

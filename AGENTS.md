@@ -142,4 +142,5 @@ Default section order:
 | `src/runtime/AGENTS.md` | RuntimeIndex — on-demand aggregation across all backends |
 | `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
+| `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |

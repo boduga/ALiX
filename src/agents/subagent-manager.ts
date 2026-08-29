@@ -93,8 +93,13 @@ export class SubagentManager {
         }
 
         const child = spawn(command, commandArgs, {
+          cwd: task.cwd,
           stdio: ["pipe", "pipe", "pipe"] as const,
-          env: { ...process.env, ALIX_NO_BANNER: "1" },
+          env: {
+            ...process.env,
+            ALIX_NO_BANNER: "1",
+            ...(task.scriptedScenarioJson ? { ALIX_EVAL_SCENARIO: task.scriptedScenarioJson } : {}),
+          },
         }) as ChildProcess;
 
         this.running.set(task.id, { task, process: child, resolve: resolvePromise, reject });

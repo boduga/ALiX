@@ -1301,41 +1301,41 @@ Do not silently weaken the evaluator to make a case pass.
 
 ## Phase 5 — Cases
 
-* [ ] Implement successful file write
-* [ ] Implement patch
-* [ ] Implement replacement
-* [ ] Implement read-only
-* [ ] Implement #570 unmet write
-* [ ] Implement forbidden path
-* [ ] Implement partial objective
-* [ ] Add false-success / false-failure evaluator fixtures
+* [x] Implement successful file write
+* [x] Implement patch
+* [x] Implement replacement
+* [x] Implement read-only
+* [x] Implement #570 unmet write
+* [x] Implement forbidden path
+* [x] Implement partial objective
+* [x] Add false-success / false-failure evaluator fixtures
 
 ## Phase 6 — Runner
 
-* [ ] Implement isolated temp cwd
-* [ ] Execute driver
-* [ ] Evaluate objective
-* [ ] Evaluate honesty
-* [ ] Aggregate results
-* [ ] Persist `EvalRun`
-* [ ] Cleanup reliably
+* [x] Implement isolated temp cwd
+* [x] Execute driver
+* [x] Evaluate objective
+* [x] Evaluate honesty
+* [x] Aggregate results
+* [x] Persist `EvalRun`
+* [x] Cleanup reliably
 
 ## Phase 7 — CLI
 
-* [ ] Add `alix evals run`
-* [ ] Add driver selection
-* [ ] Add JSON output
-* [ ] Add human-readable output
+* [x] Add `alix evals run`
+* [x] Add driver selection
+* [x] Add JSON output
+* [x] Add human-readable output
 
 ## Phase 8 — Verification
 
-* [ ] Run evaluator tests
-* [ ] Run behavioral suite
-* [ ] Run existing Vitest suite
-* [ ] Run Node tests
-* [ ] Run typecheck
-* [ ] Run build
-* [ ] Confirm no benchmark regressions
+* [x] Run evaluator tests
+* [x] Run behavioral suite
+* [x] Run existing Vitest suite
+* [x] Run Node tests
+* [x] Run typecheck
+* [x] Run build
+* [x] Confirm no benchmark regressions
 
 ---
 
@@ -1343,28 +1343,28 @@ Do not silently weaken the evaluator to make a case pass.
 
 Implementation is complete only when:
 
-* [ ] Objective truth comes from evaluator-owned filesystem assertions.
-* [ ] Worker/model narrative cannot establish objective success.
-* [ ] Objective outcome is separate from reported status.
-* [ ] Status honesty is independently scored.
-* [ ] Delegate and main-loop drivers normalize into one execution contract.
-* [ ] Scripted provider is deterministic and CI-safe.
-* [ ] #570 zero-attempt unmet-write case is covered.
-* [ ] Partial-objective behavior is covered.
-* [ ] Forbidden mutation behavior is covered.
-* [ ] False-success scoring is tested.
-* [ ] False-failure scoring is tested.
-* [ ] Evidence is structured and machine-readable.
-* [ ] Each eval case has a stable ID.
-* [ ] Each case executes in an isolated temporary cwd.
-* [ ] Results persist to `.alix/evals/<runId>.json`.
-* [ ] `alix evals run` works.
-* [ ] `--json` produces structured output.
-* [ ] Initial execution is opt-in rather than a default test gate.
-* [ ] Existing benchmark infrastructure remains untouched.
-* [ ] Existing test suites remain green.
-* [ ] Typecheck passes.
-* [ ] Build passes.
+* [x] Objective truth comes from evaluator-owned filesystem assertions.
+* [x] Worker/model narrative cannot establish objective success.
+* [x] Objective outcome is separate from reported status.
+* [x] Status honesty is independently scored.
+* [x] Delegate and main-loop drivers normalize into one execution contract.
+* [x] Scripted provider is deterministic and CI-safe.
+* [x] #570 zero-attempt unmet-write case is covered.
+* [x] Partial-objective behavior is covered.
+* [x] Forbidden mutation behavior is covered.
+* [x] False-success scoring is tested.
+* [x] False-failure scoring is tested.
+* [x] Evidence is structured and machine-readable.
+* [x] Each eval case has a stable ID.
+* [x] Each case executes in an isolated temporary cwd.
+* [x] Results persist to `.alix/evals/<runId>.json`.
+* [x] `alix evals run` works.
+* [x] `--json` produces structured output.
+* [x] Initial execution is opt-in rather than a default test gate.
+* [x] Existing benchmark infrastructure remains untouched.
+* [x] Existing test suites remain green.
+* [x] Typecheck passes.
+* [x] Build passes.
 
 ---
 
