@@ -29,6 +29,54 @@ function isAccountRejection(message: string): boolean {
   return ACCOUNT_REJECTION_RE.test(message ?? "");
 }
 
+/**
+ * Access-control classification for OpenRouter refusal responses. These are
+ * distinct failure classes that ALiX's fallback/governance must not conflate:
+ *
+ *  - `model_access_restricted`: the model's OWN access policy refuses this
+ *    endpoint/client — e.g. a `:free` model restricted to recognized agentic
+ *    harnesses ("only available for agentic harnesses"). A request-payload
+ *    change cannot fix it; blindly re-resolving to another free model and
+ *    resending is the wrong recovery.
+ *  - `guardrail_blocked`: a content filter / prompt-injection detector blocked
+ *    the request ("Request blocked: ..."). Should surface to the user, not be
+ *    blindly retried/fallback.
+ *  - `account_rejection`: a free model's backing provider is not opted into by
+ *    the account ("allowed-providers") — the self-healing free route re-resolves.
+ *  - `unknown`: anything else.
+ */
+export type ProviderAccessClass =
+  | "model_access_restricted"
+  | "guardrail_blocked"
+  | "account_rejection"
+  | "unknown";
+
+/** Recognize the class of an OpenRouter access-control refusal. */
+export function classifyProviderAccess(status: number, detail: string): ProviderAccessClass {
+  const msg = detail ?? "";
+  if (status === 403 && /agentic harness/i.test(msg)) return "model_access_restricted";
+  if (status === 403 && /^Request blocked:/i.test(msg.trim())) return "guardrail_blocked";
+  if ((status === 403 || status === 404) && isAccountRejection(msg)) return "account_rejection";
+  return "unknown";
+}
+
+/**
+ * A provider access-control error that carries its classification so
+ * fallback/governance can decide the right recovery instead of treating every
+ * 403 as equivalent. Extends `ApiError` so existing `instanceof ApiError`
+ * checks (routing adapter, retry logic) keep working unchanged.
+ */
+export class ProviderAccessError extends ApiError {
+  constructor(
+    status: number,
+    detail: string,
+    public readonly accessClass: ProviderAccessClass,
+  ) {
+    super(status, detail);
+  }
+}
+
+
 /** Resolve a concrete free model for the request, excluding already-tried ids. */
 async function resolveConcreteModel(
   request: NormalizedRequest,
@@ -87,13 +135,19 @@ export class OpenRouterProvider extends BaseProvider {
         if (!res.resolvedModel) res.resolvedModel = resolved.id;
         return res;
       } catch (err) {
-        if (
-          err instanceof ApiError &&
-          (err.status === 403 || err.status === 404) &&
-          isAccountRejection(err.detail)
-        ) {
-          tried.push(resolved.id);
-          continue;
+        if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+          if (isAccountRejection(err.detail)) {
+            // Account-opt-in mismatch: self-heal by excluding this model.
+            tried.push(resolved.id);
+            continue;
+          }
+          // Access-control refusal (harness restriction, guardrail block, or an
+          // unresolved 403): propagate with a distinct classification so
+          // fallback/governance do not blindly re-resolve and resend.
+          const accessClass = classifyProviderAccess(err.status, err.detail);
+          throw err instanceof ProviderAccessError
+            ? err
+            : new ProviderAccessError(err.status, err.detail, accessClass);
         }
         throw err;
       }
@@ -123,6 +177,15 @@ export class OpenRouterProvider extends BaseProvider {
         if (chunk.type === "error" && !committed && isAccountRejection(chunk.error)) {
           rejectedByAccount = true;
           break;
+        }
+        // Any other access-control refusal (harness restriction, guardrail) that
+        // precedes streamed tokens propagates as a classified error rather than
+        // being re-resolved, so fallback/governance treat it distinctly.
+        if (chunk.type === "error" && !committed) {
+          const accessClass = classifyProviderAccess(403, chunk.error);
+          if (accessClass !== "unknown") {
+            throw new ProviderAccessError(403, chunk.error, accessClass);
+          }
         }
         yield chunk;
       }

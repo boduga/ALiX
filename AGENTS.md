@@ -143,4 +143,5 @@ Default section order:
 | `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |
+| `src/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
