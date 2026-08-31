@@ -1,5 +1,6 @@
 import {
   type DiscoveredModel,
+  discoverOpenRouterModels,
 } from "./model-discovery.js";
 
 import {
@@ -261,6 +262,39 @@ export function selectModelFromDiscovery(
       return a.id.localeCompare(b.id);
     },
   )[0];
+}
+
+export async function resolveModelSelectionId(
+  policy: ModelSelectionPolicy,
+  opts: {
+    apiKey?: string;
+  } = {},
+): Promise<
+  { id: string } | undefined
+> {
+  const provider =
+    policy.provider ?? "openrouter";
+
+  const models =
+    provider === "openrouter"
+      ? await discoverOpenRouterModels({
+          apiKey: opts.apiKey,
+        })
+      : await discoverProviderModels(
+          provider,
+          opts.apiKey,
+        );
+
+  const resolved =
+    selectModelFromDiscovery(
+      policy,
+      models,
+      accessRestrictedModelIds(),
+    );
+
+  return resolved
+    ? { id: resolved.id }
+    : undefined;
 }
 
 // Map a discovered model onto the ONE capability vocabulary (`supportsRequest`)
