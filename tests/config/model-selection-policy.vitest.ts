@@ -12,7 +12,8 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { buildRoutingAdapter, RoutingModelAdapter } from "../../src/providers/routing-adapter.js";
-import { resolveModelBySelectionPolicy } from "../../src/providers/free-model-resolver.js";
+import { resolveModelBySelectionPolicy, resolveModelSelectionId } from "../../src/providers/free-model-resolver.js";
+import { createProvider } from "../../src/providers/registry.js";
 import { isValidModelConfig } from "../../src/config/schema.js";
 import { tryResolveModelConfig } from "../../src/config/model-resolver.js";
 import {
@@ -143,5 +144,72 @@ describe("buildRoutingAdapter resolves a selection policy", () => {
     // mock provider + selection(unsatisfiable) + name → uses the explicit name.
     expect(adapter).not.toBeInstanceOf(RoutingModelAdapter);
     expect(adapter.id).toBe("mock");
+  });
+});
+
+describe("resolveModelSelectionId (shared discovery seam)", () => {
+  it("fetches the catalog and returns the highest-context eligible free model id", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "a/small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    await expect(resolveModelSelectionId({ cost: "free", capabilities: ["tools"] }))
+      .resolves.toEqual({ id: "qwen/qwen3-14b:free" });
+  });
+
+  it("returns undefined when the policy is unsatisfiable", async () => {
+    _setCatalogFetchForTesting(async () => catalog([]));
+    await expect(resolveModelSelectionId({ provider: "openrouter", cost: "paid" }))
+      .resolves.toBeUndefined();
+  });
+
+  it("excludes models in the bounded-lifetime access-restriction registry", async () => {
+    const { recordAccessRestricted } = await import("../../src/providers/access-restriction-registry.js");
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "big:free", name: "Big", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+      { id: "small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    recordAccessRestricted("big:free");
+    await expect(resolveModelSelectionId({ cost: "free", capabilities: ["tools"] }))
+      .resolves.toEqual({ id: "small:free" });
+  });
+});
+
+describe("createProvider resolves a selection policy at the registry choke point", () => {
+  it("resolves selection to a concrete catalog model for an openrouter config (no throw)", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    const adapter = await createProvider({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } });
+    expect(adapter.id).toBe("openrouter");
+  });
+
+  it("throws a clear error when a selection policy is unsatisfiable and no name is configured", async () => {
+    _setCatalogFetchForTesting(async () => catalog([]));
+    await expect(
+      createProvider({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } }),
+    ).rejects.toThrow(/Model selection policy could not be satisfied/);
+  });
+
+  it("falls back to the explicit name when a policy is unsatisfiable but a name is set", async () => {
+    _setCatalogFetchForTesting(async () => catalog([]));
+    const adapter = await createProvider({ provider: "mock", name: "explicit-model", selection: { cost: "free" } });
+    expect(adapter.id).toBe("mock");
+  });
+
+  it("leaves the legacy {provider, model} shape untouched (no catalog discovery)", async () => {
+    _setCatalogFetchForTesting(async () => { throw new Error("catalog must not be fetched"); });
+    const adapter = await createProvider({ provider: "mock", model: "legacy-model" }, "k");
+    expect(adapter.id).toBe("mock");
+  });
+
+  it("honors resolveModelConfig output (ModelConfig with .name/.selection) directly through the registry", async () => {
+    _setCatalogFetchForTesting(async () => catalog([
+      { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    const model = tryResolveModelConfig({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } } } });
+    expect(model).toBeDefined();
+    const adapter = await createProvider({ provider: model!.provider, name: model!.name, selection: model!.selection });
+    expect(adapter.id).toBe("openrouter");
   });
 });

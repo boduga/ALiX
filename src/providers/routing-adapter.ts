@@ -8,9 +8,7 @@
 
 import { ApiError } from "./base.js";
 import { CircuitBreaker } from "./circuit-breaker.js";
-import { supportsRequest, deriveRequestRequirements, resolveModelBySelectionPolicy } from "./free-model-resolver.js";
-import { fetchFreeModelCatalog } from "./free-model-catalog.js";
-import { accessRestrictedModelIds } from "./access-restriction-registry.js";
+import { supportsRequest, deriveRequestRequirements, resolveModelSelectionId } from "./free-model-resolver.js";
 import { createProvider } from "./registry.js";
 import type { ModelConfig } from "../config/schema.js";
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
@@ -40,18 +38,6 @@ export function buildFallbackChain(model: ModelConfig): ModelConfig[] {
   return fallbackModels;
 }
 
-/**
- * Resolve a `ModelSelectionPolicy` to a concrete model id from the catalog.
- * Honors the bounded-lifetime access-restriction registry so a model refused
- * by an access-control 403 within its window is skipped. Returns undefined when
- * the policy cannot be satisfied (e.g. `cost: paid`, unsupported provider, or
- * no currently eligible free model).
- */
-async function resolveSelection(model: ModelConfig): Promise<{ id: string } | undefined> {
-  const catalog = await fetchFreeModelCatalog();
-  return resolveModelBySelectionPolicy(model.selection!, catalog, accessRestrictedModelIds());
-}
-
 export async function buildRoutingAdapter(
   model: ModelConfig,
   apiKeyFor: (providerId: string) => string,
@@ -63,7 +49,7 @@ export async function buildRoutingAdapter(
   // satisfied and no explicit name exists, fail clearly.
   let effective = model;
   if (model.selection !== undefined) {
-    const resolved = await resolveSelection(model);
+    const resolved = await resolveModelSelectionId(model.selection);
     if (resolved) {
       effective = { ...model, name: resolved.id, selection: undefined };
     } else if (model.name && model.name.length > 0) {

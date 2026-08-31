@@ -15,6 +15,8 @@ import { GrokAIProvider } from "./grokai-provider.js";
 import { DeepSeekProvider } from "./deepseek-provider.js";
 import { lazy } from "../utils/lazy-import.js";
 import { withProviderContracts } from "./provider-contract-validation.js";
+import { resolveModelSelectionId } from "./free-model-resolver.js";
+import type { ModelSelectionPolicy } from "../config/schema.js";
 
 // Lazy-load heavy provider modules on first use
 const lazyProviders = {
@@ -40,8 +42,37 @@ type ProviderId = keyof typeof lazyProviders;
 // Cache for provider instances
 const providerCache = new Map<string, ModelAdapter>();
 
-export async function createProvider(config: { provider: string; model?: string }, apiKey?: string): Promise<ModelAdapter> {
-  const key = `${config.provider}:${config.model ?? ""}:${apiKey ?? ""}`;
+/**
+ * Registry input. Accepts either a legacy `{ provider, model }` pair (used by
+ * session/decision/factory, which configure an explicit concrete model) or a
+ * `ModelConfig`-shape `{ provider, name, selection? }` (used by plan/runtime
+ * routes and the routing adapter). When a `selection` policy is present it is
+ * resolved to a concrete id via catalog discovery before construction.
+ */
+export type ProviderConfig = {
+  provider: string;
+  model?: string;
+  name?: string;
+  selection?: ModelSelectionPolicy;
+};
+
+export async function createProvider(config: ProviderConfig, apiKey?: string): Promise<ModelAdapter> {
+  // Policy-driven selection: configuration expresses requirements, discovery
+  // supplies the concrete model id. An explicit `name`/`model` is preferred
+  // only when the policy is unsatisfiable (never hard-codes the free list).
+  let model = config.name ?? config.model;
+  if (config.selection !== undefined) {
+    const resolved = await resolveModelSelectionId(config.selection);
+    if (resolved) {
+      model = resolved.id;
+    } else if (!model) {
+      throw new Error(
+        `Model selection policy could not be satisfied: ${JSON.stringify(config.selection)}`,
+      );
+    }
+  }
+
+  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}`;
 
   if (providerCache.has(key)) {
     return providerCache.get(key)!;
@@ -54,7 +85,7 @@ export async function createProvider(config: { provider: string; model?: string 
   }
 
   const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string }) => ModelAdapter;
-  const instance = new ProviderClass({ apiKey, model: config.model });
+  const instance = new ProviderClass({ apiKey, model });
   // 3-minute default timeout for provider calls, 60s stream idle timeout
   const wrapped = withProviderContracts(instance, undefined, 180_000, 60_000);
   providerCache.set(key, wrapped);

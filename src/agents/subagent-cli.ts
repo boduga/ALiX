@@ -5,7 +5,7 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
-import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle } from "../config/schema.js";
+import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
 import { resolvePolicyPath } from "../policy/policy-gate.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 
@@ -20,11 +20,15 @@ export function resolveEffectiveModel(
   config: AlixConfig,
   roleStyle: SubagentStyle | undefined,
   overrides: { provider?: string; name?: string },
-): { provider: string; name: string } {
+): { provider: string; name: string; selection?: ModelSelectionPolicy } {
   const base = resolveModelConfig(config, roleStyle);
+  // An explicit name override pins a concrete model, so its selection policy
+  // no longer applies; otherwise carry the base policy for discovery.
+  const selection = overrides.name ? undefined : base.selection;
   return {
     provider: overrides.provider ?? base.provider,
     name: overrides.name ?? base.name,
+    ...(selection !== undefined ? { selection } : {}),
   };
 }
 import { EventLog } from "../events/event-log.js";
@@ -292,7 +296,7 @@ export class SubagentCLI {
     // projections and are never mutated here.
     const roleConfig = config.subagents?.roles.find(r => r.role === role);
     const roleStyle = roleConfig?.style ?? "fast";
-    const { provider: effectiveProvider, name: effectiveName } = resolveEffectiveModel(
+    const { provider: effectiveProvider, name: effectiveName, selection: effectiveSelection } = resolveEffectiveModel(
       config,
       roleStyle,
       { provider: providerOverride, name: modelOverride },
@@ -376,7 +380,11 @@ export class SubagentCLI {
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
     }
 
-    const provider = await createProvider({ provider: effectiveProvider, model: effectiveName });
+    const provider = await createProvider({
+      provider: effectiveProvider,
+      name: effectiveName,
+      ...(effectiveSelection !== undefined ? { selection: effectiveSelection } : {}),
+    });
     const providerTools = buildToolsForProvider(provider);
     const toolPolicy = getToolPolicy(role);
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);

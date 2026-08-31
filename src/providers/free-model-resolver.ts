@@ -5,7 +5,8 @@
 // (`deriveRequestRequirements` / `supportsRequest`) shared with the routing
 // layer so the free route and routing candidates filter on identical rules.
 
-import type { FreeModelInfo } from "./free-model-catalog.js";
+import { fetchFreeModelCatalog, type FreeModelInfo } from "./free-model-catalog.js";
+import { accessRestrictedModelIds } from "./access-restriction-registry.js";
 import type { NormalizedRequest, ModelCapabilities } from "./types.js";
 import type { ModelSelectionPolicy } from "../config/schema.js";
 
@@ -134,4 +135,24 @@ export function resolveModelBySelectionPolicy(
     ...(policy.minContext !== undefined ? { maxInputTokens: policy.minContext } : {}),
   };
   return resolveConcreteFreeModel(catalog, requirements, exclude);
+}
+
+/**
+ * Resolve a `ModelSelectionPolicy` to a concrete model id by fetching the
+ * current OpenRouter catalog and excluding models in the bounded-lifetime
+ * access-restriction registry. Returns `undefined` when the policy is
+ * unsatisfiable (no eligible concrete free model, `cost: paid`, or a non-
+ * openrouter provider).
+ *
+ * The single discovery seam shared by `createProvider` (registry) and
+ * `buildRoutingAdapter` (routing), so policy resolution behaves identically
+ * across every consumer. Discovery is only ever invoked here — callers that
+ * lack a policy never pay a catalog round-trip.
+ */
+export async function resolveModelSelectionId(
+  policy: ModelSelectionPolicy,
+): Promise<{ id: string } | undefined> {
+  const catalog = await fetchFreeModelCatalog();
+  const resolved = resolveModelBySelectionPolicy(policy, catalog, accessRestrictedModelIds());
+  return resolved ? { id: resolved.id } : undefined;
 }
