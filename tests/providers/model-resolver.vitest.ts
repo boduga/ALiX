@@ -1,0 +1,298 @@
+import {
+  describe,
+  it,
+  expect,
+} from "vitest";
+
+import {
+  selectModelFromDiscovery,
+  resolveConcreteFreeModel,
+} from "../../src/providers/model-resolver.js";
+
+import type {
+  DiscoveredModel,
+} from "../../src/providers/model-discovery.js";
+
+const M = (
+  id: string,
+  ctx: number | undefined,
+  cost: number | undefined,
+  caps: string[] = [],
+): DiscoveredModel => ({
+  id,
+  provider: "openrouter",
+
+  ...(ctx !== undefined
+    ? { inputContextLimit: ctx }
+    : {}),
+
+  ...(cost !== undefined
+    ? { costPerMTokIn: cost }
+    : {}),
+
+  ...(caps.includes("tools")
+    ? { supportsTools: true }
+    : {}),
+
+  ...(caps.includes("structured_outputs")
+    ? { supportsStructuredOutput: true }
+    : {}),
+
+  ...(caps.includes("vision")
+    ? { supportsVision: true }
+    : {}),
+});
+
+describe("selectModelFromDiscovery", () => {
+  it("picks the cheapest paid model meeting caps", () => {
+    const models = [
+      M(
+        "x/costly",
+        200_000,
+        20,
+        ["tools"],
+      ),
+      M(
+        "y/cheap",
+        32_000,
+        1.5,
+        ["tools"],
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {
+          cost: "paid",
+          capabilities: ["tools"],
+        },
+        models,
+      )?.id,
+    ).toBe("y/cheap");
+  });
+
+  it("does not treat unknown cost as free", () => {
+    const models = [
+      M("unknown", 128_000, undefined),
+      M("free", 8_000, 0),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { cost: "free" },
+        models,
+      )?.id,
+    ).toBe("free");
+  });
+
+  it("does not treat unknown cost as paid", () => {
+    const models = [
+      M("unknown", 128_000, undefined),
+      M("paid", 8_000, 2),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { cost: "paid" },
+        models,
+      )?.id,
+    ).toBe("paid");
+  });
+
+  it("ignores cost when the source has no cost metadata", () => {
+    const models = [
+      M(
+        "n/none",
+        64_000,
+        undefined,
+        [],
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {
+          cost: "paid",
+          capabilities: ["tools"],
+        },
+        models,
+      )?.id,
+    ).toBe("n/none");
+  });
+
+  it("honors minContext when context is exposed", () => {
+    const models = [
+      M("small", 8_000, undefined),
+      M("big", 64_000, undefined),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { minContext: 32_768 },
+        models,
+      )?.id,
+    ).toBe("big");
+  });
+
+  it("ignores minContext when context is unavailable", () => {
+    const models = [
+      M(
+        "unknown",
+        undefined,
+        undefined,
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { minContext: 32_768 },
+        models,
+      )?.id,
+    ).toBe("unknown");
+  });
+
+  it("chooses the largest context when no cost is known", () => {
+    const models = [
+      M("a", 4_000, undefined),
+      M("b", 128_000, undefined),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {},
+        models,
+      )?.id,
+    ).toBe("b");
+  });
+
+  it("chooses cheapest known cost for cost:any", () => {
+    const models = [
+      M("free", 8_000, 0),
+      M("cheap", 16_000, 2),
+      M("expensive", 128_000, 20),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { cost: "any" },
+        models,
+      )?.id,
+    ).toBe("free");
+  });
+
+  it("ranks known cost ahead of unknown cost", () => {
+    const models = [
+      M(
+        "unknown-large",
+        1_000_000,
+        undefined,
+      ),
+      M(
+        "known-cheap",
+        8_000,
+        1,
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        { cost: "any" },
+        models,
+      )?.id,
+    ).toBe("known-cheap");
+  });
+
+  it("uses context as the secondary ranking", () => {
+    const models = [
+      M("small", 8_000, 1),
+      M("large", 128_000, 1),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {},
+        models,
+      )?.id,
+    ).toBe("large");
+  });
+
+  it("uses model id as deterministic tertiary ranking", () => {
+    const models = [
+      M("z-model", 32_000, 1),
+      M("a-model", 32_000, 1),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {},
+        models,
+      )?.id,
+    ).toBe("a-model");
+  });
+
+  it("excludes restricted ids", () => {
+    const models = [
+      M("a", 4_000, undefined),
+      M("b", 128_000, undefined),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {},
+        models,
+        new Set(["b"]),
+      )?.id,
+    ).toBe("a");
+  });
+
+  it("returns undefined when nothing is eligible", () => {
+    expect(
+      selectModelFromDiscovery(
+        {
+          minContext: 1_000_000,
+        },
+        [
+          M("a", 4_000, undefined),
+        ],
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("resolveConcreteFreeModel (free-route helper)", () => {
+  const reqTools = {
+    needsTools: true,
+    needsStructuredOutput: false,
+    needsVision: false,
+  };
+
+  it("picks the largest-context eligible model regardless of cost", () => {
+    const models = [
+      M("a/small:free", 4_000, 0, ["tools"]),
+      M("b/big:free", 64_000, 0, ["tools"]),
+    ];
+    expect(
+      resolveConcreteFreeModel(models, reqTools)?.id,
+    ).toBe("b/big:free");
+  });
+
+  it("filters by request prefix capabilities (forced needsTools)", () => {
+    const models = [
+      M("no-tools", 200_000, 0, []),
+      M("tools", 8_000, 0, ["tools"]),
+    ];
+    expect(
+      resolveConcreteFreeModel(models, reqTools)?.id,
+    ).toBe("tools");
+  });
+
+  it("excludes restricted ids", () => {
+    const models = [
+      M("a", 64_000, 0, ["tools"]),
+      M("b", 128_000, 0, ["tools"]),
+    ];
+    expect(
+      resolveConcreteFreeModel(models, reqTools, new Set(["b"]))?.id,
+    ).toBe("a");
+  });
+});
