@@ -299,15 +299,10 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
 const NO_FREE_MODELS_MESSAGE = "No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.";
 
 export async function handleModelsFree(args: string[]): Promise<void> {
-  const { fetchFreeModelCatalog } = await import("../../providers/free-model-catalog.js");
-  let models: Awaited<ReturnType<typeof fetchFreeModelCatalog>>;
-  try {
-    models = await fetchFreeModelCatalog();
-  } catch (err) {
-    console.log(NO_FREE_MODELS_MESSAGE);
-    if (process.env.NODE_ENV === "test") console.error(String((err as Error)?.message ?? err));
-    return;
-  }
+  const { discoverOpenRouterModels } = await import("../../providers/model-discovery.js");
+  let models = await discoverOpenRouterModels();
+  // alix models free must list only free models
+  models = models.filter((m) => m.costPerMTokIn === 0);
   if (models.length === 0) {
     console.log(NO_FREE_MODELS_MESSAGE);
     return;
@@ -315,7 +310,7 @@ export async function handleModelsFree(args: string[]): Promise<void> {
   if (args.includes("--json")) { console.log(JSON.stringify(models, null, 2)); return; }
   console.log("\nOpenRouter Free Models\n");
   for (const m of models) {
-    const ctx = m.inputTokenLimit ? `${(m.inputTokenLimit / 1000).toFixed(0)}k` : "?";
+    const ctx = m.inputContextLimit ? `${(m.inputContextLimit / 1000).toFixed(0)}k` : "?";
     const caps = [
       ...(m.supportsTools ? ["tools"] : []),
       ...(m.supportsStructuredOutput ? ["structured"] : []),

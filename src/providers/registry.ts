@@ -15,7 +15,7 @@ import { GrokAIProvider } from "./grokai-provider.js";
 import { DeepSeekProvider } from "./deepseek-provider.js";
 import { lazy } from "../utils/lazy-import.js";
 import { withProviderContracts } from "./provider-contract-validation.js";
-import { resolveModelSelectionId } from "./free-model-resolver.js";
+import { resolveModelSelectionId } from "./model-resolver.js";
 import type { ModelSelectionPolicy } from "../config/schema.js";
 
 // Lazy-load heavy provider modules on first use
@@ -62,7 +62,7 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
   // only when the policy is unsatisfiable (never hard-codes the free list).
   let model = config.name ?? config.model;
   if (config.selection !== undefined) {
-    const resolved = await resolveModelSelectionId(config.selection);
+    const resolved = await resolveModelSelectionId(config.selection, { apiKey });
     if (resolved) {
       model = resolved.id;
     } else if (!model) {

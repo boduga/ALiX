@@ -8,7 +8,7 @@
 
 import { ApiError } from "./base.js";
 import { CircuitBreaker } from "./circuit-breaker.js";
-import { supportsRequest, deriveRequestRequirements, resolveModelSelectionId } from "./free-model-resolver.js";
+import { supportsRequest, deriveRequestRequirements, resolveModelSelectionId } from "./model-resolver.js";
 import { createProvider } from "./registry.js";
 import type { ModelConfig } from "../config/schema.js";
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
@@ -49,7 +49,9 @@ export async function buildRoutingAdapter(
   // satisfied and no explicit name exists, fail clearly.
   let effective = model;
   if (model.selection !== undefined) {
-    const resolved = await resolveModelSelectionId(model.selection);
+    const resolved = await resolveModelSelectionId(model.selection, {
+      apiKey: apiKeyFor(model.provider),
+    });
     if (resolved) {
       effective = { ...model, name: resolved.id, selection: undefined };
     } else if (model.name && model.name.length > 0) {

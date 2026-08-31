@@ -322,7 +322,7 @@ function discoveredCapabilities(
  * `resolveConcreteModel`) where `needsTools` is forced true for the agent tab
  * and vision/structured-output come from the request. This is NOT policy
  * selection (which uses `selectModelFromDiscovery`). Broadened input type
- * from `FreeModelInfo[]` → `DiscoveredModel[]` only.
+ * from `DiscoveredModel[]` only.
  */
 export function resolveConcreteFreeModel(
   models: DiscoveredModel[],
