@@ -19,7 +19,7 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "26.1.1",
-    "tsx": "4.22.5",
+    "tsx": "4.23.12",
     "typescript": "7.0.2"
   }
 }
