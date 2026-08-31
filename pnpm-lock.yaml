@@ -52,8 +52,8 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
       undici-types:
-        specifier: 8.5.0
-        version: 8.5.0
+        specifier: 8.10.0
+        version: 8.10.0
       vitest:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.1)(vite@8.0.13(@types/node@26.1.1)(esbuild@0.28.1)(tsx@4.22.5)(yaml@2.9.0))
@@ -1363,11 +1363,11 @@ packages:
     engines: {node: '>=16.20.0'}
     hasBin: true
 
+  undici-types@8.10.0:
+    resolution: {integrity: sha512-ibvdovq3nCFs8Msrd95BW+zUOq+aOVbT+wpHUoPWhztbHEoPc6oof51iFDB6Es8lTKvNvVW9jNSAB8dwrKTMGg==}
+
   undici-types@8.3.0:
     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
-
-  undici-types@8.5.0:
-    resolution: {integrity: sha512-+FxhD+5RUdCZHlVPt+pd0DaYYHBPsgoHovxhMnFq9R1SOejHGE4ma0swzuRoKhOisEzsjFWdFedyD0JQmftrHg==}
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
@@ -2609,9 +2609,9 @@ snapshots:
       '@typescript/typescript-win32-arm64': 7.0.2
       '@typescript/typescript-win32-x64': 7.0.2
 
-  undici-types@8.3.0: {}
+  undici-types@8.10.0: {}
 
-  undici-types@8.5.0: {}
+  undici-types@8.3.0: {}
 
   util-deprecate@1.0.2: {}
 
