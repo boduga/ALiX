@@ -6,6 +6,8 @@ export type OllamaConfig = {
   apiKey?: string;
   model?: string;
   baseUrl?: string;
+  /** Total call timeout (ms). Defaults to 300s for cold-load headroom. */
+  timeoutMs?: number;
 };
 
 export class OllamaProvider extends BaseProvider {
@@ -31,15 +33,25 @@ export class OllamaProvider extends BaseProvider {
       apiKey: config.apiKey ?? process.env.OLLAMA_API_KEY ?? "",
       model: config.model ?? "llama3.2",
       baseUrl: config.baseUrl ?? "http://localhost:11434",
-      timeoutMs: 120_000,
+      // Dead-line for cold loads: Ollama loads the model into RAM on first
+      // call, which can take a while on slower machines. `createProvider`
+      // threads the effective configured timeout in; keep generous headroom
+      // (300s) when unset, matching local-llama's intent.
+      timeoutMs: config.timeoutMs ?? 300_000,
     });
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    return complete("ollama", this._model, request, { apiKey: this._apiKey });
+    return complete("ollama", this._model, request, {
+      apiKey: this._apiKey,
+      signal: AbortSignal.timeout(this._timeoutMs),
+    });
   }
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
-    yield* stream("ollama", this._model, request, { apiKey: this._apiKey });
+    yield* stream("ollama", this._model, request, {
+      apiKey: this._apiKey,
+      signal: AbortSignal.timeout(this._timeoutMs),
+    });
   }
 }

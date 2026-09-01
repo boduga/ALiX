@@ -35,6 +35,10 @@ export type ModelConfig = {
   maxContextTokens?: number;
   maxIterations?: number;
   streaming?: boolean;
+  /** Total wall-clock timeout for a provider call (ms). Default varies by provider. */
+  timeoutMs?: number;
+  /** Per-chunk idle timeout for streaming provider calls (ms). Default 60000. */
+  streamIdleTimeoutMs?: number;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{
