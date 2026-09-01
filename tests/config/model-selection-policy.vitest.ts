@@ -8,9 +8,10 @@
  *    paid/incompatible/ineligible ones, and honors min-context/capabilities
  *    without hard-coded model ids
  *  - `buildRoutingAdapter` resolves a `selection` into a concrete model primary
+ *  - `createProvider` threads apiKey through the discovery seam for non-OpenRouter providers
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildRoutingAdapter, RoutingModelAdapter } from "../../src/providers/routing-adapter.js";
 import { selectModelFromDiscovery, resolveModelSelectionId } from "../../src/providers/model-resolver.js";
 import { createProvider } from "../../src/providers/registry.js";
@@ -21,10 +22,11 @@ import {
   _resetOpenRouterDiscoveryCache,
 } from "../../src/providers/model-discovery.js";
 import { _resetAccessRestrictionRegistryForTesting } from "../../src/providers/access-restriction-registry.js";
+import * as catalog from "../../src/providers/catalog.js";
 
 import type { DiscoveredModel } from "../../src/providers/model-discovery.js";
 
-const catalog = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
+const catalogResponse = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
   status: 200,
   headers: { "Content-Type": "application/json" },
 });
@@ -117,7 +119,7 @@ describe("policy resolver is fed by catalog fixture", () => {
 
 describe("buildRoutingAdapter resolves a selection policy", () => {
   it("resolves selection to a concrete openrouter primary and builds routing", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "thinkingmachines/inkling-small:free", name: "Inkling", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -130,14 +132,14 @@ describe("buildRoutingAdapter resolves a selection policy", () => {
   });
 
   it("throws a clear error when a selection policy cannot be satisfied and no explicit name exists", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([]));
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
     await expect(
       buildRoutingAdapter({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } }, () => ""),
     ).rejects.toThrow(/Model selection policy could not be satisfied/);
   });
 
   it("falls back to the explicit name when a policy cannot be satisfied but a name is configured", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([]));
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
     const adapter = await buildRoutingAdapter(
       { provider: "mock", name: "mock-model", selection: { cost: "free" } },
       () => "",
@@ -150,7 +152,7 @@ describe("buildRoutingAdapter resolves a selection policy", () => {
 
 describe("resolveModelSelectionId (shared discovery seam)", () => {
   it("fetches the catalog and returns the highest-context eligible free model id", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "a/small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -159,14 +161,14 @@ describe("resolveModelSelectionId (shared discovery seam)", () => {
   });
 
   it("returns undefined when the policy is unsatisfiable", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([]));
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
     await expect(resolveModelSelectionId({ provider: "openrouter", cost: "paid" }))
       .resolves.toBeUndefined();
   });
 
   it("excludes models in the bounded-lifetime access-restriction registry", async () => {
     const { recordAccessRestricted } = await import("../../src/providers/access-restriction-registry.js");
-    _setOpenRouterDiscoveryFetch(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "big:free", name: "Big", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -178,7 +180,7 @@ describe("resolveModelSelectionId (shared discovery seam)", () => {
 
 describe("createProvider resolves a selection policy at the registry choke point", () => {
   it("resolves selection to a concrete catalog model for an openrouter config (no throw)", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
     const adapter = await createProvider({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } });
@@ -186,14 +188,14 @@ describe("createProvider resolves a selection policy at the registry choke point
   });
 
   it("throws a clear error when a selection policy is unsatisfiable and no name is configured", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([]));
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
     await expect(
       createProvider({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } }),
     ).rejects.toThrow(/Model selection policy could not be satisfied/);
   });
 
   it("falls back to the explicit name when a policy is unsatisfiable but a name is set", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([]));
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
     const adapter = await createProvider({ provider: "mock", name: "explicit-model", selection: { cost: "free" } });
     expect(adapter.id).toBe("mock");
   });
@@ -205,12 +207,62 @@ describe("createProvider resolves a selection policy at the registry choke point
   });
 
   it("honors resolveModelConfig output (ModelConfig with .name/.selection) directly through the registry", async () => {
-    _setOpenRouterDiscoveryFetch(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
     const model = tryResolveModelConfig({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } } } });
     expect(model).toBeDefined();
     const adapter = await createProvider({ provider: model!.provider, name: model!.name, selection: model!.selection });
     expect(adapter.id).toBe("openrouter");
+  });
+
+  it("picks largest-context mock model and ignores unverifiable cost/capabilities via listModels seam", async () => {
+    const stubbed = vi.spyOn(catalog, "listModels").mockResolvedValue([
+      { id: "mock/many", displayName: "Many", maxInputTokens: 128_000 },
+      { id: "mock/few", displayName: "Few", maxInputTokens: 8_000 },
+    ]);
+
+    const adapter = await createProvider(
+      { provider: "mock", name: "", selection: { provider: "mock", cost: "paid", capabilities: ["tools"] } },
+      "k",
+    );
+
+    expect(stubbed).toHaveBeenCalledWith("mock", "k");
+    expect(adapter.id).toBe("mock");
+
+    stubbed.mockRestore();
+  });
+
+  it("falls back to explicit name when selection resolves no model (empty catalog)", async () => {
+    const stubbed = vi.spyOn(catalog, "listModels").mockResolvedValue([]);
+
+    const adapter = await createProvider(
+      { provider: "mock", name: "mock-model", selection: { provider: "mock" } },
+      "k",
+    );
+
+    expect(stubbed).toHaveBeenCalled();
+    expect(adapter.id).toBe("mock");
+
+    stubbed.mockRestore();
+  });
+});
+
+describe("buildRoutingAdapter threads apiKey through the discovery seam", () => {
+  it("resolves non-openrouter selection via listModels(provider, apiKeyFor(provider))", async () => {
+    const stubbed = vi.spyOn(catalog, "listModels").mockResolvedValue([
+      { id: "mock/big", displayName: "Big", maxInputTokens: 256_000 },
+      { id: "mock/small", displayName: "Small", maxInputTokens: 4_000 },
+    ]);
+
+    const adapter = await buildRoutingAdapter(
+      { provider: "mock", name: "", selection: { provider: "mock", cost: "paid", capabilities: ["tools"] } },
+      () => "test-key",
+    );
+
+    expect(stubbed).toHaveBeenCalledWith("mock", "test-key");
+    expect(adapter.id).toBe("mock");
+
+    stubbed.mockRestore();
   });
 });
