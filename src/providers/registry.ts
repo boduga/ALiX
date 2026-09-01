@@ -16,7 +16,7 @@ import { DeepSeekProvider } from "./deepseek-provider.js";
 import { lazy } from "../utils/lazy-import.js";
 import { withProviderContracts } from "./provider-contract-validation.js";
 import { resolveModelSelectionId } from "./model-resolver.js";
-import type { ModelSelectionPolicy } from "../config/schema.js";
+import type { ModelSelectionPolicy, LocalLlamaKnobConfig } from "../config/schema.js";
 
 // Lazy-load heavy provider modules on first use
 const lazyProviders = {
@@ -58,6 +58,10 @@ export type ProviderConfig = {
   timeoutMs?: number;
   /** Per-chunk idle timeout for streaming provider calls (ms). Overrides the default (60000). */
   streamIdleTimeoutMs?: number;
+  /** Single-model GGUF path for local-llama (ModelConfig.localModelPath). */
+  localModelPath?: string;
+  /** Launcher knobs for local-llama (ModelConfig.localLlama). */
+  localLlama?: LocalLlamaKnobConfig;
 };
 
 /** Default total call timeout per provider (ms). Local/hot-swapping providers get headroom. */
@@ -96,14 +100,14 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     throw new Error(`Unknown provider: ${config.provider}`);
   }
 
-  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string; timeoutMs?: number }) => ModelAdapter;
+  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string; timeoutMs?: number; localModelPath?: string; localLlama?: LocalLlamaKnobConfig }) => ModelAdapter;
   // 3-minute default timeout for provider calls, 60s stream idle timeout.
   // Ollama/local-llama get extra headroom (cold starts), config overrides both.
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS[config.provider] ?? 180_000;
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   // Thread the effective total timeout into the provider so providers that use
   // an inner AbortSignal (e.g. Ollama) enforce the same bound as the wrapper.
-  const instance = new ProviderClass({ apiKey, model, timeoutMs });
+  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama });
   const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;

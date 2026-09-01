@@ -2,6 +2,7 @@ import { BaseProvider } from "./base.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 import { complete, stream } from "./unified-complete.js";
 import { ensureLlamaServer, type LlamaServerOptions } from "./local-llama-launcher.js";
+import type { LocalLlamaKnobConfig } from "../config/schema.js";
 
 /**
  * LocalLlamaProvider — thin wrapper around the local-llama spec.
@@ -16,6 +17,10 @@ import { ensureLlamaServer, type LlamaServerOptions } from "./local-llama-launch
  *   - config.localModelPath in .alix/config.json
  *   - ALIX_LLAMA_MODEL_PATH env var
  *   - ALIX_LLAMA_SERVER_PATH env var (for non-default binary location)
+ *
+ * Launcher knobs (config `localLlama` block, config > env > default):
+ *   - config.localLlama.ctxSize / gpuLayers / flashAttn / threads /
+ *     batchSize / ubatchSize / port / serverPath
  */
 export type LocalLlamaConfig = {
   apiKey?: string;
@@ -23,6 +28,8 @@ export type LocalLlamaConfig = {
   baseUrl?: string;
   /** Path to the GGUF model (overrides ALIX_LLAMA_MODEL_PATH) */
   localModelPath?: string;
+  /** Launcher knobs (config > env > default); spawned-server argv reflects them. */
+  localLlama?: LocalLlamaKnobConfig;
 };
 
 export class LocalLlamaProvider extends BaseProvider {
@@ -45,6 +52,7 @@ export class LocalLlamaProvider extends BaseProvider {
   private launchedProcess: AbortController | null = null;
   private baseUrl: string;
   private localModelPath?: string;
+  private localLlama?: LocalLlamaKnobConfig;
 
   constructor(config: LocalLlamaConfig = {}) {
     const baseUrl = config.baseUrl
@@ -58,6 +66,7 @@ export class LocalLlamaProvider extends BaseProvider {
     });
     this.baseUrl = baseUrl;
     this.localModelPath = config.localModelPath ?? process.env.ALIX_LLAMA_MODEL_PATH;
+    this.localLlama = config.localLlama;
   }
 
   /**
@@ -68,7 +77,8 @@ export class LocalLlamaProvider extends BaseProvider {
 
     const result = await ensureLlamaServer(this.baseUrl, {
       modelPath: this.localModelPath,
-    });
+      ...this.localLlama,
+    } as LlamaServerOptions);
 
     if (result.process) {
       this.launchedProcess = new AbortController();

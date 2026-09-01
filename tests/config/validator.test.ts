@@ -114,4 +114,70 @@ describe("validateConfig", () => {
       false,
     );
   });
+
+  it("accepts valid local-llama launcher knobs on a model entry", () => {
+    const config = makeValidConfig();
+    config.models!.default = {
+      provider: "local-llama",
+      name: "model.gguf",
+      localModelPath: "~/llama.cpp/models/model.gguf",
+      localLlama: {
+        ctxSize: 8192,
+        gpuLayers: 33,
+        flashAttn: true,
+        threads: 8,
+        batchSize: 2048,
+        ubatchSize: 512,
+        port: 9001,
+        serverPath: "/usr/bin/llama-server",
+      },
+    };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+    assert.equal(result.issues.length, 0);
+  });
+
+  it("accepts auto gpuLayers/flashAttn and partial localLlama", () => {
+    const config = makeValidConfig();
+    config.models!.default = {
+      provider: "local-llama",
+      name: "model.gguf",
+      localLlama: { gpuLayers: "auto", flashAttn: "auto", port: 8080 },
+    };
+    const result = validateConfig(config);
+    assert.equal(result.valid, true);
+  });
+
+  it("reports error when localModelPath is empty", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "local-llama", name: "m", localModelPath: "" };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.localModelPath" && i.level === "error"));
+  });
+
+  it("reports error when a localLlama knob is an invalid number", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "local-llama", name: "m", localLlama: { port: 70000 } };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.localLlama.port" && i.level === "error"));
+  });
+
+  it("reports error when gpuLayers/flashAttn are neither auto nor the right type", () => {
+    const config = makeValidConfig();
+    config.models!.default = {
+      provider: "local-llama",
+      name: "m",
+      localLlama: { gpuLayers: "lots" as any, flashAttn: "maybe" as any },
+    };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.localLlama.gpuLayers" && i.level === "error"));
+    assert.ok(result.issues.some(i => i.path === "models.default.localLlama.flashAttn" && i.level === "error"));
+  });
+
+  it("reports error when serverPath is empty", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "local-llama", name: "m", localLlama: { serverPath: "" } };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.localLlama.serverPath" && i.level === "error"));
+  });
 });

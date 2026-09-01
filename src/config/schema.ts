@@ -26,6 +26,25 @@ export type ModelSelectionPolicy = {
   minContext?: number;
 };
 
+/**
+ * Launcher knobs for the local-llama provider. Nested under `localLlama` so
+ * provider-specific tuning stays off the flat, provider-agnostic `ModelConfig`.
+ *
+ * Resolution precedence: config `localLlama` block > env `ALIX_LLAMA_*` >
+ * default. `gpuLayers` and `flashAttn` default to `"auto"` — the corresponding
+ * `-ngl`/`--flash-attn` argv are omitted in that state.
+ */
+export type LocalLlamaKnobConfig = {
+  ctxSize?: number;
+  gpuLayers?: number | "auto";
+  flashAttn?: boolean | "auto";
+  threads?: number;
+  batchSize?: number;
+  ubatchSize?: number;
+  port?: number;
+  serverPath?: string;
+};
+
 export type ModelConfig = {
   provider: string;
   name: string;
@@ -39,6 +58,13 @@ export type ModelConfig = {
   timeoutMs?: number;
   /** Per-chunk idle timeout for streaming provider calls (ms). Default 60000. */
   streamIdleTimeoutMs?: number;
+  /**
+   * Single-model GGUF file path for the local-llama provider. Honored by the
+   * launcher (`-m`) and the discovery scan-directory override (spec decision 6).
+   */
+  localModelPath?: string;
+  /** Launcher knobs for the local-llama provider (config > env > default). */
+  localLlama?: LocalLlamaKnobConfig;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

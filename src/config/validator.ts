@@ -1,4 +1,4 @@
-import type { AlixConfig, ConfigValidationResult, ValidationIssue } from "./schema.js";
+import type { AlixConfig, ConfigValidationResult, ModelConfig, ValidationIssue } from "./schema.js";
 
 /** Returns true when host resolves to a loopback address. */
 export function isLoopbackHost(host: string): boolean {
@@ -18,6 +18,14 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   const defaultModel = config.models?.default;
   if (config.models && (!defaultModel?.name || typeof defaultModel.name !== "string")) {
     issues.push({ path: "models.default.name", level: "error", message: "models.default.name must be a non-empty string" });
+  }
+
+  // local-llama launcher knobs: validate the top-level `localModelPath` and the
+  // nested `localLlama` block on every model entry (default + tiers). Optional
+  // knobs are only flagged when DEFINED-and-invalid — undefined → default later
+  // → valid (the launcher owns the defaults).
+  for (const [tier, model] of Object.entries(config.models ?? {})) {
+    pushLocalLlamaIssues(`models.${tier}`, model, issues);
   }
 
   // Sections below may be ABSENT in a config fragment — the raw on-disk file
@@ -149,4 +157,42 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   }
 
   return { valid: issues.filter(i => i.level === "error").length === 0, issues };
+}
+
+function pushLocalLlamaIssues(
+  path: string,
+  model: ModelConfig | undefined,
+  issues: ValidationIssue[],
+): void {
+  if (!model) return;
+
+  if (model.localModelPath !== undefined && (typeof model.localModelPath !== "string" || model.localModelPath.length === 0)) {
+    issues.push({ path: `${path}.localModelPath`, level: "error", message: "localModelPath must be a non-empty string" });
+  }
+
+  const ll = model.localLlama;
+  if (!ll) return;
+
+  for (const [knob, type, check] of [
+    ["ctxSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["threads", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["batchSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["ubatchSize", "number", (v: number) => Number.isInteger(v) && v > 0],
+    ["port", "number", (v: number) => Number.isInteger(v) && v > 0 && v <= 65535],
+  ] as const) {
+    const value = ll[knob];
+    if (value !== undefined && (typeof value !== type || !check(value as number))) {
+      issues.push({ path: `${path}.localLlama.${knob}`, level: "error", message: `${knob} must be a ${type === "number" ? "positive integer" : type}` });
+    }
+  }
+
+  if (ll.gpuLayers !== undefined && !(ll.gpuLayers === "auto" || (typeof ll.gpuLayers === "number" && Number.isInteger(ll.gpuLayers) && ll.gpuLayers >= 0))) {
+    issues.push({ path: `${path}.localLlama.gpuLayers`, level: "error", message: "gpuLayers must be \"auto\" or a non-negative integer" });
+  }
+  if (ll.flashAttn !== undefined && !(ll.flashAttn === "auto" || typeof ll.flashAttn === "boolean")) {
+    issues.push({ path: `${path}.localLlama.flashAttn`, level: "error", message: "flashAttn must be \"auto\" or a boolean" });
+  }
+  if (ll.serverPath !== undefined && (typeof ll.serverPath !== "string" || ll.serverPath.length === 0)) {
+    issues.push({ path: `${path}.localLlama.serverPath`, level: "error", message: "serverPath must be a non-empty string" });
+  }
 }
