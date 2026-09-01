@@ -96,12 +96,14 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     throw new Error(`Unknown provider: ${config.provider}`);
   }
 
-  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string }) => ModelAdapter;
-  const instance = new ProviderClass({ apiKey, model });
+  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string; timeoutMs?: number }) => ModelAdapter;
   // 3-minute default timeout for provider calls, 60s stream idle timeout.
   // Ollama/local-llama get extra headroom (cold starts), config overrides both.
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS[config.provider] ?? 180_000;
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  // Thread the effective total timeout into the provider so providers that use
+  // an inner AbortSignal (e.g. Ollama) enforce the same bound as the wrapper.
+  const instance = new ProviderClass({ apiKey, model, timeoutMs });
   const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;

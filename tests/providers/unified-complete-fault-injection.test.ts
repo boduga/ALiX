@@ -562,9 +562,36 @@ test("complete: pre-aborted signal aborts without performing the fetch", async (
   try {
     await assert.rejects(
       () => complete("openai", "gpt-4o", completionRequest, { signal: controller.signal }),
-      /aborted/i,
+      (e: unknown) =>
+        e instanceof ApiError &&
+        e.status === 408 &&
+        /aborted/i.test(e.detail),
+      "pre-aborted signal must reject with ApiError(408)",
     );
     assert.equal(calls.length, 0, "no fetch should be issued for an already-aborted signal");
+  } finally {
+    _setFetchForTesting(globalThis.fetch);
+  }
+});
+
+test("complete: signal firing mid-fetch aborts immediately (no retry)", async () => {
+  resetCalls();
+  const controller = new AbortController();
+  _setFetchForTesting(wrap(async (url, init) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    // Simulate the provider's AbortSignal.timeout firing while the request is
+    // in flight — the retry loop must not wrap this as a retryable 503.
+    controller.abort();
+    throw new DOMException("The operation aborted", "AbortError");
+  }));
+
+  try {
+    await assert.rejects(
+      () => complete("openai", "gpt-4o", completionRequest, { signal: controller.signal }),
+      (e: unknown) => e instanceof ApiError && e.status === 408,
+      "mid-fetch abort must reject with ApiError(408), not retry",
+    );
+    assert.equal(calls.length, 1, "no retry should follow an abort");
   } finally {
     _setFetchForTesting(globalThis.fetch);
   }

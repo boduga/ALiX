@@ -60,10 +60,15 @@ function resolveApiKey(provider: string, override?: string): string {
   return process.env[envVar] ?? "";
 }
 
+/** Normalize an aborted in-flight request into the provider error surface. */
+function abortError(signal: AbortSignal): ApiError {
+  return new ApiError(408, signal.reason ? `Request aborted: ${String(signal.reason)}` : "Request aborted");
+}
+
 async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
   let lastErr: Response | undefined;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    if (init.signal?.aborted) throw init.signal.reason ?? new Error("Aborted");
+    if (init.signal?.aborted) throw abortError(init.signal);
     try {
       const res = await _fetch(url, init);
       if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
@@ -74,6 +79,9 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): P
       }
       return res;
     } catch (e) {
+      // If the signal fired mid-fetch, cancel now — aborting is not a
+      // transient failure worth another retry cycle.
+      if (init.signal?.aborted) throw abortError(init.signal);
       lastErr = new Response(JSON.stringify({ error: { message: String(e) } }), { status: 503 });
     }
   }
@@ -306,6 +314,11 @@ function withResolvedModel(
   return chunk;
 }
 
+/** Build the standard error chunk for an aborted stream (signal fired). */
+function abortChunk(signal: AbortSignal, context: string): StreamChunk {
+  return { type: "error", error: `${context} aborted: ${signal.reason ? String(signal.reason) : "aborted"}` };
+}
+
 export async function* stream(
   provider: string,
   model: string,
@@ -328,7 +341,7 @@ export async function* stream(
   let res: Response | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (options.signal?.aborted) {
-      yield { type: "error", error: `Stream request aborted: ${String(options.signal.reason ?? "aborted")}` };
+      yield abortChunk(options.signal, "Stream request");
       return;
     }
     try {
@@ -349,7 +362,7 @@ export async function* stream(
       return;
     } catch (e: any) {
       if (options.signal?.aborted) {
-        yield { type: "error", error: `Stream request aborted: ${String(options.signal.reason ?? e?.message ?? "aborted")}` };
+        yield abortChunk(options.signal, "Stream request");
         return;
       }
       if (attempt < maxRetries) {
@@ -371,16 +384,20 @@ export async function* stream(
   try {
     while (true) {
       if (options.signal?.aborted) {
-        yield { type: "error", error: `Stream aborted: ${String(options.signal.reason ?? "aborted")}` };
+        yield abortChunk(options.signal, "Stream");
         return;
       }
-      const { done, value } = await reader.read().then(
-        (r) => r,
-        (e: unknown) => {
-          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
-          throw e;
-        },
-      );
+      let read;
+      try {
+        read = await reader.read();
+      } catch (e: unknown) {
+        if (options.signal?.aborted) {
+          yield abortChunk(options.signal, "Stream");
+          return;
+        }
+        throw e;
+      }
+      const { done, value } = read;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
