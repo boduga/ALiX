@@ -42,6 +42,7 @@ import type { LensName, GovernanceReview } from "../../adaptation/governance-rev
 import type { GovernanceReviewInput } from "../../adaptation/governance-review-types.js";
 import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
+import { isKeylessProvider } from "../../providers/keyless-providers.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
@@ -667,8 +668,8 @@ async function runReview(args: string[]): Promise<void> {
     process.exit(1);
   }
   const apiKey = process.env[providerInfo.env] ?? "";
-  // Skip API key check for ollama (local, no key needed)
-  if (!apiKey && detected.provider !== "ollama") {
+  // Skip API key check for keyless providers (local, no key needed)
+  if (!apiKey && !isKeylessProvider(detected.provider)) {
     console.error(`Error: no API key found for provider "${detected.provider}". Set ${providerInfo.env}`);
     process.exit(1);
   }

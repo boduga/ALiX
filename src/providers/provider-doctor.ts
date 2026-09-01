@@ -6,6 +6,7 @@
 
 import { complete, stream } from "./unified-complete.js";
 import type { NormalizedRequest } from "./types.js";
+import { isKeylessProvider } from "./keyless-providers.js";
 
 export type ProviderHealthResult = {
   provider: string;
@@ -32,8 +33,7 @@ export async function checkProvider(
   const start = Date.now();
   const result: ProviderHealthResult = { provider, model, hasApiKey: !!apiKey, completeOk: false, streamOk: false, durationMs: 0 };
 
-  const keylessProviders = ["ollama", "local-llama", "mock"];
-  if (!apiKey && !keylessProviders.includes(provider)) {
+  if (!apiKey && !isKeylessProvider(provider)) {
     result.error = "No API key configured";
     result.durationMs = Date.now() - start;
     return result;
