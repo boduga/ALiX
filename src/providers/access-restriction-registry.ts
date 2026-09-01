@@ -50,7 +50,7 @@ export function clearAccessRestrictions(): void {
   restricted.clear();
 }
 
-// Test hooks — mirror the catalog cache seam (_resetCatalogCacheForTesting).
+// Test hooks — mirror the discovery cache seam (_resetOpenRouterDiscoveryCache).
 /** Test seam: reset all recorded restrictions. */
 export function _resetAccessRestrictionRegistryForTesting(): void {
   restricted.clear();

@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { resolveConcreteFreeModel, deriveRequestRequirements, supportsRequest } from "../../src/providers/free-model-resolver.js";
-import type { FreeModelInfo } from "../../src/providers/free-model-catalog.js";
+import { resolveConcreteFreeModel, deriveRequestRequirements, supportsRequest } from "../../src/providers/model-resolver.js";
+import type { DiscoveredModel } from "../../src/providers/model-discovery.js";
 import type { NormalizedRequest, ModelCapabilities } from "../../src/providers/types.js";
 
-const model = (overrides: Partial<FreeModelInfo>): FreeModelInfo => ({
+const model = (overrides: Partial<DiscoveredModel>): DiscoveredModel => ({
   id: "m",
-  name: "m",
-  inputTokenLimit: 32_000,
+  provider: "openrouter",
+  inputContextLimit: 32_000,
   supportsTools: false,
   supportsStructuredOutput: false,
   supportsVision: false,
@@ -18,9 +18,9 @@ const req: NormalizedRequest = { systemPrompt: "s", messages: [{ role: "user", c
 describe("resolveConcreteFreeModel", () => {
   it("picks the largest verified context among eligible models", () => {
     const catalog = [
-      model({ id: "small", inputTokenLimit: 8_000 }),
-      model({ id: "big", inputTokenLimit: 64_000 }),
-      model({ id: "mid", inputTokenLimit: 32_000 }),
+      model({ id: "small", inputContextLimit: 8_000 }),
+      model({ id: "big", inputContextLimit: 64_000 }),
+      model({ id: "mid", inputContextLimit: 32_000 }),
     ];
     expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false })?.id).toBe("big");
   });
@@ -59,12 +59,12 @@ describe("resolveConcreteFreeModel", () => {
   });
 
   it("rejects models with insufficient context", () => {
-    const catalog = [model({ id: "small", inputTokenLimit: 8_000 })];
+    const catalog = [model({ id: "small", inputContextLimit: 8_000 })];
     expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 16_000 })).toBeUndefined();
   });
 
   it("rejects unknown context when a concrete context requirement exists", () => {
-    const catalog = [model({ id: "unknown-ctx", inputTokenLimit: undefined })];
+    const catalog = [model({ id: "unknown-ctx", inputContextLimit: undefined })];
     expect(resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false, maxInputTokens: 10_000 })).toBeUndefined();
   });
 
@@ -74,8 +74,8 @@ describe("resolveConcreteFreeModel", () => {
 
   it("resolves different models for different capability sets (no global concrete cache)", () => {
     const catalog = [
-      model({ id: "plain", inputTokenLimit: 128_000 }),
-      model({ id: "vision", inputTokenLimit: 16_000, supportsVision: true }),
+      model({ id: "plain", inputContextLimit: 128_000 }),
+      model({ id: "vision", inputContextLimit: 16_000, supportsVision: true }),
     ];
     const forPlain = resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: false });
     const forVision = resolveConcreteFreeModel(catalog, { needsTools: false, needsStructuredOutput: false, needsVision: true });
@@ -85,8 +85,8 @@ describe("resolveConcreteFreeModel", () => {
 
   it("excludes already-tried ids from the self-healing retry loop", () => {
     const catalog = [
-      model({ id: "a/free", inputTokenLimit: 64_000 }),
-      model({ id: "b/free", inputTokenLimit: 64_000 }),
+      model({ id: "a/free", inputContextLimit: 64_000 }),
+      model({ id: "b/free", inputContextLimit: 64_000 }),
     ];
     const reqs = { needsTools: false, needsStructuredOutput: false, needsVision: false };
     // Same-size tie breaks lexical -> "a/free" first.

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { OpenRouterProvider, ProviderAccessError } from "../../src/providers/openrouter-provider.js";
-import { _setCatalogFetchForTesting, _resetCatalogCacheForTesting } from "../../src/providers/free-model-catalog.js";
+import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../src/providers/model-discovery.js";
 import { _setAccessRestrictionTtlForTesting, _resetAccessRestrictionRegistryForTesting } from "../../src/providers/access-restriction-registry.js";
 import { _setFetchForTesting } from "../../src/providers/unified-complete.js";
 
@@ -12,15 +12,15 @@ const catalog = (models: unknown[]) => new Response(JSON.stringify({ data: model
 const req = { systemPrompt: "s", messages: [{ role: "user" as const, content: "hi" }] };
 
 afterEach(() => {
-  _resetCatalogCacheForTesting();
+  _resetOpenRouterDiscoveryCache();
   _resetAccessRestrictionRegistryForTesting();
-  _setCatalogFetchForTesting(globalThis.fetch);
+  _setOpenRouterDiscoveryFetch(globalThis.fetch);
   _setFetchForTesting(globalThis.fetch);
 });
 
 describe("openrouter/free route", () => {
   it("resolves a concrete free model per request and completes through it", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
     ]));
     let requestedModel: string | undefined;
@@ -37,7 +37,7 @@ describe("openrouter/free route", () => {
 
   it("resolves per request — never globally cached", async () => {
     let catalogFetchCount = 0;
-    _setCatalogFetchForTesting(async () => {
+    _setOpenRouterDiscoveryFetch(async () => {
       catalogFetchCount++;
       return catalog([
         { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
@@ -59,8 +59,26 @@ describe("openrouter/free route", () => {
     expect(catalogFetchCount).toBe(1); // catalog cached, selection re-run
   });
 
+  it("never selects a paid model on the free route", async () => {
+    _setOpenRouterDiscoveryFetch(async () => catalog([
+      { id: "paid/big", name: "PaidBig", context_length: 200_000, pricing: { prompt: "0.000002", completion: "0.000006" }, supported_parameters: ["tools"] },
+      { id: "free/small", name: "FreeSmall", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    let requestedModel: string | undefined;
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      requestedModel = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model;
+      return new Response(JSON.stringify({ model: requestedModel, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+    // The paid model is the largest-context candidate, so without the
+    // costPerMTokIn === 0 pre-filter (openrouter-provider.ts resolveConcreteModel)
+    // it would win. Assert the free route skips it entirely.
+    await provider.complete(req);
+    expect(requestedModel).toBe("free/small");
+  });
+
   it("throws a clear error when no free model satisfies the request", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: false } },
     ]));
     const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
@@ -69,7 +87,7 @@ describe("openrouter/free route", () => {
   });
 
   it("always resolves to a tools-capable model, even for plain requests", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "big/no-tools", name: "Big", context_length: 128_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: [] },
       { id: "small/with-tools", name: "Small", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -97,7 +115,7 @@ describe("openrouter/free route", () => {
   });
 
   it("resolves per request in the streaming path", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
     ]));
     let requestedModel: string | undefined;
@@ -120,7 +138,7 @@ describe("openrouter/free route", () => {
   });
 
   it("retries with a different free model on account-rejection (404 allowed-providers) — complete", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "stealth/ox-alpha", name: "Stealth", context_length: 200_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -140,7 +158,7 @@ describe("openrouter/free route", () => {
   });
 
   it("retries with a different free model on account-rejection in streaming", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "stealth/ox-alpha", name: "Stealth", context_length: 200_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -167,7 +185,7 @@ describe("openrouter/free route", () => {
   });
 
   it("throws ProviderAccessError on a harness-restricted 403, and excludes the model on the next request", async () => {
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "thinkingmachines/inkling-small:free", name: "Inkling", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
@@ -194,7 +212,7 @@ describe("openrouter/free route", () => {
 
   it("revalidates an access-restricted model after the TTL expires", async () => {
     _setAccessRestrictionTtlForTesting(20);
-    _setCatalogFetchForTesting(async () => catalog([
+    _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "thinkingmachines/inkling-small:free", name: "Inkling", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 16_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));

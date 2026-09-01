@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { handleModelsCommand } from "../../../src/cli/commands/models.js";
-import { _setCatalogFetchForTesting, _resetCatalogCacheForTesting } from "../../../src/providers/free-model-catalog.js";
+import { _setOpenRouterDiscoveryFetch, _resetOpenRouterDiscoveryCache } from "../../../src/providers/model-discovery.js";
 
 const sample = (models: unknown[]) => new Response(JSON.stringify({ data: models }), {
   status: 200,
@@ -14,14 +14,14 @@ function capture(fn: () => Promise<void>): Promise<string[]> {
 }
 
 afterEach(() => {
-  _resetCatalogCacheForTesting();
-  _setCatalogFetchForTesting(globalThis.fetch);
+  _resetOpenRouterDiscoveryCache();
+  _setOpenRouterDiscoveryFetch(globalThis.fetch);
   vi.restoreAllMocks();
 });
 
 describe("models free", () => {
   it("lists free models with context and capability flags", async () => {
-    _setCatalogFetchForTesting(async () => sample([
+    _setOpenRouterDiscoveryFetch(async () => sample([
       { id: "qwen/qwen3-14b:free", name: "Qwen 3 14B", context_length: 32_000, pricing: { prompt: "0", completion: "0", request: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
       { id: "a/no-ctx:free", name: "A", pricing: { prompt: "0", completion: "0" }, supported_parameters: {} },
     ]));
@@ -37,7 +37,7 @@ describe("models free", () => {
   });
 
   it("emits valid JSON with --json", async () => {
-    _setCatalogFetchForTesting(async () => sample([
+    _setOpenRouterDiscoveryFetch(async () => sample([
       { id: "qwen/qwen3-14b:free", name: "Qwen 3 14B", context_length: 32_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true, structured_outputs: true, vision: false } },
     ]));
     const out = await capture(() => handleModelsCommand(["free", "--json"]));
@@ -47,9 +47,17 @@ describe("models free", () => {
   });
 
   it("prints guidance when the catalog is empty", async () => {
-    _setCatalogFetchForTesting(async () => sample([
+    _setOpenRouterDiscoveryFetch(async () => sample([
       { id: "b/paid", name: "B", pricing: { prompt: "1.5", request: "1" }, supported_parameters: {} },
     ]));
+    const out = await capture(() => handleModelsCommand(["free"]));
+    expect(out.join("\n")).toContain("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+  });
+
+  it("does not throw and prints guidance when discovery fails", async () => {
+    _setOpenRouterDiscoveryFetch(async () => { throw new Error("network down"); });
+    // A rejected discovery must be handled gracefully — the command returns
+    // with the friendly message instead of throwing an unhandled rejection.
     const out = await capture(() => handleModelsCommand(["free"]));
     expect(out.join("\n")).toContain("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
   });
