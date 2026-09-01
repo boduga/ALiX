@@ -41,11 +41,42 @@ export const localLlamaSpec: ProviderSpec = {
         if (body.messages[0]?.role === "system") {
           body.messages[0].content += toolHint;
         }
-        body.response_format = {
-          type: "json_schema",
-          json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools as ToolDef[]) },
-        };
+        // Caller's structuredOutputSchema takes precedence (passthrough per resolution #611).
+        // If no caller schema, use grammar-constrained tool calling schema.
+        if (req.structuredOutputSchema) {
+          body.response_format = {
+            type: "json_schema",
+            json_schema: {
+              name: req.structuredOutputSchema.name,
+              strict: true,
+              schema: {
+                type: "object",
+                properties: req.structuredOutputSchema.properties,
+                required: req.structuredOutputSchema.required,
+              },
+            },
+          };
+        } else {
+          body.response_format = {
+            type: "json_schema",
+            json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools as ToolDef[]) },
+          };
+        }
       }
+    } else if (req.structuredOutputSchema) {
+      // Caller requested structured output without tools — pass through as json_schema.
+      body.response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: req.structuredOutputSchema.name,
+          strict: true,
+          schema: {
+            type: "object",
+            properties: req.structuredOutputSchema.properties,
+            required: req.structuredOutputSchema.required,
+          },
+        },
+      };
     }
     return body;
   },

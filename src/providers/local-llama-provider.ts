@@ -45,7 +45,7 @@ export class LocalLlamaProvider extends BaseProvider {
       outputTokenLimit: 16_384,
       supportsTools: true,
       supportsStreaming: true,
-      supportsStructuredOutput: false,
+      supportsStructuredOutput: true,
       supportsVision: false,
     };
   }
