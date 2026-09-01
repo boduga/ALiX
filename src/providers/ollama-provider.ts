@@ -31,15 +31,24 @@ export class OllamaProvider extends BaseProvider {
       apiKey: config.apiKey ?? process.env.OLLAMA_API_KEY ?? "",
       model: config.model ?? "llama3.2",
       baseUrl: config.baseUrl ?? "http://localhost:11434",
-      timeoutMs: 120_000,
+      // Ollama cold-starts by loading the model into RAM, which can take a
+      // while on slower machines — give it extra headroom beyond the 120s
+      // default, matching local-llama's intent.
+      timeoutMs: 300_000,
     });
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    return complete("ollama", this._model, request, { apiKey: this._apiKey });
+    return complete("ollama", this._model, request, {
+      apiKey: this._apiKey,
+      signal: AbortSignal.timeout(this._timeoutMs),
+    });
   }
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
-    yield* stream("ollama", this._model, request, { apiKey: this._apiKey });
+    yield* stream("ollama", this._model, request, {
+      apiKey: this._apiKey,
+      signal: AbortSignal.timeout(this._timeoutMs),
+    });
   }
 }

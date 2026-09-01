@@ -63,6 +63,7 @@ function resolveApiKey(provider: string, override?: string): string {
 async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): Promise<Response> {
   let lastErr: Response | undefined;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (init.signal?.aborted) throw init.signal.reason ?? new Error("Aborted");
     try {
       const res = await _fetch(url, init);
       if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
@@ -261,7 +262,7 @@ export async function complete(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string } = {}
+  options: { apiKey?: string; signal?: AbortSignal } = {}
 ): Promise<NormalizedResponse> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -275,6 +276,7 @@ export async function complete(
     method: "POST",
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
     body: JSON.stringify(body),
+    signal: options.signal,
   });
 
   if (!res.ok) {
@@ -308,7 +310,7 @@ export async function* stream(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string } = {}
+  options: { apiKey?: string; signal?: AbortSignal } = {}
 ): AsyncGenerator<StreamChunk> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -325,11 +327,16 @@ export async function* stream(
   const maxRetries = 2;
   let res: Response | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (options.signal?.aborted) {
+      yield { type: "error", error: `Stream request aborted: ${String(options.signal.reason ?? "aborted")}` };
+      return;
+    }
     try {
       res = await _fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
         body: JSON.stringify(body),
+        signal: options.signal,
       });
       if (res.ok) break;
       if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
@@ -341,6 +348,10 @@ export async function* stream(
       yield { type: "error", error: spec.toErrorMessage(res.status, errBody) };
       return;
     } catch (e: any) {
+      if (options.signal?.aborted) {
+        yield { type: "error", error: `Stream request aborted: ${String(options.signal.reason ?? e?.message ?? "aborted")}` };
+        return;
+      }
       if (attempt < maxRetries) {
         const delay = Math.floor(Math.random() * 1000 * Math.pow(2, attempt));
         await new Promise(r => setTimeout(r, delay));
@@ -359,7 +370,17 @@ export async function* stream(
   let streamModel: string | undefined;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      if (options.signal?.aborted) {
+        yield { type: "error", error: `Stream aborted: ${String(options.signal.reason ?? "aborted")}` };
+        return;
+      }
+      const { done, value } = await reader.read().then(
+        (r) => r,
+        (e: unknown) => {
+          if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+          throw e;
+        },
+      );
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");

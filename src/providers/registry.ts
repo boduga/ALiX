@@ -54,7 +54,19 @@ export type ProviderConfig = {
   model?: string;
   name?: string;
   selection?: ModelSelectionPolicy;
+  /** Total wall-clock timeout for a provider call (ms). Overrides the provider default. */
+  timeoutMs?: number;
+  /** Per-chunk idle timeout for streaming provider calls (ms). Overrides the default (60000). */
+  streamIdleTimeoutMs?: number;
 };
+
+/** Default total call timeout per provider (ms). Local/hot-swapping providers get headroom. */
+const DEFAULT_TIMEOUT_MS: Record<string, number> = {
+  ollama: 300_000,
+  "local-llama": 300_000,
+};
+
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 export async function createProvider(config: ProviderConfig, apiKey?: string): Promise<ModelAdapter> {
   // Policy-driven selection: configuration expresses requirements, discovery
@@ -86,8 +98,11 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
 
   const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string }) => ModelAdapter;
   const instance = new ProviderClass({ apiKey, model });
-  // 3-minute default timeout for provider calls, 60s stream idle timeout
-  const wrapped = withProviderContracts(instance, undefined, 180_000, 60_000);
+  // 3-minute default timeout for provider calls, 60s stream idle timeout.
+  // Ollama/local-llama get extra headroom (cold starts), config overrides both.
+  const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS[config.provider] ?? 180_000;
+  const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
+  const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;
 }
