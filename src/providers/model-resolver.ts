@@ -18,7 +18,18 @@ import type {
 
 import type {
   ModelSelectionPolicy,
+  ModelCapabilityName,
 } from "../config/schema.js";
+
+/** Maps a policy capability name onto the `DiscoveredModel` support flag that gates it. */
+const CAPABILITY_SUPPORT_FLAG: Record<
+  ModelCapabilityName,
+  "supportsTools" | "supportsStructuredOutput" | "supportsVision"
+> = {
+  tools: "supportsTools",
+  structured_output: "supportsStructuredOutput",
+  vision: "supportsVision",
+};
 
 export type ModelSelectionRequirements = {
   needsTools: boolean;
@@ -208,32 +219,13 @@ export function selectModelFromDiscovery(
         sourceHasCapabilities &&
         policy.capabilities
       ) {
-        if (
-          policy.capabilities.includes(
-            "tools",
-          ) &&
-          model.supportsTools !== true
-        ) {
-          return false;
-        }
+        for (const capability of policy.capabilities) {
+          const flag =
+            CAPABILITY_SUPPORT_FLAG[capability];
 
-        if (
-          policy.capabilities.includes(
-            "structured_output",
-          ) &&
-          model.supportsStructuredOutput !==
-            true
-        ) {
-          return false;
-        }
-
-        if (
-          policy.capabilities.includes(
-            "vision",
-          ) &&
-          model.supportsVision !== true
-        ) {
-          return false;
+          if (model[flag] !== true) {
+            return false;
+          }
         }
       }
 
