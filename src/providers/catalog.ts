@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -108,6 +108,9 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       const data = (await response.json()) as { models: Array<{ name: string }> };
       return data.models.map((m) => ({ id: m.name, displayName: m.name }));
     }
+    case "local-llama": {
+      return listLocalLlamaGgufModels(resolveLocalLlamaScanDir(readUserConfigLocalModelPath()));
+    }
     case "deepseek": {
       const response = await fetch("https://api.deepseek.com/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
@@ -173,6 +176,87 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
 }
 
 /**
+ * Launcher context-size default — the reference the size-scaled context cap is
+ * computed from (must stay in sync with the launcher's `KNOB_DEFAULTS.ctxSize`).
+ */
+const LOCAL_LLAMA_CTX_DEFAULT = 4096;
+
+/** Mid-size reference file (bytes) that maps to the full default ctx. */
+const LOCAL_LLAMA_REFERENCE_BYTES = 2 * 1024 ** 3; // 2 GiB
+
+const LOCAL_LLAMA_MODEL_DIR_DEFAULT = join(homedir(), "llama.cpp", "models");
+
+/**
+ * Resolve the local-llama scan directory (spec decision 2): config
+ * `localModelPath` > `ALIX_LLAMA_MODEL_PATH` env > `~/llama.cpp/models`.
+ *
+ * `env` is an injectable seam (defaults to `process.env`) for precedence tests.
+ */
+export function resolveLocalLlamaScanDir(
+  configLocalModelPath: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return configLocalModelPath
+    ?? env.ALIX_LLAMA_MODEL_PATH
+    ?? LOCAL_LLAMA_MODEL_DIR_DEFAULT;
+}
+
+/**
+ * Size-scaled context cap for a GGUF model (spec decision 2): a larger file
+ * maps to a smaller safe `maxInputTokens`, so `minContext` selection can route
+ * to it. Deterministic, no GGUF parser — a 2 GiB file maps to the full launcher
+ * ctx default; every doubling past that halves the cap (floored at 1024).
+ */
+export function localLlamaMaxInputTokens(sizeBytes: number): number {
+  const ratio = LOCAL_LLAMA_REFERENCE_BYTES / Math.max(sizeBytes, 1);
+  const cap = Math.round(LOCAL_LLAMA_CTX_DEFAULT * ratio);
+  return Math.min(LOCAL_LLAMA_CTX_DEFAULT, Math.max(cap, 1024));
+}
+
+/**
+ * Scan a directory for direct-child `*.gguf` models (spec decision 2): no
+ * recursion, no symlink follow, non-`.gguf` ignored. Missing/empty directory
+ * returns `[]` — `getAvailableModels` then falls back to the local-llama
+ * `DEFAULT_MODELS` entry. `id` is the full filename (becomes the selection id),
+ * `displayName` the file stem.
+ */
+export function listLocalLlamaGgufModels(
+  scanDir: string,
+  fsSeam: {
+    readdir: (dir: string) => Array<{ name: string; isFile: () => boolean; isSymbolicLink: () => boolean }>;
+    stat: (path: string) => { size: number };
+  } = {
+    readdir: (dir) => readdirSync(dir, { withFileTypes: true }),
+    stat: (path) => statSync(path),
+  },
+): ModelInfo[] {
+  let entries;
+  try {
+    entries = fsSeam.readdir(scanDir);
+  } catch {
+    return [];
+  }
+
+  const models: ModelInfo[] = [];
+  for (const ent of entries) {
+    if (!ent.isFile()) continue; // no dirs, no symlinks
+    if (!ent.name.toLowerCase().endsWith(".gguf")) continue;
+    let size = 0;
+    try {
+      size = fsSeam.stat(join(scanDir, ent.name)).size;
+    } catch {
+      continue; // unstatable entry → skip, don't fail the scan
+    }
+    models.push({
+      id: ent.name,
+      displayName: ent.name.replace(/\.gguf$/i, ""),
+      maxInputTokens: localLlamaMaxInputTokens(size),
+    });
+  }
+  return models.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/**
  * Default models per provider (for `alix init` command).
  * Chosen for broad capability coverage at each provider's best price/performance tier.
  */
@@ -231,6 +315,27 @@ export function loadUserConfigApiKeys(): Record<string, string> {
     return out;
   } catch {
     return {};
+  }
+}
+
+/**
+ * Read the default model's `localModelPath` from the user config
+ * (~/.config/alix/config.json → `models.default.localModelPath`).
+ * Returns undefined if missing, unreadable, or not a string.
+ * Never throws.
+ */
+export function readUserConfigLocalModelPath(): string | undefined {
+  try {
+    const path = resolveUserConfigPath();
+    if (!existsSync(path)) return undefined;
+    const raw = readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw) as {
+      models?: { default?: { localModelPath?: string } };
+    };
+    const lp = parsed.models?.default?.localModelPath;
+    return typeof lp === "string" && lp.length > 0 ? lp : undefined;
+  } catch {
+    return undefined;
   }
 }
 

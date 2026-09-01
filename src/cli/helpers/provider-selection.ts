@@ -208,6 +208,19 @@ export async function getAvailableModels(
 
   // Success path: cache the live list and return.
   if (models !== undefined) {
+    // If the provider has a default model and the live list is empty,
+    // fall back to the default (e.g. local-llama with no GGUF files scanned).
+    const def = getDefaultModel(providerId);
+    if (models.length === 0 && def) {
+      const fallback: ModelInfo[] = [{ id: def, displayName: def }];
+      if (recordWarn(providerId)) {
+        process.stderr.write(
+          `Warning: no live models found for ${providerId}. Using default model.\n`,
+        );
+      }
+      _modelCache.set(providerId, { models: fallback });
+      return fallback;
+    }
     _modelCache.set(providerId, { models });
     return models;
   }
