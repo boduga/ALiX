@@ -59,6 +59,24 @@ describe("openrouter/free route", () => {
     expect(catalogFetchCount).toBe(1); // catalog cached, selection re-run
   });
 
+  it("never selects a paid model on the free route", async () => {
+    _setOpenRouterDiscoveryFetch(async () => catalog([
+      { id: "paid/big", name: "PaidBig", context_length: 200_000, pricing: { prompt: "0.000002", completion: "0.000006" }, supported_parameters: ["tools"] },
+      { id: "free/small", name: "FreeSmall", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
+    ]));
+    let requestedModel: string | undefined;
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      requestedModel = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model;
+      return new Response(JSON.stringify({ model: requestedModel, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "openrouter/free" });
+    // The paid model is the largest-context candidate, so without the
+    // costPerMTokIn === 0 pre-filter (openrouter-provider.ts resolveConcreteModel)
+    // it would win. Assert the free route skips it entirely.
+    await provider.complete(req);
+    expect(requestedModel).toBe("free/small");
+  });
+
   it("throws a clear error when no free model satisfies the request", async () => {
     _setOpenRouterDiscoveryFetch(async () => catalog([
       { id: "a/free", name: "A", context_length: 8_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: false } },

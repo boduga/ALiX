@@ -85,6 +85,60 @@ describe("selectModelFromDiscovery", () => {
     ).toBe("y/cheap");
   });
 
+  it("picks the cheapest model positively supporting structured output", () => {
+    const models = [
+      M(
+        "x/cheap-no-so",
+        200_000,
+        1,
+        [],
+      ),
+      M(
+        "y/so",
+        32_000,
+        2,
+        ["structured_outputs"],
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {
+          cost: "paid",
+          capabilities: ["structured_output"],
+        },
+        models,
+      )?.id,
+    ).toBe("y/so");
+  });
+
+  it("picks the cheapest model positively supporting vision", () => {
+    const models = [
+      M(
+        "x/cheap-no-vision",
+        200_000,
+        1,
+        [],
+      ),
+      M(
+        "y/vision",
+        32_000,
+        2,
+        ["vision"],
+      ),
+    ];
+
+    expect(
+      selectModelFromDiscovery(
+        {
+          cost: "paid",
+          capabilities: ["vision"],
+        },
+        models,
+      )?.id,
+    ).toBe("y/vision");
+  });
+
   it("does not treat unknown cost as free", () => {
     const models = [
       M("unknown", 128_000, undefined),
