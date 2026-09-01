@@ -47,7 +47,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
   grokai: "GROKAI_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   mock: "",
-  local_llama: "",
+  "local-llama": "",
 };
 
 let _fetch: typeof fetch = globalThis.fetch;

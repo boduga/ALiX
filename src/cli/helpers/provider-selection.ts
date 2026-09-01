@@ -12,6 +12,7 @@
  *   - resolveInitialProviderAndModel() (Task 5)
  */
 import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, detectProvider, type ModelInfo } from "../../providers/catalog.js";
+import { isKeylessProvider } from "../../providers/keyless-providers.js";
 import { getApiKey } from "./api-keys.js";
 import { prompt as defaultPrompt } from "../commands/prompt.js";
 import type { ParsedInitArgs } from "./init-args.js";
@@ -50,6 +51,18 @@ export async function resolveProviders(): Promise<ProviderAvailability[]> {
         available: ollamaInstalled.length > 0,
         apiKeySource: "ollama",
         reason: ollamaInstalled.length === 0 ? "Ollama not running or no installed models" : undefined,
+      });
+      continue;
+    }
+    if (isKeylessProvider(p.id)) {
+      out.push({
+        id: p.id,
+        name: p.name,
+        env: p.env,
+        hint: p.hint,
+        available: true,
+        apiKeySource: "none",
+        reason: "local provider, no API key needed",
       });
       continue;
     }

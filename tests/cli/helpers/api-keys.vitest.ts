@@ -142,6 +142,11 @@ describe("getApiKey", () => {
     expect(await getApiKey("ollama")).toBe("");
   });
 
+  it("returns empty string for local-llama with no user config", async () => {
+    _setUserConfigPathOverride(join(tmpDir, "missing.json"));
+    expect(await getApiKey("local-llama")).toBe("");
+  });
+
   it("returns undefined for non-ollama with no user config", async () => {
     _setUserConfigPathOverride(join(tmpDir, "missing.json"));
     expect(await getApiKey("openai")).toBeUndefined();

@@ -8,7 +8,8 @@
  *      `apiKeys[providerId]` (a literal key, or a `cred://<provider>/<keyLabel>`
  *      reference resolved through the encrypted credential store).
  *      Environment variables are NOT consulted.
- *   2. Ollama                         -> empty string ("") - local, no key
+ *   2. Keyless providers (ollama, local-llama, mock) -> empty string ("")
+ *      - local / mock, no key needed
  *   3. Otherwise                     -> undefined
  *
  * Never throws. Missing files / malformed JSON / absent providers all resolve
@@ -20,6 +21,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { PROVIDERS } from "../../providers/catalog.js";
+import { isKeylessProvider } from "../../providers/keyless-providers.js";
 import { isCredentialReference, parseCredentialReference } from "../../security/credentials/credential-reference.js";
 import type { CredentialStore } from "../../security/credentials/credential-store.js";
 
@@ -149,8 +151,9 @@ export async function getApiKey(providerId: string): Promise<string | undefined>
   const saved = await getSavedApiKey(providerId);
   if (saved) return saved;
 
-  // 2. Ollama - empty string (spec §7: "Empty string for Ollama").
-  if (providerId === "ollama") return "";
+  // 2. Keyless providers - empty string (spec §7: "Empty string for Ollama"
+  //    extended to all keyless local/mock providers).
+  if (isKeylessProvider(providerId)) return "";
 
   // 3. None.
   return undefined;

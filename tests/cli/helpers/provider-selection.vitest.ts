@@ -311,6 +311,16 @@ describe("resolveInitialProviderAndModel — flagged mode", () => {
     await expect(resolveInitialProviderAndModel(args)).rejects.toThrow(/unknown provider/i);
   });
 
+  it("accepts --provider local-llama without an API key and falls back to default model", async () => {
+    // No user-config key: local-llama is keyless, so the flagged path must
+    // not reject it. listModels has no live local-llama case yet (#610), so
+    // getAvailableModels falls back to DEFAULT_MODELS; the default matches.
+    const args = parseInitArgs(["--provider", "local-llama", "--model", "phi-3-mini-4k-instruct-q4_K_M.gguf"]);
+    const res = await resolveInitialProviderAndModel(args);
+    expect(res.providerId).toBe("local-llama");
+    expect(res.modelId).toBe("phi-3-mini-4k-instruct-q4_K_M.gguf");
+  });
+
   it("throws on invalid --model not present in live list", async () => {
     await writeApiKeyConfig({ openai: "sk-x" });
     const fakeFetch = vi.fn(async () =>
@@ -353,21 +363,32 @@ describe("resolveInitialProviderAndModel — interactive mode", () => {
     }
   });
 
-  it("throws when no providers are available", async () => {
+  it("offers local-llama as available even with no keys and no ollama running", async () => {
     const origIsTTY = process.stdin.isTTY;
     Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
     // Force ollama to appear unavailable — dev environments may have it running.
     const catalog = await import("../../../src/providers/catalog.js");
     const ollamaSpy = vi.spyOn(catalog, "getInstalledOllamaModels").mockReturnValue([]);
     try {
-      // No env vars, no user config → only ollama is candidate, but no
-      // ollama running → resolveProviders marks everything unavailable.
-      await expect(resolveInitialProviderAndModel({ help: false })).rejects.toThrow(
-        /no available providers/i,
-      );
+      // No env vars, no user config → ollama unavailable, but local-llama is
+      // keyless and must still be offered as available.
+      const avail = await resolveProviders();
+      expect(avail.every((p) => !p.available)).toBe(false);
+      const ll = avail.find((p) => p.id === "local-llama")!;
+      expect(ll.available).toBe(true);
+      expect(ll.apiKeySource).toBe("none");
     } finally {
       ollamaSpy.mockRestore();
       Object.defineProperty(process.stdin, "isTTY", { value: origIsTTY, configurable: true });
     }
+  });
+
+  it("treats local-llama as keyless (no prompt for an API key)", async () => {
+    await writeApiKeyConfig({});
+    const avail = await resolveProviders();
+    const ll = avail.find((p) => p.id === "local-llama")!;
+    expect(ll.available).toBe(true);
+    expect(ll.apiKeySource).toBe("none");
+    expect(ll.reason).toBe("local provider, no API key needed");
   });
 });

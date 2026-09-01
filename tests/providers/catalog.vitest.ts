@@ -17,6 +17,7 @@ import {
   detectProvider,
   loadUserConfigApiKeys,
   PROVIDERS,
+  getDefaultModel,
   _setUserConfigPathOverride,
 } from "../../src/providers/catalog.js";
 
@@ -173,5 +174,16 @@ describe("detectProvider precedence", () => {
     _setUserConfigPathOverride(path);
     expect(() => detectProvider()).not.toThrow();
     expect(detectProvider().provider).toBe("ollama");
+  });
+
+  it("detects local-llama when ALIX_LLAMA_BASE_URL env is set", () => {
+    _setUserConfigPathOverride(join(mkTmp(), "no-such.json"));
+    process.env.ALIX_LLAMA_BASE_URL = "http://localhost:8080/v1/chat/completions";
+    expect(detectProvider().provider).toBe("local-llama");
+  });
+
+  it("registers local-llama in the catalog with a default model", () => {
+    expect(PROVIDERS.find((p) => p.id === "local-llama")).toBeDefined();
+    expect(getDefaultModel("local-llama")).toBeTruthy();
   });
 });
