@@ -1,6 +1,6 @@
 import { ApiError, BaseProvider } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
-import { discoverOpenRouterModels } from "./model-discovery.js";
+import { discoverOpenRouterModels, isFreeModel } from "./model-discovery.js";
 import { resolveConcreteFreeModel, deriveRequestRequirements } from "./model-resolver.js";
 import { recordAccessRestricted, accessRestrictedModelIds } from "./access-restriction-registry.js";
 import type { DiscoveredModel } from "./model-discovery.js";
@@ -94,7 +94,7 @@ async function resolveConcreteModel(
 ): Promise<DiscoveredModel | undefined> {
   const ALL = await discoverOpenRouterModels();
   // free route considers only free models (discovery returns full catalog)
-  const catalog = ALL.filter((m) => m.costPerMTokIn === 0);
+  const catalog = ALL.filter(isFreeModel);
   // The agent tab always runs tool loops, so the free route must always land
   // on a tools-capable model regardless of the request's tools array.
   const requirements = { ...deriveRequestRequirements(request), needsTools: true };

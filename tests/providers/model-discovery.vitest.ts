@@ -10,6 +10,7 @@ import {
   discoverOpenRouterModels,
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
+  _expireOpenRouterDiscoveryCacheForTesting,
 } from "../../src/providers/model-discovery.js";
 
 const catalog = (models: unknown[]) =>
@@ -235,6 +236,46 @@ describe("discoverOpenRouterModels", () => {
     _setOpenRouterDiscoveryFetch(async () => {
       throw new Error("network down");
     });
+    const models = await discoverOpenRouterModels();
+    expect(models.map((m) => m.id)).toEqual(["a/free"]);
+  });
+
+  it("serves stale cache when a refetch fails after the TTL", async () => {
+    _setOpenRouterDiscoveryFetch(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A Free",
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {},
+        },
+      ]),
+    );
+    await discoverOpenRouterModels();
+    _expireOpenRouterDiscoveryCacheForTesting();
+    _setOpenRouterDiscoveryFetch(async () => {
+      throw new Error("network down");
+    });
+    const models = await discoverOpenRouterModels();
+    expect(models.map((m) => m.id)).toEqual(["a/free"]);
+  });
+
+  it("serves stale cache when a refetch returns non-ok after the TTL", async () => {
+    _setOpenRouterDiscoveryFetch(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A Free",
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {},
+        },
+      ]),
+    );
+    await discoverOpenRouterModels();
+    _expireOpenRouterDiscoveryCacheForTesting();
+    _setOpenRouterDiscoveryFetch(async () =>
+      new Response("failure", { status: 503 }),
+    );
     const models = await discoverOpenRouterModels();
     expect(models.map((m) => m.id)).toEqual(["a/free"]);
   });

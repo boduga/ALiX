@@ -27,6 +27,43 @@ export type ModelSelectionRequirements = {
   maxInputTokens?: number;
 };
 
+/** A concrete model id resolved from a selection policy. */
+export type ResolvedModel = { id: string };
+
+/** Primary tie-break shared by every selector: context descending, then id ascending. */
+function byContextThenId(
+  a: DiscoveredModel,
+  b: DiscoveredModel,
+): number {
+  const contextDifference =
+    (b.inputContextLimit ?? -1) -
+    (a.inputContextLimit ?? -1);
+
+  if (contextDifference !== 0) {
+    return contextDifference;
+  }
+
+  return a.id.localeCompare(b.id);
+}
+
+/** Map a catalog `ModelInfo` onto a `DiscoveredModel` (context-only projection). */
+function toDiscoveredModel(
+  provider: string,
+  model: { id: string; maxInputTokens?: number },
+): DiscoveredModel {
+  return {
+    id: model.id,
+    provider,
+
+    ...(model.maxInputTokens !== undefined
+      ? {
+          inputContextLimit:
+            model.maxInputTokens,
+        }
+      : {}),
+  };
+}
+
 export function deriveRequestRequirements(
   request: NormalizedRequest,
   maxInputTokens?: number,
@@ -104,17 +141,9 @@ export async function discoverProviderModels(
     apiKey ?? "",
   );
 
-  return listed.map((model) => ({
-    id: model.id,
-    provider,
-
-    ...(model.maxInputTokens !== undefined
-      ? {
-          inputContextLimit:
-            model.maxInputTokens,
-        }
-      : {}),
-  }));
+  return listed.map((model) =>
+    toDiscoveredModel(provider, model),
+  );
 }
 
 export function selectModelFromDiscovery(
@@ -251,15 +280,7 @@ export function selectModelFromDiscovery(
         }
       }
 
-      const contextDifference =
-        (b.inputContextLimit ?? -1) -
-        (a.inputContextLimit ?? -1);
-
-      if (contextDifference !== 0) {
-        return contextDifference;
-      }
-
-      return a.id.localeCompare(b.id);
+      return byContextThenId(a, b);
     },
   )[0];
 }
@@ -270,7 +291,7 @@ export async function resolveModelSelectionId(
     apiKey?: string;
   } = {},
 ): Promise<
-  { id: string } | undefined
+  ResolvedModel | undefined
 > {
   const provider =
     policy.provider ?? "openrouter";
@@ -342,10 +363,5 @@ export function resolveConcreteFreeModel(
     return undefined;
   }
 
-  return [...eligible].sort(
-    (a, b) =>
-      (b.inputContextLimit ?? -1) -
-        (a.inputContextLimit ?? -1) ||
-      a.id.localeCompare(b.id),
-  )[0];
+  return [...eligible].sort(byContextThenId)[0];
 }

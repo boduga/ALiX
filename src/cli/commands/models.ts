@@ -299,7 +299,7 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
 const NO_FREE_MODELS_MESSAGE = "No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.";
 
 export async function handleModelsFree(args: string[]): Promise<void> {
-  const { discoverOpenRouterModels } = await import("../../providers/model-discovery.js");
+  const { discoverOpenRouterModels, isFreeModel } = await import("../../providers/model-discovery.js");
   let models: Awaited<ReturnType<typeof discoverOpenRouterModels>>;
   try {
     models = await discoverOpenRouterModels();
@@ -309,7 +309,7 @@ export async function handleModelsFree(args: string[]): Promise<void> {
     return;
   }
   // alix models free must list only free models
-  models = models.filter((m) => m.costPerMTokIn === 0);
+  models = models.filter(isFreeModel);
   if (models.length === 0) {
     console.log(NO_FREE_MODELS_MESSAGE);
     return;

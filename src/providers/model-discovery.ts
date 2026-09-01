@@ -1,3 +1,5 @@
+import { ApiError } from "./base.js";
+
 export type DiscoveredModel = {
   id: string;
   provider: string;
@@ -7,6 +9,11 @@ export type DiscoveredModel = {
   supportsStructuredOutput?: boolean;
   supportsVision?: boolean;
 };
+
+/** A model is "free" when its input cost is exactly zero. */
+export function isFreeModel(model: DiscoveredModel): boolean {
+  return model.costPerMTokIn === 0;
+}
 
 const CATALOG_URL =
   "https://openrouter.ai/api/v1/models";
@@ -30,6 +37,13 @@ let cache:
 
 export function _resetOpenRouterDiscoveryCache(): void {
   cache = undefined;
+}
+
+/** Test seam: backdate the cached catalog so the next read is treated as stale. */
+export function _expireOpenRouterDiscoveryCacheForTesting(): void {
+  if (cache) {
+    cache = { ...cache, fetchedAt: 0 };
+  }
 }
 
 function isRecord(
@@ -134,13 +148,25 @@ export async function discoverOpenRouterModels(
       `Bearer ${opts.apiKey}`;
   }
 
-  const response = await _fetch(
-    CATALOG_URL,
-    { headers },
-  );
+  let response: Response;
+  try {
+    response = await _fetch(
+      CATALOG_URL,
+      { headers },
+    );
+  } catch (cause) {
+    if (cache) {
+      return cache.models;
+    }
+    throw cause;
+  }
 
   if (!response.ok) {
-    throw new Error(
+    if (cache) {
+      return cache.models;
+    }
+    throw new ApiError(
+      502,
       `OpenRouter catalog request failed: ${response.status}`,
     );
   }
