@@ -300,7 +300,14 @@ const NO_FREE_MODELS_MESSAGE = "No OpenRouter free models available. Set OPENROU
 
 export async function handleModelsFree(args: string[]): Promise<void> {
   const { discoverOpenRouterModels } = await import("../../providers/model-discovery.js");
-  let models = await discoverOpenRouterModels();
+  let models: Awaited<ReturnType<typeof discoverOpenRouterModels>>;
+  try {
+    models = await discoverOpenRouterModels();
+  } catch (err) {
+    console.log(NO_FREE_MODELS_MESSAGE);
+    if (process.env.NODE_ENV === "test") console.error(String((err as Error)?.message ?? err));
+    return;
+  }
   // alix models free must list only free models
   models = models.filter((m) => m.costPerMTokIn === 0);
   if (models.length === 0) {

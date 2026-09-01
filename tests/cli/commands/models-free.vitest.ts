@@ -53,4 +53,12 @@ describe("models free", () => {
     const out = await capture(() => handleModelsCommand(["free"]));
     expect(out.join("\n")).toContain("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
   });
+
+  it("does not throw and prints guidance when discovery fails", async () => {
+    _setOpenRouterDiscoveryFetch(async () => { throw new Error("network down"); });
+    // A rejected discovery must be handled gracefully — the command returns
+    // with the friendly message instead of throwing an unhandled rejection.
+    const out = await capture(() => handleModelsCommand(["free"]));
+    expect(out.join("\n")).toContain("No OpenRouter free models available. Set OPENROUTER_API_KEY and retry.");
+  });
 });
