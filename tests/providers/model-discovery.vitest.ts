@@ -3,6 +3,7 @@ import {
   it,
   expect,
   afterEach,
+  vi,
 } from "vitest";
 
 import {
@@ -119,5 +120,122 @@ describe("discoverOpenRouterModels", () => {
     ).rejects.toThrow(
       "OpenRouter catalog request failed: 503",
     );
+  });
+
+  it("maps capabilities and preserves unknown context length", async () => {
+    _setOpenRouterDiscoveryFetch(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A Free",
+          context_length: 32_000,
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {
+            tools: true,
+            structured_outputs: false,
+            vision: true,
+          },
+        },
+        {
+          id: "b/free",
+          name: "B Free",
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {},
+        },
+      ]),
+    );
+
+    const models = await discoverOpenRouterModels();
+    const free = models.find((m) => m.id === "a/free")!;
+    expect(free).toEqual({
+      id: "a/free",
+      provider: "openrouter",
+      inputContextLimit: 32_000,
+      costPerMTokIn: 0,
+      supportsTools: true,
+      supportsStructuredOutput: false,
+      supportsVision: true,
+    });
+
+    const noCtx = models.find((m) => m.id === "b/free")!;
+    expect(noCtx.inputContextLimit).toBeUndefined();
+    expect(noCtx.costPerMTokIn).toBe(0);
+  });
+
+  it("parses supported_parameters in OpenRouter array form", async () => {
+    _setOpenRouterDiscoveryFetch(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A",
+          context_length: 32_000,
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: [
+            "tools",
+            "structured_outputs",
+          ],
+        },
+        {
+          id: "b/free",
+          name: "B",
+          context_length: 8192,
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: ["temperature"],
+        },
+      ]),
+    );
+
+    const models = await discoverOpenRouterModels();
+    const a = models.find((m) => m.id === "a/free")!;
+    const b = models.find((m) => m.id === "b/free")!;
+    expect(a.supportsTools).toBe(true);
+    expect(a.supportsStructuredOutput).toBe(true);
+    expect(a.supportsVision).toBe(false);
+    expect(b.supportsTools).toBe(false);
+  });
+
+  it("caches the catalog across calls (TTL)", async () => {
+    const fetchFn = vi.fn(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A Free",
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {},
+        },
+      ]),
+    );
+    _setOpenRouterDiscoveryFetch(fetchFn);
+    await discoverOpenRouterModels();
+    await discoverOpenRouterModels();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates fetch failure when no cache exists", async () => {
+    _setOpenRouterDiscoveryFetch(async () => {
+      throw new Error("network down");
+    });
+    await expect(
+      discoverOpenRouterModels(),
+    ).rejects.toThrow("network down");
+  });
+
+  it("uses a non-expired cache after a fetch failure", async () => {
+    _setOpenRouterDiscoveryFetch(async () =>
+      catalog([
+        {
+          id: "a/free",
+          name: "A Free",
+          pricing: { prompt: "0", completion: "0" },
+          supported_parameters: {},
+        },
+      ]),
+    );
+    await discoverOpenRouterModels();
+    _setOpenRouterDiscoveryFetch(async () => {
+      throw new Error("network down");
+    });
+    const models = await discoverOpenRouterModels();
+    expect(models.map((m) => m.id)).toEqual(["a/free"]);
   });
 });
