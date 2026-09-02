@@ -99,6 +99,15 @@ export class LocalLlamaProvider extends BaseProvider {
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
     await this.ensureRunning();
+    // Grammar-constrained tool calls are not streamed (resolution #611 §5):
+    // use the non-streaming path so fromResponse can parse tool JSON.
+    if (request.tools && request.tools.length > 0 && !request.structuredOutputSchema) {
+      const res = await complete("local-llama", this._model, { ...request, stream: false }, { apiKey: this._apiKey });
+      if (res.text) yield { type: "text_delta", text: res.text };
+      for (const tc of res.toolCalls) yield { type: "tool_call", toolCall: tc };
+      yield { type: "done" };
+      return;
+    }
     yield* stream("local-llama", this._model, request, { apiKey: this._apiKey });
   }
 }

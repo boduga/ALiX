@@ -30,6 +30,9 @@ export const localLlamaSpec: ProviderSpec = {
     };
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.maxOutputTokens !== undefined) body.max_tokens = req.maxOutputTokens;
+    // Streaming is text-delta only for local-llama; tool calls are delivered via
+    // the final non-streaming response (fromResponse). Keep streaming for plain
+    // chat / structured output, disable for grammar-constrained tool calls.
     if (req.stream) body.stream = true;
     if (req.tools && req.tools.length > 0) {
       // Filter out MCP tools — local models shouldn't call them directly
@@ -62,6 +65,9 @@ export const localLlamaSpec: ProviderSpec = {
             json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools as ToolDef[]) },
           };
         }
+        // Tool calls are not streamed — force non-streaming so fromResponse
+        // can parse the grammar JSON into toolCalls (see resolution #611 §5)
+        delete (body as any).stream;
       }
     } else if (req.structuredOutputSchema) {
       // Caller requested structured output without tools — pass through as json_schema.
