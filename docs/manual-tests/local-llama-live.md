@@ -9,10 +9,11 @@ Related: [Local LLM setup](../local-llama-setup.md) · [Configuration](../config
 ## Prerequisites
 
 - llama.cpp built: `~/llama.cpp/build/bin/llama-server` exists (or set `ALIX_LLAMA_SERVER_PATH`)
-- A GGUF model in `~/llama.cpp/models/` (default: `phi-3-mini-4k-instruct-q4_K_M.gguf`)
+- A GGUF model (default: `/home/babasola/.models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf`)
   ```bash
+  ls /home/babasola/.models/*.gguf
   ls ~/llama.cpp/models/*.gguf
-  # or set ALIX_LLAMA_MODEL_PATH=~/llama.cpp/models/your-model.gguf
+  # or set ALIX_LLAMA_MODEL_PATH=/home/babasola/.models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf
   ```
 - `pnpm build` has been run (`dist/` exists)
 - Recent llama.cpp build (Jinja default-on, `b3542`+); see config reference version note
@@ -23,12 +24,12 @@ ALiX auto-starts the server on first `local-llama` call (probe → spawn with re
 
 ```bash
 # Option A — let ALiX auto-start (no manual server needed)
-export ALIX_LLAMA_MODEL_PATH="$HOME/llama.cpp/models/phi-3-mini-4k-instruct-q4_K_M.gguf"
+export ALIX_LLAMA_MODEL_PATH="/home/babasola/.models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf"
 # alix will spawn ~/llama.cpp/build/bin/llama-server -m $ALIX_LLAMA_MODEL_PATH -c 4096 --jinja ...
 
 # Option B — start server manually
 ~/llama.cpp/build/bin/llama-server \
-  -m ~/llama.cpp/models/phi-3-mini-4k-instruct-q4_K_M.gguf \
+  -m /home/babasola/.models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf \
   -c 4096 --port 8080 --jinja &
 curl -s http://localhost:8080/v1/models | jq .
 # expect: {"data":[{"id":"...","object":"model"}]} and HTTP 200
@@ -38,7 +39,7 @@ Configure ALiX to use the provider (project or global):
 
 ```bash
 cat .alix/config.json | jq .model
-# {"provider":"local-llama","name":"phi-3-mini-4k-instruct-q4_K_M.gguf"}
+# {"provider":"local-llama","name":"Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf"}
 # or: alix models set-default  # pick local-llama + GGUF filename discovered via listModels
 ```
 

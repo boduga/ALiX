@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 # --- resolve model path (config > env > default) mirrors provider ---
-MODEL_PATH="${ALIX_LLAMA_MODEL_PATH:-$HOME/llama.cpp/models/phi-3-mini-4k-instruct-q4_K_M.gguf}"
+MODEL_PATH="${ALIX_LLAMA_MODEL_PATH:-$HOME/.models/Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf}"
 BASE_URL="${ALIX_LLAMA_BASE_URL:-http://localhost:8080/v1/chat/completions}"
 SERVER_PATH="${ALIX_LLAMA_SERVER_PATH:-$HOME/llama.cpp/build/bin/llama-server}"
 
@@ -40,7 +40,7 @@ import { localLlamaSpec } from "./dist/src/providers/specs/local-llama-spec.js";
 import { LocalLlamaProvider } from "./dist/src/providers/local-llama-provider.js";
 
 const baseUrl = process.env.ALIX_LLAMA_BASE_URL || "http://localhost:8080/v1/chat/completions";
-const model = process.env.ALIX_LLAMA_MODEL || "phi-3-mini-4k-instruct-q4_K_M.gguf";
+const model = process.env.ALIX_LLAMA_MODEL || "Gemma-4-E4B-Uncensored-HauhauCS-Aggressive-Q2_K_P.gguf";
 
 function fail(msg, extra) {
   console.error(`FAIL: ${msg}`);
