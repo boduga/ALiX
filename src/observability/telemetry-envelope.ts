@@ -26,7 +26,7 @@ import type { TraceEvent } from "../runtime/trace-events.js";
 
 export type TelemetryCategory =
   | "provider" | "tool" | "worker" | "coordination" | "approval"
-  | "ownership" | "recovery" | "daemon" | "memory" | "cost" | "security";
+  | "ownership" | "recovery" | "daemon" | "memory" | "cost" | "security" | "observability";
 
 export type TelemetrySeverity = "debug" | "info" | "warning" | "error" | "critical";
 
@@ -119,7 +119,8 @@ export const CATEGORY_MAP: Record<string, TelemetryCategory> = {
   "replay.": "recovery",
   "rollback.": "recovery",
   "recovery.": "recovery",
-  "m09.": "memory",
+  "observability.": "observability",
+  "m09.": "observability",
   "model.": "cost",
   "daemon.": "daemon",
   "worker.": "worker",

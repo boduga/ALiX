@@ -451,7 +451,7 @@ ${approvedPlanContent}`);
   metrics.duration("workflow_duration_ms", Date.now() - startTime);
   const metricEvents = metrics.flush();
   for (const m of metricEvents) {
-    await ctx.log.append({ ...session, actor: "system", type: "m09.metric", payload: m });
+    await ctx.log.append({ ...session, actor: "system", type: "observability.metric", payload: m });
   }
 
   return { ...result, runId };

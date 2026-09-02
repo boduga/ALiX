@@ -1394,7 +1394,7 @@ export class AgentSessionBuilder {
         await ctx.log.append({
           ...session,
           actor: "system",
-          type: "m09.metric",
+          type: "observability.metric",
           payload: m,
         });
       }

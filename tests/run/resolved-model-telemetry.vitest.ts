@@ -101,7 +101,7 @@ describe('resolved-model telemetry in the task loop', () => {
     expect(usageEvents.length).toBeGreaterThan(0);
     expect((usageEvents[0]!.payload as { resolvedModel: string }).resolvedModel).toBe('qwen/qwen3-14b:free');
 
-    const metrics = events.filter((e) => e.type === 'm09.metric');
+    const metrics = events.filter((e) => e.type === 'observability.metric' || e.type === 'm09.metric');
     const calls = metrics.map((m) => m.payload as { name: string; labels?: Record<string, string> }).filter((p) => p.name === 'model_calls_total');
     expect(calls.length).toBeGreaterThan(0);
     expect(calls[0]!.labels?.resolved_model).toBe('qwen/qwen3-14b:free');
@@ -118,7 +118,7 @@ describe('resolved-model telemetry in the task loop', () => {
     expect(usageEvents.length).toBeGreaterThan(0);
     expect('resolvedModel' in (usageEvents[0]!.payload as Record<string, unknown>)).toBe(false);
 
-    const metrics = events.filter((e) => e.type === 'm09.metric');
+    const metrics = events.filter((e) => e.type === 'observability.metric' || e.type === 'm09.metric');
     const calls = metrics.map((m) => m.payload as { name: string; labels?: Record<string, string> }).filter((p) => p.name === 'model_calls_total');
     expect(calls.length).toBeGreaterThan(0);
     expect('resolved_model' in (calls[0]!.labels ?? {})).toBe(false);

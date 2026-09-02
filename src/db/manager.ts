@@ -37,20 +37,24 @@ export class DatabaseManager {
     this.db.exec(sql);
   }
 
-  /** Run the M0.9 kernel migration from the SQL file. */
+  /** Run the kernel migrations (0001 + 0002 observability rename). */
   migrateKernel(): void {
     if (!this.db) throw new Error("Database not opened");
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    const sqlPath = join(__dirname, "migrations", "0001_m09_kernel.sql");
-    const sql = readFileSync(sqlPath, "utf-8");
-    this.db.exec(sql);
+    for (const file of ["0001_m09_kernel.sql", "0002_observability_metric.sql"]) {
+      const sqlPath = join(__dirname, "migrations", file);
+      if (existsSync(sqlPath)) {
+        const sql = readFileSync(sqlPath, "utf-8");
+        this.db.exec(sql);
+      }
+    }
   }
 
   /** Check database health. */
   health(): { ok: boolean; tables: string[]; error?: string } {
     try {
       if (!this.db) return { ok: false, tables: [], error: "Not opened" };
-      const rows = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[];
+      const rows = this.db.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','view') ORDER BY name").all() as { name: string }[];
       const tables = rows.map(r => r.name);
       return { ok: true, tables };
     } catch (err) {

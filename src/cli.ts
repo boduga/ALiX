@@ -1429,7 +1429,7 @@ if (command === "run" && args[0] === "--subagent") {
   process.exit(1);
 }
 
-// --- alix metrics --- m09 metrics display command ---
+// --- alix metrics --- observability metrics display command ---
 if (command === "metrics") {
   const { readSessionEvents } = await import("./inspector/session-reader.js");
   const sessionsDir = join(process.cwd(), ".alix", "sessions");
@@ -1457,7 +1457,7 @@ if (command === "metrics") {
   }
 
   const events = await readSessionEvents(process.cwd(), targetSession);
-  const metricEvents = events.filter((e: any) => e.type === "m09.metric");
+  const metricEvents = events.filter((e: any) => e.type === "observability.metric" || e.type === "m09.metric");
   if (metricEvents.length === 0) { console.log(`No metrics for session ${targetSession}.`); process.exit(0); }
   console.log(`Session: ${targetSession}`);
   console.log();

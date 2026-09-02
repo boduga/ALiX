@@ -258,9 +258,9 @@ export class ToolExecutor {
     }
 
     await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
-    // Emit m09 metric for tool call
+    // Emit observability metric for tool call
     await this.log.append({
-      sessionId: this.sessionId(), actor: "system", type: "m09.metric",
+      sessionId: this.sessionId(), actor: "system", type: "observability.metric",
       payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
     });
 
@@ -374,9 +374,9 @@ export class ToolExecutor {
         argumentHash,
       };
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, { ...failedPayload, ...replayPayloadFields });
-      // Emit m09 metric for tool failure
+      // Emit observability metric for tool failure
       await this.log.append({
-        sessionId: this.sessionId(), actor: "system", type: "m09.metric",
+        sessionId: this.sessionId(), actor: "system", type: "observability.metric",
         payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
       });
     }

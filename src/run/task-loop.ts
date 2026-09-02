@@ -814,7 +814,7 @@ if (text.length > 0) {
 
 // Emit model call metric for every call regardless of usage data
 await log.append({
-  ...session, actor: "system", type: "m09.metric",
+  ...session, actor: "system", type: "observability.metric",
   payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: model.provider, ...(resolvedModel ? { resolved_model: resolvedModel } : {}) }, timestamp: new Date().toISOString() },
 });
 

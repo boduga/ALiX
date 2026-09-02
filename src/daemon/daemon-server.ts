@@ -96,10 +96,11 @@ function createDaemonEventLog(sessionId: string, client: Socket, projectCwd: str
     // Write to session file using the real EventLog
     const result = await origAppend(event);
     // Forward key events to client — skip lifecycle events (daemon already
-    // sends them explicitly) and internal noise (m09./embedder./context./mcp.).
+    // sends them explicitly) and internal noise (observability./m09./embedder./context./mcp.).
     const forwardedLifecycle = new Set(["session.started", "session.ended"]);
     if (
       !forwardedLifecycle.has(event.type) &&
+      !event.type?.startsWith("observability.") &&
       !event.type?.startsWith("m09.") &&
       !event.type?.startsWith("embedder.") &&
       !event.type?.startsWith("context.") &&

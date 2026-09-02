@@ -65,7 +65,7 @@ export async function runDemo(): Promise<void> {
     const graphEvents = events.filter(e => e.type === "graph.created");
     const toolEvents = events.filter(e => e.type === "tool.requested");
     const policyEvents = events.filter(e => e.type === "policy.decision");
-    const metricEvents = events.filter(e => e.type === "m09.metric");
+    const metricEvents = events.filter(e => e.type === "observability.metric" || e.type === "m09.metric");
 
     console.log();
     console.log("-- Kernel Artifacts --------------------------------------");

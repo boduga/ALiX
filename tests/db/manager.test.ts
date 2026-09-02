@@ -30,7 +30,7 @@ describe("DatabaseManager", () => {
   it("runs kernel migration successfully", () => {
     manager.migrateKernel();
     const health = manager.health();
-    const expectedTables = ["events", "m09_metrics", "policy_decisions", "task_graphs", "task_nodes", "workflows"];
+    const expectedTables = ["events", "metrics", "m09_metrics", "policy_decisions", "task_graphs", "task_nodes", "workflows"];
     for (const t of expectedTables) {
       assert.ok(health.tables.includes(t), `table ${t} should exist`);
     }
