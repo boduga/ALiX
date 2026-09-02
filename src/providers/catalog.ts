@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
@@ -190,15 +190,20 @@ const LOCAL_LLAMA_MODEL_DIR_DEFAULT = join(homedir(), "llama.cpp", "models");
  * Resolve the local-llama scan directory (spec decision 2): config
  * `localModelPath` > `ALIX_LLAMA_MODEL_PATH` env > `~/llama.cpp/models`.
  *
+ * Both config/env values may be a file path (the GGUF itself); in that case
+ * the parent directory is used as the scan directory.
+ *
  * `env` is an injectable seam (defaults to `process.env`) for precedence tests.
  */
 export function resolveLocalLlamaScanDir(
   configLocalModelPath: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  return configLocalModelPath
-    ?? env.ALIX_LLAMA_MODEL_PATH
-    ?? LOCAL_LLAMA_MODEL_DIR_DEFAULT;
+  const toDir = (p: string) =>
+    p.toLowerCase().endsWith(".gguf") ? dirname(p) : p;
+  if (configLocalModelPath) return toDir(configLocalModelPath);
+  if (env.ALIX_LLAMA_MODEL_PATH) return toDir(env.ALIX_LLAMA_MODEL_PATH);
+  return LOCAL_LLAMA_MODEL_DIR_DEFAULT;
 }
 
 /**
@@ -223,10 +228,10 @@ export function localLlamaMaxInputTokens(sizeBytes: number): number {
 export function listLocalLlamaGgufModels(
   scanDir: string,
   fsSeam: {
-    readdir: (dir: string) => Array<{ name: string; isFile: () => boolean; isSymbolicLink: () => boolean }>;
+    readdir: (dir: string) => Array<{ name: string; isFile: () => boolean; isSymbolicLink: () => boolean; isDirectory: () => boolean }>;
     stat: (path: string) => { size: number };
   } = {
-    readdir: (dir) => readdirSync(dir, { withFileTypes: true }),
+    readdir: (dir) => readdirSync(dir, { withFileTypes: true }) as unknown as Array<{ name: string; isFile: () => boolean; isSymbolicLink: () => boolean; isDirectory: () => boolean }>,
     stat: (path) => statSync(path),
   },
 ): ModelInfo[] {
@@ -239,7 +244,9 @@ export function listLocalLlamaGgufModels(
 
   const models: ModelInfo[] = [];
   for (const ent of entries) {
-    if (!ent.isFile()) continue; // no dirs, no symlinks
+    if (ent.isDirectory()) continue; // no recursion into dirs
+    // Allow regular files and symlinked GGUF files; skip other non-files
+    if (!ent.isFile() && !ent.isSymbolicLink()) continue;
     if (!ent.name.toLowerCase().endsWith(".gguf")) continue;
     let size = 0;
     try {
