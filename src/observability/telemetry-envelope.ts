@@ -121,6 +121,7 @@ export const CATEGORY_MAP: Record<string, TelemetryCategory> = {
   "recovery.": "recovery",
   "observability.": "observability",
   "m09.": "observability",
+  "state.": "observability",
   "model.": "cost",
   "daemon.": "daemon",
   "worker.": "worker",
@@ -196,13 +197,17 @@ export function normalizeMetricEvent(event: MetricInputType): TelemetryEnvelope 
       break;
   }
 
-  // Infer category from metric name prefix
+  // Infer category from metric name prefix (state substrate → observability)
   const metricCat = event.name.startsWith("model.") ? "cost"
     : event.name.startsWith("workflow.") ? "coordination"
     : event.name.startsWith("provider.") ? "provider"
     : event.name.startsWith("memory.") ? "memory"
     : event.name.startsWith("daemon.") ? "daemon"
     : event.name.startsWith("security_") ? "security"
+    : event.name.startsWith("state_") ? "observability"
+    : event.name.startsWith("history_") ? "observability"
+    : event.name === "tokens_saved" || event.name === "patch_rejection_rate" || event.name === "recovery_count" ? "observability"
+    : event.name.startsWith("context_tokens") ? "observability"
     : "tool";
 
   return {

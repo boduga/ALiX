@@ -16,11 +16,12 @@ export async function handleObservability(args: string[], cwd: string): Promise<
   const sub = args[0];
   if (sub === "health" || !sub) { await cmdHealth(cwd); return; }
   if (sub === "metrics") { await cmdMetrics(cwd, args.slice(1)); return; }
+  if (sub === "state") { await cmdState(cwd, args.slice(1)); return; }
   if (sub === "trends") { const { cmdTrends } = await import("./observability-trends.js"); await cmdTrends(cwd, args.slice(1)); return; }
   if (sub === "alerts") { const { cmdAlerts } = await import("./observability-alerts.js"); await cmdAlerts(cwd, args.slice(1)); return; }
   if (sub === "export") { const { cmdExport } = await import("./observability-export.js"); await cmdExport(cwd, args.slice(1)); return; }
   if (sub === "diagnostics") { const { cmdDiagnostics } = await import("./observability-diagnostics.js"); await cmdDiagnostics(cwd, args.slice(1)); return; }
-  throw new Error("Usage: alix observability {health|metrics|trends|alerts|export|diagnostics}");
+  throw new Error("Usage: alix observability {health|metrics|trends|alerts|export|diagnostics|state}");
 }
 
 async function cmdHealth(cwd: string): Promise<void> {
@@ -68,4 +69,53 @@ async function cmdMetrics(cwd: string, args: string[]): Promise<void> {
     const avg = Math.round(g.sum / g.count);
     console.log(`  ${name}: avg=${avg} count=${g.count}`);
   }
+
+  // State substrate quick summary if any state metrics present
+  const stateNames = [...groups.keys()].filter(k => k.startsWith("state_") || k === "history_tokens" || k === "tokens_saved" || k === "patch_rejection_rate" || k === "recovery_count");
+  if (stateNames.length > 0 && !metricName) {
+    console.log();
+    console.log("State substrate (try: alix observability state):");
+    for (const n of stateNames) {
+      const g = groups.get(n)!;
+      console.log(`  ${n}: count=${g.count}`);
+    }
+  }
+}
+
+async function cmdState(cwd: string, args: string[]): Promise<void> {
+  const { MetricsStore } = await import("../../observability/metrics-store.js");
+  const { collectStateMetrics } = await import("../../observability/state-metrics.js");
+  const jsonMode = args.includes("--json");
+  const limitIdx = args.indexOf("--limit");
+  const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : 5000;
+  const store = new MetricsStore(cwd);
+  const summary = await collectStateMetrics(store, { limit });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
+
+  if (summary.executions.length === 0) {
+    console.log("No state metrics found. Emit via StateTelemetry first.");
+    console.log("  Metrics: state_projection_accuracy, state_patch_rejection_rate, state_size_tokens, history_tokens, tokens_saved, state_recovery_count");
+    return;
+  }
+
+  console.log(`State vs History per execution (${summary.executions.length} executions):`);
+  console.log(`  ${"execution".padEnd(22)} ${"state".padStart(7)} ${"history".padStart(7)} ${"saved".padStart(7)} ${"saving%".padStart(8)} ${"accuracy".padStart(9)} ${"recov".padStart(5)}`);
+  console.log(`  ${"─".repeat(22)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(8)} ${"─".repeat(9)} ${"─".repeat(5)}`);
+  for (const e of summary.executions) {
+    const savingPct = e.historyTokens && e.historyTokens > 0 && e.tokensSaved != null ? ((e.tokensSaved / e.historyTokens) * 100).toFixed(1) + "%" : "—";
+    const acc = e.projectionAccuracy != null ? (e.projectionAccuracy * 100).toFixed(1) + "%" : "—";
+    const state = e.stateTokens != null ? String(e.stateTokens) : "—";
+    const hist = e.historyTokens != null ? String(e.historyTokens) : "—";
+    const saved = e.tokensSaved != null ? String(e.tokensSaved) : "—";
+    console.log(`  ${e.executionId.slice(0, 22).padEnd(22)} ${state.padStart(7)} ${hist.padStart(7)} ${saved.padStart(7)} ${String(savingPct).padStart(8)} ${acc.padStart(9)} ${String(e.recoveryCount).padStart(5)}`);
+  }
+  console.log();
+  const t = summary.totals;
+  const avgAcc = t.avgAccuracy != null ? (t.avgAccuracy * 100).toFixed(1) + "%" : "—";
+  console.log(`Totals: state=${t.totalStateTokens} history=${t.totalHistoryTokens} saved=${t.totalSaved} avgAccuracy=${avgAcc} recoveries=${t.totalRecoveries}`);
+  console.log(`Workflow metric workflow_duration etc. remain queryable via: alix observability metrics --name workflow_duration_ms`);
 }
