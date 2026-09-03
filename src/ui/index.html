@@ -42,6 +42,7 @@
           <button class="tab" data-panel="registry">Registry</button>
           <button class="tab" data-panel="graph">Graph</button>
           <button class="tab" data-panel="policy">Policy</button>
+          <button class="tab" data-panel="state">State</button>
           <button class="tab" data-panel="runtime">Runtime</button>
           <button class="tab" data-panel="audit">Audit</button>
           <button class="tab" data-panel="approvals-list">Approvals</button>
@@ -142,6 +143,10 @@
           <div class="panel-body approvals-view">
             <div id="approvals-list-content"><p class="empty">Loading...</p></div>
           </div>
+        </section>
+        <section class="panel" id="panel-state" aria-label="State substrate observability">
+          <div class="panel-header"><h2>State Substrate</h2><span class="status" id="state-status">Loading...</span></div>
+          <div class="panel-body"><div id="state-list"><p class="empty">Loading state metrics...</p></div></div>
         </section>
         <section class="panel" id="panel-runtime" aria-label="Unified runtime events">
           <div class="panel-header"><h2>Runtime</h2></div>

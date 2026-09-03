@@ -373,12 +373,151 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// State substrate metric definitions (§28-29, issue #631)
+// ---------------------------------------------------------------------------
+
+/**
+ * State substrate metrics — adequacy over token reduction.
+ * Wires EventLog → StateProjector → ExecutionState → ContextBuilder →
+ * MetricsStore/TelemetryEnvelope. Extend here, do not create new architecture.
+ */
+export const STATE_METRIC_DEFINITIONS: MetricDefinition[] = [
+  {
+    name: "state_projection_accuracy",
+    type: "gauge",
+    unit: "ratio",
+    description: "State projection adequacy: fraction of decisions correct without historical recovery (0-1, §29 primary)",
+    allowedLabelKeys: ["executionId", "substrateMode"],
+  },
+  {
+    name: "state_patch_rejection_rate",
+    type: "gauge",
+    unit: "ratio",
+    description: "Fraction of state patches rejected by validator/governor",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "patch_rejection_rate",
+    type: "gauge",
+    unit: "ratio",
+    description: "Alias for state_patch_rejection_rate (acceptance-criteria compatibility)",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "state_patch_rejection_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Count of rejected state patches",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "state_patch_count",
+    type: "counter_delta",
+    unit: "count",
+    description: "Total state patches proposed",
+    allowedLabelKeys: ["executionId", "result"],
+    allowedLabelValues: { result: ["accepted", "rejected"] },
+  },
+  {
+    name: "state_size_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Current ExecutionState size in tokens (bounded decision view)",
+    allowedLabelKeys: ["executionId", "substrateMode"],
+  },
+  {
+    name: "state_size_bytes",
+    type: "gauge",
+    unit: "bytes",
+    description: "Current ExecutionState size in bytes",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "state_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Alias for state_size_tokens per arch doc §28",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "history_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Historical transcript token count for comparison (§28)",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "tokens_saved",
+    type: "gauge",
+    unit: "tokens",
+    description: "Tokens saved vs full-history baseline (history_tokens - state_tokens)",
+    allowedLabelKeys: ["executionId", "substrateMode"],
+  },
+  {
+    name: "state_tokens_saved",
+    type: "gauge",
+    unit: "tokens",
+    description: "Alias for tokens_saved",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "context_tokens_total",
+    type: "gauge",
+    unit: "tokens",
+    description: "Total context tokens assembled (state + observation + evidence + history)",
+    allowedLabelKeys: ["executionId", "substrateMode"],
+  },
+  {
+    name: "state_recovery_count",
+    type: "counter_delta",
+    unit: "count",
+    description: "Times execution fell back to EventLog/history recovery",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "recovery_count",
+    type: "counter_delta",
+    unit: "count",
+    description: "Alias for state_recovery_count",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "state_recovery_steps",
+    type: "histogram_sample",
+    unit: "count",
+    description: "Recovery event: number of steps/history events replayed",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "state_projection_latency_ms",
+    type: "histogram_sample",
+    unit: "ms",
+    description: "State projection duration",
+    allowedLabelKeys: ["executionId"],
+  },
+  {
+    name: "state_projection_failures_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "State projection failures (fallback to authoritative history)",
+    allowedLabelKeys: ["executionId", "reason"],
+  },
+  {
+    name: "state_version_conflicts",
+    type: "counter_delta",
+    unit: "count",
+    description: "Optimistic concurrency version conflicts (stale base_state_version)",
+    allowedLabelKeys: ["executionId"],
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Combined convenience factory
 // ---------------------------------------------------------------------------
 
 /**
- * Create a fully-populated MetricRegistry with all production and security
- * metric definitions registered.
+ * Create a fully-populated MetricRegistry with all production, security,
+ * and state-substrate metric definitions registered.
  */
 export function createMetricRegistry(
   opts?: { mode?: "strict" | "compat" },
@@ -386,5 +525,6 @@ export function createMetricRegistry(
   const registry = new MetricRegistry(opts);
   registry.registerAll(PRODUCTION_METRIC_DEFINITIONS);
   registry.registerAll(SECURITY_METRIC_DEFINITIONS);
+  registry.registerAll(STATE_METRIC_DEFINITIONS);
   return registry;
 }

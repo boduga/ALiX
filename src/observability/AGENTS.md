@@ -6,9 +6,9 @@ Purpose: the M8 observability surface — persisted metrics, telemetry envelope,
 
 | File | Responsibility |
 |------|----------------|
-| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation |
+| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` (§28-29, #631) |
 | `metrics-store.ts` | `MetricsStore` (append-only JSONL), `RollupStore` (hourly rollups), retention enforcement |
-| `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` |
+| `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` — state_ → observability category |
 | `diagnostic-event.ts` | Normalized `DiagnosticEvent` type + mappers from runtime/contract diagnostics |
 | `diagnostic-event-store.ts` | `DiagnosticEventStore` (JSONL), `createDiagnosticStoreSink` / `createDefaultDiagnosticSink` |
 | `execution-context.ts` | `ExecutionContext` correlation accumulator threaded across runtime boundaries |
@@ -16,11 +16,13 @@ Purpose: the M8 observability surface — persisted metrics, telemetry envelope,
 | `cost-attribution.ts` | Versioned `PricingCatalog` + `CostAttribution` over `model.usage` session events |
 | `health-snapshot.ts` | Side-effect-free `RuntimeHealthSnapshot` projection from persisted state; `ObservabilitySnapshotService` (TTL-cached) |
 | `observability-config.ts` | `ObservabilityConfig` thresholds/TTLs/retention + `DEFAULT_OBSERVABILITY_CONFIG` |
-| `observability-routes.ts` | Read-only HTTP handlers for /api/observability/* (GET-only, no-store) |
+| `observability-routes.ts` | Read-only HTTP handlers for /api/observability/* (GET-only, no-store) — includes `GET /api/observability/state` |
 | `security-telemetry.ts` | `SecurityTelemetry` typed wrapper over MetricsStore for security metrics |
+| `state-telemetry.ts` | `StateTelemetry` / `FakeStateTelemetry` typed wrapper for state substrate metrics; MetricsStore + optional TelemetrySink fan-out |
+| `state-metrics.ts` | Per-execution state-vs-history aggregation (`collectStateMetrics`) for dashboard/CLI |
 | `trend-analyzer.ts` | Windowed summaries + z-score anomaly detection |
 
-CLI: `src/cli/commands/observability*.ts` (`health`, `metrics`, `trends`, `alerts`, `export`, `diagnostics`), dispatched from `src/cli.ts` (`alix observability`).
+CLI: `src/cli/commands/observability*.ts` (`health`, `metrics`, `state`, `trends`, `alerts`, `export`, `diagnostics`), dispatched from `src/cli.ts` (`alix observability`). `alix observability state` shows per-execution state vs history token comparison.
 
 ## Local Contracts
 

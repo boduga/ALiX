@@ -840,6 +840,55 @@ async function loadDaemonTasks() {
   } catch { /* silently skip */ }
 }
 
+// ── State substrate tab (§28-29) ─────────────────────────────────────
+async function loadStateMetrics() {
+  const el = document.getElementById("state-list");
+  const statusEl = document.getElementById("state-status");
+  if (!el) return;
+  try {
+    const res = await fetch("/api/observability/state");
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    const execs = data.executions ?? [];
+    const totals = data.totals ?? {};
+    if (execs.length === 0) {
+      el.innerHTML = '<p class="empty">No state metrics yet. Metrics appear once StateTelemetry emits (state_projection_accuracy, state_size_tokens, history_tokens, tokens_saved, state_recovery_count).</p>';
+      if (statusEl) statusEl.textContent = "No data";
+      return;
+    }
+    if (statusEl) statusEl.textContent = `${execs.length} executions`;
+    const avgAcc = totals.avgAccuracy != null ? (totals.avgAccuracy * 100).toFixed(1) + "%" : "—";
+    el.innerHTML = `<div class="state-summary">
+        <div class="metric"><span>Total State</span><strong>${totals.totalStateTokens ?? 0}</strong></div>
+        <div class="metric"><span>Total History</span><strong>${totals.totalHistoryTokens ?? 0}</strong></div>
+        <div class="metric"><span>Saved</span><strong>${totals.totalSaved ?? 0}</strong></div>
+        <div class="metric"><span>Avg Accuracy</span><strong>${avgAcc}</strong></div>
+        <div class="metric"><span>Recoveries</span><strong>${totals.totalRecoveries ?? 0}</strong></div>
+      </div>
+      <table class="state-table">
+        <thead><tr><th>Execution</th><th>State</th><th>History</th><th>Saved</th><th>Saving%</th><th>Accuracy</th><th>Recov</th><th>Mode</th></tr></thead>
+        <tbody>${execs.map(e => {
+          const savingPct = e.historyTokens && e.historyTokens > 0 && e.tokensSaved != null ? ((e.tokensSaved / e.historyTokens) * 100).toFixed(1) + "%" : "—";
+          const acc = e.projectionAccuracy != null ? (e.projectionAccuracy * 100).toFixed(1) + "%" : "—";
+          return `<tr>
+            <td class="mono">${escapeHtml(e.executionId)}</td>
+            <td>${e.stateTokens ?? "—"}</td>
+            <td>${e.historyTokens ?? "—"}</td>
+            <td>${e.tokensSaved ?? "—"}</td>
+            <td>${savingPct}</td>
+            <td>${acc}</td>
+            <td>${e.recoveryCount ?? 0}</td>
+            <td>${escapeHtml(e.substrateMode ?? "—")}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+      <p class="state-hint">Source: MetricsStore via <code>/api/observability/metrics</code> + <code>/api/observability/state</code> — TelemetryEnvelope category <code>observability</code>.</p>`;
+  } catch {
+    el.innerHTML = '<p class="empty">Failed to load state metrics.</p>';
+    if (statusEl) statusEl.textContent = "error";
+  }
+}
+
 // Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
@@ -849,6 +898,7 @@ loadAudit();
 loadRuntimeEvents();
 loadDaemonStatus();
 loadDaemonTasks();
+loadStateMetrics();
 
 // P4.3-Sb3: Expose reload function for auth.js to call after login
 window.reloadInspectorData = function () {
@@ -860,4 +910,5 @@ window.reloadInspectorData = function () {
   loadRuntimeEvents();
   loadDaemonStatus();
   loadDaemonTasks();
+  loadStateMetrics();
 };

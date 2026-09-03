@@ -115,6 +115,20 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
       return true;
     }
 
+    if (url.pathname === "/api/observability/state") {
+      const { MetricsStore } = await import("../observability/metrics-store.js");
+      const { collectStateMetrics } = await import("../observability/state-metrics.js");
+      const after = url.searchParams.get("after") ?? undefined;
+      const before = url.searchParams.get("before") ?? undefined;
+      const limitParam = url.searchParams.get("limit");
+      const limit = limitParam ? Math.min(parseInt(limitParam, 10), 10000) : 5000;
+      const store = new MetricsStore(root);
+      const summary = await collectStateMetrics(store, { after, before, limit });
+      if (r) r.ok(summary);
+      else rawJson(res, summary);
+      return true;
+    }
+
     if (url.pathname === "/api/observability/stream") {
       // P4.3-Sc2: Delegate to the shared observability stream hub
       // The hub is set up in server.ts and passed via RouteContext.

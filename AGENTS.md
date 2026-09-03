@@ -139,9 +139,10 @@ Default section order:
 | `src/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
 | `src/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |
-| `src/runtime/AGENTS.md` | RuntimeIndex — on-demand aggregation across all backends |
+| `src/runtime/AGENTS.md` | Runtime — execution-state, state-aware context builder, unified event index |
 | `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |
 | `src/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
+| `benchmark/AGENTS.md` | Benchmark harness history vs summary vs state vs hybrid — deterministic maintenance/reconciliation, FakeModel substrate isolation, 4-group metrics |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
