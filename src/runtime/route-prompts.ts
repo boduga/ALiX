@@ -314,7 +314,8 @@ export interface RetrievalPrompt {
 /** Default system prompt for grounded_chat route, keyed to external_retrieval. */
 const RETRIEVAL_SYSTEM_PROMPT =
   "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. " +
-  "Answer concisely. Do NOT modify files, run commands, or take any other side effects — retrieval is read-only.";
+  "Answer fully and directly: you may generate code, designs, analysis, or any requested content in your reply. " +
+  "Your workspace is read-only — do not modify files or run shell commands.";
 
 /**
  * Build the grounded_chat (external-retrieval) prompt pair.

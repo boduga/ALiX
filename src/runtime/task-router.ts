@@ -77,7 +77,8 @@ export type TaskRoute =
  * external information the model's training data cannot provide.
  */
 const GROUNDED_CHAT_PATTERNS = [
-  /\blatest\b/i, /\bcurrent\b/i, /\btoday\b/i, /\brecent\b/i,
+  /\blatest\b/i, /\bcurrent\s+(?:price|version|weather|exchange|rate|status|hotel|stock|block|height|time|date|info(?:rmation)?|news|release|valuation|score)\b/i,
+  /\btoday\b/i, /\brecent\b/i,
   /\bnews\b/i, /\bsearch\b/i, /\blook up\b/i, /\bweb\b/i,
   /\bprice\b/i, /\bversion\b/i, /\brelease\b/i, /\bschedule\b/i,
   /\bcompare current\b/i,

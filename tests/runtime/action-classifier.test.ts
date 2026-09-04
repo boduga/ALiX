@@ -190,6 +190,36 @@ describe("classifyAction — external retrieval", () => {
     const result = classifyAction("Search the web for current Kubernetes vulnerabilities");
     assert.equal(result.intent, "external_retrieval");
   });
+
+  it("does not let a bare 'current' in a spec header misroute a generation task", () => {
+    // REGRESSION (#645): /tmp/stress-test.txt had a `- Current State` FSM
+    // section header. Bare /\bcurrent\b/ fired RETRIEVAL_SIGNALS before
+    // GENERATION_SIGNALS -> a 5-part code-generation task was refused as
+    // "retrieval-only". `current` alone must NOT trigger retrieval, and an
+    // explicit generation signal must still reach `generation`.
+    const spec = classifyAction(
+      "You are an architecture review committee. Complete this 5-part task: " +
+        "generate a state machine specification with a Current State section, " +
+        "hazard analysis, and a test matrix."
+    );
+    assert.equal(spec.intent, "generation");
+
+    // The original stress-test-shaped prompt (no explicit "generate a")
+    // must at minimum NOT be hijacked into the retrieval-only route.
+    const spec2 = classifyAction(
+      "You are an architecture review committee. Complete this 5-part generation " +
+        "task: hazard analysis, state machine formalization with a Current State section, " +
+        "code generation, and a test matrix."
+    );
+    assert.notEqual(spec2.intent, "external_retrieval");
+  });
+
+  it("still routes genuine current-* queries to external_retrieval", () => {
+    // `current` alone is gone from RETRIEVAL_SIGNALS, but the composite
+    // current-<nominal> anchor must keep real queries on the retrieval route.
+    const result = classifyAction("What is the current weather in Tokyo?");
+    assert.equal(result.intent, "external_retrieval");
+  });
 });
 
 // ── Classification: standalone generation ────────────────────────────

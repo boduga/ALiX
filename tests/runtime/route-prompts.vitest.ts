@@ -294,6 +294,20 @@ describe("buildExternalRetrievalPrompt — Layer 3 grounded_chat prompt pair (T1
       expect(p.systemPrompt.toLowerCase()).toMatch(/do not/);
     });
 
+    it("system prompt permits content generation (capability orthogonal to side effects)", () => {
+      // REGRESSION (#645): a retrieval route must not forbid GENERATED CONTENT.
+      // "generate code/designs/analysis" must be allowed; only file/shell
+      // side effects are read-only. Without this, grounded_chat refuses
+      // code/FSM/schema generation tasks (stress-test /tmp/stress-test.txt).
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      const lower = p.systemPrompt.toLowerCase();
+      expect(lower).toMatch(/generate|cod(e|ing)\b/);
+      expect(lower).not.toMatch(/retrieval is read-only|do not.*generate|no.*generation/);
+      // Read-only boundary still intact — file/shell never granted.
+      expect(p.permissions.workspaceWrite).toBe(false);
+      expect(p.permissions.shellExecution).toBe(false);
+    });
+
     it("userPromptTemplate wraps the raw query", () => {
       const p = buildExternalRetrievalPrompt("external_retrieval");
       const wrapped = p.userPromptTemplate("latest node version");

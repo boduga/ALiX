@@ -513,7 +513,10 @@ const RETRIEVAL_SIGNALS: readonly RegExp[] = [
   /\bonline\b/i,
   /\bthe\s+internet\b/i,
   /\blatest\b/i,
-  /\bcurrent\b/i,
+  // `current` alone is too loose — "Current State" (FSM headers, docs)
+  // would misroute a generation task into the retrieval-only route.
+  // Keep composite anchors for genuine current-* queries.
+  /\bcurrent\s+(?:price|version|weather|exchange|rate|status|hotel|stock|block|height|time|date|info(?:rmation)?|news|release|valuation|score)\b/i,
   /\btoday\b/i,
   /\brecent\b/i,
   /\bnews\b/i,
