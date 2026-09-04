@@ -512,6 +512,79 @@ export const STATE_METRIC_DEFINITIONS: MetricDefinition[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Context assembly observability — per-tier source/selected/evicted/tokens (§28, #641)
+// ---------------------------------------------------------------------------
+
+/**
+ * Context assembly metrics — tracer bullet #641.
+ * Retains source/selected/evicted/token counts per tier from the real
+ * ContextAssembler (src/config/context-assembly.ts) via MetricsStore/
+ * TelemetryEnvelope. Extends STATE_METRIC_DEFINITIONS; no new architecture.
+ *
+ * Metadata:
+ *  - stateVersion / historyRevision ride alongside tier breakdown so the
+ *    dashboard can correlate token counts with the ExecutionState checkpoint.
+ */
+export const CONTEXT_ASSEMBLY_METRIC_DEFINITIONS: MetricDefinition[] = [
+  {
+    name: "context_tier_source",
+    type: "gauge",
+    unit: "count",
+    description: "Candidate items per tier before assembly (source)",
+    allowedLabelKeys: ["executionId", "tier", "invocationId"],
+  },
+  {
+    name: "context_tier_selected",
+    type: "gauge",
+    unit: "count",
+    description: "Admitted (selected) items per tier after assembly",
+    allowedLabelKeys: ["executionId", "tier", "invocationId"],
+  },
+  {
+    name: "context_tier_evicted",
+    type: "gauge",
+    unit: "count",
+    description: "Evicted/dropped items per tier (budget_exhausted or protected_unit_exceeded)",
+    allowedLabelKeys: ["executionId", "tier", "invocationId", "reason"],
+  },
+  {
+    name: "context_tier_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Admitted tokens per tier",
+    allowedLabelKeys: ["executionId", "tier", "invocationId"],
+  },
+  {
+    name: "context_assembly_state_version",
+    type: "gauge",
+    unit: "count",
+    description: "ExecutionState version at assembly time (stateVersion)",
+    allowedLabelKeys: ["executionId", "invocationId"],
+  },
+  {
+    name: "context_assembly_history_revision",
+    type: "gauge",
+    unit: "count",
+    description: "History revision (EventLog checkpoint) at assembly time",
+    allowedLabelKeys: ["executionId", "invocationId"],
+  },
+  {
+    name: "context_assembly_admitted_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Total admitted tokens for assembled context",
+    allowedLabelKeys: ["executionId", "invocationId"],
+  },
+  {
+    name: "context_assembly_dropped_tokens",
+    type: "gauge",
+    unit: "tokens",
+    description: "Total dropped tokens for assembled context",
+    allowedLabelKeys: ["executionId", "invocationId"],
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Combined convenience factory
 // ---------------------------------------------------------------------------
 
@@ -526,5 +599,6 @@ export function createMetricRegistry(
   registry.registerAll(PRODUCTION_METRIC_DEFINITIONS);
   registry.registerAll(SECURITY_METRIC_DEFINITIONS);
   registry.registerAll(STATE_METRIC_DEFINITIONS);
+  registry.registerAll(CONTEXT_ASSEMBLY_METRIC_DEFINITIONS);
   return registry;
 }

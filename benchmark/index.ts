@@ -23,3 +23,4 @@ export * from "./substrates.js";
 export * from "./metrics.js";
 export * from "./harness.js";
 export * from "./mutation-conflict.js";
+export * from "./mutation-conflict-stress.js";

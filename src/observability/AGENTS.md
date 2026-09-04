@@ -6,9 +6,9 @@ Purpose: the M8 observability surface — persisted metrics, telemetry envelope,
 
 | File | Responsibility |
 |------|----------------|
-| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` (§28-29, #631) |
+| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` (§28-29, #631) + `CONTEXT_ASSEMBLY_METRIC_DEFINITIONS` (§28, #641: context_tier_source/selected/evicted/tokens, context_assembly_state_version/history_revision/admitted/dropped) |
 | `metrics-store.ts` | `MetricsStore` (append-only JSONL), `RollupStore` (hourly rollups), retention enforcement |
-| `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` — state_ → observability category |
+| `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` — state_/context_tier_/context_assembly → observability category |
 | `diagnostic-event.ts` | Normalized `DiagnosticEvent` type + mappers from runtime/contract diagnostics |
 | `diagnostic-event-store.ts` | `DiagnosticEventStore` (JSONL), `createDiagnosticStoreSink` / `createDefaultDiagnosticSink` |
 | `execution-context.ts` | `ExecutionContext` correlation accumulator threaded across runtime boundaries |
@@ -16,13 +16,13 @@ Purpose: the M8 observability surface — persisted metrics, telemetry envelope,
 | `cost-attribution.ts` | Versioned `PricingCatalog` + `CostAttribution` over `model.usage` session events |
 | `health-snapshot.ts` | Side-effect-free `RuntimeHealthSnapshot` projection from persisted state; `ObservabilitySnapshotService` (TTL-cached) |
 | `observability-config.ts` | `ObservabilityConfig` thresholds/TTLs/retention + `DEFAULT_OBSERVABILITY_CONFIG` |
-| `observability-routes.ts` | Read-only HTTP handlers for /api/observability/* (GET-only, no-store) — includes `GET /api/observability/state` |
+| `observability-routes.ts` | Read-only HTTP handlers for /api/observability/* (GET-only, no-store) — includes `GET /api/observability/state` (extended #641: tier breakdown) |
 | `security-telemetry.ts` | `SecurityTelemetry` typed wrapper over MetricsStore for security metrics |
-| `state-telemetry.ts` | `StateTelemetry` / `FakeStateTelemetry` typed wrapper for state substrate metrics; MetricsStore + optional TelemetrySink fan-out |
-| `state-metrics.ts` | Per-execution state-vs-history aggregation (`collectStateMetrics`) for dashboard/CLI |
+| `state-telemetry.ts` | `StateTelemetry` / `FakeStateTelemetry` typed wrapper for state substrate metrics; MetricsStore + optional TelemetrySink fan-out — #641: recordContextAssembly/recordAssembledContext (source/selected/evicted/tokens per tier + stateVersion/historyRevision) |
+| `state-metrics.ts` | Per-execution state-vs-history aggregation (`collectStateMetrics`) for dashboard/CLI — #641: tierTokens/tierSources/Selected/Evicted, stateVersion/historyRevision, admitted/dropped, totals per tier |
 | `trend-analyzer.ts` | Windowed summaries + z-score anomaly detection |
 
-CLI: `src/cli/commands/observability*.ts` (`health`, `metrics`, `state`, `trends`, `alerts`, `export`, `diagnostics`), dispatched from `src/cli.ts` (`alix observability`). `alix observability state` shows per-execution state vs history token comparison.
+CLI: `src/cli/commands/observability*.ts` (`health`, `metrics`, `state`, `trends`, `alerts`, `export`, `diagnostics`), dispatched from `src/cli.ts` (`alix observability`). `alix observability state` shows per-execution state vs history token comparison + per-tier source/selected/evicted/tokens and stateVersion/historyRevision (#641).
 
 ## Local Contracts
 

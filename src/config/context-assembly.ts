@@ -247,3 +247,47 @@ export function assembleContext(
     remainingTokens: remaining,
   });
 }
+
+/**
+ * Context assembly observability helper (#641).
+ *
+ * Retains source/selected/evicted/tokens per tier for wiring to
+ * MetricsStore/TelemetryEnvelope via StateTelemetry without mutating
+ * the pure assembler. Pure derivation from an AssembledContext.
+ */
+export interface ContextAssemblyTelemetry {
+  readonly tierSources: Readonly<Record<string, number>>;
+  readonly tierSelected: Readonly<Record<string, number>>;
+  readonly tierEvicted: Readonly<Record<string, number>>;
+  readonly tierTokens: Readonly<Record<string, number>>;
+  readonly admittedTokens: number;
+  readonly droppedTokens: number;
+}
+
+export function getContextAssemblyTelemetry(assembled: AssembledContext): ContextAssemblyTelemetry {
+  const tierSources: Record<string, number> = {};
+  const tierSelected: Record<string, number> = {};
+  const tierEvicted: Record<string, number> = {};
+  const tierTokens: Record<string, number> = {};
+
+  for (const a of assembled.admitted) {
+    tierSelected[a.category] = (tierSelected[a.category] ?? 0) + 1;
+    tierTokens[a.category] = (tierTokens[a.category] ?? 0) + a.tokens;
+  }
+  for (const d of assembled.dropped) {
+    tierEvicted[d.item.category] = (tierEvicted[d.item.category] ?? 0) + 1;
+  }
+  for (const cat of new Set([...Object.keys(tierSelected), ...Object.keys(tierEvicted)])) {
+    tierSources[cat] = (tierSelected[cat] ?? 0) + (tierEvicted[cat] ?? 0);
+    if (!(cat in tierTokens)) tierTokens[cat] = 0;
+  }
+
+  return Object.freeze({
+    tierSources: Object.freeze({ ...tierSources }),
+    tierSelected: Object.freeze({ ...tierSelected }),
+    tierEvicted: Object.freeze({ ...tierEvicted }),
+    tierTokens: Object.freeze({ ...tierTokens }),
+    admittedTokens: assembled.admittedTokens,
+    droppedTokens: assembled.droppedTokens,
+  });
+}

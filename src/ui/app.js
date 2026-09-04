@@ -858,15 +858,18 @@ async function loadStateMetrics() {
     }
     if (statusEl) statusEl.textContent = `${execs.length} executions`;
     const avgAcc = totals.avgAccuracy != null ? (totals.avgAccuracy * 100).toFixed(1) + "%" : "—";
+    const hasTier = execs.some(e => e.tierTokens || e.tierSources);
     el.innerHTML = `<div class="state-summary">
         <div class="metric"><span>Total State</span><strong>${totals.totalStateTokens ?? 0}</strong></div>
         <div class="metric"><span>Total History</span><strong>${totals.totalHistoryTokens ?? 0}</strong></div>
         <div class="metric"><span>Saved</span><strong>${totals.totalSaved ?? 0}</strong></div>
         <div class="metric"><span>Avg Accuracy</span><strong>${avgAcc}</strong></div>
         <div class="metric"><span>Recoveries</span><strong>${totals.totalRecoveries ?? 0}</strong></div>
+        ${totals.totalAdmittedTokens != null ? `<div class="metric"><span>Admitted</span><strong>${totals.totalAdmittedTokens}</strong></div>` : ""}
+        ${totals.totalDroppedTokens != null ? `<div class="metric"><span>Dropped</span><strong>${totals.totalDroppedTokens}</strong></div>` : ""}
       </div>
       <table class="state-table">
-        <thead><tr><th>Execution</th><th>State</th><th>History</th><th>Saved</th><th>Saving%</th><th>Accuracy</th><th>Recov</th><th>Mode</th></tr></thead>
+        <thead><tr><th>Execution</th><th>State</th><th>History</th><th>Saved</th><th>Saving%</th><th>Accuracy</th><th>Recov</th><th>Ver</th><th>Rev</th><th>Mode</th></tr></thead>
         <tbody>${execs.map(e => {
           const savingPct = e.historyTokens && e.historyTokens > 0 && e.tokensSaved != null ? ((e.tokensSaved / e.historyTokens) * 100).toFixed(1) + "%" : "—";
           const acc = e.projectionAccuracy != null ? (e.projectionAccuracy * 100).toFixed(1) + "%" : "—";
@@ -878,11 +881,29 @@ async function loadStateMetrics() {
             <td>${savingPct}</td>
             <td>${acc}</td>
             <td>${e.recoveryCount ?? 0}</td>
+            <td>${e.stateVersion ?? "—"}</td>
+            <td>${e.historyRevision ?? "—"}</td>
             <td>${escapeHtml(e.substrateMode ?? "—")}</td>
           </tr>`;
         }).join("")}</tbody>
       </table>
-      <p class="state-hint">Source: MetricsStore via <code>/api/observability/metrics</code> + <code>/api/observability/state</code> — TelemetryEnvelope category <code>observability</code>.</p>`;
+      ${hasTier ? `<h4>Per-tier assembly (source / selected / evicted / tokens)</h4>
+      <table class="state-table tier-table">
+        <thead><tr><th>Execution</th><th>Tier</th><th>Source</th><th>Selected</th><th>Evicted</th><th>Tokens</th></tr></thead>
+        <tbody>${execs.flatMap(e => {
+          const tiers = new Set([...Object.keys(e.tierTokens ?? {}), ...Object.keys(e.tierSources ?? {}), ...Object.keys(e.tierSelected ?? {}), ...Object.keys(e.tierEvicted ?? {})]);
+          if (tiers.size === 0) return [];
+          return [...tiers].map(tier => `<tr>
+            <td class="mono">${escapeHtml(e.executionId)}</td>
+            <td>${escapeHtml(tier)}</td>
+            <td>${e.tierSources?.[tier] ?? "—"}</td>
+            <td>${e.tierSelected?.[tier] ?? "—"}</td>
+            <td>${e.tierEvicted?.[tier] ?? "—"}</td>
+            <td>${e.tierTokens?.[tier] ?? "—"}</td>
+          </tr>`);
+        }).join("")}</tbody>
+      </table>` : ""}
+      <p class="state-hint">Source: MetricsStore via <code>/api/observability/metrics</code> + <code>/api/observability/state</code> — TelemetryEnvelope category <code>observability</code>. Tiers: source/selected/evicted/tokens per tier + stateVersion/historyRevision admitted/dropped.</p>`;
   } catch {
     el.innerHTML = '<p class="empty">Failed to load state metrics.</p>';
     if (statusEl) statusEl.textContent = "error";

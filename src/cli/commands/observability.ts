@@ -71,11 +71,21 @@ async function cmdMetrics(cwd: string, args: string[]): Promise<void> {
   }
 
   // State substrate quick summary if any state metrics present
-  const stateNames = [...groups.keys()].filter(k => k.startsWith("state_") || k === "history_tokens" || k === "tokens_saved" || k === "patch_rejection_rate" || k === "recovery_count");
+  const stateNames = [...groups.keys()].filter(k => k.startsWith("state_") || k.startsWith("context_tier") || k.startsWith("context_assembly") || k === "history_tokens" || k === "tokens_saved" || k === "patch_rejection_rate" || k === "recovery_count");
   if (stateNames.length > 0 && !metricName) {
     console.log();
     console.log("State substrate (try: alix observability state):");
     for (const n of stateNames) {
+      const g = groups.get(n)!;
+      console.log(`  ${n}: count=${g.count}`);
+    }
+  }
+  // Context assembly tier hint (#641)
+  const tierNames = [...groups.keys()].filter(k => k.startsWith("context_tier") || k.startsWith("context_assembly"));
+  if (tierNames.length > 0 && !metricName) {
+    console.log();
+    console.log("Context assembly tiers (source/selected/evicted/tokens per tier, stateVersion/historyRevision):");
+    for (const n of tierNames) {
       const g = groups.get(n)!;
       console.log(`  ${n}: count=${g.count}`);
     }
@@ -99,23 +109,57 @@ async function cmdState(cwd: string, args: string[]): Promise<void> {
   if (summary.executions.length === 0) {
     console.log("No state metrics found. Emit via StateTelemetry first.");
     console.log("  Metrics: state_projection_accuracy, state_patch_rejection_rate, state_size_tokens, history_tokens, tokens_saved, state_recovery_count");
+    console.log("  Context assembly (#641): context_tier_source/selected/evicted/tokens, context_assembly_state_version/history_revision");
     return;
   }
 
   console.log(`State vs History per execution (${summary.executions.length} executions):`);
-  console.log(`  ${"execution".padEnd(22)} ${"state".padStart(7)} ${"history".padStart(7)} ${"saved".padStart(7)} ${"saving%".padStart(8)} ${"accuracy".padStart(9)} ${"recov".padStart(5)}`);
-  console.log(`  ${"─".repeat(22)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(8)} ${"─".repeat(9)} ${"─".repeat(5)}`);
+  console.log(`  ${"execution".padEnd(22)} ${"state".padStart(7)} ${"history".padStart(7)} ${"saved".padStart(7)} ${"saving%".padStart(8)} ${"accuracy".padStart(9)} ${"recov".padStart(5)} ${"ver".padStart(4)} ${"rev".padStart(4)}`);
+  console.log(`  ${"─".repeat(22)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(7)} ${"─".repeat(8)} ${"─".repeat(9)} ${"─".repeat(5)} ${"─".repeat(4)} ${"─".repeat(4)}`);
   for (const e of summary.executions) {
     const savingPct = e.historyTokens && e.historyTokens > 0 && e.tokensSaved != null ? ((e.tokensSaved / e.historyTokens) * 100).toFixed(1) + "%" : "—";
     const acc = e.projectionAccuracy != null ? (e.projectionAccuracy * 100).toFixed(1) + "%" : "—";
     const state = e.stateTokens != null ? String(e.stateTokens) : "—";
     const hist = e.historyTokens != null ? String(e.historyTokens) : "—";
     const saved = e.tokensSaved != null ? String(e.tokensSaved) : "—";
-    console.log(`  ${e.executionId.slice(0, 22).padEnd(22)} ${state.padStart(7)} ${hist.padStart(7)} ${saved.padStart(7)} ${String(savingPct).padStart(8)} ${acc.padStart(9)} ${String(e.recoveryCount).padStart(5)}`);
+    const ver = (e as any).stateVersion != null ? String((e as any).stateVersion) : "—";
+    const rev = (e as any).historyRevision != null ? String((e as any).historyRevision) : "—";
+    console.log(`  ${e.executionId.slice(0, 22).padEnd(22)} ${state.padStart(7)} ${hist.padStart(7)} ${saved.padStart(7)} ${String(savingPct).padStart(8)} ${acc.padStart(9)} ${String(e.recoveryCount).padStart(5)} ${ver.padStart(4)} ${rev.padStart(4)}`);
   }
   console.log();
   const t = summary.totals;
   const avgAcc = t.avgAccuracy != null ? (t.avgAccuracy * 100).toFixed(1) + "%" : "—";
   console.log(`Totals: state=${t.totalStateTokens} history=${t.totalHistoryTokens} saved=${t.totalSaved} avgAccuracy=${avgAcc} recoveries=${t.totalRecoveries}`);
+  if ((t as any).totalAdmittedTokens != null) {
+    console.log(`Context assembly: admitted=${(t as any).totalAdmittedTokens} dropped=${(t as any).totalDroppedTokens ?? 0}`);
+  }
+  if ((t as any).totalTierTokens) {
+    const tt = (t as any).totalTierTokens as Record<string, number>;
+    const tierStr = Object.entries(tt).map(([k, v]) => `${k}=${v}`).join(" ");
+    console.log(`Tier tokens: ${tierStr}`);
+  }
+  // Per-execution tier breakdown (#641) — source/selected/evicted/tokens per tier
+  const hasTier = summary.executions.some(e => (e as any).tierTokens || (e as any).tierSources);
+  if (hasTier) {
+    console.log();
+    console.log("Per-tier assembly (source / selected / evicted / tokens):");
+    console.log(`  ${"execution".padEnd(22)} ${"tier".padEnd(26)} ${"src".padStart(4)} ${"sel".padStart(4)} ${"ev".padStart(4)} ${"tokens".padStart(7)}`);
+    console.log(`  ${"─".repeat(22)} ${"─".repeat(26)} ${"─".repeat(4)} ${"─".repeat(4)} ${"─".repeat(4)} ${"─".repeat(7)}`);
+    for (const e of summary.executions) {
+      const tt = (e as any).tierTokens as Record<string, number> | null;
+      const src = (e as any).tierSources as Record<string, number> | null;
+      const sel = (e as any).tierSelected as Record<string, number> | null;
+      const ev = (e as any).tierEvicted as Record<string, number> | null;
+      if (!tt && !src) continue;
+      const tiers = new Set([...Object.keys(tt ?? {}), ...Object.keys(src ?? {}), ...Object.keys(sel ?? {}), ...Object.keys(ev ?? {})]);
+      for (const tier of tiers) {
+        const s = src?.[tier] != null ? String(src[tier]) : "—";
+        const se = sel?.[tier] != null ? String(sel[tier]) : "—";
+        const evv = ev?.[tier] != null ? String(ev[tier]) : "—";
+        const tok = tt?.[tier] != null ? String(tt[tier]) : "—";
+        console.log(`  ${e.executionId.slice(0, 22).padEnd(22)} ${tier.padEnd(26)} ${s.padStart(4)} ${se.padStart(4)} ${evv.padStart(4)} ${tok.padStart(7)}`);
+      }
+    }
+  }
   console.log(`Workflow metric workflow_duration etc. remain queryable via: alix observability metrics --name workflow_duration_ms`);
 }

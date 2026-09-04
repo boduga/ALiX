@@ -194,7 +194,30 @@ jobs:
         shell: bash
         run: pnpm typecheck
 
-  # ─── Lane 8: node:test suite (unit-level, non-vitest) ────────────────
+  # ─── Lane 8: Benchmark boundedness + retrieval_precision thresholds (#645) ─
+  # Single tracer bullet — encodes POC boundedness properties as hard CI gates.
+  # Fails the PR if context grows with horizon or precision drops.
+  # Covered by `tests/benchmark-thresholds.vitest.ts` (also in `unit` lane);
+  # this lane gives the gate its own status check for visibility.
+  benchmark-thresholds:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Boundedness + retrieval_precision thresholds (#645)
+        run: npx vitest run tests/benchmark-thresholds.vitest.ts --config vitest.config.mts
+
+  # ─── Lane 9: node:test suite (unit-level, non-vitest) ────────────────
   # Covers the ~6500 node:test tests the vitest unit lane never runs
   # (566 files under dist/tests, excluding integration/soak/pty/manual/
   # skills/slow-repomap — those have their own lanes).

@@ -206,6 +206,8 @@ export function normalizeMetricEvent(event: MetricInputType): TelemetryEnvelope 
     : event.name.startsWith("security_") ? "security"
     : event.name.startsWith("state_") ? "observability"
     : event.name.startsWith("history_") ? "observability"
+    : event.name.startsWith("context_tier_") ? "observability"
+    : event.name.startsWith("context_assembly") ? "observability"
     : event.name === "tokens_saved" || event.name === "patch_rejection_rate" || event.name === "recovery_count" ? "observability"
     : event.name.startsWith("context_tokens") ? "observability"
     : "tool";

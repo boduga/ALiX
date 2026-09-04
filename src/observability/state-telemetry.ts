@@ -145,6 +145,143 @@ export class StateTelemetry {
     this.emit("state_projection_failures_total", labels, 1);
   }
 
+  // ── Context assembly observability (§28, #641) ───────────────────────
+
+  /**
+   * Record per-tier source/selected/evicted/tokens for one assembly.
+   *
+   * Wires the real ContextAssembler (src/config/context-assembly.ts) to
+   * MetricsStore/TelemetryEnvelope. Each tier gets 4 gauge snapshots plus
+   * aggregate admitted/dropped tokens and optional stateVersion/historyRevision.
+   *
+   * @param opts.executionId - correlation key (sessionId when no ExecutionState)
+   * @param opts.invocationId - per-assembly correlation (optional)
+   * @param opts.stateVersion - ExecutionState.version at assembly time
+   * @param opts.historyRevision - EventLog checkpoint revision at assembly time
+   * @param opts.tierSources - candidate count per tier before assembly
+   * @param opts.tierSelected - admitted count per tier
+   * @param opts.tierEvicted - evicted count per tier (budget_exhausted+protected)
+   * @param opts.tierTokens - admitted tokens per tier
+   * @param opts.admittedTokens - total admitted tokens
+   * @param opts.droppedTokens - total dropped tokens
+   */
+  recordContextAssembly(opts: {
+    executionId: string;
+    invocationId?: string;
+    stateVersion?: number;
+    historyRevision?: number;
+    tierSources: Record<string, number>;
+    tierSelected: Record<string, number>;
+    tierEvicted: Record<string, number>;
+    tierTokens: Record<string, number>;
+    admittedTokens: number;
+    droppedTokens: number;
+    substrateMode?: string;
+  }): void {
+    const inv = opts.invocationId;
+    const baseLabels = (tier: string) => ({
+      executionId: opts.executionId,
+      tier,
+      ...(inv ? { invocationId: inv } : {}),
+    });
+
+    // Per-tier source / selected / evicted / tokens (gauge snapshots)
+    for (const tier of Object.keys(opts.tierTokens)) {
+      const src = opts.tierSources[tier] ?? 0;
+      const sel = opts.tierSelected[tier] ?? 0;
+      const ev = opts.tierEvicted[tier] ?? 0;
+      const tok = opts.tierTokens[tier] ?? 0;
+      this.emit("context_tier_source", baseLabels(tier), src);
+      this.emit("context_tier_selected", baseLabels(tier), sel);
+      this.emit("context_tier_evicted", baseLabels(tier), ev);
+      this.emit("context_tier_tokens", baseLabels(tier), tok);
+      // Also emit evicted breakdown by reason as single count (reason aggregated)
+      // No extra emit needed — tier_evicted already covers total; callers needing
+      // per-reason splits should call contextAssemblyEvictedByReason separately.
+    }
+
+    // Ensure every tier that appeared in sources but not tokens still emitted
+    for (const tier of Object.keys(opts.tierSources)) {
+      if (tier in opts.tierTokens) continue;
+      const src = opts.tierSources[tier] ?? 0;
+      const sel = opts.tierSelected[tier] ?? 0;
+      const ev = opts.tierEvicted[tier] ?? 0;
+      this.emit("context_tier_source", baseLabels(tier), src);
+      this.emit("context_tier_selected", baseLabels(tier), sel);
+      this.emit("context_tier_evicted", baseLabels(tier), ev);
+      this.emit("context_tier_tokens", baseLabels(tier), 0);
+    }
+
+    const metaLabels: Record<string, string> = { executionId: opts.executionId, ...(inv ? { invocationId: inv } : {}) };
+    if (typeof opts.stateVersion === "number") {
+      this.emit("context_assembly_state_version", metaLabels, opts.stateVersion);
+    }
+    if (typeof opts.historyRevision === "number") {
+      this.emit("context_assembly_history_revision", metaLabels, opts.historyRevision);
+    }
+    this.emit("context_assembly_admitted_tokens", metaLabels, opts.admittedTokens);
+    this.emit("context_assembly_dropped_tokens", metaLabels, opts.droppedTokens);
+
+    // Also keep the §28 token comparison up to date via the existing gauges:
+    // state tokens = tier current_execution_state, history tokens = tier older_context (if present)
+    const stateTok = opts.tierTokens["current_execution_state"];
+    const histTok = opts.tierTokens["older_context"];
+    if (typeof stateTok === "number") this.stateSize(opts.executionId, stateTok, undefined, opts.substrateMode);
+    if (typeof histTok === "number") this.historyTokens(opts.executionId, histTok);
+    if (typeof stateTok === "number" && typeof histTok === "number") {
+      this.tokensSaved(opts.executionId, Math.max(0, histTok - stateTok), opts.substrateMode);
+      this.contextTokens(opts.executionId, opts.admittedTokens, opts.substrateMode);
+    }
+  }
+
+  /**
+   * Convenience: derive per-tier breakdown directly from an AssembledContext.
+   * Computes source = admitted+evicted per tier, selected = admitted per tier,
+   * evicted = dropped per tier, tokens = admitted tokens per tier.
+   */
+  recordAssembledContext(
+    executionId: string,
+    assembled: {
+      admitted: readonly { category: string; tokens: number }[];
+      dropped: readonly { item: { category: string } }[];
+      admittedTokens: number;
+      droppedTokens: number;
+    },
+    meta?: { invocationId?: string; stateVersion?: number; historyRevision?: number; substrateMode?: string },
+  ): void {
+    const tierSources: Record<string, number> = {};
+    const tierSelected: Record<string, number> = {};
+    const tierEvicted: Record<string, number> = {};
+    const tierTokens: Record<string, number> = {};
+
+    for (const a of assembled.admitted) {
+      tierSelected[a.category] = (tierSelected[a.category] ?? 0) + 1;
+      tierTokens[a.category] = (tierTokens[a.category] ?? 0) + a.tokens;
+    }
+    for (const d of assembled.dropped) {
+      tierEvicted[d.item.category] = (tierEvicted[d.item.category] ?? 0) + 1;
+    }
+    for (const cat of new Set([...Object.keys(tierSelected), ...Object.keys(tierEvicted)])) {
+      tierSources[cat] = (tierSelected[cat] ?? 0) + (tierEvicted[cat] ?? 0);
+      // Ensure tokens entry exists for every tier that has counts
+      if (!(cat in tierTokens)) tierTokens[cat] = 0;
+    }
+
+    this.recordContextAssembly({
+      executionId,
+      invocationId: meta?.invocationId,
+      stateVersion: meta?.stateVersion,
+      historyRevision: meta?.historyRevision,
+      tierSources,
+      tierSelected,
+      tierEvicted,
+      tierTokens,
+      admittedTokens: assembled.admittedTokens,
+      droppedTokens: assembled.droppedTokens,
+      substrateMode: meta?.substrateMode,
+    });
+  }
+
   // ── Composite helper ─────────────────────────────────────────────────
 
   /**
@@ -281,5 +418,29 @@ export class FakeStateTelemetry extends StateTelemetry {
   override tokenSnapshot(opts: { executionId: string; stateTokens: number; historyTokens: number; stateBytes?: number; substrateMode?: string }): void {
     this.tracked("tokenSnapshot", [opts]);
     super.tokenSnapshot(opts);
+  }
+  override recordContextAssembly(opts: {
+    executionId: string;
+    invocationId?: string;
+    stateVersion?: number;
+    historyRevision?: number;
+    tierSources: Record<string, number>;
+    tierSelected: Record<string, number>;
+    tierEvicted: Record<string, number>;
+    tierTokens: Record<string, number>;
+    admittedTokens: number;
+    droppedTokens: number;
+    substrateMode?: string;
+  }): void {
+    this.tracked("recordContextAssembly", [opts]);
+    super.recordContextAssembly(opts);
+  }
+  override recordAssembledContext(
+    executionId: string,
+    assembled: { admitted: readonly { category: string; tokens: number }[]; dropped: readonly { item: { category: string } }[]; admittedTokens: number; droppedTokens: number },
+    meta?: { invocationId?: string; stateVersion?: number; historyRevision?: number; substrateMode?: string },
+  ): void {
+    this.tracked("recordAssembledContext", [executionId, assembled, meta]);
+    super.recordAssembledContext(executionId, assembled, meta);
   }
 }

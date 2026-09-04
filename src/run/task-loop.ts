@@ -53,6 +53,9 @@ import {
   type CandidateContextItem,
   type ContextItemProvenance,
 } from "../config/context-assembly.js";
+import { MetricsStore } from "../observability/metrics-store.js";
+import { createMetricRegistry } from "../observability/metric-registry.js";
+import { StateTelemetry } from "../observability/state-telemetry.js";
 import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload, type ContextRotRiskPayload } from "../events/types.js";
 import { loadCalibration, type ContextRotThreshold } from "../config/calibration-store.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
@@ -473,6 +476,19 @@ onStream,
   // terminal returns. No admission behavior change.
   const contextPressure = createContextPressureTracker();
 
+  // #641 — Context assembly observability: MetricsStore/TelemetryEnvelope sink for
+  // source/selected/evicted/tokens per tier + stateVersion/historyRevision.
+  // Non-fatal, fire-and-forget; does not affect assembly/preflight semantics.
+  let stateTelemetry: StateTelemetry | null = null;
+  try {
+    const cwd = process.cwd();
+    stateTelemetry = new StateTelemetry({
+      registry: createMetricRegistry(),
+      metricsStore: new MetricsStore(cwd),
+      sessionId: session.sessionId,
+    });
+  } catch { /* observability sink unavailable — non-fatal */ }
+
   // Track the latest invocationId so the §6 rot_risk advisory at terminal
   // return can correlate with the most recent model-facing snapshot.
   let lastInvocationId = "";
@@ -694,6 +710,14 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	      droppedReasons,
 	    },
 	  });
+	  // #641 — Wire assembled context metadata to observability via StateTelemetry
+	  // (MetricsStore + TelemetryEnvelope). Emits source/selected/evicted/tokens
+	  // per tier plus admitted/dropped totals. Non-blocking, non-fatal.
+	  if (stateTelemetry) {
+	    try {
+	      stateTelemetry.recordAssembledContext(executionId, assembled, { invocationId });
+	    } catch { /* swallow telemetry errors */ }
+	  }
 	}
 
 	// Reconstruct the provider request from admitted items.

@@ -106,6 +106,24 @@ export function isDeepSeekCapableModel(model: string): boolean {
   return lower.includes("deepseek") || lower.includes("chat");
 }
 
+export function isOllamaCapableModel(model: string): boolean {
+  const lower = (model ?? "").toLowerCase();
+  // Ollama local models — allowlist of families whose Ollama templates support parallel_tool_calls.
+  // Unknown/generic model → false (fail-closed).
+  return (
+    lower.includes("qwen") ||
+    lower.includes("llama") ||
+    lower.includes("mistral") ||
+    lower.includes("gemma") ||
+    lower.includes("deepseek") ||
+    lower.includes("phi") ||
+    lower.includes("hermes") ||
+    lower.includes("functionary") ||
+    lower.includes("granite") ||
+    lower.includes("mixtral")
+  );
+}
+
 export function isGenericOpenAICompatCapableModel(model: string): boolean {
   // Perplexity, ZhipuAI, GrokAI etc. — OpenAI-compatible, parallel supported for any non-empty concrete model id
   const lower = (model ?? "").toLowerCase().trim();
@@ -168,6 +186,10 @@ export function resolveParallelToolCalls(input: ParallelToolCallsInput): boolean
 
   if (provider === "deepseek") {
     return isDeepSeekCapableModel(model);
+  }
+
+  if (provider === "ollama") {
+    return isOllamaCapableModel(model);
   }
 
   if (provider === "perplexity" || provider === "zhipuai" || provider === "grokai" || provider === "grok") {
