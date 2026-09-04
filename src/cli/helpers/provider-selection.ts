@@ -339,17 +339,24 @@ export async function selectModelInteractive(
   promptFn?: (q: string) => Promise<string>,
 ): Promise<ModelInfo | null> {
   const MAX_SHOWN = 50;
-  const shown = models.slice(0, MAX_SHOWN);
+  // Append free models to top 50: free first (as `alix models free` does via isFreeModel), then the rest.
+  // Keeps the 50-cap but ensures zero-cost models are always visible in set-default.
+  const isFree = (m: ModelInfo) => m.id.endsWith(":free") || m.id === "openrouter/free";
+  const free = models.filter(isFree);
+  const rest = models.filter((m) => !isFree(m));
+  const ordered = [...free, ...rest];
+  const shown = ordered.slice(0, MAX_SHOWN);
   const picked = await selectFromList(
     shown,
     (m) => {
       const tokens = m.maxInputTokens ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)` : "";
-      return `${m.displayName}${tokens}`;
+      const freeMark = isFree(m) ? " [free]" : "";
+      return `${m.displayName}${tokens}${freeMark}`;
     },
     { promptFn, header: "Choose a model:" },
   );
   if (picked && models.length > MAX_SHOWN) {
-    process.stderr.write(`(Showing first ${MAX_SHOWN} of ${models.length} models.)\n`);
+    process.stderr.write(`(Showing first ${MAX_SHOWN} of ${models.length} models — free models pinned to top.)\n`);
   }
   return picked;
 }
