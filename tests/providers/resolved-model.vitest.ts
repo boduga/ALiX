@@ -48,7 +48,9 @@ describe("resolved-model capture", () => {
       id: "openrouter",
       editFormatPreference: "search_replace",
       longContextStrategy: "trimmed_context",
-      capabilities: { provider: "openrouter", model: "openrouter/free", inputTokenLimit: 200_000, outputTokenLimit: 8192, supportsTools: true, supportsStreaming: true, supportsStructuredOutput: true, supportsVision: true },
+      capabilities: { provider: "openrouter", model: "openrouter/free", inputTokenLimit: 200_000, outputTokenLimit: 8192, supportsTools: true, supportsStreaming: true, supportsStructuredOutput: true, supportsVision: true,
+      parallelToolCalls: false
+},
       complete: async () => ({ text: "", toolCalls: [] }),
       stream: async function* () {
         yield { type: "text_delta", text: "hi" };

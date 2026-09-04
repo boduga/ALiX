@@ -49,6 +49,8 @@ export type ToolDefFromSchema = typeof ToolDefSchema.Type;
 export const NormalizedToolResultSchema = Schema.Struct({
   toolUseId: Schema.String,
   content: Schema.String,
+  invocationId: Schema.String,
+  executionId: Schema.String,
 });
 export type NormalizedToolResultFromSchema = typeof NormalizedToolResultSchema.Type;
 

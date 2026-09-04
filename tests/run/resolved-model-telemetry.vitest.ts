@@ -26,7 +26,8 @@ function createResolvedModelProvider(opts: { resolvedModel?: string; usage?: Tok
     capabilities: {
       provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
       supportsTools: true, supportsStreaming: !!opts.streaming, supportsStructuredOutput: false, supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: 'search_replace',
     longContextStrategy: 'trimmed_context',
     complete,

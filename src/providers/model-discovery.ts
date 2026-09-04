@@ -8,6 +8,12 @@ export type DiscoveredModel = {
   supportsTools?: boolean;
   supportsStructuredOutput?: boolean;
   supportsVision?: boolean;
+  /** Transport/configuration signal for parallelToolCalls resolver (e.g. "jinja" for local-llama). */
+  transport?: string;
+  /** Whether Jinja template engine is enabled (local-llama --jinja). */
+  jinjaEnabled?: boolean;
+  /** Whether minimax model is grounded/search-augmented variant */
+  isGrounded?: boolean;
 };
 
 /** A model is "free" when its input cost is exactly zero. */

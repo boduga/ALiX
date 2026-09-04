@@ -1,7 +1,8 @@
 // src/providers/specs/_openai-base.ts
 import type { ProviderSpec } from "../spec-types.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "../types.js";
-import { extractSummary } from "../base.js";
+import type { ModelCapabilities } from "../types.js";
+import { shouldRequestParallelTools } from "../parallel-tool-calls.js";
+import { extractSummary, parseToolArgs } from "../base.js";
 
 /**
  * OpenAI chat-completions wire format.
@@ -44,6 +45,23 @@ export const openaiBaseSpec: ProviderSpec = {
           },
         },
       }));
+      // T2 — single helper gate for parallel_tool_calls (request layer).
+      const anyReq = req as unknown as {
+        capabilities?: Pick<ModelCapabilities, "parallelToolCalls">;
+        parallelToolCalls?: boolean;
+        provider?: string;
+      };
+      if (
+        shouldRequestParallelTools({
+          provider: anyReq.provider,
+          model: (req as any).model,
+          tools: body.tools,
+          capabilities: anyReq.capabilities as any,
+          parallelToolCalls: anyReq.parallelToolCalls,
+        })
+      ) {
+        body.parallel_tool_calls = true;
+      }
     }
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.maxOutputTokens !== undefined) body.max_tokens = req.maxOutputTokens;
@@ -55,11 +73,25 @@ export const openaiBaseSpec: ProviderSpec = {
     const r = res as any;
     const choice = r.choices?.[0];
     const text = choice?.message?.content ?? "";
-    const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => {
-      const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
-      const summary = extractSummary(args);
-      return { id: tc.id, name: tc.function.name, args, summary };
-    });
+    const rawToolCalls = choice?.message?.tool_calls;
+    const toolCalls: any[] = [];
+    if (Array.isArray(rawToolCalls)) {
+      for (let i = 0; i < rawToolCalls.length; i++) {
+        const tc = rawToolCalls[i] as any;
+        if (!tc || typeof tc !== "object") continue;
+        const fn = tc.function;
+        if (!fn || typeof fn !== "object") continue;
+        const name = fn.name;
+        if (typeof name !== "string" || name.trim().length === 0) continue;
+        const args = parseToolArgs(fn.arguments);
+        if (args === undefined) continue;
+        const summary = extractSummary(args);
+        const id = typeof tc.id === "string" && tc.id.length > 0
+          ? tc.id
+          : `call_${i}_${Date.now().toString(36)}_${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
+        toolCalls.push({ id, name: name.trim(), args, summary });
+      }
+    }
     return {
       text,
       toolCalls,

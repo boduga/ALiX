@@ -10,7 +10,8 @@ export class MockProvider implements ModelAdapter {
     supportsTools: false,
     supportsStreaming: true,
     supportsStructuredOutput: true,
-    supportsVision: false
+    supportsVision: false,
+    parallelToolCalls: false,
   };
   editFormatPreference = "structured_patch" as const;
   longContextStrategy = "trimmed_context" as const;

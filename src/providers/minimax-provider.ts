@@ -23,6 +23,7 @@ export class MiniMaxProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: false,
       supportsVision: false,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
 

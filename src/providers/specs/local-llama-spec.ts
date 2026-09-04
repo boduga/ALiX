@@ -2,6 +2,7 @@ import type { ToolDef } from "../types.js";
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, ToolCall } from "../types.js";
 import { buildToolCallSchema } from "./_tool-schema.js";
+import { extractSummary, parseToolArgs } from "../base.js";
 
 /**
  * Provider spec for llama-server (local LLM inference).
@@ -90,19 +91,66 @@ export const localLlamaSpec: ProviderSpec = {
   fromResponse: (res) => {
     const r = res as any;
     const choice = r.choices?.[0];
-    const content = choice?.message?.content ?? "";
+    const message = choice?.message ?? {};
+    const content = message.content ?? "";
     const toolCalls: ToolCall[] = [];
-    let text = content;
-    if (content.trim().startsWith("{")) {
+    let text = typeof content === "string" ? content : "";
+
+    // 1) OpenAI-compatible path: message.tool_calls[] array (N parallel calls).
+    // Canonical for llama.cpp --jinja + parallel_tool_calls and OpenAI.
+    // Normalizes to ALiX toolCalls: [{id, name, arguments}] array, does not execute.
+    const rawToolCalls = message.tool_calls;
+    if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
+      for (let i = 0; i < rawToolCalls.length; i++) {
+        const tc = rawToolCalls[i] as any;
+        if (!tc || typeof tc !== "object") continue;
+        const fn = tc.function;
+        if (!fn || typeof fn !== "object") continue;
+        const name = fn.name;
+        if (typeof name !== "string" || name.trim().length === 0) continue;
+        const args = parseToolArgs(fn.arguments);
+        if (args === undefined) continue;
+        const summary = extractSummary(args);
+        const id = typeof tc.id === "string" && tc.id.length > 0
+          ? tc.id
+          : `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`;
+        toolCalls.push({ id, name: name.trim(), args, summary });
+      }
+      // When tool_calls present, text is typically null/empty; preserve any co-located
+      // content but do not treat the raw JSON as the text body.
+      if (toolCalls.length > 0) text = typeof content === "string" ? content ?? "" : "";
+      return {
+        text, toolCalls,
+        usage: r.usage ? { inputTokens: r.usage.prompt_tokens ?? 0, outputTokens: r.usage.completion_tokens ?? 0 } : undefined,
+        finishReason: choice?.finish_reason,
+      };
+    }
+
+    // 2) Grammar-constrained JSON path (legacy local-llama): content is a JSON envelope.
+    if (typeof content === "string" && content.trim().startsWith("{")) {
       try {
         const parsed = JSON.parse(content);
         if (parsed?.type === "text" && typeof parsed.content === "string") {
           text = parsed.content;
         } else if (parsed?.type === "tool" && typeof parsed.name === "string") {
-          toolCalls.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: parsed.name, args: parsed.arguments ?? {} });
+          const args = (parsed.arguments && typeof parsed.arguments === "object" && !Array.isArray(parsed.arguments)) ? parsed.arguments : {};
+          for (const k of ["__proto__", "prototype", "constructor"]) delete (args as any)[k];
+          const summary = extractSummary(args as Record<string, unknown>);
+          toolCalls.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: parsed.name, args: args as Record<string, unknown>, summary });
           text = "";
         } else if (typeof parsed.name === "string" && parsed.arguments) {
-          toolCalls.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: parsed.name, args: parsed.arguments });
+          const rawArgs = parsed.arguments;
+          let args: Record<string, unknown>;
+          if (typeof rawArgs === "string") {
+            try { args = JSON.parse(rawArgs); } catch { args = {}; }
+          } else if (typeof rawArgs === "object" && rawArgs !== null && !Array.isArray(rawArgs)) {
+            args = { ...(rawArgs as Record<string, unknown>) };
+          } else {
+            args = {};
+          }
+          for (const k of ["__proto__", "prototype", "constructor"]) delete (args as any)[k];
+          const summary = extractSummary(args);
+          toolCalls.push({ id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: parsed.name, args, summary });
           text = "";
         }
       } catch {}

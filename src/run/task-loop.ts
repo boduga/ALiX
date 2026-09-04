@@ -57,6 +57,14 @@ import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFal
 import { loadCalibration, type ContextRotThreshold } from "../config/calibration-store.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 import type { AlixConfig, ModelsConfig } from "../config/schema.js";
+import {
+  DEFAULT_TOOL_EXECUTION_POLICY,
+  canParallelize,
+  scheduleToolCalls,
+  type ToolExecutionPolicy,
+} from "../runtime/tool-scheduler.js";
+import type { CorrelationContext } from "../runtime/tool-correlation.js";
+import { createCorrelationContext } from "../runtime/tool-correlation.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -380,6 +388,8 @@ post_task?: { command: string; reason: string }[];
   /** Called when agent intent classification changes. */
   onCurrentIntentUpdate?: (intent: AgentIntent) => void;
   currentIntent?: AgentIntent;
+  /** T4: harness-side parallel dispatch policy. Defaults to allowParallel:true maxParallel:4. */
+  toolExecutionPolicy?: ToolExecutionPolicy;
 }
 
 /**
@@ -466,6 +476,11 @@ onStream,
   // Track the latest invocationId so the §6 rot_risk advisory at terminal
   // return can correlate with the most recent model-facing snapshot.
   let lastInvocationId = "";
+  // T5 hierarchy: executionId → invocationId → toolCallId. executionId is the
+  // run-level correlation root (workflowId/runId/sessionId) fixed for the whole loop.
+  const executionId: string = (deps.context?.workflowId as string | undefined)
+    ?? (deps.context?.runId as string | undefined)
+    ?? session.sessionId;
 
   // Initialize EnhancedVerifier for historical failure matching
   const embedderDbPath = deps.embedderDbPath ?? join(homedir(), ".alix", "failures.db");
@@ -1096,6 +1111,140 @@ if (toolCalls.length === 0) {
   let trackShellComplete = false;
   let shellOutput = "";
 
+  // T4 — concurrency-aware dispatch: safe+safe → parallel Promise.all, else serial.
+  // Harness policy + model capability + authoritative ToolConcurrency (fail-closed unknown→serial).
+  const _toolPolicy: ToolExecutionPolicy = deps.toolExecutionPolicy ?? DEFAULT_TOOL_EXECUTION_POLICY;
+  const _modelParallelCapable: boolean = (provider as unknown as { capabilities?: { parallelToolCalls?: boolean } })?.capabilities?.parallelToolCalls ?? false;
+  const _canParallel = canParallelize(toolCalls, _toolPolicy, _modelParallelCapable);
+
+  // ── Shared post-processing helper (deduped tail for both parallel + serial) ──
+  // Handles on_post_tool / on_tool_error hooks, progress ledger, and
+  // deferred completion/message bookkeeping. Called for every *executed*
+  // tool (gate-handled short-circuits skip it, mirroring serial's `continue`).
+  type ToolResultLike = Awaited<ReturnType<typeof handleToolCall>>;
+  async function handleToolResult(
+    toolCall: ToolCall,
+    toolResult: ToolResultLike,
+    _correlation: CorrelationContext,
+  ): Promise<void> {
+    progressLedger.recordToolCall(toolCall.name, toolCall.summary, !toolResult.error);
+    if (!toolResult.error) toolCallsSinceCheckpoint++;
+
+    if (deps.hookRunner) {
+      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
+      if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
+    }
+    if (deps.hookRunner && toolResult.error) {
+      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const hr = await deps.hookRunner.execute("on_tool_error", {
+        type: "tool_error",
+        data: { toolName: execName, args: toolCall.args, error: toolResult.error.message, retryable: toolResult.error.retryable },
+      });
+      if (hr.handled) {
+        await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_tool_error", toolName: execName, handled: true } });
+        if (hr.reason && toolResult.message?.content) {
+          const content = toolResult.message.content;
+          if (typeof content === "string") {
+            toolResult.message.content = content.replace("</tool_result>", `\n<tool_repair_hint>\n${hr.reason}\n</tool_repair_hint>\n</tool_result>`);
+          }
+        }
+      }
+    }
+
+    usedTools.add(toolCall.name);
+    if (toolResult.completed) {
+      trackCompleted = true;
+      explicitDoneCalled = true;
+      trackCompletedWithToolCalls = trackCompletedWithToolCalls || usedTools.size > 0;
+    }
+    if (toolResult.message) messages.push(toolResult.message);
+    if ((deps.shellTask || deps.readOnly) && !toolResult.completed && !toolResult.continue) {
+      trackShellComplete = true;
+      const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
+      shellOutput = raw.replace(/<[^>]+>/g, "").trim();
+    }
+    if (taskType === "research") searchCalls++;
+  }
+
+  async function runPreToolHook(toolCall: ToolCall): Promise<void> {
+    if (deps.hookRunner) {
+      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
+      if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
+    }
+  }
+
+  if (_canParallel) {
+    // Parallel path — same governance per-call as serial: each call goes
+    // through MCP-search / shed / scope-expansion gates, then on_pre_tool,
+    // then ToolExecutor (schema→policyGate→ExecutionAuthorization) inside
+    // handleToolCall. No bypass: safe+safe batch is parallel-safe because
+    // every per-call gate and per-call policy check is still executed.
+    // T5 correlation: every parallel result retains executionId → invocationId → toolCallId — typed via CorrelationContext, no Record spread
+    const correlation: CorrelationContext = createCorrelationContext(executionId, invocationId);
+    type GateSentinel = { __gateHandled: true; __gateMessage?: NormalizedMessage; __gateEarlyReturn?: { summary: string } };
+    const _parallelResults = await scheduleToolCalls(toolCalls, _toolPolicy, _modelParallelCapable, async (toolCall): Promise<ToolResultLike | GateSentinel> => {
+      const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
+      if (mcpSearchResult.handled) {
+        return { __gateHandled: true, __gateMessage: mcpSearchResult.message } as GateSentinel;
+      }
+      const shedResult = handleShedToolCall(toolCall, scopedOutNames, fullToolRegistry);
+      if (shedResult.handled && shedResult.reintroduce && !shedToolsRetried.has(toolCall.name)) {
+        shedToolsRetried.add(toolCall.name);
+        reintroducedTools.push(shedResult.reintroduce);
+        await log.append({
+          ...session, actor: "system",
+          type: CONTEXT_EVENT_TYPES.TOOLING_SCOPE_REINTRODUCED,
+          payload: { invocationId, toolName: toolCall.name, reason: "shed_tool_called" } satisfies ToolingScopeReintroducedPayload,
+        });
+        return { __gateHandled: true, __gateMessage: { role: "user", content: buildShedToolRetryMessage(toolCall) } } as GateSentinel;
+      }
+      const scopeResult = await handleScopeExpansion(toolCall, eventHandlerDeps);
+      if (scopeResult.handled) {
+        if (scopeResult.continue === false) {
+          if (scopeResult.denied) {
+            await emitAgent(log, session, "agent.decision", {
+              kind: "scope_expansion", iteration: i,
+              description: `Scope expansion denied for file changes`,
+              outcome: "rejected",
+            });
+            const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+            const pathsToCheck = extractMutationPaths(execName, toolCall.args);
+            const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
+            if (deniedPaths.length > 0) {
+              return { __gateHandled: true, __gateMessage: buildScopeDenialMessage(toolCall.id, deniedPaths) } as GateSentinel;
+            } else if (process.stdin.isTTY) {
+              return { __gateHandled: true, __gateMessage: { role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion denied. Do NOT attempt to modify these files again.\n</tool_result>` } } as GateSentinel;
+            } else {
+              const summary = buildScopeRejectionSummary(pathsToCheck);
+              return { __gateHandled: true, __gateEarlyReturn: { summary } } as GateSentinel;
+            }
+          }
+          return { __gateHandled: true } as GateSentinel;
+        }
+      }
+      await runPreToolHook(toolCall);
+      return handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors, correlation);
+    });
+
+    for (let _idx = 0; _idx < toolCalls.length; _idx++) {
+      const toolCall = toolCalls[_idx]!;
+      const raw = _parallelResults[_idx]! as ToolResultLike | GateSentinel;
+      if ((raw as GateSentinel).__gateHandled) {
+        const gate = raw as GateSentinel;
+        if (gate.__gateEarlyReturn) {
+          const summary = gate.__gateEarlyReturn.summary;
+          await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+          return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
+        }
+        if (gate.__gateMessage) messages.push(gate.__gateMessage);
+        continue;
+      }
+      await handleToolResult(toolCall, raw as ToolResultLike, correlation);
+    }
+  } else {
   // Handle each tool call (model names like alix_file_read → executor names like file.read)
   for (const toolCall of toolCalls) {
     // Handle MCP tool search first
@@ -1163,91 +1312,14 @@ if (toolCalls.length === 0) {
       // continue: scope was auto-approved or user approved, fall through to execute
     }
 
-    // Run registered hooks before tool execution
-    if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-      const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
-      if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
-    }
+    await runPreToolHook(toolCall);
 
-    // Handle tool execution
-    const toolResult = await handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors);
+    // Handle tool execution — T5 correlation wiring via typed CorrelationContext (no Record spread)
+    const correlation: CorrelationContext = createCorrelationContext(executionId, invocationId);
+    const toolResult = await handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors, correlation);
 
-    // Record in progress ledger
-    progressLedger.recordToolCall(
-      toolCall.name,
-      toolCall.summary,
-      !toolResult.error,
-    );
-    if (!toolResult.error) {
-      toolCallsSinceCheckpoint++;
-    }
-
-    // Run registered hooks after tool execution
-    if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-      const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
-      if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
-    }
-
-    // Fire on_tool_error hook when tool fails
-    if (deps.hookRunner && toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-      const hr = await deps.hookRunner.execute("on_tool_error", {
-        type: "tool_error",
-        data: {
-          toolName: execName,
-          args: toolCall.args,
-          error: toolResult.error.message,
-          retryable: toolResult.error.retryable,
-        },
-      });
-      if (hr.handled) {
-        await log.append({
-          ...session,
-          actor: "system",
-          type: "hook.executed",
-          payload: { hookName: "on_tool_error", toolName: execName, handled: true },
-        });
-        // Inject repair hint into the message the model will see
-        if (hr.reason && toolResult.message?.content) {
-          const content = toolResult.message.content;
-          if (typeof content === "string") {
-            toolResult.message.content = content.replace(
-              "</tool_result>",
-              `\n<tool_repair_hint>\n${hr.reason}\n</tool_repair_hint>\n</tool_result>`
-            );
-          }
-        }
-      }
-    }
-
-    usedTools.add(toolCall.name);
-
-    // Defer completed and auto-complete checks — all tool calls in the
-    // batch must execute before we decide to end the session. The first
-    // tool's result can't short-circuit the second tool's dispatch.
-    if (toolResult.completed) {
-      trackCompleted = true;
-      explicitDoneCalled = true;
-      trackCompletedWithToolCalls = trackCompletedWithToolCalls || usedTools.size > 0;
-    }
-
-    if (toolResult.message) {
-      messages.push(toolResult.message);
-    }
-
-    // Auto-complete for shell tasks and read-only mode after a successful tool call
-    if ((deps.shellTask || deps.readOnly) && !toolResult.completed && !toolResult.continue) {
-      trackShellComplete = true;
-      const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
-      shellOutput = raw.replace(/<[^>]+>/g, "").trim();
-    }
-
-    // Track search calls for research tasks (any tool call counts as research activity)
-    if (taskType === "research") {
-      searchCalls++;
-    }
+    await handleToolResult(toolCall, toolResult, correlation);
+  }
   }
 
   // ── Intent classification ──────────────────────────────

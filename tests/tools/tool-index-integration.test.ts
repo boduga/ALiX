@@ -42,14 +42,14 @@ describe("ToolAwareRouter", () => {
 
   it("delegates execute to downstream router when no intent set", async () => {
     const router = new ToolAwareRouter(downstream);
-    const result = await router.execute({ toolCallId: "test-1", name: "file.read", args: { path: "nonexistent.ts" } });
+    const result = await router.execute({ toolCallId: "test-1", name: "file.read", args: { path: "nonexistent.ts" }, executionId: "exec-test", invocationId: "inv-test" });
     assert.ok(result, "delegates execution to downstream when no intent");
   });
 
   it("blocks execution of tool not matching current intent", async () => {
     const router = new ToolAwareRouter(downstream);
     router.setIntent(["read"]);
-    const result = await router.execute({ toolCallId: "test-2", name: "file.create", args: { path: "test.txt", content: "x" } });
+    const result = await router.execute({ toolCallId: "test-2", name: "file.create", args: { path: "test.txt", content: "x" }, executionId: "exec-test", invocationId: "inv-test" });
     assert.equal(result.kind, "error");
     assert.ok((result as any).message?.includes("not available"), "must reject tool not matching intent");
   });

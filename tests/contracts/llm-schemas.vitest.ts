@@ -126,7 +126,7 @@ describe("NormalizedRequestSchema", () => {
     const req = Schema.decodeSync(NormalizedRequestSchema)({
       systemPrompt: "Continue",
       messages: [{ role: "user", content: "Do it" }],
-      toolResults: [{ toolUseId: "tu-1", content: "Done" }],
+      toolResults: [{ toolUseId: "tu-1", content: "Done", invocationId: "inv-1", executionId: "exec-1" }],
     } as any);
     assert.strictEqual(req.toolResults?.length, 1);
   });

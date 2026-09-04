@@ -18,7 +18,8 @@ function fake(capabilities: Partial<ModelCapabilities>, behavior: {
     capabilities: {
       provider: "fake", model: behavior.model ?? "fake", inputTokenLimit: 100_000, outputTokenLimit: 8_192,
       supportsTools: true, supportsStreaming: true, supportsStructuredOutput: true, supportsVision: true,
-      ...capabilities,
+      parallelToolCalls: false,
+...capabilities,
     },
     async complete(r: NormalizedRequest): Promise<NormalizedResponse> {
       if (behavior.complete) {

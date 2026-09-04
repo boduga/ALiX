@@ -58,6 +58,7 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   supportsStreaming: true,
   supportsStructuredOutput: true,
   supportsVision: false,
+  parallelToolCalls: false,
 };
 
 /** Model-facing tool names (the wire names the agent loop resolves). */

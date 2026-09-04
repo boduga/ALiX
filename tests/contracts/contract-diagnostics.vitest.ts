@@ -50,7 +50,9 @@ describe("withProviderContracts diagnostics", () => {
   function createFakeAdapter(overrides?: Partial<ModelAdapter>): ModelAdapter {
     return {
       id: "test-adapter",
-      capabilities: { provider: "test", model: "test-model", inputTokenLimit: 1000, outputTokenLimit: 1000, supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false },
+      capabilities: { provider: "test", model: "test-model", inputTokenLimit: 1000, outputTokenLimit: 1000, supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false,
+      parallelToolCalls: false
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "expanded_context",
       complete: async () => ({ text: "ok", toolCalls: [] }),

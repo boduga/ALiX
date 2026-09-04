@@ -5,6 +5,7 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
+import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
 import { resolvePolicyPath } from "../policy/policy-gate.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
@@ -442,9 +443,13 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
+      // T5 correlation for subagent: executionId = sessionId, invocationId per-iteration
+      const executionId = sessionId;
+      let invocationId = `inv-${randomUUID()}`;
 
       while (iterations < toolPolicy.maxIterations) {
         iterations++;
+        invocationId = `inv-${randomUUID()}`;
 
         const resp = await provider.complete({
           systemPrompt,
@@ -487,7 +492,13 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
           }
 
-          const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+          const execResult = await executor.execute({
+            toolCallId: toolCall.id,
+            name: execName,
+            args: toolCall.args,
+            executionId,
+            invocationId,
+          });
 
           const resultContent =
             execResult.kind === "success"
@@ -499,7 +510,10 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             toolOutputs.push(resultContent);
           }
 
-          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
+          messages.push({
+            role: "user",
+            content: `<tool_result id="${toolCall.id}" invocationId="${invocationId}" executionId="${executionId}">\n${resultContent}\n</tool_result>`,
+          });
 
           // If done tool was called, stop
           if (execName === "done") {

@@ -115,6 +115,7 @@ describe("MiniMaxTokenPlanProvider", () => {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: true,
+      parallelToolCalls: false,
     });
   });
 

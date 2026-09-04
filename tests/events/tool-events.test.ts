@@ -17,11 +17,15 @@ describe("Tool Event Payload Types", () => {
       argsPreview: { path: "src/index.ts" },
       canonicalCapability: "filesystem.read",
       argumentHash: "abc123def456",
+      executionId: "exec-1",
+      invocationId: "inv-1",
     };
     assert.equal(payload.toolCallId, "call-123");
     assert.equal(payload.capability, "file.read");
     assert.equal(payload.canonicalCapability, "filesystem.read");
     assert.equal(payload.argumentHash, "abc123def456");
+    assert.equal(payload.executionId, "exec-1");
+    assert.equal(payload.invocationId, "inv-1");
   });
 
   it("ToolCompletedPayload includes duration", () => {
@@ -32,6 +36,8 @@ describe("Tool Event Payload Types", () => {
       durationMs: 42,
       canonicalCapability: "filesystem.read",
       argumentHash: "abc123def456",
+      executionId: "exec-1",
+      invocationId: "inv-1",
     };
     assert.equal(payload.status, "success");
     assert.equal(payload.durationMs, 42);
@@ -47,6 +53,8 @@ describe("Tool Event Payload Types", () => {
       durationMs: 150,
       canonicalCapability: "shell.exec",
       argumentHash: "abc123def456",
+      executionId: "exec-1",
+      invocationId: "inv-1",
     };
     assert.ok(payload.error.includes("exit code 1"));
     assert.equal(payload.canonicalCapability, "shell.exec");
@@ -58,6 +66,8 @@ describe("Tool Event Payload Types", () => {
       toolCallId: "call-123",
       toolName: "alix_file_read",
       argumentHash: "abc123def456",
+      executionId: "exec-1",
+      invocationId: "inv-1",
     };
     assert.equal(payload.toolCallId, "call-123");
     assert.equal(payload.toolName, "alix_file_read");
@@ -70,6 +80,8 @@ describe("Tool Event Payload Types", () => {
       outputRef: "path/to/output.txt",
       outputPreview: "Hello world...",
       outputSize: 5000,
+      executionId: "exec-1",
+      invocationId: "inv-1",
     };
     assert.ok(payload.outputRef);
     assert.ok(payload.outputPreview);

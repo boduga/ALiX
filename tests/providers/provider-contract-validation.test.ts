@@ -21,7 +21,8 @@ function createFakeAdapter(overrides?: Partial<ModelAdapter>): ModelAdapter {
       supportsStreaming: false,
       supportsStructuredOutput: false,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: "structured_patch",
     longContextStrategy: "expanded_context",
     complete: async (_request: NormalizedRequest): Promise<NormalizedResponse> => ({

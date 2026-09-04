@@ -22,6 +22,7 @@ export class OpenAIProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: true,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
 

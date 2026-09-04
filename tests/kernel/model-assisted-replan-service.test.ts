@@ -131,7 +131,8 @@ function makeMockModelAdapter(config: MockAdapterConfig = {}): ModelAdapter {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: "structured_patch",
     longContextStrategy: "trimmed_context",
     async complete() {

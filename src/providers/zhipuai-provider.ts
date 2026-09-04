@@ -22,6 +22,7 @@ export class ZhipuAIProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: false,
       supportsVision: false,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
 

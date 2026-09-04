@@ -60,6 +60,13 @@ export type ModelCapabilities = {
   supportsStructuredOutput: boolean;
   supportsVision: boolean;
   costProfile?: CostProfile;
+  /**
+   * Whether the model can emit multiple tool calls in a single turn (parallel_tool_calls).
+   * Source-explicit: resolved from provider + model + transport/configuration, not a global flag.
+   * Fail-closed: unknown provider/model → false (serial fallback).
+   * Boolean for POC; downstream layers gate on this single source.
+   */
+  parallelToolCalls: boolean;
 };
 
 // Tool definitions
@@ -86,10 +93,32 @@ export type ToolDef = {
 };
 
 // Tool results (returned from tool executions)
+// T5 hierarchy: executionId → invocationId → toolUseId (toolCallId)
+// NormalizedToolResult now requires correlation for T5 proof; backward compat via Partial for reads.
 export type NormalizedToolResult = {
   toolUseId: string;
   content: string;
+  invocationId: string;
+  executionId: string;
 };
+
+/** Correlated tool result — parallel path requires full hierarchy (T5). Alias for NormalizedToolResult. */
+export type CorrelatedNormalizedToolResult = NormalizedToolResult;
+
+/**
+ * Assert a NormalizedToolResult carries full correlation (parallel path).
+ * Throws if invocationId or executionId missing — no silent omission.
+ */
+export function assertCorrelatedToolResult(
+  result: NormalizedToolResult,
+): asserts result is CorrelatedNormalizedToolResult {
+  if (typeof result.invocationId !== "string" || result.invocationId.length === 0 ||
+      typeof result.executionId !== "string" || result.executionId.length === 0) {
+    throw new Error(
+      `Missing correlation for parallel tool result toolUseId=${result.toolUseId}: invocationId=${(result as any).invocationId} executionId=${(result as any).executionId}`,
+    );
+  }
+}
 
 // Request and response
 export type NormalizedRequest = {
@@ -108,6 +137,13 @@ export type NormalizedRequest = {
   };
   /** Execution context for diagnostic correlation. Set by the agent loop. */
   context?: ExecutionContext;
+  /**
+   * Capability-negotiated parallelToolCalls flag (T2).
+   * When present, _openai-base gates parallel_tool_calls on this single source
+   * (ModelCapabilities.parallelToolCalls via resolver, fail-closed), not merely tools.length>1.
+   * Optional for backward compat; absent → fail-closed (no flag).
+   */
+  capabilities?: Pick<ModelCapabilities, "parallelToolCalls">;
 };
 
 export type ToolCall = {

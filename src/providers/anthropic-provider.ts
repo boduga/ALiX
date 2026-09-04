@@ -23,6 +23,7 @@ export class AnthropicProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: true,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
 

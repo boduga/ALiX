@@ -23,7 +23,7 @@ test("NormalizedRequest supports toolResults", () => {
   const req: import("../src/providers/types.js").NormalizedRequest = {
     systemPrompt: "act",
     messages: [{ role: "user", content: "hello" }],
-    toolResults: [{ toolUseId: "1", content: "result" }]
+    toolResults: [{ toolUseId: "1", content: "result", invocationId: "inv-1", executionId: "exec-1" }]
   };
   assert.equal(req.toolResults?.length, 1);
 });
@@ -43,7 +43,9 @@ test("NegotiatedCapabilities has all fields", () => {
 test("ModelAdapter optionally has stream and negotiate", () => {
   const adapter: import("../src/providers/types.js").ModelAdapter = {
     id: "test",
-    capabilities: { provider: "test", model: "t1", inputTokenLimit: 1000, outputTokenLimit: 100, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false },
+    capabilities: { provider: "test", model: "t1", inputTokenLimit: 1000, outputTokenLimit: 100, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false,
+      parallelToolCalls: false
+},
     editFormatPreference: "search_replace",
     longContextStrategy: "trimmed_context",
     complete: async () => ({ text: "", toolCalls: [] })

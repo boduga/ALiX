@@ -7,6 +7,7 @@ import { resolveModelConfig } from "../config/model-resolver.js";
 import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
 import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
+import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import type { McpManager } from "../mcp/manager.js";
 import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
@@ -152,16 +153,38 @@ export class ToolExecutor {
     // === END TOOL REPAIR ===
 
     const argumentHash = hashArgs(args);
-    const replayPayloadFields = request.replayId ? { replayId: request.replayId } : {};
+    // T5 hierarchy: executionId → invocationId → toolCallId — typed via CorrelationContext, no loose Record
+    // For T5 parallel path, correlation is required (asserted in tool-correlation); for serial/back-compat allow fallback to empty.
+    const correlation: CorrelationContext = {
+      executionId: request.executionId ?? "",
+      invocationId: request.invocationId ?? "",
+    };
 
-    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
+    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, {
+      toolCallId,
+      toolName: name,
+      capability,
+      canonicalCapability,
+      argumentHash,
+      argsPreview: sanitizeArgs(args),
+      executionId: correlation.executionId,
+      invocationId: correlation.invocationId,
+      ...(request.replayId ? { replayId: request.replayId } : {}),
+    });
 
     // Continuation resumes bypass main policy gate — approval was already verified.
     // But OwnershipGate runs ALWAYS (even for continuation-resume).
     if (request.source === "continuation-resume") {
       const contGateResult = await this.checkOwnershipGate(request, name, args);
       if (contGateResult) return contGateResult;
-      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+        toolCallId,
+        toolName: name,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       return await this.toolAwareRouter.downstream.execute(request);
     }
 
@@ -172,7 +195,14 @@ export class ToolExecutor {
       if (command && isSafeShellCommand(command)) {
         const safeResult = await executeSafeShell(command);
         if (safeResult.allowed) {
-          await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+          await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+            toolCallId,
+            toolName: name,
+            argumentHash,
+            executionId: correlation.executionId,
+            invocationId: correlation.invocationId,
+            ...(request.replayId ? { replayId: request.replayId } : {}),
+          });
           return { kind: "success", output: safeResult.output ?? safeResult.error ?? "" };
         }
       }
@@ -206,7 +236,17 @@ export class ToolExecutor {
 
     // Denied — policy or ownership rejected this call
     if (decision.status === "denied") {
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: decision.reason, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+        toolCallId,
+        toolName: name,
+        error: decision.reason,
+        durationMs: 0,
+        canonicalCapability,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       return { kind: "denied", reason: decision.reason };
     }
 
@@ -235,33 +275,84 @@ export class ToolExecutor {
         console.error("Failed to persist continuation:", err);
       }
 
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${decision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+        toolCallId,
+        toolName: name,
+        error: `Approval required: ${decision.approvalId}`,
+        durationMs: 0,
+        canonicalCapability,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       return { kind: "denied", reason: `Approval required (${decision.approvalId}): ${decision.reason}` };
     }
 
     // Handle special case: "done" tool (not in router)
     if (name === "done") {
-      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+        toolCallId,
+        toolName: name,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
       const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
       const durationMs = Date.now() - startTime;
-      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { toolCallId, outputPreview: "Task complete.", outputSize: 14, ...replayPayloadFields });
-      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { toolCallId, toolName: name, status: "success", durationMs, canonicalCapability, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, {
+        toolCallId,
+        outputPreview: "Task complete.",
+        outputSize: 14,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, {
+        toolCallId,
+        toolName: name,
+        status: "success",
+        durationMs,
+        canonicalCapability,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       return result;
     }
 
     // MCP availability check — policy said "ask" or "allow", but is the tool connected?
     if (name.startsWith("mcp.") && !this.mcpManager) {
       const msg = "MCP manager not initialized. No MCP servers are connected.";
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+        toolCallId,
+        toolName: name,
+        error: msg,
+        durationMs: 0,
+        canonicalCapability,
+        argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       return { kind: "denied", reason: msg };
     }
 
-    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+    await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+      toolCallId,
+      toolName: name,
+      argumentHash,
+      executionId: correlation.executionId,
+      invocationId: correlation.invocationId,
+      ...(request.replayId ? { replayId: request.replayId } : {}),
+    });
     // Emit observability metric for tool call
     await this.log.append({
       sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
+      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
@@ -324,8 +415,13 @@ export class ToolExecutor {
         outputRef,
         outputPreview: preview,
         outputSize,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { ...outputPayload, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, {
+        ...outputPayload,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
 
       // ── Loop detection & escalation ─────────────────────────────────
       // If the call returned no useful output repeatedly, emit a single escalation hint
@@ -344,7 +440,7 @@ export class ToolExecutor {
             toolName: name,
             argumentHash,
             toolCallId,
-            ...replayPayloadFields,
+            ...(request.replayId ? { replayId: request.replayId } : {}),
           });
         }
       } else {
@@ -362,8 +458,13 @@ export class ToolExecutor {
         durationMs,
         canonicalCapability,
         argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { ...completedPayload, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, {
+        ...completedPayload,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
     } else {
       const failedPayload: ToolFailedPayload = {
         toolCallId,
@@ -372,12 +473,17 @@ export class ToolExecutor {
         durationMs,
         canonicalCapability,
         argumentHash,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { ...failedPayload, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+        ...failedPayload,
+        ...(request.replayId ? { replayId: request.replayId } : {}),
+      });
       // Emit observability metric for tool failure
       await this.log.append({
         sessionId: this.sessionId(), actor: "system", type: "observability.metric",
-        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
+        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...(request.replayId ? { replayId: request.replayId } : {}) },
       });
     }
 

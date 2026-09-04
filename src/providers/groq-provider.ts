@@ -22,6 +22,7 @@ export class GroqProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: false,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
 

@@ -102,7 +102,8 @@ function createMockAdapter(config: MockAdapterConfig = {}): ModelAdapter {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: "structured_patch",
     longContextStrategy: "trimmed_context",
     async complete(_request: NormalizedRequest): Promise<NormalizedResponse> {
@@ -394,7 +395,8 @@ describe("ModelReplanAdapter", () => {
         supportsStreaming: false,
         supportsStructuredOutput: true,
         supportsVision: false,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "trimmed_context",
       complete: () => new Promise<never>(() => {}), // never resolves
@@ -589,7 +591,8 @@ describe("ModelReplanAdapter", () => {
         supportsStreaming: false,
         supportsStructuredOutput: true,
         supportsVision: false,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "trimmed_context",
       async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
@@ -642,7 +645,8 @@ describe("ModelReplanAdapter", () => {
         supportsStreaming: true,
         supportsStructuredOutput: true,
         supportsVision: true,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "expanded_context",
       async complete() {

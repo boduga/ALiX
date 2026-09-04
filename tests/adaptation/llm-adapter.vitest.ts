@@ -30,7 +30,8 @@ describe("ProviderCatalogAdapter", () => {
         supportsStreaming: false,
         supportsStructuredOutput: false,
         supportsVision: false,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: "full_file" as const,
       longContextStrategy: "expanded_context" as const,
       complete: vi.fn().mockResolvedValue({
@@ -72,7 +73,8 @@ describe("ProviderCatalogAdapter", () => {
         supportsStreaming: false,
         supportsStructuredOutput: false,
         supportsVision: false,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: "full_file" as const,
       longContextStrategy: "expanded_context" as const,
       complete: vi.fn().mockResolvedValue({

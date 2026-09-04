@@ -9,6 +9,8 @@
 - `execution-state/` — ExecutionState contract, projector, store (see `execution-state/AGENTS.md`).
 - `state/` — Governed patch-only transition harness (see `state/AGENTS.md`).
 - `context/` — State-aware prompt builder P+Σ+O+E+Tools (see `context/AGENTS.md`).
+- `tool-scheduler.ts` — T4 concurrency-aware ToolExecutionPolicy {allowParallel, maxParallel:4} + authoritative ToolConcurrency safe/exclusive (fail-closed unknown→serial), effectiveParallel=model&&harness&&safe, Promise.all chunked scheduler.
+- `tool-correlation.ts` — T5 result correlation wiring: hierarchy executionId → invocationId → toolCallId, every parallel result retains all three so call_1 → result_1 never ambiguous; events carry hierarchy, messages retain correlation, next model turn receives full array (tracer bullet #636).
 
 **Backends aggregated (6 sources):**
 1. `audit/audit.jsonl` — policy/runtime audit events
@@ -30,6 +32,8 @@
 
 **Verification:**
 - `tests/runtime/runtime-index.test.ts` — empty index, audit, approvals, graphs, runs, sessions, merge, sort, filters (9 tests).
+- `tests/runtime/tool-scheduler.vitest.ts` — T4 policy/scheduler: safe+safe→parallel overlap proof, exclusive/unknown/model-false→serial, maxParallel chunking, independent governance (19 tests).
+- T5 proof — ad-hoc `/tmp/t5-proof.mjs` + `/tmp/t5-proof-fail.mjs`: same invocation → 2 toolCalls → executionId/invocationId/toolCallId in every tool.* event, overlapping started→completed (A.start < B.end && B.start < A.end) and distinct success/failure messages both returned to next turn via correlated `<tool_result id invocationId executionId>` (see events.jsonl payload proof above).
 
 **Child DOX Index:**
 

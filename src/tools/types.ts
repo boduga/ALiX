@@ -1,5 +1,7 @@
 export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists" | "dir.search" | "shell.run" | "patch.apply" | "done";
 
+import type { CorrelationContext } from "../runtime/tool-correlation.js";
+
 export type ToolCallRequest = {
   toolCallId: string;
   name: string;
@@ -14,7 +16,7 @@ export type ToolCallRequest = {
    * already verified — never set from user input.
    */
   source?: string;
-};
+} & Partial<CorrelationContext>;
 
 export interface FindingReport {
   severity: "low" | "medium" | "high" | "critical";

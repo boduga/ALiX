@@ -15,6 +15,7 @@ import { openrouterSpec } from "./specs/openrouter-spec.js";
 import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
+import { shouldRequestParallelTools } from "./parallel-tool-calls.js";
 
 export const SPECS = new Map<string, ProviderSpec>([
   ["openai", openaiSpec],
@@ -276,7 +277,15 @@ export async function complete(
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
 
   const apiKey = resolveApiKey(provider, options.apiKey);
-  const body = spec.toRequestBody({ ...request, model });
+  // T2 — single helper gate for parallel_tool_calls (dispatcher end-to-end path).
+  const bodyRaw = spec.toRequestBody({ ...request, model } as NormalizedRequest & { model: string });
+  const body: any = bodyRaw;
+  // Fail-closed: set only when helper says true; strip spoofed flag when false.
+  if (shouldRequestParallelTools({ provider, model, tools: request.tools })) {
+    body.parallel_tool_calls = true;
+  } else if (body.parallel_tool_calls === true) {
+    delete body.parallel_tool_calls;
+  }
   const hasTools = !!(request.tools && request.tools.length > 0);
   const base = hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl;
   const url = base.replace("{model}", encodeURIComponent(model));
@@ -329,7 +338,13 @@ export async function* stream(
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
 
   const apiKey = resolveApiKey(provider, options.apiKey);
-  const body = spec.toRequestBody({ ...request, model, stream: true });
+  const bodyRaw = spec.toRequestBody({ ...request, model, stream: true } as NormalizedRequest & { model: string; stream: boolean });
+  const body: any = bodyRaw;
+  if (shouldRequestParallelTools({ provider, model, tools: request.tools })) {
+    body.parallel_tool_calls = true;
+  } else if (body.parallel_tool_calls === true) {
+    delete body.parallel_tool_calls;
+  }
   const hasTools = !!(request.tools && request.tools.length > 0);
   const streamBase = spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
   const url = streamBase.replace("{model}", encodeURIComponent(model));

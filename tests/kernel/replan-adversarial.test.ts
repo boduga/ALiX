@@ -188,7 +188,8 @@ describe("Replan — Adversarial Tests", () => {
           supportsStreaming: false,
           supportsStructuredOutput: false, // No structured output
           supportsVision: false,
-        },
+      parallelToolCalls: false,
+},
         editFormatPreference: "structured_patch",
         longContextStrategy: "trimmed_context",
         async complete() {
@@ -236,7 +237,8 @@ describe("Replan — Adversarial Tests", () => {
           inputTokenLimit: 32_000, outputTokenLimit: 4_000,
           supportsTools: false, supportsStreaming: false,
           supportsStructuredOutput: true, supportsVision: false,
-        },
+      parallelToolCalls: false,
+},
         editFormatPreference: "structured_patch",
         longContextStrategy: "trimmed_context",
         async complete() {
@@ -307,7 +309,8 @@ describe("Replan — Adversarial Tests", () => {
           inputTokenLimit: 32_000, outputTokenLimit: 4_000,
           supportsTools: false, supportsStreaming: false,
           supportsStructuredOutput: true, supportsVision: false,
-        },
+      parallelToolCalls: false,
+},
         editFormatPreference: "structured_patch",
         longContextStrategy: "trimmed_context",
         async complete() {
@@ -352,7 +355,8 @@ describe("Replan — Adversarial Tests", () => {
           inputTokenLimit: 32_000, outputTokenLimit: 4_000,
           supportsTools: false, supportsStreaming: false,
           supportsStructuredOutput: true, supportsVision: false,
-        },
+      parallelToolCalls: false,
+},
         editFormatPreference: "structured_patch",
         longContextStrategy: "trimmed_context",
         complete: () => new Promise<never>(() => {}),
@@ -389,7 +393,9 @@ describe("Replan — Adversarial Tests", () => {
     it("returns aborted before model call when signal already fired", async () => {
       const replanAdapter = new ModelReplanAdapter({
         id: "mock",
-        capabilities: { provider: "mock", model: "mock", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false },
+        capabilities: { provider: "mock", model: "mock", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false,
+      parallelToolCalls: false
+},
         editFormatPreference: "structured_patch",
         longContextStrategy: "trimmed_context",
         async complete() { return { text: "{}", toolCalls: [] }; },
@@ -1077,7 +1083,8 @@ describe("Replan — Adversarial Tests", () => {
             inputTokenLimit: 32_000, outputTokenLimit: 4_000,
             supportsTools: false, supportsStreaming: false,
             supportsStructuredOutput: true, supportsVision: false,
-          },
+      parallelToolCalls: false,
+},
           editFormatPreference: "structured_patch",
           longContextStrategy: "trimmed_context",
           async complete() {
@@ -1173,7 +1180,8 @@ describe("Replan — Adversarial Tests", () => {
             inputTokenLimit: 128_000, outputTokenLimit: 4_000,
             supportsTools: true, supportsStreaming: true,
             supportsStructuredOutput: true, supportsVision: false,
-          },
+      parallelToolCalls: false,
+},
           editFormatPreference: "structured_patch",
           longContextStrategy: "trimmed_context",
           async complete() {
@@ -1404,7 +1412,9 @@ describe("Replan — additional adversarial edge cases", () => {
     const badJson = validDraftJson({ confidence: 42 });
     const adapter: ModelAdapter = {
       id: "mock-clamp",
-      capabilities: { provider: "mock", model: "mock-c", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false },
+      capabilities: { provider: "mock", model: "mock-c", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false,
+      parallelToolCalls: false
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "trimmed_context",
       async complete() { return { text: badJson, toolCalls: [], usage: { inputTokens: 10, outputTokens: 10 } }; },
@@ -1429,7 +1439,9 @@ describe("Replan — additional adversarial edge cases", () => {
   it("non-object response (string) is rejected as parse error", async () => {
     const adapter: ModelAdapter = {
       id: "mock-string",
-      capabilities: { provider: "mock", model: "mock-s", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false },
+      capabilities: { provider: "mock", model: "mock-s", inputTokenLimit: 32_000, outputTokenLimit: 4_000, supportsTools: false, supportsStreaming: false, supportsStructuredOutput: true, supportsVision: false,
+      parallelToolCalls: false
+},
       editFormatPreference: "structured_patch",
       longContextStrategy: "trimmed_context",
       async complete() { return { text: '"just a string"', toolCalls: [], usage: { inputTokens: 5, outputTokens: 5 } }; },

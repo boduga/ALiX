@@ -17,6 +17,8 @@ import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { McpManager } from "../mcp/manager.js";
 import { promptUser, BASE_TOOLS } from "./helpers.js";
+import type { CorrelationContext } from "../runtime/tool-correlation.js";
+import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js";
 import type { EventLog } from "../events/event-log.js";
 import type { VerificationCheck, VerificationResult } from "../verifier/verifier.js";
 import { buildRiskReport } from "../verifier/index.js";
@@ -262,7 +264,8 @@ export async function handleToolCall(
   toolCall: ToolCall,
   deps: EventHandlerDeps,
   failedTools: string[],
-  fatalToolErrors: string[]
+  fatalToolErrors: string[],
+  correlation: CorrelationContext = { executionId: "exec-test", invocationId: "inv-test" },
 ): Promise<{
   message?: NormalizedMessage;
   continue?: boolean;
@@ -283,17 +286,26 @@ export async function handleToolCall(
       ...deps.selectedTools.flatMap((s) => [s.name, s.execName]),
       ...deps.mcpToolIndex.map((t) => t.name),
     ];
+    // T5 correlation: typed attributes via helper — no loose Record, no spread
+    const correlationAttrs = ` invocationId="${correlation.invocationId}" executionId="${correlation.executionId}"`;
     return {
       continue: true,
       message: {
         role: "user",
-        content: `<tool_result id="${toolCall.id}">\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
+        content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
       },
     };
   }
 
-  // First attempt
-  let execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args, summary: toolCall.summary });
+  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread)
+  let execResult = await deps.executor.execute({
+    toolCallId: toolCall.id,
+    name: execName,
+    args: toolCall.args,
+    summary: toolCall.summary,
+    executionId: correlation.executionId,
+    invocationId: correlation.invocationId,
+  });
 
   // If the executor reports "Approval required (id)", wait for the operator
   // to resolve that approval and then re-execute the same tool call.
@@ -306,7 +318,14 @@ export async function handleToolCall(
       const approvalId = approvalMatch[1]!;
       const outcome = await waitForApproval(approvalId, deps);
       if (outcome === "approved") {
-        execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args, summary: toolCall.summary });
+        execResult = await deps.executor.execute({
+          toolCallId: toolCall.id,
+          name: execName,
+          args: toolCall.args,
+          summary: toolCall.summary,
+          executionId: correlation.executionId,
+          invocationId: correlation.invocationId,
+        });
       } else {
         // Denied or expired — keep the original denied result so the
         // generic Access denied path runs, but the LLM only sees ONE
@@ -368,8 +387,10 @@ export async function handleToolCall(
     };
   }
 
+  // T5: retain hierarchy in the tool result message so next model turn receives all results with explicit correlation — typed helper, no manual string concat
+  const correlatedContent = buildCorrelatedToolResultMessage(toolCall.id, resultContent, correlation);
   return {
-    message: { role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` },
+    message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
   };
 }

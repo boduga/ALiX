@@ -47,6 +47,7 @@ export class LocalLlamaProvider extends BaseProvider {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: false,
+      parallelToolCalls: this.parallelToolCallsResolved,
     };
   }
   private launchedProcess: AbortController | null = null;

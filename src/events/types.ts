@@ -43,6 +43,9 @@ export type ToolEventPayload =
   | { toolCallId: string; toolName: string };
 
 // Standardized tool event payload types for lifecycle events
+// T5 correlation hierarchy: executionId → invocationId → toolCallId
+// Every parallel result retains all three so call_1 → result_1 never ambiguous.
+// T5: for parallel path, invocationId/executionId are REQUIRED — runtime assert fails if omitted (no silent omission).
 export type ToolRequestPayload = {
   toolCallId: string;
   toolName: string;
@@ -50,12 +53,16 @@ export type ToolRequestPayload = {
   argsPreview: Record<string, unknown>;
   canonicalCapability: string;
   argumentHash: string;
+  invocationId?: string;
+  executionId?: string;
 };
 
 export type ToolStartedPayload = {
   toolCallId: string;
   toolName: string;
   argumentHash: string;
+  invocationId?: string;
+  executionId?: string;
 };
 
 export type ToolOutputPayload = {
@@ -63,6 +70,8 @@ export type ToolOutputPayload = {
   outputRef?: string;
   outputPreview?: string;
   outputSize: number;
+  invocationId?: string;
+  executionId?: string;
 };
 
 export type ToolCompletedPayload = {
@@ -72,6 +81,8 @@ export type ToolCompletedPayload = {
   durationMs: number;
   canonicalCapability: string;
   argumentHash: string;
+  invocationId?: string;
+  executionId?: string;
 };
 
 export type ToolFailedPayload = {
@@ -81,7 +92,21 @@ export type ToolFailedPayload = {
   durationMs: number;
   canonicalCapability: string;
   argumentHash: string;
+  invocationId?: string;
+  executionId?: string;
 };
+
+/** Assert tool event payload carries full correlation (parallel path) — throws if missing. */
+export function assertToolEventCorrelation(
+  payload: { invocationId?: string; executionId?: string; toolCallId: string },
+): asserts payload is { invocationId: string; executionId: string; toolCallId: string } {
+  if (typeof payload.invocationId !== "string" || payload.invocationId.length === 0 ||
+      typeof payload.executionId !== "string" || payload.executionId.length === 0) {
+    throw new Error(
+      `Missing correlation for parallel tool event toolCallId=${payload.toolCallId}: invocationId=${(payload as any).invocationId} executionId=${(payload as any).executionId}`,
+    );
+  }
+}
 
 export const TOOL_EVENT_TYPES = {
   REQUESTED: "tool.requested",

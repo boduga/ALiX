@@ -64,7 +64,8 @@ function createMockProvider(opts?: {
       supportsStreaming: false,
       supportsStructuredOutput: false,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: 'search_replace',
     longContextStrategy: 'trimmed_context',
     async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
@@ -114,7 +115,8 @@ function createMockStreamingProvider(opts?: {
       supportsStreaming: true,
       supportsStructuredOutput: false,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: 'search_replace',
     longContextStrategy: 'trimmed_context',
     async *stream(req: NormalizedRequest): AsyncGenerator<StreamChunk> {
@@ -787,7 +789,8 @@ describe('Task 5: budget + assembly + preflight in task-loop', () => {
       id: 'mock', capabilities: {
         provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
         supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false, supportsVision: false,
-      },
+      parallelToolCalls: false,
+},
       editFormatPreference: 'search_replace' as const, longContextStrategy: 'trimmed_context' as const,
       async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
         requests.push({

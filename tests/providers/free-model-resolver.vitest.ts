@@ -116,12 +116,15 @@ describe("supportsRequest", () => {
   const caps: ModelCapabilities = {
     provider: "x", model: "m", inputTokenLimit: 32_000, outputTokenLimit: 4096,
     supportsTools: true, supportsStreaming: true, supportsStructuredOutput: false, supportsVision: true,
-  };
+      parallelToolCalls: false
+    };
 
   it("filters on capabilities", () => {
     expect(supportsRequest(caps, { needsTools: true, needsStructuredOutput: false, needsVision: false })).toBe(true);
     expect(supportsRequest(caps, { needsTools: true, needsStructuredOutput: true, needsVision: false })).toBe(false);
-    expect(supportsRequest({ ...caps, supportsVision: false }, { needsTools: false, needsStructuredOutput: false, needsVision: true })).toBe(false);
+    expect(supportsRequest({ ...caps, supportsVision: false,
+      parallelToolCalls: false
+}, { needsTools: false, needsStructuredOutput: false, needsVision: true })).toBe(false);
   });
 
   it("filters on context capacity", () => {

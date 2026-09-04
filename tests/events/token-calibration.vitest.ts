@@ -53,7 +53,8 @@ function createMockProvider(opts?: {
       supportsStreaming: false,
       supportsStructuredOutput: false,
       supportsVision: false,
-    },
+      parallelToolCalls: false,
+},
     editFormatPreference: 'search_replace',
     longContextStrategy: 'trimmed_context',
     async complete(req: NormalizedRequest): Promise<NormalizedResponse> {

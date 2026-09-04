@@ -11,6 +11,7 @@
 - `tokens.ts` — estimateTokens deterministically (JSON length /4).
 - `metrics.ts` — MetricsCollector 4-group metrics: correctness (taskSuccess, decisionAccuracy), context efficiency (prompt/state/evidence/historyTokens, cumulativeTokens), adaptive (escalations, unnecessary_escalations, retrieval_precision, historical_retrieval_rate, state_sufficiency), horizon (tokensPerStep, boundedness invariants).
 - `harness.ts` — runSingle (same scenario/seed/governance for one substrate) + runHorizons (all horizons×substrates) + BenchmarkSummary invariants (cStateTokensBounded, cStateCompleteInvariant, dRecovers, dBounded, dPrecisionOk); D escalates deterministically only when required (evidence/history-dependent).
+- `mutation-conflict.ts` — Mutation-conflict benchmark (issue #638): deterministic N concurrent mutating calls sharing baseStateVersion V (v17 → inv-42 call-A/B same V overlapping), scheduler eligible but CAS decides; StateTransitionProposal → ExecutionStateStore CAS → EventLog → projector proof (one success + N-1 STATE_VERSION_CONFLICT, no partial mutation, rebuilt state == committed, scheduler did not decide winner); supports N=2 and N>2.
 
 **Local Contracts:**
 - Same scenario/seed/environment/governance/budget for A/B/C/D — comparable rows (acceptance 1).
@@ -23,3 +24,4 @@
 **Verification:**
 - `pnpm build && pnpm typecheck` — types compile (benchmark/ included via vitest transform).
 - `vitest run tests/benchmark-state-harness.vitest.ts` — invariants: same seed deterministic, C bounded 10→500, D recovers, D precision, A succeeds, B lossy, machine-readable fields present.
+- `vitest run tests/benchmark-mutation-conflict.vitest.ts` — mutation-conflict: N=2 and N>2 deterministic, overlapping proof, exactly one success + N-1 STATE_VERSION_CONFLICT, no partial mutation, rebuilt state == committed, scheduler did not decide winner; C vs D horizon invariants still pass with scenario added.

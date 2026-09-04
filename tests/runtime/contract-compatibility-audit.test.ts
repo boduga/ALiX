@@ -119,7 +119,8 @@ describe("M1.8 — Contract Compatibility Audit", () => {
       supportsStreaming: true,
       supportsStructuredOutput: true,
       supportsVision: false,
-    };
+      parallelToolCalls: false,
+};
     assert.equal(typeof caps.provider, "string");
     assert.equal(typeof caps.model, "string");
     assert.equal(typeof caps.inputTokenLimit, "number");

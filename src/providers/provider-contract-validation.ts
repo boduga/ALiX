@@ -141,8 +141,20 @@ export function withProviderContracts(
   }
 
   return {
-    // Forward all existing adapter properties
+    // Forward all existing adapter properties (including getter-based capabilities)
     ...adapter,
+    get capabilities() {
+      return adapter.capabilities;
+    },
+    get id() {
+      return adapter.id;
+    },
+    get editFormatPreference() {
+      return adapter.editFormatPreference;
+    },
+    get longContextStrategy() {
+      return adapter.longContextStrategy;
+    },
 
     // Override complete with request/response contract validation
     async complete(request: NormalizedRequest): Promise<NormalizedResponse> {

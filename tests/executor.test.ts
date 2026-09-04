@@ -9,13 +9,15 @@ import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/config/defaults.js";
 import { EventLog } from "../src/events/event-log.js";
 import type { AlixConfig } from "../src/config/schema.js";
 
+const TEST_CORRELATION = { executionId: "exec-test", invocationId: "inv-test" } as const;
+
 test("file.read allowed by default policy", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
   try {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
-    const result = await executor.execute({ toolCallId: "1", name: "file.read", args: { root: dir, path: "README.md" } });
+    const result = await executor.execute({ toolCallId: "1", name: "file.read", args: { root: dir, path: "README.md" }, ...TEST_CORRELATION });
     assert.notEqual(result.kind, "denied"); // may be error (not found) but not denied
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -28,7 +30,7 @@ test("shell.run with denied command returns denied", async () => {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
-    const result = await executor.execute({ toolCallId: "2", name: "shell.run", args: { command: "rm -rf /", cwd: dir, timeoutMs: 5000 } });
+    const result = await executor.execute({ toolCallId: "2", name: "shell.run", args: { command: "rm -rf /", cwd: dir, timeoutMs: 5000 }, ...TEST_CORRELATION });
     assert.equal(result.kind, "denied");
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -42,7 +44,7 @@ test("shell.run uses root as cwd when cwd is omitted", async () => {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, "/tmp");
-    const result = await executor.execute({ toolCallId: "3", name: "shell.run", args: { root: dir, command: "pwd && ls", timeoutMs: 5000 } });
+    const result = await executor.execute({ toolCallId: "3", name: "shell.run", args: { root: dir, command: "pwd && ls", timeoutMs: 5000 }, ...TEST_CORRELATION });
 
     assert.equal(result.kind, "success");
     assert.ok((result as any).output.includes(dir));
@@ -58,7 +60,7 @@ test("file.create creates file at correct path", async () => {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
-    const result = await executor.execute({ toolCallId: "1", name: "file.create", args: { path: "hello.txt", content: "world" } });
+    const result = await executor.execute({ toolCallId: "1", name: "file.create", args: { path: "hello.txt", content: "world" }, ...TEST_CORRELATION });
     assert.equal(result.kind, "success");
     assert.equal((result as any).createdPath, "hello.txt");
     const content = await readFile(join(dir, "hello.txt"), "utf8");
@@ -75,7 +77,7 @@ test("file.delete removes existing file", async () => {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
-    const result = await executor.execute({ toolCallId: "1", name: "file.delete", args: { path: "to-delete.txt" } });
+    const result = await executor.execute({ toolCallId: "1", name: "file.delete", args: { path: "to-delete.txt" }, ...TEST_CORRELATION });
     assert.equal(result.kind, "success");
     assert.equal((result as any).deletedPath, "to-delete.txt");
     assert.ok(!(await existsSync(join(dir, "to-delete.txt"))));
@@ -90,7 +92,7 @@ test("executor auto-approves an owned-path write for a subagent with ownedPaths"
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ["src"]);
-    const result = await executor.execute({ toolCallId: "t1", name: "file.create", args: { path: "src/new.ts", content: "// hi" } });
+    const result = await executor.execute({ toolCallId: "t1", name: "file.create", args: { path: "src/new.ts", content: "// hi" }, ...TEST_CORRELATION });
     assert.equal(result.kind, "success");
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -103,7 +105,7 @@ test("executor denies a write outside ownedPaths with the owned-path reason", as
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ["src"]);
-    const result = await executor.execute({ toolCallId: "t2", name: "file.create", args: { path: "config.json", content: "{}" } });
+    const result = await executor.execute({ toolCallId: "t2", name: "file.create", args: { path: "config.json", content: "{}" }, ...TEST_CORRELATION });
     assert.equal(result.kind, "denied");
     assert.match(result.reason, /outside owned paths/);
   } finally {

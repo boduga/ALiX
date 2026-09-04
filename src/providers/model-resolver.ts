@@ -16,6 +16,10 @@ import type {
   ModelCapabilities,
 } from "./types.js";
 
+import {
+  resolveParallelToolCalls,
+} from "./parallel-tool-calls.js";
+
 import type {
   ModelSelectionPolicy,
   ModelCapabilityName,
@@ -326,6 +330,13 @@ function discoveredCapabilities(
     supportsStructuredOutput:
       model.supportsStructuredOutput ?? false,
     supportsVision: model.supportsVision ?? false,
+    parallelToolCalls: resolveParallelToolCalls({
+      provider: model.provider,
+      model: model.id,
+      transport: model.transport,
+      jinjaEnabled: model.jinjaEnabled,
+      isGrounded: model.isGrounded,
+    }),
   };
 }
 

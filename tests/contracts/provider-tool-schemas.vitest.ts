@@ -83,15 +83,28 @@ describe("NormalizedToolResultSchema", () => {
     const r = Schema.decodeSync(NormalizedToolResultSchema)({
       toolUseId: "tu-1",
       content: "File created",
+      invocationId: "inv-1",
+      executionId: "exec-1",
     } as any);
     assert.strictEqual(r.toolUseId, "tu-1");
     assert.strictEqual(r.content, "File created");
+    assert.strictEqual(r.invocationId, "inv-1");
+    assert.strictEqual(r.executionId, "exec-1");
   });
 
   it("rejects missing toolUseId", () => {
     assert.throws(() =>
       Schema.decodeSync(NormalizedToolResultSchema)({
         content: "missing id",
+      } as any)
+    );
+  });
+
+  it("rejects missing correlation fields", () => {
+    assert.throws(() =>
+      Schema.decodeSync(NormalizedToolResultSchema)({
+        toolUseId: "tu-1",
+        content: "File created",
       } as any)
     );
   });

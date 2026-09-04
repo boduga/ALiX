@@ -1,5 +1,6 @@
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 import type { EditFormat } from "../patch/edit-format-policy.js";
+import { resolveParallelToolCalls } from "./parallel-tool-calls.js";
 
 export class ApiError extends Error {
   constructor(
@@ -20,6 +21,27 @@ export function extractSummary(args: Record<string, unknown>): string | undefine
   return undefined;
 }
 
+export function parseToolArgs(raw: unknown): Record<string, unknown> | undefined {
+  let args: Record<string, unknown>;
+  if (raw == null || raw === "") {
+    args = {};
+  } else if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+      args = parsed as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  } else if (typeof raw === "object" && !Array.isArray(raw)) {
+    args = { ...(raw as Record<string, unknown>) };
+  } else {
+    return undefined;
+  }
+  for (const k of ["__proto__", "prototype", "constructor"]) delete (args as any)[k];
+  return args;
+}
+
 export abstract class BaseProvider implements ModelAdapter {
   protected _apiKey: string;
   protected _model: string;
@@ -31,6 +53,24 @@ export abstract class BaseProvider implements ModelAdapter {
     this._model = options.model;
     this._baseUrl = options.baseUrl;
     this._timeoutMs = options.timeoutMs ?? 120_000;
+  }
+
+  /**
+   * Centralized parallelToolCalls resolution for Shotgun Surgery fix.
+   * Provider files no longer call `resolveParallelToolCalls` directly;
+   * they delegate to this single base getter (model-resolver remains the
+   * only other call site via discoveredCapabilities).
+   * Source-explicit: provider + model + transport/configuration, fail-closed.
+   */
+  protected get parallelToolCallsResolved(): boolean {
+    const provider = (this as unknown as { id: string }).id ?? "";
+    if (provider === "local-llama") {
+      return resolveParallelToolCalls({ provider, model: this._model, transport: "jinja", jinjaEnabled: true });
+    }
+    if (provider === "openrouter") {
+      return resolveParallelToolCalls({ provider, model: this._model, transport: "http" });
+    }
+    return resolveParallelToolCalls({ provider, model: this._model });
   }
 
   protected async post(body: Record<string, unknown>): Promise<Response> {
@@ -57,19 +97,35 @@ export abstract class BaseProvider implements ModelAdapter {
     return {};
   }
 
+  private static _toolIdCounter = 0;
+
   protected safeToolId(id: string | null | undefined): string {
-    return id ?? `call_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    if (typeof id === "string" && id.length > 0) return id;
+    // Strictly monotonic counter + crypto random ensures distinctness even within same ms (no collision)
+    const counter = BaseProvider._toolIdCounter++;
+    const rand = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    return `call_${Date.now().toString(36)}_${counter.toString(36)}_${rand}`;
   }
 
-  protected parseChoiceToolCalls(choice: { message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }): ToolCall[] {
-    const message = choice.message;
-    // Path 1: message.tool_calls (OpenAI-compatible)
-    if (message?.tool_calls?.length) {
-      return message.tool_calls.map((tc) => {
-        const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+  protected parseChoiceToolCalls(choice: { message?: { content?: string | null; tool_calls?: Array<{ id?: string | null; type?: string; function: { name: string; arguments: string | Record<string, unknown> } }> } }): ToolCall[] {
+    const message = choice.message as any;
+    // Path 1: message.tool_calls (OpenAI-compatible) — array of N, normalize to ALiX toolCalls[]
+    if (Array.isArray(message?.tool_calls) && message.tool_calls.length > 0) {
+      const out: ToolCall[] = [];
+      for (const tc of message.tool_calls) {
+        if (!tc || typeof tc !== "object") continue;
+        const fn = (tc as any).function;
+        if (!fn || typeof fn !== "object") continue;
+        const name = fn.name;
+        if (typeof name !== "string" || name.trim().length === 0) continue;
+        const args = parseToolArgs(fn.arguments);
+        if (args === undefined) continue;
         const summary = extractSummary(args);
-        return { id: this.safeToolId(tc.id), name: tc.function.name ?? "", args, summary };
-      });
+        out.push({ id: this.safeToolId((tc as any).id), name: name.trim(), args, summary });
+      }
+      if (out.length > 0) return out;
     }
     // Path 2: message.content as array (OpenAI function-calling in content)
     return this.parseOpenAIToolCalls(message?.content);
@@ -81,8 +137,9 @@ export abstract class BaseProvider implements ModelAdapter {
     if (!Array.isArray(content)) return toolCalls;
     for (const block of content) {
       if (block && typeof block === "object" && "type" in block && block.type === "function" && "function" in block && block.function && typeof block.function === "object") {
-        const fn = block.function as { name?: string; arguments?: string };
-        const parsed = fn.arguments ? JSON.parse(fn.arguments) : {};
+        const fn = block.function as { name?: string; arguments?: string | Record<string, unknown> };
+        const parsed = parseToolArgs(fn.arguments as unknown);
+        if (parsed === undefined) continue;
         const summary = extractSummary(parsed);
         toolCalls.push({ id: this.safeToolId(null), name: fn.name ?? "", args: parsed, summary });
       }
