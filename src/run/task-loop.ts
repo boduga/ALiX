@@ -390,6 +390,13 @@ post_task?: { command: string; reason: string }[];
   onLedgerUpdate?: (text: string) => void;
   /** Called when agent intent classification changes. */
   onCurrentIntentUpdate?: (intent: AgentIntent) => void;
+  /**
+   * Progress-based liveness feed — called at discrete execution milestones
+   * (model response, tool completion). The turn tracker debounces streamed
+   * tokens separately; this hook carries the coarser, description-bearing
+   * milestones.
+   */
+  onProgress?: (kind: import("../agent/agent-liveness.js").AgentProgressKind, description?: string) => void;
   currentIntent?: AgentIntent;
   /** T4: harness-side parallel dispatch policy. Defaults to allowParallel:true maxParallel:4. */
   toolExecutionPolicy?: ToolExecutionPolicy;
@@ -425,6 +432,7 @@ sessionId,
 sessionDir,
 systemPrompt,
 onStream,
+onProgress,
   } = deps;
 
   // §10.1: runtime model resolution reads the canonical `models` object only.
@@ -815,6 +823,10 @@ let resolvedModel: string | undefined;
 	  resolvedModel = resp.resolvedModel;
 }
 
+  // Progress: the model completed a generation turn (milestone in the
+  // liveness feed — tool-completion marks come from handleToolResult).
+  onProgress?.("model_response", resolvedModel ?? model.name);
+
   // Fallback: model emitted XML-style tool calls as raw text instead of
   // using structured tool_calls. Pattern: <alix_tool_name><param>value</param>
   // </alix_tool_name>. Extract them and convert to ToolCall objects so the
@@ -1153,6 +1165,10 @@ if (toolCalls.length === 0) {
   ): Promise<void> {
     progressLedger.recordToolCall(toolCall.name, toolCall.summary, !toolResult.error);
     if (!toolResult.error) toolCallsSinceCheckpoint++;
+
+    // Progress: a tool finished executing (strongest discrete liveness signal
+    // after a model response — the agent is actively doing work).
+    onProgress?.("tool_completed", toolCall.name);
 
     if (deps.hookRunner) {
       const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;

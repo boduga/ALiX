@@ -279,6 +279,31 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(req!.maxOutputTokens).toBeGreaterThan(0);
   });
 
+  // Regression: the direct/chat routes hardcoded maxOutputTokens at 512,
+  // which truncated long generation tasks (5-part stress prompt cut
+  // mid-sentence at ~512 tokens) even though the resolved context budget
+  // allows far more. The ceiling must now be budget-derived so generation
+  // tasks get the full budgeted output the model can provide.
+  it("generation derives maxOutputTokens from the resolved context budget, not a 512 hardcode", async () => {
+    const complete = vi.fn(async () => ({ text: "r", toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: directTestCwd,
+      task: "",
+      sessionId: "direct-test-session",
+      chatProvider: makeMockProvider(complete),
+      chatModel: { provider: "openrouter", model: "z-ai/glm-5.2:free" },
+    });
+    await session.processTurn("Write a joke about cats");
+
+    expect(complete).toHaveBeenCalledTimes(1);
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as
+      | { systemPrompt: string; messages: Array<{ role: string; content: string }>; maxOutputTokens: number }
+      | undefined;
+    expect(req).toBeDefined();
+    // 64k window × 0.2 ratio → 12800 budgeted output, far above the old 512 cap.
+    expect(req!.maxOutputTokens).toBe(12800);
+  });
+
   // Regression: PR #371's loader default made model.streaming=true the
   // resolution, but the chat/direct route in processTurn called
   // genProvider.complete() unconditionally — bypassing the streaming pipe.

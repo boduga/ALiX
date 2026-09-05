@@ -5,6 +5,19 @@ import { renderSlashOverlay } from './slash-overlay.js';
 import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
+import { SessionPhase } from '../../agent/session.js';
+
+/** Coarse human-friendly elapsed time — "42s", "2m 01s", "1h 05m". */
+function formatElapsed(ms: number): string {
+  if (ms < 1_000) return '0s';
+  const totalSeconds = Math.floor(ms / 1_000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
+}
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -54,6 +67,25 @@ export class AgentView implements TuiView {
       const color = intent === 'mutation' ? '\x1b[33m' : '\x1b[32m';
       const label = intent === 'mutation' ? 'E' : 'V';
       c.write(2, STATUS_ROW, `${color}[${label}]${RESET}`);
+    }
+
+    // Progress-based liveness: rendered only while an agent turn is actively
+    // running (a liveness snapshot exists and the phase is not Idle). Wall
+    // clock has no meaning here — a long-horizon run can stream for minutes —
+    // so the line surfaces elapsed time + time since the last progress mark,
+    // escalating to a warning when the run appears stalled. Never a kill.
+    const ses = ctx.snap.session;
+    const liveness = ses?.liveness;
+    if (liveness && ses?.phase !== SessionPhase.Idle) {
+      const idle = Date.now() - liveness.lastProgressAt;
+      let lifeLine = `\x1b[36mRUNNING ${formatElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatElapsed(idle)} ago`;
+      if (liveness.state !== 'healthy') {
+        const kind = liveness.lastProgressKind ?? 'no activity';
+        const desc = liveness.lastProgressDescription ?? '';
+        const flag = liveness.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
+        lifeLine += ` | \x1b[33m⚠ ${flag}\x1b[0m (${kind}${desc ? `: ${desc}` : ''})`;
+      }
+      c.write(0, STATUS_ROW - 1, lifeLine);
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).

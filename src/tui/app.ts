@@ -705,7 +705,7 @@ export class TuiApp {
     await this.dispatchToSession(
       text, 'agent', perTab,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
-      '[agent]', 120_000, skills,
+      '[agent]', undefined, skills,
     );
   }
 
@@ -726,17 +726,20 @@ export class TuiApp {
       this.state.views.agent,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
       '[agent]',
-      120_000,
+      undefined,
     );
   }
 
   /**
    * Shared submit path used by both submitChatInput and submitAgentInput.
-   * Tries each candidate in turn — first non-throwing call wins. Wraps the
-   * call in a 5s timeout so a hung session (e.g., real
-   * `createAgentSession().processChat` blocked on a network provider) can
-   * never leave the scrollback empty. Errors are also piped to stderr
-   * so silent hangs surface in `node alix tui` logs.
+   * Tries each candidate in turn — first non-throwing call wins.
+   *
+   * Agent turns are awaited directly (no wall-clock deadline): a long-horizon
+   * run may legitimately stream for minutes — progress-based liveness lives
+   * in the session, not the TUI. The chat path keeps its short `timeoutMs`
+   * race so a hung lightweight `processChat` can never leave the scrollback
+   * empty. Errors are piped to stderr so silent hangs surface in
+   * `node alix tui` logs.
    */
   private async dispatchToSession(
     text: string,
@@ -744,7 +747,8 @@ export class TuiApp {
     perTab: TimelineWritableState,
     candidates: Array<((text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
-    timeoutMs = 5_000,
+    /** Wall-clock race for the CHAT path only. `undefined` for the agent path. */
+    timeoutMs?: number,
     skills?: string[],
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
@@ -838,15 +842,21 @@ export class TuiApp {
   }
 
   /**
-   * Race an agent call against `timeoutMs`. Returns the call's result on
-   * success, throws on either rejection or timeout.
+   * Race an agent call against an optional short deadline. Used ONLY by the
+   * chat path; the agent path passes `undefined` and awaits the call
+   * directly (agent execution has no wall-clock limit — liveness is
+   * progress-based in the session, and a hung turn is abandoned by the
+   * operator, not by the TUI racing it).
    */
   private raceAgentCall(
     text: string,
     fn: (text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>,
-    timeoutMs: number,
+    timeoutMs: number | undefined,
     skills?: string[],
   ): Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }> {
+    if (timeoutMs === undefined) {
+      return skills ? fn(text, { skills }) : fn(text);
+    }
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );

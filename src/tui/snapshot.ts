@@ -57,6 +57,12 @@ export interface SessionMetadata {
    */
   readonly currentIntent?: 'research' | 'mutation' | 'validation';
   /**
+   * Progress-based liveness of the active agent turn. Populated by
+   * SnapshotBuilder from `AgentSession.getLiveness()` while the agent loop
+   * is executing; undefined when idle or on sessions without liveness.
+   */
+  readonly liveness?: import('../agent/agent-liveness.js').AgentLivenessSnapshot;
+  /**
    * Pending tool calls surfaced by the agent loop for inline scrollback
    * rendering. Each entry renders as a two-line dim card in the agent view.
    */

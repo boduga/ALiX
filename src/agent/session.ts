@@ -91,6 +91,12 @@ import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
 import {
+  AgentLiveness,
+  type AgentLivenessSnapshot,
+  type AgentLivenessState,
+  type AgentProgressKind,
+} from "./agent-liveness.js";
+import {
   LocalRuntimeExecutor,
   executeRoute,
   type RuntimeContext,
@@ -434,6 +440,13 @@ export interface AgentSession {
    * implementation always provides it.
    */
   getPhase?(): SessionPhase;
+  /**
+   * Progress-based liveness of the active turn. Undefined when no agent loop
+   * is executing. Read-only; the tracker is owned by the turn. Absent in
+   * pre-liveness implementations (test stubs) and consumers must handle
+   * undefined.
+   */
+  getLiveness?(): AgentLivenessSnapshot | undefined;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -660,6 +673,12 @@ export class AgentSessionBuilder {
     // before any turn has run.
     let phase: SessionPhase = SessionPhase.Idle;
 
+    // Turn-scoped progress-based liveness tracker. Created when the agent
+    // loop begins executing and observed via getLiveness(); replaced on each
+    // subsequent turn so startedAt reflects the current run. Undefined
+    // between turns / while idle.
+    let activeLiveness: AgentLiveness | undefined;
+
     // ---- Internal helpers ----
 
     /**
@@ -877,6 +896,8 @@ export class AgentSessionBuilder {
     function advancePhase(next: SessionPhase): void {
       if (phase === next) return;
       phase = next;
+      // A phase transition is genuine execution progress.
+      activeLiveness?.mark("phase_changed", next);
       // ctx may not be wired yet during very early setup; append is safe to skip
       // in that window because phase is also exposed via getPhase().
       const log = ctx?.log;
@@ -899,6 +920,15 @@ export class AgentSessionBuilder {
      */
     function getPhase(): SessionPhase {
       return phase;
+    }
+
+    /**
+     * Observe the active turn's progress-based liveness snapshot. Returns
+     * undefined while no agent loop is executing (idle, planning, summarising).
+     * Read-only — the tracker is owned by the turn.
+     */
+    function getLiveness(): AgentLivenessSnapshot | undefined {
+      return activeLiveness?.snapshot();
     }
 
     // ---- Exported interface methods ----
@@ -999,11 +1029,15 @@ export class AgentSessionBuilder {
         // source. `streamToResponse` fail-softs to a blocking complete() on
         // mid-stream error, matching runTaskLoop's behavior.
         const useStream = config.streaming !== false;
+        const genMaxOutputTokens = await resolveDirectOutputCeiling(
+          config.chatModel,
+          config.chatApiKey,
+        );
         const genResponse = await (useStream && genProvider.stream
           ? streamToResponse(genProvider, {
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
-              maxOutputTokens: 512,
+              maxOutputTokens: genMaxOutputTokens,
             }, {
               onStream: (chunk) => {
                 if (chunk.type === "text") config.events?.onToken?.(chunk.text);
@@ -1012,7 +1046,7 @@ export class AgentSessionBuilder {
           : genProvider.complete({
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
-              maxOutputTokens: 512,
+              maxOutputTokens: genMaxOutputTokens,
             })
         ).catch((err: unknown) => {
           _providerError = err instanceof Error ? err.message : String(err);
@@ -1218,6 +1252,48 @@ export class AgentSessionBuilder {
 
       // Build TaskLoopDeps and run the agent loop
       let result: RunResult;
+      // ── Progress-based liveness watchdog ──────────────────────────────
+      // The agent loop has NO wall-clock lifetime. The watchdog measures the
+      // idle window since the last progress mark and, on state transition,
+      // emits agent.liveness.warning / agent.liveness.stalled events so an
+      // operator can see a suspected stall. It NEVER terminates the run —
+      // a turn lives until its terminal state or explicit operator cancel.
+      const liveness = new AgentLiveness();
+      activeLiveness = liveness;
+      const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
+      const livenessOnStream: typeof sessionOnStream = sessionOnStream
+        ? (chunk) => {
+            // Every streamed token means the model is alive — mark progress
+            // (AgentLiveness debounces the hot per-chunk flow internally).
+            if (chunk.type === "text" && typeof chunk.text === "string") {
+              liveness.mark("model_chunk");
+            }
+            sessionOnStream(chunk);
+          }
+        : undefined;
+      let lastLivenessState: AgentLivenessState = "healthy";
+      const livenessWatchdog = setInterval(() => {
+        const snap = liveness.snapshot();
+        if (snap.state === lastLivenessState) return;
+        lastLivenessState = snap.state;
+        void ctx.log
+          .append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: snap.state === "stalled" ? "agent.liveness.stalled" : "agent.liveness.warning",
+            payload: {
+              runId,
+              lastProgressAt: new Date(snap.lastProgressAt).toISOString(),
+              idleMs: snap.idleMs,
+              lastProgressKind: snap.lastProgressKind,
+              lastProgressDescription: snap.lastProgressDescription,
+              phase: getPhase(),
+            },
+          })
+          .catch(() => {
+            // Observability must never break the turn loop.
+          });
+      }, 5_000);
       try {
         result = await runTaskLoop({
           config: {
@@ -1258,12 +1334,14 @@ export class AgentSessionBuilder {
           sessionId: ctx.sessionId,
           sessionDir: ctx.sessionDir,
           systemPrompt,
-          onStream: buildSessionStreamHandler(config.onStream, config.events),
+          onStream: livenessOnStream,
           hookRunner: ctx.hookRunner,
           context: taskContext,
           verbose: config.verbose,
           onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
           onCurrentIntentUpdate: (intent: AgentIntent) => { _latestIntent = intent; },
+          onProgress: (kind: AgentProgressKind, description?: string) =>
+            liveness.mark(kind, description),
         });
       } catch (err) {
         transitionNodeStatus(taskNode, "failed");
@@ -1296,6 +1374,9 @@ export class AgentSessionBuilder {
         });
         turnCount++;
         throw err;
+      } finally {
+        clearInterval(livenessWatchdog);
+        activeLiveness = undefined;
       }
 
       // Cumulative file count for the TUI header. sessionState is local to
@@ -1646,7 +1727,6 @@ export class AgentSessionBuilder {
     const CHAT_DEFAULT_SYSTEM_PROMPT = buildChatPrompt("ambiguous").systemPrompt;
     const chatSystemPrompt =
       config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
-    const CHAT_MAX_OUTPUT_TOKENS = 512;
     const CHAT_SEARCH_TIMEOUT_MS = 2000;
     const searchLabel = config.chatSearchLabel ?? "[Web search results]";
 
@@ -1724,7 +1804,10 @@ export class AgentSessionBuilder {
           // Defensive copy so the provider's view of the conversation
           // doesn't change after we push the assistant reply below.
           messages: chatMessages.slice(),
-          maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+          maxOutputTokens: await resolveDirectOutputCeiling(
+            config.chatModel,
+            config.chatApiKey,
+          ),
         });
         const text = response.text?.trim() ?? "";
         chatMessages.push({ role: "assistant", content: text });
@@ -1758,6 +1841,7 @@ export class AgentSessionBuilder {
       getVersion,
       getState,
       getPhase,
+      getLiveness,
       save,
       resume,
       setPlanApprovalGate: (gate) => {
@@ -1995,6 +2079,33 @@ export async function setupSkills(
     return [...byId.values()];
   } catch {
     return [];
+  }
+}
+
+/**
+ * P5: Context token limits + task classification.
+ */
+async function resolveDirectOutputCeiling(
+  chatModel: { provider: string; model?: string } | undefined,
+  chatApiKey?: string,
+): Promise<number> {
+  // Direct/chat routes hardcoded maxOutputTokens at 512, which truncated
+  // long generation tasks (e.g. a 5-part stress prompt cut mid-sentence at
+  // ~512 tokens) even though the resolved context budget allows far more.
+  // Derive the output ceiling from the same budget math as the agent loop
+  // (`setupContextLimits` → `createContextBudget`) so direct and chat route
+  // answers get the full budgeted output the model can provide.
+  if (!chatModel) return 512;
+  const { resolveModelDescriptor } = await import("../config/context-limits.js");
+  try {
+    const descriptor = await resolveModelDescriptor(
+      chatModel.provider,
+      chatModel.model ?? "",
+      chatApiKey ? { [chatModel.provider]: chatApiKey } : undefined,
+    );
+    return createContextBudget(descriptor).requestedMaxOutputTokens;
+  } catch {
+    return 512;
   }
 }
 
