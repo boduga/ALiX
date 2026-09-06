@@ -15,20 +15,15 @@
 // and Test 7.10 (spinner isolation).
 
 import type { AgentActivity, AgentActivityState } from '../../agent/agent-activity.js';
+import { formatActivityElapsed } from '../../agent/agent-activity.js';
 
 /** Spinner glyphs, cycled once per second (Task 3.3). */
 export const ACTIVITY_SPINNER_FRAMES = ['◐', '◓', '◑', '◒'] as const;
 
-/** Human-friendly elapsed time for the indicator — "4s", "2m 14s", "1h 05m". */
-export function formatActivityElapsed(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
-}
+// Re-exported so this presentation surface keeps its public formatter API
+// while sharing ONE elapsed formatter with the session's "Cancelled after Ns"
+// summary (defined in agent-activity.ts — no duplicate implementations).
+export { formatActivityElapsed };
 
 /**
  * The spinner frame for an elapsed duration. Pure function of elapsed time:
@@ -107,8 +102,17 @@ export function formatActivityLine(
       return `${glyph} Verifying… ${elapsed}`;
     case 'summarizing':
       return `${glyph} Summarizing… ${elapsed}`;
-    case 'possibly_stalled':
-      return `${glyph} Still working… ${elapsed}`;
+    case 'possibly_stalled': {
+      // The elapsed shown while a stall is suspected anchors on lastEventAt —
+      // the timestamp of the last real activity event (token chunk / tool
+      // output / transition) — so the line reads "how long since the runtime
+      // last did something" rather than the whole invocation's age. Falls back
+      // to startedAt for records predating the field.
+      const lastEvent = activity.lastEventAt ?? activity.startedAt;
+      const stallElapsed = Math.max(0, now - lastEvent);
+      const stallGlyph = frame ?? activitySpinnerFrame(stallElapsed);
+      return `${stallGlyph} Still working… ${formatActivityElapsed(stallElapsed)}`;
+    }
     case 'cancelling':
       // Task 6.2 — operator cancel requested: rendered live while the turn
       // unwinds (`◐ Cancelling… 4m 12s`). Replaced by the timeline's

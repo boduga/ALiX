@@ -26,7 +26,7 @@ import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
-import { streamToResponse } from "./helpers.js";
+import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
 import { createContextPressureTracker } from "./context-pressure.js";
 import { renderToolManifest } from "../agent/system-prompt.js";
@@ -383,7 +383,7 @@ post_task?: { command: string; reason: string }[];
   sessionId: string;
   sessionDir: string;
   systemPrompt: string;
-  onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
+  onStream?: (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../extensions/hook-runner.js").HookRunner;
   context?: ExecutionContext;
   /** When true (default), tool outputs are streamed to stdout. */
@@ -585,15 +585,12 @@ let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 
 // Truncation continuation: when a provider stops mid-answer at the output
-// budget (finish_reason=length), keep generating across turns so the final
-// answer is never silently cut. Bounded so a low-iteration budget isn't
-// consumed entirely by continuations.
-const MAX_TRUNCATION_CONTINUATIONS = 4;
-const TRUNCATION_CONTINUE_PROMPT =
-  "Your previous response was cut off at the model's output token limit. " +
-  "Continue exactly from where you stopped — do not repeat any content — and " +
-  "produce the remaining parts of the complete answer.";
-let accumulatedText = "";
+// budget (finish_reason=length), keep generating until the answer completes.
+// The budget / continue-prompt / accumulate-and-merge logic is the SHARED
+// helper in helpers.ts (continueTruncatedGeneration + TRUNCATION_CONTINUATION_LIMIT),
+// so the task loop and processChat enforce ONE continuation contract instead
+// of two divergent copies. `truncationContinuations` bounds the total across
+// the whole run (a fresh chain after a tool turn must not restart the budget).
 let truncationContinuations = 0;
 
 for (let i = 0; i < maxIterations; i++) {
@@ -830,55 +827,78 @@ let finishReason: string | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
-	// ── Operator-cancellable provider call (Task 6.1) ────────────────
-	// When a cancel signal is armed, the request/stream is raced against it:
-	// a cancel releases the run immediately (ExecutionCancelledError) instead
-	// of waiting on the provider's own transport bound. Without a signal the
-	// calls are untouched (no behaviour change for non-cancellable paths).
-	if (model.streaming && provider.stream) {
-	  const result = await streamToResponse(provider, {
-	    systemPrompt: admittedSystemPrompt,
-	    messages,
-	    tools: wireTools,
-	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
-	    context: deps.context,
-	  }, deps.cancelSignal ? { onStream, signal: deps.cancelSignal } : { onStream });
-	  text = result.text;
-	  reasoning = result.reasoning ?? "";
-	  toolCalls = result.toolCalls;
-	  usage = result.usage;
-	  resolvedModel = result.resolvedModel;
-	  finishReason = result.finishReason;
-	} else {
-	  const completeReq = {
-	    systemPrompt: admittedSystemPrompt,
-	    messages,
-	    tools: wireTools,
-	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
-	    context: deps.context,
-	  };
-	  const resp = await (deps.cancelSignal
-	    ? raceWithCancellation(provider.complete(completeReq), deps.cancelSignal, "cancelled by operator")
-	    : provider.complete(completeReq));
-	  // C1 fix: restore assignments — the non-streaming path MUST
-	  // populate text/toolCalls/usage from the provider response.
-	  text = resp.text ?? "";
-	  reasoning = resp.reasoning ?? "";
-	  toolCalls = resp.toolCalls ?? [];
-	  usage = resp.usage;
-	  resolvedModel = resp.resolvedModel;
-	  finishReason = resp.finishReason;
-}
-
+	//
+	// ── Model generation ────────────────────────────────────────────
+	// One generation path (runModelTurn) is shared by the main turn AND every
+	// truncation continuation below (continueTruncatedGeneration in helpers.ts).
+	// With an operator-cancel signal armed (Task 6.1) the request/stream is
+	// raced against it; without a signal behaviour is unchanged. Text chunks are
+	// written to stdout by streamToResponse; reasoning never is.
+const runModelTurn = async (
+  msgs: NormalizedMessage[],
+): Promise<{
+  text: string;
+  reasoning: string;
+  toolCalls: ToolCall[];
+  usage: TokenUsage | undefined;
+  resolvedModel: string | undefined;
+  finishReason: string | undefined;
+}> => {
+  let segment: {
+    text: string;
+    reasoning: string;
+    toolCalls: ToolCall[];
+    usage: TokenUsage | undefined;
+    resolvedModel: string | undefined;
+    finishReason: string | undefined;
+  };
+  if (model.streaming && provider.stream) {
+    const result = await streamToResponse(provider, {
+      systemPrompt: admittedSystemPrompt,
+      messages: msgs,
+      tools: wireTools,
+      maxOutputTokens: contextBudget.requestedMaxOutputTokens,
+      context: deps.context,
+    }, deps.cancelSignal ? { onStream, signal: deps.cancelSignal } : { onStream });
+    segment = {
+      text: result.text,
+      reasoning: result.reasoning ?? "",
+      toolCalls: result.toolCalls,
+      usage: result.usage,
+      resolvedModel: result.resolvedModel,
+      finishReason: result.finishReason,
+    };
+  } else {
+    const completeReq = {
+      systemPrompt: admittedSystemPrompt,
+      messages: msgs,
+      tools: wireTools,
+      maxOutputTokens: contextBudget.requestedMaxOutputTokens,
+      context: deps.context,
+    };
+    const resp = await (deps.cancelSignal
+      ? raceWithCancellation(provider.complete(completeReq), deps.cancelSignal, "cancelled by operator")
+      : provider.complete(completeReq));
+    // C1 fix: restore assignments — the non-streaming path MUST populate
+    // text/toolCalls/usage from the provider response.
+    segment = {
+      text: resp.text ?? "",
+      reasoning: resp.reasoning ?? "",
+      toolCalls: resp.toolCalls ?? [],
+      usage: resp.usage,
+      resolvedModel: resp.resolvedModel,
+      finishReason: resp.finishReason,
+    };
+  }
   // Progress: the model completed a generation turn (milestone in the
   // liveness feed — tool-completion marks come from handleToolResult).
-  onProgress?.("model_response", resolvedModel ?? model.name);
-
+  onProgress?.("model_response", segment.resolvedModel ?? model.name);
   // Fallback: model emitted XML-style tool calls as raw text instead of
   // using structured tool_calls. Pattern: <alix_tool_name><param>value</param>
-  // </alix_tool_name>. Extract them and convert to ToolCall objects so the
-  // rest of the loop can process them normally.
-  if (toolCalls.length === 0 && text.includes("<") && providerTools.length > 0) {
+  // </alix_tool_name>. Extract and convert to ToolCall objects so the rest of
+  // the loop can process them normally.
+  let calls = segment.toolCalls;
+  if (calls.length === 0 && segment.text.includes("<") && providerTools.length > 0) {
     const toolNames = new Set(providerTools.map((t) => t.name));
     const xmlRegex = new RegExp(
       `<(${Array.from(toolNames).join("|")})\\b[^>]*>([\\s\\S]*?)</\\1>`,
@@ -886,7 +906,7 @@ let finishReason: string | undefined;
     );
     let m: RegExpExecArray | null;
     const extracted: ToolCall[] = [];
-    while ((m = xmlRegex.exec(text)) !== null) {
+    while ((m = xmlRegex.exec(segment.text)) !== null) {
       const toolName = m[1]!;
       const inner = m[2]!;
       const args: Record<string, string> = {};
@@ -901,37 +921,63 @@ let finishReason: string | undefined;
         args,
       });
     }
-    if (extracted.length > 0) {
-      toolCalls = extracted;
-    }
+    if (extracted.length > 0) calls = extracted;
   }
+  return { ...segment, toolCalls: calls };
+};
+
+	// A provider/model call begins and no content has arrived yet — surface the
+	// design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
+	// accepted request, no content"); the first visible chunk moves to STREAMING.
+onProgress?.("model_requested", model.name);
+const generation = await runModelTurn(messages);
+text = generation.text;
+reasoning = generation.reasoning;
+toolCalls = generation.toolCalls;
+usage = generation.usage;
+resolvedModel = generation.resolvedModel;
+finishReason = generation.finishReason;
 
 // Truncation: the model hit the output budget mid-answer (finish_reason=length
-// on a prose response with no tool calls). Continue generation in a follow-up
-// turn so the final answer is never silently cut. Accumulated segments survive
-// across iterations and are merged into the returned summary below.
+// on a prose response with no tool calls). Continue generation in follow-up
+// turns via the shared helper in helpers.ts so the final answer is never
+// silently cut. Only the LAST partial segment is re-fed (never the cumulative
+// text), so the continuation context grows linearly with the segment count.
 if (
   finishReason === "length" &&
   toolCalls.length === 0 &&
   text.length > 0 &&
-  truncationContinuations < MAX_TRUNCATION_CONTINUATIONS
+  truncationContinuations < TRUNCATION_CONTINUATION_LIMIT
 ) {
-  truncationContinuations++;
-  await log.append({
-    ...session, actor: "system", type: "agent.truncated.continuing",
-    payload: { iteration: i, chars: text.length, continuation: truncationContinuations },
+  const continued = await continueTruncatedGeneration({
+    initialText: text,
+    messages,
+    maxContinuations: TRUNCATION_CONTINUATION_LIMIT - truncationContinuations,
+    onContinuation: async ({ attempt, chars }) => {
+      await log.append({
+        ...session, actor: "system", type: "agent.truncated.continuing",
+        payload: { iteration: i, chars, continuation: truncationContinuations + attempt },
+      });
+    },
+    generateNext: async (msgs) => {
+      const seg = await runModelTurn(msgs);
+      return {
+        text: seg.text,
+        reasoning: seg.reasoning,
+        toolCalls: seg.toolCalls,
+        usage: seg.usage,
+        resolvedModel: seg.resolvedModel,
+        finishReason: seg.finishReason,
+      };
+    },
   });
-  messages.push({ role: "assistant", content: text });
-  accumulatedText += text;
-  messages.push({ role: "user", content: TRUNCATION_CONTINUE_PROMPT });
-  continue;
-}
-
-// Merge any prior truncated segments into this iteration's final answer so the
-// summary always contains the complete continuation, never just the last turn.
-if (accumulatedText.length > 0) {
-  text = accumulatedText + text;
-  accumulatedText = "";
+  truncationContinuations += continued.continuations;
+  text = continued.text;
+  reasoning = continued.reasoning ?? "";
+  finishReason = continued.finishReason;
+  toolCalls = [...(continued.toolCalls ?? [])];
+  usage = continued.usage;
+  resolvedModel = continued.resolvedModel;
 }
 
 if (text.length > 0) {

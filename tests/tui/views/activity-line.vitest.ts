@@ -88,6 +88,17 @@ describe('formatActivityLine — transient activity rendering (Task 3.1)', () =>
     expect(formatActivityLine(activity('cancelling', 1_000), 5_000)).toBe('◐ Cancelling… 4s');
     expect(formatActivityLine(activity('cancelling', 0), 3_000)).toBe('◒ Cancelling… 3s');
   });
+
+  it('possibly_stalled anchors its elapsed on lastEventAt (last real activity), not the invocation start', () => {
+    // Invocation started at 0; the last real event (token / tool output) was at
+    // 10s; a stall is now surfaced at 25s — the line reads how long since the
+    // runtime last did something (15s), NOT the whole invocation age (25s).
+    const stalled = activity('possibly_stalled', 0, { lastEventAt: 10_000 });
+    expect(formatActivityLine(stalled, 25_000, '◐')).toBe('◐ Still working… 15s');
+    // Legacy records without lastEventAt fall back to the invocation start.
+    const legacy = activity('possibly_stalled', 0, { lastEventAt: undefined });
+    expect(formatActivityLine(legacy, 25_000, '◐')).toBe('◐ Still working… 25s');
+  });
 });
 
 // ─── Task 3.4 — tool presentation ─────────────────────────────────────────

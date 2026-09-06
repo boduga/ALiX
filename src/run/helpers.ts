@@ -4,7 +4,7 @@ import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
-import { shouldAutoDisableStreaming } from "../agent/stream.js";
+import { shouldAutoDisableStreaming, type StreamHandler } from "../agent/stream.js";
 import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
 import {
   ExecutionCancelledError,
@@ -329,7 +329,7 @@ export type StreamToResponseResult = {
 export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
-  options?: { onStream?: (chunk: { type: "text"; text: string }) => void; signal?: AbortSignal }
+  options?: { onStream?: StreamHandler; signal?: AbortSignal }
 ): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   const signal = options?.signal;
@@ -351,8 +351,11 @@ export async function streamToResponse(
         }
         if (chunk.type === "reasoning_delta") {
           reasoning += chunk.text;
-          // Reasoning is private trace, never streamed to the operator and never
-          // folded into the final text — merged into the returned reasoning only.
+          // Reasoning is private trace — never written to stdout and never
+          // folded into the final text, but surfaced as a `reasoning` stream
+          // chunk so liveness feeds (which otherwise see only text chunks)
+          // can count a long private thought-phase as progress.
+          options?.onStream?.({ type: "reasoning", text: chunk.text });
         }
         if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
         if (chunk.type === "usage") usage = chunk.usage;
@@ -383,6 +386,7 @@ export async function streamToResponse(
         }
         if (chunk.type === "reasoning_delta") {
           reasoning += chunk.text;
+          options?.onStream?.({ type: "reasoning", text: chunk.text });
         }
         if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
         if (chunk.type === "usage") usage = chunk.usage;

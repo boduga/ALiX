@@ -57,7 +57,7 @@ afterEach(() => {
 
 interface MockTaskLoopDeps {
   onProgress?: (kind: string, description?: string) => void;
-  onStream?: (chunk: { type: "text" | "tool_call"; text?: string }) => void;
+  onStream?: (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string }) => void;
 }
 
 function configureSessionMocks(opts?: {
@@ -256,6 +256,118 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     expect(afterStreaming).toContain("verifying");
     expect(afterStreaming.filter((s) => s === "thinking")).toHaveLength(0);
     expect(afterStreaming).not.toContain("tool_running");
+  });
+
+  it("model_requested → waiting_for_provider until the first visible chunk streams", async () => {
+    const { createAgentSession } = await import("../../src/agent/session.js");
+    configureSessionMocks();
+    mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
+      // The provider call starts; no content has arrived yet.
+      deps.onProgress?.("model_requested", "test-model");
+      deps.onStream?.({ type: "text", text: "answer" });
+      return { sessionId: "activity-wiring-session", summary: "answer", streamed: true, reason: "completed" };
+    });
+
+    const session = createAgentSession({ cwd: wiringTestCwd, task: "", planMode: false, onStream: vi.fn() });
+    await session.processTurn("say hi");
+
+    const states = activityStates();
+    expect(states[0]).toBe("thinking");
+    // WAITING_FOR_PROVIDER is genuinely reachable: it is produced while a model
+    // request is in flight with no content, then the first chunk moves to streaming.
+    expect(states).toContain("waiting_for_provider");
+    const waiting = states.indexOf("waiting_for_provider");
+    expect(states[waiting + 1]).toBe("streaming");
+    expect(states.filter((s) => s === "streaming")).toHaveLength(1);
+  });
+
+  it("reasoning stream chunks mark progress without ever surfacing streaming", async () => {
+    const { createAgentSession } = await import("../../src/agent/session.js");
+    configureSessionMocks();
+    const onStream = vi.fn();
+    mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
+      // A long private reasoning phase streams reasoning chunks only — these
+      // must NOT flip the indicator to streaming (they are invisible trace)
+      // and must never be forwarded to the visible stream / token consumer.
+      deps.onStream?.({ type: "reasoning", text: "thinking quietly..." });
+      deps.onStream?.({ type: "reasoning", text: "still thinking..." });
+      return { sessionId: "activity-wiring-session", summary: "done", streamed: false, reason: "completed" };
+    });
+
+    const session = createAgentSession({ cwd: wiringTestCwd, task: "", planMode: false, onStream });
+    await session.processTurn("think hard");
+
+    expect(onStream).not.toHaveBeenCalled();
+    const states = activityStates();
+    expect(states[0]).toBe("thinking");
+    expect(states).not.toContain("streaming");
+    expect(states).not.toContain("waiting_for_provider");
+  });
+
+  it("reasoning chunks count as liveness progress (lastProgressAt advances) while staying on thinking", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const { createAgentSession } = await import("../../src/agent/session.js");
+      configureSessionMocks();
+      let capturedDeps!: MockTaskLoopDeps;
+      let resolveLoop!: (r: RunResult) => void;
+      const loopPending = new Promise<RunResult>((resolve) => {
+        resolveLoop = resolve;
+      });
+      mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
+        capturedDeps = deps;
+        return loopPending;
+      });
+
+      const session = createAgentSession({ cwd: wiringTestCwd, task: "", planMode: false, onStream: vi.fn() });
+      const turn = session.processTurn("reason for a while");
+      await vi.waitFor(() => {
+        expect(session.getLiveness?.()).toBeDefined();
+      });
+      const livenessSnap = session.getLiveness?.();
+      const before = livenessSnap!.lastProgressAt;
+
+      // A long private reasoning phase arrives 2s later: it must advance the
+      // liveness clock (the watchdog won't flag a healthy thought-phase as a
+      // stall) without flipping the visible indicator to streaming.
+      vi.setSystemTime(before + 2_000);
+      capturedDeps.onStream?.({ type: "reasoning", text: "deep reasoning..." });
+      expect(session.getLiveness?.()!.lastProgressAt).toBe(before + 2_000);
+      expect(session.getActivity?.()!.state).toBe("thinking");
+
+      resolveLoop({ sessionId: "activity-wiring-session", summary: "done", streamed: false, reason: "completed" });
+      await turn;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tool_started resets the streaming latch: after a streamed phase, tool_completed returns to thinking", async () => {
+    const { createAgentSession } = await import("../../src/agent/session.js");
+    configureSessionMocks();
+    mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
+      // Phase 1: model narrates (streaming latch set).
+      deps.onStream?.({ type: "text", text: "Let me look." });
+      // Phase 2: a tool begins — the model-output phase ends, latch resets.
+      deps.onProgress?.("tool_started", "bash");
+      // Phase 3: tool completes and the model resumes silently — with the latch
+      // reset, the guard must feed thinking (not leave the tool indicator up).
+      deps.onProgress?.("tool_completed", "bash");
+      return { sessionId: "activity-wiring-session", summary: "Let me look.", streamed: true, reason: "completed" };
+    });
+
+    const session = createAgentSession({ cwd: wiringTestCwd, task: "", planMode: false, onStream: vi.fn() });
+    await session.processTurn("stream then use a tool");
+
+    const states = activityStates();
+    expect(states[0]).toBe("thinking");
+    expect(states).toContain("streaming");
+    const toolIdx = states.indexOf("tool_running");
+    expect(toolIdx).toBeGreaterThan(states.indexOf("streaming"));
+    // The model-resumes window must read THINKING again (per design:
+    // tool complete → model resumes → Thinking), not remain on tool_running.
+    expect(states[toolIdx + 1]).toBe("thinking");
   });
 
   it("liveness warning → possibly_stalled (diagnostic), recovery → thinking", async () => {

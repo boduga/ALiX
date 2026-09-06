@@ -153,6 +153,21 @@ export function withElapsed(activity: AgentActivity, now: number): AgentActivity
 }
 
 /**
+ * Human-friendly elapsed duration — "4s", "2m 14s", "1h 05m". Shared by the
+ * TUI activity indicator (`formatActivityLine`) and the session surface's
+ * "Cancelled after 4m 12s" summary so both renderers agree on one formatter.
+ */
+export function formatActivityElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
+/**
  * Exhaustive state handler — call from a switch to ensure every
  * AgentActivityState is covered. Returns `undefined` for all states.
  * Follows the exhaustive-never pattern from src/agent/session.ts.

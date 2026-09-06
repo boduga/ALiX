@@ -100,6 +100,7 @@ import {
 import {
   createAgentActivity,
   transition,
+  formatActivityElapsed,
   type AgentActivity,
   type AgentActivityState,
   type ActivityTransitionOpts,
@@ -147,7 +148,13 @@ import type { SkillEntry } from "../skills/catalog.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
-import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory, streamToResponse } from "../run/helpers.js";
+import {
+  READ_ONLY_TOOL_NAMES,
+  saveDecisionsToMemory,
+  streamToResponse,
+  continueTruncatedGeneration,
+  TRUNCATION_CONTINUATION_LIMIT,
+} from "../run/helpers.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import type { PlanTask } from "../planning/plan-task.js";
@@ -536,21 +543,6 @@ export function isCancellationError(err: unknown): boolean {
     err instanceof Error &&
     (err.name === "AbortError" || err.name === "ExecutionCancelledError")
   );
-}
-
-/**
- * Human-friendly elapsed duration for the "Cancelled after Ns" summary
- * (Task 6.2): `45s`, `4m 12s`, `1h 05m`. Mirrors the TUI's local activity
- * formatting so the session surface and the renderer agree.
- */
-export function formatCancellationElapsed(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
 /**
@@ -1251,7 +1243,9 @@ export class AgentSessionBuilder {
               maxOutputTokens: genMaxOutputTokens,
             }, {
               onStream: (chunk) => {
-                if (chunk.type === "text") config.events?.onToken?.(chunk.text);
+                if (chunk.type === "text" && typeof chunk.text === "string") {
+                  config.events?.onToken?.(chunk.text);
+                }
               },
             })
           : genProvider.complete({
@@ -1496,15 +1490,25 @@ export class AgentSessionBuilder {
       activityModel = { provider: resolved.provider, model: resolved.name };
       // Task 2.1 — invocation begins: THINKING with timestamps stamped now.
       feedActivity("thinking");
-      // True once the model has emitted a visible text chunk. Used to decide
-      // whether tool completion should return to thinking or stay streaming.
+      // True once the model has emitted a visible text chunk for the CURRENT
+      // model-output phase. Reset when that phase ends (a tool begins), so a
+      // later tool completion returns the indicator to thinking while the
+      // model silently resumes. Set again by the next phase's first chunk.
       let activityStreaming = false;
 
       const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
       const livenessOnStream: typeof sessionOnStream = sessionOnStream
         ? (chunk) => {
-            // Every streamed token means the model is alive — mark progress
-            // (AgentLiveness debounces the hot per-chunk flow internally).
+            if (chunk.type === "reasoning" && typeof chunk.text === "string") {
+              // Private reasoning (e.g. a long DeepSeek reasoning phase) is a
+              // real progress signal but is NEVER visible: mark liveness so
+              // the watchdog does not report a healthy thought-phase as a
+              // stall, and do NOT feed streaming / forward the trace onward.
+              liveness.mark("model_chunk");
+              return;
+            }
+            // Every streamed text token means the model is alive — mark
+            // progress (AgentLiveness debounces the hot per-chunk flow).
             if (chunk.type === "text" && typeof chunk.text === "string") {
               liveness.mark("model_chunk");
               // Task 2.3 — first visible chunk: THINKING → STREAMING; every
@@ -1662,10 +1666,21 @@ export class AgentSessionBuilder {
             // Tool progress racing an in-flight cancel must not regress the
             // indicator away from cancelling/cancelled.
             if (cancellationInProgress()) return;
-            if (kind === "tool_started" && activeActivity) {
+            if (kind === "model_requested" && activeActivity) {
+              // A provider/model call has started and no content has arrived
+              // yet — the closest reachable mapping of the design's
+              // "provider accepted request, waiting for content" row. Only
+              // when the current model phase is not already streaming; the
+              // first visible chunk moves the indicator to STREAMING.
+              if (!activityStreaming) feedActivity("waiting_for_provider");
+            } else if (kind === "tool_started" && activeActivity) {
               // Task 2.2 — a tool begins executing: TOOL_RUNNING with its name.
               // Round 1 — stamp toolStartedAt so the tool timer starts at TOOL
               // start (not the invocation start, which includes thinking time).
+              // Beginning the tool also ENDS the model-output phase, so the
+              // streaming latch resets: when the tool completes the indicator
+              // returns to THINKING while the model silently resumes.
+              activityStreaming = false;
               feedActivity("tool_running", { toolName: description, toolStartedAt: Date.now() });
             } else if (kind === "tool_completed" && activeActivity) {
               // Tool finished → back to THINKING unless the model is already
@@ -1711,7 +1726,7 @@ export class AgentSessionBuilder {
           const invocationStartedAt = activeActivity?.startedAt;
           lastCancelSummary =
             invocationStartedAt !== undefined
-              ? `Cancelled after ${formatCancellationElapsed(cancelledAt - invocationStartedAt)}`
+              ? `Cancelled after ${formatActivityElapsed(cancelledAt - invocationStartedAt)}`
               : "Cancelled";
           // Emit lifecycle event: turn completed (cancelled)
           await ctx.log.append({
@@ -2208,36 +2223,35 @@ export class AgentSessionBuilder {
         // Truncation continuation: a `finish_reason=length` on a single-shot
         // chat call means the model ran out of output budget mid-answer. Keep
         // generating in follow-up turns so the user never sees a silently cut
-        // reply. Each continuation feeds the partial answer back as context
-        // so the model resumes coherently instead of restarting.
-        let finishReason = response.finishReason;
-        let continuations = 0;
-        const MAX_CHAT_CONTINUATIONS = 3;
-        while (
-          finishReason === "length" &&
-          text.length > 0 &&
-          continuations < MAX_CHAT_CONTINUATIONS
-        ) {
-          continuations++;
-          chatMessages.push({ role: "assistant", content: text });
-          chatMessages.push({
-            role: "user",
-            content:
-              "Your previous response was cut off at the output token limit. " +
-              "Continue exactly from where you stopped — do not repeat anything — " +
-              "and finish the remaining parts of the complete answer.",
+        // reply. Delegated to the shared continueTruncatedGeneration helper
+        // (src/run/helpers.ts — the same contract the task loop uses): only
+        // the LAST partial segment is re-fed as context, never the cumulative
+        // text, so continuation context grows linearly instead of quadratically.
+        if (response.finishReason === "length" && text.length > 0) {
+          const merged = await continueTruncatedGeneration({
+            initialText: text,
+            messages: chatMessages,
+            maxContinuations: TRUNCATION_CONTINUATION_LIMIT,
+            generateNext: async (msgs) => {
+              const next = await provider.complete({
+                systemPrompt: chatSystemPrompt,
+                messages: msgs,
+                maxOutputTokens: await resolveDirectOutputCeiling(
+                  config.chatModel,
+                  config.chatApiKey,
+                ),
+              });
+              return {
+                text: (next.text ?? "").trim(),
+                finishReason: next.finishReason,
+                toolCalls: next.toolCalls ?? [],
+              };
+            },
           });
-          const next = await provider.complete({
-            systemPrompt: chatSystemPrompt,
-            messages: chatMessages.slice(),
-            maxOutputTokens: await resolveDirectOutputCeiling(
-              config.chatModel,
-              config.chatApiKey,
-            ),
-          });
-          text += (next.text ?? "").trim();
-          finishReason = next.finishReason;
+          text = merged.text;
         }
+        // The chat history records ONE clean assistant reply (the fully merged
+        // answer), never the intermediate partials / continuation prompts.
         chatMessages.push({ role: "assistant", content: text });
         return {
           summary: text || `[chat] ${message}`,
