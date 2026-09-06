@@ -198,6 +198,7 @@ export class SnapshotBuilder {
         currentIntent: state.currentIntent as AgentIntent | undefined,
         filesTouched: state.filesTouched ?? 0,
         liveness: (this.session as AgentSession).getLiveness?.(),
+        activity: (this.session as AgentSession).getActivity?.(),
       });
     } catch {
       return null;

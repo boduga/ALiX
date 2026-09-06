@@ -1,6 +1,7 @@
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
 import { getTheme } from '../blocks/theme.js';
+import { formatActivityLine } from './activity-line.js';
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 import type { TimelineEntry } from '../runtime/timeline-builder.js';
@@ -694,18 +695,33 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     }
   }
 
+  // Live response-surface activity indicator (Unit D, Tasks 3.1-3.5). The
+  // session snapshot's live AgentActivity record renders as a single transient
+  // bottom line: `◐ Thinking… 4s`, `⚙ Running shell.run… 3s`,
+  // `◒ Still working… 2m 14s`. Purely client-side — elapsed + spinner frame
+  // derive from `now - startedAt` at render time; nothing is emitted per tick.
+  // Suppressed while streaming (the first streamed token replaces the
+  // indicator — Task 3.5) and for terminal states (completed/failed/cancelled
+  // — the existing `✓`/`✗`/summary lines take over, never a permanent
+  // spinner). Same shape the view paints via the `activity` line kind.
+  const liveActivity = ctx.snap.session?.activity;
+  const activityText = liveActivity ? formatActivityLine(liveActivity, now) : undefined;
+
   // Bare-running-stage row (#432). A stage that is still active and has
   // produced no output yet renders a single gutter row carrying its
   // ticking timer. Skipped when streaming is non-empty (the streaming
-  // line carries the same decoration), and skipped when the stage has
-  // already emitted content. Appended at the very bottom of the agent
-  // scrollback so the operator sees the stage is alive during a silent
-  // step rather than mistaking it for a frozen tab.
+  // line carries the same decoration), when the stage has already emitted
+  // content, and when the live activity indicator is rendering (that line
+  // is the richer form of the same signal — never two live tickers).
+  // Appended at the very bottom of the agent scrollback so the operator
+  // sees the stage is alive during a silent step rather than mistaking it
+  // for a frozen tab.
   if (
     currentStage &&
     currentStage.isRunning &&
     !currentStage.hasContent &&
-    (!streaming || streaming.length === 0)
+    (!streaming || streaming.length === 0) &&
+    !activityText
   ) {
     const duration = formatRunningDuration(currentStage.startedAt, now);
     // Single row: gutter label + timer text. Right-padding puts the
@@ -718,6 +734,17 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       isFirst: false,
       gutter: formatGutter(currentStage.name),
     });
+  }
+
+  // Transient activity line — rendered last so it sits on the live response
+  // surface at the bottom of the scrollback. Recomputes elapsed + spinner
+  // on every render (the ~1s snapshot tick), so the indicator ticks without
+  // appending scrollback lines or emitting runtime events.
+  if (activityText && (!streaming || streaming.length === 0)) {
+    const wrapped = wrapText(activityText, textWidth);
+    for (let i = 0; i < wrapped.length; i++) {
+      out.push({ kind: 'activity', text: wrapped[i]!, isFirst: i === 0 });
+    }
   }
 
   // #436 — the bottom "X approval requests pending — press 'a' to approve"
