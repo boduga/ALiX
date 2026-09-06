@@ -1471,14 +1471,19 @@ if (command === "metrics") {
       console.log(`  ${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
     }
   } else {
-    // Summary mode: group by name
+    // Summary mode: group by name. Counters sum deltas, timers collect
+    // samples, gauges keep the latest observation (a gauge summed as a
+    // counter would be meaningless).
     const counters: Record<string, number> = {};
     const timers: Record<string, number[]> = {};
+    const gauges: Record<string, { value: number; labels?: Record<string, string> }> = {};
     for (const ev of metricEvents) {
       const p = ev.payload as any;
       if (p.type === "timer") {
         if (!timers[p.name]) timers[p.name] = [];
         timers[p.name].push(p.value);
+      } else if (p.type === "gauge") {
+        gauges[p.name] = { value: p.value, labels: p.labels };
       } else {
         counters[p.name] = (counters[p.name] ?? 0) + p.value;
       }
@@ -1495,6 +1500,13 @@ if (command === "metrics") {
       for (const [name, values] of Object.entries(timers).sort()) {
         const avg = values.reduce((a, b) => a + b, 0) / values.length;
         console.log(`  ${name}: ${Math.round(avg)}ms (avg, ${values.length} samples)`);
+      }
+      console.log();
+    }
+    if (Object.keys(gauges).length > 0) {
+      console.log("Gauges:");
+      for (const [name, g] of Object.entries(gauges).sort()) {
+        console.log(`  ${name}: ${g.value}${g.labels ? ` ${JSON.stringify(g.labels)}` : ""} (latest)`);
       }
       console.log();
     }

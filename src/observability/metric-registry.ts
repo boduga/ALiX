@@ -370,6 +370,73 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
     description: "Collaboration conflict context omitted",
     allowedLabelKeys: [],
   },
+  // Live-response agent activity + liveness observability (Phase 9).
+  // Vocabulary is intentionally inline (mirrors SECURITY_METRIC_DEFINITIONS,
+  // which never imports domain modules); a registry test asserts the
+  // agent_activity_state label vocabulary stays in sync with
+  // AgentActivityState / AGENT_ACTIVITY_STATES.
+  {
+    name: "agent_activity_state",
+    type: "gauge",
+    unit: "count",
+    description: "Agent invocation activity state sample (1 while the labelled state is the live activity state)",
+    allowedLabelKeys: ["state", "invocationId"],
+    allowedLabelValues: {
+      state: [
+        "thinking",
+        "streaming",
+        "tool_running",
+        "waiting_for_provider",
+        "verifying",
+        "summarizing",
+        "possibly_stalled",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+    },
+  },
+  {
+    name: "agent_activity_duration_ms",
+    type: "histogram_sample",
+    unit: "ms",
+    description: "Agent invocation duration to a terminal activity state (completed/failed/cancelled), in milliseconds",
+    allowedLabelKeys: ["state", "invocationId"],
+    allowedLabelValues: {
+      state: ["completed", "failed", "cancelled"],
+    },
+  },
+  {
+    name: "agent_last_progress_age_ms",
+    type: "gauge",
+    unit: "ms",
+    description: "Milliseconds since the agent invocation's last progress mark (sampled by the liveness watchdog on state transitions)",
+    allowedLabelKeys: ["invocationId"],
+  },
+  {
+    name: "agent_stall_warning_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Agent invocation stall warnings emitted by the liveness watchdog (a warning/stalled transition; a stall warning is not a failure)",
+    allowedLabelKeys: ["state"],
+    allowedLabelValues: {
+      state: ["warning", "stalled"],
+    },
+  },
+  {
+    name: "agent_invocation_cancelled_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Agent invocations cancelled by the operator",
+    allowedLabelKeys: [],
+  },
+  {
+    name: "agent_invocation_failed_total",
+    type: "counter_delta",
+    unit: "count",
+    description: "Agent invocations that reached a failed terminal state (thrown loop error or failure reason)",
+    allowedLabelKeys: [],
+  },
 ];
 
 // ---------------------------------------------------------------------------

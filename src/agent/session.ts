@@ -90,6 +90,7 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
+import { ExecutionCancelledError } from "../runtime/cancellation-token.js";
 import {
   AgentLiveness,
   type AgentLivenessSnapshot,
@@ -498,6 +499,21 @@ export function livenessEventType(state: AgentLivenessState): string {
       return exhaustive;
     }
   }
+}
+
+/**
+ * Distinguish an operator/execution cancellation from a genuine failure.
+ * Cancellation propagates as an ExecutionCancelledError (or an AbortError);
+ * anything else thrown out of the loop is a failure. A stall warning is
+ * neither — the watchdog never terminates, so a stall alone never reaches
+ * this predicate.
+ */
+export function isCancellationError(err: unknown): boolean {
+  if (err instanceof ExecutionCancelledError) return true;
+  return (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "ExecutionCancelledError")
+  );
 }
 
 /**
@@ -970,6 +986,17 @@ export class AgentSessionBuilder {
         .catch(() => {
           // Observability must never break the turn loop.
         });
+      // Phase 9 observability — sample the activity-state gauge at each
+      // transition (1 = one active invocation in the labelled state). The
+      // buffer is flushed once per turn (success or thrown-failure path), so
+      // transition rows are bounded by the transition count — never per
+      // chunk or per watchdog tick. `metrics` is always set here: feedActivity
+      // only runs once ctx.log exists, and ctx.log + metrics are created
+      // together in initialize().
+      metrics.gauge("agent_activity_state", 1, {
+        state: next,
+        invocationId: nextRecord.invocationId,
+      });
     };
 
     /**
@@ -1419,6 +1446,18 @@ export class AgentSessionBuilder {
           .catch(() => {
             // Observability must never break the turn loop.
           });
+        // Phase 9 observability — the watchdog is the natural owner of the
+        // progress-age gauge (it is the only site where idleMs is measured).
+        // Sample the age once per liveness-state transition (bounded, never
+        // per tick) and count each warning/stalled transition as one stall
+        // warning. A stall warning is NOT an invocation failure — failures
+        // and cancellations are counted only at their terminal outcome.
+        metrics.gauge("agent_last_progress_age_ms", snap.idleMs, {
+          invocationId: activityInvocationId ?? runId,
+        });
+        if (snap.state === "warning" || snap.state === "stalled") {
+          metrics.increment("agent_stall_warning_total", { state: snap.state });
+        }
         // Reflect suspected stalls in the activity record: warning / stalled →
         // possibly_stalled (diagnostic, never terminal); recovery → back to
         // thinking (or streaming if text is already arriving).
@@ -1432,6 +1471,37 @@ export class AgentSessionBuilder {
           }
         }
       }, 5_000);
+
+      // Phase 9 observability helpers. `flushMetrics` persists the buffered
+      // rows to the event log once per turn on BOTH the success and the
+      // thrown-failure path (previously the failure path dropped the buffer);
+      // `recordTerminalOutcome` emits the agent_activity_duration_ms sample
+      // at the invocation's terminal state.
+      const flushMetrics = async (): Promise<void> => {
+        const metricEvents = metrics.flush();
+        for (const m of metricEvents) {
+          await ctx.log.append({
+            ...session,
+            actor: "system",
+            type: "observability.metric",
+            payload: m,
+          });
+        }
+      };
+      const recordTerminalOutcome = (
+        state: "completed" | "failed" | "cancelled",
+      ): void => {
+        // Duration spans the live activity record (invocation start, stamped
+        // at THINKING) through the terminal outcome, so thinking/verifying/
+        // summarizing phases are included — not just the runTaskLoop window.
+        const invocationStartedAt = activeActivity?.startedAt;
+        if (invocationStartedAt !== undefined) {
+          metrics.duration("agent_activity_duration_ms", Date.now() - invocationStartedAt, {
+            state,
+            invocationId: activityInvocationId ?? "unassigned",
+          });
+        }
+      };
       try {
         result = await runTaskLoop({
           config: {
@@ -1521,6 +1591,21 @@ export class AgentSessionBuilder {
           type: "agent.session.turn.completed",
           payload: { turn: turnCount, error: String(err) },
         });
+        // Phase 9 observability — a loop exception is a failed invocation
+        // unless it is an operator/execution cancellation. Cancellation and
+        // failure are mutually exclusive, and neither is a stall warning (a
+        // warning/stalled transition was already counted at the watchdog and
+        // must NOT be counted again here).
+        if (isCancellationError(err)) {
+          metrics.increment("agent_invocation_cancelled_total");
+          recordTerminalOutcome("cancelled");
+        } else {
+          metrics.increment("agent_invocation_failed_total");
+          recordTerminalOutcome("failed");
+        }
+        // Persist the failure-path rows: the success-path flush below is
+        // never reached when the loop throws.
+        await flushMetrics();
         turnCount++;
         activeActivity = undefined;
         throw err;
@@ -1618,18 +1703,6 @@ export class AgentSessionBuilder {
         });
       }
 
-      // Flush minimal metrics
-      metrics.duration("workflow_duration_ms", Date.now() - startTime);
-      const metricEvents = metrics.flush();
-      for (const m of metricEvents) {
-        await ctx.log.append({
-          ...session,
-          actor: "system",
-          type: "observability.metric",
-          payload: m,
-        });
-      }
-
       // Extract tool calls from this turn's new messages
       const newMessages = messages.slice(preTurnMsgCount);
       const turnToolCalls = extractToolCallsFromMessages(newMessages);
@@ -1677,6 +1750,25 @@ export class AgentSessionBuilder {
       // through Understanding→Planning→Executing→Verifying→Summarizing, and
       // remains in Summarizing until the 60s idle window closes.
       // advancePhase(SessionPhase.Idle); // deferred
+
+      // Phase 9 observability — terminal outcome on the resolved path. A
+      // result-reason failure (max_iterations / max_repairs / scope / budget)
+      // increments agent_invocation_failed_total exactly once; cancellations
+      // only reach this point through the catch path above. The completed/
+      // failed duration sample is recorded while the activity record is still
+      // live so startedAt (invocation start) is available. This sits AFTER the
+      // Summarizing phase feed (above) so the summarizing state-gauge sample
+      // lands in the same flush.
+      if (isFailed) {
+        metrics.increment("agent_invocation_failed_total");
+        recordTerminalOutcome("failed");
+      } else {
+        recordTerminalOutcome("completed");
+      }
+
+      // Flush minimal metrics (workflow duration + activity/liveness rows)
+      metrics.duration("workflow_duration_ms", Date.now() - startTime);
+      await flushMetrics();
 
       activeActivity = undefined;
 

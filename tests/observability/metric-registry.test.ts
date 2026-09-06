@@ -5,6 +5,19 @@ import {
   createMetricRegistry,
   SECURITY_METRIC_DEFINITIONS,
 } from "../../src/observability/metric-registry.js";
+import { AGENT_ACTIVITY_STATES } from "../../src/agent/agent-activity.js";
+
+/** The six Phase 9 agent activity/liveness metric definitions. */
+function agentMetricDefs(reg: MetricRegistry) {
+  return [
+    reg.get("agent_activity_state"),
+    reg.get("agent_activity_duration_ms"),
+    reg.get("agent_last_progress_age_ms"),
+    reg.get("agent_stall_warning_total"),
+    reg.get("agent_invocation_cancelled_total"),
+    reg.get("agent_invocation_failed_total"),
+  ];
+}
 
 describe("MetricRegistry", () => {
   describe("register + get + has", () => {
@@ -212,5 +225,98 @@ describe("createMetricRegistry", () => {
     assert.ok(reg.has("security_gate_result"));
     assert.ok(reg.has("security_gate_duration"));
     assert.ok(reg.getNames().length > 20);
+  });
+});
+
+describe("agent activity/liveness metric definitions (Phase 9)", () => {
+  let reg: MetricRegistry;
+  before(() => {
+    reg = createMetricRegistry();
+  });
+
+  it("registers all six agent_* metrics", () => {
+    for (const def of agentMetricDefs(reg)) {
+      assert.ok(def, `expected ${def?.name ?? "???"} to be registered`);
+    }
+    assert.deepEqual(
+      agentMetricDefs(reg).map((d) => d!.name).sort(),
+      [
+        "agent_activity_duration_ms",
+        "agent_activity_state",
+        "agent_invocation_cancelled_total",
+        "agent_invocation_failed_total",
+        "agent_last_progress_age_ms",
+        "agent_stall_warning_total",
+      ],
+    );
+  });
+
+  it("declares the plan types and units", () => {
+    assert.equal(reg.get("agent_activity_state")?.type, "gauge");
+    assert.equal(reg.get("agent_activity_state")?.unit, "count");
+    assert.equal(reg.get("agent_activity_duration_ms")?.type, "histogram_sample");
+    assert.equal(reg.get("agent_activity_duration_ms")?.unit, "ms");
+    assert.equal(reg.get("agent_last_progress_age_ms")?.type, "gauge");
+    assert.equal(reg.get("agent_last_progress_age_ms")?.unit, "ms");
+    // *_total counters follow the file convention (per-event counter_delta),
+    // matching workflow_runs_total etc. in PRODUCTION_METRIC_DEFINITIONS.
+    assert.equal(reg.get("agent_stall_warning_total")?.type, "counter_delta");
+    assert.equal(reg.get("agent_invocation_cancelled_total")?.type, "counter_delta");
+    assert.equal(reg.get("agent_invocation_failed_total")?.type, "counter_delta");
+  });
+
+  it("agent_activity_state label vocabulary stays in sync with AGENT_ACTIVITY_STATES", () => {
+    const allowed = reg.get("agent_activity_state")?.allowedLabelValues?.state;
+    assert.deepEqual(allowed, [...AGENT_ACTIVITY_STATES]);
+    assert.deepEqual(
+      [...AGENT_ACTIVITY_STATES].sort(),
+      allowed?.slice().sort(),
+      "agent_activity_state allowed values must cover every AgentActivityState",
+    );
+  });
+
+  it("restricts terminal duration + stall labels to their vocabularies", () => {
+    const terminal = reg.get("agent_activity_duration_ms")?.allowedLabelValues?.state;
+    assert.deepEqual(terminal, ["completed", "failed", "cancelled"]);
+    const stall = reg.get("agent_stall_warning_total")?.allowedLabelValues?.state;
+    assert.deepEqual(stall, ["warning", "stalled"]);
+  });
+
+  it("strict validation accepts canonical rows for all six", () => {
+    const rows: Array<{
+      name: string;
+      type: string;
+      value: number;
+      labels?: Record<string, string>;
+    }> = [
+      { name: "agent_activity_state", type: "gauge", value: 1, labels: { state: "thinking", invocationId: "inv-1" } },
+      { name: "agent_activity_duration_ms", type: "histogram_sample", value: 1234, labels: { state: "completed", invocationId: "inv-1" } },
+      { name: "agent_last_progress_age_ms", type: "gauge", value: 42, labels: { invocationId: "inv-1" } },
+      { name: "agent_stall_warning_total", type: "counter_delta", value: 1, labels: { state: "stalled" } },
+      { name: "agent_invocation_cancelled_total", type: "counter_delta", value: 1 },
+      { name: "agent_invocation_failed_total", type: "counter_delta", value: 1 },
+    ];
+    for (const row of rows) {
+      const res = reg.validate(row);
+      assert.ok(res.valid, `row ${row.name} should validate: ${res.errors.join("; ")}`);
+    }
+  });
+
+  it("strict validation rejects wrong types and disallowed label values", () => {
+    const wrongType = reg.validate({ name: "agent_activity_state", type: "counter_total", value: 1, labels: { state: "thinking" } });
+    assert.equal(wrongType.valid, false);
+    assert.ok(wrongType.errors[0]!.includes("expects type"));
+
+    const badState = reg.validate({ name: "agent_activity_state", type: "gauge", value: 1, labels: { state: "paused" } });
+    assert.equal(badState.valid, false);
+    assert.ok(badState.errors[0]!.includes("disallowed value"));
+
+    const badStall = reg.validate({ name: "agent_stall_warning_total", type: "counter_delta", value: 1, labels: { state: "healthy" } });
+    assert.equal(badStall.valid, false);
+    assert.ok(badStall.errors[0]!.includes("disallowed value"));
+
+    const wrongOutcome = reg.validate({ name: "agent_activity_duration_ms", type: "histogram_sample", value: 1, labels: { state: "thinking" } });
+    assert.equal(wrongOutcome.valid, false);
+    assert.ok(wrongOutcome.errors[0]!.includes("disallowed value"));
   });
 });

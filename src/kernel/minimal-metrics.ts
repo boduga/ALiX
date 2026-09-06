@@ -27,22 +27,36 @@ export type MetricName =
   | "collaboration_conflict_model_compare_total"
   | "collaboration_conflict_model_compare_failed_total"
   | "collaboration_conflict_context_included_total"
-  | "collaboration_conflict_context_omitted_total";
+  | "collaboration_conflict_context_omitted_total"
+  // Live-response agent activity + liveness observability (Phase 9). The
+  // `agent_*` gauges are observations emitted at discrete sites (activity
+  // transitions, liveness watchdog transitions, terminal outcome); the
+  // counters are per-invocation increments. Token accounting stays with
+  // `model.usage` — no token metrics are declared here.
+  | "agent_activity_state"
+  | "agent_activity_duration_ms"
+  | "agent_last_progress_age_ms"
+  | "agent_stall_warning_total"
+  | "agent_invocation_cancelled_total"
+  | "agent_invocation_failed_total";
 
-export type CounterName = Exclude<
+export type GaugeName = Extract<
   MetricName,
-  | "workflow_duration_ms"
-  | "collaboration_conflict_detection_duration_ms"
+  "agent_activity_state" | "agent_last_progress_age_ms"
 >;
 
 export type DurationName = Extract<
   MetricName,
-  "workflow_duration_ms" | "collaboration_conflict_detection_duration_ms"
+  | "workflow_duration_ms"
+  | "collaboration_conflict_detection_duration_ms"
+  | "agent_activity_duration_ms"
 >;
+
+export type CounterName = Exclude<MetricName, DurationName | GaugeName>;
 
 export interface MetricEvent {
   name: MetricName;
-  type: "counter" | "timer";
+  type: "counter" | "timer" | "gauge";
   value: number;
   labels?: Record<string, string>;
   timestamp: string;
@@ -66,6 +80,17 @@ export class MinimalMetrics {
     this.events.push({ name, type: "timer", value, labels, timestamp: new Date().toISOString() });
   }
 
+  /**
+   * Record an absolute gauge reading — the current value of a metric at the
+   * observation time (e.g. the live activity state or the ms since the last
+   * progress mark). Gauges are observations, not increments: callers refresh
+   * the value at discrete observation points, never per-token/per-chunk.
+   */
+  gauge(name: GaugeName, value: number, labels?: Record<string, string>): void {
+    if (!Number.isFinite(value)) return;
+    this.events.push({ name, type: "gauge", value, labels, timestamp: new Date().toISOString() });
+  }
+
   /** Return a snapshot and clear. */
   flush(): MetricEvent[] {
     const snapshot = [...this.events];
@@ -82,12 +107,16 @@ export class MinimalMetrics {
   report(): string {
     const counters = this.events.filter(e => e.type === "counter");
     const timers = this.events.filter(e => e.type === "timer");
+    const gauges = this.events.filter(e => e.type === "gauge");
     const lines: string[] = ["M0.9 Metrics:"];
     for (const c of counters) {
       lines.push(`  ${c.name}: ${c.value}${c.labels ? ` (${JSON.stringify(c.labels)})` : ""}`);
     }
     for (const t of timers) {
       lines.push(`  ${t.name}: ${t.value}ms`);
+    }
+    for (const g of gauges) {
+      lines.push(`  ${g.name}: ${g.value}${g.labels ? ` (${JSON.stringify(g.labels)})` : ""}`);
     }
     return lines.join("\n");
   }
