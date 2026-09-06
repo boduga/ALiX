@@ -264,7 +264,6 @@ const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
   CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`])
 );
 
-const NO_TOOL_MIN_TEXT = 10;
 const NARRATING_THRESHOLD = 80;
 const SHORT_SYNTHESIS_THRESHOLD = 200;
 
@@ -592,6 +591,15 @@ const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 // of two divergent copies. `truncationContinuations` bounds the total across
 // the whole run (a fresh chain after a tool turn must not restart the budget).
 let truncationContinuations = 0;
+
+// No-tool prose replies: the loop is a tool-first harness, so a text-only
+// reply that does not signal done is nudged ONCE toward invoking a tool (or
+// the `done` tool). If the model still answers with plain text and has never
+// invoked a tool, that answer is accepted through the normal completion path
+// instead of re-prompting with identical context on every iteration until
+// max_iterations. `noToolNudges` is never reset mid-run.
+const NO_TOOL_NUDGE_LIMIT = 1;
+let noToolNudges = 0;
 
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
@@ -1029,15 +1037,20 @@ if (toolCalls.length > 0) {
 }
 
 if (toolCalls.length === 0) {
-  // No tools called — check if model signals completion
-  const modelSaysDone = /done|complete|finished|resolved/i.test(text);
+  // No tools called — check if model signals completion. A model that has
+  // never invoked a tool and has already been nudged once is treated as done
+  // on a text-only reply: forcing tool use on a model that keeps refusing
+  // just spins identical context until max_iterations.
+  const nudgedOut = noToolNudges >= NO_TOOL_NUDGE_LIMIT && usedTools.size === 0;
+  const modelSaysDone = nudgedOut || /done|complete|finished|resolved/i.test(text);
 
   // If the model emitted text but no tool calls and didn't signal done,
   // re-prompt once to nudge it into taking action. This handles the
   // common case where the model produces a verbal plan in its first
   // turn instead of immediately invoking tools, or where the tool call
-  // JSON was truncated/invalid.
-  if (!modelSaysDone && i < maxIterations - 1 && text.length > NO_TOOL_MIN_TEXT) {
+  // JSON was truncated/invalid. Nudging is bounded to one attempt — a
+  // subsequent text-only reply is accepted (see `nudgedOut` above).
+  if (!modelSaysDone && noToolNudges < NO_TOOL_NUDGE_LIMIT && i < maxIterations - 1) {
     // If the text looks like a tool-call attempt but nothing parsed, the model
     // likely invented a foreign tool name (e.g. exec_command). List the real
     // names + format so it self-corrects instead of silently dropping the call.
@@ -1053,6 +1066,7 @@ if (toolCalls.length === 0) {
           "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
           "Use the `done` tool when the task is complete.",
     });
+    noToolNudges++;
     continue;
   }
 

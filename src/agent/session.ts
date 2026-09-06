@@ -1497,40 +1497,43 @@ export class AgentSessionBuilder {
       let activityStreaming = false;
 
       const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
-      const livenessOnStream: typeof sessionOnStream = sessionOnStream
-        ? (chunk) => {
-            if (chunk.type === "reasoning" && typeof chunk.text === "string") {
-              // Private reasoning (e.g. a long DeepSeek reasoning phase) is a
-              // real progress signal but is NEVER visible: mark liveness so
-              // the watchdog does not report a healthy thought-phase as a
-              // stall, and do NOT feed streaming / forward the trace onward.
-              liveness.mark("model_chunk");
-              return;
+      // The activity/liveness feed attaches to EVERY provider stream — CLI,
+      // REPL and daemon callers do not supply config.onStream, so without this
+      // the indicator would stall on waiting_for_provider and liveness would
+      // never be marked outside the TUI. The caller's own handler is only
+      // forwarded to when one was supplied.
+      const livenessOnStream: StreamHandler = (chunk) => {
+        if (chunk.type === "reasoning" && typeof chunk.text === "string") {
+          // Private reasoning (e.g. a long DeepSeek reasoning phase) is a
+          // real progress signal but is NEVER visible: mark liveness so
+          // the watchdog does not report a healthy thought-phase as a
+          // stall, and do NOT feed streaming / forward the trace onward.
+          liveness.mark("model_chunk");
+          return;
+        }
+        // Every streamed text token means the model is alive — mark
+        // progress (AgentLiveness debounces the hot per-chunk flow).
+        if (chunk.type === "text" && typeof chunk.text === "string") {
+          liveness.mark("model_chunk");
+          // Task 2.3 — first visible chunk: WAITING_FOR_PROVIDER → STREAMING;
+          // every accepted chunk refreshes lastProgressAt (via transition()).
+          // A chunk racing an in-flight cancel must not regress the
+          // indicator away from cancelling/cancelled.
+          if (activeActivity && !cancellationInProgress()) {
+            if (activeActivity.state !== "streaming") {
+              feedActivity("streaming");
+            } else {
+              activeActivity = transition(
+                activeActivity,
+                "streaming",
+                Date.now(),
+              );
             }
-            // Every streamed text token means the model is alive — mark
-            // progress (AgentLiveness debounces the hot per-chunk flow).
-            if (chunk.type === "text" && typeof chunk.text === "string") {
-              liveness.mark("model_chunk");
-              // Task 2.3 — first visible chunk: THINKING → STREAMING; every
-              // accepted chunk refreshes lastProgressAt (via transition()).
-              // A chunk racing an in-flight cancel must not regress the
-              // indicator away from cancelling/cancelled.
-              if (activeActivity && !cancellationInProgress()) {
-                if (activeActivity.state !== "streaming") {
-                  feedActivity("streaming");
-                } else {
-                  activeActivity = transition(
-                    activeActivity,
-                    "streaming",
-                    Date.now(),
-                  );
-                }
-              }
-              activityStreaming = true;
-            }
-            sessionOnStream(chunk);
           }
-        : undefined;
+          activityStreaming = true;
+        }
+        if (sessionOnStream) sessionOnStream(chunk);
+      };
       let lastLivenessState: AgentLivenessState = "healthy";
       const livenessWatchdog = setInterval(() => {
         const snap = liveness.snapshot();
