@@ -2,7 +2,7 @@
 
 Purpose: the ALiX-owned tracing boundary. Exposes a single `TraceClient` facade — the only tracing API runtime seams ever see — backed (once later tasks land) by a Noop client and a Langfuse SDK adapter. ALiX owns what a trace means; Langfuse owns how it is transported. This module is observational only: it can enrich an execution but can never determine whether the execution succeeds or fails.
 
-> Module status: **created in Task 3 (module boundary)** of `docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md`. Design contract: `docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md`. Only the type/interface boundary exists today; implementers below are added by later plan tasks.
+> Module status: **created in Task 3 (module boundary), NoopTraceClient added in Task 4** of `docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md`. Design contract: `docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md`. Type/interface boundary + inert no-op implementation exist today; capture/config/adapter are added by later plan tasks.
 
 ## Ownership
 
@@ -10,7 +10,7 @@ Purpose: the ALiX-owned tracing boundary. Exposes a single `TraceClient` facade 
 |------|----------------|--------|
 | `types.ts` | ALiX-shaped inputs (`TraceRunInput`, `ModelSpanInput`, `ToolSpanInput`, `SpanOutcome`, `RunOutcome`), status vocab (`RunStatus`, `SpanStatus` = success/error/cancelled), opaque `TraceRun`/`TraceSpan` handles. Derived from `ExecutionContext` (src/observability), normalized provider request/response types (src/providers/types.ts), and `ToolCallRequest`/`CorrelationContext` fields (src/tools/types.ts, src/runtime/tool-correlation.ts). Never contains Langfuse SDK types. | **Task 3** |
 | `client.ts` | `TraceClient` interface — the module boundary. Includes `getRun(runId)` for deep seams. | **Task 3** |
-| `noop-client.ts` | `NoopTraceClient` — selected when tracing disabled or on construction failure (warn-once → Noop). | later task |
+| `noop-client.ts` | `NoopTraceClient` (class + frozen `NOOP_TRACE_CLIENT` singleton) — inert implementation of the full `TraceClient`, selected when tracing disabled or on construction failure (warn-once → Noop). No SDK import, no credential resolution, no network I/O, no per-span allocation. | **Task 4** |
 | `capture.ts` | Pure, copy-producing `CapturePolicy`: mandatory redaction BEFORE truncation; capture levels full/truncated/off. Redaction always enabled, non-disableable. | later task |
 | `config.ts` | `TracingConfig` shape consumed at construction; `flushTimeoutMs` boundedness. Schema/defaults/deep-merge arms live in `src/config/`. | later task |
 | `langfuse-client.ts` | Langfuse v3 adapter. **The ONLY file in the repo that may import `langfuse`.** Translates ALiX handles ↔ SDK objects internally; no SDK object/id/type ever escapes. | later task |
