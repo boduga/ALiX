@@ -41,9 +41,10 @@ describe("projectToolCapability", () => {
     expect(cap.requiredPermissions).toContain("developer");
   });
 
-  it("shell.run: risk=high, requiredPermissions includes admin", () => {
+  it("shell.run: risk=high, extensions.toolName=shell.run, requiredPermissions includes admin", () => {
     const cap = projectToolCapability(findTool("shell.run"));
     expect(cap.risk).toBe("high");
+    expect(cap.extensions?.toolName).toBe("shell.run");
     expect(cap.requiredPermissions).toContain("admin");
   });
 

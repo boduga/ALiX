@@ -68,4 +68,28 @@ describe('tool provider executor', () => {
     expect(result.status).toBe('failed');
     expect(result.error).toBe('boom');
   });
+
+  it('routes registry-projected capabilities by the extensions.toolName recorded on the executor', async () => {
+    // Explicit routing proof: capture the ACTUAL tool name the executor
+    // receives instead of relying on success/denied/error branch semantics.
+    const recorded: string[] = [];
+    const platform = platformWithTool({
+      execute: async (req: ToolCallRequest): Promise<ToolResult> => {
+        recorded.push(req.name);
+        return { kind: 'success', content: `ok:${req.name}` };
+      },
+    });
+
+    const read = await platform.invoke('tool.file.read', { path: 'a.ts' }, { actor: 'operator', cwd: process.cwd(), workspace: process.cwd() }).wait();
+    const run = await platform.invoke('tool.shell.run', { command: 'ls' }, { actor: 'admin', cwd: process.cwd(), workspace: process.cwd() }).wait();
+
+    // Both invocations reached the SAME bootstrap ToolExecutor, routed by the
+    // projected palette entry's extensions.toolName (file.read / shell.run) —
+    // NOT by the palette capability id (tool.file.read / tool.shell.run).
+    expect(recorded).toEqual(['file.read', 'shell.run']);
+    expect(read.status).toBe('completed');
+    expect(read.output).toBe('ok:file.read');
+    expect(run.status).toBe('completed');
+    expect(run.output).toBe('ok:shell.run');
+  });
 });
