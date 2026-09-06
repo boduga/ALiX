@@ -1,11 +1,15 @@
 import { createInterface } from "node:readline";
-import type { ModelAdapter, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
-import { shouldAutoDisableStreaming } from "../agent/stream.js";
+import { shouldAutoDisableStreaming, type StreamHandler } from "../agent/stream.js";
 import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
+import {
+  ExecutionCancelledError,
+  raceWithCancellation,
+} from "../runtime/cancellation-token.js";
 
 // =============================================================================
 // INTERNAL HELPERS (not exported — used by helpers.ts exports only)
@@ -301,36 +305,111 @@ export async function saveDecisionsToMemory(
   }
 }
 
+export type StreamToResponseResult = {
+  text: string;
+  reasoning?: string;
+  toolCalls: ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+  /** Terminal finish reason from the provider (stop / length / tool_calls). */
+  finishReason?: string;
+};
+
 /**
  * Stream a request to the provider and collect the response.
  * Handles stdout writing and stream callbacks.
+ *
+ * When `options.signal` is present (operator cancellation, Task 6.1), each
+ * chunk wait races the abort signal so a cancel releases the run the instant
+ * it is requested — the generator is closed and the call ends as an
+ * ExecutionCancelledError. A mid-stream abort NEVER falls back to the
+ * blocking `complete()` (cancellation is not a network hiccup to repair).
+ * Without a signal the behaviour is byte-for-byte the legacy path.
  */
 export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
-  options?: { onStream?: (chunk: { type: "text"; text: string }) => void }
-): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage; resolvedModel?: string }> {
+  options?: { onStream?: StreamHandler; signal?: AbortSignal }
+): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
+  const signal = options?.signal;
   let text = "";
+  let reasoning = "";
   let toolCalls: ToolCall[] = [];
   let usage: TokenUsage | undefined;
   let resolvedModel: string | undefined;
+  let finishReason: string | undefined;
   try {
-    for await (const chunk of provider.stream(request)) {
-      if (chunk.type === "text_delta") {
-        text += chunk.text;
-        if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-          await new Promise(resolve => process.stdout.once("drain", resolve));
+    if (!signal) {
+      for await (const chunk of provider.stream(request)) {
+        if (chunk.type === "text_delta") {
+          text += chunk.text;
+          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+            await new Promise(resolve => process.stdout.once("drain", resolve));
+          }
+          options?.onStream?.({ type: "text", text: chunk.text });
         }
-        options?.onStream?.({ type: "text", text: chunk.text });
+        if (chunk.type === "reasoning_delta") {
+          reasoning += chunk.text;
+          // Reasoning is private trace — never written to stdout and never
+          // folded into the final text, but surfaced as a `reasoning` stream
+          // chunk so liveness feeds (which otherwise see only text chunks)
+          // can count a long private thought-phase as progress.
+          options?.onStream?.({ type: "reasoning", text: chunk.text });
+        }
+        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+        if (chunk.type === "usage") usage = chunk.usage;
+        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
+        if (chunk.type === "error") throw new Error(chunk.error);
       }
-      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-      if (chunk.type === "usage") usage = chunk.usage;
-      if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
-      if (chunk.type === "error") throw new Error(chunk.error);
+      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
     }
-    return { text, toolCalls, usage, resolvedModel };
+
+    // Cancellable path — same accumulation, but every `next()` races the
+    // operator-cancel signal so a cancel releases a hung stream immediately.
+    const iterator = provider.stream(request)[Symbol.asyncIterator]();
+    try {
+      for (;;) {
+        if (signal.aborted) throw new ExecutionCancelledError(String((signal as any).reason ?? "operation cancelled"));
+        // One abort listener per chunk, detached on settle (raceWithCancellation)
+        // — a long stream never accumulates listeners across chunks.
+        const step = await raceWithCancellation(iterator.next(), signal);
+        if (step.done) break;
+        const chunk = step.value;
+        if (chunk.type === "text_delta") {
+          text += chunk.text;
+          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+            await new Promise(resolve => process.stdout.once("drain", resolve));
+          }
+          options?.onStream?.({ type: "text", text: chunk.text });
+        }
+        if (chunk.type === "reasoning_delta") {
+          reasoning += chunk.text;
+          options?.onStream?.({ type: "reasoning", text: chunk.text });
+        }
+        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+        if (chunk.type === "usage") usage = chunk.usage;
+        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
+        if (chunk.type === "error") throw new Error(chunk.error);
+      }
+      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
+    } finally {
+      // The signal fired (or the pump errored): ask the generator to stop so
+      // the provider stops producing. Fire-and-forget on purpose — a
+      // generator stuck in its own internal await cannot accept return()
+      // until that await settles, and we must NEVER block the cancellation
+      // propagation on it (the transport's own idle/timeout bounds the
+      // orphaned request).
+      if (signal.aborted) {
+        void (async () => {
+          try { if (iterator.return) await iterator.return(undefined); } catch { /* best-effort */ }
+        })();
+      }
+    }
   } catch (err) {
+    if (signal?.aborted || err instanceof ExecutionCancelledError) throw err;
     // Routing adapters already made their fallback decision (INV-5); their
     // post-commit failure is final — do not re-run the chain and concatenate.
     if (provider.isRoutingAdapter) throw err;
@@ -338,7 +417,7 @@ export async function streamToResponse(
     // SSE) must not abort the task run. Fall back to a blocking complete();
     // the tokens streamed so far remain, the rest arrives as one block.
     const resp = await provider.complete(request);
-    return { text: text + (resp.text ?? ""), toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel };
+    return { text: text + (resp.text ?? ""), reasoning: reasoning || resp.reasoning, toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel, finishReason: finishReason ?? resp.finishReason };
   }
 }
 
@@ -362,11 +441,119 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
           },
           patchText: {
             type: "string",
-            description: patchTextDescription(policy.preferred)
-          }
+          description: patchTextDescription(policy.preferred)
         }
       }
-    };
-  });
+    }
+  };
+});
+}
+
+// =============================================================================
+// Truncation continuation — shared by the task loop and the single-shot chat
+// path (src/agent/session.ts processChat). A finish_reason=length response is
+// a model that ran out of output budget mid-answer, never a final answer: keep
+// generating in follow-up turns until the answer completes, the budget is
+// exhausted, or a follow-up turn asks for tools instead of more prose.
+// =============================================================================
+
+/**
+ * How many times a length-truncated generation may be re-prompted before the
+ * truncated answer is accepted. ONE shared budget — the loop and the chat path
+ * previously diverged (4 vs 3) with two private copies of this logic.
+ */
+export const TRUNCATION_CONTINUATION_LIMIT = 4;
+
+/**
+ * Re-prompt sent after each truncated segment. The model is asked to continue
+ * exactly where it stopped so the accumulated segments merge into one coherent
+ * answer rather than a restarted draft.
+ */
+export const TRUNCATION_CONTINUE_PROMPT =
+  "Your previous response was cut off at the model's output token limit. " +
+  "Continue exactly from where you stopped — do not repeat any content — and " +
+  "produce the remaining parts of the complete answer.";
+
+/** One follow-up generation segment produced while continuing a truncated reply. */
+export type TruncatedGenerationSegment = {
+  /** The new delta produced for THIS continuation (never the cumulative text). */
+  text: string;
+  reasoning?: string;
+  finishReason?: string;
+  toolCalls?: readonly ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+};
+
+export type ContinueTruncatedGenerationOptions = {
+  /** The first segment that was cut off by finish_reason=length. */
+  initialText: string;
+  /**
+   * Conversation preceding the truncated reply. The helper appends continuation
+   * turns to its own working copy, so callers never have to stage the partial
+   * assistant reply / re-prompt themselves.
+   */
+  messages: readonly NormalizedMessage[];
+  /**
+   * Perform exactly ONE follow-up generation from the supplied conversation.
+   * Callers pass the request pieces they already own (provider, system prompt,
+   * output ceiling, tools). The helper owns the accumulate-and-merge loop.
+   */
+  generateNext: (messages: NormalizedMessage[]) => Promise<TruncatedGenerationSegment>;
+  /** Re-prompt budget. Defaults to TRUNCATION_CONTINUATION_LIMIT. */
+  maxContinuations?: number;
+  /** Invoked before each continuation generation; `attempt` is 1-based. */
+  onContinuation?: (info: { attempt: number; chars: number }) => void | Promise<void>;
+};
+
+export type ContinueTruncatedGenerationResult = {
+  /** Every segment concatenated in order — the complete un-truncated answer. */
+  text: string;
+  reasoning?: string;
+  finishReason?: string;
+  toolCalls?: readonly ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+  /** Number of follow-up generations actually performed. */
+  continuations: number;
+};
+
+/**
+ * Continue a finish_reason=length generation. Only the LAST partial segment is
+ * appended before each re-prompt (never the cumulative text), so the model's
+ * context grows linearly with the number of continuations rather than
+ * quadratically. Stops when a continuation produces no text, requests tools,
+ * finishes cleanly (finishReason !== "length"), or the budget runs out.
+ */
+export async function continueTruncatedGeneration(
+  options: ContinueTruncatedGenerationOptions,
+): Promise<ContinueTruncatedGenerationResult> {
+  const maxContinuations = options.maxContinuations ?? TRUNCATION_CONTINUATION_LIMIT;
+  const working: NormalizedMessage[] = [...options.messages];
+  let text = options.initialText;
+  let segmentToContinue = options.initialText;
+  let last: TruncatedGenerationSegment | undefined;
+  let continuations = 0;
+  for (; continuations < maxContinuations; continuations++) {
+    const attempt = continuations + 1;
+    await options.onContinuation?.({ attempt, chars: segmentToContinue.length });
+    working.push({ role: "assistant", content: segmentToContinue });
+    working.push({ role: "user", content: TRUNCATION_CONTINUE_PROMPT });
+    last = await options.generateNext(working);
+    if (!last.text || last.text.length === 0) break;
+    text += last.text;
+    segmentToContinue = last.text;
+    if ((last.toolCalls?.length ?? 0) > 0) break;
+    if (last.finishReason !== "length") break;
+  }
+  return {
+    text,
+    reasoning: last?.reasoning,
+    finishReason: last?.finishReason,
+    toolCalls: last?.toolCalls,
+    usage: last?.usage,
+    resolvedModel: last?.resolvedModel,
+    continuations,
+  };
 }
 

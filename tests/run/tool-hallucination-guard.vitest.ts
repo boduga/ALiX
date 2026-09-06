@@ -87,6 +87,9 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(executor.execute).toHaveBeenCalledWith(
       expect.objectContaining({ name: "shell.run", toolCallId: "call-2" }),
     );
-    expect(result.message?.content).toContain('<tool_result id="call-2">');
+    // T5 correlation: result retains executionId/invocationId attrs + content.
+    expect(result.message?.content).toContain(
+      '<tool_result id="call-2" invocationId="inv-test" executionId="exec-test">\nok\n</tool_result>',
+    );
   });
 });

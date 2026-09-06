@@ -90,12 +90,21 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
+import { ExecutionCancelledError, CancellationToken } from "../runtime/cancellation-token.js";
 import {
   AgentLiveness,
   type AgentLivenessSnapshot,
   type AgentLivenessState,
   type AgentProgressKind,
 } from "./agent-liveness.js";
+import {
+  createAgentActivity,
+  transition,
+  formatActivityElapsed,
+  type AgentActivity,
+  type AgentActivityState,
+  type ActivityTransitionOpts,
+} from "./agent-activity.js";
 import {
   LocalRuntimeExecutor,
   executeRoute,
@@ -131,7 +140,7 @@ import {
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
-import { createContextBudget, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
+import { createContextBudget, DEFAULT_OUTPUT_CAP, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -139,7 +148,13 @@ import type { SkillEntry } from "../skills/catalog.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
-import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory, streamToResponse } from "../run/helpers.js";
+import {
+  READ_ONLY_TOOL_NAMES,
+  saveDecisionsToMemory,
+  streamToResponse,
+  continueTruncatedGeneration,
+  TRUNCATION_CONTINUATION_LIMIT,
+} from "../run/helpers.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import type { PlanTask } from "../planning/plan-task.js";
@@ -447,6 +462,35 @@ export interface AgentSession {
    * undefined.
    */
   getLiveness?(): AgentLivenessSnapshot | undefined;
+  /**
+   * Live user-facing activity record for the active invocation. Undefined
+   * when no agent loop is executing (idle, planning, summarising). Read-only;
+   * the record is owned by the turn. Absent in pre-activity implementations
+   * (test stubs) and consumers must handle undefined.
+   */
+  getActivity?(): AgentActivity | undefined;
+  /**
+   * Request cancellation of the currently executing turn (operator cancel,
+   * Task 6.1). Flips the turn's CancellationToken and aborts the shared
+   * AbortSignal so the agent loop / provider request / stream observe the
+   * cancel at their next safe point. The live activity transitions to
+   * `cancelling` ("Cancelling…") immediately.
+   *
+   * Returns true when a turn was in flight and the cancel was armed; false
+   * when idle (or the active phase is not cancellable) — the caller then
+   * treats the key as unhandled.
+   *
+   * Optional in the interface because session lifecycles that pre-date the
+   * cancellation contract (e.g. lightweight test stubs) can omit it.
+   */
+  cancelActiveTurn?(reason?: string): boolean;
+  /**
+   * Human-friendly summary of the most recent operator cancellation, e.g.
+   * "Cancelled after 4m 12s" (Task 6.2). Populated when an agent turn ends
+   * by operator/execution cancellation; cleared on the next turn start.
+   * Undefined when the last turn was not cancelled.
+   */
+  getLastCancelSummary?(): string | undefined;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -465,6 +509,41 @@ export interface AgentSession {
 // =============================================================================
 // Implementation
 // =============================================================================
+
+/**
+ * Map a liveness state to its log-event type. The watchdog emits exactly one
+ * event per state transition; the recovery state must map to a distinct
+ * `recovered` label (never a second `warning`).
+ */
+export function livenessEventType(state: AgentLivenessState): string {
+  switch (state) {
+    case "stalled":
+      return "agent.liveness.stalled";
+    case "warning":
+      return "agent.liveness.warning";
+    case "healthy":
+      return "agent.liveness.recovered";
+    default: {
+      const exhaustive: never = state;
+      return exhaustive;
+    }
+  }
+}
+
+/**
+ * Distinguish an operator/execution cancellation from a genuine failure.
+ * Cancellation propagates as an ExecutionCancelledError (or an AbortError);
+ * anything else thrown out of the loop is a failure. A stall warning is
+ * neither — the watchdog never terminates, so a stall alone never reaches
+ * this predicate.
+ */
+export function isCancellationError(err: unknown): boolean {
+  if (err instanceof ExecutionCancelledError) return true;
+  return (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "ExecutionCancelledError")
+  );
+}
 
 /**
  * Wrap a `StreamHandler` so it also fires `AgentSessionEvents.onToken` for
@@ -679,6 +758,33 @@ export class AgentSessionBuilder {
     // between turns / while idle.
     let activeLiveness: AgentLiveness | undefined;
 
+    // Turn-scoped user-facing activity record. Created when the agent loop
+    // begins executing and replaced on each turn; undefined between turns.
+    // Orthogonal to activeLiveness: activity is what the user *sees*
+    // (thinking / running tool / streaming), liveness is whether execution
+    // is making progress (healthy / warning / stalled).
+    let activeActivity: AgentActivity | undefined;
+
+    // Turn-scoped activity invocation metadata. Refreshed at the top of each
+    // processTurn (alongside activeActivity) so a fresh tenant record can be
+    // created by feedActivity when a turn has not produced one yet.
+    let activityInvocationId: string | undefined;
+    let activityModel: { provider: string; model: string } | undefined;
+
+    // Turn-scoped operator-cancellation state (Task 6.1). Armed when the
+    // agent loop begins executing; cleared when the turn unwinds. Only one
+    // turn executes at a time (matching activeActivity / activeLiveness), so
+    // a single slot suffices. cancelActiveTurn flips both the cooperative
+    // token (checked at loop safe points) and the abort signal (raced
+    // against the in-flight provider request/stream).
+    let activeCancel:
+      | { token: CancellationToken; controller: AbortController }
+      | undefined;
+    /** Wall-clock moment the operator requested the cancel (elapsed anchor). */
+    let cancelRequestedAt: number | undefined;
+    /** User-facing "Cancelled after Ns" summary of the last cancelled turn. */
+    let lastCancelSummary: string | undefined;
+
     // ---- Internal helpers ----
 
     /**
@@ -889,6 +995,54 @@ export class AgentSessionBuilder {
     }
 
     /**
+     * Emit the user-facing activity indicator state. Transitions the live
+     * record (or creates a fresh one for the current invocation) and appends
+     * an `agent.session.activity` event carrying the full record. Shared by
+     * the turn loop (thinking / streaming / tool_running / watchdog recovery)
+     * and advancePhase (verifying / summarizing) so the transition+emit
+     * sequence lives in exactly one place.
+     */
+    const feedActivity = (
+      next: AgentActivityState,
+      opts?: ActivityTransitionOpts,
+    ): void => {
+      // ctx may not be wired yet during very early setup (initialize's
+      // internal phases never surface an activity record anyway).
+      const log = ctx?.log;
+      if (!log) return;
+      const now = Date.now();
+      const nextRecord = activeActivity
+        ? transition(activeActivity, next, now, opts)
+        : createAgentActivity(next, activityInvocationId ?? "unassigned", now, {
+            provider: activityModel?.provider,
+            model: activityModel?.model,
+            ...opts,
+          });
+      activeActivity = nextRecord;
+      void log
+        .append({
+          sessionId: ctx.sessionId,
+          actor: "system",
+          type: "agent.session.activity",
+          payload: nextRecord,
+        })
+        .catch(() => {
+          // Observability must never break the turn loop.
+        });
+      // Phase 9 observability — sample the activity-state gauge at each
+      // transition (1 = one active invocation in the labelled state). The
+      // buffer is flushed once per turn (success or thrown-failure path), so
+      // transition rows are bounded by the transition count — never per
+      // chunk or per watchdog tick. `metrics` is always set here: feedActivity
+      // only runs once ctx.log exists, and ctx.log + metrics are created
+      // together in initialize().
+      metrics.gauge("agent_activity_state", 1, {
+        state: next,
+        invocationId: nextRecord.invocationId,
+      });
+    };
+
+    /**
      * Advance the lifecycle phase. No-op if already in the target phase.
      * Best-effort emits an `agent.session.phase_changed` event so observers
      * (TUI, audit) can react without subscribing to the closure.
@@ -902,6 +1056,15 @@ export class AgentSessionBuilder {
       // in that window because phase is also exposed via getPhase().
       const log = ctx?.log;
       if (!log) return;
+      // Task 2.4 — surface user-visible phases on the activity indicator.
+      // Internal phases (Understanding / Planning / Executing) are not
+      // exposed; only Verifying and Summarizing map to activity states.
+      // feedActivity owns the transition + event emission (deduped here).
+      if (next === SessionPhase.Verifying && activeActivity) {
+        feedActivity("verifying");
+      } else if (next === SessionPhase.Summarizing && activeActivity) {
+        feedActivity("summarizing");
+      }
       void log
         .append({
           sessionId: ctx.sessionId,
@@ -929,6 +1092,46 @@ export class AgentSessionBuilder {
      */
     function getLiveness(): AgentLivenessSnapshot | undefined {
       return activeLiveness?.snapshot();
+    }
+
+    /** Observe the active invocation's live activity record. */
+    function getActivity(): AgentActivity | undefined {
+      return activeActivity;
+    }
+
+    /**
+     * True once an operator/execution cancel has been requested for the
+     * active invocation (cancelling in progress or already cancelled). The
+     * competing activity feeds (streaming chunk, tool progress, watchdog
+     * stall mapping) must not regress the indicator once cancel is underway.
+     */
+    function cancellationInProgress(): boolean {
+      const s = activeActivity?.state;
+      return s === "cancelling" || s === "cancelled";
+    }
+
+    /**
+     * Operator cancel (Task 6.1): flip the shared per-turn token and abort
+     * the provider/stream signal. The live surface flips to `cancelling`
+     * ("Cancelling…") so the operator sees the request is being honoured
+     * while the turn unwinds. No-op (false) when no cancellable turn runs.
+     */
+    function cancelActiveTurn(reason?: string): boolean {
+      const active = activeCancel;
+      if (!active) return false;
+      const r = reason ?? "cancelled by operator";
+      active.token.cancel(r);
+      active.controller.abort(r);
+      cancelRequestedAt = Date.now();
+      if (activeActivity && !cancellationInProgress()) {
+        feedActivity("cancelling");
+      }
+      return true;
+    }
+
+    /** Human-readable "Cancelled after Ns" for the most recent cancelled turn. */
+    function getLastCancelSummary(): string | undefined {
+      return lastCancelSummary;
     }
 
     // ---- Exported interface methods ----
@@ -1040,7 +1243,9 @@ export class AgentSessionBuilder {
               maxOutputTokens: genMaxOutputTokens,
             }, {
               onStream: (chunk) => {
-                if (chunk.type === "text") config.events?.onToken?.(chunk.text);
+                if (chunk.type === "text" && typeof chunk.text === "string") {
+                  config.events?.onToken?.(chunk.text);
+                }
               },
             })
           : genProvider.complete({
@@ -1255,22 +1460,80 @@ export class AgentSessionBuilder {
       // ── Progress-based liveness watchdog ──────────────────────────────
       // The agent loop has NO wall-clock lifetime. The watchdog measures the
       // idle window since the last progress mark and, on state transition,
-      // emits agent.liveness.warning / agent.liveness.stalled events so an
-      // operator can see a suspected stall. It NEVER terminates the run —
-      // a turn lives until its terminal state or explicit operator cancel.
+      // emits agent.liveness.warning / agent.liveness.recovered /
+      // agent.liveness.stalled events so an operator can see a suspected
+      // stall resolve. It NEVER terminates the run — a turn lives until its
+      // terminal state or explicit operator cancel.
       const liveness = new AgentLiveness();
       activeLiveness = liveness;
+
+      // ── Operator cancellation (Task 6.1) ──────────────────────────────
+      // Each loop-bound turn owns a CancellationToken + AbortController pair.
+      // cancelActiveTurn() flips the token (checked at loop safe points) and
+      // aborts the signal (raced against the in-flight provider request /
+      // stream). Armed here — the instant the loop path begins — and cleared
+      // in the finally below. A fresh pair per turn so a stale cancel can
+      // never bleed into the next invocation.
+      const cancelController = new AbortController();
+      const cancelToken = new CancellationToken();
+      activeCancel = { token: cancelToken, controller: cancelController };
+      cancelRequestedAt = undefined;
+      lastCancelSummary = undefined;
+
+      // ── Live user-facing activity feed ────────────────────────────────
+      // Derives the AgentActivity record from existing runtime seams (turn
+      // start, tool progress, streamed model chunks, phase transitions, and
+      // the liveness watchdog) rather than a second polling architecture.
+      // Every state change emits an `agent.session.activity` event carrying
+      // the full record so later tasks can render / observe it.
+      activityInvocationId = `${runId}-${randomUUID().slice(0, 8)}`;
+      activityModel = { provider: resolved.provider, model: resolved.name };
+      // Task 2.1 — invocation begins: THINKING with timestamps stamped now.
+      feedActivity("thinking");
+      // True once the model has emitted a visible text chunk for the CURRENT
+      // model-output phase. Reset when that phase ends (a tool begins), so a
+      // later tool completion returns the indicator to thinking while the
+      // model silently resumes. Set again by the next phase's first chunk.
+      let activityStreaming = false;
+
       const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
-      const livenessOnStream: typeof sessionOnStream = sessionOnStream
-        ? (chunk) => {
-            // Every streamed token means the model is alive — mark progress
-            // (AgentLiveness debounces the hot per-chunk flow internally).
-            if (chunk.type === "text" && typeof chunk.text === "string") {
-              liveness.mark("model_chunk");
+      // The activity/liveness feed attaches to EVERY provider stream — CLI,
+      // REPL and daemon callers do not supply config.onStream, so without this
+      // the indicator would stall on waiting_for_provider and liveness would
+      // never be marked outside the TUI. The caller's own handler is only
+      // forwarded to when one was supplied.
+      const livenessOnStream: StreamHandler = (chunk) => {
+        if (chunk.type === "reasoning" && typeof chunk.text === "string") {
+          // Private reasoning (e.g. a long DeepSeek reasoning phase) is a
+          // real progress signal but is NEVER visible: mark liveness so
+          // the watchdog does not report a healthy thought-phase as a
+          // stall, and do NOT feed streaming / forward the trace onward.
+          liveness.mark("model_chunk");
+          return;
+        }
+        // Every streamed text token means the model is alive — mark
+        // progress (AgentLiveness debounces the hot per-chunk flow).
+        if (chunk.type === "text" && typeof chunk.text === "string") {
+          liveness.mark("model_chunk");
+          // Task 2.3 — first visible chunk: WAITING_FOR_PROVIDER → STREAMING;
+          // every accepted chunk refreshes lastProgressAt (via transition()).
+          // A chunk racing an in-flight cancel must not regress the
+          // indicator away from cancelling/cancelled.
+          if (activeActivity && !cancellationInProgress()) {
+            if (activeActivity.state !== "streaming") {
+              feedActivity("streaming");
+            } else {
+              activeActivity = transition(
+                activeActivity,
+                "streaming",
+                Date.now(),
+              );
             }
-            sessionOnStream(chunk);
           }
-        : undefined;
+          activityStreaming = true;
+        }
+        if (sessionOnStream) sessionOnStream(chunk);
+      };
       let lastLivenessState: AgentLivenessState = "healthy";
       const livenessWatchdog = setInterval(() => {
         const snap = liveness.snapshot();
@@ -1280,7 +1543,7 @@ export class AgentSessionBuilder {
           .append({
             sessionId: ctx.sessionId,
             actor: "system",
-            type: snap.state === "stalled" ? "agent.liveness.stalled" : "agent.liveness.warning",
+            type: livenessEventType(snap.state),
             payload: {
               runId,
               lastProgressAt: new Date(snap.lastProgressAt).toISOString(),
@@ -1293,7 +1556,63 @@ export class AgentSessionBuilder {
           .catch(() => {
             // Observability must never break the turn loop.
           });
+        // Phase 9 observability — the watchdog is the natural owner of the
+        // progress-age gauge (it is the only site where idleMs is measured).
+        // Sample the age once per liveness-state transition (bounded, never
+        // per tick) and count each warning/stalled transition as one stall
+        // warning. A stall warning is NOT an invocation failure — failures
+        // and cancellations are counted only at their terminal outcome.
+        metrics.gauge("agent_last_progress_age_ms", snap.idleMs, {
+          invocationId: activityInvocationId ?? runId,
+        });
+        if (snap.state === "warning" || snap.state === "stalled") {
+          metrics.increment("agent_stall_warning_total", { state: snap.state });
+        }
+        // Reflect suspected stalls in the activity record: warning / stalled →
+        // possibly_stalled (diagnostic, never terminal); recovery → back to
+        // thinking (or streaming if text is already arriving). A stall must
+        // not override an in-flight operator cancel (cancelling/cancelled).
+        if (snap.state !== "healthy" && activeActivity && !cancellationInProgress()) {
+          if (activeActivity.state !== "possibly_stalled") {
+            feedActivity("possibly_stalled");
+          }
+        } else if (activeActivity && !cancellationInProgress()) {
+          if (activeActivity.state === "possibly_stalled") {
+            feedActivity(activityStreaming ? "streaming" : "thinking");
+          }
+        }
       }, 5_000);
+
+      // Phase 9 observability helpers. `flushMetrics` persists the buffered
+      // rows to the event log once per turn on BOTH the success and the
+      // thrown-failure path (previously the failure path dropped the buffer);
+      // `recordTerminalOutcome` emits the agent_activity_duration_ms sample
+      // at the invocation's terminal state.
+      const flushMetrics = async (): Promise<void> => {
+        const metricEvents = metrics.flush();
+        for (const m of metricEvents) {
+          await ctx.log.append({
+            ...session,
+            actor: "system",
+            type: "observability.metric",
+            payload: m,
+          });
+        }
+      };
+      const recordTerminalOutcome = (
+        state: "completed" | "failed" | "cancelled",
+      ): void => {
+        // Duration spans the live activity record (invocation start, stamped
+        // at THINKING) through the terminal outcome, so thinking/verifying/
+        // summarizing phases are included — not just the runTaskLoop window.
+        const invocationStartedAt = activeActivity?.startedAt;
+        if (invocationStartedAt !== undefined) {
+          metrics.duration("agent_activity_duration_ms", Date.now() - invocationStartedAt, {
+            state,
+            invocationId: activityInvocationId ?? "unassigned",
+          });
+        }
+      };
       try {
         result = await runTaskLoop({
           config: {
@@ -1340,43 +1659,128 @@ export class AgentSessionBuilder {
           verbose: config.verbose,
           onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
           onCurrentIntentUpdate: (intent: AgentIntent) => { _latestIntent = intent; },
-          onProgress: (kind: AgentProgressKind, description?: string) =>
-            liveness.mark(kind, description),
+          // Task 6.1 — propagate the shared cancellation primitives into the
+          // loop. The loop checks the token at its safe points and races the
+          // signal against the in-flight provider request/stream.
+          cancellationToken: cancelToken,
+          cancelSignal: cancelController.signal,
+          onProgress: (kind: AgentProgressKind, description?: string) => {
+            liveness.mark(kind, description);
+            // Tool progress racing an in-flight cancel must not regress the
+            // indicator away from cancelling/cancelled.
+            if (cancellationInProgress()) return;
+            if (kind === "model_requested" && activeActivity) {
+              // A provider/model call has started and no content has arrived
+              // yet — the closest reachable mapping of the design's
+              // "provider accepted request, waiting for content" row. Only
+              // when the current model phase is not already streaming; the
+              // first visible chunk moves the indicator to STREAMING.
+              if (!activityStreaming) feedActivity("waiting_for_provider");
+            } else if (kind === "tool_started" && activeActivity) {
+              // Task 2.2 — a tool begins executing: TOOL_RUNNING with its name.
+              // Round 1 — stamp toolStartedAt so the tool timer starts at TOOL
+              // start (not the invocation start, which includes thinking time).
+              // Beginning the tool also ENDS the model-output phase, so the
+              // streaming latch resets: when the tool completes the indicator
+              // returns to THINKING while the model silently resumes.
+              activityStreaming = false;
+              feedActivity("tool_running", { toolName: description, toolStartedAt: Date.now() });
+            } else if (kind === "tool_completed" && activeActivity) {
+              // Tool finished → back to THINKING unless the model is already
+              // streaming (subsequent model text takes over the indicator).
+              if (!activityStreaming) feedActivity("thinking");
+            }
+          },
         });
       } catch (err) {
-        transitionNodeStatus(taskNode, "failed");
-        await ctx.log.append({
-          ...session,
-          type: "task.failed",
-          actor: "system",
-          payload: {
-            nodeId: taskNode.id,
-            graphId: taskGraph.id,
-            error: String(err),
-          },
-          meta: graphMeta,
-        });
-        transitionWorkflowStatus(wfRun, "failed");
-        await ctx.log.append({
-          ...session,
-          type: "workflow.failed",
-          actor: "system",
-          payload: { workflowId: wfRun.id, summary: String(err) },
-          meta: wfMeta,
-        });
+        // ── Operator / execution cancellation vs genuine failure (Task 6.3) ──
+        // A cancelled turn is a distinct terminal outcome: it must never be
+        // marked failed (graph/workflow), never counted as failed, and never
+        // reported as a timeout. Cancellation and failure are mutually
+        // exclusive; neither is a stall warning (a warning/stalled transition
+        // was already counted at the watchdog and must NOT be counted again).
+        if (isCancellationError(err)) {
+          transitionNodeStatus(taskNode, "cancelled");
+          transitionGraphStatus(taskGraph, "cancelled");
+          transitionWorkflowStatus(wfRun, "cancelled");
+          await ctx.log.append({
+            ...session,
+            type: "workflow.cancelled",
+            actor: "system",
+            payload: {
+              workflowId: wfRun.id,
+              nodeId: taskNode.id,
+              graphId: taskGraph.id,
+              summary: String(err),
+            },
+            meta: wfMeta,
+          });
+          metrics.increment("agent_invocation_cancelled_total");
+          recordTerminalOutcome("cancelled");
+          // Terminal activity state: the live "Cancelling…" record resolves to
+          // `cancelled` so the gauge/event history show the true outcome.
+          if (activeActivity && activeActivity.state !== "cancelled") {
+            feedActivity("cancelled");
+          }
+          // Surface the elapsed-from-start summary ("Cancelled after 4m 12s")
+          // for the TUI's summary line. Anchored at the operator's cancel
+          // request; falls back to now (execution-initiated cancellation).
+          const cancelledAt = cancelRequestedAt ?? Date.now();
+          const invocationStartedAt = activeActivity?.startedAt;
+          lastCancelSummary =
+            invocationStartedAt !== undefined
+              ? `Cancelled after ${formatActivityElapsed(cancelledAt - invocationStartedAt)}`
+              : "Cancelled";
+          // Emit lifecycle event: turn completed (cancelled)
+          await ctx.log.append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.turn.completed",
+            payload: { turn: turnCount, cancelled: true, error: String(err) },
+          });
+        } else {
+          transitionNodeStatus(taskNode, "failed");
+          await ctx.log.append({
+            ...session,
+            type: "task.failed",
+            actor: "system",
+            payload: {
+              nodeId: taskNode.id,
+              graphId: taskGraph.id,
+              error: String(err),
+            },
+            meta: graphMeta,
+          });
+          transitionWorkflowStatus(wfRun, "failed");
+          await ctx.log.append({
+            ...session,
+            type: "workflow.failed",
+            actor: "system",
+            payload: { workflowId: wfRun.id, summary: String(err) },
+            meta: wfMeta,
+          });
 
-        // Emit lifecycle event: turn completed (error)
-        await ctx.log.append({
-          sessionId: ctx.sessionId,
-          actor: "system",
-          type: "agent.session.turn.completed",
-          payload: { turn: turnCount, error: String(err) },
-        });
+          // Emit lifecycle event: turn completed (error)
+          await ctx.log.append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.turn.completed",
+            payload: { turn: turnCount, error: String(err) },
+          });
+          metrics.increment("agent_invocation_failed_total");
+          recordTerminalOutcome("failed");
+        }
+        // Persist the failure/cancellation-path rows: the success-path flush
+        // below is never reached when the loop throws.
+        await flushMetrics();
         turnCount++;
+        activeActivity = undefined;
         throw err;
       } finally {
         clearInterval(livenessWatchdog);
         activeLiveness = undefined;
+        activeCancel = undefined;
+        cancelRequestedAt = undefined;
       }
 
       // Cumulative file count for the TUI header. sessionState is local to
@@ -1468,18 +1872,6 @@ export class AgentSessionBuilder {
         });
       }
 
-      // Flush minimal metrics
-      metrics.duration("workflow_duration_ms", Date.now() - startTime);
-      const metricEvents = metrics.flush();
-      for (const m of metricEvents) {
-        await ctx.log.append({
-          ...session,
-          actor: "system",
-          type: "observability.metric",
-          payload: m,
-        });
-      }
-
       // Extract tool calls from this turn's new messages
       const newMessages = messages.slice(preTurnMsgCount);
       const turnToolCalls = extractToolCallsFromMessages(newMessages);
@@ -1527,6 +1919,27 @@ export class AgentSessionBuilder {
       // through Understanding→Planning→Executing→Verifying→Summarizing, and
       // remains in Summarizing until the 60s idle window closes.
       // advancePhase(SessionPhase.Idle); // deferred
+
+      // Phase 9 observability — terminal outcome on the resolved path. A
+      // result-reason failure (max_iterations / max_repairs / scope / budget)
+      // increments agent_invocation_failed_total exactly once; cancellations
+      // only reach this point through the catch path above. The completed/
+      // failed duration sample is recorded while the activity record is still
+      // live so startedAt (invocation start) is available. This sits AFTER the
+      // Summarizing phase feed (above) so the summarizing state-gauge sample
+      // lands in the same flush.
+      if (isFailed) {
+        metrics.increment("agent_invocation_failed_total");
+        recordTerminalOutcome("failed");
+      } else {
+        recordTerminalOutcome("completed");
+      }
+
+      // Flush minimal metrics (workflow duration + activity/liveness rows)
+      metrics.duration("workflow_duration_ms", Date.now() - startTime);
+      await flushMetrics();
+
+      activeActivity = undefined;
 
       return {
         summary: result.summary,
@@ -1809,7 +2222,39 @@ export class AgentSessionBuilder {
             config.chatApiKey,
           ),
         });
-        const text = response.text?.trim() ?? "";
+        let text = response.text?.trim() ?? "";
+        // Truncation continuation: a `finish_reason=length` on a single-shot
+        // chat call means the model ran out of output budget mid-answer. Keep
+        // generating in follow-up turns so the user never sees a silently cut
+        // reply. Delegated to the shared continueTruncatedGeneration helper
+        // (src/run/helpers.ts — the same contract the task loop uses): only
+        // the LAST partial segment is re-fed as context, never the cumulative
+        // text, so continuation context grows linearly instead of quadratically.
+        if (response.finishReason === "length" && text.length > 0) {
+          const merged = await continueTruncatedGeneration({
+            initialText: text,
+            messages: chatMessages,
+            maxContinuations: TRUNCATION_CONTINUATION_LIMIT,
+            generateNext: async (msgs) => {
+              const next = await provider.complete({
+                systemPrompt: chatSystemPrompt,
+                messages: msgs,
+                maxOutputTokens: await resolveDirectOutputCeiling(
+                  config.chatModel,
+                  config.chatApiKey,
+                ),
+              });
+              return {
+                text: (next.text ?? "").trim(),
+                finishReason: next.finishReason,
+                toolCalls: next.toolCalls ?? [],
+              };
+            },
+          });
+          text = merged.text;
+        }
+        // The chat history records ONE clean assistant reply (the fully merged
+        // answer), never the intermediate partials / continuation prompts.
         chatMessages.push({ role: "assistant", content: text });
         return {
           summary: text || `[chat] ${message}`,
@@ -1842,6 +2287,9 @@ export class AgentSessionBuilder {
       getState,
       getPhase,
       getLiveness,
+      getActivity,
+      cancelActiveTurn,
+      getLastCancelSummary,
       save,
       resume,
       setPlanApprovalGate: (gate) => {
@@ -2103,6 +2551,15 @@ async function resolveDirectOutputCeiling(
       chatModel.model ?? "",
       chatApiKey ? { [chatModel.provider]: chatApiKey } : undefined,
     );
+    // DeepSeek accepts output budgets far above the generic 32,768 cap
+    // (verified against api.deepseek.com: 100k–300k `max_tokens` honored;
+    // the model streams reasoning + content inside a single budget, so a
+    // long answer cut at 32k was silently truncated mid-part). Keep the
+    // generic cap for other providers, whose APIs often reject `max_tokens`
+    // above their own much smaller ceiling (e.g. gpt-4o).
+    if (chatModel.provider === "deepseek") {
+      return createContextBudget(descriptor, { outputCap: 131_072 }).requestedMaxOutputTokens;
+    }
     return createContextBudget(descriptor).requestedMaxOutputTokens;
   } catch {
     return 512;
@@ -2135,8 +2592,19 @@ async function setupContextLimits(
   const userOverride = modelConfig.maxContextTokens;
   let contextBudget: ContextBudget;
   let tokenizer: TokenizerName;
+  const budgetOptions: ContextBudgetConfig = budgetConfig ?? {};
+  // DeepSeek accepts output budgets far above the generic 32,768 cap (verified
+  // against api.deepseek.com: 100k–300k `max_tokens` honored; reasoning +
+  // content share the budget, so long answers were silently truncated at 32k).
+  // Only elevate when the user hasn't set their own cap.
+  if (
+    modelConfig.provider === "deepseek" &&
+    (budgetOptions.outputCap === undefined || budgetOptions.outputCap === DEFAULT_OUTPUT_CAP)
+  ) {
+    budgetOptions.outputCap = 131_072;
+  }
   if (userOverride !== undefined) {
-    contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetConfig);
+    contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetOptions);
     tokenizer = getEncoding(modelConfig.provider);
   } else {
     const { resolveModelDescriptor } = await import("../config/context-limits.js");
@@ -2146,7 +2614,7 @@ async function setupContextLimits(
       apiKeys,
     );
     tokenizer = descriptor.tokenizer;
-    contextBudget = createContextBudget(descriptor, budgetConfig);
+    contextBudget = createContextBudget(descriptor, budgetOptions);
   }
 
   // Ensure the tiktoken encoder is genuinely loaded before any admission /

@@ -26,7 +26,7 @@ import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
-import { streamToResponse } from "./helpers.js";
+import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
 import { createContextPressureTracker } from "./context-pressure.js";
 import { renderToolManifest } from "../agent/system-prompt.js";
@@ -68,6 +68,8 @@ import {
 } from "../runtime/tool-scheduler.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../runtime/tool-correlation.js";
+import type { CancellationToken } from "../runtime/cancellation-token.js";
+import { raceWithCancellation } from "../runtime/cancellation-token.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -262,7 +264,6 @@ const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
   CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`])
 );
 
-const NO_TOOL_MIN_TEXT = 10;
 const NARRATING_THRESHOLD = 80;
 const SHORT_SYNTHESIS_THRESHOLD = 200;
 
@@ -381,7 +382,7 @@ post_task?: { command: string; reason: string }[];
   sessionId: string;
   sessionDir: string;
   systemPrompt: string;
-  onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
+  onStream?: (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../extensions/hook-runner.js").HookRunner;
   context?: ExecutionContext;
   /** When true (default), tool outputs are streamed to stdout. */
@@ -400,6 +401,19 @@ post_task?: { command: string; reason: string }[];
   currentIntent?: AgentIntent;
   /** T4: harness-side parallel dispatch policy. Defaults to allowParallel:true maxParallel:4. */
   toolExecutionPolicy?: ToolExecutionPolicy;
+  /**
+   * Operator-cancellation token (Task 6.1). Checked at loop safe points
+   * (iteration top) so a cancel is honoured between provider calls / tools.
+   * Optional — the CLI/daemon paths that do not surface operator cancel omit it.
+   */
+  cancellationToken?: CancellationToken;
+  /**
+   * Abort signal fired when the operator cancels (paired with
+   * `cancellationToken`). Raced against the in-flight provider request/stream
+   * so a cancel releases a hung provider call the instant it is requested.
+   * Optional; omitted when cancellation is not armed.
+   */
+  cancelSignal?: AbortSignal;
 }
 
 /**
@@ -569,8 +583,32 @@ let explicitDoneCalled = false;
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 
+// Truncation continuation: when a provider stops mid-answer at the output
+// budget (finish_reason=length), keep generating until the answer completes.
+// The budget / continue-prompt / accumulate-and-merge logic is the SHARED
+// helper in helpers.ts (continueTruncatedGeneration + TRUNCATION_CONTINUATION_LIMIT),
+// so the task loop and processChat enforce ONE continuation contract instead
+// of two divergent copies. `truncationContinuations` bounds the total across
+// the whole run (a fresh chain after a tool turn must not restart the budget).
+let truncationContinuations = 0;
+
+// No-tool prose replies: the loop is a tool-first harness, so a text-only
+// reply that does not signal done is nudged ONCE toward invoking a tool (or
+// the `done` tool). If the model still answers with plain text and has never
+// invoked a tool, that answer is accepted through the normal completion path
+// instead of re-prompting with identical context on every iteration until
+// max_iterations. `noToolNudges` is never reset mid-run.
+const NO_TOOL_NUDGE_LIMIT = 1;
+let noToolNudges = 0;
+
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
+
+// ── Operator cancellation (Task 6.1): checked at the loop's safe point ──
+// A cancel requested while a tool runs / verification runs / the loop is
+// between awaits is honoured here, before any further provider call or tool
+// dispatch. Throws ExecutionCancelledError → classified cancelled upstream.
+deps.cancellationToken?.throwIfCancelled();
 
 // Track if any mutations occurred in this iteration
 const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
@@ -789,49 +827,86 @@ for (const hook of hooks.pre_task ?? []) {
 }
 
 let text = "";
+let reasoning = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
 let resolvedModel: string | undefined;
+let finishReason: string | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
-	if (model.streaming && provider.stream) {
-	  const result = await streamToResponse(provider, {
-	    systemPrompt: admittedSystemPrompt,
-	    messages,
-	    tools: wireTools,
-	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
-	    context: deps.context,
-	  }, { onStream });
-	  text = result.text;
-	  toolCalls = result.toolCalls;
-	  usage = result.usage;
-	  resolvedModel = result.resolvedModel;
-	} else {
-	  const resp = await provider.complete({
-	    systemPrompt: admittedSystemPrompt,
-	    messages,
-	    tools: wireTools,
-	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
-	    context: deps.context,
-	  });
-	  // C1 fix: restore assignments — the non-streaming path MUST
-	  // populate text/toolCalls/usage from the provider response.
-	  text = resp.text ?? "";
-	  toolCalls = resp.toolCalls ?? [];
-	  usage = resp.usage;
-	  resolvedModel = resp.resolvedModel;
-}
-
+	//
+	// ── Model generation ────────────────────────────────────────────
+	// One generation path (runModelTurn) is shared by the main turn AND every
+	// truncation continuation below (continueTruncatedGeneration in helpers.ts).
+	// With an operator-cancel signal armed (Task 6.1) the request/stream is
+	// raced against it; without a signal behaviour is unchanged. Text chunks are
+	// written to stdout by streamToResponse; reasoning never is.
+const runModelTurn = async (
+  msgs: NormalizedMessage[],
+): Promise<{
+  text: string;
+  reasoning: string;
+  toolCalls: ToolCall[];
+  usage: TokenUsage | undefined;
+  resolvedModel: string | undefined;
+  finishReason: string | undefined;
+}> => {
+  let segment: {
+    text: string;
+    reasoning: string;
+    toolCalls: ToolCall[];
+    usage: TokenUsage | undefined;
+    resolvedModel: string | undefined;
+    finishReason: string | undefined;
+  };
+  if (model.streaming && provider.stream) {
+    const result = await streamToResponse(provider, {
+      systemPrompt: admittedSystemPrompt,
+      messages: msgs,
+      tools: wireTools,
+      maxOutputTokens: contextBudget.requestedMaxOutputTokens,
+      context: deps.context,
+    }, deps.cancelSignal ? { onStream, signal: deps.cancelSignal } : { onStream });
+    segment = {
+      text: result.text,
+      reasoning: result.reasoning ?? "",
+      toolCalls: result.toolCalls,
+      usage: result.usage,
+      resolvedModel: result.resolvedModel,
+      finishReason: result.finishReason,
+    };
+  } else {
+    const completeReq = {
+      systemPrompt: admittedSystemPrompt,
+      messages: msgs,
+      tools: wireTools,
+      maxOutputTokens: contextBudget.requestedMaxOutputTokens,
+      context: deps.context,
+    };
+    const resp = await (deps.cancelSignal
+      ? raceWithCancellation(provider.complete(completeReq), deps.cancelSignal, "cancelled by operator")
+      : provider.complete(completeReq));
+    // C1 fix: restore assignments — the non-streaming path MUST populate
+    // text/toolCalls/usage from the provider response.
+    segment = {
+      text: resp.text ?? "",
+      reasoning: resp.reasoning ?? "",
+      toolCalls: resp.toolCalls ?? [],
+      usage: resp.usage,
+      resolvedModel: resp.resolvedModel,
+      finishReason: resp.finishReason,
+    };
+  }
   // Progress: the model completed a generation turn (milestone in the
   // liveness feed — tool-completion marks come from handleToolResult).
-  onProgress?.("model_response", resolvedModel ?? model.name);
-
+  onProgress?.("model_response", segment.resolvedModel ?? model.name);
   // Fallback: model emitted XML-style tool calls as raw text instead of
   // using structured tool_calls. Pattern: <alix_tool_name><param>value</param>
-  // </alix_tool_name>. Extract them and convert to ToolCall objects so the
-  // rest of the loop can process them normally.
-  if (toolCalls.length === 0 && text.includes("<") && providerTools.length > 0) {
+  // </alix_tool_name>. Extract and convert to ToolCall objects so the rest of
+  // the loop can process them normally.
+  let calls = segment.toolCalls;
+  if (calls.length === 0 && segment.text.includes("<") && providerTools.length > 0) {
     const toolNames = new Set(providerTools.map((t) => t.name));
     const xmlRegex = new RegExp(
       `<(${Array.from(toolNames).join("|")})\\b[^>]*>([\\s\\S]*?)</\\1>`,
@@ -839,7 +914,7 @@ let resolvedModel: string | undefined;
     );
     let m: RegExpExecArray | null;
     const extracted: ToolCall[] = [];
-    while ((m = xmlRegex.exec(text)) !== null) {
+    while ((m = xmlRegex.exec(segment.text)) !== null) {
       const toolName = m[1]!;
       const inner = m[2]!;
       const args: Record<string, string> = {};
@@ -854,10 +929,64 @@ let resolvedModel: string | undefined;
         args,
       });
     }
-    if (extracted.length > 0) {
-      toolCalls = extracted;
-    }
+    if (extracted.length > 0) calls = extracted;
   }
+  return { ...segment, toolCalls: calls };
+};
+
+	// A provider/model call begins and no content has arrived yet — surface the
+	// design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
+	// accepted request, no content"); the first visible chunk moves to STREAMING.
+onProgress?.("model_requested", model.name);
+const generation = await runModelTurn(messages);
+text = generation.text;
+reasoning = generation.reasoning;
+toolCalls = generation.toolCalls;
+usage = generation.usage;
+resolvedModel = generation.resolvedModel;
+finishReason = generation.finishReason;
+
+// Truncation: the model hit the output budget mid-answer (finish_reason=length
+// on a prose response with no tool calls). Continue generation in follow-up
+// turns via the shared helper in helpers.ts so the final answer is never
+// silently cut. Only the LAST partial segment is re-fed (never the cumulative
+// text), so the continuation context grows linearly with the segment count.
+if (
+  finishReason === "length" &&
+  toolCalls.length === 0 &&
+  text.length > 0 &&
+  truncationContinuations < TRUNCATION_CONTINUATION_LIMIT
+) {
+  const continued = await continueTruncatedGeneration({
+    initialText: text,
+    messages,
+    maxContinuations: TRUNCATION_CONTINUATION_LIMIT - truncationContinuations,
+    onContinuation: async ({ attempt, chars }) => {
+      await log.append({
+        ...session, actor: "system", type: "agent.truncated.continuing",
+        payload: { iteration: i, chars, continuation: truncationContinuations + attempt },
+      });
+    },
+    generateNext: async (msgs) => {
+      const seg = await runModelTurn(msgs);
+      return {
+        text: seg.text,
+        reasoning: seg.reasoning,
+        toolCalls: seg.toolCalls,
+        usage: seg.usage,
+        resolvedModel: seg.resolvedModel,
+        finishReason: seg.finishReason,
+      };
+    },
+  });
+  truncationContinuations += continued.continuations;
+  text = continued.text;
+  reasoning = continued.reasoning ?? "";
+  finishReason = continued.finishReason;
+  toolCalls = [...(continued.toolCalls ?? [])];
+  usage = continued.usage;
+  resolvedModel = continued.resolvedModel;
+}
 
 if (text.length > 0) {
   await emitAgent(log, session, "agent.message", { text });
@@ -886,10 +1015,11 @@ if (usage) {
   });
 }
 
-// Emit reasoning trail
-if (text && text.length > 0) {
+// Emit reasoning trail — the model's reasoned trace when the provider
+// surfaced one (reasoning_content), otherwise the leading text slice.
+if (reasoning.length > 0 || (text && text.length > 0)) {
   await emitAgent(log, session, "agent.reasoning", {
-    text: text.slice(0, 500),
+    text: (reasoning.length > 0 ? reasoning : text).slice(0, 500),
     toolCalls: toolCalls.map(tc => tc.name),
     iteration: i,
   });
@@ -907,15 +1037,20 @@ if (toolCalls.length > 0) {
 }
 
 if (toolCalls.length === 0) {
-  // No tools called — check if model signals completion
-  const modelSaysDone = /done|complete|finished|resolved/i.test(text);
+  // No tools called — check if model signals completion. A model that has
+  // never invoked a tool and has already been nudged once is treated as done
+  // on a text-only reply: forcing tool use on a model that keeps refusing
+  // just spins identical context until max_iterations.
+  const nudgedOut = noToolNudges >= NO_TOOL_NUDGE_LIMIT && usedTools.size === 0;
+  const modelSaysDone = nudgedOut || /done|complete|finished|resolved/i.test(text);
 
   // If the model emitted text but no tool calls and didn't signal done,
   // re-prompt once to nudge it into taking action. This handles the
   // common case where the model produces a verbal plan in its first
   // turn instead of immediately invoking tools, or where the tool call
-  // JSON was truncated/invalid.
-  if (!modelSaysDone && i < maxIterations - 1 && text.length > NO_TOOL_MIN_TEXT) {
+  // JSON was truncated/invalid. Nudging is bounded to one attempt — a
+  // subsequent text-only reply is accepted (see `nudgedOut` above).
+  if (!modelSaysDone && noToolNudges < NO_TOOL_NUDGE_LIMIT && i < maxIterations - 1) {
     // If the text looks like a tool-call attempt but nothing parsed, the model
     // likely invented a foreign tool name (e.g. exec_command). List the real
     // names + format so it self-corrects instead of silently dropping the call.
@@ -931,6 +1066,7 @@ if (toolCalls.length === 0) {
           "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
           "Use the `done` tool when the task is complete.",
     });
+    noToolNudges++;
     continue;
   }
 
@@ -1265,6 +1401,9 @@ if (toolCalls.length === 0) {
         }
       }
       await runPreToolHook(toolCall);
+      // Progress: a tool is about to execute (paired with tool_completed in
+      // handleToolResult so observers see the start→finish lifecycle).
+      onProgress?.("tool_started", toolCall.name);
       return handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors, correlation);
     });
 
@@ -1353,6 +1492,9 @@ if (toolCalls.length === 0) {
     }
 
     await runPreToolHook(toolCall);
+    // Progress: a tool is about to execute (paired with tool_completed in
+    // handleToolResult so observers see the start→finish lifecycle).
+    onProgress?.("tool_started", toolCall.name);
 
     // Handle tool execution — T5 correlation wiring via typed CorrelationContext (no Record spread)
     const correlation: CorrelationContext = createCorrelationContext(executionId, invocationId);
