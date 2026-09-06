@@ -1312,6 +1312,9 @@ if (toolCalls.length === 0) {
         }
       }
       await runPreToolHook(toolCall);
+      // Progress: a tool is about to execute (paired with tool_completed in
+      // handleToolResult so observers see the start→finish lifecycle).
+      onProgress?.("tool_started", toolCall.name);
       return handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors, correlation);
     });
 
@@ -1400,6 +1403,9 @@ if (toolCalls.length === 0) {
     }
 
     await runPreToolHook(toolCall);
+    // Progress: a tool is about to execute (paired with tool_completed in
+    // handleToolResult so observers see the start→finish lifecycle).
+    onProgress?.("tool_started", toolCall.name);
 
     // Handle tool execution — T5 correlation wiring via typed CorrelationContext (no Record spread)
     const correlation: CorrelationContext = createCorrelationContext(executionId, invocationId);

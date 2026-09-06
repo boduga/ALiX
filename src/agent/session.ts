@@ -97,6 +97,13 @@ import {
   type AgentProgressKind,
 } from "./agent-liveness.js";
 import {
+  createAgentActivity,
+  transition,
+  type AgentActivity,
+  type AgentActivityState,
+  type ActivityTransitionOpts,
+} from "./agent-activity.js";
+import {
   LocalRuntimeExecutor,
   executeRoute,
   type RuntimeContext,
@@ -447,6 +454,13 @@ export interface AgentSession {
    * undefined.
    */
   getLiveness?(): AgentLivenessSnapshot | undefined;
+  /**
+   * Live user-facing activity record for the active invocation. Undefined
+   * when no agent loop is executing (idle, planning, summarising). Read-only;
+   * the record is owned by the turn. Absent in pre-activity implementations
+   * (test stubs) and consumers must handle undefined.
+   */
+  getActivity?(): AgentActivity | undefined;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -699,6 +713,13 @@ export class AgentSessionBuilder {
     // between turns / while idle.
     let activeLiveness: AgentLiveness | undefined;
 
+    // Turn-scoped user-facing activity record. Created when the agent loop
+    // begins executing and replaced on each turn; undefined between turns.
+    // Orthogonal to activeLiveness: activity is what the user *sees*
+    // (thinking / running tool / streaming), liveness is whether execution
+    // is making progress (healthy / warning / stalled).
+    let activeActivity: AgentActivity | undefined;
+
     // ---- Internal helpers ----
 
     /**
@@ -922,6 +943,32 @@ export class AgentSessionBuilder {
       // in that window because phase is also exposed via getPhase().
       const log = ctx?.log;
       if (!log) return;
+      // Task 2.4 — surface user-visible phases on the activity indicator.
+      // Internal phases (Understanding / Planning / Executing) are not
+      // exposed; only Verifying and Summarizing map to activity states.
+      if (next === SessionPhase.Verifying && activeActivity) {
+        const now = Date.now();
+        activeActivity = transition(activeActivity, "verifying", now);
+        void log
+          .append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.activity",
+            payload: activeActivity,
+          })
+          .catch(() => {});
+      } else if (next === SessionPhase.Summarizing && activeActivity) {
+        const now = Date.now();
+        activeActivity = transition(activeActivity, "summarizing", now);
+        void log
+          .append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.activity",
+            payload: activeActivity,
+          })
+          .catch(() => {});
+      }
       void log
         .append({
           sessionId: ctx.sessionId,
@@ -949,6 +996,11 @@ export class AgentSessionBuilder {
      */
     function getLiveness(): AgentLivenessSnapshot | undefined {
       return activeLiveness?.snapshot();
+    }
+
+    /** Observe the active invocation's live activity record. */
+    function getActivity(): AgentActivity | undefined {
+      return activeActivity;
     }
 
     // ---- Exported interface methods ----
@@ -1281,6 +1333,44 @@ export class AgentSessionBuilder {
       // terminal state or explicit operator cancel.
       const liveness = new AgentLiveness();
       activeLiveness = liveness;
+
+      // ── Live user-facing activity feed ────────────────────────────────
+      // Derives the AgentActivity record from existing runtime seams (turn
+      // start, tool progress, streamed model chunks, phase transitions, and
+      // the liveness watchdog) rather than a second polling architecture.
+      // Every state change emits an `agent.session.activity` event carrying
+      // the full record so later tasks can render / observe it.
+      const activityInvocationId = `${runId}-${randomUUID().slice(0, 8)}`;
+      const feedActivity = (
+        next: AgentActivityState,
+        opts?: ActivityTransitionOpts,
+      ): void => {
+        const now = Date.now();
+        const nextRecord = activeActivity
+          ? transition(activeActivity, next, now, opts)
+          : createAgentActivity(next, activityInvocationId, now, {
+              provider: resolved.provider,
+              model: resolved.name,
+              ...opts,
+            });
+        activeActivity = nextRecord;
+        void ctx.log
+          .append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.activity",
+            payload: nextRecord,
+          })
+          .catch(() => {
+            // Observability must never break the turn loop.
+          });
+      };
+      // Task 2.1 — invocation begins: THINKING with timestamps stamped now.
+      feedActivity("thinking");
+      // True once the model has emitted a visible text chunk. Used to decide
+      // whether tool completion should return to thinking or stay streaming.
+      let activityStreaming = false;
+
       const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
       const livenessOnStream: typeof sessionOnStream = sessionOnStream
         ? (chunk) => {
@@ -1288,6 +1378,18 @@ export class AgentSessionBuilder {
             // (AgentLiveness debounces the hot per-chunk flow internally).
             if (chunk.type === "text" && typeof chunk.text === "string") {
               liveness.mark("model_chunk");
+              // Task 2.3 — first visible chunk: THINKING → STREAMING; every
+              // accepted chunk refreshes lastProgressAt (via transition()).
+              if (activeActivity && activeActivity.state !== "streaming") {
+                feedActivity("streaming");
+              } else if (activeActivity) {
+                activeActivity = transition(
+                  activeActivity,
+                  "streaming",
+                  Date.now(),
+                );
+              }
+              activityStreaming = true;
             }
             sessionOnStream(chunk);
           }
@@ -1314,6 +1416,18 @@ export class AgentSessionBuilder {
           .catch(() => {
             // Observability must never break the turn loop.
           });
+        // Reflect suspected stalls in the activity record: warning / stalled →
+        // possibly_stalled (diagnostic, never terminal); recovery → back to
+        // thinking (or streaming if text is already arriving).
+        if (snap.state !== "healthy" && activeActivity) {
+          if (activeActivity.state !== "possibly_stalled") {
+            feedActivity("possibly_stalled");
+          }
+        } else if (activeActivity) {
+          if (activeActivity.state === "possibly_stalled") {
+            feedActivity(activityStreaming ? "streaming" : "thinking");
+          }
+        }
       }, 5_000);
       try {
         result = await runTaskLoop({
@@ -1361,8 +1475,17 @@ export class AgentSessionBuilder {
           verbose: config.verbose,
           onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
           onCurrentIntentUpdate: (intent: AgentIntent) => { _latestIntent = intent; },
-          onProgress: (kind: AgentProgressKind, description?: string) =>
-            liveness.mark(kind, description),
+          onProgress: (kind: AgentProgressKind, description?: string) => {
+            liveness.mark(kind, description);
+            if (kind === "tool_started" && activeActivity) {
+              // Task 2.2 — a tool begins executing: TOOL_RUNNING with its name.
+              feedActivity("tool_running", { toolName: description });
+            } else if (kind === "tool_completed" && activeActivity) {
+              // Tool finished → back to THINKING unless the model is already
+              // streaming (subsequent model text takes over the indicator).
+              if (!activityStreaming) feedActivity("thinking");
+            }
+          },
         });
       } catch (err) {
         transitionNodeStatus(taskNode, "failed");
@@ -1394,6 +1517,7 @@ export class AgentSessionBuilder {
           payload: { turn: turnCount, error: String(err) },
         });
         turnCount++;
+        activeActivity = undefined;
         throw err;
       } finally {
         clearInterval(livenessWatchdog);
@@ -1548,6 +1672,8 @@ export class AgentSessionBuilder {
       // through Understanding→Planning→Executing→Verifying→Summarizing, and
       // remains in Summarizing until the 60s idle window closes.
       // advancePhase(SessionPhase.Idle); // deferred
+
+      activeActivity = undefined;
 
       return {
         summary: result.summary,
@@ -1896,6 +2022,7 @@ export class AgentSessionBuilder {
       getState,
       getPhase,
       getLiveness,
+      getActivity,
       save,
       resume,
       setPlanApprovalGate: (gate) => {
