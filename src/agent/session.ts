@@ -90,7 +90,7 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
-import { ExecutionCancelledError } from "../runtime/cancellation-token.js";
+import { ExecutionCancelledError, CancellationToken } from "../runtime/cancellation-token.js";
 import {
   AgentLiveness,
   type AgentLivenessSnapshot,
@@ -462,6 +462,28 @@ export interface AgentSession {
    * (test stubs) and consumers must handle undefined.
    */
   getActivity?(): AgentActivity | undefined;
+  /**
+   * Request cancellation of the currently executing turn (operator cancel,
+   * Task 6.1). Flips the turn's CancellationToken and aborts the shared
+   * AbortSignal so the agent loop / provider request / stream observe the
+   * cancel at their next safe point. The live activity transitions to
+   * `cancelling` ("Cancelling…") immediately.
+   *
+   * Returns true when a turn was in flight and the cancel was armed; false
+   * when idle (or the active phase is not cancellable) — the caller then
+   * treats the key as unhandled.
+   *
+   * Optional in the interface because session lifecycles that pre-date the
+   * cancellation contract (e.g. lightweight test stubs) can omit it.
+   */
+  cancelActiveTurn?(reason?: string): boolean;
+  /**
+   * Human-friendly summary of the most recent operator cancellation, e.g.
+   * "Cancelled after 4m 12s" (Task 6.2). Populated when an agent turn ends
+   * by operator/execution cancellation; cleared on the next turn start.
+   * Undefined when the last turn was not cancelled.
+   */
+  getLastCancelSummary?(): string | undefined;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -514,6 +536,21 @@ export function isCancellationError(err: unknown): boolean {
     err instanceof Error &&
     (err.name === "AbortError" || err.name === "ExecutionCancelledError")
   );
+}
+
+/**
+ * Human-friendly elapsed duration for the "Cancelled after Ns" summary
+ * (Task 6.2): `45s`, `4m 12s`, `1h 05m`. Mirrors the TUI's local activity
+ * formatting so the session surface and the renderer agree.
+ */
+export function formatCancellationElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${String(minutes % 60).padStart(2, "0")}m`;
 }
 
 /**
@@ -741,6 +778,20 @@ export class AgentSessionBuilder {
     // created by feedActivity when a turn has not produced one yet.
     let activityInvocationId: string | undefined;
     let activityModel: { provider: string; model: string } | undefined;
+
+    // Turn-scoped operator-cancellation state (Task 6.1). Armed when the
+    // agent loop begins executing; cleared when the turn unwinds. Only one
+    // turn executes at a time (matching activeActivity / activeLiveness), so
+    // a single slot suffices. cancelActiveTurn flips both the cooperative
+    // token (checked at loop safe points) and the abort signal (raced
+    // against the in-flight provider request/stream).
+    let activeCancel:
+      | { token: CancellationToken; controller: AbortController }
+      | undefined;
+    /** Wall-clock moment the operator requested the cancel (elapsed anchor). */
+    let cancelRequestedAt: number | undefined;
+    /** User-facing "Cancelled after Ns" summary of the last cancelled turn. */
+    let lastCancelSummary: string | undefined;
 
     // ---- Internal helpers ----
 
@@ -1054,6 +1105,41 @@ export class AgentSessionBuilder {
     /** Observe the active invocation's live activity record. */
     function getActivity(): AgentActivity | undefined {
       return activeActivity;
+    }
+
+    /**
+     * True once an operator/execution cancel has been requested for the
+     * active invocation (cancelling in progress or already cancelled). The
+     * competing activity feeds (streaming chunk, tool progress, watchdog
+     * stall mapping) must not regress the indicator once cancel is underway.
+     */
+    function cancellationInProgress(): boolean {
+      const s = activeActivity?.state;
+      return s === "cancelling" || s === "cancelled";
+    }
+
+    /**
+     * Operator cancel (Task 6.1): flip the shared per-turn token and abort
+     * the provider/stream signal. The live surface flips to `cancelling`
+     * ("Cancelling…") so the operator sees the request is being honoured
+     * while the turn unwinds. No-op (false) when no cancellable turn runs.
+     */
+    function cancelActiveTurn(reason?: string): boolean {
+      const active = activeCancel;
+      if (!active) return false;
+      const r = reason ?? "cancelled by operator";
+      active.token.cancel(r);
+      active.controller.abort(r);
+      cancelRequestedAt = Date.now();
+      if (activeActivity && !cancellationInProgress()) {
+        feedActivity("cancelling");
+      }
+      return true;
+    }
+
+    /** Human-readable "Cancelled after Ns" for the most recent cancelled turn. */
+    function getLastCancelSummary(): string | undefined {
+      return lastCancelSummary;
     }
 
     // ---- Exported interface methods ----
@@ -1387,6 +1473,19 @@ export class AgentSessionBuilder {
       const liveness = new AgentLiveness();
       activeLiveness = liveness;
 
+      // ── Operator cancellation (Task 6.1) ──────────────────────────────
+      // Each loop-bound turn owns a CancellationToken + AbortController pair.
+      // cancelActiveTurn() flips the token (checked at loop safe points) and
+      // aborts the signal (raced against the in-flight provider request /
+      // stream). Armed here — the instant the loop path begins — and cleared
+      // in the finally below. A fresh pair per turn so a stale cancel can
+      // never bleed into the next invocation.
+      const cancelController = new AbortController();
+      const cancelToken = new CancellationToken();
+      activeCancel = { token: cancelToken, controller: cancelController };
+      cancelRequestedAt = undefined;
+      lastCancelSummary = undefined;
+
       // ── Live user-facing activity feed ────────────────────────────────
       // Derives the AgentActivity record from existing runtime seams (turn
       // start, tool progress, streamed model chunks, phase transitions, and
@@ -1410,14 +1509,18 @@ export class AgentSessionBuilder {
               liveness.mark("model_chunk");
               // Task 2.3 — first visible chunk: THINKING → STREAMING; every
               // accepted chunk refreshes lastProgressAt (via transition()).
-              if (activeActivity && activeActivity.state !== "streaming") {
-                feedActivity("streaming");
-              } else if (activeActivity) {
-                activeActivity = transition(
-                  activeActivity,
-                  "streaming",
-                  Date.now(),
-                );
+              // A chunk racing an in-flight cancel must not regress the
+              // indicator away from cancelling/cancelled.
+              if (activeActivity && !cancellationInProgress()) {
+                if (activeActivity.state !== "streaming") {
+                  feedActivity("streaming");
+                } else {
+                  activeActivity = transition(
+                    activeActivity,
+                    "streaming",
+                    Date.now(),
+                  );
+                }
               }
               activityStreaming = true;
             }
@@ -1460,12 +1563,13 @@ export class AgentSessionBuilder {
         }
         // Reflect suspected stalls in the activity record: warning / stalled →
         // possibly_stalled (diagnostic, never terminal); recovery → back to
-        // thinking (or streaming if text is already arriving).
-        if (snap.state !== "healthy" && activeActivity) {
+        // thinking (or streaming if text is already arriving). A stall must
+        // not override an in-flight operator cancel (cancelling/cancelled).
+        if (snap.state !== "healthy" && activeActivity && !cancellationInProgress()) {
           if (activeActivity.state !== "possibly_stalled") {
             feedActivity("possibly_stalled");
           }
-        } else if (activeActivity) {
+        } else if (activeActivity && !cancellationInProgress()) {
           if (activeActivity.state === "possibly_stalled") {
             feedActivity(activityStreaming ? "streaming" : "thinking");
           }
@@ -1548,8 +1652,16 @@ export class AgentSessionBuilder {
           verbose: config.verbose,
           onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
           onCurrentIntentUpdate: (intent: AgentIntent) => { _latestIntent = intent; },
+          // Task 6.1 — propagate the shared cancellation primitives into the
+          // loop. The loop checks the token at its safe points and races the
+          // signal against the in-flight provider request/stream.
+          cancellationToken: cancelToken,
+          cancelSignal: cancelController.signal,
           onProgress: (kind: AgentProgressKind, description?: string) => {
             liveness.mark(kind, description);
+            // Tool progress racing an in-flight cancel must not regress the
+            // indicator away from cancelling/cancelled.
+            if (cancellationInProgress()) return;
             if (kind === "tool_started" && activeActivity) {
               // Task 2.2 — a tool begins executing: TOOL_RUNNING with its name.
               // Round 1 — stamp toolStartedAt so the tool timer starts at TOOL
@@ -1563,48 +1675,85 @@ export class AgentSessionBuilder {
           },
         });
       } catch (err) {
-        transitionNodeStatus(taskNode, "failed");
-        await ctx.log.append({
-          ...session,
-          type: "task.failed",
-          actor: "system",
-          payload: {
-            nodeId: taskNode.id,
-            graphId: taskGraph.id,
-            error: String(err),
-          },
-          meta: graphMeta,
-        });
-        transitionWorkflowStatus(wfRun, "failed");
-        await ctx.log.append({
-          ...session,
-          type: "workflow.failed",
-          actor: "system",
-          payload: { workflowId: wfRun.id, summary: String(err) },
-          meta: wfMeta,
-        });
-
-        // Emit lifecycle event: turn completed (error)
-        await ctx.log.append({
-          sessionId: ctx.sessionId,
-          actor: "system",
-          type: "agent.session.turn.completed",
-          payload: { turn: turnCount, error: String(err) },
-        });
-        // Phase 9 observability — a loop exception is a failed invocation
-        // unless it is an operator/execution cancellation. Cancellation and
-        // failure are mutually exclusive, and neither is a stall warning (a
-        // warning/stalled transition was already counted at the watchdog and
-        // must NOT be counted again here).
+        // ── Operator / execution cancellation vs genuine failure (Task 6.3) ──
+        // A cancelled turn is a distinct terminal outcome: it must never be
+        // marked failed (graph/workflow), never counted as failed, and never
+        // reported as a timeout. Cancellation and failure are mutually
+        // exclusive; neither is a stall warning (a warning/stalled transition
+        // was already counted at the watchdog and must NOT be counted again).
         if (isCancellationError(err)) {
+          transitionNodeStatus(taskNode, "cancelled");
+          transitionGraphStatus(taskGraph, "cancelled");
+          transitionWorkflowStatus(wfRun, "cancelled");
+          await ctx.log.append({
+            ...session,
+            type: "workflow.cancelled",
+            actor: "system",
+            payload: {
+              workflowId: wfRun.id,
+              nodeId: taskNode.id,
+              graphId: taskGraph.id,
+              summary: String(err),
+            },
+            meta: wfMeta,
+          });
           metrics.increment("agent_invocation_cancelled_total");
           recordTerminalOutcome("cancelled");
+          // Terminal activity state: the live "Cancelling…" record resolves to
+          // `cancelled` so the gauge/event history show the true outcome.
+          if (activeActivity && activeActivity.state !== "cancelled") {
+            feedActivity("cancelled");
+          }
+          // Surface the elapsed-from-start summary ("Cancelled after 4m 12s")
+          // for the TUI's summary line. Anchored at the operator's cancel
+          // request; falls back to now (execution-initiated cancellation).
+          const cancelledAt = cancelRequestedAt ?? Date.now();
+          const invocationStartedAt = activeActivity?.startedAt;
+          lastCancelSummary =
+            invocationStartedAt !== undefined
+              ? `Cancelled after ${formatCancellationElapsed(cancelledAt - invocationStartedAt)}`
+              : "Cancelled";
+          // Emit lifecycle event: turn completed (cancelled)
+          await ctx.log.append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.turn.completed",
+            payload: { turn: turnCount, cancelled: true, error: String(err) },
+          });
         } else {
+          transitionNodeStatus(taskNode, "failed");
+          await ctx.log.append({
+            ...session,
+            type: "task.failed",
+            actor: "system",
+            payload: {
+              nodeId: taskNode.id,
+              graphId: taskGraph.id,
+              error: String(err),
+            },
+            meta: graphMeta,
+          });
+          transitionWorkflowStatus(wfRun, "failed");
+          await ctx.log.append({
+            ...session,
+            type: "workflow.failed",
+            actor: "system",
+            payload: { workflowId: wfRun.id, summary: String(err) },
+            meta: wfMeta,
+          });
+
+          // Emit lifecycle event: turn completed (error)
+          await ctx.log.append({
+            sessionId: ctx.sessionId,
+            actor: "system",
+            type: "agent.session.turn.completed",
+            payload: { turn: turnCount, error: String(err) },
+          });
           metrics.increment("agent_invocation_failed_total");
           recordTerminalOutcome("failed");
         }
-        // Persist the failure-path rows: the success-path flush below is
-        // never reached when the loop throws.
+        // Persist the failure/cancellation-path rows: the success-path flush
+        // below is never reached when the loop throws.
         await flushMetrics();
         turnCount++;
         activeActivity = undefined;
@@ -1612,6 +1761,8 @@ export class AgentSessionBuilder {
       } finally {
         clearInterval(livenessWatchdog);
         activeLiveness = undefined;
+        activeCancel = undefined;
+        cancelRequestedAt = undefined;
       }
 
       // Cumulative file count for the TUI header. sessionState is local to
@@ -2120,6 +2271,8 @@ export class AgentSessionBuilder {
       getPhase,
       getLiveness,
       getActivity,
+      cancelActiveTurn,
+      getLastCancelSummary,
       save,
       resume,
       setPlanApprovalGate: (gate) => {

@@ -11,8 +11,10 @@
 // user *sees*; liveness is whether execution is making progress. They are
 // orthogonal concerns that share timestamp fields but must not be merged.
 //
-// IDLE is represented as `undefined` / `null` activity rather than an 11th
-// state member — the union has exactly 10 active states.
+// IDLE is represented as `undefined` / `null` activity rather than a state
+// member. `cancelling` is the LIVE in-progress phase (the operator pressed
+// cancel and the turn is unwinding — rendered "Cancelling…"); `cancelled` is
+// the terminal outcome (the existing completion line takes over).
 
 // ─── State union ───────────────────────────────────────────────────
 
@@ -24,6 +26,7 @@ export type AgentActivityState =
   | "verifying"
   | "summarizing"
   | "possibly_stalled"
+  | "cancelling"
   | "completed"
   | "failed"
   | "cancelled";
@@ -37,6 +40,7 @@ export const AGENT_ACTIVITY_STATES: readonly AgentActivityState[] = [
   "verifying",
   "summarizing",
   "possibly_stalled",
+  "cancelling",
   "completed",
   "failed",
   "cancelled",
@@ -162,6 +166,7 @@ export function assertExhaustiveState(state: AgentActivityState): undefined {
     case "verifying":
     case "summarizing":
     case "possibly_stalled":
+    case "cancelling":
     case "completed":
     case "failed":
     case "cancelled":

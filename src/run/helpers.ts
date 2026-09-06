@@ -6,6 +6,10 @@ import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
 import { shouldAutoDisableStreaming } from "../agent/stream.js";
 import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
+import {
+  ExecutionCancelledError,
+  rejectOnAbort,
+} from "../runtime/cancellation-token.js";
 
 // =============================================================================
 // INTERNAL HELPERS (not exported — used by helpers.ts exports only)
@@ -314,13 +318,21 @@ export type StreamToResponseResult = {
 /**
  * Stream a request to the provider and collect the response.
  * Handles stdout writing and stream callbacks.
+ *
+ * When `options.signal` is present (operator cancellation, Task 6.1), each
+ * chunk wait races the abort signal so a cancel releases the run the instant
+ * it is requested — the generator is closed and the call ends as an
+ * ExecutionCancelledError. A mid-stream abort NEVER falls back to the
+ * blocking `complete()` (cancellation is not a network hiccup to repair).
+ * Without a signal the behaviour is byte-for-byte the legacy path.
  */
 export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
-  options?: { onStream?: (chunk: { type: "text"; text: string }) => void }
+  options?: { onStream?: (chunk: { type: "text"; text: string }) => void; signal?: AbortSignal }
 ): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
+  const signal = options?.signal;
   let text = "";
   let reasoning = "";
   let toolCalls: ToolCall[] = [];
@@ -328,27 +340,70 @@ export async function streamToResponse(
   let resolvedModel: string | undefined;
   let finishReason: string | undefined;
   try {
-    for await (const chunk of provider.stream(request)) {
-      if (chunk.type === "text_delta") {
-        text += chunk.text;
-        if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-          await new Promise(resolve => process.stdout.once("drain", resolve));
+    if (!signal) {
+      for await (const chunk of provider.stream(request)) {
+        if (chunk.type === "text_delta") {
+          text += chunk.text;
+          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+            await new Promise(resolve => process.stdout.once("drain", resolve));
+          }
+          options?.onStream?.({ type: "text", text: chunk.text });
         }
-        options?.onStream?.({ type: "text", text: chunk.text });
+        if (chunk.type === "reasoning_delta") {
+          reasoning += chunk.text;
+          // Reasoning is private trace, never streamed to the operator and never
+          // folded into the final text — merged into the returned reasoning only.
+        }
+        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+        if (chunk.type === "usage") usage = chunk.usage;
+        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
+        if (chunk.type === "error") throw new Error(chunk.error);
       }
-      if (chunk.type === "reasoning_delta") {
-        reasoning += chunk.text;
-        // Reasoning is private trace, never streamed to the operator and never
-        // folded into the final text — merged into the returned reasoning only.
-      }
-      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-      if (chunk.type === "usage") usage = chunk.usage;
-      if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
-      if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
-      if (chunk.type === "error") throw new Error(chunk.error);
+      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
     }
-    return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
+
+    // Cancellable path — same accumulation, but every `next()` races the
+    // operator-cancel signal so a cancel releases a hung stream immediately.
+    const iterator = provider.stream(request)[Symbol.asyncIterator]();
+    try {
+      for (;;) {
+        if (signal.aborted) throw new ExecutionCancelledError(String((signal as any).reason ?? "operation cancelled"));
+        const step = await Promise.race([iterator.next(), rejectOnAbort(signal)]);
+        if (step.done) break;
+        const chunk = step.value;
+        if (chunk.type === "text_delta") {
+          text += chunk.text;
+          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+            await new Promise(resolve => process.stdout.once("drain", resolve));
+          }
+          options?.onStream?.({ type: "text", text: chunk.text });
+        }
+        if (chunk.type === "reasoning_delta") {
+          reasoning += chunk.text;
+        }
+        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+        if (chunk.type === "usage") usage = chunk.usage;
+        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
+        if (chunk.type === "error") throw new Error(chunk.error);
+      }
+      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
+    } finally {
+      // The signal fired (or the pump errored): ask the generator to stop so
+      // the provider stops producing. Fire-and-forget on purpose — a
+      // generator stuck in its own internal await cannot accept return()
+      // until that await settles, and we must NEVER block the cancellation
+      // propagation on it (the transport's own idle/timeout bounds the
+      // orphaned request).
+      if (signal.aborted) {
+        void (async () => {
+          try { if (iterator.return) await iterator.return(undefined); } catch { /* best-effort */ }
+        })();
+      }
+    }
   } catch (err) {
+    if (signal?.aborted || err instanceof ExecutionCancelledError) throw err;
     // Routing adapters already made their fallback decision (INV-5); their
     // post-commit failure is final — do not re-run the chain and concatenate.
     if (provider.isRoutingAdapter) throw err;

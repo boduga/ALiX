@@ -83,6 +83,11 @@ describe('formatActivityLine — transient activity rendering (Task 3.1)', () =>
   it('uses the provided spinner frame when given (caller controls animation)', () => {
     expect(formatActivityLine(activity('thinking', 0), 1_000, '◐')).toBe('◐ Thinking… 1s');
   });
+
+  it('Task 6.2 — renders an in-flight cancel as "◐ Cancelling… Ns" while the turn unwinds', () => {
+    expect(formatActivityLine(activity('cancelling', 1_000), 5_000)).toBe('◐ Cancelling… 4s');
+    expect(formatActivityLine(activity('cancelling', 0), 3_000)).toBe('◒ Cancelling… 3s');
+  });
 });
 
 // ─── Task 3.4 — tool presentation ─────────────────────────────────────────
@@ -128,7 +133,7 @@ describe('formatActivityLine — completion cleanup (Task 3.5)', () => {
   });
 
   it('isTransientActivityState admits exactly the live transient states', () => {
-    for (const s of ['thinking', 'waiting_for_provider', 'tool_running', 'verifying', 'summarizing', 'possibly_stalled'] as const) {
+    for (const s of ['thinking', 'waiting_for_provider', 'tool_running', 'verifying', 'summarizing', 'possibly_stalled', 'cancelling'] as const) {
       expect(isTransientActivityState(s)).toBe(true);
     }
     for (const s of ['streaming', 'completed', 'failed', 'cancelled'] as const) {

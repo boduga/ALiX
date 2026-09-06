@@ -68,6 +68,8 @@ import {
 } from "../runtime/tool-scheduler.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../runtime/tool-correlation.js";
+import type { CancellationToken } from "../runtime/cancellation-token.js";
+import { rejectOnAbort } from "../runtime/cancellation-token.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -400,6 +402,19 @@ post_task?: { command: string; reason: string }[];
   currentIntent?: AgentIntent;
   /** T4: harness-side parallel dispatch policy. Defaults to allowParallel:true maxParallel:4. */
   toolExecutionPolicy?: ToolExecutionPolicy;
+  /**
+   * Operator-cancellation token (Task 6.1). Checked at loop safe points
+   * (iteration top) so a cancel is honoured between provider calls / tools.
+   * Optional — the CLI/daemon paths that do not surface operator cancel omit it.
+   */
+  cancellationToken?: CancellationToken;
+  /**
+   * Abort signal fired when the operator cancels (paired with
+   * `cancellationToken`). Raced against the in-flight provider request/stream
+   * so a cancel releases a hung provider call the instant it is requested.
+   * Optional; omitted when cancellation is not armed.
+   */
+  cancelSignal?: AbortSignal;
 }
 
 /**
@@ -583,6 +598,12 @@ let truncationContinuations = 0;
 
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
+
+// ── Operator cancellation (Task 6.1): checked at the loop's safe point ──
+// A cancel requested while a tool runs / verification runs / the loop is
+// between awaits is honoured here, before any further provider call or tool
+// dispatch. Throws ExecutionCancelledError → classified cancelled upstream.
+deps.cancellationToken?.throwIfCancelled();
 
 // Track if any mutations occurred in this iteration
 const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
@@ -809,6 +830,11 @@ let finishReason: string | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
+	// ── Operator-cancellable provider call (Task 6.1) ────────────────
+	// When a cancel signal is armed, the request/stream is raced against it:
+	// a cancel releases the run immediately (ExecutionCancelledError) instead
+	// of waiting on the provider's own transport bound. Without a signal the
+	// calls are untouched (no behaviour change for non-cancellable paths).
 	if (model.streaming && provider.stream) {
 	  const result = await streamToResponse(provider, {
 	    systemPrompt: admittedSystemPrompt,
@@ -816,7 +842,7 @@ let finishReason: string | undefined;
 	    tools: wireTools,
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
-	  }, { onStream });
+	  }, deps.cancelSignal ? { onStream, signal: deps.cancelSignal } : { onStream });
 	  text = result.text;
 	  reasoning = result.reasoning ?? "";
 	  toolCalls = result.toolCalls;
@@ -824,13 +850,16 @@ let finishReason: string | undefined;
 	  resolvedModel = result.resolvedModel;
 	  finishReason = result.finishReason;
 	} else {
-	  const resp = await provider.complete({
+	  const completeReq = {
 	    systemPrompt: admittedSystemPrompt,
 	    messages,
 	    tools: wireTools,
 	    maxOutputTokens: contextBudget.requestedMaxOutputTokens,
 	    context: deps.context,
-	  });
+	  };
+	  const resp = await (deps.cancelSignal
+	    ? Promise.race([provider.complete(completeReq), rejectOnAbort(deps.cancelSignal, "cancelled by operator")])
+	    : provider.complete(completeReq));
 	  // C1 fix: restore assignments — the non-streaming path MUST
 	  // populate text/toolCalls/usage from the provider response.
 	  text = resp.text ?? "";

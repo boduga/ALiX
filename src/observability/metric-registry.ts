@@ -390,6 +390,7 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
         "verifying",
         "summarizing",
         "possibly_stalled",
+        "cancelling",
         "completed",
         "failed",
         "cancelled",

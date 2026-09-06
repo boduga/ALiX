@@ -12,8 +12,8 @@ import {
 describe("AgentActivity contract", () => {
   // ─── State union ────────────────────────────────────────────────
 
-  it("has exactly 10 states", () => {
-    expect(AGENT_ACTIVITY_STATES).toHaveLength(10);
+  it("has exactly 11 states", () => {
+    expect(AGENT_ACTIVITY_STATES).toHaveLength(11);
   });
 
   it("includes all expected state values", () => {
@@ -25,6 +25,7 @@ describe("AgentActivity contract", () => {
       "verifying",
       "summarizing",
       "possibly_stalled",
+      "cancelling",
       "completed",
       "failed",
       "cancelled",
@@ -207,6 +208,8 @@ describe("AgentActivity contract", () => {
           return "Summarizing…";
         case "possibly_stalled":
           return "Possibly stalled…";
+        case "cancelling":
+          return "Cancelling…";
         case "completed":
           return "Completed";
         case "failed":
@@ -228,6 +231,7 @@ describe("AgentActivity contract", () => {
     expect(handler("verifying")).toBe("Verifying…");
     expect(handler("summarizing")).toBe("Summarizing…");
     expect(handler("possibly_stalled")).toBe("Possibly stalled…");
+    expect(handler("cancelling")).toBe("Cancelling…");
     expect(handler("completed")).toBe("Completed");
     expect(handler("failed")).toBe("Failed");
     expect(handler("cancelled")).toBe("Cancelled");

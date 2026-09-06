@@ -47,6 +47,8 @@ export function activitySpinnerFrame(elapsedMs: number): string {
  * indicator on the first token — Task 3.5); terminal states (completed /
  * failed / cancelled) are excluded because the existing completion lines
  * (`✓` / `✗` / turn summary) take over — never a permanent spinner.
+ * `cancelling` is transient: it renders only while the cancelled turn is
+ * unwinding, then the summary line (`Cancelled after 4m 12s`) takes over.
  */
 export function isTransientActivityState(state: AgentActivityState): boolean {
   switch (state) {
@@ -56,6 +58,7 @@ export function isTransientActivityState(state: AgentActivityState): boolean {
     case 'verifying':
     case 'summarizing':
     case 'possibly_stalled':
+    case 'cancelling':
       return true;
     case 'streaming':
     case 'completed':
@@ -106,6 +109,12 @@ export function formatActivityLine(
       return `${glyph} Summarizing… ${elapsed}`;
     case 'possibly_stalled':
       return `${glyph} Still working… ${elapsed}`;
+    case 'cancelling':
+      // Task 6.2 — operator cancel requested: rendered live while the turn
+      // unwinds (`◐ Cancelling… 4m 12s`). Replaced by the timeline's
+      // `Cancelled after 4m 12s` summary once the turn resolves — never a
+      // permanent spinner.
+      return `${glyph} Cancelling… ${elapsed}`;
     case 'streaming':
     case 'completed':
     case 'failed':

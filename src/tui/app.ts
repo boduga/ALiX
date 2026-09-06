@@ -10,6 +10,7 @@ import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import type { AgentSession } from '../agent/session.js';
+import { isCancellationError } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
@@ -457,6 +458,19 @@ export class TuiApp {
       }
       if (key === 'Shift+Tab') { this.slash.cycleSelection(-1); this.paintFullFrame(); return; }
     }
+    // ── Escape cancels the in-flight agent turn (Task 6.1) ───────────
+    // Claude-Code-style stop key: while an agent turn is executing (across
+    // any tab — the run keeps streaming in the background), Escape requests
+    // cancellation of that turn. It is consumed ONLY when a cancellable turn
+    // is actually running (`cancelActiveTurn` armed); otherwise Escape falls
+    // through to the existing handlers (palette dismissal above already
+    // claimed it when the modal is open).
+    if (key === '\x1b' || key === 'Escape') {
+      if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
+        this.paintFullFrame();
+        return;
+      }
+    }
     if (this.tryHandleGlobal(key)) return;
     // 2b. Pluggable key dispatcher — registered keybindings get first
     //     chance to consume the key before the built-in dispatch.
@@ -811,6 +825,15 @@ export class TuiApp {
           // Only the agent tab streams (`streamingText` is never set on chat),
           // so a plain read is equivalent to a kind guard.
           partialStreamed = perTab.streamingText;
+          // Task 6.3 — an explicit operator cancel is a NORMAL outcome, never
+          // an error: render the friendly "Cancelled after 4m 12s" summary,
+          // skip the stderr error line, and do not fall through to another
+          // candidate. A user cancel must never read as "(agent error…)" or
+          // "timed out".
+          if (isCancellationError(err)) {
+            summary = this.opts.agentSession?.getLastCancelSummary?.() ?? 'Cancelled';
+            break;
+          }
           // Stderr is independent of the TUI render — even if paintFullFrame
           // fails for some reason, the operator sees the failure here.
           process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);

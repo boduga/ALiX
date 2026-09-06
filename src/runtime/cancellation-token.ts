@@ -81,3 +81,42 @@ export class CancellationToken {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// AbortSignal → ExecutionCancelledError bridge
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the human reason from an aborted signal. Callers abort with a string
+ * reason (see AgentSession.cancelActiveTurn); the default (AbortController
+ * without a reason) yields `undefined`.
+ */
+function signalReason(signal: AbortSignal): string | undefined {
+  const r = (signal as AbortSignal & { reason?: unknown }).reason;
+  return typeof r === "string" && r.length > 0 ? r : undefined;
+}
+
+/**
+ * A promise that rejects with `ExecutionCancelledError` the moment `signal`
+ * aborts (or immediately when it already has). Races an in-flight await
+ * (provider `complete()`/stream chunk) against operator cancellation so the
+ * caller stops waiting the instant the operator cancels, without imposing
+ * any wall-clock deadline of its own.
+ *
+ * The pending operation itself is NOT force-killed — the caller abandons it
+ * and its own transport contract (idle/timeout) bounds it. Transport safety
+ * stays intact; operator cancel is orthogonal.
+ */
+export function rejectOnAbort(signal: AbortSignal, fallbackReason?: string): Promise<never> {
+  return new Promise<never>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(new ExecutionCancelledError(signalReason(signal) ?? fallbackReason ?? "operation cancelled"));
+      return;
+    }
+    const onAbort = (): void => {
+      signal.removeEventListener("abort", onAbort);
+      reject(new ExecutionCancelledError(signalReason(signal) ?? fallbackReason ?? "operation cancelled"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
