@@ -186,7 +186,11 @@ export class RoutingModelAdapter implements ModelAdapter {
             if (chunk.type === "text_delta" || chunk.type === "tool_call") committed = true;
           }
           if (chunk.type === "done" && !chunk.resolvedModel) {
-            yield { type: "done", resolvedModel: candidate.label };
+            yield {
+              type: "done",
+              resolvedModel: candidate.label,
+              ...(chunk.finishReason === undefined ? {} : { finishReason: chunk.finishReason }),
+            };
             continue;
           }
           yield chunk;

@@ -155,6 +155,8 @@ export type ToolCall = {
 
 export type NormalizedResponse = {
   text: string;
+  /** Model's private reasoning trace (e.g. DeepSeek reasoning_content). Not final output. */
+  reasoning?: string;
   toolCalls: ToolCall[];
   usage?: TokenUsage;
   finishReason?: string;
@@ -165,9 +167,10 @@ export type NormalizedResponse = {
 // Streaming chunks
 export type StreamChunk =
   | { type: "text_delta"; text: string }
+  | { type: "reasoning_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCall }
   | { type: "usage"; usage: TokenUsage }
-  | { type: "done"; resolvedModel?: string }
+  | { type: "done"; resolvedModel?: string; finishReason?: string }
   | { type: "error"; error: string };
 
 // Negotiated capabilities (result of capability negotiation)
