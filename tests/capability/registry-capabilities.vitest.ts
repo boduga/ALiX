@@ -55,6 +55,24 @@ describe("projectToolCapability", () => {
     expect(cap.risk).toBe("low");
   });
 
+  it("file.read: always-included tool surfaces as active", () => {
+    const cap = projectToolCapability(findTool("file.read"));
+    expect(cap.extensions?.alwaysInclude).toBe(true);
+    expect(cap.extensions?.surface).toBe("active");
+  });
+
+  it("patch.apply: governed tool (alwaysInclude=false) surfaces as governed", () => {
+    const cap = projectToolCapability(findTool("patch.apply"));
+    expect(cap.extensions?.alwaysInclude).toBe(false);
+    expect(cap.extensions?.surface).toBe("governed");
+  });
+
+  it("shell.run: governed tool (alwaysInclude=false) surfaces as governed", () => {
+    const cap = projectToolCapability(findTool("shell.run"));
+    expect(cap.extensions?.alwaysInclude).toBe(false);
+    expect(cap.extensions?.surface).toBe("governed");
+  });
+
   it("sets common defaults: version, execution.timeout, execution.cancellable", () => {
     const cap = projectToolCapability(findTool("file.read"));
     expect(cap.version).toBe("1.0");
@@ -99,6 +117,18 @@ describe("round-trip matrix: every canonical registry entry projects losslessly"
       expect(cap.extensions?.toolName).toBe(tool.name);
 
       expect(cap.id).toBe(toolCapabilityId(tool.name));
+    },
+  );
+
+  it.each(entries.map((t) => [t.name, t] as const))(
+    "%s surfaces alwaysInclude and a consistent active/governed surface label",
+    (_name, tool) => {
+      const cap = projectToolCapability(tool);
+      const expectedSurface = tool.alwaysInclude ? "active" : "governed";
+
+      expect(cap.extensions?.alwaysInclude).toBe(tool.alwaysInclude);
+      expect(cap.extensions?.surface).toBe(expectedSurface);
+      expect(typeof cap.extensions?.surface).toBe("string");
     },
   );
 

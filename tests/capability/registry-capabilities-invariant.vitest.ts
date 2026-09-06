@@ -60,7 +60,7 @@ describe('palette↔registry cross-drift invariant', () => {
     return registry.getAll().filter((t) => t.name !== 'mcp.*');
   }
 
-  it('every palette tool capability originates from the registry with risk/capabilityId/mutates intact', async () => {
+  it('every palette tool capability originates from the registry with risk/capabilityId/mutates/surface intact', async () => {
     const palette = await realPaletteTools();
     const { registry } = buildDefaultToolIndex();
 
@@ -77,6 +77,8 @@ describe('palette↔registry cross-drift invariant', () => {
       expect(cap.risk, `${toolName}: risk`).toBe(entry.risk);
       expect(cap.extensions?.capabilityId, `${toolName}: extensions.capabilityId`).toBe(entry.capabilityId);
       expect(cap.extensions?.mutates, `${toolName}: extensions.mutates`).toBe(entry.mutates);
+      expect(cap.extensions?.alwaysInclude, `${toolName}: extensions.alwaysInclude`).toBe(entry.alwaysInclude);
+      expect(cap.extensions?.surface, `${toolName}: extensions.surface`).toBe(entry.alwaysInclude ? 'active' : 'governed');
     }
   });
 

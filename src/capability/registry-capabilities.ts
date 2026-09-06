@@ -30,6 +30,12 @@ export function projectToolCapability(tool: ToolCapability): Capability {
       capabilityId: tool.capabilityId,
       toolName: tool.name,
       mutates: tool.mutates,
+      // Surface marker: registry tools with alwaysInclude=true are always
+      // active in the palette; alwaysInclude=false tools are registered but
+      // policy-governed (deniable). Both the raw flag and the derived label
+      // ride along so downstream tooling can distinguish without re-deriving.
+      alwaysInclude: tool.alwaysInclude,
+      surface: tool.alwaysInclude ? "active" : "governed",
     },
   };
 }
