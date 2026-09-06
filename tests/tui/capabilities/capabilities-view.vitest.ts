@@ -66,6 +66,10 @@ describe('CapabilitiesView', () => {
     const out = canvas.renderFrame();
     expect(out).toContain('core.session.list');
     expect(out).toContain('tool.file.read');
+    // The registry-projected tool surface renders beyond the single preserved
+    // id — tool.file.create is a sibling projection, proving the derived
+    // (not hardcoded) palette is what reaches the view.
+    expect(out).toContain('tool.file.create');
   });
 
   it('filters by query via ArrowUp/type', () => {
