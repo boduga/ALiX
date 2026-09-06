@@ -37,7 +37,7 @@ describe("resolved-model capture", () => {
       const chunks = [];
       for await (const c of stream("openrouter", "openrouter/free", req, { apiKey: "k" })) chunks.push(c);
       const done = chunks.find((c) => c.type === "done");
-      expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
+      expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free", finishReason: "stop" });
     } finally {
       _setFetchForTesting(globalThis.fetch);
     }
@@ -59,5 +59,26 @@ describe("resolved-model capture", () => {
     };
     const out = await streamToResponse(fake, req);
     expect(out.resolvedModel).toBe("qwen/qwen3-14b:free");
+  });
+
+  it("streamToResponse collects reasoning_delta without polluting final text", async () => {
+    const fake: ModelAdapter = {
+      id: "deepseek",
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      capabilities: { provider: "deepseek", model: "deepseek-v4-flash", inputTokenLimit: 64_000, outputTokenLimit: 8192, supportsTools: true, supportsStreaming: true, supportsStructuredOutput: true, supportsVision: false,
+      parallelToolCalls: false
+},
+      complete: async () => ({ text: "", toolCalls: [] }),
+      stream: async function* () {
+        yield { type: "reasoning_delta", text: "let me think about this carefully for a long time" };
+        yield { type: "reasoning_delta", text: " and then conclude" };
+        yield { type: "text_delta", text: "Final answer" };
+        yield { type: "done" };
+      },
+    };
+    const out = await streamToResponse(fake, req);
+    expect(out.text).toBe("Final answer");
+    expect(out.reasoning).toBe("let me think about this carefully for a long time and then conclude");
   });
 });

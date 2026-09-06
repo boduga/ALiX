@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CapabilityPlatform } from '../../src/capability/platform.js';
 import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
+import { registerRegistryToolCapabilities } from '../../src/capability/registry-capabilities.js';
 import { createToolProviderExecutor } from '../../src/capability/tool-adapter.js';
 import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
 import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
@@ -24,6 +25,10 @@ describe('tool provider executor', () => {
     const registry = new CapabilityRegistry(catalog);
     registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
     registerInitialCapabilities(registry, platform.native);
+    // tool.* capabilities come from the canonical registry projection — the
+    // executor contract (extensions.toolName routing) is what these tests
+    // exercise, and the projection preserves it.
+    registerRegistryToolCapabilities(registry);
     platform.registerProvider('tool', createToolProviderExecutor(tool));
     return platform;
   }
@@ -62,5 +67,29 @@ describe('tool provider executor', () => {
     const result = await platform.invoke('tool.file.read', { path: 'a.ts' }, { actor: 'operator', cwd: process.cwd(), workspace: process.cwd() }).wait();
     expect(result.status).toBe('failed');
     expect(result.error).toBe('boom');
+  });
+
+  it('routes registry-projected capabilities by the extensions.toolName recorded on the executor', async () => {
+    // Explicit routing proof: capture the ACTUAL tool name the executor
+    // receives instead of relying on success/denied/error branch semantics.
+    const recorded: string[] = [];
+    const platform = platformWithTool({
+      execute: async (req: ToolCallRequest): Promise<ToolResult> => {
+        recorded.push(req.name);
+        return { kind: 'success', content: `ok:${req.name}` };
+      },
+    });
+
+    const read = await platform.invoke('tool.file.read', { path: 'a.ts' }, { actor: 'operator', cwd: process.cwd(), workspace: process.cwd() }).wait();
+    const run = await platform.invoke('tool.shell.run', { command: 'ls' }, { actor: 'admin', cwd: process.cwd(), workspace: process.cwd() }).wait();
+
+    // Both invocations reached the SAME bootstrap ToolExecutor, routed by the
+    // projected palette entry's extensions.toolName (file.read / shell.run) —
+    // NOT by the palette capability id (tool.file.read / tool.shell.run).
+    expect(recorded).toEqual(['file.read', 'shell.run']);
+    expect(read.status).toBe('completed');
+    expect(read.output).toBe('ok:file.read');
+    expect(run.status).toBe('completed');
+    expect(run.output).toBe('ok:shell.run');
   });
 });

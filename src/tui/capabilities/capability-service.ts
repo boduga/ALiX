@@ -1,6 +1,7 @@
 // src/tui/capabilities/capability-service.ts
 import { CapabilityPlatform } from '../../capability/platform.js';
 import { registerInitialCapabilities } from '../../capability/initial-capabilities.js';
+import { registerRegistryToolCapabilities } from '../../capability/registry-capabilities.js';
 import { createToolProviderExecutor } from '../../capability/tool-adapter.js';
 import { toAlixEvent } from '../../capability/event-bus.js';
 import type { Capability, CapabilityStatus, Invocation } from '../../capability/types.js';
@@ -74,6 +75,13 @@ export class CapabilityService {
     // Register through the platform's public register surface (ruling #2 —
     // the registry itself stays private).
     registerInitialCapabilities({ register: (cap) => this.platform.register(cap) }, this.platform.native);
+    // Tool capabilities derive from the canonical tool registry — no
+    // independently-managed tool taxonomy (projection in
+    // registry-capabilities.ts preserves toolName → tool-provider routing).
+    // Registered synchronously in the constructor: it is static data (no I/O),
+    // so the palette surface is complete + deterministically ordered before
+    // initialize()'s async session wiring resolves.
+    registerRegistryToolCapabilities({ register: (cap) => this.platform.register(cap) });
     this.initPromise = this.initialize();
   }
 

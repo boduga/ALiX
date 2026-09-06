@@ -103,6 +103,58 @@ describe("openrouter/free route", () => {
     expect(requestedModel).toBe("small/with-tools");
   });
 
+  it("sends a concretely pinned :free model directly — no re-resolution (complete)", async () => {
+    // set-default pins use concrete :free ids; they must NOT be re-resolved to
+    // the largest-context free candidate.
+    let discoveryCalled = false;
+    _setOpenRouterDiscoveryFetch(async () => {
+      discoveryCalled = true;
+      return catalog([
+        { id: "minimax/minimax-m3:free", name: "M3", context_length: 1_000_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
+        { id: "z-ai/glm-5.2:free", name: "Glm", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
+      ]);
+    });
+    let requestedModel: string | undefined;
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      requestedModel = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model;
+      return new Response(JSON.stringify({ model: requestedModel, choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "z-ai/glm-5.2:free" });
+    const res = await provider.complete(req);
+    expect(requestedModel).toBe("z-ai/glm-5.2:free");
+    expect(res.resolvedModel).toBe("z-ai/glm-5.2:free");
+    expect(discoveryCalled).toBe(false);
+  });
+
+  it("sends a concretely pinned :free model directly — no re-resolution (stream)", async () => {
+    let discoveryCalled = false;
+    _setOpenRouterDiscoveryFetch(async () => {
+      discoveryCalled = true;
+      return catalog([
+        { id: "minimax/minimax-m3:free", name: "M3", context_length: 1_000_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: { tools: true } },
+      ]);
+    });
+    let requestedModel: string | undefined;
+    _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
+      requestedModel = (JSON.parse(String(init?.body ?? "{}")) as { model?: string }).model;
+      const lines = [
+        `data: {"id":"x","model":"${requestedModel}","choices":[{"delta":{"content":"hi"}}]}`,
+        `data: {"id":"x","model":"${requestedModel}","choices":[{"delta":{},"finish_reason":"stop"}]}`,
+        "data: [DONE]",
+      ];
+      return new Response(lines.join("\n"), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+    });
+
+    const provider = new OpenRouterProvider({ apiKey: "k", model: "z-ai/glm-5.2:free" });
+    const chunks = [];
+    for await (const c of provider.stream(req)) chunks.push(c);
+    expect(requestedModel).toBe("z-ai/glm-5.2:free");
+    expect(discoveryCalled).toBe(false);
+    const done = chunks.find((c) => c.type === "done");
+    expect(done).toEqual({ type: "done", resolvedModel: "z-ai/glm-5.2:free", finishReason: "stop" });
+  });
+
   it("leaves non-free models untouched", async () => {
     let requestedModel: string | undefined;
     _setFetchForTesting(async (_url: string | Request | URL, init?: RequestInit) => {
@@ -134,7 +186,7 @@ describe("openrouter/free route", () => {
     for await (const c of provider.stream(req)) chunks.push(c);
     expect(requestedModel).toBe("qwen/qwen3-14b:free");
     const done = chunks.find((c) => c.type === "done");
-    expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
+    expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free", finishReason: "stop" });
   });
 
   it("retries with a different free model on account-rejection (404 allowed-providers) — complete", async () => {
@@ -181,7 +233,7 @@ describe("openrouter/free route", () => {
     for await (const c of provider.stream(req)) chunks.push(c);
     expect(requested).toEqual(["stealth/ox-alpha", "qwen/qwen3-14b:free"]);
     const done = chunks.find((c) => c.type === "done");
-    expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free" });
+    expect(done).toEqual({ type: "done", resolvedModel: "qwen/qwen3-14b:free", finishReason: "stop" });
   });
 
   it("throws ProviderAccessError on a harness-restricted 403, and excludes the model on the next request", async () => {

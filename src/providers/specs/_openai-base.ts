@@ -73,6 +73,7 @@ export const openaiBaseSpec: ProviderSpec = {
     const r = res as any;
     const choice = r.choices?.[0];
     const text = choice?.message?.content ?? "";
+    const reasoning = choice?.message?.reasoning_content;
     const rawToolCalls = choice?.message?.tool_calls;
     const toolCalls: any[] = [];
     if (Array.isArray(rawToolCalls)) {
@@ -94,6 +95,7 @@ export const openaiBaseSpec: ProviderSpec = {
     }
     return {
       text,
+      reasoning: typeof reasoning === "string" && reasoning.length > 0 ? reasoning : undefined,
       toolCalls,
       usage: r.usage ? {
         inputTokens: r.usage.prompt_tokens,
@@ -110,6 +112,7 @@ export const openaiBaseSpec: ProviderSpec = {
     try {
       const obj = JSON.parse(data);
       const delta = obj.choices?.[0]?.delta;
+      if (delta?.reasoning_content) return { type: "reasoning_delta", text: delta.reasoning_content };
       if (delta?.content) return { type: "text_delta", text: delta.content };
       if (delta?.tool_calls) {
         const tc = delta.tool_calls[0];
@@ -122,6 +125,12 @@ export const openaiBaseSpec: ProviderSpec = {
       }
       if (obj.usage) {
         return { type: "usage", usage: { inputTokens: obj.usage.prompt_tokens, outputTokens: obj.usage.completion_tokens } };
+      }
+      // The terminal chunk carries the finish_reason (stop / length / tool_calls)
+      // before the [DONE] sentinel — surface it so callers can detect truncation.
+      const finishReason = obj.choices?.[0]?.finish_reason;
+      if (finishReason) {
+        return { type: "done", finishReason: String(finishReason) };
       }
     } catch {}
     return null;

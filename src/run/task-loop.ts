@@ -569,6 +569,18 @@ let explicitDoneCalled = false;
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
 
+// Truncation continuation: when a provider stops mid-answer at the output
+// budget (finish_reason=length), keep generating across turns so the final
+// answer is never silently cut. Bounded so a low-iteration budget isn't
+// consumed entirely by continuations.
+const MAX_TRUNCATION_CONTINUATIONS = 4;
+const TRUNCATION_CONTINUE_PROMPT =
+  "Your previous response was cut off at the model's output token limit. " +
+  "Continue exactly from where you stopped — do not repeat any content — and " +
+  "produce the remaining parts of the complete answer.";
+let accumulatedText = "";
+let truncationContinuations = 0;
+
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
 
@@ -789,9 +801,11 @@ for (const hook of hooks.pre_task ?? []) {
 }
 
 let text = "";
+let reasoning = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
 let resolvedModel: string | undefined;
+let finishReason: string | undefined;
 
 	// System prompt was built above (before budget assembly). Use the
 	// assembly-admitted system prompt that survived the budget gate.
@@ -804,9 +818,11 @@ let resolvedModel: string | undefined;
 	    context: deps.context,
 	  }, { onStream });
 	  text = result.text;
+	  reasoning = result.reasoning ?? "";
 	  toolCalls = result.toolCalls;
 	  usage = result.usage;
 	  resolvedModel = result.resolvedModel;
+	  finishReason = result.finishReason;
 	} else {
 	  const resp = await provider.complete({
 	    systemPrompt: admittedSystemPrompt,
@@ -818,9 +834,11 @@ let resolvedModel: string | undefined;
 	  // C1 fix: restore assignments — the non-streaming path MUST
 	  // populate text/toolCalls/usage from the provider response.
 	  text = resp.text ?? "";
+	  reasoning = resp.reasoning ?? "";
 	  toolCalls = resp.toolCalls ?? [];
 	  usage = resp.usage;
 	  resolvedModel = resp.resolvedModel;
+	  finishReason = resp.finishReason;
 }
 
   // Progress: the model completed a generation turn (milestone in the
@@ -859,6 +877,34 @@ let resolvedModel: string | undefined;
     }
   }
 
+// Truncation: the model hit the output budget mid-answer (finish_reason=length
+// on a prose response with no tool calls). Continue generation in a follow-up
+// turn so the final answer is never silently cut. Accumulated segments survive
+// across iterations and are merged into the returned summary below.
+if (
+  finishReason === "length" &&
+  toolCalls.length === 0 &&
+  text.length > 0 &&
+  truncationContinuations < MAX_TRUNCATION_CONTINUATIONS
+) {
+  truncationContinuations++;
+  await log.append({
+    ...session, actor: "system", type: "agent.truncated.continuing",
+    payload: { iteration: i, chars: text.length, continuation: truncationContinuations },
+  });
+  messages.push({ role: "assistant", content: text });
+  accumulatedText += text;
+  messages.push({ role: "user", content: TRUNCATION_CONTINUE_PROMPT });
+  continue;
+}
+
+// Merge any prior truncated segments into this iteration's final answer so the
+// summary always contains the complete continuation, never just the last turn.
+if (accumulatedText.length > 0) {
+  text = accumulatedText + text;
+  accumulatedText = "";
+}
+
 if (text.length > 0) {
   await emitAgent(log, session, "agent.message", { text });
 }
@@ -886,10 +932,11 @@ if (usage) {
   });
 }
 
-// Emit reasoning trail
-if (text && text.length > 0) {
+// Emit reasoning trail — the model's reasoned trace when the provider
+// surfaced one (reasoning_content), otherwise the leading text slice.
+if (reasoning.length > 0 || (text && text.length > 0)) {
   await emitAgent(log, session, "agent.reasoning", {
-    text: text.slice(0, 500),
+    text: (reasoning.length > 0 ? reasoning : text).slice(0, 500),
     toolCalls: toolCalls.map(tc => tc.name),
     iteration: i,
   });

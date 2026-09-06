@@ -301,6 +301,16 @@ export async function saveDecisionsToMemory(
   }
 }
 
+export type StreamToResponseResult = {
+  text: string;
+  reasoning?: string;
+  toolCalls: ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+  /** Terminal finish reason from the provider (stop / length / tool_calls). */
+  finishReason?: string;
+};
+
 /**
  * Stream a request to the provider and collect the response.
  * Handles stdout writing and stream callbacks.
@@ -309,12 +319,14 @@ export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
   options?: { onStream?: (chunk: { type: "text"; text: string }) => void }
-): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage; resolvedModel?: string }> {
+): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   let text = "";
+  let reasoning = "";
   let toolCalls: ToolCall[] = [];
   let usage: TokenUsage | undefined;
   let resolvedModel: string | undefined;
+  let finishReason: string | undefined;
   try {
     for await (const chunk of provider.stream(request)) {
       if (chunk.type === "text_delta") {
@@ -324,12 +336,18 @@ export async function streamToResponse(
         }
         options?.onStream?.({ type: "text", text: chunk.text });
       }
+      if (chunk.type === "reasoning_delta") {
+        reasoning += chunk.text;
+        // Reasoning is private trace, never streamed to the operator and never
+        // folded into the final text — merged into the returned reasoning only.
+      }
       if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
       if (chunk.type === "usage") usage = chunk.usage;
       if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+      if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
       if (chunk.type === "error") throw new Error(chunk.error);
     }
-    return { text, toolCalls, usage, resolvedModel };
+    return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
   } catch (err) {
     // Routing adapters already made their fallback decision (INV-5); their
     // post-commit failure is final — do not re-run the chain and concatenate.
@@ -338,7 +356,7 @@ export async function streamToResponse(
     // SSE) must not abort the task run. Fall back to a blocking complete();
     // the tokens streamed so far remain, the rest arrives as one block.
     const resp = await provider.complete(request);
-    return { text: text + (resp.text ?? ""), toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel };
+    return { text: text + (resp.text ?? ""), reasoning: reasoning || resp.reasoning, toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel, finishReason: finishReason ?? resp.finishReason };
   }
 }
 

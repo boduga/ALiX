@@ -131,7 +131,7 @@ import {
 } from "../utils/memory/recall.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
-import { createContextBudget, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
+import { createContextBudget, DEFAULT_OUTPUT_CAP, type ContextBudget, type ContextBudgetConfig, type ContextBudgetOverflowError } from "../config/context-budget.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -1809,7 +1809,40 @@ export class AgentSessionBuilder {
             config.chatApiKey,
           ),
         });
-        const text = response.text?.trim() ?? "";
+        let text = response.text?.trim() ?? "";
+        // Truncation continuation: a `finish_reason=length` on a single-shot
+        // chat call means the model ran out of output budget mid-answer. Keep
+        // generating in follow-up turns so the user never sees a silently cut
+        // reply. Each continuation feeds the partial answer back as context
+        // so the model resumes coherently instead of restarting.
+        let finishReason = response.finishReason;
+        let continuations = 0;
+        const MAX_CHAT_CONTINUATIONS = 3;
+        while (
+          finishReason === "length" &&
+          text.length > 0 &&
+          continuations < MAX_CHAT_CONTINUATIONS
+        ) {
+          continuations++;
+          chatMessages.push({ role: "assistant", content: text });
+          chatMessages.push({
+            role: "user",
+            content:
+              "Your previous response was cut off at the output token limit. " +
+              "Continue exactly from where you stopped — do not repeat anything — " +
+              "and finish the remaining parts of the complete answer.",
+          });
+          const next = await provider.complete({
+            systemPrompt: chatSystemPrompt,
+            messages: chatMessages.slice(),
+            maxOutputTokens: await resolveDirectOutputCeiling(
+              config.chatModel,
+              config.chatApiKey,
+            ),
+          });
+          text += (next.text ?? "").trim();
+          finishReason = next.finishReason;
+        }
         chatMessages.push({ role: "assistant", content: text });
         return {
           summary: text || `[chat] ${message}`,
@@ -2103,6 +2136,15 @@ async function resolveDirectOutputCeiling(
       chatModel.model ?? "",
       chatApiKey ? { [chatModel.provider]: chatApiKey } : undefined,
     );
+    // DeepSeek accepts output budgets far above the generic 32,768 cap
+    // (verified against api.deepseek.com: 100k–300k `max_tokens` honored;
+    // the model streams reasoning + content inside a single budget, so a
+    // long answer cut at 32k was silently truncated mid-part). Keep the
+    // generic cap for other providers, whose APIs often reject `max_tokens`
+    // above their own much smaller ceiling (e.g. gpt-4o).
+    if (chatModel.provider === "deepseek") {
+      return createContextBudget(descriptor, { outputCap: 131_072 }).requestedMaxOutputTokens;
+    }
     return createContextBudget(descriptor).requestedMaxOutputTokens;
   } catch {
     return 512;
@@ -2135,8 +2177,19 @@ async function setupContextLimits(
   const userOverride = modelConfig.maxContextTokens;
   let contextBudget: ContextBudget;
   let tokenizer: TokenizerName;
+  const budgetOptions: ContextBudgetConfig = budgetConfig ?? {};
+  // DeepSeek accepts output budgets far above the generic 32,768 cap (verified
+  // against api.deepseek.com: 100k–300k `max_tokens` honored; reasoning +
+  // content share the budget, so long answers were silently truncated at 32k).
+  // Only elevate when the user hasn't set their own cap.
+  if (
+    modelConfig.provider === "deepseek" &&
+    (budgetOptions.outputCap === undefined || budgetOptions.outputCap === DEFAULT_OUTPUT_CAP)
+  ) {
+    budgetOptions.outputCap = 131_072;
+  }
   if (userOverride !== undefined) {
-    contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetConfig);
+    contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetOptions);
     tokenizer = getEncoding(modelConfig.provider);
   } else {
     const { resolveModelDescriptor } = await import("../config/context-limits.js");
@@ -2146,7 +2199,7 @@ async function setupContextLimits(
       apiKeys,
     );
     tokenizer = descriptor.tokenizer;
-    contextBudget = createContextBudget(descriptor, budgetConfig);
+    contextBudget = createContextBudget(descriptor, budgetOptions);
   }
 
   // Ensure the tiktoken encoder is genuinely loaded before any admission /

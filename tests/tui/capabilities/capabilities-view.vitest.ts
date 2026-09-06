@@ -66,6 +66,10 @@ describe('CapabilitiesView', () => {
     const out = canvas.renderFrame();
     expect(out).toContain('core.session.list');
     expect(out).toContain('tool.file.read');
+    // The registry-projected tool surface renders beyond the single preserved
+    // id — tool.file.create is a sibling projection, proving the derived
+    // (not hardcoded) palette is what reaches the view.
+    expect(out).toContain('tool.file.create');
   });
 
   it('filters by query via ArrowUp/type', () => {
@@ -154,9 +158,10 @@ describe('CapabilitiesView', () => {
     const view = new CapabilitiesView();
     const state = createInitialTuiAppState();
     const perTab = state.views.capabilities;
-    // tool.file.read declares both argsSchema (path) and resultSchema
-    // (path, content) in initial-capabilities.ts (Phase 2, #415).
-    (perTab as PerTabState).capabilitiesSelectedId = 'tool.file.read';
+    // Tool capabilities now derive from the canonical registry, which carries
+    // no args/result schemas — so schema-shape rendering is exercised on the
+    // session-native capability that still declares both (core.session.show).
+    (perTab as PerTabState).capabilitiesSelectedId = 'core.session.show';
     const canvas = new TerminalCanvas(120, 24);
     const ctx = { snap: state.lastSnapshot, dimensions: { columns: 120, rows: 24 }, perTab, canvas };
     view.render(ctx as never);
@@ -164,9 +169,9 @@ describe('CapabilitiesView', () => {
 
     // Structured shape lines replace raw JSON.stringify(argsSchema).
     expect(out).toContain('args:');
-    expect(out).toMatch(/path: string/);          // args shape
+    expect(out).toMatch(/sessionId: string/);      // args shape
     expect(out).toContain('result:');
-    expect(out).toContain('content: string');      // result shape
+    expect(out).toContain('state: string');        // result shape
     // No raw JSON-schema object string is dumped.
     expect(out).not.toContain('"required"');
   });
