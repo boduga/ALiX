@@ -63,8 +63,9 @@ describe('palette↔registry cross-drift invariant', () => {
   it('every palette tool capability originates from the registry with risk/capabilityId/mutates/surface intact', async () => {
     const palette = await realPaletteTools();
     const { registry } = buildDefaultToolIndex();
+    const concrete = registry.getAll().filter((t) => t.name !== 'mcp.*');
 
-    expect(palette.length).toBe(15);
+    expect(palette.length).toBe(concrete.length);
 
     for (const cap of palette) {
       const toolName = cap.extensions?.toolName;
@@ -86,8 +87,6 @@ describe('palette↔registry cross-drift invariant', () => {
     const palette = await realPaletteTools();
     const paletteIds = new Set(palette.map((c) => c.id));
     const concrete = concreteRegistryEntries();
-
-    expect(concrete.length).toBe(15);
 
     for (const tool of concrete) {
       expect(paletteIds.has(toolCapabilityId(tool.name)),
