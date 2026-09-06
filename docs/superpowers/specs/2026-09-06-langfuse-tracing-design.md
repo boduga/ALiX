@@ -1,292 +1,1523 @@
 # Design — Langfuse Tracing for ALiX
 
-Date: 2026-09-06
-Status: Approved for implementation (pending written-spec review)
-Scope owner: `src/tracing/`
+**Date:** 2026-09-06
+**Status:** Approved for implementation
+**Scope owner:** `src/tracing/`
+
+---
 
 ## Summary
 
-Instrument ALiX agent execution with Langfuse tracing, exporting one Langfuse
-trace per ALiX `runId` with model and tool spans, following Langfuse best
-practices. ALiX owns observability semantics; Langfuse owns Langfuse transport
-mechanics.
+Instrument ALiX agent execution with Langfuse tracing, exporting **exactly one Langfuse trace per ALiX `runId`**, with model and tool spans contained within that trace.
 
-## Locked decisions
+Chat turns, which do not currently have a native ALiX `runId`, synthesize one per `processChat` invocation so they receive the same uniform trace model.
 
-1. **Approach A**: official `langfuse` SDK (v3) behind a thin, ALiX-owned
-   `TraceClient` facade. The Langfuse adapter is the **only** file that imports
-   the SDK. Replacing Langfuse later touches exactly one file.
-2. **Trace granularity**: exactly one Langfuse trace per ALiX `runId`. Turns,
-   model calls, and tool calls are spans *within* that trace.
-3. **Instrumentation mechanism**: inline spans created at three seams, exported
-   asynchronously (SDK batching). Enqueue is cheap; `flush()` is bounded.
-4. **Surface scope**: all agent runs **and** chat turns (uniform coverage via
-   the shared seams).
+ALiX owns observability semantics, identity, capture policy, and lifecycle semantics. Langfuse and the official Langfuse SDK own Langfuse-specific transport mechanics.
 
-## 1. Architecture
+The implementation uses the official **`langfuse` v3 SDK behind a thin ALiX-owned `TraceClient` facade**.
 
+---
+
+# Locked decisions
+
+1. **Approach A:** use the official `langfuse` SDK v3 behind a thin, ALiX-owned `TraceClient` facade.
+2. The Langfuse adapter is the **only file that imports the Langfuse SDK**.
+3. Instrumentation seams remain completely provider-agnostic. Replacing Langfuse does not require changing instrumentation seams; only the provider-specific adapter and associated dependency/configuration need to change.
+4. **Exactly one Langfuse trace corresponds to exactly one ALiX `runId`.**
+5. Turns, model calls, and tool calls are represented as spans within that trace.
+6. `processChat`, which lacks a native `runId`, synthesizes one per invocation.
+7. Instrumentation occurs at three runtime seams:
+
+   * run/turn root
+   * `withProviderContracts`
+   * `ToolExecutor.execute`
+8. Trace and span completion is synchronous from the caller's perspective and performs no network I/O.
+9. Langfuse SDK batching handles asynchronous transport.
+10. `flush()` is bounded and can never change the success/failure outcome of an ALiX run.
+11. Capture policy is ALiX-owned, pure, copy-producing, and performs mandatory secret redaction before truncation.
+12. Secret redaction is always enabled and cannot be disabled through configuration.
+13. Credentials use the existing `cred://` store-only mechanism. No environment-variable resolution is introduced.
+14. Tracing is disabled by default.
+15. No second event store, telemetry system, or competing run identity is introduced.
+
+---
+
+# 1. Architecture
+
+```text
+ALiX runtime seams                 TraceClient facade             Langfuse SDK v3
+──────────────────                 ─────────────────              ───────────────
+
+runTaskCore / processTurn ───────▶ startRun ─────────┐
+processChat ─────────────────────▶ startRun          │
+                                                     │
+withProviderContracts ───────────▶ model span        │
+                                                     │
+ToolExecutor.execute ────────────▶ tool span         │
+                                                     │
+                                                     ▼
+                                              TraceClient
+                                                     │
+                                                     ▼
+                                           Langfuse adapter
+                                                     │
+                                                     ▼
+                                              Langfuse SDK
+                                                     │
+                                                     ▼
+                                                 Langfuse
 ```
-ALiX seams                          TraceClient facade              langfuse SDK v3
-──────────────                      ─────────────────              ───────────────
-runTaskCore / processTurn / processChat ─▶ startRun ─┐
-withProviderContracts ──────▶ model span │  TraceClient  ──▶  LangfuseClient ──▶ Langfuse
-ToolExecutor.execute ───────▶ tool span  ┘  (ALiX-owned)   (adapter owns nothing
-                                                             but SDK construction)
+
+## Module boundary
+
+Create:
+
+```text
+src/tracing/
 ```
 
-- New leaf module `src/tracing/` with its own `AGENTS.md`.
-- Instrumentation sites hold a `TraceClient`; they never know Langfuse exists.
-- **`src/tracing/` must not become a second observability/event system.** It
-  consumes existing runtime identities (`runId`, `sessionId`, `workflowId`,
-  `parentRunId`, `invocationId`, `toolCallId`, `ExecutionContext`) and existing
-  normalized types. It invents no competing run identity and no competing event
-  store.
-- Adapter constructs the SDK from config; all other tracing files depend only
-  on the facade interface and the SDK's exported types at the adapter boundary.
+with its own:
 
-## 2. `TraceClient` interface
+```text
+src/tracing/AGENTS.md
+```
 
-The facade is deliberately smaller than the Langfuse API — it exposes only what
-ALiX needs:
+`src/tracing/` is a **leaf module**.
+
+It owns:
+
+* trace identity translation
+* span semantics
+* lifecycle semantics
+* parent-run linkage
+* capture policy
+* redaction
+* tracing configuration
+* Langfuse adapter boundary
+
+It does **not** own:
+
+* a second runtime event system
+* a second persisted telemetry store
+* an alternative run identity
+* duplicated execution state
+* provider-specific execution behavior
+
+The tracing module consumes existing ALiX runtime identities and normalized data:
+
+```text
+runId
+sessionId
+workflowId
+parentRunId
+invocationId
+toolCallId
+executionId
+ExecutionContext
+normalized provider results
+normalized tool results
+```
+
+These remain authoritative.
+
+---
+
+## Dependency isolation
+
+Only the Langfuse adapter imports `langfuse`.
+
+Conceptually:
+
+```text
+src/tracing/
+├── client.ts
+├── noop-client.ts
+├── types.ts
+├── capture.ts
+├── config.ts
+└── langfuse-client.ts    ← only file importing `langfuse`
+```
+
+The exact file names may follow existing repository conventions.
+
+Instrumentation code imports only ALiX tracing interfaces/types.
+
+It must never import:
+
+```ts
+langfuse
+```
+
+directly.
+
+This guarantees that changing observability providers does not propagate provider-specific types through the runtime.
+
+---
+
+# 2. TraceClient interface
+
+The facade deliberately exposes a substantially smaller API than Langfuse:
 
 ```ts
 interface TraceClient {
   startRun(input: TraceRunInput): TraceRun;
-  startModelSpan(run: TraceRun, input: ModelSpanInput): TraceSpan;
-  startToolSpan(run: TraceRun, input: ToolSpanInput): TraceSpan;
-  endSpan(span: TraceSpan, outcome: SpanOutcome): void;
-  endRun(run: TraceRun, outcome: RunOutcome): void;
+
+  getRun(runId: string): TraceRun | null;
+
+  startModelSpan(
+    run: TraceRun,
+    input: ModelSpanInput,
+  ): TraceSpan;
+
+  startToolSpan(
+    run: TraceRun,
+    input: ToolSpanInput,
+  ): TraceSpan;
+
+  endSpan(
+    span: TraceSpan,
+    outcome: SpanOutcome,
+  ): void;
+
+  endRun(
+    run: TraceRun,
+    outcome: RunOutcome,
+  ): void;
+
   flush(): Promise<void>;
+
   shutdown(): Promise<void>;
 }
 ```
 
-Input types are ALiX-shaped (`runId`, `sessionId`, `workflowId`, `parentRunId`,
-model/`resolvedModel`, usage, tool name/args/output, timestamps). The Langfuse
-object (trace/span/generation) lives inside the adapter and never leaks to
-callers; `TraceRun`/`TraceSpan` are opaque handles.
+The exact type definitions should follow existing ALiX conventions.
 
-The facade maintains an **active-run registry** keyed by `runId`:
-`startRun` registers it, `endRun` unregisters it. `startModelSpan` /
-`startToolSpan` carry a `runId` in their input and the facade resolves the
-`TraceRun`; an unknown `runId` resolves to a no-op span (never throws). This is
-what lets the deep seams (which see only `ExecutionContext` fields, not a
-`TraceRun` handle) attach spans to the correct trace without the facade or the
-seams knowing Langfuse.
+---
 
-### Contracts
+## ALiX-shaped inputs
 
-- `endSpan()`/`endRun()` are **synchronous from the caller's perspective and
-  MUST NOT perform network I/O** — they enqueue locally (or no-op on the Noop
-  client). Only `flush()` awaits SDK transport.
-- `endRun()` is explicit: `startRun → spans → endRun → flush`. The facade owns
-  trace semantics; "flush" never implicitly means "run completed". The adapter
-  translates `endRun()` into the appropriate SDK trace update.
-- Noop client is chosen **once** at construction (`enabled → LangfuseClient`,
-  `disabled/failed → NoopTraceClient`). Instrumentation seams carry **zero
-  per-event branch cost** — no repeated `if (config.tracing.enabled)` checks.
+Inputs use ALiX concepts rather than Langfuse SDK objects.
 
-## 3. Data minimization & redaction
+Examples include:
 
-Captured payloads pass through a pure `CapturePolicy` (`src/tracing/capture.ts`)
-that returns **copies** — instrumented objects are never mutated.
+```text
+TraceRunInput
+  runId
+  sessionId?
+  workflowId?
+  parentRunId?
+  task?
+  actor?
 
-### Pipeline order (security-critical)
+ModelSpanInput
+  invocationId?
+  provider
+  model
+  resolvedModel?
+  request/messages
+  timestamps
 
+ToolSpanInput
+  toolName
+  capability?
+  toolCallId?
+  invocationId?
+  executionId?
+  args
+
+SpanOutcome
+  status
+  inputTokens?
+  outputTokens?
+  finishReason?
+  output?
+  error?
+
+RunOutcome
+  status
+  error?
 ```
+
+The exact schemas should be derived from existing normalized runtime types where possible rather than creating duplicate representations.
+
+---
+
+## Opaque handles
+
+`TraceRun` and `TraceSpan` are opaque ALiX handles.
+
+The following must never escape the adapter:
+
+```text
+Langfuse trace object
+Langfuse span object
+Langfuse generation object
+SDK-specific IDs/types
+```
+
+The adapter translates between ALiX handles and Langfuse objects internally.
+
+---
+
+# 3. Active-run registry
+
+The facade maintains an in-memory active-run registry:
+
+```text
+Map<runId, TraceRun>
+```
+
+Lifecycle:
+
+```text
+startRun(runId)
+      │
+      ▼
+activeRuns.set(runId, TraceRun)
+      │
+      ├── model spans
+      ├── tool spans
+      └── child linkage
+      │
+      ▼
+endRun(runId)
+      │
+      ▼
+activeRuns.delete(runId)
+```
+
+Deep instrumentation seams may only have an `ExecutionContext` and `runId`, not a `TraceRun` handle.
+
+The facade exposes `getRun(runId)`, backed by the active-run registry, so a seam
+resolves its handle:
+
+```text
+ExecutionContext.runId
+        ↓
+client.getRun(runId)
+        ↓ null (no active trace)      → skip span creation (no-op)
+        ↓ TraceRun
+startModelSpan / startToolSpan(run, input)
+```
+
+The facade is responsible for finding the active trace.
+
+Instrumentation code does not need to understand Langfuse trace IDs.
+
+A deep seam must never be able to synthesize its own `TraceRun`; spans attach
+only to runs the facade has registered via `startRun`.
+
+---
+
+## Lifecycle idempotency
+
+Tracing lifecycle operations must be safe under retries, cancellation, errors, and `finally` blocks.
+
+Required behavior:
+
+```text
+startRun(existing runId)
+    → no duplicate Langfuse trace
+
+getRun(unknown runId)
+    → null → seams skip span creation
+
+endRun(unknown runId)
+    → no-op
+
+startModelSpan(unknown runId)
+    → no-op span
+
+startToolSpan(unknown runId)
+    → no-op span
+
+endSpan(already-ended span)
+    → no-op
+
+endRun(already-ended run)
+    → no-op
+```
+
+Tracing lifecycle errors must never propagate into agent execution.
+
+---
+
+# 4. No-op client
+
+Tracing implementation is selected once during construction:
+
+```text
+tracing.enabled = true
+        │
+        ▼
+LangfuseTraceClient
+
+tracing.enabled = false
+        │
+        ▼
+NoopTraceClient
+```
+
+If initialization fails:
+
+```text
+Langfuse initialization failure
+        │
+        ▼
+warn once
+        │
+        ▼
+NoopTraceClient
+```
+
+Instrumentation seams therefore contain no repeated configuration checks:
+
+```text
+if (config.tracing.enabled) ...
+```
+
+The runtime simply invokes the interface.
+
+The no-op implementation performs no allocations or transport work beyond what is necessary to satisfy the interface contract.
+
+---
+
+# 5. Run lifecycle
+
+The semantic lifecycle is:
+
+```text
+startRun
+   │
+   ├── model spans
+   ├── tool spans
+   ├── additional model/tool spans
+   │
+   ▼
+endRun
+   │
+   ▼
+bounded flush
+```
+
+`flush()` does **not** implicitly mean that a run has completed.
+
+`endRun()` explicitly represents ALiX run completion.
+
+The adapter translates this semantic operation into the appropriate Langfuse trace update.
+
+---
+
+# 6. Data minimization & redaction
+
+Captured payloads pass through a pure `CapturePolicy`.
+
+Location:
+
+```text
+src/tracing/capture.ts
+```
+
+The policy:
+
+* never mutates caller-owned objects
+* returns copies
+* applies capture levels
+* applies mandatory redaction
+* applies truncation limits
+
+---
+
+## Security-critical pipeline
+
+The ordering is mandatory:
+
+```text
 raw value
-   ↓
-redaction     ← built-in, ALiX-owned, NON-DISABLEABLE
-   ↓
-truncation    ← configurable limits
-   ↓
+    ↓
+mandatory redaction
+    ↓
+truncation
+    ↓
 capture
 ```
 
-Redaction runs **before** truncation so a credential cannot be cut across a
-truncation boundary and evade a regex.
+Redaction **must occur before truncation**.
 
-### Built-in redaction (always on, non-disableable)
+This prevents a credential from being cut across a truncation boundary in a way that prevents the detector from matching it.
 
-Best-effort regex redaction of common secret shapes: `sk-`/`pk-` tokens,
-`api[_-]?key`/`apikey` assignment, `Authorization:` and `Bearer <token>`,
-`cred://<provider>/<key>` references, PEM blocks
-(`-----BEGIN … KEY-----`), OpenAI/Langfuse-style key prefixes. Replaced with
-`<redacted>`.
+---
 
-Boundary note (documented, not code): capture policy provides best-effort
-built-in secret redaction; **callers remain responsible for not sending
-intentionally sensitive data**. This is not an exhaustive secret detector.
+# 7. Mandatory secret redaction
 
-### Capture levels (configurable)
+Built-in redaction is:
 
-| data | default | notes |
-|---|---|---|
-| model input messages | `truncated` | per-message + count caps |
-| model output text | `truncated` | |
-| model `reasoning` | `off` | private trace — large & sensitive; explicit opt-in |
-| tool input args | `truncated` | |
-| tool output preview | `truncated` | shell/fs output is the riskiest channel |
+* always enabled
+* non-disableable
+* ALiX-owned
+* best-effort
+* applied before truncation
 
-Configuration controls **what** is captured and **how much**; it never controls
-**whether known secrets are redacted**.
+The initial detector covers common secret shapes including:
 
-## 4. Configuration
+```text
+sk-/pk- style tokens
+api_key / api-key / apikey assignments
+Authorization:
+Bearer <token>
+cred://<provider>/<key>
+PEM private/public key blocks
+OpenAI/Langfuse-style key prefixes
+```
 
-New top-level `tracing` section in user/project config. Neutral example:
+Replacement:
+
+```text
+<redacted>
+```
+
+The implementation should avoid claiming that the detector is exhaustive.
+
+The contract is explicitly:
+
+> Capture policy provides best-effort built-in secret redaction. Callers remain responsible for not intentionally supplying sensitive data for capture.
+
+---
+
+## `full` capture
+
+`full` does **not** mean raw/unredacted.
+
+The semantic pipeline remains:
+
+```text
+full:
+raw
+ ↓
+mandatory redaction
+ ↓
+full remaining value
+```
+
+Therefore mandatory redaction cannot be bypassed by setting a capture field to `full`.
+
+---
+
+# 8. Capture levels
+
+Configurable capture levels:
+
+```text
+full
+truncated
+off
+```
+
+Default policy:
+
+| Data                 | Default     |
+| -------------------- | ----------- |
+| Model input messages | `truncated` |
+| Model output text    | `truncated` |
+| Model reasoning      | `off`       |
+| Tool input args      | `truncated` |
+| Tool output preview  | `truncated` |
+
+The configuration controls:
+
+* whether data is captured
+* how much data is captured
+
+It never controls:
+
+* whether mandatory secret redaction occurs
+
+---
+
+# 9. Configuration
+
+Add a new top-level `tracing` section.
+
+Example:
 
 ```json
-"tracing": {
-  "enabled": false,
-  "langfuse": {
-    "baseUrl": "http://langfuse.example:3000",
-    "publicKey": "cred://langfuse/publicKey",
-    "secretKey": "cred://langfuse/secretKey"
-  },
-  "capture": {
-    "messages": "truncated",
-    "reasoning": "off",
-    "toolInput": "truncated",
-    "toolOutput": "truncated",
-    "maxMessageChars": 4000,
-    "maxToolOutputChars": 2000
-  },
-  "flushTimeoutMs": 2000
+{
+  "tracing": {
+    "enabled": false,
+    "langfuse": {
+      "baseUrl": "http://langfuse.example:3000",
+      "publicKey": "cred://langfuse/publicKey",
+      "secretKey": "cred://langfuse/secretKey"
+    },
+    "capture": {
+      "messages": "truncated",
+      "reasoning": "off",
+      "toolInput": "truncated",
+      "toolOutput": "truncated",
+      "maxMessageChars": 4000,
+      "maxToolOutputChars": 2000
+    },
+    "flushTimeoutMs": 2000
+  }
 }
 ```
 
-- **Schema**: `TracingConfig` added to `src/config/schema.ts`; deep-merge arm
-  added to `mergeConfig` in `src/config/loader.ts` (nested `tracing` would
-  otherwise be a shallow top-level replace).
-- **Credentials**: both keys use the `cred://langfuse/<keyLabel>` credential
-  reference mechanism (matching the already-stored `langfuse/publicKey` and
-  `langfuse/secretKey`); **neither is resolved from environment variables**.
-  Secret key belongs in the credential store; public key rides the same uniform
-  store-only mechanism by the same rule.
-- **No SDK-tuning knobs in ALiX config**: `debug` and `flushIntervalMs` are not
-  exposed. The facade prefers ALiX semantic config. The one SDK-adjacent knob
-  kept is `flushTimeoutMs` because ALiX genuinely needs a boundedness contract.
-- **Defaults**: `enabled:false`; nothing is constructed or exported unless
-  explicitly enabled.
+---
 
-### Failure & performance contract (lock-in)
+## Schema
 
-> Tracing must never fail or materially block agent execution. Network
-> failures, SDK failures, and shutdown flushing are bounded and isolated from
-> the agent run.
+Add:
 
-- Enqueue path is cheap/non-blocking (Section 2 contract).
-- **Bounded flush**: `flush()` at run end is awaited under `flushTimeoutMs`
-  (default 2000). If the SDK flush exceeds the bound or throws, ALiX discards
-  the pending flush, warns once, and continues — the agent result is unchanged.
-- Any construction-time failure (bad config, unresolvable keys) or mid-run SDK
-  error → warn once, fall back to `NoopTraceClient` for the rest of the
-  process. Tracing faults can never fail, crash, or hang an agent run.
-
-## 5. Seam wiring
-
-### Run/turn identity rule (lock-in)
-
-> **Exactly one Langfuse trace corresponds to exactly one ALiX `runId`; turns
-> and model/tool calls are spans within that trace. Chat turns, which have no
-> native `runId`, synthesize one per `processChat` invocation so the rule holds
-> uniformly.**
-
-The three root wrappers are **alternative** top-level entry points — all three
-reach `runTaskLoop` or the provider directly and never nest within one another:
-- `processTurn` (`src/agent/session.ts`, runId assigned ~L1336) — session-rooted
-  task turns: `alix run`, REPL, TUI agent tab.
-- `runTask`/`runTaskCore` (`src/agent/agent-loop.ts`, runId assigned ~L339) —
-  task-rooted flows: daemon, CLI research, issue/PR runs, kernel graph nodes.
-- `processChat` (`src/agent/session.ts` ~L2017) — interactive chat turns. Chat
-  has no `runId` today; each `processChat` invocation synthesizes one
-  (`run-<uuid8>`, same scheme as the other roots) and threads an
-  `ExecutionContext` carrying it into the `provider.complete` request so the
-  model-span seam can resolve the trace. Its continuation re-prompt (~L2079)
-  reuses the same synthesized `runId` → same trace, one model span per physical
-  call.
-
-Trace creation/teardown:
-- `startRun` immediately after the runId is assigned/synthesized in whichever
-  root wrapper entered; `endRun` in the existing terminal path (`task.done/
-  failed`, turn.completed, chat return, incl. `finally`), then bounded `flush()`.
-- Session-level grouping is **metadata, not structure**: `sessionId` and
-  `workflowId` are trace attributes/inputs so multiple run traces group into one
-  session/project view in Langfuse.
-
-### Model span
-
-Inside `withProviderContracts` (`src/providers/provider-contract-validation.ts`)
-— the single wrapper applied to every adapter by `createProvider`. Covers
-completion, streaming, plan/classifier/chat calls, retries/free-route fallback.
-
-Invariants:
-- **Exactly one model span per provider request**, regardless of chunk count.
-  Span starts at request initiation and ends exactly once when the stream
-  terminates (success or error) — never one span per chunk.
-- Capture: truncated input/output through `CapturePolicy`; tag `provider`,
-  `model`/`resolvedModel`, usage (`inputTokens`, `outputTokens`), `finishReason`;
-  `reasoning` only when `capture.reasoning != "off"`.
-- A single logical answer that is split across physical provider calls
-  (truncation continuation, free-route retry) yields one model span per physical
-  call, correlated by `invocationId` attribute.
-
-### Tool span
-
-Inside `ToolExecutor.execute` (`src/tools/executor.ts`), around router
-execution. Invariants:
-- **Exactly one terminal tool span per tool call** — success, failure, timeout,
-  or cancellation all end exactly once with the correct status.
-- Capture truncated args + output preview; tag `toolName`, capability,
-  `toolCallId`/`invocationId`/`executionId`, `durationMs`.
-- Parallel tool calls are **sibling spans** under the same trace — never
-  parent/child merely because they execute in the same scheduler batch.
-
-### Subagent linkage
-
-ALiX `parentRunId` links a child trace to its parent trace. The facade owns the
-translation:
-
+```text
+TracingConfig
 ```
+
+to:
+
+```text
+src/config/schema.ts
+```
+
+The tracing section must have an explicit deep-merge arm in:
+
+```text
+src/config/loader.ts
+```
+
+because nested configuration would otherwise be replaced by a shallow top-level merge.
+
+---
+
+## Credential resolution
+
+Both Langfuse keys use:
+
+```text
+cred://langfuse/publicKey
+cred://langfuse/secretKey
+```
+
+and resolve through the existing credential-store mechanism.
+
+Neither key may be resolved from environment variables.
+
+The secret key is sensitive credential material.
+
+The public key uses the same credential-store mechanism for consistency with the locked store-only tracing configuration.
+
+No new credential resolution mechanism is introduced.
+
+---
+
+## Configuration surface
+
+Do not expose SDK-specific tuning options such as:
+
+```text
+debug
+flushIntervalMs
+```
+
+unless a concrete ALiX requirement emerges.
+
+ALiX configuration should describe ALiX tracing semantics rather than reproduce the Langfuse SDK configuration surface.
+
+The one SDK-adjacent option retained is:
+
+```text
+flushTimeoutMs
+```
+
+because it is required to enforce ALiX's bounded-flush contract.
+
+---
+
+# 10. Defaults
+
+Tracing is disabled by default:
+
+```text
+enabled = false
+```
+
+When disabled:
+
+* no Langfuse SDK client is constructed
+* no credentials are resolved
+* no network requests occur
+* `NoopTraceClient` is used
+* instrumentation remains present but has no tracing side effects
+
+---
+
+# 11. Failure & performance contract
+
+This is a hard runtime invariant:
+
+> **Tracing must never fail or materially block agent execution.**
+
+A tracing failure must never:
+
+* change the agent result
+* fail an otherwise successful task
+* crash the process
+* indefinitely block a run
+* become an uncaught exception
+
+---
+
+## Enqueue path
+
+`startRun`, `startModelSpan`, `startToolSpan`, `endSpan`, and `endRun` must not perform network I/O.
+
+They enqueue or update local SDK state only.
+
+From the agent's perspective these operations are synchronous and cheap.
+
+---
+
+## Construction failure
+
+Examples:
+
+```text
+invalid tracing configuration
+invalid base URL
+unresolvable credentials
+SDK initialization failure
+```
+
+Behavior:
+
+```text
+construction failure
+      ↓
+warn once
+      ↓
+NoopTraceClient
+      ↓
+rest of process continues normally
+```
+
+---
+
+## Runtime transport failure
+
+Transient runtime failures should not automatically permanently disable tracing.
+
+The Langfuse SDK remains responsible for its own:
+
+* batching
+* retry
+* backoff
+* transport behavior
+
+If an individual batch ultimately fails, the tracing system records/warns according to the adapter policy and continues without affecting the agent.
+
+Only an **irrecoverable SDK/client failure** should cause permanent process-level fallback to `NoopTraceClient`.
+
+This prevents a temporary Langfuse outage from permanently disabling tracing for all subsequent runs.
+
+---
+
+# 12. Bounded flush
+
+At run completion:
+
+```text
+endRun()
+    ↓
+flush()
+```
+
+The caller waits for at most:
+
+```text
+flushTimeoutMs
+```
+
+Default:
+
+```text
+2000ms
+```
+
+The contract is:
+
+```text
+flush completes
+    → continue
+
+flush rejects
+    → warn/drop according to adapter policy
+    → continue
+
+flush exceeds timeout
+    → stop awaiting
+    → continue
+```
+
+The implementation must **not assume it can synchronously discard SDK-internal buffers**.
+
+Instead, ALiX stops waiting after the timeout and preserves the agent's result.
+
+Shutdown uses the same boundedness principle.
+
+---
+
+# 13. Seam wiring
+
+There are three alternative top-level execution entry points.
+
+They do not nest as independent trace roots.
+
+```text
+processTurn
+runTask/runTaskCore
+processChat
+```
+
+Each establishes the run identity before deep provider/tool instrumentation occurs.
+
+---
+
+# 14. Trace identity rule
+
+The hard invariant is:
+
+> **Exactly one Langfuse trace corresponds to exactly one ALiX `runId`.**
+
+Therefore:
+
+```text
+ALiX runId
+     ↓
+one Langfuse trace
+     ↓
+all turns/model/tool spans for that run
+```
+
+Session grouping is metadata, not trace structure.
+
+Trace metadata may include:
+
+```text
+sessionId
+workflowId
+```
+
+allowing related runs to be grouped in Langfuse without incorrectly combining their traces.
+
+---
+
+# 15. `processTurn`
+
+Location:
+
+```text
+src/agent/session.ts
+```
+
+approximately where the run ID is assigned.
+
+The trace is created immediately after the `runId` exists.
+
+Lifecycle:
+
+```text
+runId assigned
+    ↓
+startRun
+    ↓
+turn execution
+    ↓
+endRun
+    ↓
+bounded flush
+```
+
+Terminal handling must occur in the existing completion/failure/finally paths.
+
+---
+
+# 16. `runTask` / `runTaskCore`
+
+Location:
+
+```text
+src/agent/agent-loop.ts
+```
+
+approximately where the `runId` is assigned.
+
+The same lifecycle applies:
+
+```text
+runId assigned
+    ↓
+startRun
+    ↓
+agent execution
+    ↓
+endRun
+    ↓
+bounded flush
+```
+
+Existing task terminal states remain authoritative.
+
+Tracing does not introduce a second task lifecycle.
+
+---
+
+# 17. `processChat`
+
+Location:
+
+```text
+src/agent/session.ts
+```
+
+approximately the existing `processChat` implementation.
+
+Chat currently has no native `runId`.
+
+Therefore each `processChat` invocation synthesizes one:
+
+```text
+run-<uuid8>
+```
+
+using the same general run-ID scheme already used by other roots.
+
+The synthetic ID is threaded through an `ExecutionContext` into provider requests so that deep model instrumentation can resolve the correct trace.
+
+---
+
+## Chat continuation invariant
+
+A single `processChat` invocation, including continuation/re-prompt provider calls, has:
+
+```text
+one synthetic runId
+        ↓
+one Langfuse trace
+```
+
+For example:
+
+```text
+processChat
+   │
+   ├── provider call #1 → model span
+   │
+   └── continuation
+          └── provider call #2 → model span
+```
+
+Both model spans belong to the same trace.
+
+A continuation must never accidentally create a second trace.
+
+---
+
+# 18. Model spans
+
+Instrumentation point:
+
+```text
+src/providers/provider-contract-validation.ts
+```
+
+inside:
+
+```text
+withProviderContracts
+```
+
+This is the single provider wrapper applied by `createProvider`.
+
+It therefore provides broad coverage without instrumenting individual providers.
+
+Coverage includes:
+
+* normal completion
+* streaming
+* plan calls
+* classifier calls
+* chat calls
+* retry calls
+* free-route fallback calls
+
+---
+
+## Exactly-once model-span invariant
+
+Every physical provider request produces exactly:
+
+```text
+1 provider request
+→ 1 model span
+```
+
+Streaming does not create a span per chunk.
+
+Instead:
+
+```text
+request starts
+    ↓
+one model span
+    ↓
+chunks arrive
+    ↓
+stream terminates
+    ↓
+span ends exactly once
+```
+
+Termination includes:
+
+```text
+success
+error
+cancellation
+```
+
+---
+
+# 19. Model capture
+
+Capture through `CapturePolicy`.
+
+Potential fields:
+
+```text
+provider
+model
+resolvedModel
+input/messages
+output
+reasoning
+inputTokens
+outputTokens
+finishReason
+invocationId
+```
+
+`reasoning` is captured only when:
+
+```text
+capture.reasoning != "off"
+```
+
+and still passes mandatory redaction.
+
+---
+
+# 20. Physical vs logical model calls
+
+A single logical answer may require multiple physical provider requests.
+
+Examples:
+
+```text
+logical answer
+    ├── provider request #1
+    └── provider request #2
+```
+
+Each physical request receives its own model span.
+
+Correlation is maintained using:
+
+```text
+invocationId
+```
+
+or the existing normalized invocation identity.
+
+Therefore:
+
+```text
+1 logical answer
+    ↓
+N physical provider requests
+    ↓
+N model spans
+```
+
+This accurately represents actual provider activity without falsely collapsing multiple network calls into one span.
+
+---
+
+# 21. Tool spans
+
+Instrumentation point:
+
+```text
+src/tools/executor.ts
+```
+
+inside:
+
+```text
+ToolExecutor.execute
+```
+
+The span surrounds router execution.
+
+---
+
+## Exactly-once tool-span invariant
+
+Every physical tool call produces exactly one terminal tool span.
+
+This applies to:
+
+```text
+success
+failure
+timeout
+cancellation
+```
+
+The terminal span is ended exactly once.
+
+---
+
+## Tool span attributes
+
+Capture:
+
+```text
+toolName
+capability
+toolCallId
+invocationId
+executionId
+durationMs
+status
+```
+
+Arguments and output pass through `CapturePolicy`.
+
+---
+
+# 22. Parallel tool calls
+
+Parallel tool calls are siblings:
+
+```text
+                 run trace
+                    │
+          ┌─────────┼─────────┐
+          ▼         ▼         ▼
+       tool A     tool B    tool C
+```
+
+They must not become parent/child merely because the scheduler happens to execute them in a particular order.
+
+This preserves actual execution structure.
+
+---
+
+# 23. Subagent linkage
+
+ALiX already has:
+
+```text
+parentRunId
+```
+
+The tracing facade owns translation of that relationship:
+
+```text
 ALiX parentRunId
-        ↓
+       ↓
 TraceClient
-        ↓
+       ↓
 Langfuse parent/trace relationship
 ```
 
-Instrumentation layers never construct Langfuse-specific linkage IDs.
+Instrumentation layers never construct Langfuse-specific parent IDs.
 
-## 6. Testing
+The existing ALiX execution relationship remains authoritative.
 
-Pure units and adapter/wiring tests under `tests/tracing/` (vitest):
+---
 
-1. **CapturePolicy**: levels `full/truncated/off`; returns copies (no mutation);
-   built-in redaction shapes.
-2. **Redaction before truncation**: a secret placed exactly at the truncation
-   boundary is still redacted (validates the security ordering, not just
-   obvious strings).
-3. **Adapter**: fake SDK injected → assert adapter issues correct SDK calls and
-   the facade never leaks SDK types to callers.
-4. **Wiring, enabled**: mock-provider run with a fake SDK → assert exactly
-   trace (1) + model spans + tool spans + run/turn grouping + `parentRunId`
-   linkage.
-5. **Wiring, disabled/misconfigured**: `NoopTraceClient`, zero SDK calls,
-   fail-open on bad keys.
-6. **Exactly-once model span**: streaming `1 request → 1 model span` regardless
-   of chunk count.
-7. **Exactly-once tool span**: success / throw / timeout / cancellation each
-   produce exactly one terminal span.
-8. **Flush timeout**: SDK flush hangs → timeout → agent run remains successful
-   (proves the bounded-flush fail-open contract).
+# 24. Testing
 
-Verification: `pnpm build` (typecheck) and `pnpm vitest run tests/tracing`
-must be green.
+Tests live under:
 
-## Non-goals
+```text
+tests/tracing/
+```
 
-- No second event/observability system (Section 1).
-- No Langfuse eval/prompt-management features in this change.
-- No export of ALiX's own persisted telemetry into Langfuse beyond what the
-  seams capture.
-- No environment-variable key resolution anywhere in the tracing path.
+using Vitest and existing repository test conventions.
+
+---
+
+## 24.1 CapturePolicy tests
+
+Verify:
+
+* `full`
+* `truncated`
+* `off`
+* copies are returned
+* caller-owned objects are not mutated
+* message limits
+* output limits
+* mandatory redaction
+
+---
+
+## 24.2 Redaction-before-truncation test
+
+Place a secret exactly at or around the truncation boundary.
+
+Expected:
+
+```text
+raw
+ ↓
+secret detected
+ ↓
+<redacted>
+ ↓
+truncate
+```
+
+This validates the security-critical ordering.
+
+---
+
+## 24.3 Adapter tests
+
+Inject a fake SDK.
+
+Verify:
+
+* trace creation
+* `getRun(runId)` resolution (active → handle; unknown → null)
+* model span creation
+* tool span creation
+* span completion
+* run completion
+* flush
+* shutdown
+* parent linkage
+
+Also verify that no SDK types escape the facade.
+
+---
+
+## 24.4 Enabled wiring test
+
+Run a representative agent execution with tracing enabled and a fake SDK.
+
+Assert:
+
+```text
+exactly 1 trace
++ expected model spans
++ expected tool spans
++ correct run identity
++ correct session/workflow metadata
++ correct parent linkage
+```
+
+---
+
+## 24.5 Disabled wiring test
+
+With tracing disabled:
+
+```text
+NoopTraceClient
+```
+
+must be selected.
+
+Assert:
+
+```text
+zero SDK construction
+zero SDK calls
+zero network activity
+```
+
+---
+
+## 24.6 Misconfiguration/fail-open test
+
+Test:
+
+```text
+bad URL
+unresolvable credentials
+SDK construction failure
+```
+
+Expected:
+
+```text
+warn once
+→ NoopTraceClient
+→ agent run remains successful
+```
+
+---
+
+## 24.7 Exactly-once model span
+
+Streaming test:
+
+```text
+1 provider request
++ N chunks
+→ exactly 1 model span
+```
+
+Test both successful and failed streams.
+
+---
+
+## 24.8 Exactly-once tool span
+
+Test:
+
+```text
+success
+throw
+timeout
+cancellation
+```
+
+Each must produce exactly:
+
+```text
+1 terminal tool span
+```
+
+---
+
+## 24.9 Flush timeout
+
+Fake SDK:
+
+```text
+flush()
+```
+
+never resolves.
+
+Expected:
+
+```text
+flush timeout
+    ↓
+agent continues
+    ↓
+agent result unchanged
+```
+
+This proves the bounded-flush contract.
+
+---
+
+## 24.10 Active-run lifecycle tests
+
+Verify:
+
+```text
+startRun(runId)
+startRun(runId)
+```
+
+does not create two traces.
+
+Also:
+
+```text
+getRun(unknownRunId) → null
+endRun(unknownRunId)
+startModelSpan(unknownRunId)
+startToolSpan(unknownRunId)
+endSpan(alreadyEndedSpan)
+endRun(alreadyEndedRun)
+```
+
+must all safely no-op.
+
+---
+
+## 24.11 Chat continuation test
+
+Verify:
+
+```text
+processChat
+    ├── provider call #1
+    └── continuation provider call #2
+```
+
+produces:
+
+```text
+1 synthetic runId
+1 Langfuse trace
+2 model spans
+```
+
+not two traces.
+
+---
+
+# 25. Verification
+
+Required verification:
+
+```text
+pnpm build
+```
+
+and:
+
+```text
+pnpm vitest run tests/tracing
+```
+
+must pass.
+
+The implementation should additionally run the existing relevant provider, tool-executor, session, and agent-loop tests before finalization.
+
+The full repository test suite should be run before merge.
+
+---
+
+# 26. Acceptance criteria
+
+The implementation is complete when all of the following are true.
+
+### Architecture
+
+* [ ] Only the Langfuse adapter imports `langfuse`.
+* [ ] Instrumentation seams depend only on `TraceClient`.
+* [ ] `src/tracing/` does not introduce a second event/telemetry system.
+* [ ] Existing ALiX runtime identities remain authoritative.
+
+### Identity
+
+* [ ] Every ALiX `runId` produces exactly one Langfuse trace.
+* [ ] Turns do not create additional traces.
+* [ ] Deep seams resolve their `TraceRun` via `getRun(runId)`; unknown runs yield no spans.
+* [ ] Each `processChat` invocation has one synthetic run ID.
+* [ ] Chat continuations reuse that ID.
+* [ ] Parent/child relationships use existing ALiX `parentRunId`.
+
+### Model tracing
+
+* [ ] Every physical provider request produces one model span.
+* [ ] Streaming produces one span regardless of chunk count.
+* [ ] Retries/fallback physical requests each receive their own span.
+* [ ] `invocationId` correlates related physical requests.
+
+### Tool tracing
+
+* [ ] Every physical tool call produces exactly one terminal span.
+* [ ] Success/failure/timeout/cancellation are all represented.
+* [ ] Parallel tool calls remain siblings.
+
+### Security
+
+* [ ] Capture policy returns copies.
+* [ ] Redaction occurs before truncation.
+* [ ] Mandatory redaction cannot be disabled.
+* [ ] `full` capture still performs mandatory redaction.
+* [ ] No environment-variable credential resolution exists in the tracing path.
+
+### Reliability
+
+* [ ] Tracing is disabled by default.
+* [ ] Tracing initialization failure cannot fail an agent run.
+* [ ] Transient SDK/network failures do not fail an agent run.
+* [ ] Flush is bounded.
+* [ ] A hanging flush cannot hang an agent run.
+* [ ] Tracing errors never change the agent's result.
+
+### Configuration
+
+* [ ] `TracingConfig` is validated by the configuration schema.
+* [ ] Nested tracing configuration is deep-merged.
+* [ ] Credentials resolve through the existing `cred://` store.
+* [ ] SDK-specific tuning options are not unnecessarily exposed.
+* [ ] `flushTimeoutMs` enforces the boundedness contract.
+
+### Regression
+
+* [ ] Existing agent behavior remains unchanged when tracing is disabled.
+* [ ] Existing provider behavior remains unchanged.
+* [ ] Existing tool behavior remains unchanged.
+* [ ] Existing execution/governance behavior remains unchanged.
+
+---
+
+# Non-goals
+
+This change does **not** include:
+
+* Langfuse evaluations
+* Langfuse prompt management
+* Langfuse-specific application logic outside the adapter
+* a new telemetry/event store
+* exporting ALiX's persisted telemetry wholesale
+* replacing existing ALiX observability infrastructure
+* environment-variable credential resolution
+* changes to ALiX run identity
+* changes to execution semantics
+* changes to tool authorization or governance semantics
+
+---
+
+# Final architectural invariant
+
+The implementation should preserve this boundary:
+
+```text
+                         ALiX
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+       runtime identity             capture policy
+             │                           │
+             └─────────────┬─────────────┘
+                           │
+                           ▼
+                     TraceClient
+                           │
+                           │ ALiX-owned
+                           │ semantics
+                           ▼
+                  Langfuse adapter
+                           │
+                           │ provider-specific
+                           ▼
+                    Langfuse SDK
+                           │
+                           │ transport
+                           ▼
+                       Langfuse
+```
+
+The fundamental contract is:
+
+> **ALiX owns what a trace means. Langfuse owns how that trace is transported.**
+
+And the fundamental runtime guarantee is:
+
+> **Tracing is observational only: it can enrich an execution, but it can never determine whether the execution succeeds or fails.**
+
+This version is the one I would hand to the implementation agent. The remaining decisions are sufficiently explicit that implementation should now be **contract-driven rather than exploratory**.
+
