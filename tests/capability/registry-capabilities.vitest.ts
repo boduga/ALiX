@@ -81,6 +81,37 @@ describe("projectToolCapability", () => {
   });
 });
 
+describe("round-trip matrix: every canonical registry entry projects losslessly", () => {
+  const entries = buildDefaultToolIndex().registry.getAll();
+
+  it.each(entries.map((t) => [t.name, t] as const))(
+    "%s round-trips risk, capabilityId, mutates, toolName",
+    (_name, tool) => {
+      const cap = projectToolCapability(tool);
+
+      expect(cap.risk).toBe(tool.risk);
+
+      expect(cap.extensions?.capabilityId).toBe(tool.capabilityId);
+      expect(cap.extensions?.mutates).toBe(tool.mutates);
+      expect(cap.extensions?.toolName).toBe(tool.name);
+
+      expect(cap.id).toBe(toolCapabilityId(tool.name));
+    },
+  );
+
+  it.each(entries.map((t) => [t.name, t] as const))(
+    "%s maps risk to the governance permission tier",
+    (_name, tool) => {
+      const cap = projectToolCapability(tool);
+      const expected: string[] =
+        tool.risk === "high" || tool.risk === "critical"
+          ? ["admin"]
+          : ["developer"];
+      expect(cap.requiredPermissions).toEqual(expected);
+    },
+  );
+});
+
 describe("projectRegistryTools", () => {
   it("returns all 16 registry tools with unique sorted ids", () => {
     const { registry } = buildDefaultToolIndex();
