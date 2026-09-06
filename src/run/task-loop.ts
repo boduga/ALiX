@@ -69,7 +69,7 @@ import {
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../runtime/tool-correlation.js";
 import type { CancellationToken } from "../runtime/cancellation-token.js";
-import { rejectOnAbort } from "../runtime/cancellation-token.js";
+import { raceWithCancellation } from "../runtime/cancellation-token.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -858,7 +858,7 @@ let finishReason: string | undefined;
 	    context: deps.context,
 	  };
 	  const resp = await (deps.cancelSignal
-	    ? Promise.race([provider.complete(completeReq), rejectOnAbort(deps.cancelSignal, "cancelled by operator")])
+	    ? raceWithCancellation(provider.complete(completeReq), deps.cancelSignal, "cancelled by operator")
 	    : provider.complete(completeReq));
 	  // C1 fix: restore assignments — the non-streaming path MUST
 	  // populate text/toolCalls/usage from the provider response.

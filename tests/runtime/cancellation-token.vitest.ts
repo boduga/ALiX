@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { getEventListeners } from "node:events";
 import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
 import { RetryController } from "../../src/runtime/retry-controller.js";
-import { CancellationToken, ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
+import { CancellationToken, ExecutionCancelledError, raceWithCancellation } from "../../src/runtime/cancellation-token.js";
 import {
   ExecutionState,
   type ExecutionEvidenceEmitter,
@@ -373,5 +374,76 @@ describe("RetryController cancellation", () => {
     machine.transitionTo(exId, ExecutionState.SUCCEEDED);
 
     await expect(controller.cancel(exId)).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AbortSignal race — raceWithCancellation (fix round: listener cleanup)
+// ---------------------------------------------------------------------------
+
+describe("raceWithCancellation", () => {
+  it("resolves with the operation value when the operation wins the race", async () => {
+    const controller = new AbortController();
+    await expect(raceWithCancellation(Promise.resolve("ok"), controller.signal)).resolves.toBe("ok");
+    // The winning side detached its abort listener.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("propagates the operation rejection when the operation fails first", async () => {
+    const controller = new AbortController();
+    await expect(
+      raceWithCancellation(Promise.reject(new Error("boom")), controller.signal),
+    ).rejects.toThrow("boom");
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("rejects with ExecutionCancelledError promptly when the signal aborts first", async () => {
+    const controller = new AbortController();
+    const race = raceWithCancellation(
+      new Promise<never>(() => {}), // never settles on its own
+      controller.signal,
+      "operator stop",
+    );
+    // Let the abort listener attach, then fire a genuine mid-flight abort.
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort("operator stop");
+    const err = await race.then(
+      () => { throw new Error("expected cancellation"); },
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ExecutionCancelledError);
+    expect((err as ExecutionCancelledError).reason).toBe("operator stop");
+    // The fired listener removed itself — no residue for the next race.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("rejects immediately, attaching no listener, when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort("already gone");
+    await expect(
+      raceWithCancellation(new Promise<never>(() => {}), controller.signal),
+    ).rejects.toBeInstanceOf(ExecutionCancelledError);
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("does NOT accumulate abort listeners across many sequential races (each loser detaches)", async () => {
+    const controller = new AbortController();
+    for (let i = 0; i < 500; i++) {
+      await raceWithCancellation(Promise.resolve(i), controller.signal);
+    }
+    // The hot streaming path races one operation per chunk; 500 settles must
+    // leave zero listeners — not one per iteration.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("still aborts promptly after many settled races (listener cleanup does not break the race)", async () => {
+    const controller = new AbortController();
+    for (let i = 0; i < 100; i++) {
+      await raceWithCancellation(Promise.resolve(i), controller.signal);
+    }
+    const race = raceWithCancellation(new Promise<never>(() => {}), controller.signal, "stop now");
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort("stop now");
+    await expect(race).rejects.toMatchObject({ name: "ExecutionCancelledError", reason: "stop now" });
   });
 });

@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { ModelAdapter, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
@@ -8,7 +8,7 @@ import { shouldAutoDisableStreaming } from "../agent/stream.js";
 import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
 import {
   ExecutionCancelledError,
-  rejectOnAbort,
+  raceWithCancellation,
 } from "../runtime/cancellation-token.js";
 
 // =============================================================================
@@ -369,7 +369,9 @@ export async function streamToResponse(
     try {
       for (;;) {
         if (signal.aborted) throw new ExecutionCancelledError(String((signal as any).reason ?? "operation cancelled"));
-        const step = await Promise.race([iterator.next(), rejectOnAbort(signal)]);
+        // One abort listener per chunk, detached on settle (raceWithCancellation)
+        // — a long stream never accumulates listeners across chunks.
+        const step = await raceWithCancellation(iterator.next(), signal);
         if (step.done) break;
         const chunk = step.value;
         if (chunk.type === "text_delta") {
@@ -435,11 +437,119 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
           },
           patchText: {
             type: "string",
-            description: patchTextDescription(policy.preferred)
-          }
+          description: patchTextDescription(policy.preferred)
         }
       }
-    };
-  });
+    }
+  };
+});
+}
+
+// =============================================================================
+// Truncation continuation — shared by the task loop and the single-shot chat
+// path (src/agent/session.ts processChat). A finish_reason=length response is
+// a model that ran out of output budget mid-answer, never a final answer: keep
+// generating in follow-up turns until the answer completes, the budget is
+// exhausted, or a follow-up turn asks for tools instead of more prose.
+// =============================================================================
+
+/**
+ * How many times a length-truncated generation may be re-prompted before the
+ * truncated answer is accepted. ONE shared budget — the loop and the chat path
+ * previously diverged (4 vs 3) with two private copies of this logic.
+ */
+export const TRUNCATION_CONTINUATION_LIMIT = 4;
+
+/**
+ * Re-prompt sent after each truncated segment. The model is asked to continue
+ * exactly where it stopped so the accumulated segments merge into one coherent
+ * answer rather than a restarted draft.
+ */
+export const TRUNCATION_CONTINUE_PROMPT =
+  "Your previous response was cut off at the model's output token limit. " +
+  "Continue exactly from where you stopped — do not repeat any content — and " +
+  "produce the remaining parts of the complete answer.";
+
+/** One follow-up generation segment produced while continuing a truncated reply. */
+export type TruncatedGenerationSegment = {
+  /** The new delta produced for THIS continuation (never the cumulative text). */
+  text: string;
+  reasoning?: string;
+  finishReason?: string;
+  toolCalls?: readonly ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+};
+
+export type ContinueTruncatedGenerationOptions = {
+  /** The first segment that was cut off by finish_reason=length. */
+  initialText: string;
+  /**
+   * Conversation preceding the truncated reply. The helper appends continuation
+   * turns to its own working copy, so callers never have to stage the partial
+   * assistant reply / re-prompt themselves.
+   */
+  messages: readonly NormalizedMessage[];
+  /**
+   * Perform exactly ONE follow-up generation from the supplied conversation.
+   * Callers pass the request pieces they already own (provider, system prompt,
+   * output ceiling, tools). The helper owns the accumulate-and-merge loop.
+   */
+  generateNext: (messages: NormalizedMessage[]) => Promise<TruncatedGenerationSegment>;
+  /** Re-prompt budget. Defaults to TRUNCATION_CONTINUATION_LIMIT. */
+  maxContinuations?: number;
+  /** Invoked before each continuation generation; `attempt` is 1-based. */
+  onContinuation?: (info: { attempt: number; chars: number }) => void | Promise<void>;
+};
+
+export type ContinueTruncatedGenerationResult = {
+  /** Every segment concatenated in order — the complete un-truncated answer. */
+  text: string;
+  reasoning?: string;
+  finishReason?: string;
+  toolCalls?: readonly ToolCall[];
+  usage?: TokenUsage;
+  resolvedModel?: string;
+  /** Number of follow-up generations actually performed. */
+  continuations: number;
+};
+
+/**
+ * Continue a finish_reason=length generation. Only the LAST partial segment is
+ * appended before each re-prompt (never the cumulative text), so the model's
+ * context grows linearly with the number of continuations rather than
+ * quadratically. Stops when a continuation produces no text, requests tools,
+ * finishes cleanly (finishReason !== "length"), or the budget runs out.
+ */
+export async function continueTruncatedGeneration(
+  options: ContinueTruncatedGenerationOptions,
+): Promise<ContinueTruncatedGenerationResult> {
+  const maxContinuations = options.maxContinuations ?? TRUNCATION_CONTINUATION_LIMIT;
+  const working: NormalizedMessage[] = [...options.messages];
+  let text = options.initialText;
+  let segmentToContinue = options.initialText;
+  let last: TruncatedGenerationSegment | undefined;
+  let continuations = 0;
+  for (; continuations < maxContinuations; continuations++) {
+    const attempt = continuations + 1;
+    await options.onContinuation?.({ attempt, chars: segmentToContinue.length });
+    working.push({ role: "assistant", content: segmentToContinue });
+    working.push({ role: "user", content: TRUNCATION_CONTINUE_PROMPT });
+    last = await options.generateNext(working);
+    if (!last.text || last.text.length === 0) break;
+    text += last.text;
+    segmentToContinue = last.text;
+    if ((last.toolCalls?.length ?? 0) > 0) break;
+    if (last.finishReason !== "length") break;
+  }
+  return {
+    text,
+    reasoning: last?.reasoning,
+    finishReason: last?.finishReason,
+    toolCalls: last?.toolCalls,
+    usage: last?.usage,
+    resolvedModel: last?.resolvedModel,
+    continuations,
+  };
 }
 
