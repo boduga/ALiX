@@ -1482,7 +1482,9 @@ export class AgentSessionBuilder {
             liveness.mark(kind, description);
             if (kind === "tool_started" && activeActivity) {
               // Task 2.2 — a tool begins executing: TOOL_RUNNING with its name.
-              feedActivity("tool_running", { toolName: description });
+              // Round 1 — stamp toolStartedAt so the tool timer starts at TOOL
+              // start (not the invocation start, which includes thinking time).
+              feedActivity("tool_running", { toolName: description, toolStartedAt: Date.now() });
             } else if (kind === "tool_completed" && activeActivity) {
               // Tool finished → back to THINKING unless the model is already
               // streaming (subsequent model text takes over the indicator).

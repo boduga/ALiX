@@ -69,6 +69,12 @@ describe("AgentActivity contract", () => {
       expect(a.model).toBeUndefined();
     });
 
+    it("Round 1 — sets toolStartedAt when provided and omits it when not", () => {
+      const withTool = createAgentActivity("tool_running", "inv-tc", 0, { toolStartedAt: 0 });
+      expect(withTool.toolStartedAt).toBe(0);
+      expect(createAgentActivity("thinking", "inv-td", 0).toolStartedAt).toBeUndefined();
+    });
+
     it("returns a frozen (immutable) record", () => {
       const a = createAgentActivity("thinking", "inv-4", 0);
       expect(Object.isFrozen(a)).toBe(true);
@@ -111,6 +117,19 @@ describe("AgentActivity contract", () => {
       });
       const b = transition(a, "tool_running", 100, { toolName: "read" });
       expect(b.toolName).toBe("read");
+    });
+
+    it("Round 1 — carries toolStartedAt through transitions and lets a later tool restamp it", () => {
+      let a = createAgentActivity("thinking", "inv-tc2", 0);
+      // thinking → tool_running stamps the tool timer at TOOL start.
+      a = transition(a, "tool_running", 1_000, { toolName: "bash", toolStartedAt: 1_000 });
+      expect(a.toolStartedAt).toBe(1_000);
+      // tool_completed → thinking: the field is carried, not cleared.
+      a = transition(a, "thinking", 2_000);
+      expect(a.toolStartedAt).toBe(1_000);
+      // A second tool at a later time restamps the tool timer.
+      a = transition(a, "tool_running", 3_000, { toolName: "grep", toolStartedAt: 3_000 });
+      expect(a.toolStartedAt).toBe(3_000);
     });
 
     it("returns a frozen (immutable) record", () => {

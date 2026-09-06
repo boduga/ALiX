@@ -148,6 +148,11 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     expect(states[2]).toBe("thinking");
     // toolName is carried on the tool_running record
     expect(activityEvents()[1]!.payload.toolName).toBe("bash");
+    // Round 1 — the tool timer starts at TOOL start: toolStartedAt stamped on
+    // entering tool_running, strictly after the invocation's startedAt.
+    const toolRecord = activityEvents()[1]!.payload;
+    expect(toolRecord.toolStartedAt).toBeGreaterThan(0);
+    expect(toolRecord.toolStartedAt!).toBeGreaterThanOrEqual(toolRecord.startedAt);
   });
 
   it("Task 2.3 — first visible text chunk → streaming, once (no per-chunk events)", async () => {

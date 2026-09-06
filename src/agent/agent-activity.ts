@@ -50,6 +50,15 @@ export type AgentActivity = Readonly<{
   operation?: string;
   /** Name of the tool currently executing, when state is tool_running. */
   toolName?: string;
+  /**
+   * Timestamp (ms) when the current tool began executing — the zero point of
+   * the tool elapsed timer (`now - toolStartedAt`). Set on the
+   * thinking→tool_running transition, so a running tool reports its own
+   * duration rather than the whole invocation's. Unset until the first tool
+   * starts; renderers fall back to `startedAt` when absent. Carried through
+   * transitions; each new tool_running restamps it.
+   */
+  toolStartedAt?: number;
   /** Timestamp (ms) when this activity record was created. */
   startedAt: number;
   /** Timestamp (ms) of the last progress mark. */
@@ -71,6 +80,7 @@ export type AgentActivity = Readonly<{
 export type ActivityTransitionOpts = Readonly<{
   operation?: string;
   toolName?: string;
+  toolStartedAt?: number;
   provider?: string;
   model?: string;
 }>;
@@ -96,6 +106,7 @@ export function createAgentActivity(
     elapsedMs: 0,
     ...(opts?.operation !== undefined && { operation: opts.operation }),
     ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
+    ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
     ...(opts?.provider !== undefined && { provider: opts.provider }),
     ...(opts?.model !== undefined && { model: opts.model }),
   });
@@ -120,6 +131,7 @@ export function transition(
     elapsedMs: now - current.startedAt,
     ...(opts?.operation !== undefined && { operation: opts.operation }),
     ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
+    ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
     ...(opts?.provider !== undefined && { provider: opts.provider }),
     ...(opts?.model !== undefined && { model: opts.model }),
   });

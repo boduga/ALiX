@@ -92,8 +92,14 @@ export function formatActivityLine(
     case 'thinking':
     case 'waiting_for_provider':
       return `${glyph} Thinking… ${elapsed}`;
-    case 'tool_running':
-      return `⚙ Running ${activity.toolName ?? 'tool'}… ${elapsed}`;
+    case 'tool_running': {
+      // Round 1 — the tool timer starts at TOOL start: elapsed runs from
+      // toolStartedAt (stamped entering tool_running), falling back to the
+      // invocation's startedAt for records created before the field existed.
+      const toolStart = activity.toolStartedAt ?? activity.startedAt;
+      const toolElapsed = formatActivityElapsed(Math.max(0, now - toolStart));
+      return `⚙ Running ${activity.toolName ?? 'tool'}… ${toolElapsed}`;
+    }
     case 'verifying':
       return `${glyph} Verifying… ${elapsed}`;
     case 'summarizing':

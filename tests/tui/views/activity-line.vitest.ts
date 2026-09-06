@@ -92,6 +92,24 @@ describe('formatActivityLine — tool presentation (Task 3.4)', () => {
     expect(formatActivityLine(a, 4_000)).toBe('⚙ Running shell.run… 3s');
   });
 
+  it('Round 1 — tool elapsed starts at toolStartedAt, not the invocation start', () => {
+    // Thinking ran 0→10_000; the tool itself only started at 10_000.
+    const a = activity('tool_running', 0, { toolName: 'bash', toolStartedAt: 10_000 });
+    expect(formatActivityLine(a, 13_000)).toBe('⚙ Running bash… 3s');
+    // The elapsed must not bleed in thinking time from the invocation start.
+    expect(formatActivityLine(a, 13_000)).not.toBe('⚙ Running bash… 13s');
+  });
+
+  it('Round 1 — falls back to startedAt when toolStartedAt is absent (pre-fix records)', () => {
+    const a = activity('tool_running', 5_000, { toolName: 'read' });
+    expect(formatActivityLine(a, 11_000)).toBe('⚙ Running read… 6s');
+  });
+
+  it('Round 1 — never renders a negative tool elapsed', () => {
+    const a = activity('tool_running', 0, { toolName: 'bash', toolStartedAt: 10_000 });
+    expect(formatActivityLine(a, 9_000)).toBe('⚙ Running bash… 0s');
+  });
+
   it('falls back to a generic label when the running tool has no name', () => {
     expect(formatActivityLine(activity('tool_running', 0), 1_000)).toBe('⚙ Running tool… 1s');
   });
