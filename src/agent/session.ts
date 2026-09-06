@@ -467,6 +467,22 @@ export interface AgentSession {
 // =============================================================================
 
 /**
+ * Map a liveness state to its log-event type. The watchdog emits exactly one
+ * event per state transition; the recovery state must map to a distinct
+ * `recovered` label (never a second `warning`).
+ */
+export function livenessEventType(state: AgentLivenessState): string {
+  switch (state) {
+    case "stalled":
+      return "agent.liveness.stalled";
+    case "warning":
+      return "agent.liveness.warning";
+    case "healthy":
+      return "agent.liveness.recovered";
+  }
+}
+
+/**
  * Wrap a `StreamHandler` so it also fires `AgentSessionEvents.onToken` for
  * each text chunk (per spec §13). When `events` is undefined, the original
  * handler is returned unchanged. The original handler is always invoked so
@@ -1255,9 +1271,10 @@ export class AgentSessionBuilder {
       // ── Progress-based liveness watchdog ──────────────────────────────
       // The agent loop has NO wall-clock lifetime. The watchdog measures the
       // idle window since the last progress mark and, on state transition,
-      // emits agent.liveness.warning / agent.liveness.stalled events so an
-      // operator can see a suspected stall. It NEVER terminates the run —
-      // a turn lives until its terminal state or explicit operator cancel.
+      // emits agent.liveness.warning / agent.liveness.recovered /
+      // agent.liveness.stalled events so an operator can see a suspected
+      // stall resolve. It NEVER terminates the run — a turn lives until its
+      // terminal state or explicit operator cancel.
       const liveness = new AgentLiveness();
       activeLiveness = liveness;
       const sessionOnStream = buildSessionStreamHandler(config.onStream, config.events);
@@ -1280,7 +1297,7 @@ export class AgentSessionBuilder {
           .append({
             sessionId: ctx.sessionId,
             actor: "system",
-            type: snap.state === "stalled" ? "agent.liveness.stalled" : "agent.liveness.warning",
+            type: livenessEventType(snap.state),
             payload: {
               runId,
               lastProgressAt: new Date(snap.lastProgressAt).toISOString(),
