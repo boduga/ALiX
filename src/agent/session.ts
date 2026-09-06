@@ -479,6 +479,10 @@ export function livenessEventType(state: AgentLivenessState): string {
       return "agent.liveness.warning";
     case "healthy":
       return "agent.liveness.recovered";
+    default: {
+      const exhaustive: never = state;
+      return exhaustive;
+    }
   }
 }
 
