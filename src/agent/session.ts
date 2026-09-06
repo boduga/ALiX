@@ -1581,7 +1581,11 @@ export class AgentSessionBuilder {
             feedActivity(activityStreaming ? "streaming" : "thinking");
           }
         }
-      }, 5_000);
+        // Non-ref'ing: a completed turn must never be kept alive by the
+        // watchdog, and a stale interval must not keep emitting stall events
+        // for a turn that already ended (clearInterval covers the happy path;
+        // this guarantees the process can exit and no post-completion spam).
+      }, 5_000).unref();
 
       // Phase 9 observability helpers. `flushMetrics` persists the buffered
       // rows to the event log once per turn on BOTH the success and the
