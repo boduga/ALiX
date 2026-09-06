@@ -286,6 +286,42 @@ function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string
   return unsubstantiated;
 }
 
+/**
+ * A "done" claim that merely echoes a failed tool result (HTTP 4xx/5xx or a
+ * command error) is not a completed outcome. `lastToolResultShowsClientError`
+ * scans backwards for the most recent `<tool_result>` block and reports
+ * whether it looks like a client/server failure. Combined with a check that
+ * nothing was written (and the reply claims no artifact), the done-claim trust
+ * gate rejects it so the model is pushed to retry/verify instead of ending on
+ * an error echo.
+ */
+const CLIENT_ERROR_RESULT_RE =
+  /HTTP\/[12]\s+[45]\d\d\b|\b(?:error|denied|refused|timed?\s*out|timeout|failed|unreachable|429|403|404)\b/i;
+const ARTIFACT_WRITE_RE =
+  /\b(?:wrote|writes?|created|saved?|generated|produced|output to|written to)\b|\.md\b/i;
+
+export function lastToolResultShowsClientError(
+  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role !== "user") continue;
+    const content = typeof m.content === "string" ? m.content : "";
+    if (!content.includes("<tool_result")) continue;
+    return CLIENT_ERROR_RESULT_RE.test(content);
+  }
+  return false;
+}
+
+/** Whether a reply or the session claims a written deliverable exists. */
+export function claimsArtifactWritten(
+  text: string,
+  changedFiles: ReadonlySet<string> | number,
+): boolean {
+  const changed = typeof changedFiles === "number" ? changedFiles : changedFiles.size;
+  return changed > 0 || ARTIFACT_WRITE_RE.test(text);
+}
+
 function extractErrors(output: string): string[] {
   const errors: string[] = [];
   const patterns = [
@@ -1134,13 +1170,24 @@ if (toolCalls.length === 0) {
       // persistently non-compliant model still terminates, just labeled
       // honestly instead of silently accepted as "completed".
       const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-      const trustworthy = !ranToolCalls || explicitDoneCalled || unsubstantiated.length === 0;
+      // A "done" right after a tool result that looks like an HTTP/client
+      // error, when nothing was written and the reply doesn't claim an
+      // artifact, is the model ending on an error echo — not a completed
+      // outcome. Treat it as untrustworthy so the model is pushed (bounded)
+      // to retry/verify instead of silently accepting the error as the result.
+      const errorEchoDone =
+        ranToolCalls &&
+        !explicitDoneCalled &&
+        !claimsArtifactWritten(text, sessionState.changed) &&
+        lastToolResultShowsClientError(messages);
+      const trustworthy =
+        !ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone);
 
       if (!trustworthy && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
         unconfirmedDoneAttempts++;
         await log.append({
           ...session, actor: "system", type: "completion.claim_rejected",
-          payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts },
+          payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
         });
 
         // Build a targeted re-prompt: list the missing tool calls with their
@@ -1150,7 +1197,15 @@ if (toolCalls.length === 0) {
           .join("\n");
 
         let content: string;
-        if (unconfirmedDoneAttempts >= 2) {
+        if (errorEchoDone && unsubstantiated.length === 0) {
+          // The last tool call failed (HTTP/client error) and no deliverable
+          // was produced. There are no invented claims to list — the problem
+          // is ending on the error itself.
+          content =
+            `Your last tool call returned an HTTP/client error, and you declared the task done without writing or verifying the deliverable. ` +
+            `A tool error is not a completed outcome. Retry with corrected parameters/headers, complete the actual work, ` +
+            `and confirm the deliverable exists before saying done.`;
+        } else if (unconfirmedDoneAttempts >= 2) {
           // Third attempt: no more done-escape. Force the model to actually
           // make these tool calls or the session labels itself unverified.
           content =
