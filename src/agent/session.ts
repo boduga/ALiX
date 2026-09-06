@@ -720,6 +720,12 @@ export class AgentSessionBuilder {
     // is making progress (healthy / warning / stalled).
     let activeActivity: AgentActivity | undefined;
 
+    // Turn-scoped activity invocation metadata. Refreshed at the top of each
+    // processTurn (alongside activeActivity) so a fresh tenant record can be
+    // created by feedActivity when a turn has not produced one yet.
+    let activityInvocationId: string | undefined;
+    let activityModel: { provider: string; model: string } | undefined;
+
     // ---- Internal helpers ----
 
     /**
@@ -930,6 +936,43 @@ export class AgentSessionBuilder {
     }
 
     /**
+     * Emit the user-facing activity indicator state. Transitions the live
+     * record (or creates a fresh one for the current invocation) and appends
+     * an `agent.session.activity` event carrying the full record. Shared by
+     * the turn loop (thinking / streaming / tool_running / watchdog recovery)
+     * and advancePhase (verifying / summarizing) so the transition+emit
+     * sequence lives in exactly one place.
+     */
+    const feedActivity = (
+      next: AgentActivityState,
+      opts?: ActivityTransitionOpts,
+    ): void => {
+      // ctx may not be wired yet during very early setup (initialize's
+      // internal phases never surface an activity record anyway).
+      const log = ctx?.log;
+      if (!log) return;
+      const now = Date.now();
+      const nextRecord = activeActivity
+        ? transition(activeActivity, next, now, opts)
+        : createAgentActivity(next, activityInvocationId ?? "unassigned", now, {
+            provider: activityModel?.provider,
+            model: activityModel?.model,
+            ...opts,
+          });
+      activeActivity = nextRecord;
+      void log
+        .append({
+          sessionId: ctx.sessionId,
+          actor: "system",
+          type: "agent.session.activity",
+          payload: nextRecord,
+        })
+        .catch(() => {
+          // Observability must never break the turn loop.
+        });
+    };
+
+    /**
      * Advance the lifecycle phase. No-op if already in the target phase.
      * Best-effort emits an `agent.session.phase_changed` event so observers
      * (TUI, audit) can react without subscribing to the closure.
@@ -946,28 +989,11 @@ export class AgentSessionBuilder {
       // Task 2.4 — surface user-visible phases on the activity indicator.
       // Internal phases (Understanding / Planning / Executing) are not
       // exposed; only Verifying and Summarizing map to activity states.
+      // feedActivity owns the transition + event emission (deduped here).
       if (next === SessionPhase.Verifying && activeActivity) {
-        const now = Date.now();
-        activeActivity = transition(activeActivity, "verifying", now);
-        void log
-          .append({
-            sessionId: ctx.sessionId,
-            actor: "system",
-            type: "agent.session.activity",
-            payload: activeActivity,
-          })
-          .catch(() => {});
+        feedActivity("verifying");
       } else if (next === SessionPhase.Summarizing && activeActivity) {
-        const now = Date.now();
-        activeActivity = transition(activeActivity, "summarizing", now);
-        void log
-          .append({
-            sessionId: ctx.sessionId,
-            actor: "system",
-            type: "agent.session.activity",
-            payload: activeActivity,
-          })
-          .catch(() => {});
+        feedActivity("summarizing");
       }
       void log
         .append({
@@ -1340,31 +1366,8 @@ export class AgentSessionBuilder {
       // the liveness watchdog) rather than a second polling architecture.
       // Every state change emits an `agent.session.activity` event carrying
       // the full record so later tasks can render / observe it.
-      const activityInvocationId = `${runId}-${randomUUID().slice(0, 8)}`;
-      const feedActivity = (
-        next: AgentActivityState,
-        opts?: ActivityTransitionOpts,
-      ): void => {
-        const now = Date.now();
-        const nextRecord = activeActivity
-          ? transition(activeActivity, next, now, opts)
-          : createAgentActivity(next, activityInvocationId, now, {
-              provider: resolved.provider,
-              model: resolved.name,
-              ...opts,
-            });
-        activeActivity = nextRecord;
-        void ctx.log
-          .append({
-            sessionId: ctx.sessionId,
-            actor: "system",
-            type: "agent.session.activity",
-            payload: nextRecord,
-          })
-          .catch(() => {
-            // Observability must never break the turn loop.
-          });
-      };
+      activityInvocationId = `${runId}-${randomUUID().slice(0, 8)}`;
+      activityModel = { provider: resolved.provider, model: resolved.name };
       // Task 2.1 — invocation begins: THINKING with timestamps stamped now.
       feedActivity("thinking");
       // True once the model has emitted a visible text chunk. Used to decide

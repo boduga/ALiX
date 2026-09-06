@@ -121,8 +121,12 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     const first = events[0]!;
     expect(first.type).toBe("agent.session.activity");
     expect(first.payload.state).toBe("thinking");
-    // Provider/model from the resolved config
+    // Provider/model from the resolved config (models.default is resolved
+    // by resolveModelConfig at turn start — the activity record must carry it).
+    expect(first.payload.provider).toBe("anthropic");
+    expect(first.payload.model).toBe("test-model");
     expect(first.payload.startedAt).toBeGreaterThan(0);
+    expect(first.payload.lastProgressAt).toBeGreaterThan(0);
   });
 
   it("Task 2.2 — tool_started → tool_running(toolName); tool_completed → back to thinking", async () => {
