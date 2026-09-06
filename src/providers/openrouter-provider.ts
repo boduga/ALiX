@@ -13,8 +13,14 @@ export type OpenRouterConfig = {
 
 export const FREE_ROUTE_MODEL = "openrouter/free";
 
+/**
+ * Only the `openrouter/free` alias triggers free-route re-resolution. A
+ * concrete `:free` model configured in the default (e.g. via
+ * `alix models set-default`) is an explicit pin: it is sent directly and its
+ * id becomes the resolvedModel, bypassing the largest-context free resolver.
+ */
 function isFreeRoute(model: string): boolean {
-  return model === FREE_ROUTE_MODEL || model.endsWith(":free");
+  return model === FREE_ROUTE_MODEL;
 }
 
 /**
