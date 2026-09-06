@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CapabilityPlatform } from '../../src/capability/platform.js';
 import { registerInitialCapabilities } from '../../src/capability/initial-capabilities.js';
+import { registerRegistryToolCapabilities } from '../../src/capability/registry-capabilities.js';
 import { createToolProviderExecutor } from '../../src/capability/tool-adapter.js';
 import { CapabilityCatalog } from '../../src/capability/canonical/catalog.js';
 import { CapabilityDefinitionStore } from '../../src/capability/canonical/catalog-store.js';
@@ -24,6 +25,10 @@ describe('tool provider executor', () => {
     const registry = new CapabilityRegistry(catalog);
     registry.setMutationPort(new CatalogBackedCapabilityMutationPort(catalog));
     registerInitialCapabilities(registry, platform.native);
+    // tool.* capabilities come from the canonical registry projection — the
+    // executor contract (extensions.toolName routing) is what these tests
+    // exercise, and the projection preserves it.
+    registerRegistryToolCapabilities(registry);
     platform.registerProvider('tool', createToolProviderExecutor(tool));
     return platform;
   }

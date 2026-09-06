@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import type { ToolCapability } from "../../src/tools/tool-registry.js";
+import type { Capability } from "../../src/capability/types.js";
 import {
   toolCapabilityId,
   projectToolCapability,
   projectRegistryTools,
+  registerRegistryToolCapabilities,
 } from "../../src/capability/registry-capabilities.js";
 
 function findTool(name: string): ToolCapability {
@@ -137,6 +139,32 @@ describe("projectRegistryTools", () => {
     for (const cap of caps) {
       expect(cap.kind).toBe("tool");
       expect(cap.execution.strategy).toBe("tool");
+    }
+  });
+});
+
+describe("registerRegistryToolCapabilities", () => {
+  it("registers the 15 concrete tools, excluding the mcp.* wildcard", () => {
+    const registered: Capability[] = [];
+    registerRegistryToolCapabilities({ register: (cap) => { registered.push(cap); } });
+
+    const ids = registered.map((c) => c.id);
+    expect(ids).toHaveLength(15);
+    // Back-compat ids survive via the registry projection.
+    expect(ids).toContain("tool.file.read");
+    expect(ids).toContain("tool.shell.run");
+    // The full concrete surface is present.
+    expect(ids).toContain("tool.file.create");
+    expect(ids).toContain("tool.patch.apply");
+    // The mcp.* wildcard is not a concrete invocable tool → never registered
+    // (its id also fails the palette capability-id grammar).
+    expect(ids).not.toContain("tool.mcp.*");
+    expect(ids.every((id) => !id.includes("*"))).toBe(true);
+    // Every registered cap carries the toolName extension used for routing.
+    for (const cap of registered) {
+      expect(cap.kind).toBe("tool");
+      expect(cap.execution.strategy).toBe("tool");
+      expect(typeof cap.extensions?.toolName).toBe("string");
     }
   });
 });

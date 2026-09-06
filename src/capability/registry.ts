@@ -49,8 +49,11 @@ export interface CapabilityManifest {
 const DEFAULT_LIFECYCLE: LifecycleState = "emerging";
 
 /** Rejects invalid IDs. Allowed: core.session.list, tool.file.read,
- *  mcp.github.issue.create. Rejected: SessionList, foo, ../../bad. */
-const CAPABILITY_ID = /^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/;
+ *  tool.web_search (underscores are legal — the canonical tool registry names
+ *  tools like web_search/create_skill), mcp.github.issue.create.
+ *  Rejected: SessionList, foo, ../../bad, tool.mcp.* (no glob — dynamic
+ *  mcp.<server>.<tool> capabilities are added by their concrete names). */
+const CAPABILITY_ID = /^[a-z][a-z0-9]*(\.[a-z0-9_-]+)+$/;
 
 /** Canonical registry — runtime projection of the CAP-2 catalog.
  *  Exactly one instance per runtime universe (composition root = platform.ts).

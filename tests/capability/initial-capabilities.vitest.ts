@@ -23,15 +23,17 @@ describe('initial capabilities', () => {
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cap3-init-')); });
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
-  it('registers core session + tool capabilities', () => {
+  it('registers session-native capabilities only (no tool.* static entries)', () => {
     const reg = makeRegistry(dir);
     const native = new NativeExecutor();
     registerInitialCapabilities(reg, native);
     expect(reg.find('core.session.list')).toBeDefined();
     expect(reg.find('core.session.show')).toBeDefined();
-    expect(reg.find('tool.file.read')).toBeDefined();
-    expect(reg.find('tool.shell.run')).toBeDefined();
     expect(reg.query({ kinds: ['core'] }).length).toBeGreaterThanOrEqual(2);
-    expect(reg.query({ kinds: ['tool'] }).length).toBeGreaterThanOrEqual(2);
+    // Tool capabilities are NOT part of the static list — they derive from
+    // the canonical tool registry (registry-capabilities.ts).
+    expect(reg.find('tool.file.read')).toBeUndefined();
+    expect(reg.find('tool.shell.run')).toBeUndefined();
+    expect(reg.query({ kinds: ['tool'] })).toHaveLength(0);
   });
 });
