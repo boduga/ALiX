@@ -104,6 +104,11 @@ export class AgentView implements TuiView {
       user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c, gutter),
       agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),
       streaming: (l, rowY) => this.renderStreamingLine(l, rowY, c, gutter),
+      // Unit D — live response-surface activity indicator
+      // (`◐ Thinking… 4s` / `⚙ Running shell.run… 3s`). Painted in the agent
+      // cyan palette like prose; the spinner + elapsed are pure presentation,
+      // recomputed on the ~1s render cadence with no runtime side effects.
+      activity:  (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),
       // T6 — C1 observability: LOW-value context lifecycle events
       // (snapshot.created / budget.computed) render as dim grey text.
       context:  (l, rowY) => this.renderContextLine(l, rowY, c, gutter),

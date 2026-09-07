@@ -6,7 +6,7 @@ Purpose: the M8 observability surface — persisted metrics, telemetry envelope,
 
 | File | Responsibility |
 |------|----------------|
-| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` (§28-29, #631) + `CONTEXT_ASSEMBLY_METRIC_DEFINITIONS` (§28, #641: context_tier_source/selected/evicted/tokens, context_assembly_state_version/history_revision/admitted/dropped) |
+| `metric-registry.ts` | Closed-set metric registry; registers every metric name/type/unit/labels; strict/compat validation — includes `STATE_METRIC_DEFINITIONS` (§28-29, #631) + `CONTEXT_ASSEMBLY_METRIC_DEFINITIONS` (§28, #641: context_tier_source/selected/evicted/tokens, context_assembly_state_version/history_revision/admitted/dropped). `PRODUCTION_METRIC_DEFINITIONS` also carries the live-response `agent_*` activity/liveness set (Phase 9: agent_activity_state/duration_ms, agent_last_progress_age_ms, agent_stall_warning_total, agent_invocation_cancelled/failed_total) — emitted on the session runtime path via `MinimalMetrics` (src/kernel/minimal-metrics.ts) |
 | `metrics-store.ts` | `MetricsStore` (append-only JSONL), `RollupStore` (hourly rollups), retention enforcement |
 | `telemetry-envelope.ts` | Unified `TelemetryEnvelope` + factory/validation; adapters for AlixEvent / TraceEvent / MetricRow; `TelemetryBuffer` / `TelemetrySink` — state_/context_tier_/context_assembly → observability category |
 | `diagnostic-event.ts` | Normalized `DiagnosticEvent` type + mappers from runtime/contract diagnostics |

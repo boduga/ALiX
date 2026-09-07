@@ -1,6 +1,6 @@
 import { BaseProvider } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type AnthropicConfig = {
   apiKey?: string;
@@ -36,11 +36,17 @@ export class AnthropicProvider extends BaseProvider {
     });
   }
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    return complete("anthropic", this._model, request, { apiKey: this._apiKey });
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
+    return complete("anthropic", this._model, request, {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
-    yield* stream("anthropic", this._model, request, { apiKey: this._apiKey });
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
+    yield* stream("anthropic", this._model, request, {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
   }
 }

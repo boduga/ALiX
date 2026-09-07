@@ -1062,3 +1062,66 @@ describe('TuiApp — evolution tab keys (Task 7 stage cursor regression)', () =>
     writeSpy.mockRestore();
   });
 });
+
+describe('TuiApp — Escape cancels an in-flight agent turn (Task 6.1-6.3)', () => {
+  it('Escape requests cancel, the turn rejects as ExecutionCancelledError, and the timeline shows "Cancelled after 4m 12s" — never "timed out" / "(agent error…)"', async () => {
+    const { ExecutionCancelledError } = await import('../../src/runtime/cancellation-token.js');
+    const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      let rejectTurn!: (e: Error) => void;
+      const processTurn = vi.fn(() => new Promise<unknown>((_, rej) => { rejectTurn = rej; }));
+      const cancelActiveTurn = vi.fn(() => { rejectTurn(new ExecutionCancelledError('operator pressed Escape')); return true; });
+      const getLastCancelSummary = vi.fn(() => 'Cancelled after 4m 12s');
+      const agentSession = { processTurn, cancelActiveTurn, getLastCancelSummary };
+      const { app, internal, log } = await makeApp({ agentSession });
+      const state = internal.getStateForTest() as unknown as { activeTab: string };
+      state.activeTab = 'agent';
+      internal.getStateForTest().views.agent.inputBuffer = '';
+
+      for (const c of 'go') internal.handleRaw(Buffer.from(c));
+      const flushed = flushedAfter(log, 2);
+      internal.handleRaw(Buffer.from([0x0d])); // Enter → processTurn pending
+      await new Promise((r) => setTimeout(r, 0)); // let dispatchToSession arm the gate
+      expect(internal.getStateForTest().views.agent.streamingActive).toBe(true);
+
+      // Operator presses Escape (bare ESC byte = 0x1b).
+      internal.handleRaw(Buffer.from([0x1b]));
+      expect(cancelActiveTurn).toHaveBeenCalledTimes(1);
+      expect(processTurn).toHaveBeenCalledWith('go');
+      await flushed;
+
+      const responses = await timelineTexts(log, 'agent.response');
+      expect(responses.join('\n')).toContain('Cancelled after 4m 12s');
+      expect(responses.join('\n')).not.toMatch(/timed out/i);
+      expect(responses.join('\n')).not.toMatch(/agent error/i);
+      // No stderr noise on a cancel (it is a normal outcome, not an error).
+      const stderrCalls = errSpy.mock.calls.map((c) => String(c[0])).filter((s) => s.includes('submit error'));
+      expect(stderrCalls).toHaveLength(0);
+      // Gate folded: no orphan pending line.
+      const st = internal.getStateForTest().views.agent;
+      expect(st.streamingActive).toBe(false);
+      expect(st.streamingText).toBeUndefined();
+      void app;
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('Escape with no cancellable turn is not consumed (falls through)', async () => {
+    const agentSession = {
+      processTurn: vi.fn(async (text: string) => ({
+        summary: `[agent] ${text}`, sessionId: 'test-session', toolCalls: [], reason: 'agent',
+      })),
+      cancelActiveTurn: vi.fn(() => false),
+    };
+    const { internal } = await makeApp({ agentSession });
+    (internal.getStateForTest() as unknown as { activeTab: string }).activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    // No turn running → Escape is not consumed by cancellation and does not
+    // disturb the buffer or navigate away from the agent tab.
+    internal.handleRaw(Buffer.from([0x1b]));
+    expect(agentSession.cancelActiveTurn).toHaveBeenCalledTimes(1);
+    expect(internal.getStateForTest().activeTab).toBe('agent');
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('');
+  });
+});

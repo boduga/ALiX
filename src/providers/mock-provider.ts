@@ -1,4 +1,4 @@
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelAdapter, ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export class MockProvider implements ModelAdapter {
   id = "mock";
@@ -16,7 +16,11 @@ export class MockProvider implements ModelAdapter {
   editFormatPreference = "structured_patch" as const;
   longContextStrategy = "trimmed_context" as const;
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+  /** Last per-call options received (test seam for signal propagation). */
+  lastOptions: ModelCallOptions | undefined;
+
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
+    this.lastOptions = options;
     const last = request.messages.at(-1)?.content ?? "";
     return {
       text: `Plan:\n1. Inspect repository context.\n2. Prepare a safe patch for: ${last}\n3. Run verification.\n`,
@@ -24,7 +28,8 @@ export class MockProvider implements ModelAdapter {
     };
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
+    this.lastOptions = options;
     const response = await this.complete(request);
     yield { type: "text_delta", text: response.text };
     yield { type: "done" };

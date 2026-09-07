@@ -155,6 +155,8 @@ export type ToolCall = {
 
 export type NormalizedResponse = {
   text: string;
+  /** Model's private reasoning trace (e.g. DeepSeek reasoning_content). Not final output. */
+  reasoning?: string;
   toolCalls: ToolCall[];
   usage?: TokenUsage;
   finishReason?: string;
@@ -165,9 +167,10 @@ export type NormalizedResponse = {
 // Streaming chunks
 export type StreamChunk =
   | { type: "text_delta"; text: string }
+  | { type: "reasoning_delta"; text: string }
   | { type: "tool_call"; toolCall: ToolCall }
   | { type: "usage"; usage: TokenUsage }
-  | { type: "done"; resolvedModel?: string }
+  | { type: "done"; resolvedModel?: string; finishReason?: string }
   | { type: "error"; error: string };
 
 // Negotiated capabilities (result of capability negotiation)
@@ -181,6 +184,15 @@ export type NegotiatedCapabilities = {
 };
 
 // Model adapter interface
+// ModelCallOptions carries an operator-cancel AbortSignal into the transport
+// (Task 6.1 → provider/stream): a cancel aborts the in-flight request/socket,
+// not just the caller's race. Additive — adapters that cannot take a signal
+// simply ignore the extra argument and keep their own transport bound.
+export type ModelCallOptions = {
+  /** Abort the in-flight provider request when this signal fires. */
+  signal?: AbortSignal;
+};
+
 export type ModelAdapter = {
   id: string;
   capabilities: ModelCapabilities;
@@ -188,7 +200,7 @@ export type ModelAdapter = {
   longContextStrategy: "expanded_context" | "trimmed_context";
   /** True for routing adapters that own their own fallback/committed-stream decision. */
   isRoutingAdapter?: boolean;
-  complete(request: NormalizedRequest): Promise<NormalizedResponse>;
-  stream?(request: NormalizedRequest): AsyncGenerator<StreamChunk>;
+  complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse>;
+  stream?(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk>;
   negotiate?(request: NormalizedRequest): Promise<NegotiatedCapabilities>;
 };

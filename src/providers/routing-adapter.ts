@@ -11,7 +11,7 @@ import { CircuitBreaker } from "./circuit-breaker.js";
 import { supportsRequest, deriveRequestRequirements, resolveModelSelectionId } from "./model-resolver.js";
 import { createProvider } from "./registry.js";
 import type { ModelConfig } from "../config/schema.js";
-import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelAdapter, ModelCallOptions, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type RoutingCandidate = {
   key: string;
@@ -146,14 +146,19 @@ export class RoutingModelAdapter implements ModelAdapter {
     return supportsRequest(candidate.adapter.capabilities, deriveRequestRequirements(request));
   }
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
     let lastErr: unknown;
     for (const candidate of this.candidates) {
       if (!this.isEligible(candidate, request)) continue;
       const breaker = this.breaker(candidate.key);
       if (!breaker.shouldAttempt()) { lastErr = new Error("Circuit breaker is open — provider unavailable"); continue; }
       try {
-        const response = await candidate.adapter.complete(request);
+        // The operator-cancel signal (options.signal) is forwarded to each
+        // candidate so a cancel aborts the actual transport request, never
+        // just the caller's race. A transport abort surfaces as a
+        // non-retryable error, so the loop propagates immediately (no new
+        // request launches after a cancel).
+        const response = await candidate.adapter.complete(request, options);
         breaker.onSuccess();
         if (!response.resolvedModel) response.resolvedModel = candidate.label;
         return response;
@@ -170,7 +175,7 @@ export class RoutingModelAdapter implements ModelAdapter {
       : (lastErr ?? new Error("All routing candidates failed"));
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
     let lastErr: unknown;
     for (const candidate of this.candidates) {
       if (!this.isEligible(candidate, request)) continue;
@@ -179,14 +184,18 @@ export class RoutingModelAdapter implements ModelAdapter {
       if (!breaker.shouldAttempt()) { lastErr = new Error("Circuit breaker is open — provider unavailable"); continue; }
       let committed = false;
       try {
-        const generator = candidate.adapter.stream(request);
+        const generator = candidate.adapter.stream(request, options);
         for await (const chunk of generator) {
           if (!committed) {
             if (chunk.type === "error") throw new Error(chunk.error);
             if (chunk.type === "text_delta" || chunk.type === "tool_call") committed = true;
           }
           if (chunk.type === "done" && !chunk.resolvedModel) {
-            yield { type: "done", resolvedModel: candidate.label };
+            yield {
+              type: "done",
+              resolvedModel: candidate.label,
+              ...(chunk.finishReason === undefined ? {} : { finishReason: chunk.finishReason }),
+            };
             continue;
           }
           yield chunk;

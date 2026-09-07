@@ -36,6 +36,14 @@ export type EventHandlerDeps = {
   mcpToolIndex: DeferredToolEntry[];
   config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
   verbose?: boolean; // Print tool outputs to stdout
+  /**
+   * Operator-cancel signal (Task 6.1 tool propagation). Threaded into each
+   * ToolCallRequest so an interruptible in-flight tool (shell.run) can map an
+   * operator abort onto its own child-kill and surface an
+   * ExecutionCancelledError — never a tool failure. Optional; omitted when
+   * cancellation is not armed.
+   */
+  cancelSignal?: AbortSignal;
 };
 
 /**
@@ -305,6 +313,7 @@ export async function handleToolCall(
     summary: toolCall.summary,
     executionId: correlation.executionId,
     invocationId: correlation.invocationId,
+    ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
   });
 
   // If the executor reports "Approval required (id)", wait for the operator
@@ -325,6 +334,7 @@ export async function handleToolCall(
           summary: toolCall.summary,
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
+          ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
         });
       } else {
         // Denied or expired — keep the original denied result so the

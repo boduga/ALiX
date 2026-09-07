@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { ToolResult } from "./types.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
+import { ExecutionCancelledError, signalReason } from "../runtime/cancellation-token.js";
 import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
 import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
 
@@ -50,24 +51,53 @@ function truncate(text: string, maxBytes: number): string {
  *
  * Separated from the timeout logic so withTimeout can manage the
  * timing boundary and cancel() can kill the child on timeout.
+ *
+ * When an optional operator-cancel `signal` is supplied it is mapped onto the
+ * SAME child-kill: an abort kills the child AND rejects the promise with an
+ * ExecutionCancelledError (never a tool-error ToolResult), so the operator
+ * cancel unwinds as a cancellation — not as a tool failure. The signal is
+ * strictly an ADDITIONAL kill path: the tool's own timeoutMs bound is
+ * untouched. Exactly one abort listener is attached and removed on settle.
  */
-function spawnCommand(command: string, cwd: string): { promise: Promise<ToolResult>; cancel: () => void } {
+function spawnCommand(
+  command: string,
+  cwd: string,
+  signal?: AbortSignal,
+): { promise: Promise<ToolResult>; cancel: () => void } {
   const child = spawn(command, [], { cwd: cwd || undefined, shell: true });
   let stdout = "";
   let stderr = "";
   let settled = false;
 
-  const promise = new Promise<ToolResult>((resolve) => {
+  const promise = new Promise<ToolResult>((resolve, reject) => {
+    const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
+      if (signal) signal.removeEventListener("abort", onAbort);
+      // Kill the child (the operator-abort kill path) and route the outcome
+      // to cancellation, never to a "command exited with code" failure.
+      if (!child.killed) child.kill("SIGKILL");
+      reject(new ExecutionCancelledError(signalReason(signal) ?? "cancelled by operator"));
+    };
     const finish = (result: ToolResult) => {
       if (settled) return;
       settled = true;
+      if (signal) signal.removeEventListener("abort", onAbort);
       resolve(result);
     };
+
+    if (signal) {
+      // Already-aborted at spawn time: kill the just-spawned child and reject
+      // immediately. Otherwise listen — the loop may cancel mid-flight.
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    }
 
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
 
     child.on("close", (code) => {
+      if (settled) return;
       const combined = stderr ? `${stdout}\n--- stderr ---\n${stderr}` : stdout;
       const output = truncate(combined, MAX_BYTES);
       if ((code ?? 0) !== 0) {
@@ -90,7 +120,7 @@ function spawnCommand(command: string, cwd: string): { promise: Promise<ToolResu
   };
 }
 
-export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number }): Promise<ToolResult> {
+export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number; signal?: AbortSignal }): Promise<ToolResult> {
   const command = normalizeCommand(args.command);
   const { cwd } = args;
   const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
@@ -99,7 +129,7 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
     return { kind: "error", message: "shell.run requires a non-empty command string" };
   }
 
-  const { promise, cancel } = spawnCommand(command, cwd);
+  const { promise, cancel } = spawnCommand(command, cwd, args.signal);
 
   try {
     return await withTimeout(

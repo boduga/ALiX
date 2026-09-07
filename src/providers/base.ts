@@ -2,6 +2,23 @@ import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResp
 import type { EditFormat } from "../patch/edit-format-policy.js";
 import { resolveParallelToolCalls } from "./parallel-tool-calls.js";
 
+/**
+ * Merge an operator-cancel signal (ModelCallOptions.signal, Task 6.1) with an
+ * adapter-owned signal (e.g. a per-provider wall-clock timeout) into a single
+ * AbortSignal for the underlying fetch/stream. A single present signal passes
+ * through unchanged; two are combined with AbortSignal.any so the request
+ * aborts when EITHER fires (an operator cancel aborts the transport; the
+ * timeout ceiling stays intact). Undefined when neither is present.
+ */
+export function mergeSignals(
+  ...signals: Array<AbortSignal | undefined>
+): AbortSignal | undefined {
+  const present = signals.filter((s): s is AbortSignal => s !== undefined);
+  if (present.length === 0) return undefined;
+  if (present.length === 1) return present[0];
+  return AbortSignal.any(present);
+}
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,

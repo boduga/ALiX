@@ -33,6 +33,7 @@ export type ToolCallFromSchema = typeof ToolCallSchema.Type;
 
 export const NormalizedResponseSchema = Schema.Struct({
   text: Schema.String,
+  reasoning: Schema.optional(Schema.String),
   toolCalls: Schema.Array(ToolCallSchema),
   usage: Schema.optional(TokenUsageSchema),
   finishReason: Schema.optional(Schema.String),
@@ -94,6 +95,11 @@ export const TextDeltaSchema = Schema.Struct({
   text: Schema.String,
 });
 
+export const ReasoningDeltaSchema = Schema.Struct({
+  type: Schema.Literal("reasoning_delta"),
+  text: Schema.String,
+});
+
 export const ToolCallChunkSchema = Schema.Struct({
   type: Schema.Literal("tool_call"),
   toolCall: ToolCallSchema,
@@ -116,6 +122,7 @@ export const ErrorChunkSchema = Schema.Struct({
 
 export const StreamChunkSchema = Schema.Union(
   TextDeltaSchema,
+  ReasoningDeltaSchema,
   ToolCallChunkSchema,
   UsageChunkSchema,
   DoneChunkSchema,
