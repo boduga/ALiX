@@ -51,8 +51,8 @@ Each test in `tests/runtime/action-classifier.test.ts → describe("positive cor
 | `ls` | `shell_execution` | 0.85 |
 | `ls -la` | `shell_execution` | 0.85 |
 | `cat package.json` | `shell_execution` | 0.85 |
-| `npm test` | `shell_execution` | 0.85 |
-| `npm run build` | `shell_execution` | 0.85 |
+| `pnpm test` | `shell_execution` | 0.85 |
+| `pnpm run build` | `shell_execution` | 0.85 |
 | `git status` | `shell_execution` | 0.85 |
 | `find . -name '*.ts'` | `shell_execution` | 0.85 |
 | `run the build` | `shell_execution` | 0.85 |
