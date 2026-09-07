@@ -313,6 +313,23 @@ describe("LangfuseTraceClient · run registry", () => {
     expect(sdk.calls.traces).toHaveLength(2);
   });
 
+  it("two live runs with distinct runIds stay independent — ending A leaves B active", async () => {
+    const { client, sdk } = makeClient();
+    const runA = client.startRun(runInput({ runId: "run-live-a" }));
+    const runB = client.startRun(runInput({ runId: "run-live-b" }));
+
+    expect(sdk.calls.traces.map((t) => t.id as string)).toEqual(["run-live-a", "run-live-b"]);
+
+    await client.endRun(runA, { status: "success", endedAt: 2_000_000 });
+    // Only A's trace was finalized; B is untouched and still resolvable.
+    expect(sdk.calls.traceUpdates.map((u) => u.id)).toEqual(["run-live-a"]);
+    expect(client.getRun("run-live-a")).toBeNull();
+    expect(client.getRun("run-live-b")).toBe(runB);
+
+    // B keeps honoring spans after A ended (independent lifecycle).
+    expect(() => client.startModelSpan(runB, { provider: "openai", model: "gpt-5" })).not.toThrow();
+  });
+
   it("run error outcome lands in metadata.alix", () => {
     const { client, sdk } = makeClient();
     const run = client.startRun(runInput());
@@ -656,6 +673,29 @@ describe("LangfuseTraceClient · bounded flush", () => {
     );
     expect(sdk.flushCalls).toBe(2);
     warn.mockRestore();
+  });
+
+  it("transient transport failure recovers — the same client still transports on the next flush", async () => {
+    const { client, sdk } = makeClient();
+    // First flush: Langfuse is temporarily down → warn once, no throw.
+    sdk.flushAsync = async () => {
+      sdk.flushCalls++;
+      throw new Error("langfuse temporarily down");
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(client.flush()).resolves.toBeUndefined();
+    warn.mockRestore();
+
+    // Transport recovers: the SAME memoized client flushes normally on the
+    // next call. Fail-open never permanently disables tracing (design §11).
+    sdk.flushAsync = async () => {
+      sdk.flushCalls++;
+    };
+    const warnAfter = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(client.flush()).resolves.toBeUndefined();
+    expect(warnAfter).not.toHaveBeenCalled();
+    expect(sdk.flushCalls).toBe(2);
+    warnAfter.mockRestore();
   });
 
   it("flush hangs forever → resolves after flushTimeoutMs, not later (bounded wait)", async () => {

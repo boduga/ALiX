@@ -258,6 +258,27 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // once and shut down at TUI exit below (T14). Only set on the branch that
   // actually creates one — stubs and daemon mode hold no client.
   let tuiTraceClient: TraceClient | undefined;
+  // Hoisted so the EvolutionProjection sources above can capture the service
+  // (assigned during startup) and so the startup try/catch can reach the app.
+  let capabilityService!: import("../../tui/capabilities/capability-service.js").CapabilityService;
+  let app!: TuiApp;
+  // T14 bounded shutdown — the TUI's single "app closing down" choke point
+  // (the dispatcher process.exit()s right after runTui resolves). Bounded by
+  // the adapter's flush budget and fail-open, so tracing can never change the
+  // TUI's exit nor delay it beyond the budget. Runs only when a client was
+  // actually created (stub / daemon-mode TUIs hold none). Idempotent and
+  // reachable from every startup failure path (T15: wraps the whole startup,
+  // not just app.run()).
+  const shutdownTrace = async (): Promise<void> => {
+    if (tuiTraceClient) {
+      try {
+        await tuiTraceClient.shutdown();
+      } catch {
+        // Tracing must never determine a TUI exit; fail-open.
+      }
+    }
+  };
+  try {
   if (shouldUseStubAgent()) {
     agentSession = {
       getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
@@ -355,7 +376,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // to a stub); ToolExecutor reads fields defensively, so a type-only cast at
   // this boundary is safe and matches other call sites' typed config.
   const toolExecutor = new ToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd());
-  const capabilityService = new CapabilityService(undefined, {
+  capabilityService = new CapabilityService(undefined, {
     eventLog,
     sessionId: currentSessionId,
     actor: 'operator',
@@ -365,7 +386,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   setCapabilityService(capabilityService);
   await capabilityService.ready();
 
-  const app = new TuiApp({
+  app = new TuiApp({
     builder,
     daemonMetrics,
     agentSession,
@@ -387,28 +408,16 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   await agentCollector.start();
   sopCollector.start();
 
-  try {
-    await app.start();
-    await app.run();
+  await app.start();
+  await app.run();
   } catch (err) {
-    await app.stop();
+    if (app) await app.stop();
     throw err;
   } finally {
     runtimeCollector.stop();
     chatCollector.stop();
     agentCollector.stop();
     sopCollector.stop();
-    // T14 bounded shutdown — the TUI's single "app closing down" choke point
-    // (the dispatcher process.exit()s right after runTui resolves). Bounded by
-    // the adapter's flush budget and fail-open, so tracing can never change
-    // the TUI's exit nor delay it beyond the budget. Runs only when a client
-    // was actually created (stub / daemon-mode TUIs hold none).
-    if (tuiTraceClient) {
-      try {
-        await tuiTraceClient.shutdown();
-      } catch {
-        // Tracing must never determine a TUI exit; fail-open.
-      }
-    }
+    await shutdownTrace();
   }
 }
