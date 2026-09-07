@@ -55,6 +55,7 @@
     "test:soak:bench": "ALIX_SOAK_LEVEL=bench node --test --test-concurrency=1 dist/tests/soak/adaptation-*.soak.test.js",
     "test:soak:adaptation": "node --test --test-concurrency=1 dist/tests/soak/adaptation-*.soak.test.js",
     "test:stress": "node --test --test-timeout=60000 dist/tests/stress/*.test.js",
+    "stress:long-turn": "node scripts/stress/long-turn-stress.mjs",
     "test:skips:audit": "bash scripts/test-skips-audit.sh",
     "check:package-manager": "bash scripts/check-package-manager.sh",
     "fresh": "pnpm build && node dist/src/cli.js doctor"
