@@ -1112,10 +1112,12 @@ export class AgentSessionBuilder {
       } finally {
         // Exactly-once endRun across every terminal path (recon §3 a–i): the
         // finally fires once whether the body returned, threw a cancellation/
-        // failure, or was interrupted. The client contract is fail-open, but
-        // the swallow keeps a broken client from altering the turn's outcome.
+        // failure, or was interrupted. endRun finalizes the trace and then
+        // awaits a flush bounded by flushTimeoutMs (Task 13, design §12); the
+        // client contract is fail-open, but the swallow keeps a broken client
+        // from altering the turn's outcome.
         try {
-          traceClient.endRun(traceRun, traceOutcome);
+          await traceClient.endRun(traceRun, traceOutcome);
         } catch {
           // Tracing must never change agent results.
         }
@@ -2139,9 +2141,11 @@ export class AgentSessionBuilder {
         throw err;
       } finally {
         // Exactly-once endRun across every return path (recon §3: no-provider
-        // :2021-2027, success :2091-2097, chat-error :2098-2109).
+        // :2021-2027, success :2091-2097, chat-error :2098-2109). endRun
+        // finalizes the trace and awaits a flush bounded by flushTimeoutMs
+        // (Task 13, design §12).
         try {
-          traceClient.endRun(traceRun, traceOutcome);
+          await traceClient.endRun(traceRun, traceOutcome);
         } catch {
           // Tracing must never change agent results.
         }

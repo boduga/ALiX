@@ -84,10 +84,13 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
   } finally {
     if (root.traceClient && root.run) {
       // Exactly-once endRun: the finally fires once on every terminal path.
-      // The client contract is fail-open, but the swallow keeps a broken
-      // client from altering the task's outcome.
+      // endRun finalizes the trace and awaits a flush bounded by
+      // flushTimeoutMs (Task 13, design §12) — a hung SDK flush can delay the
+      // task by at most that budget, never indefinitely. The client contract
+      // is fail-open, but the swallow keeps a broken client from altering the
+      // task's outcome.
       try {
-        root.traceClient.endRun(root.run, traceOutcome);
+        await root.traceClient.endRun(root.run, traceOutcome);
       } catch {
         // Tracing must never change task results.
       }

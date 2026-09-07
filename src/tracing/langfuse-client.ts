@@ -23,11 +23,16 @@
  * (runId/actor/provider/… ids) are not payload text and are recorded as-is.
  *
  * Failure contract (design §11-12): lifecycle methods are synchronous, cheap,
- * enqueue-only, and NEVER throw into agent execution. `flush()`/`shutdown()`
- * delegate to the SDK, never reject, and the bounded wait is applied by the
- * caller (Tasks 13/14). Construction MAY throw on a genuinely invalid config
- * (missing baseUrl, non-http(s) baseUrl, empty keys, leftover unresolved
- * `cred://` refs) — the factory (Task 9) catches it → warn-once → Noop.
+ * enqueue-only, and NEVER throw into agent execution — except `endRun`, which
+ * finalizes the run trace synchronously and then awaits a flush bounded by
+ * `flushTimeoutMs` (design §12): resolve/timeout/reject all continue and never
+ * change the run's outcome nor delay ALiX beyond the budget. `flush()` is
+ * bounded the same way and never rejects; `shutdown()` (Task 14) delegates to
+ * the SDK and never rejects. The bounded wait is applied in this adapter;
+ * callers just `await endRun`/`flush`. Construction MAY throw on a genuinely
+ * invalid config (missing baseUrl, non-http(s) baseUrl, empty keys, leftover
+ * unresolved `cred://` refs) — the factory (Task 9) catches it → warn-once →
+ * Noop.
  *
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md
  * Created by: Task 7 (implement the Langfuse adapter) of
@@ -60,6 +65,8 @@ import type {
   TraceRunInput,
   TraceSpan,
 } from "./types.js";
+import { warnOnce } from "./warn-once.js";
+import { withTimeout } from "./with-timeout.js";
 
 // ---------------------------------------------------------------------------
 // Module helpers
@@ -67,6 +74,12 @@ import type {
 
 /** Shared inert span handle returned for unknown/ended runs (design §3). */
 const NOOP_SPAN = Object.freeze({}) as unknown as TraceSpan;
+
+/**
+ * Stable warn-once key so a flush (or shutdown) transport failure is reported
+ * at most once per process even though the message may embed varying detail.
+ */
+const FLUSH_WARN_KEY = "langfuse-client:flush-transport-failure";
 
 /** A frozen run handle whose only readable state is the ALiX runId. */
 function makeRunHandle(runId: string): TraceRun {
@@ -164,6 +177,8 @@ export class LangfuseTraceClient implements TraceClient {
   private readonly toolOutputLevel: CaptureLevel;
   private readonly maxMessageChars: number;
   private readonly maxToolOutputChars: number;
+  /** Bounded-flush budget (design §12): max wait for transport before ALiX continues. */
+  private readonly flushTimeoutMs: number;
 
   private readonly runsByRunId = new Map<string, RunRecord>();
   private readonly recordByRun = new WeakMap<object, RunRecord>();
@@ -223,6 +238,7 @@ export class LangfuseTraceClient implements TraceClient {
     this.toolOutputLevel = capture?.toolOutput ?? "truncated";
     this.maxMessageChars = capture?.maxMessageChars ?? 4000;
     this.maxToolOutputChars = capture?.maxToolOutputChars ?? 2000;
+    this.flushTimeoutMs = config.flushTimeoutMs ?? 2000;
 
     // Always pass explicit values so the SDK never falls back to environment
     // variables (keys resolve store-only; src/tracing/AGENTS.md).
@@ -294,29 +310,37 @@ export class LangfuseTraceClient implements TraceClient {
     return this.runsByRunId.get(runId)?.handle ?? null;
   }
 
-  endRun(run: TraceRun, outcome: RunOutcome): void {
+  async endRun(run: TraceRun, outcome: RunOutcome): Promise<void> {
     const record = this.recordByRun.get(run as object);
     if (!record) return; // unknown or already-ended run → no-op (design §3)
 
     // Unregister FIRST so repeated endRun no-ops even if the SDK call throws.
     this.runsByRunId.delete(record.input.runId);
     this.recordByRun.delete(record.handle as object);
-    if (!record.sdkTrace) return; // trace creation had failed; nothing to finish
-
-    const alix = {
-      ...record.alix,
-      status: outcome.status,
-      endedAtMs: outcome.endedAt,
-      durationMs: durationMs(record.input.startedAt, outcome.endedAt),
-      ...defined({ error: this.captureError(outcome.error) }),
-    };
-    try {
-      record.sdkTrace.update(
-        defined({ metadata: { alix } }) as Parameters<SdkTraceClient["update"]>[0],
-      );
-    } catch {
-      // Swallow (design §11).
+    if (record.sdkTrace) {
+      const alix = {
+        ...record.alix,
+        status: outcome.status,
+        endedAtMs: outcome.endedAt,
+        durationMs: durationMs(record.input.startedAt, outcome.endedAt),
+        ...defined({ error: this.captureError(outcome.error) }),
+      };
+      try {
+        record.sdkTrace.update(
+          defined({ metadata: { alix } }) as Parameters<SdkTraceClient["update"]>[0],
+        );
+      } catch {
+        // Swallow (design §11).
+      }
     }
+
+    // ── Bounded flush (Task 13, design §12-13) ──────────────────────────────
+    // ALiX stops awaiting the tracing transport after flushTimeoutMs and
+    // continues regardless of resolve/reject/timeout. The SDK keeps its own
+    // lifecycle; we never synchronously discard its buffers. This is the only
+    // awaited transport wait at the run terminal, and it is bounded by the
+    // configured budget — a permanently hanging SDK flush cannot hang the agent.
+    await this.flush();
   }
 
   // -------------------------------------------------------------------------
@@ -434,10 +458,28 @@ export class LangfuseTraceClient implements TraceClient {
   // -------------------------------------------------------------------------
 
   async flush(): Promise<void> {
+    let sdkFlush: Promise<void>;
     try {
-      await this.sdk.flushAsync();
-    } catch {
-      // Fail-open (design §12): flush must never reject into agent execution.
+      sdkFlush = this.sdk.flushAsync();
+    } catch (error) {
+      // A synchronous throw from flushAsync (never expected). Warn once and
+      // continue — a flush failure must never change an ALiX run's outcome.
+      warnOnce(this.flushWarning(error), FLUSH_WARN_KEY);
+      return;
+    }
+    // Absorb a rejection that settles AFTER we have stopped awaiting (timeout):
+    // fail-open flush ignores late transport failures, so one must never
+    // surface as an unhandled rejection. The pre-timeout rejection path is
+    // handled by the wait below.
+    sdkFlush.catch(() => {
+      // handled by the wait below; this branch only absorbs post-timeout settles
+    });
+    try {
+      // Bounded wait (design §12): resolve on timeout → continue; a rejection
+      // before the budget expires is warned once and swallowed.
+      await withTimeout(sdkFlush, this.flushTimeoutMs);
+    } catch (error) {
+      warnOnce(this.flushWarning(error), FLUSH_WARN_KEY);
     }
   }
 
@@ -595,5 +637,10 @@ export class LangfuseTraceClient implements TraceClient {
       output: outputTokens ?? 0,
       unit: "TOKENS",
     };
+  }
+
+  private flushWarning(error: unknown): string {
+    const detail = error instanceof Error ? error.message : String(error);
+    return `[Tracing] flush failed (tracing transport error; agent execution continues): ${detail}`;
   }
 }

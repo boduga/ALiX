@@ -30,10 +30,13 @@ import type {
 /**
  * Tracing facade over ALiX agent execution.
  *
- * Lifecycle methods (`startRun`, `startModelSpan`, `startToolSpan`, `endSpan`,
- * `endRun`) are synchronous and cheap from the caller's perspective: they
- * enqueue/update local state only and must not perform network I/O. Transport
- * happens asynchronously; `flush()` and `shutdown()` are bounded.
+ * Lifecycle methods (`startRun`, `startModelSpan`, `startToolSpan`, `endSpan`)
+ * are synchronous and cheap from the caller's perspective: they enqueue/update
+ * local state only and must not perform network I/O. `endRun` completes the
+ * run trace synchronously and THEN awaits a bounded flush (design §12): the
+ * caller waits at most `flushTimeoutMs` for the transport and continues
+ * regardless of resolve/reject/timeout. Transport happens asynchronously;
+ * `flush()` and `shutdown()` are bounded.
  *
  * All lifecycle operations are safe under retries, cancellation, errors, and
  * `finally` blocks (design §3): unknown/ended runs and spans are safe no-ops,
@@ -67,12 +70,21 @@ export interface TraceClient {
   /** Complete a span exactly once. Ending an already-ended span is a no-op. */
   endSpan(span: TraceSpan, outcome: SpanOutcome): void;
 
-  /** Complete a run exactly once. Ending an unknown/already-ended run is a no-op. */
-  endRun(run: TraceRun, outcome: RunOutcome): void;
+  /**
+   * Complete a run exactly once and bound the pending transport (design §12):
+   * after finalizing the run trace, awaits a flush bounded by the configured
+   * `flushTimeoutMs`. Resolves regardless of whether the flush resolved,
+   * rejected, or timed out — it must never change the outcome of an ALiX run
+   * nor delay it beyond the budget. Ending an unknown/already-ended run is a
+   * no-op that still resolves immediately.
+   */
+  endRun(run: TraceRun, outcome: RunOutcome): Promise<void>;
 
   /**
    * Bound the pending async transport. Resolves or rejects within the
-   * configured timeout; must never change the outcome of an ALiX run.
+   * configured `flushTimeoutMs` and, like {@link endRun}'s internal flush,
+   * must never change the outcome of an ALiX run (fail-open on reject, resolve
+   * on timeout). Implementations never reject into the caller.
    */
   flush(): Promise<void>;
 

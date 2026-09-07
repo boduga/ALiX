@@ -200,12 +200,14 @@ function baseTracingConfig(): TracingConfig {
 type TracingOverrides = {
   capture?: Partial<TracingConfig["capture"]>;
   langfuse?: Partial<TracingConfig["langfuse"]>;
+  timeoutMs?: number;
 };
 
 function makeConfig(overrides?: TracingOverrides): TracingConfig {
   const config = baseTracingConfig();
   if (overrides?.capture) config.capture = { ...config.capture, ...overrides.capture };
   if (overrides?.langfuse) config.langfuse = { ...config.langfuse, ...overrides.langfuse };
+  if (overrides?.timeoutMs !== undefined) config.flushTimeoutMs = overrides.timeoutMs;
   return config;
 }
 
@@ -617,6 +619,119 @@ describe("LangfuseTraceClient · outcome translation", () => {
     expect(end.level).toBe("DEFAULT");
     expect("statusMessage" in end).toBe(false);
     expect((end.metadata as { alix: Record<string, unknown> }).alix.status).toBe("cancelled");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bounded flush (Task 13, design §12) — a hung/rejecting SDK flush must never
+// hang the agent, and a flush failure must never alter a run's outcome.
+// ---------------------------------------------------------------------------
+
+describe("LangfuseTraceClient · bounded flush", () => {
+  beforeEach(() => {
+    fakeRecorder.instances.length = 0;
+  });
+
+  it("flush resolves normally when the SDK flushAsync resolves", async () => {
+    const { client, sdk } = makeClient();
+    await client.flush();
+    expect(sdk.flushCalls).toBe(1);
+  });
+
+  it("flush that rejects warns once and continues — no throw, no hang", async () => {
+    const { client, sdk } = makeClient();
+    sdk.flushAsync = async () => {
+      sdk.flushCalls++;
+      throw new Error("flush transport down");
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(client.flush()).resolves.toBeUndefined();
+
+    // warn-once: a second failing flush with the same key stays silent.
+    await client.flush();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("flush failed"),
+    );
+    expect(sdk.flushCalls).toBe(2);
+    warn.mockRestore();
+  });
+
+  it("flush hangs forever → resolves after flushTimeoutMs, not later (bounded wait)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = makeClient({ timeoutMs: 50 });
+      // The SDK flush never settles (permanent hang).
+      lastSdk().flushAsync = () => new Promise<void>(() => {});
+      const flushPromise = client.flush();
+      await vi.advanceTimersByTimeAsync(50);
+      // Agent continues: flush resolves (undefined), never rejects.
+      await expect(flushPromise).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("endRun with a permanently hanging SDK flush completes within flushTimeoutMs (root path cannot hang)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = makeClient({ timeoutMs: 100 });
+      lastSdk().flushAsync = () => new Promise<void>(() => {});
+      const run = client.startRun(runInput());
+
+      const endPromise = client.endRun(run, { status: "success" });
+
+      // Before the budget elapses, endRun is still waiting on the flush.
+      await vi.advanceTimersByTimeAsync(50);
+      let settledEarly = false;
+      await Promise.race([
+        endPromise.then(() => {
+          settledEarly = true;
+        }),
+        Promise.resolve().then(() => {}),
+      ]);
+      expect(settledEarly).toBe(false);
+
+      // When the budget elapses, the agent continues regardless of the hang.
+      await vi.advanceTimersByTimeAsync(50);
+      await expect(endPromise).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("endRun with a rejecting SDK flush still resolves and records the outcome", async () => {
+    const { client, sdk } = makeClient();
+    sdk.flushAsync = async () => {
+      throw new Error("flush transport down");
+    };
+    const run = client.startRun(runInput());
+
+    await expect(client.endRun(run, { status: "success", endedAt: 2_000_000 })).resolves.toBeUndefined();
+    expect(sdk.calls.traceUpdates).toHaveLength(1);
+    const alix = (
+      sdk.calls.traceUpdates[0].body.metadata as { alix: Record<string, unknown> }
+    ).alix;
+    expect(alix.status).toBe("success");
+  });
+
+  it("flush is fail-open even when flushAsync throws synchronously", async () => {
+    const { client } = makeClient();
+    lastSdk().flushAsync = (() => {
+      throw new Error("sync flush throw");
+    }) as () => Promise<void>;
+
+    await expect(client.flush()).resolves.toBeUndefined();
+  });
+
+  it("unknown/ended run endRun resolves immediately and never flushes late-arrival noise", async () => {
+    const { client, sdk } = makeClient();
+    await expect(
+      client.endRun(staleRunHandle("run-ghost"), { status: "success" }),
+    ).resolves.toBeUndefined();
+    // No SDK work for a run that never started.
+    expect(sdk.flushCalls).toBe(0);
   });
 });
 

@@ -63,8 +63,8 @@ export class NoopTraceClient implements TraceClient {
     // no-op
   }
 
-  endRun(_run: TraceRun, _outcome: RunOutcome): void {
-    // no-op
+  async endRun(_run: TraceRun, _outcome: RunOutcome): Promise<void> {
+    // no-op — zero transport work, zero delay, never throws.
   }
 
   async flush(): Promise<void> {

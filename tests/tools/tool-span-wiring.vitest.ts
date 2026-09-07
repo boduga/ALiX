@@ -88,7 +88,7 @@ class RecordingTraceClient implements TraceClient {
     this.ended.push({ input: this.started[idx], outcome });
   }
 
-  endRun(_run: TraceRun, _outcome: RunOutcome): void {
+  async endRun(_run: TraceRun, _outcome: RunOutcome): Promise<void> {
     // no-op
   }
 

@@ -35,6 +35,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type { TracingConfig } from "../../src/config/schema.js";
+import type { TraceRun } from "../../src/tracing/types.js";
 
 // Hoisted state shared by the vi.mock factories below (mock factories cannot
 // close over non-hoisted module variables). `langfuseModuleEvaluations` counts
@@ -287,6 +288,24 @@ describe("createTraceClient", () => {
       await expect(createTraceClient(config)).resolves.toBeDefined();
     }
     warn.mockRestore();
+  });
+});
+
+describe("NoopTraceClient · disabled-path flush parity (Task 13)", () => {
+  it("endRun/flush resolve with zero transport work and zero delay (no hang, byte-identical disabled path)", async () => {
+    const { NOOP_TRACE_CLIENT } = await loadFactory();
+
+    // endRun is an async no-op: still exactly-once-safe, resolves immediately,
+    // and performs no flush work (flush itself is a no-op too).
+    await expect(
+      NOOP_TRACE_CLIENT.endRun(
+        { runId: "run-noop1234" } as TraceRun,
+        { status: "success" },
+      ),
+    ).resolves.toBeUndefined();
+    await expect(NOOP_TRACE_CLIENT.endRun({} as TraceRun, { status: "error" })).resolves.toBeUndefined();
+    await expect(NOOP_TRACE_CLIENT.flush()).resolves.toBeUndefined();
+    await expect(NOOP_TRACE_CLIENT.shutdown()).resolves.toBeUndefined();
   });
 });
 
