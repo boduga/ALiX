@@ -150,7 +150,7 @@ async function runTaskCoreImpl(
   // process TraceClient a bootstrap seam would select. startRun here covers
   // the plan-phase provider calls (runPlanPhase below), the task loop, and
   // the resume/plan-rejected early returns.
-  root.traceClient = createTraceClient(ctx.config.tracing);
+  root.traceClient = await createTraceClient(ctx.config.tracing);
   root.run = root.traceClient.startRun({
     runId,
     sessionId: ctx.sessionId,

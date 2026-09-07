@@ -41,7 +41,7 @@ export async function handler(args: string[]): Promise<number> {
     // Resolve the process TraceClient once (memoized factory: Noop when
     // tracing is disabled — the default) so the session's processTurn /
     // processChat emit one root trace per invocation when tracing is enabled.
-    const runTraceClient = createTraceClient((await loadConfig(process.cwd())).tracing);
+    const runTraceClient = await createTraceClient((await loadConfig(process.cwd())).tracing);
     if (chat) {
       // Wire a streaming events subscription into both the session and the
       // renderer (spec 13) so the REPL renders tokens/tool calls as they

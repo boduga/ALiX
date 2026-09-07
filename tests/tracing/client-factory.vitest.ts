@@ -6,13 +6,23 @@
  * adapter's construction validation run hermetically. Verifies:
  *   - enabled=false → frozen NOOP_TRACE_CLIENT singleton; zero Langfuse
  *     construction attempts, zero SDK construction, no warn
+ *   - enabled=false never evaluates the langfuse module graph (lazy-load
+ *     regression for the Task 10 review fix: the adapter is dynamic-imported
+ *     only on the enabled branch)
  *   - enabled=true + valid config → LangfuseTraceClient
  *   - enabled=true + invalid config (empty baseUrl, unresolved cred:// ref)
  *     → warn once → Noop, no throw, application continues
  *   - enabled=true + SDK construction throw → warn once → Noop
  *   - memoization: repeated calls return the same instance; the construction
  *     failure warn fires only once across calls; only one adapter attempt
+ *   - the returned promise never rejects (fail-open holds across configs)
  *   - warnOnce helper dedupes per key
+ *
+ * Since the Task 10 review fix, createTraceClient is async (memoized promise):
+ * the adapter module is loaded lazily by dynamic import inside the enabled
+ * branch, so a default-disabled process never evaluates the `langfuse` module
+ * graph at runtime. The resolved TraceClient's lifecycle methods stay
+ * synchronous; only acquisition is async, once, at bootstrap.
  *
  * Each scenario imports the factory fresh (vi.resetModules) so the module-level
  * selection memo is isolated per test.
@@ -20,20 +30,25 @@
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md
  * Task: Task 9 of
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
+ * Lazy adapter load: Task 10 review fix (Important #1).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type { TracingConfig } from "../../src/config/schema.js";
 
 // Hoisted state shared by the vi.mock factories below (mock factories cannot
-// close over non-hoisted module variables).
+// close over non-hoisted module variables). `langfuseModuleEvaluations` counts
+// how many times the langfuse mock module is *evaluated* (its factory runs only
+// when the module is actually imported) — the lazy-load regression signal.
 const state = vi.hoisted(() => ({
   adapterAttempts: 0,
   sdkConstructions: 0,
   sdkCtorShouldThrow: false,
+  langfuseModuleEvaluations: 0,
 }));
 
 vi.mock("langfuse", () => {
+  state.langfuseModuleEvaluations += 1;
   class FakeLangfuse {
     constructor() {
       state.sdkConstructions += 1;
@@ -115,13 +130,14 @@ describe("createTraceClient", () => {
     state.adapterAttempts = 0;
     state.sdkConstructions = 0;
     state.sdkCtorShouldThrow = false;
+    state.langfuseModuleEvaluations = 0;
   });
 
   it("returns the frozen NOOP singleton when tracing.enabled is false", async () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
     const warn = stubWarn();
 
-    const client = createTraceClient(tracingConfig({ enabled: false }));
+    const client = await createTraceClient(tracingConfig({ enabled: false }));
 
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(0);
@@ -133,9 +149,30 @@ describe("createTraceClient", () => {
   it("enabled=false never resolves credentials or constructs anything", async () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
 
-    const client = createTraceClient(tracingConfig({ enabled: false }));
+    const client = await createTraceClient(tracingConfig({ enabled: false }));
 
     expect(client).toBe(NOOP_TRACE_CLIENT);
+    expect(state.adapterAttempts).toBe(0);
+    expect(state.sdkConstructions).toBe(0);
+  });
+
+  it("disabled: importing the factory and calling it never evaluates the langfuse module graph (lazy-load regression)", async () => {
+    // The Task 10 review fix: the adapter (and through it the `langfuse`
+    // package) must be dynamic-imported ONLY on the enabled branch. If a
+    // static import crept back into client-factory, evaluating that module
+    // would run the langfuse mock factory below (langfuseModuleEvaluations > 0)
+    // even before createTraceClient is called. This test imports ONLY the
+    // factory + noop modules (never the adapter) and asserts the langfuse
+    // module graph was never evaluated on the disabled path.
+    vi.resetModules();
+    const factory = await import("../../src/tracing/client-factory.js");
+    const noop = await import("../../src/tracing/noop-client.js");
+    expect(state.langfuseModuleEvaluations).toBe(0);
+
+    const client = await factory.createTraceClient(tracingConfig({ enabled: false }));
+
+    expect(client).toBe(noop.NOOP_TRACE_CLIENT);
+    expect(state.langfuseModuleEvaluations).toBe(0);
     expect(state.adapterAttempts).toBe(0);
     expect(state.sdkConstructions).toBe(0);
   });
@@ -143,7 +180,7 @@ describe("createTraceClient", () => {
   it("returns a LangfuseTraceClient for enabled=true with a valid config", async () => {
     const { createTraceClient, LangfuseTraceClient } = await loadFactory();
 
-    const client = createTraceClient(tracingConfig());
+    const client = await createTraceClient(tracingConfig());
 
     expect(client).toBeInstanceOf(LangfuseTraceClient);
     expect(state.adapterAttempts).toBe(1);
@@ -154,7 +191,7 @@ describe("createTraceClient", () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
     const warn = stubWarn();
 
-    const client = createTraceClient(tracingConfig({ baseUrl: "" }));
+    const client = await createTraceClient(tracingConfig({ baseUrl: "" }));
 
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(1);
@@ -170,7 +207,7 @@ describe("createTraceClient", () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
     const warn = stubWarn();
 
-    const client = createTraceClient(
+    const client = await createTraceClient(
       tracingConfig({
         publicKey: "cred://langfuse/publicKey",
         secretKey: "cred://langfuse/secretKey",
@@ -189,7 +226,7 @@ describe("createTraceClient", () => {
     const warn = stubWarn();
     state.sdkCtorShouldThrow = true;
 
-    const client = createTraceClient(tracingConfig());
+    const client = await createTraceClient(tracingConfig());
 
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(1);
@@ -201,8 +238,8 @@ describe("createTraceClient", () => {
   it("memoizes a successful enabled selection across repeated calls", async () => {
     const { createTraceClient } = await loadFactory();
 
-    const first = createTraceClient(tracingConfig());
-    const second = createTraceClient(tracingConfig({ baseUrl: "https://other.example" }));
+    const first = await createTraceClient(tracingConfig());
+    const second = await createTraceClient(tracingConfig({ baseUrl: "https://other.example" }));
 
     expect(first).toBe(second);
     expect(state.adapterAttempts).toBe(1);
@@ -213,8 +250,8 @@ describe("createTraceClient", () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
     const warn = stubWarn();
 
-    const first = createTraceClient(tracingConfig({ baseUrl: "" }));
-    const second = createTraceClient(tracingConfig({ baseUrl: "" }));
+    const first = await createTraceClient(tracingConfig({ baseUrl: "" }));
+    const second = await createTraceClient(tracingConfig({ baseUrl: "" }));
 
     expect(first).toBe(NOOP_TRACE_CLIENT);
     expect(second).toBe(NOOP_TRACE_CLIENT);
@@ -227,8 +264,8 @@ describe("createTraceClient", () => {
     const { createTraceClient, NOOP_TRACE_CLIENT } = await loadFactory();
     const warn = stubWarn();
 
-    const first = createTraceClient(tracingConfig({ enabled: false }));
-    const second = createTraceClient(tracingConfig({ enabled: false }));
+    const first = await createTraceClient(tracingConfig({ enabled: false }));
+    const second = await createTraceClient(tracingConfig({ enabled: false }));
 
     expect(first).toBe(NOOP_TRACE_CLIENT);
     expect(second).toBe(NOOP_TRACE_CLIENT);
@@ -237,7 +274,7 @@ describe("createTraceClient", () => {
     warn.mockRestore();
   });
 
-  it("never throws into the caller, regardless of config state", async () => {
+  it("never rejects into the caller, regardless of config state (fail-open)", async () => {
     const warn = stubWarn();
     for (const config of [
       tracingConfig({ enabled: false }),
@@ -247,7 +284,7 @@ describe("createTraceClient", () => {
       tracingConfig({ secretKey: "" }),
     ]) {
       const { createTraceClient } = await loadFactory();
-      expect(() => createTraceClient(config)).not.toThrow();
+      await expect(createTraceClient(config)).resolves.toBeDefined();
     }
     warn.mockRestore();
   });
