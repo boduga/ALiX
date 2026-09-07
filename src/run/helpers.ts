@@ -423,7 +423,13 @@ export async function streamToResponse(
     // Fail-soft: a mid-stream error (network hiccup, dropped chunk, malformed
     // SSE) must not abort the task run. Fall back to a blocking complete();
     // the tokens streamed so far remain, the rest arrives as one block.
-    const resp = await provider.complete(request);
+    // Task 6.1 — the fallback call MUST also race the operator-cancel signal:
+    // without that, a broken endpoint that survives the stream-idle window
+    // turns the fail-soft complete() into an uninterruptible, unbounded call
+    // (a cancel could never unwind it). Signal-less behaviour is unchanged.
+    const resp = signal
+      ? await raceWithCancellation(provider.complete(request), signal, "cancelled by operator")
+      : await provider.complete(request);
     return { text: text + (resp.text ?? ""), reasoning: reasoning || resp.reasoning, toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel, finishReason: finishReason ?? resp.finishReason };
   }
 }

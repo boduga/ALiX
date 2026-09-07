@@ -97,4 +97,32 @@ describe("streamToResponse cancellable path — abort-listener hygiene (Unit F f
     await expect(run).rejects.toBeInstanceOf(ExecutionCancelledError);
     expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
+
+  it("a cancel that lands during the fail-soft complete() fallback still rejects (Task 6.1 — the fallback call races the signal, never an uninterruptible hang)", async () => {
+    const { streamToResponse } = await import("../../src/run/helpers.js");
+    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    const controller = new AbortController();
+    // Stream yields one chunk then throws a mid-stream (non-signal) error —
+    // routing adapters are NOT involved, so streamToResponse fail-softs to a
+    // blocking complete(). That fallback never settles (a broken endpoint),
+    // so only the signal race can bound it.
+    const provider = {
+      ...buildProvider(0),
+      async complete() {
+        return new Promise<never>(() => {}); // black-holed fallback
+      },
+      async *stream(): AsyncGenerator<any> {
+        yield { type: "reasoning_delta", text: "once" };
+        throw new Error("mid-stream boom");
+      },
+    } as unknown as ModelAdapter;
+
+    const run = streamToResponse(provider, { systemPrompt: "", messages: [] }, { signal: controller.signal });
+    // Let the stream error and the fail-soft complete() begin, THEN cancel.
+    await new Promise((r) => setTimeout(r, 10));
+    controller.abort("operator stop");
+    await expect(run).rejects.toBeInstanceOf(ExecutionCancelledError);
+    // The race detached its listener on settle.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
 });
