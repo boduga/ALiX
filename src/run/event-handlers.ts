@@ -36,6 +36,8 @@ export type EventHandlerDeps = {
   mcpToolIndex: DeferredToolEntry[];
   config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
   verbose?: boolean; // Print tool outputs to stdout
+  /** Authoritative run id for the enclosing execution (Task 12 tool spans). */
+  runId?: string;
 };
 
 /**
@@ -297,7 +299,7 @@ export async function handleToolCall(
     };
   }
 
-  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread)
+  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread). T12: thread runId for tool-span parent resolution where the caller provides it.
   let execResult = await deps.executor.execute({
     toolCallId: toolCall.id,
     name: execName,
@@ -305,6 +307,7 @@ export async function handleToolCall(
     summary: toolCall.summary,
     executionId: correlation.executionId,
     invocationId: correlation.invocationId,
+    runId: deps.runId,
   });
 
   // If the executor reports "Approval required (id)", wait for the operator
@@ -325,6 +328,7 @@ export async function handleToolCall(
           summary: toolCall.summary,
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
+          runId: deps.runId,
         });
       } else {
         // Denied or expired — keep the original denied result so the

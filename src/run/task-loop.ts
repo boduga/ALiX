@@ -1184,6 +1184,7 @@ if (toolCalls.length === 0) {
     mcpToolIndex,
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
+    runId: deps.context?.runId,
   };
 
   // Track accumulated state across all tool calls so one tool's result

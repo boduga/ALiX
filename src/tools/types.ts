@@ -16,6 +16,13 @@ export type ToolCallRequest = {
    * already verified — never set from user input.
    */
   source?: string;
+  /**
+   * Authoritative ALiX run id for the enclosing execution (design §21, R2).
+   * Threaded from run roots through the task-loop / event-handlers so the
+   * tool executor can resolve the parent run for a tool span. Absent/unknown
+   * runId → no tool span (never invented, never a throw).
+   */
+  runId?: string;
 } & Partial<CorrelationContext>;
 
 export interface FindingReport {

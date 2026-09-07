@@ -29,6 +29,15 @@ import {
   type ToolRouter,
 } from "./tool-router.js";
 import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { getProcessTraceClient } from "../tracing/client-factory.js";
+import type { TraceClient } from "../tracing/client.js";
+import type {
+  SpanOutcome,
+  ToolSpanInput,
+  TraceRun,
+  TraceSpan,
+} from "../tracing/types.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
@@ -134,7 +143,98 @@ export class ToolExecutor {
     await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
   }
 
+  /**
+   * Execute a tool call, emitting exactly one tool span when tracing is
+   * enabled and the request carries a runId that resolves to an active run
+   * (R2, design §21). The span is begun once before dispatch and ended exactly
+   * once across success / throw / timeout / cancellation. When tracing is
+   * disabled, the runId is absent, or the run is unknown, no span work happens
+   * and tool behavior/results are unchanged.
+   */
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
+    // Resolve the process TraceClient + parent run (fail-open: any tracing
+    // problem degrades to "no span", never a throw into tool execution).
+    let client: TraceClient | undefined;
+    let run: TraceRun | null = null;
+    let span: TraceSpan | undefined;
+    const runId = request.runId;
+    if (runId) {
+      try {
+        client = await getProcessTraceClient();
+        run = client.getRun(runId);
+        span = run ? client.startToolSpan(run, this.buildToolSpanInput(request)) : undefined;
+      } catch {
+        client = undefined;
+        run = null;
+        span = undefined;
+      }
+    }
+
+    const startedAt = Date.now();
+    try {
+      const result = await this.dispatch(request);
+      if (run && span && client) {
+        const outcome = this.buildSuccessOutcome(result);
+        outcome.endedAt = Date.now();
+        this.endToolSpan(client, span, outcome);
+      }
+      return result;
+    } catch (err) {
+      if (run && span && client) {
+        this.endToolSpan(client, span, {
+          status: isCancellationError(err) ? "cancelled" : "error",
+          error: err instanceof Error ? err.message : String(err),
+          endedAt: Date.now(),
+        });
+      }
+      throw err;
+    }
+  }
+
+  /** Build request-side ToolSpanInput at the seam; capture is the adapter's job. */
+  private buildToolSpanInput(request: ToolCallRequest): ToolSpanInput {
+    return {
+      toolName: request.name,
+      capability: inferCapability(request.name),
+      toolCallId: request.toolCallId,
+      invocationId: request.invocationId,
+      executionId: request.executionId,
+      args: request.args,
+      startedAt: Date.now(),
+    };
+  }
+
+  /** Terminal outcome for a resolved (non-thrown) tool result. */
+  private buildSuccessOutcome(result: ExecuteResult): SpanOutcome {
+    if (result?.kind === "denied") {
+      // Denials map to "error" (design status vocab), no output captured.
+      return { status: "error" };
+    }
+    if (result?.kind !== "success") {
+      // kind === "error" — a tool failure is still a terminal "error" span.
+      return { status: "error", error: result.message };
+    }
+    let output: string | undefined;
+    if (typeof result.output === "string") {
+      output = result.output;
+    } else if (typeof result.content === "string") {
+      output = result.content;
+    } else if (typeof result.value === "string") {
+      output = result.value;
+    }
+    return { status: "success", output };
+  }
+
+  /** End a tool span exactly once; tracing failures never change tool results. */
+  private endToolSpan(client: TraceClient, span: TraceSpan, outcome: SpanOutcome): void {
+    try {
+      client.endSpan(span, outcome);
+    } catch {
+      // Tracing must never throw into tool execution.
+    }
+  }
+
+  private async dispatch(request: ToolCallRequest): Promise<ExecuteResult> {
     const { toolCallId, name } = request;
     let args = request.args;
     const capability = inferCapability(name);
