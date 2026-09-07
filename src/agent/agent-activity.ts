@@ -92,6 +92,23 @@ export type ActivityTransitionOpts = Readonly<{
 // ─── Helpers ──────────────────────────────────────────────────────
 
 /**
+ * Materialize the optional ActivityTransitionOpts fields as present-only keys
+ * on a fresh object, so callers can spread the result over a base record.
+ * A key is written only when its source value is defined — `undefined` fields
+ * are never emitted, which is what lets transition records carry forward (via
+ * the spread of `...current`) the fields the caller did not override.
+ */
+function applyTransitionOpts(opts?: ActivityTransitionOpts): Partial<ActivityTransitionOpts> {
+  return {
+    ...(opts?.operation !== undefined && { operation: opts.operation }),
+    ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
+    ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
+    ...(opts?.provider !== undefined && { provider: opts.provider }),
+    ...(opts?.model !== undefined && { model: opts.model }),
+  };
+}
+
+/**
  * Create a new AgentActivity record. All timestamps are stamped at `now`;
  * elapsedMs starts at 0.
  */
@@ -108,11 +125,7 @@ export function createAgentActivity(
     lastProgressAt: now,
     lastEventAt: now,
     elapsedMs: 0,
-    ...(opts?.operation !== undefined && { operation: opts.operation }),
-    ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
-    ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
-    ...(opts?.provider !== undefined && { provider: opts.provider }),
-    ...(opts?.model !== undefined && { model: opts.model }),
+    ...applyTransitionOpts(opts),
   });
 }
 
@@ -133,11 +146,7 @@ export function transition(
     lastProgressAt: now,
     lastEventAt: now,
     elapsedMs: now - current.startedAt,
-    ...(opts?.operation !== undefined && { operation: opts.operation }),
-    ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
-    ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
-    ...(opts?.provider !== undefined && { provider: opts.provider }),
-    ...(opts?.model !== undefined && { model: opts.model }),
+    ...applyTransitionOpts(opts),
   });
 }
 
