@@ -81,16 +81,18 @@ export interface TraceClient {
   endRun(run: TraceRun, outcome: RunOutcome): Promise<void>;
 
   /**
-   * Bound the pending async transport. Resolves or rejects within the
-   * configured `flushTimeoutMs` and, like {@link endRun}'s internal flush,
-   * must never change the outcome of an ALiX run (fail-open on reject, resolve
-   * on timeout). Implementations never reject into the caller.
+   * Bound the pending async transport. Resolves within the configured
+   * `flushTimeoutMs` and, like {@link endRun}'s internal flush, must never
+   * change the outcome of an ALiX run (fail-open on reject, resolve on
+   * timeout). The implementation never rejects into the caller.
    */
   flush(): Promise<void>;
 
   /**
-   * Bounded final flush and release of resources. Safe to call once at
-   * process/runtime teardown.
+   * Final flush and release of resources. Safe to call once at process/runtime
+   * teardown. Currently delegates to the SDK's `shutdownAsync` and is fail-open
+   * (a reject is absorbed and warned once). Bounded by `flushTimeoutMs` once
+   * the T14 bounded-shutdown work lands. — pending T14
    */
   shutdown(): Promise<void>;
 }
