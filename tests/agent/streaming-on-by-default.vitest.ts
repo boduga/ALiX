@@ -39,7 +39,10 @@ describe("streaming is on by default (real session)", () => {
     mkdirSync(join(cwd, ".alix"), { recursive: true });
     writeFileSync(
       join(cwd, ".alix", "config.json"),
-      JSON.stringify({ model: { provider: "mock", name: "mock" } })
+      JSON.stringify({
+        model: { provider: "mock", name: "mock" },
+        mcpServers: [],
+      })
     );
     cleanup = () => rmSync(cwd, { recursive: true, force: true });
   });
