@@ -20,10 +20,32 @@ import { formatActivityElapsed } from '../../agent/agent-activity.js';
 /** Spinner glyphs, cycled once per second (Task 3.3). */
 export const ACTIVITY_SPINNER_FRAMES = ['◐', '◓', '◑', '◒'] as const;
 
-// Re-exported so this presentation surface keeps its public formatter API
-// while sharing ONE elapsed formatter with the session's "Cancelled after Ns"
-// summary (defined in agent-activity.ts — no duplicate implementations).
-export { formatActivityElapsed };
+/**
+ * Rendered label per activity state, with `null` for the states that never
+ * show a live indicator. The non-null membership IS the transient
+ * classification: `isTransientActivityState` and `formatActivityLine` both
+ * derive their behaviour from this single map, so a new union member fails
+ * compilation here (missing key) rather than silently relying on
+ * `noImplicitReturns` in two restated switches.
+ *
+ * `tool_running` keeps the bare label ('Running'); the running line inserts
+ * the tool name (and trailing ellipsis) between the label and its elapsed.
+ * The remaining transient labels already end in '…' and are rendered
+ * verbatim after the spinner glyph.
+ */
+const ACTIVITY_STATE_LABELS: Readonly<Record<AgentActivityState, string | null>> = {
+  thinking: 'Thinking…',
+  streaming: null,
+  tool_running: 'Running',
+  waiting_for_provider: 'Thinking…',
+  verifying: 'Verifying…',
+  summarizing: 'Summarizing…',
+  possibly_stalled: 'Still working…',
+  cancelling: 'Cancelling…',
+  completed: null,
+  failed: null,
+  cancelled: null,
+};
 
 /**
  * The spinner frame for an elapsed duration. Pure function of elapsed time:
@@ -44,23 +66,11 @@ export function activitySpinnerFrame(elapsedMs: number): string {
  * (`✓` / `✗` / turn summary) take over — never a permanent spinner.
  * `cancelling` is transient: it renders only while the cancelled turn is
  * unwinding, then the summary line (`Cancelled after 4m 12s`) takes over.
+ * Classification is delegated to `ACTIVITY_STATE_LABELS` (non-null label) —
+ * the single source of truth shared with `formatActivityLine`.
  */
 export function isTransientActivityState(state: AgentActivityState): boolean {
-  switch (state) {
-    case 'thinking':
-    case 'waiting_for_provider':
-    case 'tool_running':
-    case 'verifying':
-    case 'summarizing':
-    case 'possibly_stalled':
-    case 'cancelling':
-      return true;
-    case 'streaming':
-    case 'completed':
-    case 'failed':
-    case 'cancelled':
-      return false;
-  }
+  return ACTIVITY_STATE_LABELS[state] !== null;
 }
 
 /**
@@ -82,14 +92,24 @@ export function formatActivityLine(
   now: number,
   frame?: string,
 ): string | undefined {
-  if (!activity || !isTransientActivityState(activity.state)) return undefined;
+  if (!activity) return undefined;
   const elapsedMs = Math.max(0, now - activity.startedAt);
   const glyph = frame ?? activitySpinnerFrame(elapsedMs);
-  const elapsed = formatActivityElapsed(elapsedMs);
   switch (activity.state) {
+    // Uniform transient shape — spinner glyph + label from the shared
+    // ACTIVITY_STATE_LABELS map + elapsed measured from the invocation start.
+    // `thinking` / `waiting_for_provider` share the Thinking label (per spec);
+    // `cancelling` (Task 6.2) renders "Cancelling…" live while the turn
+    // unwinds and is replaced by the timeline's `Cancelled after Ns` summary
+    // once it resolves — never a permanent spinner.
     case 'thinking':
     case 'waiting_for_provider':
-      return `${glyph} Thinking… ${elapsed}`;
+    case 'verifying':
+    case 'summarizing':
+    case 'cancelling': {
+      const label = ACTIVITY_STATE_LABELS[activity.state]!;
+      return `${glyph} ${label} ${formatActivityElapsed(elapsedMs)}`;
+    }
     case 'tool_running': {
       // Round 1 — the tool timer starts at TOOL start: elapsed runs from
       // toolStartedAt (stamped entering tool_running), falling back to the
@@ -98,10 +118,6 @@ export function formatActivityLine(
       const toolElapsed = formatActivityElapsed(Math.max(0, now - toolStart));
       return `⚙ Running ${activity.toolName ?? 'tool'}… ${toolElapsed}`;
     }
-    case 'verifying':
-      return `${glyph} Verifying… ${elapsed}`;
-    case 'summarizing':
-      return `${glyph} Summarizing… ${elapsed}`;
     case 'possibly_stalled': {
       // The elapsed shown while a stall is suspected anchors on lastEventAt —
       // the timestamp of the last real activity event (token chunk / tool
@@ -113,16 +129,14 @@ export function formatActivityLine(
       const stallGlyph = frame ?? activitySpinnerFrame(stallElapsed);
       return `${stallGlyph} Still working… ${formatActivityElapsed(stallElapsed)}`;
     }
-    case 'cancelling':
-      // Task 6.2 — operator cancel requested: rendered live while the turn
-      // unwinds (`◐ Cancelling… 4m 12s`). Replaced by the timeline's
-      // `Cancelled after 4m 12s` summary once the turn resolves — never a
-      // permanent spinner.
-      return `${glyph} Cancelling… ${elapsed}`;
     case 'streaming':
     case 'completed':
     case 'failed':
     case 'cancelled':
       return undefined;
+    default: {
+      const exhaustive: never = activity.state;
+      return exhaustive;
+    }
   }
 }

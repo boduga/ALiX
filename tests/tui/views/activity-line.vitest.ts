@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatActivityLine,
-  formatActivityElapsed,
   activitySpinnerFrame,
   ACTIVITY_SPINNER_FRAMES,
   isTransientActivityState,
 } from '../../../src/tui/views/activity-line.js';
 import type { AgentActivity, AgentActivityState } from '../../../src/agent/agent-activity.js';
+import { formatActivityElapsed } from '../../../src/agent/agent-activity.js';
 
 function activity(state: AgentActivityState, startedAt: number, overrides: Partial<AgentActivity> = {}): AgentActivity {
   return {
