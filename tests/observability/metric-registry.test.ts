@@ -289,9 +289,9 @@ describe("agent activity/liveness metric definitions (Phase 9)", () => {
       value: number;
       labels?: Record<string, string>;
     }> = [
-      { name: "agent_activity_state", type: "gauge", value: 1, labels: { state: "thinking", invocationId: "inv-1" } },
-      { name: "agent_activity_duration_ms", type: "histogram_sample", value: 1234, labels: { state: "completed", invocationId: "inv-1" } },
-      { name: "agent_last_progress_age_ms", type: "gauge", value: 42, labels: { invocationId: "inv-1" } },
+      { name: "agent_activity_state", type: "gauge", value: 1, labels: { state: "thinking" } },
+      { name: "agent_activity_duration_ms", type: "histogram_sample", value: 1234, labels: { state: "completed" } },
+      { name: "agent_last_progress_age_ms", type: "gauge", value: 42 },
       { name: "agent_stall_warning_total", type: "counter_delta", value: 1, labels: { state: "stalled" } },
       { name: "agent_invocation_cancelled_total", type: "counter_delta", value: 1 },
       { name: "agent_invocation_failed_total", type: "counter_delta", value: 1 },
@@ -300,6 +300,13 @@ describe("agent activity/liveness metric definitions (Phase 9)", () => {
       const res = reg.validate(row);
       assert.ok(res.valid, `row ${row.name} should validate: ${res.errors.join("; ")}`);
     }
+    // invocationId is deliberately NOT an allowed label (high-cardinality,
+    // design §17) — a row carrying it must be rejected.
+    const disallowedInvocationId = reg.validate({
+      name: "agent_activity_state", type: "gauge", value: 1, labels: { state: "thinking", invocationId: "inv-1" },
+    });
+    assert.equal(disallowedInvocationId.valid, false);
+    assert.ok(disallowedInvocationId.errors[0]!.includes("disallowed label key"));
   });
 
   it("strict validation rejects wrong types and disallowed label values", () => {

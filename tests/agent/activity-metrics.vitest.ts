@@ -108,6 +108,13 @@ function rowsNamed(name: string): MetricRowPayload[] {
   return metricRows().filter((r) => r.name === name);
 }
 
+function activityPayloads(): Array<Record<string, unknown>> {
+  return (mocks.append.mock.calls as unknown as Array<Array<{ type: string; payload: Record<string, unknown> }>>)
+    .map((call) => call[0])
+    .filter((e) => e.type === "agent.session.activity")
+    .map((e) => e.payload);
+}
+
 const completedResult: RunResult = {
   sessionId: "activity-metrics-session",
   summary: "done",
@@ -135,7 +142,19 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     for (const s of states) {
       expect(s.type).toBe("gauge");
       expect(s.value).toBe(1);
-      expect(s.labels?.invocationId).toBeTruthy();
+      // Bounded dimensions only — the per-invocation invocationId must never
+      // be a metric label (high-cardinality, design §17); it lives on the
+      // activity event payload instead.
+      expect(Object.keys(s.labels ?? {}).sort()).toEqual(["state"]);
+      expect(s.labels?.invocationId).toBeUndefined();
+    }
+
+    // The invocationId IS carried on the activity event payloads (each record
+    // has one) — it just is not a metric-row label.
+    const payloads = activityPayloads();
+    expect(payloads.length).toBeGreaterThan(0);
+    for (const p of payloads) {
+      expect(p.invocationId).toBeTruthy();
     }
 
     // Terminal duration histogram sample labelled completed.
@@ -269,13 +288,13 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
       expect(rowsNamed("agent_invocation_cancelled_total")).toHaveLength(0);
 
       // Progress-age gauge sampled at the liveness transitions: the warning/
-      // stalled samples carry the grown idle window; every row has an
-      // invocationId label.
+      // stalled samples carry the grown idle window; every row is a bounded
+      // age sample (no invocationId label — it stays on the activity event).
       const ages = rowsNamed("agent_last_progress_age_ms");
       expect(ages.length).toBeGreaterThanOrEqual(2);
       for (const a of ages) {
         expect(a.type).toBe("gauge");
-        expect(a.labels?.invocationId).toBeTruthy();
+        expect(a.labels?.invocationId).toBeUndefined();
       }
       expect(Math.max(...ages.map((a) => a.value))).toBeGreaterThanOrEqual(
         DEFAULT_LIVENESS_THRESHOLDS.warningAfterMs,

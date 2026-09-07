@@ -414,6 +414,64 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
     }
   });
 
+  it("watchdog never relabels a live long-running tool: tool_running stays tool_running past the thresholds and recovers normally on tool_completed", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(0);
+      const { createAgentSession } = await import("../../src/agent/session.js");
+      const { DEFAULT_LIVENESS_THRESHOLDS } = await import("../../src/agent/agent-liveness.js");
+      configureSessionMocks();
+      let capturedDeps!: MockTaskLoopDeps;
+      let resolveLoop!: (r: RunResult) => void;
+      const loopPending = new Promise<RunResult>((resolve) => {
+        resolveLoop = resolve;
+      });
+      mocks.runTaskLoop.mockImplementation(async (deps: MockTaskLoopDeps) => {
+        capturedDeps = deps;
+        return loopPending;
+      });
+
+      const session = createAgentSession({ cwd: wiringTestCwd, task: "", planMode: false });
+      const turn = session.processTurn("run a long tool");
+      await vi.waitFor(() => {
+        expect(session.getActivity?.()?.state).toBe("thinking");
+      });
+
+      // A tool begins executing — the activity flips to tool_running. A live
+      // tool is its own evidence of progress (tool_started at dispatch,
+      // tool_completed at the end; no intermediate marks), so the watchdog
+      // must never relabel it as a possible stall.
+      capturedDeps.onProgress?.("tool_started", "shell.run");
+      expect(session.getActivity?.()?.state).toBe("tool_running");
+      expect(session.getActivity?.()?.toolName).toBe("shell.run");
+
+      // Cross the watchdog WARNING threshold (tool configured above the
+      // default 2m bound, or an MCP tool with no internal timeout) …
+      vi.advanceTimersByTime(DEFAULT_LIVENESS_THRESHOLDS.warningAfterMs + 5_000);
+      expect(session.getActivity?.()?.state).toBe("tool_running");
+      // … and even the STALLED threshold: the activity label never flips to
+      // possibly_stalled while the tool is live (a healthy command must not
+      // prompt the operator to cancel it).
+      vi.advanceTimersByTime(
+        DEFAULT_LIVENESS_THRESHOLDS.stalledAfterMs - DEFAULT_LIVENESS_THRESHOLDS.warningAfterMs,
+      );
+      expect(session.getActivity?.()?.state).toBe("tool_running");
+
+      // The tool completes normally → the indicator recovers to thinking and
+      // the turn finishes as a clean completion (never failed/cancelled by
+      // the watchdog, and the activity history never contained possibly_stalled).
+      capturedDeps.onProgress?.("tool_completed", "shell.run");
+      expect(session.getActivity?.()?.state).toBe("thinking");
+
+      resolveLoop({ sessionId: "activity-wiring-session", summary: "done", streamed: false, reason: "completed" });
+      await turn;
+      expect(activityStates()).not.toContain("possibly_stalled");
+      expect(activityStates()).toContain("tool_running");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("getActivity() is undefined between turns", async () => {
     const { createAgentSession } = await import("../../src/agent/session.js");
     configureSessionMocks();

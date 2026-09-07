@@ -1041,7 +1041,6 @@ export class AgentSessionBuilder {
       // together in initialize().
       metrics.gauge("agent_activity_state", 1, {
         state: next,
-        invocationId: nextRecord.invocationId,
       });
     };
 
@@ -1122,6 +1121,15 @@ export class AgentSessionBuilder {
     function cancelActiveTurn(reason?: string): boolean {
       const active = activeCancel;
       if (!active) return false;
+      // Terminal-window check: a cancel is only meaningful while the turn's
+      // model loop is genuinely in flight (the Executing phase). Once the
+      // loop has resolved and the turn is in its post-loop verifying /
+      // summarizing / delivering tail there are no further cancellation
+      // checks — honouring an Escape there would silently swallow it while
+      // the turn completes normally. Refuse instead so the caller treats the
+      // Escape as a no-op (returns false). activeCancel is normally cleared
+      // in the loop's finally, but this guard makes the contract durable.
+      if (phase !== SessionPhase.Executing) return false;
       const r = reason ?? "cancelled by operator";
       active.token.cancel(r);
       active.controller.abort(r);
@@ -1565,9 +1573,10 @@ export class AgentSessionBuilder {
         // per tick) and count each warning/stalled transition as one stall
         // warning. A stall warning is NOT an invocation failure — failures
         // and cancellations are counted only at their terminal outcome.
-        metrics.gauge("agent_last_progress_age_ms", snap.idleMs, {
-          invocationId: activityInvocationId ?? runId,
-        });
+        // The age sample carries NO invocationId label (a fresh per-invocation
+        // UUID is unbounded high-cardinality; the invocationId stays on the
+        // activity event payload, never on the metric row).
+        metrics.gauge("agent_last_progress_age_ms", snap.idleMs);
         if (snap.state === "warning" || snap.state === "stalled") {
           metrics.increment("agent_stall_warning_total", { state: snap.state });
         }
@@ -1575,7 +1584,19 @@ export class AgentSessionBuilder {
         // possibly_stalled (diagnostic, never terminal); recovery → back to
         // thinking (or streaming if text is already arriving). A stall must
         // not override an in-flight operator cancel (cancelling/cancelled).
-        if (snap.state !== "healthy" && activeActivity && !cancellationInProgress()) {
+        // A LIVE tool is itself evidence of progress: it emits a tool_started
+        // mark at dispatch and a tool_completed mark at the end — a long-but-
+        // alive child produces no intermediate marks — so the watchdog must
+        // never relabel an actively-running tool as a possible stall. The
+        // tool's own timeoutMs/commandTimeoutMs is its safety bound. Only the
+        // liveness tracker's own warning/stalled states are watchdog-side;
+        // the ACTIVITY state stays tool_running while the tool is live.
+        if (
+          snap.state !== "healthy" &&
+          activeActivity &&
+          activeActivity.state !== "tool_running" &&
+          !cancellationInProgress()
+        ) {
           if (activeActivity.state !== "possibly_stalled") {
             feedActivity("possibly_stalled");
           }
@@ -1612,11 +1633,13 @@ export class AgentSessionBuilder {
         // Duration spans the live activity record (invocation start, stamped
         // at THINKING) through the terminal outcome, so thinking/verifying/
         // summarizing phases are included — not just the runTaskLoop window.
+        // Only bounded dimensions are labels: state (completed/failed/
+        // cancelled). The per-invocation invocationId is NOT a metric label
+        // (high-cardinality); it rides on the activity event payload instead.
         const invocationStartedAt = activeActivity?.startedAt;
         if (invocationStartedAt !== undefined) {
           metrics.duration("agent_activity_duration_ms", Date.now() - invocationStartedAt, {
             state,
-            invocationId: activityInvocationId ?? "unassigned",
           });
         }
       };
@@ -1710,6 +1733,35 @@ export class AgentSessionBuilder {
           transitionNodeStatus(taskNode, "cancelled");
           transitionGraphStatus(taskGraph, "cancelled");
           transitionWorkflowStatus(wfRun, "cancelled");
+          // Cancelled audit rows mirror the failure paths (task.failed +
+          // graph.failed + workflow.failed on result-failure; task.failed +
+          // workflow.failed on a thrown failure) so the JSONL trail is
+          // symmetric: node, then graph, then workflow — each with the same
+          // correlation the sibling failure rows carry.
+          await ctx.log.append({
+            ...session,
+            type: "task.cancelled",
+            actor: "system",
+            payload: {
+              nodeId: taskNode.id,
+              graphId: taskGraph.id,
+              error: String(err),
+              summary: String(err),
+            },
+            meta: graphMeta,
+          });
+          await ctx.log.append({
+            ...session,
+            type: "graph.cancelled",
+            actor: "system",
+            payload: {
+              graphId: taskGraph.id,
+              workflowId: wfRun.id,
+              error: String(err),
+              summary: String(err),
+            },
+            meta: graphMeta,
+          });
           await ctx.log.append({
             ...session,
             type: "workflow.cancelled",

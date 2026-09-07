@@ -374,13 +374,15 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
   // Vocabulary is intentionally inline (mirrors SECURITY_METRIC_DEFINITIONS,
   // which never imports domain modules); a registry test asserts the
   // agent_activity_state label vocabulary stays in sync with
-  // AgentActivityState / AGENT_ACTIVITY_STATES.
+  // AgentActivityState / AGENT_ACTIVITY_STATES. Labels carry ONLY bounded
+  // dimensions (state) — the per-invocation invocationId is high-cardinality
+  // and stays on the activity EVENT payload, never on metric rows (design §17).
   {
     name: "agent_activity_state",
     type: "gauge",
     unit: "count",
     description: "Agent invocation activity state sample (1 while the labelled state is the live activity state)",
-    allowedLabelKeys: ["state", "invocationId"],
+    allowedLabelKeys: ["state"],
     allowedLabelValues: {
       state: [
         "thinking",
@@ -402,7 +404,7 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
     type: "histogram_sample",
     unit: "ms",
     description: "Agent invocation duration to a terminal activity state (completed/failed/cancelled), in milliseconds",
-    allowedLabelKeys: ["state", "invocationId"],
+    allowedLabelKeys: ["state"],
     allowedLabelValues: {
       state: ["completed", "failed", "cancelled"],
     },
@@ -412,7 +414,7 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
     type: "gauge",
     unit: "ms",
     description: "Milliseconds since the agent invocation's last progress mark (sampled by the liveness watchdog on state transitions)",
-    allowedLabelKeys: ["invocationId"],
+    allowedLabelKeys: [],
   },
   {
     name: "agent_stall_warning_total",

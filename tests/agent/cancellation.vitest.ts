@@ -188,6 +188,17 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
     expect(states).toContain("cancelling");
     expect(states[states.length - 1]).toBe("cancelled");
 
+    // Cancelled audit rows mirror the failure paths: task.cancelled +
+    // graph.cancelled + workflow.cancelled (never task.failed/workflow.failed).
+    const types = (mocks.append.mock.calls as unknown as Array<Array<{ type: string }>>)
+      .map((call) => call[0]?.type);
+    expect(types).toContain("task.cancelled");
+    expect(types).toContain("graph.cancelled");
+    expect(types).toContain("workflow.cancelled");
+    expect(types).not.toContain("task.failed");
+    expect(types).not.toContain("graph.failed");
+    expect(types).not.toContain("workflow.failed");
+
     // Metrics: cancelled, never failed; terminal duration labelled cancelled.
     expect(rowsNamed("agent_invocation_cancelled_total")).toHaveLength(1);
     expect(rowsNamed("agent_invocation_failed_total")).toHaveLength(0);
@@ -269,5 +280,48 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
     expect(session.cancelActiveTurn?.("late")).toBe(false);
     expect(session.getActivity?.()).toBeUndefined();
     expect(session.getLastCancelSummary?.()).toBeUndefined();
+  });
+
+  it("an Escape during the post-loop verifying/summarizing window is NOT consumed (returns false) and the turn completes normally", async () => {
+    const { createAgentSession } = await import("../../src/agent/session.js");
+    configureSessionMocks();
+    mocks.runTaskLoop.mockResolvedValue(completedResult);
+
+    // Gate the first post-loop append (task.done fires after the loop has
+    // resolved and the turn has advanced to Verifying) so we can probe
+    // cancelActiveTurn WHILE the turn is still in flight past every
+    // cancellation check.
+    let release!: () => void;
+    let reached!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const reachedPromise = new Promise<void>((r) => { reached = r; });
+    let gated = false;
+    mocks.append.mockImplementation((async (evt: { type: string }) => {
+      if (!gated && evt.type === "task.done") {
+        gated = true;
+        reached();
+        await gate;
+      }
+    }) as unknown as () => Promise<void>);
+
+    const session = createAgentSession({ cwd: testCwd, task: "", planMode: false });
+    const turn = session.processTurn("verify and summarize");
+    await reachedPromise;
+
+    // The loop has resolved; the turn is in its post-loop verifying tail and
+    // there are no further cancellation checks. An Escape here must NOT be
+    // silently swallowed: cancelActiveTurn reports false, so the caller
+    // surfaces it as a no-op rather than a consumed cancel.
+    expect(session.getActivity?.()?.state).toBe("verifying");
+    expect(session.cancelActiveTurn?.("escape during verifying")).toBe(false);
+    expect(session.getLastCancelSummary?.()).toBeUndefined();
+
+    release();
+    const result = await turn;
+    expect(result.reason).toBe("completed");
+    // No cancelling activity was fed and no cancel summary was produced.
+    expect(activityStates()).not.toContain("cancelling");
+    expect(activityStates()[activityStates().length - 1]).toBe("completed");
+    expect(session.cancelActiveTurn?.("late")).toBe(false);
   });
 });
