@@ -68,6 +68,21 @@ export function hashArgs(args: Record<string, unknown>): string {
 
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
+/**
+ * True when a `denied` result is the approval-gated FIRST attempt in
+ * `handleToolCall`'s execute-twice flow (reason starts with "Approval required").
+ * That attempt does not execute the tool — it waits for operator approval and is
+ * re-executed for real, so it must NOT emit a terminal span (design §21
+ * exactly-once-per-physical-call). Genuine policy/ownership/mcp denials are NOT
+ * this case and keep their single error span.
+ */
+function isPreApprovalDenial(result: ExecuteResult | null | undefined): boolean {
+  return (
+    result?.kind === "denied" &&
+    /^Approval required \(/.test(result.reason)
+  );
+}
+
 export class ToolExecutor {
   private router: ToolRouter;
   private toolAwareRouter: ToolAwareRouter;
@@ -144,63 +159,115 @@ export class ToolExecutor {
   }
 
   /**
-   * Execute a tool call, emitting exactly one tool span when tracing is
-   * enabled and the request carries a runId that resolves to an active run
-   * (R2, design §21). The span is begun once before dispatch and ended exactly
-   * once across success / throw / timeout / cancellation. When tracing is
-   * disabled, the runId is absent, or the run is unknown, no span work happens
-   * and tool behavior/results are unchanged.
+   * Execute a tool call, emitting exactly one terminal tool span per PHYSICAL
+   * tool call when tracing is enabled and the request carries a runId that
+   * resolves to an active run (R2, design §21, §22 exactly-once).
+   *
+   * The span is not begun until after dispatch confirms the tool actually ran:
+   * `dispatch` can return an early, non-executing `denied` — most importantly
+   * the approval-gated first attempt (`reason` starts with "Approval required")
+   * that `handleToolCall` re-executes for real. Starting a span for that pause
+   * would burn a spurious second terminal span (branded `error`) on a normal
+   * approval wait. So we resolve the run up front (needed to end a span on the
+   * throw path too), snapshot the pre-repair args + entry time, and only start
+   * + end the span once dispatch has actually executed. Exactly one terminal
+   * span across success / error-result / throw / timeout / cancellation; zero
+   * span work when tracing is disabled, runId absent, or run unknown.
    */
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
     // Resolve the process TraceClient + parent run (fail-open: any tracing
     // problem degrades to "no span", never a throw into tool execution).
     let client: TraceClient | undefined;
     let run: TraceRun | null = null;
-    let span: TraceSpan | undefined;
     const runId = request.runId;
     if (runId) {
       try {
         client = await getProcessTraceClient();
         run = client.getRun(runId);
-        span = run ? client.startToolSpan(run, this.buildToolSpanInput(request)) : undefined;
       } catch {
         client = undefined;
         run = null;
-        span = undefined;
       }
     }
 
+    // Snapshot entry-time + PRE-repair args before dispatch. `dispatch` may
+    // reassign `request.args` to the repaired object when it repairs a call,
+    // so reading `request.args` here (after dispatch) would capture post-repair
+    // args; the span intentionally records the args as the model issued them.
     const startedAt = Date.now();
+    const argsSnapshot = request.args;
     try {
       const result = await this.dispatch(request);
-      if (run && span && client) {
-        const outcome = this.buildSuccessOutcome(result);
-        outcome.endedAt = Date.now();
-        this.endToolSpan(client, span, outcome);
+      // A pre-approval denial is a pause, not an execution — skip the span so
+      // the eventual real execute emits the single terminal span (see above).
+      if (run && client && !isPreApprovalDenial(result)) {
+        this.emitToolSpan(client, run, request, argsSnapshot, startedAt, result);
       }
       return result;
     } catch (err) {
-      if (run && span && client) {
-        this.endToolSpan(client, span, {
-          status: isCancellationError(err) ? "cancelled" : "error",
-          error: err instanceof Error ? err.message : String(err),
-          endedAt: Date.now(),
-        });
+      if (run && client) {
+        this.emitToolSpan(
+          client,
+          run,
+          request,
+          argsSnapshot,
+          startedAt,
+          null,
+          err instanceof Error ? err : new Error(String(err)),
+        );
       }
       throw err;
     }
   }
 
-  /** Build request-side ToolSpanInput at the seam; capture is the adapter's job. */
-  private buildToolSpanInput(request: ToolCallRequest): ToolSpanInput {
+  /**
+   * Start + immediately end one tool span (startedAt/endedAt are explicit, so
+   * duration is correct even though the span is begun after dispatch returns).
+   * Fail-open: any tracing defect here never throws into tool execution.
+   */
+  private emitToolSpan(
+    client: TraceClient,
+    run: TraceRun,
+    request: ToolCallRequest,
+    args: Record<string, unknown>,
+    startedAt: number,
+    result: ExecuteResult | null,
+    err?: Error,
+  ): void {
+    try {
+      const span = client.startToolSpan(run, this.buildToolSpanInput(request, args, startedAt));
+      const outcome = result !== null && result !== undefined
+        ? this.buildSuccessOutcome(result)
+        : {
+            status: err ? (isCancellationError(err) ? "cancelled" as const : "error" as const) : "error" as const,
+            error: err ? (err.message || String(err)) : undefined,
+          };
+      outcome.endedAt = Date.now();
+      this.endToolSpan(client, span, outcome);
+    } catch {
+      // Tracing must never throw into tool execution.
+    }
+  }
+
+  /**
+   * Build request-side ToolSpanInput at the seam; capture is the adapter's job.
+   * `args` and `startedAt` are the PRE-repair snapshot taken at call entry —
+   * dispatch may reassign `request.args` to the repaired object, so the span
+   * intentionally records the args as the model issued them (pre-repair).
+   */
+  private buildToolSpanInput(
+    request: ToolCallRequest,
+    args: Record<string, unknown>,
+    startedAt: number,
+  ): ToolSpanInput {
     return {
       toolName: request.name,
       capability: inferCapability(request.name),
       toolCallId: request.toolCallId,
       invocationId: request.invocationId,
       executionId: request.executionId,
-      args: request.args,
-      startedAt: Date.now(),
+      args,
+      startedAt,
     };
   }
 

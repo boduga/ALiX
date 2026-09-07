@@ -29,7 +29,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { ToolExecutor } from "../../src/tools/executor.js";
+import { ToolExecutor, type ExecuteResult } from "../../src/tools/executor.js";
 import type { EventLog } from "../../src/events/event-log.js";
 import type { AlixConfig } from "../../src/config/schema.js";
 import type { TraceClient } from "../../src/tracing/client.js";
@@ -258,6 +258,75 @@ describe("ToolExecutor.execute tool spans — enabled", () => {
       status: "error",
       error: expect.stringContaining("not found") as string,
     } as object);
+  });
+
+  it("emits exactly ONE terminal span for an approval-gated tool call (pre-approval denial emits none)", async () => {
+    const s = track(setup());
+    const req = toolCall();
+
+    // Mimic handleToolCall's execute-twice flow (event-handlers.ts:303,324):
+    // the FIRST execute returns the policy gate's pre-approval "denied"
+    // (reason "Approval required (…)"), then after the operator approves the
+    // SAME physical tool call's SECOND execute actually runs the tool.
+    // A real ToolkitExecutor goes through ExecutionAuthorization to reach this;
+    // here we force the first dispatch to short-circuit with the approval
+    // denial and let the second dispatch execute for real.
+    const executorDispatch = s.executor as unknown as { dispatch: (r: unknown) => Promise<ExecuteResult> };
+    const realDispatch = executorDispatch.dispatch.bind(s.executor);
+    let call = 0;
+    const dispatchSpy = vi
+      .spyOn(executorDispatch, "dispatch")
+      .mockImplementation(async (r) => {
+        call += 1;
+        if (call === 1) {
+          return { kind: "denied", reason: "Approval required (appr-1): needs operator approval" };
+        }
+        return realDispatch(r);
+      });
+
+    try {
+      // First attempt — approval pause. Must NOT burn a span (and no "error" span).
+      const first = await s.executor.execute(req);
+      expect(first).toMatchObject({ kind: "denied" });
+      expect(s.recorder.started).toHaveLength(0);
+      expect(s.recorder.ended).toHaveLength(0);
+
+      // Second attempt — the real execution. Exactly one terminal span, success.
+      const second = await s.executor.execute(req);
+      expect(second.kind).toBe("success");
+
+      // ONE physical tool call → exactly ONE terminal span, never an "error"
+      // span for the pre-approval pause, and the real span carries the success.
+      expect(s.recorder.started).toHaveLength(1);
+      expect(s.recorder.ended).toHaveLength(1);
+      expect(s.recorder.ended[0]!.input?.toolCallId).toBe(req.toolCallId);
+      expect(s.recorder.ended[0]!.outcome.status).toBe("success");
+    } finally {
+      dispatchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a single error span for a genuine (non-approval) denial — not double-spanned", async () => {
+    const s = track(setup());
+    const req = toolCall();
+
+    // A policy/ownership denial returns `denied` with a NON-"Approval required"
+    // reason. handleToolCall does NOT re-execute for these, so this is the one
+    // and only physical attempt — it keeps its single error span (unchanged).
+    const executorDispatch = s.executor as unknown as { dispatch: (r: unknown) => Promise<ExecuteResult> };
+    const dispatchSpy = vi
+      .spyOn(executorDispatch, "dispatch")
+      .mockResolvedValue({ kind: "denied", reason: "Policy denied: not allowed" } as never);
+
+    try {
+      const result = await s.executor.execute(req);
+      expect(result).toMatchObject({ kind: "denied" });
+      expect(s.recorder.started).toHaveLength(1);
+      expect(s.recorder.ended).toHaveLength(1);
+      expect(s.recorder.ended[0]!.outcome.status).toBe("error");
+    } finally {
+      dispatchSpy.mockRestore();
+    }
   });
 });
 
