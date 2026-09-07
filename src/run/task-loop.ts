@@ -1328,6 +1328,7 @@ if (toolCalls.length === 0) {
     mcpToolIndex,
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
+    cancelSignal: deps.cancelSignal,
   };
 
   // Track accumulated state across all tool calls so one tool's result
@@ -1416,6 +1417,10 @@ if (toolCalls.length === 0) {
     const correlation: CorrelationContext = createCorrelationContext(executionId, invocationId);
     type GateSentinel = { __gateHandled: true; __gateMessage?: NormalizedMessage; __gateEarlyReturn?: { summary: string } };
     const _parallelResults = await scheduleToolCalls(toolCalls, _toolPolicy, _modelParallelCapable, async (toolCall): Promise<ToolResultLike | GateSentinel> => {
+      // Operator cancellation (Task 6.1): no NEW tool starts after a cancel —
+      // checked immediately before dispatch, so a cancel that lands between
+      // the provider response and this call prevents launching the tool.
+      deps.cancellationToken?.throwIfCancelled();
       const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
       if (mcpSearchResult.handled) {
         return { __gateHandled: true, __gateMessage: mcpSearchResult.message } as GateSentinel;
@@ -1481,6 +1486,12 @@ if (toolCalls.length === 0) {
   } else {
   // Handle each tool call (model names like alix_file_read → executor names like file.read)
   for (const toolCall of toolCalls) {
+    // Operator cancellation (Task 6.1): no NEW tool starts after a cancel —
+    // checked before each dispatch so a cancel that lands mid-batch (between
+    // the provider response and a later tool call) is honoured here instead of
+    // launching the remaining tools. Fast/uninterruptible tools that complete
+    // after a cancel still land here before the next tool would start.
+    deps.cancellationToken?.throwIfCancelled();
     // Handle MCP tool search first
     const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
     if (mcpSearchResult.handled && mcpSearchResult.message) {

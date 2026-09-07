@@ -16,6 +16,14 @@ export type ToolCallRequest = {
    * already verified — never set from user input.
    */
   source?: string;
+  /**
+   * Operator-cancel signal (Task 6.1 tool propagation). When supplied, an
+   * interruptible tool (e.g. a spawned shell.run) maps an abort onto its own
+   * kill/cancel path and surfaces the outcome as an ExecutionCancelledError —
+   * never as a tool failure. Optional: callers that do not arm operator
+   * cancellation omit it and behaviour is unchanged.
+   */
+  signal?: AbortSignal;
 } & Partial<CorrelationContext>;
 
 export interface FindingReport {

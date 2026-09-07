@@ -97,8 +97,8 @@ export class CancellationToken {
  * @param signal - The signal to read the reason from.
  * @returns The non-empty string reason, or `undefined` when none is present.
  */
-export function signalReason(signal: AbortSignal): string | undefined {
-  const r = (signal as AbortSignal & { reason?: unknown }).reason;
+export function signalReason(signal: AbortSignal | undefined): string | undefined {
+  const r = (signal as AbortSignal & { reason?: unknown } | undefined)?.reason;
   return typeof r === "string" && r.length > 0 ? r : undefined;
 }
 
