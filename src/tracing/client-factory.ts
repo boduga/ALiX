@@ -132,3 +132,18 @@ export function createTraceClient(config?: TracingConfig): Promise<TraceClient> 
   }
   return enabledClientPromise;
 }
+
+/**
+ * Resolve the process-wide `TraceClient` for deep instrumentation seams that do
+ * not hold a `tracing` config (e.g. `withProviderContracts` model spans). The
+ * run roots / bootstrap seams select the client once via
+ * {@link createTraceClient} BEFORE any traced work starts, so this returns the
+ * SAME memoized instance those seams use — never a second client — and a
+ * default-disabled process observes the inert Noop singleton (no adapter import,
+ * no SDK evaluation, no credential resolution). A call before any enabled
+ * selection also degrades to Noop, which is safe: no run has been started yet,
+ * so `getRun` would return null anyway.
+ */
+export function getProcessTraceClient(): Promise<TraceClient> {
+  return enabledClientPromise ?? NOOP_TRACE_CLIENT_PROMISE;
+}
