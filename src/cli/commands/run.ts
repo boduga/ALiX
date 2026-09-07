@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { EXIT_CODES } from "../../run.js";
 import { createAgentSession, type AgentTurnResult } from "../../agent/session.js";
 import { createTraceClient } from "../../tracing/client-factory.js";
+import type { TraceClient } from "../../tracing/client.js";
 import { loadConfig } from "../../config/loader.js";
 import { ApiError } from "../../providers/base.js";
 import { parseRunArgs } from "../run-args.js";
@@ -33,15 +34,20 @@ export async function handler(args: string[]): Promise<number> {
     }
   }
 
+  let result: AgentTurnResult | undefined;
+  let session: ReturnType<typeof createAgentSession>;
+  // Resolve the process TraceClient once (memoized factory: Noop when
+  // tracing is disabled — the default) so the session's processTurn /
+  // processChat emit one root trace per invocation when tracing is enabled.
+  // Hoisted out of the try so the finally below can shut it down exactly once
+  // at this composition root (run CLI completion is this entry mode's single
+  // "app closing down" choke point; the dispatcher process.exit()s right after
+  // this handler resolves).
+  let runTraceClient: TraceClient | undefined;
   try {
     const { createReplRenderer, createReplEvents } = await import("../renderers/repl.js");
     const { JsonlSessionStore } = await import("../../agent/session-store-jsonl.js");
-    let result: AgentTurnResult | undefined;
-    let session: ReturnType<typeof createAgentSession>;
-    // Resolve the process TraceClient once (memoized factory: Noop when
-    // tracing is disabled — the default) so the session's processTurn /
-    // processChat emit one root trace per invocation when tracing is enabled.
-    const runTraceClient = await createTraceClient((await loadConfig(process.cwd())).tracing);
+    runTraceClient = await createTraceClient((await loadConfig(process.cwd())).tracing);
     if (chat) {
       // Wire a streaming events subscription into both the session and the
       // renderer (spec 13) so the REPL renders tokens/tool calls as they
@@ -170,6 +176,19 @@ export async function handler(args: string[]): Promise<number> {
       console.error(`\n⚠️  ${msg}`);
     }
     return 1;
+  } finally {
+    // T14 bounded shutdown — runs before ANY return settles, on success and
+    // error paths alike, and covers both the `--chat` REPL path and the
+    // processTurn path. Bounded by the adapter's flush budget and fail-open,
+    // so tracing can never change the CLI's exit code nor delay the process
+    // beyond the budget.
+    if (runTraceClient) {
+      try {
+        await runTraceClient.shutdown();
+      } catch {
+        // Tracing must never determine a CLI exit; fail-open.
+      }
+    }
   }
   return 0;
 }

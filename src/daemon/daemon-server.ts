@@ -492,5 +492,21 @@ server.listen(socketPath, () => {
 });
 
 process.on("SIGTERM", () => {
-  server.close(() => process.exit(0));
+  server.close(() => {
+    // T14 bounded shutdown — the daemon's single existing "app closing down"
+    // choke point. The daemon executes runTask in-process, so the memoized
+    // process TraceClient lives here; the config-free deep-seam accessor
+    // resolves the SAME instance the run roots created (Noop, zero-cost, when
+    // tracing was never enabled). Bounded by the adapter's flush budget and
+    // fail-open, so tracing can never block or fail daemon exit.
+    void (async () => {
+      try {
+        const { getProcessTraceClient } = await import("../tracing/client-factory.js");
+        await (await getProcessTraceClient()).shutdown();
+      } catch {
+        // Tracing must never block or fail daemon exit; fail-open.
+      }
+      process.exit(0);
+    })();
+  });
 });

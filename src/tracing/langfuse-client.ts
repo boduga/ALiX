@@ -27,9 +27,11 @@
  * finalizes the run trace synchronously and then awaits a flush bounded by
  * `flushTimeoutMs` (design §12): resolve/timeout/reject all continue and never
  * change the run's outcome nor delay ALiX beyond the budget. `flush()` is
- * bounded the same way and never rejects; `shutdown()` (Task 14) delegates to
- * the SDK and never rejects. The bounded wait is applied in this adapter;
- * callers just `await endRun`/`flush`. Construction MAY throw on a genuinely
+ * bounded the same way and never rejects; `shutdown()` (Task 14) is bounded by
+ * the SAME `flushTimeoutMs` (scheduled from the flush budget, never a second
+ * budget stacked on top — plan Task 13 note), never rejects, and is idempotent
+ * (a repeated call is a no-op). The bounded wait is applied in this adapter;
+ * callers just `await endRun`/`flush`/`shutdown`. Construction MAY throw on a genuinely
  * invalid config (missing baseUrl, non-http(s) baseUrl, empty keys, leftover
  * unresolved `cred://` refs) — the factory (Task 9) catches it → warn-once →
  * Noop.
@@ -80,6 +82,12 @@ const NOOP_SPAN = Object.freeze({}) as unknown as TraceSpan;
  * at most once per process even though the message may embed varying detail.
  */
 const FLUSH_WARN_KEY = "langfuse-client:flush-transport-failure";
+
+/**
+ * Stable warn-once key so a shutdown transport failure is reported at most once
+ * per process (distinct from the flush key — each phase warns at most once).
+ */
+const SHUTDOWN_WARN_KEY = "langfuse-client:shutdown-transport-failure";
 
 /** A frozen run handle whose only readable state is the ALiX runId. */
 function makeRunHandle(runId: string): TraceRun {
@@ -486,10 +494,33 @@ export class LangfuseTraceClient implements TraceClient {
   async shutdown(): Promise<void> {
     if (this.shutdownDone) return;
     this.shutdownDone = true;
+    let sdkShutdown: Promise<void>;
     try {
-      await this.sdk.shutdownAsync();
-    } catch {
-      // Fail-open (design §12/§14).
+      sdkShutdown = this.sdk.shutdownAsync();
+    } catch (error) {
+      // A synchronous throw from shutdownAsync (never expected). Warn once and
+      // continue — a shutdown failure must never fail or block process teardown.
+      warnOnce(this.shutdownWarning(error), SHUTDOWN_WARN_KEY);
+      return;
+    }
+    // Absorb a rejection that settles AFTER we have stopped awaiting (timeout):
+    // fail-open shutdown ignores late transport failures, so one must never
+    // surface as an unhandled rejection. The pre-timeout rejection path is
+    // handled by the wait below.
+    sdkShutdown.catch(() => {
+      // handled by the wait below; this branch only absorbs post-timeout settles
+    });
+    try {
+      // Bounded wait (design §12/§14): the budget is the SAME flushTimeoutMs
+      // used by flush() (Task 13) — shutdown schedules from the flush budget,
+      // never a second fresh budget on top (plan Task 13 note). Langfuse's
+      // shutdownAsync performs a final flush internally, so this single net
+      // bounded wait covers both the final flush and the resource release
+      // (never two stacked bounded waits). Timeout → resolve and let the
+      // process exit; a pre-budget rejection is warned once and absorbed.
+      await withTimeout(sdkShutdown, this.flushTimeoutMs);
+    } catch (error) {
+      warnOnce(this.shutdownWarning(error), SHUTDOWN_WARN_KEY);
     }
   }
 
@@ -642,5 +673,10 @@ export class LangfuseTraceClient implements TraceClient {
   private flushWarning(error: unknown): string {
     const detail = error instanceof Error ? error.message : String(error);
     return `[Tracing] flush failed (tracing transport error; agent execution continues): ${detail}`;
+  }
+
+  private shutdownWarning(error: unknown): string {
+    const detail = error instanceof Error ? error.message : String(error);
+    return `[Tracing] shutdown failed (tracing transport error; process exit continues): ${detail}`;
   }
 }

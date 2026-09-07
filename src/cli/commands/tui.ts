@@ -25,6 +25,7 @@ import { SessionPhase } from "../../tui/state.js";
 import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 import { createAgentSession } from "../../agent/session.js";
 import { createTraceClient } from "../../tracing/client-factory.js";
+import type { TraceClient } from "../../tracing/client.js";
 import { webSearchTool } from "../../tools/web-search.js";
 import { EvolutionProjection } from "../../tui/runtime/evolution/evolution-projection.js";
 import { LearningEngine } from "../../evolution/learning/learning-engine.js";
@@ -253,6 +254,10 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // TuiApp) fires events.onToken per streamed token; the sink forwards them
   // to the app once it exists. Wired at the bottom of this function.
   let onAgentToken: ((token: string) => void) | undefined;
+  // Process TraceClient for the real (non-stub, non-daemon) runtime, resolved
+  // once and shut down at TUI exit below (T14). Only set on the branch that
+  // actually creates one — stubs and daemon mode hold no client.
+  let tuiTraceClient: TraceClient | undefined;
   if (shouldUseStubAgent()) {
     agentSession = {
       getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
@@ -297,6 +302,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
       );
     } else {
+      // Resolve the process TraceClient once (memoized factory: Noop when
+      // tracing is disabled — the default) and shut it down at TUI exit below,
+      // so processTurn/processChat emit one root trace per invocation when
+      // tracing is enabled.
+      tuiTraceClient = await createTraceClient(config.tracing);
       agentSession = createAgentSession({
         cwd,
         task: '',                                  // filled on first processTurn
@@ -305,10 +315,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         verbose: false,                            // suppress tool stdout from agent loop
         approvalStore,
         planApprovalMode: "deferred",              // TUI handles plan display/approval
-        // Thread the process TraceClient (memoized factory: Noop when tracing
-        // is disabled — the default) so processTurn/processChat emit one root
-        // trace per invocation when tracing is enabled.
-        traceClient: await createTraceClient(config.tracing),
+        traceClient: tuiTraceClient,
         // Forward the resolved streaming flag so the chat/direct route can
         // stream tokens live (processTurn's direct-route branch runs BEFORE
         // the context model is resolved, so it can't read streaming there; we
@@ -391,5 +398,17 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     chatCollector.stop();
     agentCollector.stop();
     sopCollector.stop();
+    // T14 bounded shutdown — the TUI's single "app closing down" choke point
+    // (the dispatcher process.exit()s right after runTui resolves). Bounded by
+    // the adapter's flush budget and fail-open, so tracing can never change
+    // the TUI's exit nor delay it beyond the budget. Runs only when a client
+    // was actually created (stub / daemon-mode TUIs hold none).
+    if (tuiTraceClient) {
+      try {
+        await tuiTraceClient.shutdown();
+      } catch {
+        // Tracing must never determine a TUI exit; fail-open.
+      }
+    }
   }
 }

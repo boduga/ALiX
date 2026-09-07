@@ -736,6 +736,95 @@ describe("LangfuseTraceClient · bounded flush", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bounded shutdown (Task 14, design §12/§14) — the same invariant as bounded
+// flush: a hung/rejecting SDK shutdownAsync must never hang or fail process
+// teardown, and shutdown must be idempotent. The budget is the SAME
+// flushTimeoutMs as flush (scheduled from the flush budget, never a second
+// one stacked on top — plan Task 13 note). Placed BEFORE the transport
+// describe so its warn-once assertion is the first to consume the
+// shutdown-failure warn key for this module lifetime.
+// ---------------------------------------------------------------------------
+
+describe("LangfuseTraceClient · bounded shutdown", () => {
+  beforeEach(() => {
+    fakeRecorder.instances.length = 0;
+  });
+
+  it("shutdown delegates to the SDK and resolves", async () => {
+    const { client, sdk } = makeClient();
+    await expect(client.shutdown()).resolves.toBeUndefined();
+    expect(sdk.shutdownCalls).toBe(1);
+  });
+
+  it("shutdown hangs forever → resolves after flushTimeoutMs, not later (bounded wait)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = makeClient({ timeoutMs: 50 });
+      // The SDK shutdown never settles (permanent hang).
+      lastSdk().shutdownAsync = () => new Promise<void>(() => {});
+      const shutdownPromise = client.shutdown();
+      await vi.advanceTimersByTimeAsync(50);
+      // Process teardown continues: shutdown resolves (undefined), never rejects.
+      await expect(shutdownPromise).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is idempotent — a repeated shutdown is a no-op even while the first SDK call is still pending", async () => {
+    vi.useFakeTimers();
+    try {
+      const { client } = makeClient({ timeoutMs: 50 });
+      let sdkShutdownCalls = 0;
+      lastSdk().shutdownAsync = () => {
+        sdkShutdownCalls++;
+        return new Promise<void>(() => {});
+      };
+      const first = client.shutdown();
+      // Idempotency guard already tripped: the second call returns immediately.
+      await expect(client.shutdown()).resolves.toBeUndefined();
+      await vi.advanceTimersByTimeAsync(50);
+      await expect(first).resolves.toBeUndefined();
+      expect(sdkShutdownCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shutdown rejection is fail-open and warned once", async () => {
+    const { client, sdk } = makeClient();
+    const failingShutdown = async () => {
+      sdk.shutdownCalls++;
+      throw new Error("shutdown transport down");
+    };
+    sdk.shutdownAsync = failingShutdown;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(client.shutdown()).resolves.toBeUndefined();
+
+    // warn-once: a second failing shutdown — even on a fresh client — stays
+    // silent under the same module-lifetime key.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("shutdown failed"));
+
+    const { client: fresh, sdk: freshSdk } = makeClient();
+    freshSdk.shutdownAsync = failingShutdown;
+    await expect(fresh.shutdown()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("shutdown is fail-open even when shutdownAsync throws synchronously", async () => {
+    const { client } = makeClient();
+    lastSdk().shutdownAsync = (() => {
+      throw new Error("sync shutdown throw");
+    }) as () => Promise<void>;
+
+    await expect(client.shutdown()).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Transport + fail-open
 // ---------------------------------------------------------------------------
 

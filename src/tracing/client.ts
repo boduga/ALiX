@@ -90,9 +90,13 @@ export interface TraceClient {
 
   /**
    * Final flush and release of resources. Safe to call once at process/runtime
-   * teardown. Currently delegates to the SDK's `shutdownAsync` and is fail-open
-   * (a reject is absorbed and warned once). Bounded by `flushTimeoutMs` once
-   * the T14 bounded-shutdown work lands. — pending T14
+   * teardown — usually from the one existing "app closing down" choke point of
+   * the entry mode (run CLI completion, TUI exit, daemon SIGTERM). Fails open
+   * (never rejects into the caller; a failure is absorbed and warned once) and
+   * is bounded by the same {@link flushTimeoutMs} budget as {@link flush}:
+   * shutdown schedules from the flush budget, never a second fresh budget
+   * stacked on top. Calling it more than once is a no-op, and with tracing
+   * disabled it resolves immediately performing zero work.
    */
   shutdown(): Promise<void>;
 }

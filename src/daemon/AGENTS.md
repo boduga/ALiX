@@ -4,7 +4,7 @@
 
 **Ownership:**
 - `daemon-manager.ts` — DaemonManager: PID/status lifecycle at `.alix/daemon.{pid,json}`. start/stop/status/isRunning.
-- `daemon-server.ts` — Unix socket listener at `.alix/alixd.sock`. Accepts JSON-line commands (run, ping, cancel, status). Runs tasks via runTask() from the main ALiX runtime, streaming events back to the client.
+- `daemon-server.ts` — Unix socket listener at `.alix/alixd.sock`. Accepts JSON-line commands (run, ping, cancel, status). Runs tasks via runTask() from the main ALiX runtime, streaming events back to the client. Owns the daemon's SIGTERM shutdown: `server.close()` then a bounded tracing shutdown (via the config-free `getProcessTraceClient()` deep seam — same memoized process client the run roots created, Noop when tracing never enabled, fail-open) before `exit(0)` (Task 14).
 - `task-registry.ts` — TaskRegistry: file-backed task record store at `.alix/daemon-tasks.json`. Atomic writes. create/update/get/list/findQueued with pruneCompleted(cap=100).
 - `daemon-types.ts` — DaemonCommand and DaemonResponse discriminated unions defining the wire protocol.
 - CLI commands in `src/cli.ts` — `alix daemon {start|stop|status|tasks|cancel}`, `alix submit "<task>"`.
