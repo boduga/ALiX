@@ -201,6 +201,12 @@ CANCELLED
 POSSIBLY_STALLED
 ```
 
+> The render vocabulary additionally carries one LIVE transient phase —
+> `CANCELLING`, rendered "Cancelling…" while an operator cancel propagates
+> (Task 6.2 / §12). It is deliberately not in the diagnostic state list above
+> because it is never a resting or diagnostic state: it exists only between
+> the cancel request and the terminal `CANCELLED` outcome.
+
 Not every internal agent phase needs to be exposed.
 
 ### Recommended mapping
@@ -321,6 +327,15 @@ interface AgentActivity {
   invocationId: string;
 }
 ```
+
+> The implemented `AgentActivityState` union carries one intentional eleventh
+> member beyond the ten above: `cancelling`, the LIVE in-progress phase
+> between an operator cancel and the terminal `cancelled`. Task 6.2 and §12
+> require a live "Cancelling…" surface while cancellation propagates, and
+> Test 7.7 asserts `Cancelling → Cancelled` — so the live phase cannot be a
+> terminal state or a render-only alias. The ten states above remain the
+> diagnostic/terminal vocabulary; see the union comment in
+> `src/agent/agent-activity.ts`.
 
 `elapsedMs` may be calculated by the renderer from `startedAt`; it does
 not need to be emitted every second.
@@ -785,6 +800,14 @@ type AgentActivityState =
   | "failed"
   | "cancelled";
 ```
+
+> **Reconciliation note (spec review):** the implemented union is this exact
+> ten-state set PLUS one intentional transient member, `cancelling`
+> (eleven total). Task 6.2 and §12 below require a LIVE "Cancelling…" surface
+> while an operator cancel propagates, and Test 7.7 asserts the transition
+> `Cancelling → Cancelled` — so the live in-progress phase cannot be a
+> terminal state or a render-only alias. The comment on the `AgentActivityState`
+> union in `src/agent/agent-activity.ts` carries the same note.
 
 Avoid creating duplicate representations if an existing execution-state
 contract already has an appropriate seam.

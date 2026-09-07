@@ -12,9 +12,15 @@
 // orthogonal concerns that share timestamp fields but must not be merged.
 //
 // IDLE is represented as `undefined` / `null` activity rather than a state
-// member. `cancelling` is the LIVE in-progress phase (the operator pressed
-// cancel and the turn is unwinding — rendered "Cancelling…"); `cancelled` is
-// the terminal outcome (the existing completion line takes over).
+// member. The union below intentionally has ELEVEN states: the ten-state set
+// named by the plan (Task 1.1 / design §7 — thinking … cancelled) plus one
+// extra transient member, `cancelling`, that the plan's OWN later contracts
+// require: Task 6.2 and design §12 render "Cancelling…" live while an
+// operator cancel unwinds, and Test 7.7 asserts the transition
+// "Cancelling → Cancelled". `cancelling` is the LIVE in-progress phase (the
+// operator pressed cancel and the turn is unwinding — rendered "Cancelling…");
+// `cancelled` is the terminal outcome (the existing completion line takes
+// over). The ten terminal/diagnostic plan states are unchanged.
 
 // ─── State union ───────────────────────────────────────────────────
 

@@ -78,6 +78,16 @@ type AgentActivityState =
   | "cancelled";
 ```
 
+> **Reconciliation note (spec review):** the implemented union is this exact
+> ten-state set PLUS one intentional transient member, `cancelling`
+> (eleven total). Task 6.2 and design §12 below require a LIVE "Cancelling…"
+> surface while an operator cancel propagates, and Test 7.7 asserts the
+> transition `Cancelling → Cancelled` — so the live in-progress phase cannot
+> be a terminal state or a render-only alias. `cancelling` is that member; the
+> ten states above remain the diagnostic/terminal vocabulary. The comment on
+> the `AgentActivityState` union in `src/agent/agent-activity.ts` carries the
+> same note at the point of definition.
+
 Avoid creating duplicate representations if an existing execution-state
 contract already has an appropriate seam.
 
