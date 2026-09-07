@@ -9,6 +9,7 @@ import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js"
 import {
   ExecutionCancelledError,
   raceWithCancellation,
+  signalReason,
 } from "../runtime/cancellation-token.js";
 
 // =============================================================================
@@ -391,7 +392,9 @@ export async function streamToResponse(
     const iterator = provider.stream(request)[Symbol.asyncIterator]();
     try {
       for (;;) {
-        if (signal.aborted) throw new ExecutionCancelledError(String((signal as any).reason ?? "operation cancelled"));
+        if (signal.aborted) {
+          throw new ExecutionCancelledError(signalReason(signal) ?? "operation cancelled");
+        }
         // One abort listener per chunk, detached on settle (raceWithCancellation)
         // — a long stream never accumulates listeners across chunks.
         const step = await raceWithCancellation(iterator.next(), signal);

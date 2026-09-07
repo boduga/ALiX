@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getEventListeners } from "node:events";
 import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
 import { RetryController } from "../../src/runtime/retry-controller.js";
-import { CancellationToken, ExecutionCancelledError, raceWithCancellation } from "../../src/runtime/cancellation-token.js";
+import { CancellationToken, ExecutionCancelledError, raceWithCancellation, signalReason } from "../../src/runtime/cancellation-token.js";
 import {
   ExecutionState,
   type ExecutionEvidenceEmitter,
@@ -374,6 +374,41 @@ describe("RetryController cancellation", () => {
     machine.transitionTo(exId, ExecutionState.SUCCEEDED);
 
     await expect(controller.cancel(exId)).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// signalReason — AbortSignal → operator-facing reason
+// ---------------------------------------------------------------------------
+
+describe("signalReason", () => {
+  it("returns the string reason of an aborted signal", () => {
+    const controller = new AbortController();
+    controller.abort("operator stop");
+    expect(signalReason(controller.signal)).toBe("operator stop");
+  });
+
+  it("returns undefined for a signal aborted without a reason", () => {
+    const controller = new AbortController();
+    controller.abort();
+    // Node injects a non-string DOMException — not an operator-facing reason.
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for a non-string reason (DOMException default)", () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException("boom", "AbortError"));
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty-string reason", () => {
+    const controller = new AbortController();
+    controller.abort("");
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for a never-aborted signal", () => {
+    expect(signalReason(new AbortController().signal)).toBeUndefined();
   });
 });
 

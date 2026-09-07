@@ -87,11 +87,17 @@ export class CancellationToken {
 // ---------------------------------------------------------------------------
 
 /**
- * Derive the human reason from an aborted signal. Callers abort with a string
- * reason (see AgentSession.cancelActiveTurn); the default (AbortController
- * without a reason) yields `undefined`.
+ * Derive the human reason from an aborted signal.
+ *
+ * Callers abort with a string reason (see AgentSession.cancelActiveTurn); the
+ * default (AbortController without a reason) yields `undefined`. Non-string
+ * reasons (e.g. the DOMException Node injects on a bare `abort()`) are treated
+ * as absent — only a non-empty string is a usable operator-facing reason.
+ *
+ * @param signal - The signal to read the reason from.
+ * @returns The non-empty string reason, or `undefined` when none is present.
  */
-function signalReason(signal: AbortSignal): string | undefined {
+export function signalReason(signal: AbortSignal): string | undefined {
   const r = (signal as AbortSignal & { reason?: unknown }).reason;
   return typeof r === "string" && r.length > 0 ? r : undefined;
 }
