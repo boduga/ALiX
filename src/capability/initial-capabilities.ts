@@ -3,9 +3,12 @@ import type { Capability } from "./types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { NativeExecutor } from "./executors.js";
 
-/** Pure capability definitions — NO domain dependencies. Existing ALiX
- *  functionality migrates behind these; handlers are wired separately in
- *  src/integrations/ (see session-capabilities.ts, tool-adapter.ts). */
+/** Session-native capability definitions — NO domain dependencies. This
+ *  module intentionally holds core.session.* ONLY: tool capabilities are
+ *  derived from the canonical tool registry (see registry-capabilities.ts,
+ *  registerRegistryToolCapabilities) so the palette taxonomy cannot drift
+ *  from the registry. Handlers are wired separately in src/integrations/
+ *  (see session-capabilities.ts, tool-adapter.ts). */
 export function registerInitialCapabilities(reg: Pick<CapabilityRegistry, 'register'>, _native: NativeExecutor): void {
   const caps: Capability[] = [
     {
@@ -29,25 +32,6 @@ export function registerInitialCapabilities(reg: Pick<CapabilityRegistry, 'regis
       argsSchema: { type: "object", properties: { sessionId: { type: "string" } }, required: ["sessionId"] },
       resultSchema: { type: "object", properties: { sessionId: { type: "string" }, state: { type: "string" } } },
       execution: { strategy: "native", timeout: 5_000, cancellable: true },
-    },
-    {
-      id: "tool.file.read", version: "1.0", kind: "tool",
-      title: "Read file", description: "Read the contents of a file",
-      tags: ["file", "read"], category: "file", risk: "low",
-      requiredPermissions: ["developer"],
-      argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
-      resultSchema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } } },
-      execution: { strategy: "tool", timeout: 10_000, cancellable: false },
-      extensions: { toolName: "file.read" },
-    },
-    {
-      id: "tool.shell.run", version: "1.0", kind: "tool",
-      title: "Run shell command", description: "Execute a shell command",
-      tags: ["shell", "run"], category: "shell", risk: "high",
-      requiredPermissions: ["admin"],
-      argsSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
-      execution: { strategy: "tool", timeout: 30_000, cancellable: true },
-      extensions: { toolName: "shell.run" },
     },
   ];
   for (const cap of caps) reg.register(cap);

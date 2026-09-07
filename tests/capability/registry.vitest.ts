@@ -60,6 +60,36 @@ describe('CapabilityRegistry', () => {
     }
   });
 
+  it('admits underscore tool capability ids at the chokepoint (registry projection surface)', () => {
+    const r = makeRegistry(dir).registry;
+    // The canonical tool registry names tools with underscores; the projection
+    // maps them verbatim to `tool.<name>` palette ids, so every one of them
+    // must pass the shared capability-id gate.
+    const projected = [
+      'tool.web_search',
+      'tool.web_fetch',
+      'tool.create_skill',
+      'tool.create_hook',
+      'tool.list_extensions',
+      'tool.inspect_extension',
+    ];
+    for (const id of projected) {
+      expect(() => r.register(makeCap({ id }))).not.toThrow();
+    }
+    expect(r.list()).toHaveLength(projected.length);
+  });
+
+  it('keeps the grammar strict outside dot-segments: first-segment underscores and the mcp.* wildcard stay rejected', () => {
+    const r = makeRegistry(dir).registry;
+    // Underscore is legal ONLY in dot-segments — never in the first segment.
+    expect(() => r.register(makeCap({ id: 'core_session.list' }))).toThrow(CapabilityValidationError);
+    expect(() => r.register(makeCap({ id: '_tool.file.read' }))).toThrow(CapabilityValidationError);
+    expect(() => r.register(makeCap({ id: 'tool_.file.read' }))).toThrow(CapabilityValidationError);
+    // The mcp.* wildcard is not a concrete tool — glob ids stay rejected.
+    expect(() => r.register(makeCap({ id: 'tool.mcp.*' }))).toThrow(CapabilityValidationError);
+    expect(r.list()).toHaveLength(0);
+  });
+
   it('query filters by tags, category, risk, permissions, kinds, namespaces', () => {
     const r = makeRegistry(dir).registry;
     r.register(makeCap({ id: 'core.session.list', tags: ['session'], category: 'session', risk: 'low' }));

@@ -47,6 +47,7 @@ import { existsSync } from "node:fs";
 
 import { CapabilityPlatform } from "../../src/capability/platform.js";
 import { registerInitialCapabilities } from "../../src/capability/initial-capabilities.js";
+import { registerRegistryToolCapabilities } from "../../src/capability/registry-capabilities.js";
 import { registerSessionCapabilities } from "../../src/integrations/session-capabilities.js";
 import { CapabilityRegistry } from "../../src/capability/registry.js";
 import { EventLog } from "../../src/events/event-log.js";
@@ -213,11 +214,18 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     // runtime invariant, not the static access check.
     const registry = (platform as unknown as { readonly registry: CapabilityRegistry }).registry;
     registerInitialCapabilities(registry, platform.native);
+    // Tool capabilities are derived from the canonical tool registry, NOT
+    // statically seeded: registerRegistryToolCapabilities projects the
+    // registry's concrete tools as tool.* palette capabilities
+    // (initial-capabilities.ts now registers core.session.* ONLY). Mirror
+    // the TUI service's constructor seeding order (core → registry tools)
+    // so the platform's seed equals the production adapter surface.
+    registerRegistryToolCapabilities(registry);
     // Register session capabilities so the platform's seed matches
     // the TUI adapter's seed (the TUI's `initialize()` awaits
     // session integration and surfaces its writes into the eventLog;
     // vitest's microtask queue flushes between the constructor and
-    // a subsequent `query()` call, so the TUI's seed has 5 entries
+    // a subsequent `query()` call, so the TUI's seed is complete
     // by the time `query()` runs). Both surfaces having the same
     // seed is the §10 path identity-equal invariant.
     await registerSessionCapabilities(registry, platform.native);
@@ -230,11 +238,16 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
 
   // ─── Step 1: seed initial-capabilities → canonical catalog ────────────────
   it("step 1: composition root seeded with initial capabilities", () => {
-    // service.list() returns the seed list (from initial-capabilities.ts).
+    // service.list() returns the seed list (core.session.* from
+    // initial-capabilities.ts + tool.* projected from the canonical tool
+    // registry via registerRegistryToolCapabilities + core.session.summary
+    // from the session integration — the production adapter surface).
     const items = platform.service.list().items;
     expect(items.length).toBeGreaterThan(0);
     // Snapshot for later steps.
     expect(items.map((c) => c.id)).toContain("core.session.list");
+    // tool.* entries are registry-derived (not statically seeded) — the
+    // projection preserves the legacy tool capability ids.
     expect(items.map((c) => c.id)).toContain("tool.file.read");
   });
 
@@ -423,12 +436,14 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     // access — the test must NOT depend on those specific error paths.
     // Instead, the test uses the adapter's PUBLIC read API: `query()`.
     //
-    // The TUI adapter constructs its own platform + registers initial
-    // capabilities. The TUI's wireEventBridge subscribes to platform
-    // events and writes them via `void log.append(...)` (fire-and-forget).
-    // We pass a no-op EventLog so the bridge's writes never reach disk
-    // — eliminating the unhandled-rejection risk that surfaces after
-    // the test's tempdir is removed.
+    // The TUI adapter constructs its own platform + registers the full
+    // production surface (core.session.* via initial-capabilities,
+    // tool.* via the registry-tool projection, core.session.summary via
+    // the session integration). The TUI's wireEventBridge subscribes to
+    // platform events and writes them via `void log.append(...)`
+    // (fire-and-forget). We pass a no-op EventLog so the bridge's writes
+    // never reach disk — eliminating the unhandled-rejection risk that
+    // surfaces after the test's tempdir is removed.
     const serviceItems = platform.service.list().items;
 
     // Build the TUI adapter with a no-op EventLog so the wireEventBridge
@@ -451,8 +466,9 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     await tuiAdapter.ready();
 
     // The TUI services its own registry; the identity equal assertion
-    // is on the canonical seed shape (same initial-capabilities source),
-    // not on instance identity.
+    // is on the canonical seed shape (same initial-capabilities source +
+    // same registry-tool projection + same session integration), not on
+    // instance identity.
     const tuiItems = tuiAdapter.query({}).map((c) => ({
       id: c.id,
       version: c.version,
@@ -463,8 +479,9 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
     const serviceProjected = project(serviceItems);
 
     // Identity equality on the projected canonical fields. Both
-    // surfaces read the same canonical source (initial-capabilities
-    // + session-capabilities). The TUI's registry view returns
+    // surfaces read the same canonical sources (core.* from
+    // initial-capabilities + session-capabilities; tool.* projected from
+    // the canonical tool registry). The TUI's registry view returns
     // legacy `Capability` shape (kind `tool`, version `1.0`);
     // the service returns canonical (kind `operation`, version
     // `1.0.0`). We compare the stable ID surface — both surfaces

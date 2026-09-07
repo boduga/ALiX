@@ -41,6 +41,18 @@ export type ToolCapability = {
   tags: string[];
   /** Optional execution-profile labels (e.g. "artifact", "research"). */
   executionProfiles?: string[];
+  /** Optional JSON-Schema-shape of the tool's arguments. Declared only where
+   *  the tool historically carried one (file.read, shell.run); absent for the
+   *  rest. Powers structured detail rendering in the capabilities view. */
+  argsSchema?: Record<string, unknown>;
+  /** Optional JSON-Schema-shape of the tool's result. Declared only where the
+   *  tool historically carried one (file.read); absent for the rest. */
+  resultSchema?: Record<string, unknown>;
+  /** Optional per-tool execution profile — timeoutMs/cancellable. Declared
+   *  only where the tool historically carried one (file.read: 10s, non-cancellable;
+   *  shell.run: 30s, cancellable); absent means no declared profile, and the
+   *  capability projection must NOT fabricate one. */
+  execution?: { timeoutMs?: number; cancellable?: boolean };
 };
 
 // ---------------------------------------------------------------------------
@@ -145,6 +157,12 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       mutates: false,
       alwaysInclude: true,
       tags: ["read", "file", "code", "config"],
+      argsSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      resultSchema: {
+        type: "object",
+        properties: { path: { type: "string" }, content: { type: "string" } },
+      },
+      execution: { timeoutMs: 10_000, cancellable: false },
     },
     {
       name: "file.create",
@@ -202,6 +220,8 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       mutates: true,
       alwaysInclude: false,
       tags: ["shell", "command", "run", "execute"],
+      argsSchema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
+      execution: { timeoutMs: 30_000, cancellable: true },
     },
     {
       name: "patch.apply",

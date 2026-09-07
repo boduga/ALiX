@@ -66,6 +66,10 @@ describe('CapabilitiesView', () => {
     const out = canvas.renderFrame();
     expect(out).toContain('core.session.list');
     expect(out).toContain('tool.file.read');
+    // The registry-projected tool surface renders beyond the single preserved
+    // id — tool.file.create is a sibling projection, proving the derived
+    // (not hardcoded) palette is what reaches the view.
+    expect(out).toContain('tool.file.create');
   });
 
   it('filters by query via ArrowUp/type', () => {
@@ -149,13 +153,13 @@ describe('CapabilitiesView', () => {
     expect(out).not.toContain('activity:');
   });
 
-  it('renders argsSchema and resultSchema as structured shape lines, not raw JSON (#414)', () => {
+  it('renders argsSchema and resultSchema as structured shape lines for registry tools (#414)', () => {
     setup();
     const view = new CapabilitiesView();
     const state = createInitialTuiAppState();
     const perTab = state.views.capabilities;
-    // tool.file.read declares both argsSchema (path) and resultSchema
-    // (path, content) in initial-capabilities.ts (Phase 2, #415).
+    // file.read now carries args/result schema via the canonical registry, so
+    // tool rows render schema shapes again (the projection copies them through).
     (perTab as PerTabState).capabilitiesSelectedId = 'tool.file.read';
     const canvas = new TerminalCanvas(120, 24);
     const ctx = { snap: state.lastSnapshot, dimensions: { columns: 120, rows: 24 }, perTab, canvas };
@@ -164,10 +168,29 @@ describe('CapabilitiesView', () => {
 
     // Structured shape lines replace raw JSON.stringify(argsSchema).
     expect(out).toContain('args:');
-    expect(out).toMatch(/path: string/);          // args shape
+    expect(out).toMatch(/path: string/);        // args shape from registry
     expect(out).toContain('result:');
-    expect(out).toContain('content: string');      // result shape
+    expect(out).toContain('content: string');   // result shape from registry
     // No raw JSON-schema object string is dumped.
+    expect(out).not.toContain('"required"');
+  });
+
+  it('renders schema shape lines for session-native core.session.show (#414)', () => {
+    setup();
+    const view = new CapabilitiesView();
+    const state = createInitialTuiAppState();
+    const perTab = state.views.capabilities;
+    (perTab as PerTabState).capabilitiesSelectedId = 'core.session.show';
+    const canvas = new TerminalCanvas(120, 24);
+    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 120, rows: 24 }, perTab, canvas };
+    view.render(ctx as never);
+    const out = canvas.renderFrame();
+
+    // The session-native capability still declares both schemas → shapes render.
+    expect(out).toContain('args:');
+    expect(out).toMatch(/sessionId: string/);   // args shape
+    expect(out).toContain('result:');
+    expect(out).toContain('state: string');     // result shape
     expect(out).not.toContain('"required"');
   });
 
