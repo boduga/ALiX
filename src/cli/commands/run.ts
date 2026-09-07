@@ -2,6 +2,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { EXIT_CODES } from "../../run.js";
 import { createAgentSession, type AgentTurnResult } from "../../agent/session.js";
+import { createTraceClient } from "../../tracing/client-factory.js";
+import { loadConfig } from "../../config/loader.js";
 import { ApiError } from "../../providers/base.js";
 import { parseRunArgs } from "../run-args.js";
 
@@ -36,6 +38,10 @@ export async function handler(args: string[]): Promise<number> {
     const { JsonlSessionStore } = await import("../../agent/session-store-jsonl.js");
     let result: AgentTurnResult | undefined;
     let session: ReturnType<typeof createAgentSession>;
+    // Resolve the process TraceClient once (memoized factory: Noop when
+    // tracing is disabled — the default) so the session's processTurn /
+    // processChat emit one root trace per invocation when tracing is enabled.
+    const runTraceClient = createTraceClient((await loadConfig(process.cwd())).tracing);
     if (chat) {
       // Wire a streaming events subscription into both the session and the
       // renderer (spec 13) so the REPL renders tokens/tool calls as they
@@ -43,11 +49,11 @@ export async function handler(args: string[]): Promise<number> {
       const events = createReplEvents();
       const sessionsRoot = join(process.cwd(), ".alix", "sessions");
       const store = new JsonlSessionStore(sessionsRoot);
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store, traceClient: runTraceClient });
       const renderer = createReplRenderer(session, { events, store });
       await renderer.start();
     } else {
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, traceClient: runTraceClient });
       result = await session.processTurn(task);
       if (!result.streamed) {
         console.log(result.summary);

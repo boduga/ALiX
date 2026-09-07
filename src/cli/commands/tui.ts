@@ -24,6 +24,7 @@ import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
 import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 import { createAgentSession } from "../../agent/session.js";
+import { createTraceClient } from "../../tracing/client-factory.js";
 import { webSearchTool } from "../../tools/web-search.js";
 import { EvolutionProjection } from "../../tui/runtime/evolution/evolution-projection.js";
 import { LearningEngine } from "../../evolution/learning/learning-engine.js";
@@ -304,6 +305,10 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         verbose: false,                            // suppress tool stdout from agent loop
         approvalStore,
         planApprovalMode: "deferred",              // TUI handles plan display/approval
+        // Thread the process TraceClient (memoized factory: Noop when tracing
+        // is disabled — the default) so processTurn/processChat emit one root
+        // trace per invocation when tracing is enabled.
+        traceClient: createTraceClient(config.tracing),
         // Forward the resolved streaming flag so the chat/direct route can
         // stream tokens live (processTurn's direct-route branch runs BEFORE
         // the context model is resolved, so it can't read streaming there; we

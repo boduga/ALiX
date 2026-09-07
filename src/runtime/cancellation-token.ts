@@ -35,6 +35,22 @@ export class ExecutionCancelledError extends Error {
   }
 }
 
+/**
+ * Distinguish an operator/execution cancellation from a genuine failure.
+ *
+ * Cancellation propagates as an {@link ExecutionCancelledError} (or an
+ * AbortError-shaped error); anything else is a failure. Used by the run/turn
+ * roots to map a thrown terminal into a `"cancelled"` vs `"error"` trace
+ * outcome without importing the session layer.
+ */
+export function isCancellationError(err: unknown): boolean {
+  if (err instanceof ExecutionCancelledError) return true;
+  return (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "ExecutionCancelledError")
+  );
+}
+
 // ---------------------------------------------------------------------------
 // CancellationToken
 // ---------------------------------------------------------------------------

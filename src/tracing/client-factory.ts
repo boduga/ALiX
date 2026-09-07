@@ -65,15 +65,18 @@ let enabledClient: TraceClient | undefined;
  * Select the tracing implementation for the process.
  *
  * @param config — the resolved `tracing` config section from `loadConfig()`.
- *   Only `config.enabled` is read here; the full config is forwarded verbatim
- *   to {@link LangfuseTraceClient} when enabled (a disabled section is never
+ *   Optional because `AlixConfig.tracing` is a typed-optional field that every
+ *   runtime seam reads off an `AgentContext.config`; a missing/undefined
+ *   section is treated as disabled (design §10 default). Only `config.enabled`
+ *   is read when present; the full config is forwarded verbatim to
+ *   {@link LangfuseTraceClient} when enabled (a disabled section is never
  *   touched, so nothing is constructed and no credential is resolved).
  * @returns a shared {@link TraceClient} — the frozen `NOOP_TRACE_CLIENT`
  *   singleton when disabled or when Langfuse construction fails, otherwise a
  *   memoized `LangfuseTraceClient`. Never throws.
  */
-export function createTraceClient(config: TracingConfig): TraceClient {
-  if (config.enabled !== true) return NOOP_TRACE_CLIENT;
+export function createTraceClient(config?: TracingConfig): TraceClient {
+  if (!config || config.enabled !== true) return NOOP_TRACE_CLIENT;
   if (enabledClient !== undefined) return enabledClient;
 
   try {

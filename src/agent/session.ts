@@ -84,13 +84,20 @@ import type { TaskGraph, TaskNode } from "../kernel/task-graph.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import type { TraceClient } from "../tracing/client.js";
+import type { RunOutcome, TraceRun } from "../tracing/types.js";
+import { NOOP_TRACE_CLIENT } from "../tracing/noop-client.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
-import { ExecutionCancelledError } from "../runtime/cancellation-token.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
+// Re-exported for backwards compatibility — the predicate's canonical home is
+// src/runtime/cancellation-token.ts (agent-loop's run root maps thrown
+// terminals through it without importing the session layer).
+export { isCancellationError } from "../runtime/cancellation-token.js";
 import {
   AgentLiveness,
   type AgentLivenessSnapshot,
@@ -315,6 +322,13 @@ export interface AgentSessionConfig {
   resumeSessionId?: string;
   /** Parent run ID for execution trace correlation. */
   parentRunId?: string;
+  /**
+   * Process-level tracing facade (from `createTraceClient(config.tracing)` at
+   * the composition root). One root trace per `processTurn`/`processChat`
+   * invocation. Omit for tracing disabled (default) — the inert Noop client
+   * is used and behavior is unchanged.
+   */
+  traceClient?: TraceClient;
   /** Optional stream handler for real-time output. */
   onStream?: StreamHandler;
   /** Optional session events subscription (per spec §13). */
@@ -502,21 +516,6 @@ export function livenessEventType(state: AgentLivenessState): string {
 }
 
 /**
- * Distinguish an operator/execution cancellation from a genuine failure.
- * Cancellation propagates as an ExecutionCancelledError (or an AbortError);
- * anything else thrown out of the loop is a failure. A stall warning is
- * neither — the watchdog never terminates, so a stall alone never reaches
- * this predicate.
- */
-export function isCancellationError(err: unknown): boolean {
-  if (err instanceof ExecutionCancelledError) return true;
-  return (
-    err instanceof Error &&
-    (err.name === "AbortError" || err.name === "ExecutionCancelledError")
-  );
-}
-
-/**
  * Wrap a `StreamHandler` so it also fires `AgentSessionEvents.onToken` for
  * each text chunk (per spec §13). When `events` is undefined, the original
  * handler is returned unchanged. The original handler is always invoked so
@@ -638,6 +637,12 @@ export class AgentSessionBuilder {
 
   build(): AgentSession {
     const config = this.config as AgentSessionConfig;
+
+    // Root tracing facade for this session's processTurn/processChat closures
+    // (Task 10). The composition root threads the process TraceClient; when
+    // absent (tracing disabled, the default) the inert Noop client is used so
+    // every lifecycle call is a cheap no-op and behavior is byte-identical.
+    const traceClient: TraceClient = config.traceClient ?? NOOP_TRACE_CLIENT;
 
     // ---- Mutable internal state (captured by closure) ----
     let initialized = false;
@@ -1058,8 +1063,72 @@ export class AgentSessionBuilder {
 
     // ---- Exported interface methods ----
 
+    /**
+     * processTurn — root-instrumented turn entry (Task 10, R1).
+     *
+     * The trace root lives at the TRUE entry of processTurn — BEFORE the
+     * classifier, direct-generation, grounded-chat and plan-phase work that
+     * all precede the agent-loop runId inside processTurnBody. ONE run-<uuid8>
+     * is hoisted here and reused as the body's runId (same identity → model
+     * spans in the loop resolve via getRun(context.runId)); every terminal
+     * path (recon §3 a–i) endRuns exactly once through the finally below.
+     * When tracing is disabled (Noop) these are cheap no-ops and behavior is
+     * byte-identical to the uninstrumented path.
+     */
     async function processTurn(
       message: string,
+      options?: { skills?: string[] },
+    ): Promise<AgentTurnResult> {
+      const runId = `run-${randomUUID().slice(0, 8)}`;
+      const traceRun = traceClient.startRun({
+        runId,
+        sessionId: config.sessionId ?? "",
+        task: message,
+        actor: "agent",
+        parentRunId: config.parentRunId,
+        startedAt: Date.now(),
+      });
+      // Fallback default so endRun fires with an error outcome even if an
+      // unexpected throw escapes the body before its outcome is mapped.
+      let traceOutcome: RunOutcome = {
+        status: "error",
+        error: "processTurn ended before its outcome could be recorded",
+        endedAt: Date.now(),
+      };
+      try {
+        const result = await processTurnBody(message, runId, options);
+        traceOutcome = {
+          status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+          endedAt: Date.now(),
+        };
+        return result;
+      } catch (err) {
+        traceOutcome = {
+          status: isCancellationError(err) ? "cancelled" : "error",
+          error: err instanceof Error ? err.message : String(err),
+          endedAt: Date.now(),
+        };
+        throw err;
+      } finally {
+        // Exactly-once endRun across every terminal path (recon §3 a–i): the
+        // finally fires once whether the body returned, threw a cancellation/
+        // failure, or was interrupted. The client contract is fail-open, but
+        // the swallow keeps a broken client from altering the turn's outcome.
+        try {
+          traceClient.endRun(traceRun, traceOutcome);
+        } catch {
+          // Tracing must never change agent results.
+        }
+      }
+    }
+
+    /**
+     * processTurnBody — the original processTurn execution body, unchanged
+     * except that its per-turn `runId` now arrives from the root wrapper.
+     */
+    async function processTurnBody(
+      message: string,
+      runId: string,
       options?: { skills?: string[] },
     ): Promise<AgentTurnResult> {
       // Thread the explicit skill list (slash commands) into the next
@@ -1332,8 +1401,9 @@ export class AgentSessionBuilder {
       });
       const stateMachine = new TaskStateMachine(limiter);
 
-      // Build execution context for diagnostic correlation
-      const runId = `run-${randomUUID().slice(0, 8)}`;
+      // Build execution context for diagnostic correlation. runId is the
+      // turn root established at processTurn entry (R1) — same identity used
+      // for the trace and for model-span resolution via getRun(context.runId).
       const resolved = resolveModelConfig(ctx.config);
       const taskContext: ExecutionContext = {
         runId,
@@ -2014,7 +2084,79 @@ export class AgentSessionBuilder {
       }
     }
 
+    /**
+     * processChat — root-instrumented lightweight chat entry (Task 10, R3).
+     *
+     * processChat has no native runId, so each invocation synthesizes ONE
+     * `run-<uuid8>` and starts a run trace BEFORE any provider work. The
+     * synthetic ExecutionContext{runId, sessionId} is threaded into every
+     * physical `complete()` call (initial + each truncation continuation), so
+     * a single invocation — provider call #1, continuation provider call #2,
+     * retries — stays under exactly one synthetic runId and one trace
+     * (chat continuation invariant, design §17). endRun fires exactly once in
+     * all three returns (no-provider / success / chat-error) via the finally.
+     * When tracing is disabled (Noop) these are cheap no-ops.
+     */
     async function processChat(message: string): Promise<AgentTurnResult> {
+      const sessionId = session?.sessionId ?? "chat";
+      const runId = `run-${randomUUID().slice(0, 8)}`;
+      const chatContext: ExecutionContext = { runId, sessionId };
+      const traceRun = traceClient.startRun({
+        runId,
+        sessionId,
+        task: message,
+        actor: "chat",
+        startedAt: Date.now(),
+      });
+      // Fallback default so endRun fires with an error outcome even if an
+      // unexpected throw escapes the body before its outcome is mapped.
+      let traceOutcome: RunOutcome = {
+        status: "error",
+        error: "processChat ended before its outcome could be recorded",
+        endedAt: Date.now(),
+      };
+      try {
+        const result = await processChatBody(message, chatContext);
+        // chat-error is the chat path's own caught-terminal (the body never
+        // throws); anything else — including the no-provider placeholder —
+        // is a successful invocation.
+        if (result.reason === "chat-error") {
+          traceOutcome = {
+            status: "error",
+            error: result.summary,
+            endedAt: Date.now(),
+          };
+        } else {
+          traceOutcome = { status: "success", endedAt: Date.now() };
+        }
+        return result;
+      } catch (err) {
+        traceOutcome = {
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+          endedAt: Date.now(),
+        };
+        throw err;
+      } finally {
+        // Exactly-once endRun across every return path (recon §3: no-provider
+        // :2021-2027, success :2091-2097, chat-error :2098-2109).
+        try {
+          traceClient.endRun(traceRun, traceOutcome);
+        } catch {
+          // Tracing must never change agent results.
+        }
+      }
+    }
+
+    /**
+     * processChatBody — the original processChat execution body, unchanged
+     * except it threads the synthetic chat ExecutionContext into each
+     * provider `complete()` request for model-span resolution (T11).
+     */
+    async function processChatBody(
+      message: string,
+      chatContext: ExecutionContext,
+    ): Promise<AgentTurnResult> {
       const sessionId = session?.sessionId ?? "chat";
       const provider = await ensureChatProvider();
       if (!provider) {
@@ -2048,6 +2190,7 @@ export class AgentSessionBuilder {
           // Defensive copy so the provider's view of the conversation
           // doesn't change after we push the assistant reply below.
           messages: chatMessages.slice(),
+          context: chatContext,
           maxOutputTokens: await resolveDirectOutputCeiling(
             config.chatModel,
             config.chatApiKey,
@@ -2079,6 +2222,7 @@ export class AgentSessionBuilder {
           const next = await provider.complete({
             systemPrompt: chatSystemPrompt,
             messages: chatMessages.slice(),
+            context: chatContext,
             maxOutputTokens: await resolveDirectOutputCeiling(
               config.chatModel,
               config.chatApiKey,
