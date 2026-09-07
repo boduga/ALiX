@@ -517,6 +517,14 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     const upper = (phaseName || '').toUpperCase();
     return '  ' + upper.slice(0, GUTTER_WIDTH - 2).padEnd(GUTTER_WIDTH - 2);
   };
+  // Stage-ticker duration shapes — DELIBERATELY distinct from the activity
+  // indicator's formatActivityElapsed (`3s` / `2m 14s` / `1h 05m`, src/agent/
+  // agent-activity.ts). These gutter timers stay in raw seconds and keep a
+  // right-margin dot prefix + trailing ellipsis: `· 42s…` (running, whole
+  // seconds) and `· 3.2s` (completed, one decimal) so a sub-second stage and a
+  // just-finished tick read precisely without rounding up to "0s"/"1s". The
+  // activity formatter's minute/hour bucketing would change this rendered
+  // scrollback gutter, so the two are NOT unified.
   const formatCompletedDuration = (startedAt: number, closedAt: number): string => {
     const sec = Math.max(0, (closedAt - startedAt) / 1000);
     return `· ${sec.toFixed(1)}s`;
