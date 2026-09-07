@@ -30,4 +30,4 @@ export function shouldAutoDisableStreaming(env: NodeJS.ProcessEnv = process.env)
   return isCI(env);
 }
 
-export type StreamHandler = (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
+export type StreamHandler = (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string; toolCall?: ToolCall }) => void;

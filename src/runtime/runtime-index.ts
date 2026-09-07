@@ -195,6 +195,7 @@ export async function buildRuntimeIndex(
     "file.created",
     "runtime.phase.started",
     "runtime.phase.completed",
+    "agent.session.activity",
     // Ownership events (M0.75)
     "ownership.acquired", "ownership.released",
     "ownership.renewed", "ownership.expired",

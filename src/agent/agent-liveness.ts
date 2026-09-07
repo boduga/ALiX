@@ -13,6 +13,7 @@
 export type AgentProgressKind =
   | "model_chunk"
   | "model_response"
+  | "model_requested"
   | "reasoning"
   | "phase_changed"
   | "tool_requested"

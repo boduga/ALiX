@@ -842,6 +842,129 @@ describe('buildAgentScrollbackLines — #434 tool calls in the stream with outco
   });
 });
 
+// ─── Unit D — live response activity transient (Tasks 3.1-3.5) ──────────
+// The session snapshot's live activity record renders as a single transient
+// bottom line on the response surface. It is client-side only: elapsed + spinner
+// are derived at render time from `now - startedAt`, the indicator is removed on
+// the first streamed token, and terminal states fall back to existing lines.
+// ─────────────────────────────────────────────────────────────────────────
+describe('buildAgentScrollbackLines — live response activity transient (Unit D)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-07T00:00:30.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function activityCtx(state: string, startedAt: number, overrides: any = {}): ViewRenderContext {
+    const c = ctx([]) as any;
+    c.snap.session = {
+      activity: {
+        state,
+        startedAt,
+        lastProgressAt: startedAt,
+        lastEventAt: startedAt,
+        elapsedMs: 0,
+        invocationId: 'inv-1',
+        ...overrides,
+      },
+    };
+    return c as ViewRenderContext;
+  }
+
+  it('renders a single transient activity line at the bottom when the session is thinking (Task 3.1)', () => {
+    const t0 = Date.now() - 4_000;
+    const lines = buildAgentScrollbackLines(activityCtx('thinking', t0), 200);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.kind).toBe('activity');
+    expect(lines[0]!.text).toBe('◐ Thinking… 4s');
+  });
+
+  it('advances elapsed + spinner across render ticks without adding scrollback lines (Task 3.2/3.3)', () => {
+    const t0 = Date.now() - 2_000;
+    const c = activityCtx('thinking', t0) as any;
+    const tick0 = buildAgentScrollbackLines(c, 200);
+    expect(tick0[0]!.text).toBe('◑ Thinking… 2s');
+
+    vi.setSystemTime(Date.now() + 1_000);
+    const tick1 = buildAgentScrollbackLines(c, 200);
+    // Same line count — the transient refreshes in place, never accumulates.
+    expect(tick1).toHaveLength(tick0.length);
+    // Elapsed + spinner advanced locally (pure function of the wall clock).
+    expect(tick1[0]!.text).toBe('◒ Thinking… 3s');
+  });
+
+  it('renders a running tool as ⚙ Running <tool>… Ns (Task 3.4)', () => {
+    const t0 = Date.now() - 3_000;
+    const lines = buildAgentScrollbackLines(activityCtx('tool_running', t0, { toolName: 'shell.run' }), 200);
+    expect(lines[0]!.kind).toBe('activity');
+    expect(lines[0]!.text).toBe('⚙ Running shell.run… 3s');
+  });
+
+  it('renders possibly_stalled with non-alarming language (Still working…), never FAILED', () => {
+    const t0 = Date.now() - 134_000;
+    const lines = buildAgentScrollbackLines(activityCtx('possibly_stalled', t0), 200);
+    expect(lines[0]!.kind).toBe('activity');
+    expect(lines[0]!.text).toBe('◑ Still working… 2m 14s');
+    expect(lines[0]!.text).not.toContain('FAILED');
+  });
+
+  it('removes the activity indicator on the first streamed token — streamed text replaces it (Task 3.5)', () => {
+    const c = activityCtx('thinking', Date.now() - 2_000) as any;
+    c.perTab.streamingText = 'Hel';
+    const lines = buildAgentScrollbackLines(c, 200);
+    // No 'activity' kind line; the streaming line renders instead.
+    expect(lines.some((l: any) => l.kind === 'activity')).toBe(false);
+    expect(lines.some((l: any) => l.kind === 'streaming')).toBe(true);
+  });
+
+  it('does not render a permanent spinner once the activity is terminal / cleared (Task 3.5)', () => {
+    // No activity record at all (post-turn) — no activity line.
+    expect(buildAgentScrollbackLines(ctx([]), 200)).toEqual([]);
+    // Terminal activity state (would-be permanent spinner) — no activity line.
+    const c = activityCtx('completed', Date.now() - 2_000) as any;
+    expect(buildAgentScrollbackLines(c, 200)).toEqual([]);
+  });
+
+  it('supersedes the bare-running-stage row instead of rendering two live indicators', () => {
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      { kind: 'agent.session.phase_changed' as const, text: 'Understanding', startedAt: t0 },
+    ];
+    const c = activityCtx('thinking', t0) as any;
+    c.runtime.agent.timeline = timeline;
+    const lines = buildAgentScrollbackLines(c, 200);
+    // Exactly one live indicator: the activity line (no `agent` kind bare row).
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.kind).toBe('activity');
+    expect(lines.some((l: any) => l.kind === 'agent')).toBe(false);
+  });
+
+  it('keeps prior scrollback lines stable while the activity indicator refreshes (append-only invariant)', () => {
+    const t0 = Date.now() - 5_000;
+    const timeline = [
+      { kind: 'agent.message' as const, text: 'go', actor: 'user' as const, startedAt: t0 - 10_000 },
+    ];
+    const c = activityCtx('thinking', t0) as any;
+    c.runtime.agent.timeline = timeline;
+    const first = buildAgentScrollbackLines(c, 200);
+    vi.setSystemTime(Date.now() + 1_000);
+    const second = buildAgentScrollbackLines(c, 200);
+    // The transient appends ONE trailing line; the user-prompt prefix is stable.
+    expect(second).toHaveLength(first.length);
+    for (let i = 0; i < first.length - 1; i++) {
+      expect(second[i]).toEqual(first[i]);
+    }
+  });
+
+  it('does not render an activity line when the session snapshot has no activity', () => {
+    const c = ctx([{ kind: 'agent.message' as const, text: 'go', actor: 'user' as const }]);
+    const lines = buildAgentScrollbackLines(c, 200);
+    expect(lines.some((l: any) => l.kind === 'activity')).toBe(false);
+  });
+});
+
 // ─── #436 — render approvals inline + pending-approval banner ─────
 // Slice #7 of the stage-decorated scrollback plan (#429). Approvals
 // render inline and chronologically, under the stage in which they

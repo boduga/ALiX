@@ -250,7 +250,10 @@ export class ShellToolRouter implements ToolRouter {
       }
     }
 
-    return runCommand({ command, cwd: workingDir, timeoutMs });
+    // Operator-cancel signal (optional) is threaded into runCommand so an
+    // operator abort kills the child (via spawnCommand's cancel path) and the
+    // outcome surfaces as ExecutionCancelledError, never as a tool failure.
+    return runCommand({ command, cwd: workingDir, timeoutMs, signal: request.signal });
   }
 }
 

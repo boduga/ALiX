@@ -399,3 +399,51 @@ test("all providers support streaming and have stream method", async () => {
 // --- SSE Streaming Parser Tests ---
 
 // Helper: build a mock ReadableStream that yields encoded chunks
+
+test("an operator-cancel signal threaded into the adapter aborts the in-flight transport request (not just a caller-side race)", async () => {
+  // The transport (unified-complete) forwards init.signal to fetch. Simulate
+  // a genuinely hung upstream: the fake fetch records the signal and only
+  // settles when that signal aborts (native fetch semantics). Task 6.1 wants
+  // cancellation to propagate into the provider request/socket — the race in
+  // the run loop is the prompt-release guarantee, but the socket itself must
+  // be aborted too, which is exactly what a forwarded signal achieves.
+  let capturedSignal: AbortSignal | undefined;
+  const mockFetch = ((_url: string, init: RequestInit) => {
+    const sig = init?.signal ?? undefined;
+    capturedSignal = sig;
+    return new Promise((_resolve, reject) => {
+      sig?.addEventListener("abort", () => {
+        const e = new Error("The operation was aborted");
+        e.name = "AbortError";
+        reject(e);
+      }, { once: true });
+    });
+  }) as typeof fetch;
+
+  _setFetchForTesting(mockFetch);
+  try {
+    const controller = new AbortController();
+    const p = new OpenAIProvider({ apiKey: "test-key", model: "gpt-4o" });
+    const pending = p.complete(
+      { systemPrompt: "hi", messages: [{ role: "user", content: "long" }] },
+      { signal: controller.signal },
+    );
+    // Let the request reach the transport.
+    await new Promise((r) => setTimeout(r, 5));
+    assert.ok(capturedSignal, "the transport request received an AbortSignal");
+    assert.equal(capturedSignal!.aborted, false);
+
+    // Operator cancels → the transport signal aborts and the hung request is
+    // released as the provider's aborted-request error (408), NOT left hanging
+    // until some unrelated timeout. (At the run layer the race classifies this
+    // as ExecutionCancelledError; here we assert the transport itself fired.)
+    controller.abort("operator stop");
+    await assert.rejects(
+      () => pending,
+      (err: { status?: number }) => err?.status === 408,
+    );
+    assert.equal(capturedSignal!.aborted, true);
+  } finally {
+    _setFetchForTesting(globalThis.fetch);
+  }
+});

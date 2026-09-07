@@ -35,7 +35,7 @@ function makeEvents(): AgentSessionEvents & {
 
 describe("buildSessionStreamHandler", () => {
   it("returns original handler when events are undefined", () => {
-    const original = (chunk: { type: "text" | "tool_call"; text?: string }): void => {};
+    const original = (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string }): void => {};
     const wrapped = buildSessionStreamHandler(original, undefined);
     expect(wrapped).toBe(original);
   });
@@ -50,7 +50,7 @@ describe("buildSessionStreamHandler", () => {
 
   it("calls original handler and fires onToken for text chunks", () => {
     const seen: string[] = [];
-    const original = (chunk: { type: "text" | "tool_call"; text?: string }): void => {
+    const original = (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string }): void => {
       if (chunk.text) seen.push(chunk.text);
     };
     const events = makeEvents();

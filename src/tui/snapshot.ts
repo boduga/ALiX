@@ -63,6 +63,14 @@ export interface SessionMetadata {
    */
   readonly liveness?: import('../agent/agent-liveness.js').AgentLivenessSnapshot;
   /**
+   * Live user-facing activity record of the active agent invocation.
+   * Populated by SnapshotBuilder from `AgentSession.getActivity()` while the
+   * agent loop is executing. The response surface renders it as the transient
+   * `◐ Thinking…` / `⚙ Running tool…` indicator; undefined when idle or on
+   * sessions without activity.
+   */
+  readonly activity?: import('../agent/agent-activity.js').AgentActivity;
+  /**
    * Pending tool calls surfaced by the agent loop for inline scrollback
    * rendering. Each entry renders as a two-line dim card in the agent view.
    */

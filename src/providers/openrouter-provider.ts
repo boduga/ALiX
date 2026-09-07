@@ -4,7 +4,7 @@ import { discoverOpenRouterModels, isFreeModel } from "./model-discovery.js";
 import { resolveConcreteFreeModel, deriveRequestRequirements } from "./model-resolver.js";
 import { recordAccessRestricted, accessRestrictedModelIds } from "./access-restriction-registry.js";
 import type { DiscoveredModel } from "./model-discovery.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type OpenRouterConfig = {
   apiKey?: string;
@@ -139,14 +139,19 @@ export class OpenRouterProvider extends BaseProvider {
     });
   }
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
+    const callOpts = {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    };
     if (!isFreeRoute(this._model)) {
-      return complete("openrouter", this._model, request, { apiKey: this._apiKey });
+      return complete("openrouter", this._model, request, callOpts);
     }
     // Self-healing free route: if OpenRouter rejects the resolved model because
     // the account disallows its backing provider, drop it and re-resolve to a
     // different concrete free model. The catalog is cached; only the selection
-    // changes. Non-rejection errors propagate immediately.
+    // changes. Non-rejection errors (including an operator-cancel abort, which
+    // surfaces as a non-retryable ApiError) propagate immediately.
     const tried: string[] = [];
     for (;;) {
       const resolved = await resolveConcreteModel(request, new Set(tried));
@@ -154,7 +159,7 @@ export class OpenRouterProvider extends BaseProvider {
         throw new Error("No OpenRouter free model satisfies the request requirements");
       }
       try {
-        const res = await complete("openrouter", resolved.id, request, { apiKey: this._apiKey });
+        const res = await complete("openrouter", resolved.id, request, callOpts);
         if (!res.resolvedModel) res.resolvedModel = resolved.id;
         return res;
       } catch (err) {
@@ -180,9 +185,13 @@ export class OpenRouterProvider extends BaseProvider {
     }
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
+    const callOpts = {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    };
     if (!isFreeRoute(this._model)) {
-      yield* stream("openrouter", this._model, request, { apiKey: this._apiKey });
+      yield* stream("openrouter", this._model, request, callOpts);
       return;
     }
     const tried: string[] = [];
@@ -193,9 +202,7 @@ export class OpenRouterProvider extends BaseProvider {
       }
       let committed = false;
       let rejectedByAccount = false;
-      for await (const chunk of stream("openrouter", resolved.id, request, {
-        apiKey: this._apiKey,
-      })) {
+      for await (const chunk of stream("openrouter", resolved.id, request, callOpts)) {
         // Any non-terminal content chunk means the stream is committed.
         if (chunk.type !== "done" && chunk.type !== "error") committed = true;
         // An account-rejection surfaces as an early error chunk (404/403) before

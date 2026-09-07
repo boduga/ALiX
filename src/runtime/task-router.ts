@@ -327,7 +327,24 @@ function toDiagnostic(
  * classifier scores below `CONFIDENCE_THRESHOLD` (0.7) are passed to a
  * model-based fallback for reclassification. When no provider is configured,
  * the router stays purely deterministic.
- *
+ */
+
+/**
+ * A generation prompt that explicitly asks to write/save its output to a file
+ * (e.g. "…write the report to response.md") is a deliverable task, not an
+ * in-chat one-shot answer. Short pure file operations ("write X to Y") are
+ * already caught by `matchNaturalFileOperation`; this catches the same intent
+ * buried in a long prompt so it routes to the agent (tools can create and
+ * verify the file) instead of the direct generation route (stdout only).
+ */
+const EXPLICIT_FILE_OUTPUT_RE =
+  /\b(?:write|save|dump|output|put|create|generate)\b[^\n]{0,160}?\b(?:to|into|as)\b[^\n]{0,60}?[\w./\\-]+\.(?:md|markdown|txt|json|yml|yaml|toml|rs|ts|tsx|js|jsx|py|go|c|cpp)\b/i;
+
+function isExplicitFileOutputRequest(task: string): boolean {
+  return EXPLICIT_FILE_OUTPUT_RE.test(task);
+}
+
+/**
  * Classification priority:
  *
  *  1. Action classifier — workspace_action (always dominates) → agent.
@@ -338,6 +355,7 @@ function toDiagnostic(
  *  6. Action classifier (with optional model fallback):
  *       - external_retrieval → grounded_chat
  *       - generation → direct (one model call)
+ *       - generation + explicit file output target → agent (write the file)
  *       - ambiguous → (may reclassify via model) then legacy fallback
  *  7. Legacy fallback: research → chat, else → agent.
  *
@@ -420,6 +438,20 @@ export async function taskRouter(
       kind: "tool",
       tool: "shell.run",
       args: { command: naturalFileCommand },
+    };
+  }
+
+  // 6b. Explicit file-output deliverable — a prompt (generation, research, or
+  // otherwise) that asks to write/save its output to a named file is a task
+  // whose success requires creating that artifact. Route it to the agent so
+  // tools can write and verify the file, regardless of whether the action
+  // classifier labelled it generation (which would otherwise go one-shot
+  // direct, no tools) or research (which would otherwise go chat).
+  if (isExplicitFileOutputRequest(task)) {
+    return {
+      kind: "agent",
+      task,
+      diagnostic: toDiagnostic(classification, "agent"),
     };
   }
 

@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { getEventListeners } from "node:events";
 import { ExecutionStateMachine } from "../../src/runtime/execution-state-machine.js";
 import { RetryController } from "../../src/runtime/retry-controller.js";
-import { CancellationToken, ExecutionCancelledError } from "../../src/runtime/cancellation-token.js";
+import { CancellationToken, ExecutionCancelledError, raceWithCancellation, signalReason } from "../../src/runtime/cancellation-token.js";
 import {
   ExecutionState,
   type ExecutionEvidenceEmitter,
@@ -373,5 +374,140 @@ describe("RetryController cancellation", () => {
     machine.transitionTo(exId, ExecutionState.SUCCEEDED);
 
     await expect(controller.cancel(exId)).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// signalReason — AbortSignal → operator-facing reason
+// ---------------------------------------------------------------------------
+
+describe("signalReason", () => {
+  it("returns the string reason of an aborted signal", () => {
+    const controller = new AbortController();
+    controller.abort("operator stop");
+    expect(signalReason(controller.signal)).toBe("operator stop");
+  });
+
+  it("returns undefined for a signal aborted without a reason", () => {
+    const controller = new AbortController();
+    controller.abort();
+    // Node injects a non-string DOMException — not an operator-facing reason.
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for a non-string reason (DOMException default)", () => {
+    const controller = new AbortController();
+    controller.abort(new DOMException("boom", "AbortError"));
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for an empty-string reason", () => {
+    const controller = new AbortController();
+    controller.abort("");
+    expect(signalReason(controller.signal)).toBeUndefined();
+  });
+
+  it("returns undefined for a never-aborted signal", () => {
+    expect(signalReason(new AbortController().signal)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AbortSignal race — raceWithCancellation (fix round: listener cleanup)
+// ---------------------------------------------------------------------------
+
+describe("raceWithCancellation", () => {
+  it("resolves with the operation value when the operation wins the race", async () => {
+    const controller = new AbortController();
+    await expect(raceWithCancellation(Promise.resolve("ok"), controller.signal)).resolves.toBe("ok");
+    // The winning side detached its abort listener.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("propagates the operation rejection when the operation fails first", async () => {
+    const controller = new AbortController();
+    await expect(
+      raceWithCancellation(Promise.reject(new Error("boom")), controller.signal),
+    ).rejects.toThrow("boom");
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("rejects with ExecutionCancelledError promptly when the signal aborts first", async () => {
+    const controller = new AbortController();
+    const race = raceWithCancellation(
+      new Promise<never>(() => {}), // never settles on its own
+      controller.signal,
+      "operator stop",
+    );
+    // Let the abort listener attach, then fire a genuine mid-flight abort.
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort("operator stop");
+    const err = await race.then(
+      () => { throw new Error("expected cancellation"); },
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ExecutionCancelledError);
+    expect((err as ExecutionCancelledError).reason).toBe("operator stop");
+    // The fired listener removed itself — no residue for the next race.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("rejects immediately, attaching no listener, when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    controller.abort("already gone");
+    await expect(
+      raceWithCancellation(new Promise<never>(() => {}), controller.signal),
+    ).rejects.toBeInstanceOf(ExecutionCancelledError);
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("pre-aborted branch orphans the in-flight operation WITHOUT an unhandled rejection", async () => {
+    // The caller starts `operation` before the race (e.g. the blocking-call
+    // site's provider.complete()); a cancel that lands during the caller's
+    // pre-call awaits leaves the signal already aborted at entry. The race
+    // rejects as a cancellation, but the orphaned operation's LATER rejection
+    // (a transport failure) must be swallowed — never an unhandled rejection
+    // that would crash the process on the operator-cancel path.
+    const controller = new AbortController();
+    controller.abort("already gone");
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason); };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const race = raceWithCancellation(
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("late transport failure")), 20);
+        }),
+        controller.signal,
+        "already gone",
+      );
+      await expect(race).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // Give the orphaned operation time to reject.
+      await new Promise((r) => setTimeout(r, 40));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.removeListener("unhandledRejection", onUnhandled);
+    }
+  });
+
+  it("does NOT accumulate abort listeners across many sequential races (each loser detaches)", async () => {
+    const controller = new AbortController();
+    for (let i = 0; i < 500; i++) {
+      await raceWithCancellation(Promise.resolve(i), controller.signal);
+    }
+    // The hot streaming path races one operation per chunk; 500 settles must
+    // leave zero listeners — not one per iteration.
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("still aborts promptly after many settled races (listener cleanup does not break the race)", async () => {
+    const controller = new AbortController();
+    for (let i = 0; i < 100; i++) {
+      await raceWithCancellation(Promise.resolve(i), controller.signal);
+    }
+    const race = raceWithCancellation(new Promise<never>(() => {}), controller.signal, "stop now");
+    await new Promise((r) => setTimeout(r, 0));
+    controller.abort("stop now");
+    await expect(race).rejects.toMatchObject({ name: "ExecutionCancelledError", reason: "stop now" });
   });
 });

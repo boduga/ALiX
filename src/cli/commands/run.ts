@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { EXIT_CODES } from "../../run.js";
 import { createAgentSession, type AgentTurnResult } from "../../agent/session.js";
 import { ApiError } from "../../providers/base.js";
+import { loadConfig } from "../../config/loader.js";
+import { tryResolveModelConfig } from "../../config/model-resolver.js";
 import { parseRunArgs } from "../run-args.js";
 
 export async function handler(args: string[]): Promise<number> {
@@ -32,6 +34,16 @@ export async function handler(args: string[]): Promise<number> {
   }
 
   try {
+    // Resolve the configured default model so direct-generation and grounded
+    // chat routes get a provider (mirrors the TUI). Without this, a
+    // generation-only prompt routed to the direct path returns the
+    // `[chat:no-provider]` placeholder even when models.default is set.
+    const loadedConfig = await loadConfig(process.cwd());
+    const defaultModel = tryResolveModelConfig(loadedConfig);
+    const chatModelOpt = defaultModel?.provider
+      ? { chatModel: { provider: defaultModel.provider, model: defaultModel.name } }
+      : {};
+
     const { createReplRenderer, createReplEvents } = await import("../renderers/repl.js");
     const { JsonlSessionStore } = await import("../../agent/session-store-jsonl.js");
     let result: AgentTurnResult | undefined;
@@ -43,11 +55,11 @@ export async function handler(args: string[]): Promise<number> {
       const events = createReplEvents();
       const sessionsRoot = join(process.cwd(), ".alix", "sessions");
       const store = new JsonlSessionStore(sessionsRoot);
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store, ...chatModelOpt });
       const renderer = createReplRenderer(session, { events, store });
       await renderer.start();
     } else {
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, ...chatModelOpt });
       result = await session.processTurn(task);
       if (!result.streamed) {
         console.log(result.summary);

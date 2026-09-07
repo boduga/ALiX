@@ -14,18 +14,28 @@ import {
   getAvailableModels,
   resolveInitialProviderAndModel,
 } from "../../../src/cli/helpers/provider-selection.js";
-import { _setUserConfigPathOverride } from "../../../src/cli/helpers/api-keys.js";
-import { PROVIDERS } from "../../../src/providers/catalog.js";
+import { _setUserConfigPathOverride as _setApiKeysConfigPathOverride } from "../../../src/cli/helpers/api-keys.js";
+import {
+  PROVIDERS,
+  _setUserConfigPathOverride as _setCatalogConfigPathOverride,
+} from "../../../src/providers/catalog.js";
 import { parseInitArgs } from "../../../src/cli/helpers/init-args.js";
 
 /** Write a user-config `apiKeys` file into the per-test tmp dir and point the
- *  config seam at it. Replaces env-var key injection now that provider key
- *  resolution is store-only (env vars never authenticate — spec §7 amended). */
+ *  config seams at it. Replaces env-var key injection now that provider key
+ *  resolution is store-only (env vars never authenticate — spec §7 amended).
+ *
+ *  Both seams must be set: `getApiKey` resolves through the api-keys seam,
+ *  while `detectProvider()` / `loadUserConfigApiKeys()` in auto mode read
+ *  through the catalog seam. Setting only the api-keys seam made the auto-mode
+ *  test pass by accident on machines whose real ~/.config/alix/config.json
+ *  happened to contain an openai key, and fail on a clean CI runner. */
 async function writeApiKeyConfig(apiKeys: Record<string, string>) {
   const path = join(tmpDir, "config.json");
   const fs = await import("node:fs/promises");
   await fs.writeFile(path, JSON.stringify({ apiKeys }));
-  _setUserConfigPathOverride(path);
+  _setApiKeysConfigPathOverride(path);
+  _setCatalogConfigPathOverride(path);
 }
 
 const ALL_ENV_VARS = PROVIDERS.map((p) => p.env);
@@ -42,7 +52,8 @@ beforeEach(() => {
   for (const v of ALL_ENV_VARS) savedEnv[v] = process.env[v];
   clearKnownEnv();
   tmpDir = mkdtempSync(join(tmpdir(), "alix-sel-test-"));
-  _setUserConfigPathOverride(join(tmpDir, "missing.json"));
+  _setApiKeysConfigPathOverride(join(tmpDir, "missing.json"));
+  _setCatalogConfigPathOverride(join(tmpDir, "missing.json"));
   _resetModelCache();
   stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 });
@@ -52,7 +63,8 @@ afterEach(() => {
     if (savedEnv[v] === undefined) delete process.env[v];
     else process.env[v] = savedEnv[v];
   }
-  _setUserConfigPathOverride(undefined);
+  _setApiKeysConfigPathOverride(undefined);
+  _setCatalogConfigPathOverride(undefined);
   _resetModelCache();
   rmSync(tmpDir, { recursive: true, force: true });
   stderrSpy.mockRestore();
@@ -76,7 +88,8 @@ describe("resolveProviders", () => {
     const path = join(tmpDir, "config.json");
     const fs = await import("node:fs/promises");
     await fs.writeFile(path, JSON.stringify({ apiKeys: { deepseek: "sk-d" } }));
-    _setUserConfigPathOverride(path);
+    _setApiKeysConfigPathOverride(path);
+    _setCatalogConfigPathOverride(path);
     const result = await resolveProviders();
     const ds = result.find((p) => p.id === "deepseek")!;
     expect(ds.available).toBe(true);

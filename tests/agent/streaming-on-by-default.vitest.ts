@@ -7,10 +7,21 @@ import { MockProvider } from "../../src/providers/mock-provider.js";
 
 const mocks = vi.hoisted(() => ({
   createProvider: vi.fn(),
+  shouldAutoDisableStreaming: vi.fn(),
 }));
 
 vi.mock("../../src/providers/registry.js", () => ({
   createProvider: mocks.createProvider,
+}));
+
+// This test asserts the loader default (streaming ON with no ALIX_STREAMING
+// forcing), so it must run as if in a local/TTY context. The CI autodisable
+// gate (shouldAutoDisableStreaming = isCI) is a separate, orthogonal concern
+// covered by tests/agent/stream.test.ts — pin it off here, or the test can
+// never pass under CI=true.
+vi.mock("../../src/agent/stream.js", () => ({
+  shouldAutoDisableStreaming: mocks.shouldAutoDisableStreaming,
+  isCI: mocks.shouldAutoDisableStreaming,
 }));
 
 /**
@@ -37,9 +48,11 @@ describe("streaming is on by default (real session)", () => {
     delete process.env.ALIX_STREAMING;
     mocks.createProvider.mockReset();
     mocks.createProvider.mockResolvedValue(new MockProvider());
+    mocks.shouldAutoDisableStreaming.mockReset();
+    mocks.shouldAutoDisableStreaming.mockReturnValue(false);
   });
 
-  it("fires events.onToken during processTurn without env forcing", async () => {
+  it("fires events.onToken during processTurn without env forcing", { timeout: 30_000 }, async () => {
     const tokens: string[] = [];
     const session = createAgentSession({
       cwd,

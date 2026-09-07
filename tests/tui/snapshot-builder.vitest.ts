@@ -65,6 +65,23 @@ describe('SnapshotBuilder.build — happy path', () => {
     expect(snap!.approvals?.totalPending).toBe(1);
   });
 
+  it('projects the live AgentActivity record into session metadata via getActivity()', async () => {
+    const f = mkFakes();
+    const activity = {
+      state: 'thinking' as const,
+      startedAt: 1_000_000,
+      lastProgressAt: 1_000_000,
+      lastEventAt: 1_000_000,
+      elapsedMs: 0,
+      invocationId: 'inv-1',
+    };
+    (f.session as any).getActivity = () => activity;
+    const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon);
+    const snap = await b.build(1);
+    expect(snap!.session?.activity?.state).toBe('thinking');
+    expect(snap!.session?.activity?.invocationId).toBe('inv-1');
+  });
+
   it('threads the constructor cwd into both initial and produced snapshots', async () => {
     const f = mkFakes();
     const cwd = '/home/operator/projects/alix';
