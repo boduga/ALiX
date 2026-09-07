@@ -33,21 +33,27 @@ function ttyGuardOr(out: string, expected: string): boolean {
 }
 
 describe("TUI smoke", () => {
+  // The TUI title bar renders `ALiX v<version>  │  Session: ...` (see
+  // src/tui/frame-painter.ts). Match that stable marker; the alternate
+  // screen + header both go through the real renderer so this distinguishes
+  // a live TUI from the piped-input TTY guard message.
+  const TUI_MARKER = "ALiX v";
+
   it("shows welcome or TTY guard", async () => {
     const { stdout, stderr } = await runTui("", []);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI"), `Expected TUI or TTY guard, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, TUI_MARKER), `Expected TUI or TTY guard, got: ${combined.slice(0, 200)}`);
   });
 
   it("shows TUI on ? input or TTY guard", async () => {
     const { stdout, stderr } = await runTui("?\n", []);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || ttyGuardOr(combined, "DAEMON"), `Expected TUI, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, TUI_MARKER) || ttyGuardOr(combined, "DAEMON"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 
   it("TUI starts with --daemon or TTY guard", async () => {
     const { stdout, stderr } = await runTui("", ["--daemon"]);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || combined.includes("ERROR"), `Expected TUI, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, TUI_MARKER) || combined.includes("ERROR"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 });
