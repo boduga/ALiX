@@ -97,8 +97,8 @@ as validation remains matched.
 | (empty sequence) | research (default + carry-over) | `currentIntent ?? "research"` |
 | `file.edit` | mutation | `mutation` |
 | `file.write`, `file.create` | mutation | `mutation` |
-| `shell.run npm install` | mutation | `mutation` |
-| `shell.run npm run build` | mutation | `mutation` |
+| `shell.run pnpm install` | mutation | `mutation` |
+| `shell.run pnpm run build` | mutation | `mutation` |
 | `shell.run go build ./...` | mutation | `mutation` |
 | `shell.run ls -la` | mutation (safe default) | `mutation` |
 | `file.delete`, `file.rename` | mutation | `mutation` |
