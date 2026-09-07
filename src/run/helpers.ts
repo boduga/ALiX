@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
@@ -339,35 +339,55 @@ export async function streamToResponse(
   let usage: TokenUsage | undefined;
   let resolvedModel: string | undefined;
   let finishReason: string | undefined;
+
+  // Single accumulation path, fed by BOTH pumps below — the `for await` (no
+  // signal) branch and the cancellable manual-iterator branch each route every
+  // chunk through this handler, so text/reasoning forwarding and tool_call /
+  // usage / done / error accumulation exist in exactly one place and can never
+  // drift apart (a past commit edited both copies to add reasoning forwarding).
+  const accumulate = async (chunk: StreamChunk): Promise<void> => {
+    if (chunk.type === "text_delta") {
+      text += chunk.text;
+      if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+        await new Promise(resolve => process.stdout.once("drain", resolve));
+      }
+      options?.onStream?.({ type: "text", text: chunk.text });
+    }
+    if (chunk.type === "reasoning_delta") {
+      reasoning += chunk.text;
+      // Reasoning is private trace — never written to stdout and never
+      // folded into the final text, but surfaced as a `reasoning` stream
+      // chunk so liveness feeds (which otherwise see only text chunks)
+      // can count a long private thought-phase as progress.
+      options?.onStream?.({ type: "reasoning", text: chunk.text });
+    }
+    if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+    if (chunk.type === "usage") usage = chunk.usage;
+    if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
+    if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
+    if (chunk.type === "error") throw new Error(chunk.error);
+  };
+
+  const buildResult = (): StreamToResponseResult => ({
+    text,
+    reasoning: reasoning || undefined,
+    toolCalls,
+    usage,
+    resolvedModel,
+    finishReason,
+  });
+
   try {
     if (!signal) {
       for await (const chunk of provider.stream(request)) {
-        if (chunk.type === "text_delta") {
-          text += chunk.text;
-          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-            await new Promise(resolve => process.stdout.once("drain", resolve));
-          }
-          options?.onStream?.({ type: "text", text: chunk.text });
-        }
-        if (chunk.type === "reasoning_delta") {
-          reasoning += chunk.text;
-          // Reasoning is private trace — never written to stdout and never
-          // folded into the final text, but surfaced as a `reasoning` stream
-          // chunk so liveness feeds (which otherwise see only text chunks)
-          // can count a long private thought-phase as progress.
-          options?.onStream?.({ type: "reasoning", text: chunk.text });
-        }
-        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-        if (chunk.type === "usage") usage = chunk.usage;
-        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
-        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
-        if (chunk.type === "error") throw new Error(chunk.error);
+        await accumulate(chunk);
       }
-      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
+      return buildResult();
     }
 
-    // Cancellable path — same accumulation, but every `next()` races the
-    // operator-cancel signal so a cancel releases a hung stream immediately.
+    // Cancellable path — identical accumulation (shared `accumulate` above),
+    // but every `next()` races the operator-cancel signal so a cancel releases
+    // a hung stream immediately.
     const iterator = provider.stream(request)[Symbol.asyncIterator]();
     try {
       for (;;) {
@@ -376,25 +396,9 @@ export async function streamToResponse(
         // — a long stream never accumulates listeners across chunks.
         const step = await raceWithCancellation(iterator.next(), signal);
         if (step.done) break;
-        const chunk = step.value;
-        if (chunk.type === "text_delta") {
-          text += chunk.text;
-          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-            await new Promise(resolve => process.stdout.once("drain", resolve));
-          }
-          options?.onStream?.({ type: "text", text: chunk.text });
-        }
-        if (chunk.type === "reasoning_delta") {
-          reasoning += chunk.text;
-          options?.onStream?.({ type: "reasoning", text: chunk.text });
-        }
-        if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-        if (chunk.type === "usage") usage = chunk.usage;
-        if (chunk.type === "done" && chunk.resolvedModel) resolvedModel = chunk.resolvedModel;
-        if (chunk.type === "done" && chunk.finishReason) finishReason = chunk.finishReason;
-        if (chunk.type === "error") throw new Error(chunk.error);
+        await accumulate(step.value);
       }
-      return { text, reasoning: reasoning || undefined, toolCalls, usage, resolvedModel, finishReason };
+      return buildResult();
     } finally {
       // The signal fired (or the pump errored): ask the generator to stop so
       // the provider stops producing. Fire-and-forget on purpose — a

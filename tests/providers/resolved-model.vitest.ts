@@ -81,4 +81,34 @@ describe("resolved-model capture", () => {
     expect(out.text).toBe("Final answer");
     expect(out.reasoning).toBe("let me think about this carefully for a long time and then conclude");
   });
+
+  it("streamToResponse (no signal) forwards text and reasoning chunks to onStream", async () => {
+    const fake: ModelAdapter = {
+      id: "deepseek",
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      capabilities: { provider: "deepseek", model: "deepseek-v4-flash", inputTokenLimit: 64_000, outputTokenLimit: 8192, supportsTools: true, supportsStreaming: true, supportsStructuredOutput: true, supportsVision: false,
+      parallelToolCalls: false
+},
+      complete: async () => ({ text: "", toolCalls: [] }),
+      stream: async function* () {
+        yield { type: "reasoning_delta", text: "think" };
+        yield { type: "text_delta", text: "Hi" };
+        yield { type: "done" };
+      },
+    };
+    const seen: Array<{ type: string; text?: string }> = [];
+    const out = await streamToResponse(fake, req, {
+      onStream: (chunk) => seen.push(chunk),
+    });
+    // The no-signal (legacy) pump shares the single accumulation handler with
+    // the cancellable pump — reasoning chunks reach the liveness feed without
+    // leaking into the final text.
+    expect(seen).toEqual([
+      { type: "reasoning", text: "think" },
+      { type: "text", text: "Hi" },
+    ]);
+    expect(out.text).toBe("Hi");
+    expect(out.reasoning).toBe("think");
+  });
 });
