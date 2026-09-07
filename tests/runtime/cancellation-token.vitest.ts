@@ -426,6 +426,35 @@ describe("raceWithCancellation", () => {
     expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
   });
 
+  it("pre-aborted branch orphans the in-flight operation WITHOUT an unhandled rejection", async () => {
+    // The caller starts `operation` before the race (e.g. the blocking-call
+    // site's provider.complete()); a cancel that lands during the caller's
+    // pre-call awaits leaves the signal already aborted at entry. The race
+    // rejects as a cancellation, but the orphaned operation's LATER rejection
+    // (a transport failure) must be swallowed — never an unhandled rejection
+    // that would crash the process on the operator-cancel path.
+    const controller = new AbortController();
+    controller.abort("already gone");
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason); };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const race = raceWithCancellation(
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("late transport failure")), 20);
+        }),
+        controller.signal,
+        "already gone",
+      );
+      await expect(race).rejects.toBeInstanceOf(ExecutionCancelledError);
+      // Give the orphaned operation time to reject.
+      await new Promise((r) => setTimeout(r, 40));
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.removeListener("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("does NOT accumulate abort listeners across many sequential races (each loser detaches)", async () => {
     const controller = new AbortController();
     for (let i = 0; i < 500; i++) {

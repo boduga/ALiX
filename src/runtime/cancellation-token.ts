@@ -124,6 +124,13 @@ export function raceWithCancellation<T>(
   fallbackReason?: string,
 ): Promise<T> {
   if (signal.aborted) {
+    // The operation was already started before the race (the caller invoked
+    // it eagerly, e.g. provider.complete() at the blocking-call site), so a
+    // cancel that lands during the caller's pre-call awaits can orphan it.
+    // Abandon it — but never leave its eventual rejection unhandled: a later
+    // transport failure must not crash the process on the operator-cancel
+    // path, so attach a no-op handler before rejecting.
+    void operation.catch(() => {});
     return Promise.reject(cancelledError(signal, fallbackReason));
   }
   return new Promise<T>((resolve, reject) => {
