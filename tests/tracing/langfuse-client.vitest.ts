@@ -700,6 +700,139 @@ describe("LangfuseTraceClient · flush/shutdown and never-throw", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Parent-run translation (design §23, Task 8)
+// ---------------------------------------------------------------------------
+
+describe("LangfuseTraceClient · parent-run translation", () => {
+  beforeEach(() => {
+    fakeRecorder.instances.length = 0;
+  });
+
+  /** Child run input that names a parent but carries no session of its own. */
+  function childRunInput(parentRunId: string, overrides: Partial<TraceRunInput> = {}): TraceRunInput {
+    return runInput({
+      runId: "run-child001",
+      sessionId: undefined,
+      task: "child delegated task",
+      ...overrides,
+      parentRunId,
+    });
+  }
+
+  function alixOf(trace: Record<string, unknown>): Record<string, unknown> {
+    return (trace.metadata as { alix: Record<string, unknown> }).alix;
+  }
+
+  it("links an in-process child (no own session) into the active parent's session and keeps one trace per runId", () => {
+    const { client, sdk } = makeClient();
+    const parent = client.startRun(runInput()); // session-1
+
+    const child = client.startRun(childRunInput("run-test1234"));
+
+    // Exactly two traces, one per ALiX runId — no invented second identity.
+    expect(sdk.calls.traces).toHaveLength(2);
+    expect(sdk.calls.traces.map((t) => t.id)).toEqual(["run-test1234", "run-child001"]);
+    expect(child.runId).toBe("run-child001");
+
+    // The child trace is grouped into the parent's Langfuse session (Langfuse's
+    // cross-trace relationship container) while keeping its own trace id.
+    const childTrace = sdk.calls.traces[1];
+    expect(childTrace.id).toBe("run-child001");
+    expect(childTrace.sessionId).toBe("session-1");
+    expect(alixOf(childTrace)).toMatchObject({
+      kind: "run",
+      runId: "run-child001",
+      sessionId: "session-1",
+      parentRunId: "run-test1234",
+    });
+    // The parent trace keeps its own session and no parentRunId.
+    expect(sdk.calls.traces[0].sessionId).toBe("session-1");
+    expect(alixOf(sdk.calls.traces[0])).not.toHaveProperty("parentRunId");
+
+    // The child's model/tool spans stay under the CHILD trace.
+    const span = client.startModelSpan(child, { provider: "anthropic", model: "claude-sonnet-4" });
+    client.endSpan(span, { status: "success", output: "child done" });
+    expect(sdk.calls.generations).toHaveLength(1);
+    expect(sdk.calls.generations[0].traceId).toBe("run-child001");
+    expect(sdk.calls.generationEnds[0].traceId).toBe("run-child001");
+
+    // Both runs resolve independently; lifecycle is clean.
+    expect(client.getRun("run-test1234")).toBe(parent);
+    expect(client.getRun("run-child001")).toBe(child);
+  });
+
+  it("keeps an explicit child session authoritative over parent-session grouping", () => {
+    const { client, sdk } = makeClient();
+    client.startRun(runInput()); // parent session-1
+
+    const child = client.startRun(
+      runInput({
+        runId: "run-child002",
+        sessionId: "session-child-9",
+        parentRunId: "run-test1234",
+      }),
+    );
+    expect(sdk.calls.traces).toHaveLength(2);
+    const childTrace = sdk.calls.traces[1];
+    expect(childTrace.sessionId).toBe("session-child-9");
+    expect(alixOf(childTrace).parentRunId).toBe("run-test1234");
+    expect(client.getRun("run-child002")).toBe(child);
+  });
+
+  it("degrades to a standalone child trace for an unknown parent — no throw, parentRunId still recorded", () => {
+    const { client, sdk } = makeClient();
+
+    const child = client.startRun(childRunInput("run-ghost"));
+    expect(sdk.calls.traces).toHaveLength(1);
+    const childTrace = sdk.calls.traces[0];
+    expect(childTrace.id).toBe("run-child001");
+    // No active parent → no session inheritance; trace is standalone.
+    expect("sessionId" in childTrace).toBe(false);
+    expect(alixOf(childTrace)).toMatchObject({
+      runId: "run-child001",
+      parentRunId: "run-ghost",
+    });
+    expect("sessionId" in alixOf(childTrace)).toBe(false);
+
+    // The standalone child still traces its own spans.
+    const span = client.startModelSpan(child, { provider: "anthropic", model: "claude-sonnet-4" });
+    client.endSpan(span, { status: "success" });
+    expect(sdk.calls.generations).toHaveLength(1);
+    expect(sdk.calls.generations[0].traceId).toBe("run-child001");
+  });
+
+  it("degrades to a standalone child trace when the parent already ended — no throw", () => {
+    const { client, sdk } = makeClient();
+    const parent = client.startRun(runInput());
+    client.endRun(parent, { status: "success" });
+
+    const child = client.startRun(childRunInput("run-test1234"));
+    expect(sdk.calls.traces).toHaveLength(2);
+    const childTrace = sdk.calls.traces[1];
+    expect(childTrace.id).toBe("run-child001");
+    expect("sessionId" in childTrace).toBe(false);
+    expect(alixOf(childTrace).parentRunId).toBe("run-test1234");
+  });
+
+  it("lifecycle stays safe when the child startRun names an active parent whose own trace creation failed", () => {
+    const { client, sdk } = makeClient();
+    sdk.failures.add("trace");
+    client.startRun(runInput({ runId: "run-parent-fail", sessionId: "session-p" }));
+    sdk.failures.delete("trace");
+
+    // Parent registered (active) even though its trace never reached the SDK.
+    expect(client.getRun("run-parent-fail")).not.toBeNull();
+    const child = client.startRun(
+      childRunInput("run-parent-fail", { runId: "run-child003" }),
+    );
+    // Child still starts standalone-safe: no throw, no duplicate trace bodies.
+    expect(sdk.calls.traces).toHaveLength(1);
+    expect(child.runId).toBe("run-child003");
+    expect(() => client.endRun(child, { status: "success" })).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Construction validation (fail-open hook for the Task 9 factory)
 // ---------------------------------------------------------------------------
 

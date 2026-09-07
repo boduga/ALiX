@@ -32,6 +32,7 @@
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md
  * Created by: Task 7 (implement the Langfuse adapter) of
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
+ * Parent-run translation added by Task 8 of the same plan.
  */
 
 import Langfuse from "langfuse";
@@ -145,8 +146,10 @@ interface SpanRecord {
  * ALiX handles (TraceRun/TraceSpan) map internally to Langfuse trace /
  * generation / span objects; those SDK objects and their ids never escape.
  * Spans are created as direct children of the run's trace — no parent/child
- * is inferred from call order (design §21/§22); run-level parent linkage is
- * metadata-only here and refined by Task 8.
+ * is inferred from call order (design §21/§22). Run-level parent linkage
+ * (Task 8, design §23) translates an explicit in-process `parentRunId` into a
+ * shared Langfuse session between the two traces (see `startRun`); it never
+ * merges traces and never invents identity.
  *
  * @param config — resolved `tracing` config section. Constructed by the
  * factory (Task 9) only when `enabled === true`; may throw on invalid config.
@@ -234,8 +237,33 @@ export class LangfuseTraceClient implements TraceClient {
     const existing = this.runsByRunId.get(input.runId);
     if (existing) return existing.handle;
 
+    // Parent-run translation (design §23; Task 8). The only parent relationship
+    // ALiX expresses is the explicit `parentRunId`. When that id resolves to a
+    // run active in THIS adapter instance (in-process parent, R4), the child is
+    // linked to the parent via Langfuse's cross-trace grouping primitive — the
+    // session. Langfuse has no trace-as-child-of-trace body field (verified in
+    // the v3.38 SDK types: `CreateLangfuseTraceBody` carries no
+    // parentObservationId/parentTraceId), so the supported relationship between
+    // two separate traces is "same session" (Session ⊃ Trace ⊃ Observation).
+    // The child keeps its own trace id (one run → one trace) and therefore its
+    // own spans; it only joins the parent's session when it has no session of
+    // its own. An explicit child `sessionId` stays authoritative. An
+    // unknown/ended/cross-process parent (or an absent parent session) degrades
+    // to a standalone child trace — parentage is still recorded in
+    // `metadata.alix.parentRunId`; never inferred from call order, never an
+    // invented identity.
+    const parent =
+      input.parentRunId !== undefined
+        ? this.runsByRunId.get(input.parentRunId)
+        : undefined;
+    // Only group into the parent's session when the parent's own trace is live;
+    // a registered-but-failed parent trace degrades to standalone like an ended
+    // or unknown one.
+    const sessionId =
+      input.sessionId ?? (parent?.sdkTrace ? parent.input.sessionId : undefined);
+
     const handle = makeRunHandle(input.runId);
-    const alix = this.buildRunAlix(input);
+    const alix = this.buildRunAlix(input, sessionId);
 
     // Fail-soft: if even trace creation throws (never expected — enqueue only),
     // still register the run so lifecycle is idempotent; its spans become noops.
@@ -248,7 +276,7 @@ export class LangfuseTraceClient implements TraceClient {
             ? captureString(input.task, "truncated", { maxChars: 120 })
             : undefined,
           timestamp: toIso(input.startedAt),
-          sessionId: input.sessionId,
+          sessionId,
           metadata: { alix },
         }) as Parameters<Langfuse["trace"]>[0],
       );
@@ -440,12 +468,21 @@ export class LangfuseTraceClient implements TraceClient {
 
   // --- metadata builders ----------------------------------------------------
 
-  private buildRunAlix(input: TraceRunInput): Record<string, unknown> {
+  /**
+   * @param input — authoritative ALiX run input.
+   * @param sessionId — the session the trace is actually emitted under: the
+   * run's own `input.sessionId`, or (when the child has none) the active
+   * in-process parent's session for parent-linkage grouping (see `startRun`).
+   */
+  private buildRunAlix(
+    input: TraceRunInput,
+    sessionId: string | undefined,
+  ): Record<string, unknown> {
     return {
       kind: "run",
       runId: input.runId,
       ...defined({
-        sessionId: input.sessionId,
+        sessionId,
         workflowId: input.workflowId,
         parentRunId: input.parentRunId,
         actor: input.actor,
