@@ -388,8 +388,11 @@ export async function streamToResponse(
 
     // Cancellable path — identical accumulation (shared `accumulate` above),
     // but every `next()` races the operator-cancel signal so a cancel releases
-    // a hung stream immediately.
-    const iterator = provider.stream(request)[Symbol.asyncIterator]();
+    // a hung stream immediately. The signal is ALSO handed to the adapter
+    // (provider.stream request construction) so a cancel aborts the transport
+    // request/socket itself, not just the race — while the race stays the
+    // prompt-release guarantee.
+    const iterator = provider.stream(request, { signal })[Symbol.asyncIterator]();
     try {
       for (;;) {
         if (signal.aborted) {
@@ -427,8 +430,10 @@ export async function streamToResponse(
     // without that, a broken endpoint that survives the stream-idle window
     // turns the fail-soft complete() into an uninterruptible, unbounded call
     // (a cancel could never unwind it). Signal-less behaviour is unchanged.
+    // When a signal is present it is also handed to the adapter so the cancel
+    // aborts the fallback transport request, not just the race.
     const resp = signal
-      ? await raceWithCancellation(provider.complete(request), signal, "cancelled by operator")
+      ? await raceWithCancellation(provider.complete(request, { signal }), signal, "cancelled by operator")
       : await provider.complete(request);
     return { text: text + (resp.text ?? ""), reasoning: reasoning || resp.reasoning, toolCalls, usage: usage ?? resp.usage, resolvedModel: resolvedModel ?? resp.resolvedModel, finishReason: finishReason ?? resp.finishReason };
   }
@@ -454,12 +459,12 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
           },
           patchText: {
             type: "string",
-          description: patchTextDescription(policy.preferred)
-        }
-      }
-    }
-  };
-});
+            description: patchTextDescription(policy.preferred)
+          },
+        },
+      },
+    };
+  });
 }
 
 // =============================================================================

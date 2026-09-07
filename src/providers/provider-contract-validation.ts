@@ -7,7 +7,7 @@
 // Wrapper preserves the full ModelAdapter interface.
 // No streaming validation yet — stream() and negotiate() pass through.
 
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelAdapter, ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
@@ -157,7 +157,7 @@ export function withProviderContracts(
     },
 
     // Override complete with request/response contract validation
-    async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+    async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
       const callContext = resolveContext(request);
       try {
         const validatedRequest = validateNormalizedRequest(request);
@@ -165,10 +165,10 @@ export function withProviderContracts(
           ? await withTimeout(
               `provider.complete:${adapter.id}`,
               timeoutMs,
-              () => adapter.complete(validatedRequest),
+              () => adapter.complete(validatedRequest, options),
               (d) => diagSink.emit(d),
             )
-          : await adapter.complete(validatedRequest);
+          : await adapter.complete(validatedRequest, options);
         return validateNormalizedResponse(response);
       } catch (e: unknown) {
         if (e instanceof ContractValidationError && onDiagnostic) {
@@ -190,6 +190,7 @@ export function withProviderContracts(
       ? {
           stream: async function* (
             request: NormalizedRequest,
+            options?: ModelCallOptions,
           ): AsyncGenerator<StreamChunk> {
             const callContext = resolveContext(request);
 
@@ -203,7 +204,7 @@ export function withProviderContracts(
               throw e;
             }
 
-            const rawStream = adapter.stream!(request);
+            const rawStream = adapter.stream!(request, options);
 
             // Wrap with idle timeout when configured
             const timedStream = streamIdleTimeoutMs

@@ -869,15 +869,15 @@ let usage: TokenUsage | undefined;
 let resolvedModel: string | undefined;
 let finishReason: string | undefined;
 
-	// System prompt was built above (before budget assembly). Use the
-	// assembly-admitted system prompt that survived the budget gate.
-	//
-	// ── Model generation ────────────────────────────────────────────
-	// One generation path (runModelTurn) is shared by the main turn AND every
-	// truncation continuation below (continueTruncatedGeneration in helpers.ts).
-	// With an operator-cancel signal armed (Task 6.1) the request/stream is
-	// raced against it; without a signal behaviour is unchanged. Text chunks are
-	// written to stdout by streamToResponse; reasoning never is.
+// System prompt was built above (before budget assembly). Use the
+// assembly-admitted system prompt that survived the budget gate.
+//
+// ── Model generation ────────────────────────────────────────────
+// One generation path (runModelTurn) is shared by the main turn AND every
+// truncation continuation below (continueTruncatedGeneration in helpers.ts).
+// With an operator-cancel signal armed (Task 6.1) the request/stream is
+// raced against it; without a signal behaviour is unchanged. Text chunks are
+// written to stdout by streamToResponse; reasoning never is.
 const runModelTurn = async (
   msgs: NormalizedMessage[],
 ): Promise<{
@@ -920,8 +920,18 @@ const runModelTurn = async (
       maxOutputTokens: contextBudget.requestedMaxOutputTokens,
       context: deps.context,
     };
+    // Task 6.1 — the blocking complete() is BOTH raced against the signal
+    // (prompt release guarantee) AND constructed with it, so an operator
+    // cancel aborts the adapter's in-flight transport request itself (where
+    // the adapter forwards the signal) rather than only unwinding the race.
+    // A transport abort surfaces as a non-retryable provider error that the
+    // race's onRejected swallows — the loop still sees ExecutionCancelledError.
     const resp = await (deps.cancelSignal
-      ? raceWithCancellation(provider.complete(completeReq), deps.cancelSignal, "cancelled by operator")
+      ? raceWithCancellation(
+          provider.complete(completeReq, { signal: deps.cancelSignal }),
+          deps.cancelSignal,
+          "cancelled by operator",
+        )
       : provider.complete(completeReq));
     // C1 fix: restore assignments — the non-streaming path MUST populate
     // text/toolCalls/usage from the provider response.
@@ -970,9 +980,9 @@ const runModelTurn = async (
   return { ...segment, toolCalls: calls };
 };
 
-	// A provider/model call begins and no content has arrived yet — surface the
-	// design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
-	// accepted request, no content"); the first visible chunk moves to STREAMING.
+// A provider/model call begins and no content has arrived yet — surface the
+// design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
+// accepted request, no content"); the first visible chunk moves to STREAMING.
 onProgress?.("model_requested", model.name);
 const generation = await runModelTurn(messages);
 text = generation.text;

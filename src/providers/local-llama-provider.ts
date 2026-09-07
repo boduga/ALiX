@@ -1,5 +1,5 @@
 import { BaseProvider } from "./base.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 import { complete, stream } from "./unified-complete.js";
 import { ensureLlamaServer, type LlamaServerOptions } from "./local-llama-launcher.js";
 import type { LocalLlamaKnobConfig } from "../config/schema.js";
@@ -93,22 +93,31 @@ export class LocalLlamaProvider extends BaseProvider {
     }
   }
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
     await this.ensureRunning();
-    return complete("local-llama", this._model, request, { apiKey: this._apiKey });
+    return complete("local-llama", this._model, request, {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
     await this.ensureRunning();
     // Grammar-constrained tool calls are not streamed (resolution #611 §5):
     // use the non-streaming path so fromResponse can parse tool JSON.
     if (request.tools && request.tools.length > 0 && !request.structuredOutputSchema) {
-      const res = await complete("local-llama", this._model, { ...request, stream: false }, { apiKey: this._apiKey });
+      const res = await complete("local-llama", this._model, { ...request, stream: false }, {
+        apiKey: this._apiKey,
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
       if (res.text) yield { type: "text_delta", text: res.text };
       for (const tc of res.toolCalls) yield { type: "tool_call", toolCall: tc };
       yield { type: "done" };
       return;
     }
-    yield* stream("local-llama", this._model, request, { apiKey: this._apiKey });
+    yield* stream("local-llama", this._model, request, {
+      apiKey: this._apiKey,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
   }
 }

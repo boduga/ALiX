@@ -1,6 +1,6 @@
-import { BaseProvider } from "./base.js";
+import { BaseProvider, mergeSignals } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type OllamaConfig = {
   apiKey?: string;
@@ -42,17 +42,20 @@ export class OllamaProvider extends BaseProvider {
     });
   }
 
-  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+  async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
+    // The adapter's own wall-clock timeout is a hard ceiling; an operator
+    // cancel signal (ModelCallOptions.signal) aborts the request EARLIER.
+    // mergeSignals keeps both: whichever fires first aborts the fetch.
     return complete("ollama", this._model, request, {
       apiKey: this._apiKey,
-      signal: AbortSignal.timeout(this._timeoutMs),
+      signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
     });
   }
 
-  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+  async *stream(request: NormalizedRequest, options?: ModelCallOptions): AsyncGenerator<StreamChunk> {
     yield* stream("ollama", this._model, request, {
       apiKey: this._apiKey,
-      signal: AbortSignal.timeout(this._timeoutMs),
+      signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
     });
   }
 }
