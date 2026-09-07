@@ -2,11 +2,10 @@
  * src/tracing/with-timeout.ts
  *
  * Shared bounded-wait helper for the tracing module's bounded-flush /
- * bounded-shutdown contract (design §12-14, §23). Recon (plan Task 1) found no
- * generic promise-timeout helper in the repo (src/utils and src/runtime have
- * none), so this small module-scoped friend exists so the Langfuse adapter can
- * bound how long it waits on SDK transport (`flushAsync`/`shutdownAsync`)
- * without ever letting a hung SDK delay or fail ALiX execution.
+ * bounded-shutdown contract (design §12-14, §23). This small module-scoped
+ * friend lets the Langfuse adapter bound how long it waits on SDK transport
+ * (`flushAsync`/`shutdownAsync`) without ever letting a hung SDK delay or fail
+ * ALiX execution.
  *
  * NOTE — `src/runtime/side-effect-timeout.ts` also exports a `withTimeout`
  * (pre-T13, from #172). The two are deliberately different: the runtime
