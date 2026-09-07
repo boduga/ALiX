@@ -1,0 +1,562 @@
+/**
+ * src/tracing/langfuse-client.ts
+ *
+ * The Langfuse v3 SDK adapter — the ONLY file in the repo allowed to import
+ * `langfuse` (design §1, src/tracing/AGENTS.md). Every other module depends on
+ * the provider-agnostic {@link TraceClient} facade; replacing Langfuse means
+ * replacing this file, the dependency, and config — never the runtime seams.
+ *
+ * The adapter translates ALiX-run semantics into Langfuse operations:
+ *
+ * - one ALiX runId  → one Langfuse trace (id = runId, design §14)
+ * - one physical model request → one Langfuse *generation* (design §18/§20)
+ * - one physical tool call → one Langfuse *span* (design §21)
+ *
+ * ALiX statuses are kept in `metadata.alix.status`; Langfuse `level`/`statusMessage`
+ * are derived (success/cancelled → DEFAULT; error → ERROR). Langfuse has no
+ * "cancelled" level, so a cancelled span/run stays DEFAULT and carries the
+ * cancellation in `metadata.alix.status`.
+ *
+ * All input/output/args payloads pass through the capture policy
+ * (src/tracing/capture.ts) before reaching the SDK: mandatory redaction runs
+ * before truncation and can never be bypassed (design §6-8). Identity fields
+ * (runId/actor/provider/… ids) are not payload text and are recorded as-is.
+ *
+ * Failure contract (design §11-12): lifecycle methods are synchronous, cheap,
+ * enqueue-only, and NEVER throw into agent execution. `flush()`/`shutdown()`
+ * delegate to the SDK, never reject, and the bounded wait is applied by the
+ * caller (Tasks 13/14). Construction MAY throw on a genuinely invalid config
+ * (missing baseUrl, non-http(s) baseUrl, empty keys, leftover unresolved
+ * `cred://` refs) — the factory (Task 9) catches it → warn-once → Noop.
+ *
+ * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md
+ * Created by: Task 7 (implement the Langfuse adapter) of
+ *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
+ */
+
+import Langfuse from "langfuse";
+import type {
+  LangfuseGenerationClient,
+  LangfuseSpanClient,
+  LangfuseTraceClient as SdkTraceClient,
+} from "langfuse";
+
+import type { TracingConfig } from "../config/schema.js";
+import {
+  captureMessages,
+  captureString,
+  captureToolArgs,
+  type CaptureLevel,
+} from "./capture.js";
+import type { TraceClient } from "./client.js";
+import type {
+  ModelSpanInput,
+  RunOutcome,
+  SpanOutcome,
+  SpanStatus,
+  ToolSpanInput,
+  TraceRun,
+  TraceRunInput,
+  TraceSpan,
+} from "./types.js";
+
+// ---------------------------------------------------------------------------
+// Module helpers
+// ---------------------------------------------------------------------------
+
+/** Shared inert span handle returned for unknown/ended runs (design §3). */
+const NOOP_SPAN = Object.freeze({}) as unknown as TraceSpan;
+
+/** A frozen run handle whose only readable state is the ALiX runId. */
+function makeRunHandle(runId: string): TraceRun {
+  return Object.freeze({ runId }) as unknown as TraceRun;
+}
+
+function isFiniteNumber(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** Epoch ms → ISO-8601 date-time string (Langfuse body format), else undefined. */
+function toIso(ms?: number): string | undefined {
+  return isFiniteNumber(ms) ? new Date(ms).toISOString() : undefined;
+}
+
+function durationMs(startedAt?: number, endedAt?: number): number | undefined {
+  if (!isFiniteNumber(startedAt) || !isFiniteNumber(endedAt)) return undefined;
+  if (endedAt < startedAt) return undefined;
+  return endedAt - startedAt;
+}
+
+/** Drop `undefined`-valued keys so optional SDK/metadata fields are omitted. */
+function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out as Partial<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Status → Langfuse semantics
+// ---------------------------------------------------------------------------
+
+/**
+ * Langfuse observation level for a terminal status. Langfuse has no
+ * "cancelled" level — cancellation is a normal (non-failure) terminal, so it
+ * maps to DEFAULT and the ALiX status is preserved in `metadata.alix.status`.
+ */
+function levelForStatus(status: SpanStatus): "DEFAULT" | "ERROR" {
+  return status === "error" ? "ERROR" : "DEFAULT";
+}
+
+// ---------------------------------------------------------------------------
+// Active-run registry + span handles
+// ---------------------------------------------------------------------------
+
+/** Per-run state. `sdkTrace` is null only when trace creation failed fail-soft. */
+interface RunRecord {
+  readonly input: TraceRunInput;
+  readonly sdkTrace: SdkTraceClient | null;
+  readonly handle: TraceRun;
+  /** `metadata.alix` identity keys, re-emitted on end (update replaces). */
+  readonly alix: Record<string, unknown>;
+}
+
+type SpanKind = "model" | "tool";
+
+interface SpanRecord {
+  readonly kind: SpanKind;
+  readonly input: ModelSpanInput | ToolSpanInput;
+  readonly sdk: LangfuseGenerationClient | LangfuseSpanClient;
+  /** `metadata.alix` identity keys, re-emitted on end. */
+  readonly alix: Record<string, unknown>;
+  /** Terminal state: repeated endSpan must not enqueue a second terminal op. */
+  ended: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Adapter
+// ---------------------------------------------------------------------------
+
+/**
+ * Langfuse-backed {@link TraceClient}.
+ *
+ * @remarks
+ * ALiX handles (TraceRun/TraceSpan) map internally to Langfuse trace /
+ * generation / span objects; those SDK objects and their ids never escape.
+ * Spans are created as direct children of the run's trace — no parent/child
+ * is inferred from call order (design §21/§22); run-level parent linkage is
+ * metadata-only here and refined by Task 8.
+ *
+ * @param config — resolved `tracing` config section. Constructed by the
+ * factory (Task 9) only when `enabled === true`; may throw on invalid config.
+ */
+export class LangfuseTraceClient implements TraceClient {
+  private readonly sdk: Langfuse;
+
+  /** Capture levels/limits resolved from config (single source: src/config). */
+  private readonly messagesLevel: CaptureLevel;
+  private readonly reasoningLevel: CaptureLevel;
+  private readonly toolInputLevel: CaptureLevel;
+  private readonly toolOutputLevel: CaptureLevel;
+  private readonly maxMessageChars: number;
+  private readonly maxToolOutputChars: number;
+
+  private readonly runsByRunId = new Map<string, RunRecord>();
+  private readonly recordByRun = new WeakMap<object, RunRecord>();
+  private readonly recordBySpan = new WeakMap<object, SpanRecord>();
+  private shutdownDone = false;
+
+  constructor(config: TracingConfig) {
+    if (config.enabled !== true) {
+      throw new Error(
+        "LangfuseTraceClient requires tracing.enabled === true; construct it only when tracing is enabled",
+      );
+    }
+
+    const langfuse = config.langfuse;
+    const baseUrl = (langfuse?.baseUrl ?? "").trim();
+    const publicKey = (langfuse?.publicKey ?? "").trim();
+    const secretKey = langfuse?.secretKey ?? "";
+
+    // Genuine invalid-config throw → factory (Task 9) catches → warn-once Noop
+    // (design §11). Never a transient/network condition.
+    if (baseUrl.length === 0) {
+      throw new Error(
+        "LangfuseTraceClient: tracing.langfuse.baseUrl is empty; set it to your Langfuse instance URL",
+      );
+    }
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(baseUrl);
+    } catch {
+      throw new Error(
+        `LangfuseTraceClient: tracing.langfuse.baseUrl is not a valid URL: ${baseUrl}`,
+      );
+    }
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error(
+        `LangfuseTraceClient: tracing.langfuse.baseUrl must be http(s), got ${parsedUrl.protocol}`,
+      );
+    }
+    if (publicKey.length === 0 || secretKey.length === 0) {
+      throw new Error(
+        "LangfuseTraceClient: tracing.langfuse.publicKey/secretKey are required when tracing is enabled",
+      );
+    }
+    // Config load (Task 6) leaves unresolved `cred://` references in place and
+    // warns; a leftover reference is an unresolvable credential (design §11).
+    if (publicKey.startsWith("cred://") || secretKey.startsWith("cred://")) {
+      throw new Error(
+        "LangfuseTraceClient: tracing.langfuse credential references are unresolved " +
+          "(store them with `alix credential set langfuse …`)",
+      );
+    }
+
+    const capture = config.capture;
+    this.messagesLevel = capture?.messages ?? "truncated";
+    this.reasoningLevel = capture?.reasoning ?? "off";
+    this.toolInputLevel = capture?.toolInput ?? "truncated";
+    this.toolOutputLevel = capture?.toolOutput ?? "truncated";
+    this.maxMessageChars = capture?.maxMessageChars ?? 4000;
+    this.maxToolOutputChars = capture?.maxToolOutputChars ?? 2000;
+
+    // Always pass explicit values so the SDK never falls back to environment
+    // variables (keys resolve store-only; src/tracing/AGENTS.md).
+    this.sdk = new Langfuse({ baseUrl, publicKey, secretKey });
+  }
+
+  // -------------------------------------------------------------------------
+  // Run lifecycle
+  // -------------------------------------------------------------------------
+
+  startRun(input: TraceRunInput): TraceRun {
+    const existing = this.runsByRunId.get(input.runId);
+    if (existing) return existing.handle;
+
+    const handle = makeRunHandle(input.runId);
+    const alix = this.buildRunAlix(input);
+
+    // Fail-soft: if even trace creation throws (never expected — enqueue only),
+    // still register the run so lifecycle is idempotent; its spans become noops.
+    let sdkTrace: SdkTraceClient | null = null;
+    try {
+      sdkTrace = this.sdk.trace(
+        defined({
+          id: input.runId,
+          name: input.task
+            ? captureString(input.task, "truncated", { maxChars: 120 })
+            : undefined,
+          timestamp: toIso(input.startedAt),
+          sessionId: input.sessionId,
+          metadata: { alix },
+        }) as Parameters<Langfuse["trace"]>[0],
+      );
+    } catch {
+      // Swallow (design §11): a tracing failure must never break agent execution.
+    }
+
+    const record: RunRecord = { input, sdkTrace, handle, alix };
+    this.runsByRunId.set(input.runId, record);
+    this.recordByRun.set(handle, record);
+    return handle;
+  }
+
+  getRun(runId: string): TraceRun | null {
+    return this.runsByRunId.get(runId)?.handle ?? null;
+  }
+
+  endRun(run: TraceRun, outcome: RunOutcome): void {
+    const record = this.recordByRun.get(run as object);
+    if (!record) return; // unknown or already-ended run → no-op (design §3)
+
+    // Unregister FIRST so repeated endRun no-ops even if the SDK call throws.
+    this.runsByRunId.delete(record.input.runId);
+    this.recordByRun.delete(record.handle as object);
+    if (!record.sdkTrace) return; // trace creation had failed; nothing to finish
+
+    const alix = {
+      ...record.alix,
+      status: outcome.status,
+      endedAtMs: outcome.endedAt,
+      durationMs: durationMs(record.input.startedAt, outcome.endedAt),
+      ...defined({ error: this.captureError(outcome.error) }),
+    };
+    try {
+      record.sdkTrace.update(
+        defined({ metadata: { alix } }) as Parameters<SdkTraceClient["update"]>[0],
+      );
+    } catch {
+      // Swallow (design §11).
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Spans
+  // -------------------------------------------------------------------------
+
+  startModelSpan(run: TraceRun, input: ModelSpanInput): TraceSpan {
+    const record = this.recordByRun.get(run as object);
+    if (!record?.sdkTrace) return NOOP_SPAN; // unknown/ended run → noop span
+
+    const inputMessages =
+      input.messages !== undefined && input.messages.length > 0
+        ? captureMessages(input.messages, this.messagesLevel, {
+            maxChars: this.maxMessageChars,
+          })
+        : undefined;
+    // Fall back to the standalone system prompt when there is no message array.
+    const capturedInput =
+      inputMessages ??
+      (input.systemPrompt !== undefined
+        ? captureString(input.systemPrompt, this.messagesLevel, {
+            maxChars: this.maxMessageChars,
+          })
+        : undefined);
+
+    const alix = this.buildModelAlix(input);
+    try {
+      const sdk = record.sdkTrace.generation(
+        defined({
+          name: input.resolvedModel ?? input.model,
+          model: input.resolvedModel ?? input.model,
+          input: capturedInput,
+          startTime: toIso(input.startedAt),
+          metadata: { alix },
+        }) as Parameters<SdkTraceClient["generation"]>[0],
+      );
+      return this.registerSpan("model", input, sdk, alix);
+    } catch {
+      // Swallow (design §11).
+      return NOOP_SPAN;
+    }
+  }
+
+  startToolSpan(run: TraceRun, input: ToolSpanInput): TraceSpan {
+    const record = this.recordByRun.get(run as object);
+    if (!record?.sdkTrace) return NOOP_SPAN; // unknown/ended run → noop span
+
+    const capturedArgs =
+      input.args !== undefined
+        ? captureToolArgs(input.args, this.toolInputLevel, {
+            maxChars: this.maxMessageChars,
+          })
+        : undefined;
+
+    const alix = this.buildToolAlix(input);
+    try {
+      const sdk = record.sdkTrace.span(
+        defined({
+          name: input.toolName,
+          input: capturedArgs,
+          startTime: toIso(input.startedAt),
+          metadata: { alix },
+        }) as Parameters<SdkTraceClient["span"]>[0],
+      );
+      return this.registerSpan("tool", input, sdk, alix);
+    } catch {
+      // Swallow (design §11).
+      return NOOP_SPAN;
+    }
+  }
+
+  endSpan(span: TraceSpan, outcome: SpanOutcome): void {
+    const record = this.recordBySpan.get(span as object);
+    if (!record || record.ended) return; // unknown/ended span → no-op
+    record.ended = true;
+
+    const error = this.captureError(outcome.error);
+    const alix = {
+      ...record.alix,
+      ...this.buildSpanTerminalAlix(record, outcome, error),
+    };
+    const level = levelForStatus(outcome.status);
+
+    try {
+      if (record.kind === "model") {
+        const sdk = record.sdk as LangfuseGenerationClient;
+        const usage = this.buildUsage(outcome.inputTokens, outcome.outputTokens);
+        sdk.end(
+          defined({
+            output: this.captureModelOutput(outcome),
+            ...(usage ? { usage } : {}),
+            level,
+            statusMessage: error,
+            metadata: { alix },
+          }) as Parameters<LangfuseGenerationClient["end"]>[0],
+        );
+      } else {
+        const sdk = record.sdk as LangfuseSpanClient;
+        sdk.end(
+          defined({
+            output: this.captureToolOutput(outcome),
+            level,
+            statusMessage: error,
+            metadata: { alix },
+          }) as Parameters<LangfuseSpanClient["end"]>[0],
+        );
+      }
+    } catch {
+      // Swallow (design §11).
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Transport
+  // -------------------------------------------------------------------------
+
+  async flush(): Promise<void> {
+    try {
+      await this.sdk.flushAsync();
+    } catch {
+      // Fail-open (design §12): flush must never reject into agent execution.
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.shutdownDone) return;
+    this.shutdownDone = true;
+    try {
+      await this.sdk.shutdownAsync();
+    } catch {
+      // Fail-open (design §12/§14).
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Internal plumbing
+  // -------------------------------------------------------------------------
+
+  private registerSpan(
+    kind: SpanKind,
+    input: ModelSpanInput | ToolSpanInput,
+    sdk: LangfuseGenerationClient | LangfuseSpanClient,
+    alix: Record<string, unknown>,
+  ): TraceSpan {
+    const handle = Object.freeze({}) as unknown as TraceSpan;
+    this.recordBySpan.set(handle, { kind, input, sdk, alix, ended: false });
+    return handle;
+  }
+
+  // --- metadata builders ----------------------------------------------------
+
+  private buildRunAlix(input: TraceRunInput): Record<string, unknown> {
+    return {
+      kind: "run",
+      runId: input.runId,
+      ...defined({
+        sessionId: input.sessionId,
+        workflowId: input.workflowId,
+        parentRunId: input.parentRunId,
+        actor: input.actor,
+        task:
+          input.task !== undefined
+            ? captureString(input.task, "truncated", {
+                maxChars: this.maxMessageChars,
+              })
+            : undefined,
+        startedAtMs: input.startedAt,
+      }),
+    };
+  }
+
+  private buildModelAlix(input: ModelSpanInput): Record<string, unknown> {
+    return {
+      kind: "model",
+      ...defined({
+        provider: input.provider,
+        model: input.model,
+        resolvedModel: input.resolvedModel,
+        invocationId: input.invocationId,
+        stream: input.stream,
+        startedAtMs: input.startedAt,
+      }),
+    };
+  }
+
+  private buildToolAlix(input: ToolSpanInput): Record<string, unknown> {
+    return {
+      kind: "tool",
+      toolName: input.toolName,
+      ...defined({
+        capability: input.capability,
+        toolCallId: input.toolCallId,
+        invocationId: input.invocationId,
+        executionId: input.executionId,
+        startedAtMs: input.startedAt,
+      }),
+    };
+  }
+
+  private buildSpanTerminalAlix(
+    record: SpanRecord,
+    outcome: SpanOutcome,
+    error: string | undefined,
+  ): Record<string, unknown> {
+    const terminal: Record<string, unknown> = defined({
+      endedAtMs: outcome.endedAt,
+      durationMs: durationMs(record.input.startedAt, outcome.endedAt),
+      error,
+    });
+    if (record.kind === "model") {
+      return {
+        ...terminal,
+        ...defined({
+          status: outcome.status,
+          finishReason: outcome.finishReason,
+          inputTokens: outcome.inputTokens,
+          outputTokens: outcome.outputTokens,
+          reasoning: this.captureReasoning(outcome),
+        }),
+      };
+    }
+    return { status: outcome.status, ...terminal };
+  }
+
+  // --- capture integration ---------------------------------------------------
+
+  /** Model output text capture — no dedicated config mode exists; see report. */
+  private captureModelOutput(outcome: SpanOutcome): string | undefined {
+    if (outcome.output === undefined) return undefined;
+    return captureString(outcome.output, this.messagesLevel, {
+      maxChars: this.maxMessageChars,
+    });
+  }
+
+  private captureReasoning(outcome: SpanOutcome): string | undefined {
+    if (outcome.reasoning === undefined) return undefined;
+    return captureString(outcome.reasoning, this.reasoningLevel, {
+      maxChars: this.maxMessageChars,
+    });
+  }
+
+  private captureToolOutput(outcome: SpanOutcome): string | undefined {
+    if (outcome.output === undefined) return undefined;
+    return captureString(outcome.output, this.toolOutputLevel, {
+      maxChars: this.maxToolOutputChars,
+    });
+  }
+
+  /**
+   * Error text has no capture-level toggle (it is diagnostic, small, and always
+   * redacted): capture at "truncated" under the message char budget.
+   */
+  private captureError(error: string | undefined): string | undefined {
+    if (error === undefined) return undefined;
+    return captureString(error, "truncated", { maxChars: this.maxMessageChars });
+  }
+
+  private buildUsage(
+    inputTokens: number | undefined,
+    outputTokens: number | undefined,
+  ): { input: number; output: number; unit: "TOKENS" } | undefined {
+    if (!isFiniteNumber(inputTokens) && !isFiniteNumber(outputTokens)) {
+      return undefined;
+    }
+    return {
+      input: inputTokens ?? 0,
+      output: outputTokens ?? 0,
+      unit: "TOKENS",
+    };
+  }
+}
