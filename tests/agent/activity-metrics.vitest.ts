@@ -131,6 +131,7 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     expect(stateLabels).toContain("thinking");
     expect(stateLabels).toContain("verifying");
     expect(stateLabels).toContain("summarizing");
+    expect(stateLabels).toContain("completed");
     for (const s of states) {
       expect(s.type).toBe("gauge");
       expect(s.value).toBe(1);
@@ -174,6 +175,7 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     const durations = rowsNamed("agent_activity_duration_ms");
     expect(durations).toHaveLength(1);
     expect(durations[0]!.labels?.state).toBe("failed");
+    expect(rowsNamed("agent_activity_state").map((r) => r.labels?.state)).toContain("failed");
   });
 
   it("thrown loop error records exactly one failed counter + failed duration and rejects", async () => {
@@ -193,6 +195,8 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     const durations = rowsNamed("agent_activity_duration_ms");
     expect(durations).toHaveLength(1);
     expect(durations[0]!.labels?.state).toBe("failed");
+    // Terminal activity state fed before the turn unwound (gauge + history).
+    expect(rowsNamed("agent_activity_state").map((r) => r.labels?.state)).toContain("failed");
   });
 
   it("ExecutionCancelledError records cancelled counter (never failed) + cancelled duration", async () => {

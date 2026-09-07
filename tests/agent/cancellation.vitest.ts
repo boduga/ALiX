@@ -220,6 +220,44 @@ describe("operator cancellation of an agent turn (Tasks 6.1-6.3)", () => {
     expect(session.getLastCancelSummary?.()).toBeUndefined();
   });
 
+  it("a provider-level abort (AbortError name / 408 shape) is a FAILURE, never an operator cancel", async () => {
+    const { createAgentSession, isCancellationError } = await import("../../src/agent/session.js");
+    // The predicate itself: a provider-internal abort is NOT an operator
+    // cancel; only ExecutionCancelledError is.
+    const providerAbort = new Error("The operation was aborted");
+    providerAbort.name = "AbortError"; // AbortSignal.timeout / fetch abort shape
+    expect(isCancellationError(providerAbort)).toBe(false);
+    expect(isCancellationError(new Error("boom"))).toBe(false);
+    const { ExecutionCancelledError } = await import("../../src/runtime/cancellation-token.js");
+    expect(isCancellationError(new ExecutionCancelledError("operator stop"))).toBe(true);
+
+    // End-to-end: a provider abort thrown out of the loop is classified
+    // FAILED (workflow.failed, failed counter, failed activity) — never
+    // CANCELLED (no workflow.cancelled, no cancelled counter, no summary).
+    configureSessionMocks();
+    mocks.runTaskLoop.mockRejectedValue(providerAbort);
+
+    const session = createAgentSession({ cwd: testCwd, task: "", planMode: false });
+    await expect(session.processTurn("run")).rejects.toThrow("aborted");
+
+    expect(rowsNamed("agent_invocation_failed_total")).toHaveLength(1);
+    expect(rowsNamed("agent_invocation_cancelled_total")).toHaveLength(0);
+    const durations = rowsNamed("agent_activity_duration_ms");
+    expect(durations).toHaveLength(1);
+    expect(durations[0]!.labels?.state).toBe("failed");
+    expect(session.getLastCancelSummary?.()).toBeUndefined();
+
+    // Workflow/activity terminal states: failed, not cancelled.
+    const types = (mocks.append.mock.calls as unknown as Array<Array<{ type: string }>>)
+      .map((call) => call[0]?.type);
+    expect(types).toContain("task.failed");
+    expect(types).toContain("workflow.failed");
+    expect(types).not.toContain("workflow.cancelled");
+    const states = activityStates();
+    expect(states[states.length - 1]).toBe("failed");
+    expect(states).not.toContain("cancelled");
+  });
+
   it("completing a turn then cancelling reports false and leaves no stale summary", async () => {
     const { createAgentSession } = await import("../../src/agent/session.js");
     configureSessionMocks();

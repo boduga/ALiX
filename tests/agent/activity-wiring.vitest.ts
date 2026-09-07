@@ -226,8 +226,10 @@ describe("activity wiring in processTurn (Tasks 2.1-2.4)", () => {
 
     const states = activityStates();
     // thinking → tool_running → thinking → streaming → verifying → summarizing
-    expect(states[states.length - 2]).toBe("verifying");
-    expect(states[states.length - 1]).toBe("summarizing");
+    // → completed (the terminal state is fed before the record clears).
+    expect(states[states.length - 3]).toBe("verifying");
+    expect(states[states.length - 2]).toBe("summarizing");
+    expect(states[states.length - 1]).toBe("completed");
     // Internal phases must NOT leak into the activity feed.
     expect(states).not.toContain("Understanding");
     expect(states).not.toContain("Executing");

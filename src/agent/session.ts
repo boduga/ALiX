@@ -532,16 +532,19 @@ export function livenessEventType(state: AgentLivenessState): string {
 
 /**
  * Distinguish an operator/execution cancellation from a genuine failure.
- * Cancellation propagates as an ExecutionCancelledError (or an AbortError);
- * anything else thrown out of the loop is a failure. A stall warning is
- * neither — the watchdog never terminates, so a stall alone never reaches
- * this predicate.
+ * Operator cancels surface exclusively as an ExecutionCancelledError — the
+ * stream pump and raceWithCancellation throw it explicitly on the operator's
+ * abort signal. ONLY that type (matched by class, with a name fallback for a
+ * cross-realm copy) is a cancellation. A provider-internal abort (e.g.
+ * AbortSignal.timeout at the transport, or a 408-style timeout error) is NOT
+ * an operator cancel and must stay a failure. A stall warning is neither —
+ * the watchdog never terminates, so a stall alone never reaches this
+ * predicate.
  */
 export function isCancellationError(err: unknown): boolean {
-  if (err instanceof ExecutionCancelledError) return true;
   return (
-    err instanceof Error &&
-    (err.name === "AbortError" || err.name === "ExecutionCancelledError")
+    err instanceof ExecutionCancelledError ||
+    (err instanceof Error && err.name === "ExecutionCancelledError")
   );
 }
 
@@ -1773,6 +1776,14 @@ export class AgentSessionBuilder {
           });
           metrics.increment("agent_invocation_failed_total");
           recordTerminalOutcome("failed");
+          // Terminal activity state: the live record resolves to `failed` so
+          // the gauge/event history show the true outcome (mirrors the
+          // cancelled branch's feed above). The success-path flush below is
+          // never reached when the loop throws, so this feed lands in the
+          // shared catch-path flush.
+          if (activeActivity && activeActivity.state !== "failed") {
+            feedActivity("failed");
+          }
         }
         // Persist the failure/cancellation-path rows: the success-path flush
         // below is never reached when the loop throws.
@@ -1935,8 +1946,18 @@ export class AgentSessionBuilder {
       if (isFailed) {
         metrics.increment("agent_invocation_failed_total");
         recordTerminalOutcome("failed");
+        // Terminal activity state: a result-reason failure resolves to
+        // `failed` so the gauge/event history show the true outcome (the
+        // cancelled path feeds `cancelled`; the success path feeds
+        // `completed`). Fed BEFORE the flush so the gauge sample lands.
+        if (activeActivity && activeActivity.state !== "failed") {
+          feedActivity("failed");
+        }
       } else {
         recordTerminalOutcome("completed");
+        if (activeActivity && activeActivity.state !== "completed") {
+          feedActivity("completed");
+        }
       }
 
       // Flush minimal metrics (workflow duration + activity/liveness rows)
