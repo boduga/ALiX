@@ -426,6 +426,118 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
     }
   });
 
+  // ── §16 guard — a pathological N-chunk stream retains bounded state ───────
+  // Design §16 ("Backpressure and Memory") requires bounded stream buffers /
+  // event queues for an indefinitely running invocation. Removing the 120s
+  // deadline must NOT remove resource boundaries. This guard locks what the
+  // runtime ACTUALLY guarantees on the live streaming path (read the code
+  // before trusting these — each claim below is an enforced property):
+  //
+  //   1. NO per-chunk event-log rows. `feedActivity` (session.ts) appends an
+  //      `agent.session.activity` row ONLY on a state TRANSITION; a text chunk
+  //      received while already STREAMING takes the inline `transition` path
+  //      (session.ts livenessOnStream) which updates the single retained
+  //      `activeActivity` record in place and appends nothing. The liveness
+  //      mark is debounced (AgentLiveness.chunkDebounceMs), the watchdog
+  //      appends only on liveness-state transitions, and the loop emits one
+  //      `agent.message` per GENERATION — so N chunks → O(transitions) rows,
+  //      never O(N).
+  //   2. Per-generation output is a single merged store. The whole streamed
+  //      text is concatenated into ONE buffer and emitted as ONE `agent.message`
+  //      row when the generation completes — the response itself, not a
+  //      per-chunk log or history.
+  //   3. Progress accounting is bounded. `AgentLiveness` debounces the hot
+  //      per-chunk `model_chunk` marks, so the retained snapshot's progress
+  //      count stays far below the chunk count for a pathological stream.
+  //
+  // These are the honest bounds behind §16's "no unbounded event or output
+  // buffering was introduced" acceptance item: the accumulation is O(1) per
+  // chunk (single text buffer + single activity record + debounced liveness
+  // fields), and the durable event log grows with state transitions, never
+  // with tokens.
+  it("7.2 companion — §16 backpressure: a 300-chunk stream appends ZERO per-chunk event-log rows, keeps ONE live activity record, and merges ONE agent.message (bounded retention, not per-chunk growth)", async () => {
+    // This guard does NOT need the fake clock (no wall-clock boundary to
+    // cross) — it needs real event-loop progress + real log flushes so the
+    // row-count assertions see every append. Real timers make the whole storm
+    // drain in milliseconds instead of fake-timer-advanced seconds.
+    vi.useRealTimers();
+    const h = await buildHarness({ streaming: true, onStream: vi.fn() });
+    // Yield to the event loop so the session's fire-and-forget log appends
+    // and the in-flight turn can make progress between operations.
+    const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
+    try {
+      const session = await h.createSession();
+      const turn = session.processTurn("say hello");
+      await h.provider.entered;
+
+      // First visible chunk → the activity record enters STREAMING exactly once.
+      h.provider.push({ type: "text_delta", text: "Hello " });
+      await tick();
+      await tick();
+      expect(session.getActivity()?.state).toBe("streaming");
+
+      // Settle the fire-and-forget appends so the pre-storm log count is stable.
+      async function stableRowCount(): Promise<number> {
+        for (let attempt = 0; attempt < 20; attempt++) {
+          const a = (await h.eventLog.readAll()).length;
+          await new Promise((r) => setTimeout(r, 50));
+          const b = (await h.eventLog.readAll()).length;
+          if (a === b) return a;
+        }
+        return (await h.eventLog.readAll()).length;
+      }
+      const baseline = await stableRowCount();
+      const baselineActivityRows = (await h.eventLog.readAll())
+        .filter((e) => e.type === "agent.session.activity").length;
+
+      // Pathological stream: 300 single-char chunks while already STREAMING.
+      const N = 300;
+      for (let i = 0; i < N; i++) {
+        h.provider.push({ type: "text_delta", text: "a" });
+      }
+      // Let the consumer drain the whole queued storm (microtask-continuous,
+      // so a few macrotask yields are plenty) and the log flush settle.
+      for (let i = 0; i < 30; i++) await tick();
+      await stableRowCount();
+      expect(session.getActivity()?.state).toBe("streaming");
+
+      // The N-chunk storm retained ZERO new event-log rows: no per-chunk
+      // activity rows, no per-chunk metrics, no per-chunk message rows.
+      const rowsDuringStream = (await h.eventLog.readAll()).length - baseline;
+      expect(rowsDuringStream).toBe(0);
+
+      // The retained live activity record is a single record (the current
+      // STREAMING record), and liveness progress accounting is debounced —
+      // progressCount is far below N even though every chunk flowed through.
+      expect(session.getActivity()?.state).toBe("streaming");
+      const progressCount = session.getLiveness()?.progressCount ?? 0;
+      expect(progressCount).toBeLessThan(N / 2);
+
+      // Close the stream → the generation completes and the WHOLE streamed
+      // text is emitted as exactly ONE merged agent.message (never N rows).
+      h.provider.push({ type: "text_delta", text: "all done. Done." });
+      h.provider.push(STREAM_END);
+      const result = await turn;
+      expect(result.summary).toBe(`Hello ${"a".repeat(N)}all done. Done.`);
+      expect(result.reason).toBe("completed");
+
+      await stableRowCount();
+      const all = await h.eventLog.readAll();
+      const messageRows = all.filter((e) => e.type === "agent.message");
+      expect(messageRows).toHaveLength(1);
+      expect((messageRows[0]!.payload as { text: string }).text).toBe(
+        `Hello ${"a".repeat(N)}all done. Done.`,
+      );
+      // Activity history grew only by the terminal transitions — never by N.
+      const activityRowsAfter = all.filter((e) => e.type === "agent.session.activity").length;
+      expect(activityRowsAfter - baselineActivityRows).toBeLessThanOrEqual(4);
+      // No per-chunk metric rows were produced either.
+      expect(all.filter((e) => e.type === "observability.metric" && (e.payload as { name?: string }).name === "model_calls_total")).toHaveLength(1);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   // ── Test 7.3 — Silent model processing: invisible reasoning, Thinking… ──
   it("7.3 — reasoning-only generation past 120s keeps the run alive in the Thinking family (no visible text, no stall, no reasoning leak)", async () => {
     const visible = vi.fn<(chunk: { type: string; text?: string }) => void>();
