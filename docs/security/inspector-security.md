@@ -159,6 +159,7 @@ Before starting, ALiX performs a safety check:
 
 - **Loopback hosts** (127.0.0.1, localhost, ::1): allowed; the development
   authentication mode emits a warning.
-- **0.0.0.0**: allowed with a visible warning recommending loopback.
+- **0.0.0.0**: rejected when authentication is disabled; required
+  authentication still produces a visible warning recommending loopback.
 - **Other non-loopback hosts**: require authentication and approved remote
   access/TLS configuration.

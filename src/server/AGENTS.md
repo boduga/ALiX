@@ -6,8 +6,9 @@
 - `server.ts` — All route handlers: sessions (SSE, snapshot, comparison), graphs (list, projection), registry (agents, tools), policy (rules, eval), approvals, audit.
 
 **Local Contracts:**
-- Data API routes are read-only GET. The only POST routes are authentication
-  session exchange/logout; no HTTP route may execute agent actions.
+- Data API routes are read-only GET except for the read-only evidence-integrity
+  verification endpoint. Authentication session exchange/logout are the other
+  POST routes; no HTTP route may execute agent actions.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires

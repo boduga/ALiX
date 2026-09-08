@@ -119,6 +119,25 @@ test("disabled-loopback-development on non-loopback host is rejected", () => {
   assert.equal(result.valid, false);
 });
 
+test("unknown authentication mode is rejected", () => {
+  const config = makeConfig({
+    security: {
+      authentication: "requiredd" as any,
+      remoteAccess: false,
+      allowedHosts: ["127.0.0.1"],
+      allowedOrigins: [],
+      trustedProxyCidrs: [],
+      requireTlsForRemote: true,
+    },
+  });
+  const result = validateConfig(config);
+  const authErrors = result.issues.filter(
+    (i) => i.path === "ui.security.authentication" && i.level === "error",
+  );
+  assert.equal(result.valid, false);
+  assert.ok(authErrors.some((i) => i.message.includes("must be required")));
+});
+
 // ── Remote access validation ──
 
 test("remoteAccess: true on non-loopback host is rejected", () => {

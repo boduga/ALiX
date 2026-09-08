@@ -232,6 +232,17 @@ routeRegistry.register({
 });
 
 routeRegistry.register({
+  id: "static.authjs",
+  method: "GET",
+  pathPattern: "/auth.js",
+  pathType: "exact",
+  auth: "public",
+  routeClass: "static",
+  redactionProfile: "public",
+  streaming: false,
+});
+
+routeRegistry.register({
   id: "static.projection",
   method: "GET",
   pathPattern: "/projection.js",
@@ -470,6 +481,18 @@ routeRegistry.register({
 });
 
 routeRegistry.register({
+  id: "api.observability.state",
+  method: "GET",
+  pathPattern: "/api/observability/state",
+  pathType: "exact",
+  auth: "authenticated",
+  permission: "observability:read",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+routeRegistry.register({
   id: "api.observability.stream",
   method: "GET",
   pathPattern: "/api/observability/stream",
@@ -636,6 +659,31 @@ routeRegistry.register({
   redactionProfile: "operational",
   streaming: false,
 });
+
+// ---------------------------------------------------------------------------
+// Route registration — security evidence (authenticated, P4.4d)
+// ---------------------------------------------------------------------------
+
+for (const [id, method, pathPattern, pathType] of [
+  ["api.security.evidence.list", "GET", "/api/security/evidence", "exact"],
+  ["api.security.evidence.query", "GET", "/api/security/evidence/query", "exact"],
+  ["api.security.evidence.health", "GET", "/api/security/evidence/health", "exact"],
+  ["api.security.evidence.stats", "GET", "/api/security/evidence/stats", "exact"],
+  ["api.security.evidence.verify", "POST", "/api/security/evidence/verify", "exact"],
+  ["api.security.evidence.show", "GET", "/api/security/evidence/:fingerprint", "pattern"],
+] as const) {
+  routeRegistry.register({
+    id,
+    method,
+    pathPattern,
+    pathType,
+    auth: "authenticated",
+    permission: "audit:read",
+    routeClass: "data",
+    redactionProfile: "operational",
+    streaming: false,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Route registration — auth routes (public, Sb3)

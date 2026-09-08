@@ -47,6 +47,14 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     // ui.security validation
     const sec = config.ui.security;
     if (sec) {
+      if (!["required", "disabled-loopback-development"].includes(sec.authentication)) {
+        issues.push({
+          path: "ui.security.authentication",
+          level: "error",
+          message: "authentication must be required or disabled-loopback-development",
+        });
+      }
+
       // Reject authentication-disabled mode on non-loopback hosts
       if (sec.authentication === "disabled-loopback-development" && !isLoopbackHost(config.ui.host)) {
         issues.push({ path: "ui.security.authentication", level: "error", message: "Authentication cannot be disabled on a non-loopback host. Set ui.host to 127.0.0.1, ::1, or localhost." });
