@@ -73,6 +73,14 @@ export interface TokenRotationResult {
   previousId: string;
 }
 
+/** Authenticated identity metadata safe to place in request/session context. */
+export interface AuthPrincipal {
+  id: string;
+  name: string;
+  role: string;
+  workspaceIds?: string[];
+}
+
 /** Common rich result for service operations. */
 export type ServiceResult<T> =
   | { ok: true; value: T }
@@ -458,6 +466,43 @@ export class AuthService {
     }
 
     // 6. Success — return principal (no raw token, no hash)
+    this.metrics("token.verified", { status: "ok" });
+    return {
+      ok: true,
+      value: {
+        id: stored.id,
+        name: stored.name,
+        role: stored.role,
+        workspaceIds: stored.workspaceIds,
+      },
+    };
+  }
+
+  /**
+   * Revalidate a principal by token ID without requiring the raw token.
+   *
+   * Browser sessions use this on every request so token revocation, expiry,
+   * and role changes made by another process take effect immediately. The
+   * result never exposes the stored hash or a raw token.
+   */
+  async verifyPrincipalStatus(id: string): Promise<ServiceResult<AuthPrincipal>> {
+    const storeResult = await this.store.get(id);
+    if (!storeResult.ok || !storeResult.value) {
+      this.metrics("token.verification_failed", { status: "failed" });
+      return { ok: false, error: "invalid_token" };
+    }
+
+    const stored = storeResult.value;
+    if (stored.revocation) {
+      this.metrics("token.verification_failed", { status: "failed" });
+      return { ok: false, error: "token_revoked" };
+    }
+
+    if (stored.expiresAt && stored.expiresAt < new Date().toISOString()) {
+      this.metrics("token.verification_failed", { status: "failed" });
+      return { ok: false, error: "token_expired" };
+    }
+
     this.metrics("token.verified", { status: "ok" });
     return {
       ok: true,

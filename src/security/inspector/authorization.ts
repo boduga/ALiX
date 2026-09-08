@@ -9,7 +9,7 @@
  *
  * Rules:
  * - Public routes → always authorized.
- * - Authenticated routes → check context.authenticated.
+ * - Authenticated and SSE routes → check context.authenticated.
  * - Permission check → verify route.permission is in context.permissions.
  * - Fail closed: any error in authorization logic results in deny.
  *
@@ -46,13 +46,9 @@ export function authorize(
       return { ok: true };
     }
 
-    // 2. SSE routes — allow (streaming endpoints handle their own auth in Sb2)
-    if (route.auth === "sse") {
-      return { ok: true };
-    }
-
-    // 3. Authenticated routes — require valid auth
-    if (route.auth === "authenticated") {
+    // 2. Protected routes — both request/response and streaming routes
+    // require a valid principal and their declared permission.
+    if (route.auth === "authenticated" || route.auth === "sse") {
       if (!context.authenticated) {
         return {
           ok: false,
@@ -61,7 +57,7 @@ export function authorize(
         };
       }
 
-      // 4. Permission check (if route declares a required permission)
+      // 3. Permission check (if route declares a required permission)
       if (route.permission && route.permission.length > 0) {
         if (!context.permissions.includes(route.permission)) {
           return {
@@ -75,7 +71,7 @@ export function authorize(
       return { ok: true };
     }
 
-    // 5. Unknown auth mode — fail closed
+    // 4. Unknown auth mode — fail closed
     return {
       ok: false,
       error: "unknown_auth_mode",

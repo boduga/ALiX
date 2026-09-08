@@ -59,10 +59,10 @@ export interface SecurityMiddlewareConfig {
   /** Pre-configured secret detector. */
   detector: SecretDetector;
   /**
-   * When true, deny unauthenticated requests to authenticated routes.
-   * Default: false (Sb1 — infrastructure only, enforcement deferred to Sb2).
+   * When true, deny unauthenticated requests to protected routes.
+   * Callers must set this explicitly from the configured authentication mode.
    */
-  enforceAuth?: boolean;
+  enforceAuth: boolean;
   /**
    * Auth service for bearer token validation (Sb2).
    * When provided, the middleware will parse Authorization headers and
@@ -211,6 +211,17 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
     // 3. Create base security context (unauthenticated by default)
     let ctx = createSecurityContext({ route });
 
+    // A newly-added API handler must never become reachable merely because
+    // its route descriptor was forgotten. Unknown API routes fail closed
+    // while authentication enforcement is active.
+    if (enforceAuth && pathname.startsWith("/api/") && !route) {
+      const responder = createSecureResponder(res, registry, detector, {
+        requestId: ctx.requestId,
+      });
+      responder.error("route_not_registered", 404);
+      return null;
+    }
+
     // ── 4. Origin and Fetch Metadata validation (Sc1.2) ────────────
     // Apply origin checks to data routes only.
     // Skip for: health, static, sse, auth (they handle origin internally or don't need it)
@@ -330,14 +341,23 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
       if (sessionId) {
         const session = sessionStore.getSession(sessionId);
         if (session) {
-          ctx = createSecurityContext({
-            authenticated: true,
-            tokenId: session.principal.id,
-            permissions:
-              session.principal.permissions ??
-              derivePermissions(session.principal.role),
-            route,
-          });
+          // Session state is only a credential transport. Re-read the source
+          // token record so cross-process revoke/expiry/role changes apply
+          // without waiting for this server process to restart.
+          const currentPrincipal = authService
+            ? await authService.verifyPrincipalStatus(session.principal.id)
+            : { ok: true as const, value: session.principal };
+
+          if (currentPrincipal.ok) {
+            ctx = createSecurityContext({
+              authenticated: true,
+              tokenId: currentPrincipal.value.id,
+              permissions: derivePermissions(currentPrincipal.value.role),
+              route,
+            });
+          } else {
+            sessionStore.removeSession(sessionId);
+          }
         }
       }
     }

@@ -98,7 +98,15 @@ async function serveRegistry(responder: SecureJsonResponder, root: string, type:
   }
 }
 
-export function startServer(root: string, host: string, port: number, allowedHosts?: string[], allowedOrigins?: string[], trustedProxyCidrs?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
+export function startServer(
+  root: string,
+  host: string,
+  port: number,
+  allowedHosts?: string[],
+  allowedOrigins?: string[],
+  trustedProxyCidrs?: string[],
+  authentication: "required" | "disabled-loopback-development" = "disabled-loopback-development",
+): Promise<{ close: () => Promise<void>; url: string }> {
   const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
   const effectiveOrigins = allowedOrigins ?? [];
   const effectiveProxyCidrs = trustedProxyCidrs ?? [];
@@ -160,6 +168,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
     allowedOrigins: effectiveOrigins,
     registry: routeRegistry,
     detector,
+    enforceAuth: authentication === "required",
     authService,
     sessionStore,
     preAuthLimiter,

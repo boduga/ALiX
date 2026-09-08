@@ -895,6 +895,7 @@ if (command === "serve") {
     sec?.allowedHosts,
     sec?.allowedOrigins,
     sec?.trustedProxyCidrs,
+    sec?.authentication,
   );
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
@@ -929,6 +930,7 @@ if (command === "inspector" && args[0] === "open") {
     sec?.allowedHosts,
     sec?.allowedOrigins,
     sec?.trustedProxyCidrs,
+    sec?.authentication,
   );
   const url = server.url;
 
@@ -2758,4 +2760,3 @@ if (loader) {
 
 console.error(`Unknown command: ${command}`);
 process.exit(1);
-

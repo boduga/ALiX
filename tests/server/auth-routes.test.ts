@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { startServer } from "../../src/server/server.js";
-import { AuthStore, createTokenRecord } from "../../src/security/inspector/auth-store.js";
+import { AuthStore, createRevocation, createTokenRecord } from "../../src/security/inspector/auth-store.js";
 import { generateToken } from "../../src/security/inspector/token-format.js";
 import { getUserStatePaths, setStateDirOverride, clearStateDirOverride } from "../../src/security/platform/user-state-paths.js";
 
@@ -152,7 +152,15 @@ describe("Auth routes (Sb3)", () => {
     await authStore.add(record);
 
     // Start server
-    const result = await startServer(dir, host, port);
+    const result = await startServer(
+      dir,
+      host,
+      port,
+      undefined,
+      undefined,
+      undefined,
+      "required",
+    );
     closeFn = result.close;
     serverUrl = result.url;
     actualPort = parseInt(serverUrl.split(":").pop()!, 10);
@@ -293,6 +301,69 @@ describe("Auth routes (Sb3)", () => {
     it("works without any cookie header", async () => {
       const res = await rawRequest(host, actualPort, "/api/auth/logout", "POST");
       assert.equal(res.status, 200);
+    });
+  });
+
+  describe("configured authentication enforcement", () => {
+    it("rejects a protected route without credentials", async () => {
+      const res = await rawRequest(host, actualPort, "/api/graphs", "GET");
+      assert.equal(res.status, 401);
+      assert.equal(JSON.parse(res.body).error, "authentication_required");
+    });
+
+    it("accepts a Bearer token with the required permission", async () => {
+      const res = await rawRequest(host, actualPort, "/api/graphs", "GET", {
+        headers: { authorization: `Bearer ${validToken}` },
+      });
+      assert.equal(res.status, 200);
+    });
+
+    it("rejects a Bearer token without the required permission", async () => {
+      const res = await rawRequest(host, actualPort, "/api/policy/rules", "GET", {
+        headers: { authorization: `Bearer ${validToken}` },
+      });
+      assert.equal(res.status, 403);
+      assert.equal(JSON.parse(res.body).error, "insufficient_permissions");
+    });
+
+    it("rejects an unauthenticated SSE route", async () => {
+      const res = await rawRequest(
+        host,
+        actualPort,
+        "/api/sessions/session-test/events",
+        "GET",
+      );
+      assert.equal(res.status, 401);
+      assert.equal(JSON.parse(res.body).error, "authentication_required");
+    });
+
+    it("fails closed for an unregistered API route", async () => {
+      const res = await rawRequest(host, actualPort, "/api/not-registered", "GET");
+      assert.equal(res.status, 404);
+      assert.equal(JSON.parse(res.body).error, "route_not_registered");
+    });
+
+    it("invalidates a browser session when its source token is revoked", async () => {
+      const login = await rawRequest(host, actualPort, "/api/auth/session", "POST", {
+        body: JSON.stringify({ token: validToken }),
+      });
+      const cookie = login.headers["set-cookie"]?.match(/alix-session=([^;]+)/)?.[1];
+      assert.ok(cookie);
+
+      const userPaths = getUserStatePaths();
+      const authStore = new AuthStore({
+        filePath: join(userPaths.authStateDir, "auth-store.json"),
+      });
+      const update = await authStore.update(validTokenId, {
+        revocation: createRevocation("test_revocation"),
+      });
+      assert.ok(update.ok);
+
+      const protectedResponse = await rawRequest(host, actualPort, "/api/graphs", "GET", {
+        headers: { cookie: `alix-session=${cookie}` },
+      });
+      assert.equal(protectedResponse.status, 401);
+      assert.equal(JSON.parse(protectedResponse.body).error, "authentication_required");
     });
   });
 });
