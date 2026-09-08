@@ -86,8 +86,15 @@ const SRC_FILES = globSync("**/*.{ts,tsx}", {
 // (no statement shape) or a string mentioning langfuse can never trip them.
 // ---------------------------------------------------------------------------
 
-/** Static `... from "langfuse"` / `from "langfuse/...` (and single quotes). */
-const STATIC_SDK_IMPORT = /^\s*(?:import|export)\b[\s\S]*?\bfrom\s+["']langfuse(?:\/|["'])/m;
+/** Static `... from "langfuse"` / `from "langfuse/...` (and single quotes).
+ *  Specifier-anchored (NOT line-start `import`-anchored) so a multiline
+ *  statement's continuation — `} from "langfuse"` — is caught too. In real
+ *  TS the `from` keyword is only ever followed by a string specifier in
+ *  import/export statements, so `from "langfuse"` at a token boundary is an
+ *  import line, not a doc/string mention of the word langfuse (which the
+ *  brief's bare-word concern is about). Comment-only lines are excluded
+ *  below in `matchedLines`. */
+const STATIC_SDK_IMPORT = /\bfrom\s+["']langfuse(?:\/|["'])/;
 
 /** Static side-effect `import "langfuse";` — no `from` clause. */
 const SIDE_EFFECT_SDK_IMPORT = /^\s*import\s+["']langfuse(?:\/|["'])/m;
@@ -98,8 +105,9 @@ const REQUIRE_SDK_IMPORT = /require\(\s*["']langfuse(?:\/|["'])/;
 /** Dynamic `import("langfuse")` / `await import("langfuse/...")`. */
 const DYNAMIC_SDK_IMPORT = /(?:^|[\s;])(?:await\s+)?import\s*\(\s*["']langfuse(?:\/|["'])/m;
 
-/** Static import of the adapter (the `./langfuse-client.js` family). */
-const STATIC_ADAPTER_IMPORT = /^\s*(?:import|export)\b[\s\S]*?\bfrom\s+["'][^"']*langfuse-client/m;
+/** Static import of the adapter (the `./langfuse-client.js` family) —
+ *  specifier-anchored for the same multiline-continuation reason as above. */
+const STATIC_ADAPTER_IMPORT = /\bfrom\s+["'][^"']*langfuse-client/;
 
 /** Dynamic import of the adapter (`import("./langfuse-client.js")`). */
 const DYNAMIC_ADAPTER_IMPORT = /(?:^|[\s;])(?:await\s+)?import\s*\(\s*["'][^"']*\blangfuse-client/m;
@@ -108,11 +116,17 @@ function readRel(rel: string): string {
   return readFileSync(join(SRC, rel), "utf-8");
 }
 
-/** Return `line: trimmed` for every line of `content` matching `re`. */
+/** Return `line: trimmed` for every line of `content` matching `re`.
+ *  Comment-only lines (//, /*, *) never match — the safety catch that keeps
+ *  a doc saying `from "langfuse"` in prose from false-positiving. */
 function matchedLines(content: string, re: RegExp): string[] {
   const hits: string[] = [];
   content.split("\n").forEach((raw, i) => {
-    if (re.test(raw)) hits.push(`${i + 1}: ${raw.trim()}`);
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) {
+      return;
+    }
+    if (re.test(raw)) hits.push(`${i + 1}: ${trimmed}`);
   });
   return hits;
 }
