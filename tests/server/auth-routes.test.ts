@@ -18,13 +18,13 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, appendFileSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { startServer } from "../../src/server/server.js";
-import { AuthStore, createTokenRecord } from "../../src/security/inspector/auth-store.js";
+import { AuthStore, createRevocation, createTokenRecord } from "../../src/security/inspector/auth-store.js";
 import { generateToken } from "../../src/security/inspector/token-format.js";
 import { getUserStatePaths, setStateDirOverride, clearStateDirOverride } from "../../src/security/platform/user-state-paths.js";
 
@@ -151,8 +151,21 @@ describe("Auth routes (Sb3)", () => {
     });
     await authStore.add(record);
 
+    // Minimal built UI fixture for the public browser-auth asset.
+    const uiDir = join(dir, "dist", "src", "ui");
+    await mkdir(uiDir, { recursive: true });
+    await writeFile(join(uiDir, "auth.js"), "export {};\n", "utf8");
+
     // Start server
-    const result = await startServer(dir, host, port);
+    const result = await startServer(
+      dir,
+      host,
+      port,
+      undefined,
+      undefined,
+      undefined,
+      "required",
+    );
     closeFn = result.close;
     serverUrl = result.url;
     actualPort = parseInt(serverUrl.split(":").pop()!, 10);
@@ -294,5 +307,132 @@ describe("Auth routes (Sb3)", () => {
       const res = await rawRequest(host, actualPort, "/api/auth/logout", "POST");
       assert.equal(res.status, 200);
     });
+  });
+
+  describe("configured authentication enforcement", () => {
+    it("serves the browser authentication script publicly", async () => {
+      const res = await rawRequest(host, actualPort, "/auth.js", "GET");
+      assert.equal(res.status, 200);
+      assert.equal(res.body, "export {};\n");
+      assert.match(res.headers["content-type"], /text\/javascript/);
+    });
+
+    it("rejects a protected route without credentials", async () => {
+      const res = await rawRequest(host, actualPort, "/api/graphs", "GET");
+      assert.equal(res.status, 401);
+      assert.equal(JSON.parse(res.body).error, "authentication_required");
+    });
+
+    it("accepts a Bearer token with the required permission", async () => {
+      const res = await rawRequest(host, actualPort, "/api/graphs", "GET", {
+        headers: { authorization: `Bearer ${validToken}` },
+      });
+      assert.equal(res.status, 200);
+    });
+
+    it("rejects a Bearer token without the required permission", async () => {
+      const res = await rawRequest(host, actualPort, "/api/policy/rules", "GET", {
+        headers: { authorization: `Bearer ${validToken}` },
+      });
+      assert.equal(res.status, 403);
+      assert.equal(JSON.parse(res.body).error, "insufficient_permissions");
+    });
+
+    it("rejects an unauthenticated SSE route", async () => {
+      const res = await rawRequest(
+        host,
+        actualPort,
+        "/api/sessions/session-test/events",
+        "GET",
+      );
+      assert.equal(res.status, 401);
+      assert.equal(JSON.parse(res.body).error, "authentication_required");
+    });
+
+    it("fails closed for an unregistered API route", async () => {
+      const res = await rawRequest(host, actualPort, "/api/not-registered", "GET");
+      assert.equal(res.status, 404);
+      assert.equal(JSON.parse(res.body).error, "route_not_registered");
+    });
+
+    it("allows registered observability-state and evidence routes", async () => {
+      for (const [path, method] of [
+        ["/api/observability/state", "GET"],
+        ["/api/security/evidence", "GET"],
+        ["/api/security/evidence/verify", "POST"],
+      ] as const) {
+        const res = await rawRequest(host, actualPort, path, method, {
+          headers: { authorization: `Bearer ${validToken}` },
+        });
+        assert.equal(res.status, 200, `${method} ${path}: ${res.body}`);
+      }
+    });
+
+    it("rejects unauthenticated observability-state and evidence routes", async () => {
+      for (const [path, method] of [
+        ["/api/observability/state", "GET"],
+        ["/api/security/evidence", "GET"],
+        ["/api/security/evidence/verify", "POST"],
+      ] as const) {
+        const res = await rawRequest(host, actualPort, path, method);
+        assert.equal(res.status, 401, `${method} ${path}: ${res.body}`);
+        assert.equal(JSON.parse(res.body).error, "authentication_required");
+      }
+    });
+
+    it("invalidates a browser session when its source token is revoked", async () => {
+      const login = await rawRequest(host, actualPort, "/api/auth/session", "POST", {
+        body: JSON.stringify({ token: validToken }),
+      });
+      const cookie = login.headers["set-cookie"]?.match(/alix-session=([^;]+)/)?.[1];
+      assert.ok(cookie);
+
+      const userPaths = getUserStatePaths();
+      const authStore = new AuthStore({
+        filePath: join(userPaths.authStateDir, "auth-store.json"),
+      });
+      const update = await authStore.update(validTokenId, {
+        revocation: createRevocation("test_revocation"),
+      });
+      assert.ok(update.ok);
+
+      const protectedResponse = await rawRequest(host, actualPort, "/api/graphs", "GET", {
+        headers: { cookie: `alix-session=${cookie}` },
+      });
+      assert.equal(protectedResponse.status, 401);
+      assert.equal(JSON.parse(protectedResponse.body).error, "authentication_required");
+    });
+  });
+});
+
+describe("Inspector authentication startup boundary", () => {
+  it("rejects an unknown authentication mode", async () => {
+    await assert.rejects(
+      startServer(
+        process.cwd(),
+        "127.0.0.1",
+        0,
+        undefined,
+        undefined,
+        undefined,
+        "requiredd" as any,
+      ),
+      /Unsupported Inspector authentication mode/,
+    );
+  });
+
+  it("rejects disabled authentication on 0.0.0.0", async () => {
+    await assert.rejects(
+      startServer(
+        process.cwd(),
+        "0.0.0.0",
+        0,
+        undefined,
+        undefined,
+        undefined,
+        "disabled-loopback-development",
+      ),
+      /only be disabled on a loopback host/,
+    );
   });
 });

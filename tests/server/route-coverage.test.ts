@@ -32,6 +32,7 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
   { pathname: "/healthz", method: "GET", source: "server.ts" },
   { pathname: "/", method: "GET", source: "server.ts" },
   { pathname: "/app.js", method: "GET", source: "server.ts" },
+  { pathname: "/auth.js", method: "GET", source: "server.ts" },
   { pathname: "/projection.js", method: "GET", source: "server.ts" },
   { pathname: "/styles.css", method: "GET", source: "server.ts" },
 
@@ -69,7 +70,16 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
   { pathname: "/api/observability/health", method: "GET", source: "observability-routes.ts" },
   { pathname: "/api/observability/metrics", method: "GET", source: "observability-routes.ts" },
   { pathname: "/api/observability/alerts", method: "GET", source: "observability-routes.ts" },
+  { pathname: "/api/observability/state", method: "GET", source: "observability-routes.ts" },
   { pathname: "/api/observability/stream", method: "GET", source: "observability-routes.ts" },
+
+  // -- Security evidence -------------------------------------------------
+  { pathname: "/api/security/evidence", method: "GET", source: "evidence-routes.ts" },
+  { pathname: "/api/security/evidence/query", method: "GET", source: "evidence-routes.ts" },
+  { pathname: "/api/security/evidence/health", method: "GET", source: "evidence-routes.ts" },
+  { pathname: "/api/security/evidence/stats", method: "GET", source: "evidence-routes.ts" },
+  { pathname: "/api/security/evidence/verify", method: "POST", source: "evidence-routes.ts" },
+  { pathname: "/api/security/evidence/0123456789abcdef", method: "GET", source: "evidence-routes.ts" },
 
   // -- Coordination -------------------------------------------------------
   { pathname: "/api/coordination", method: "GET", source: "coordination-routes.ts" },
@@ -173,12 +183,17 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("non-GET routes are limited to auth endpoints (Sb3)", () => {
+  it("non-GET routes are limited to auth and read-only verification endpoints", () => {
     const all = routeRegistry.getAll();
     const nonGet: string[] = [];
+    const allowedReadOnlyPosts = new Set(["api.security.evidence.verify"]);
 
     for (const d of all) {
-      if (d.method !== "GET" && d.routeClass !== "auth") {
+      if (
+        d.method !== "GET" &&
+        d.routeClass !== "auth" &&
+        !allowedReadOnlyPosts.has(d.id)
+      ) {
         nonGet.push(`${d.id} (${d.method} ${d.pathPattern})`);
       }
     }
@@ -190,12 +205,12 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("registry has exactly 37 routes", () => {
+  it("registry has exactly 45 routes", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 37, `expected 37 routes, got ${all.length}`);
+    assert.equal(all.length, 45, `expected 45 routes, got ${all.length}`);
   });
 
-  it("all 37 routes have distinct ids", () => {
+  it("all 45 routes have distinct ids", () => {
     const all = routeRegistry.getAll();
     const ids = all.map((d) => d.id);
     const unique = new Set(ids);

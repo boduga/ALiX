@@ -347,6 +347,48 @@ describe("AuthService", () => {
     });
   });
 
+  describe("verifyPrincipalStatus", () => {
+    it("returns current safe principal metadata for an active token id", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({ name: "session", role: "operator" });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const result = await svc.verifyPrincipalStatus(created.value.id);
+      assert.ok(result.ok);
+      if (result.ok) {
+        assert.equal(result.value.id, created.value.id);
+        assert.equal(result.value.name, "session");
+        assert.equal(result.value.role, "operator");
+        assert.ok(!("hash" in result.value));
+        assert.ok(!("token" in result.value));
+      }
+    });
+
+    it("rejects revoked, expired, and unknown token ids", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const revoked = await svc.createToken({ name: "revoked", role: "readonly" });
+      const expired = await svc.createToken({
+        name: "expired",
+        role: "readonly",
+        expiresAt: new Date(Date.now() - 1_000).toISOString(),
+      });
+      assert.ok(revoked.ok);
+      assert.ok(expired.ok);
+      if (!revoked.ok || !expired.ok) return;
+
+      await svc.revokeToken(revoked.value.id, "test");
+
+      const revokedResult = await svc.verifyPrincipalStatus(revoked.value.id);
+      const expiredResult = await svc.verifyPrincipalStatus(expired.value.id);
+      const unknownResult = await svc.verifyPrincipalStatus("missing-token");
+
+      assert.deepEqual(revokedResult, { ok: false, error: "token_revoked" });
+      assert.deepEqual(expiredResult, { ok: false, error: "token_expired" });
+      assert.deepEqual(unknownResult, { ok: false, error: "invalid_token" });
+    });
+  });
+
   describe("verifyTokenForRequest with workspace scope", () => {
     it("accepts token without workspaceIds for any workspace", async () => {
       const svc = new AuthService(store, noopAudit, noopMetrics);

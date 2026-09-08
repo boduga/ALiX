@@ -34,8 +34,10 @@ migration warning but still start. To suppress the warning, change the host to
 
 ## Security configuration (ui.security)
 
-The `ui.security` field controls Inspector security behavior. It is optional —
-when absent, secure defaults are used.
+The `ui.security` field controls Inspector security behavior. It is optional;
+when absent, the loopback-development defaults below are used. That default
+protects the network boundary by binding to loopback, but it does not require
+credentials for Inspector API routes.
 
 ### Fields
 
@@ -52,8 +54,11 @@ when absent, secure defaults are used.
 
 - **authentication**: `"disabled-loopback-development"` is rejected when the
   host is not a loopback address (127.0.0.1, localhost, ::1).
-- **remoteAccess**: `true` on a non-loopback host is rejected — remote access
-  is not yet approved until authentication lands.
+- **authentication**: `"required"` activates Bearer/cookie authentication and
+  role-based permission checks for data and SSE routes. Unregistered `/api/*`
+  routes fail closed.
+- **remoteAccess**: `true` on a non-loopback host is rejected — non-loopback
+  deployment remains unapproved even when authentication is required.
 - **allowedHosts**: The Host header of every HTTP request is validated before
   any route handler executes. Unknown hosts receive a stable `invalid_host`
   error.
@@ -66,7 +71,7 @@ when absent, secure defaults are used.
     "host": "127.0.0.1",
     "port": 4137,
     "security": {
-      "authentication": "disabled-loopback-development",
+      "authentication": "required",
       "remoteAccess": false,
       "allowedHosts": ["127.0.0.1", "::1", "localhost"],
       "allowedOrigins": [],
@@ -77,16 +82,37 @@ when absent, secure defaults are used.
 }
 ```
 
+## Authentication
+
+Create an Inspector token before enabling required authentication:
+
+```bash
+alix inspector auth create --name local-operator --role operator
+```
+
+The raw token is displayed once. API clients send it as a Bearer token:
+
+```text
+Authorization: Bearer <token>
+```
+
+The browser exchanges that token through `POST /api/auth/session` for an
+`HttpOnly`, `SameSite=Strict` session cookie. Sessions are kept only in memory.
+On every authenticated request, ALiX revalidates the session's source token in
+the hash-only auth store. Revocation, expiry, and role changes therefore take
+effect without restarting the Inspector. Data and SSE routes require both a
+valid identity and the permission declared by their route descriptor.
+
 ## Remote access
 
 **Remote access is not yet approved.** The `remoteAccess` field can be set to
 `true` when binding to loopback (e.g., for a reverse proxy), but binding to a
 non-loopback address with `remoteAccess: true` will be rejected.
 
-Future milestones will add:
-- Token-based authentication (P4.3-Sa2)
-- TLS support (P4.3-Sa3)
-- CORS enforcement (P4.3-Sa4)
+Bearer-token authentication and browser sessions are implemented for local
+Inspector use. Supporting origin, trusted-proxy, and remote TLS policies also
+exist, but they do not make non-loopback deployment an approved configuration.
+ALiX does not terminate TLS itself.
 
 ## Host validation
 
@@ -131,6 +157,9 @@ configuration, and any configuration issues.
 
 Before starting, ALiX performs a safety check:
 
-- **Loopback hosts** (127.0.0.1, localhost, ::1): allowed without warning.
-- **0.0.0.0**: allowed with a visible warning recommending loopback.
-- **Other non-loopback hosts**: rejected unless authentication is enabled.
+- **Loopback hosts** (127.0.0.1, localhost, ::1): allowed; the development
+  authentication mode emits a warning.
+- **0.0.0.0**: rejected when authentication is disabled; required
+  authentication still produces a visible warning recommending loopback.
+- **Other non-loopback hosts**: require authentication and approved remote
+  access/TLS configuration.

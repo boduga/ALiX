@@ -45,6 +45,7 @@ import { ObservabilityStreamHub } from "./observability-stream-hub.js";
 import { SessionStreamHub } from "./session-stream-hub.js";
 import { buildServerOptions, validateHttpLimits } from "./http-limits.js";
 import type { RemoteAccessConfig } from "../security/inspector/remote-access-policy.js";
+import { isLoopbackHost } from "../config/validator.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -98,7 +99,29 @@ async function serveRegistry(responder: SecureJsonResponder, root: string, type:
   }
 }
 
-export function startServer(root: string, host: string, port: number, allowedHosts?: string[], allowedOrigins?: string[], trustedProxyCidrs?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
+export function startServer(
+  root: string,
+  host: string,
+  port: number,
+  allowedHosts?: string[],
+  allowedOrigins?: string[],
+  trustedProxyCidrs?: string[],
+  authentication: "required" | "disabled-loopback-development" = "disabled-loopback-development",
+): Promise<{ close: () => Promise<void>; url: string }> {
+  if (
+    authentication !== "required" &&
+    authentication !== "disabled-loopback-development"
+  ) {
+    return Promise.reject(
+      new Error(`Unsupported Inspector authentication mode: ${String(authentication)}`),
+    );
+  }
+  if (authentication === "disabled-loopback-development" && !isLoopbackHost(host)) {
+    return Promise.reject(
+      new Error("Inspector authentication can only be disabled on a loopback host."),
+    );
+  }
+
   const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
   const effectiveOrigins = allowedOrigins ?? [];
   const effectiveProxyCidrs = trustedProxyCidrs ?? [];
@@ -160,6 +183,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
     allowedOrigins: effectiveOrigins,
     registry: routeRegistry,
     detector,
+    enforceAuth: authentication === "required",
     authService,
     sessionStore,
     preAuthLimiter,
@@ -296,7 +320,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));
         return;
       }
-      if (url.pathname === "/app.js" || url.pathname === "/projection.js" || url.pathname === "/styles.css") {
+      if (url.pathname === "/app.js" || url.pathname === "/auth.js" || url.pathname === "/projection.js" || url.pathname === "/styles.css") {
         const file = join(root, "dist", "src", "ui", url.pathname.slice(1));
         res.setHeader("content-type", url.pathname.endsWith(".js") ? "text/javascript" : "text/css");
         if (url.pathname === "/projection.js" && !existsSync(file)) {

@@ -3,7 +3,7 @@
  *
  * Validates that:
  *  1. Loopback hosts are always safe
- *  2. 0.0.0.0 warns but is allowed
+ *  2. 0.0.0.0 warns and requires authentication
  *  3. Non-loopback host without auth is rejected
  *  4. High-visibility warnings are produced for non-loopback
  */
@@ -73,11 +73,19 @@ describe("checkStartupSafety", () => {
     assert.equal(result.warnings.length, 0);
   });
 
-  it("0.0.0.0 warns but is allowed", () => {
+  it("0.0.0.0 with disabled authentication is rejected", () => {
     const result = checkStartupSafety(makeUiConfig({ host: "0.0.0.0" }));
-    assert.ok(result.ok, "0.0.0.0 should be allowed (with warnings)");
+    assert.ok(!result.ok, "0.0.0.0 must not allow disabled authentication");
     assert.ok(result.warnings.length > 0, "0.0.0.0 should produce warnings");
     assert.ok(result.warnings.some(w => w.includes("0.0.0.0")), "warning should mention 0.0.0.0");
+  });
+
+  it("rejects an unknown authentication mode on loopback", () => {
+    const config = makeUiConfig();
+    config.ui.security!.authentication = "requiredd" as any;
+    const result = checkStartupSafety(config);
+    assert.ok(!result.ok);
+    assert.match(result.error, /unsupported authentication mode/);
   });
 
   it("non-loopback host without auth is rejected", () => {

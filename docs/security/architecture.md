@@ -50,7 +50,7 @@ The ALiX Inspector security architecture provides defense-in-depth for a local-f
 │  │  Platform State Directory (~/.local/share/alix/)          │ │
 │  │  ┌─────────────┐ ┌──────────────┐ ┌──────────────────┐  │ │
 │  │  │ Auth Store   │ │ Audit Log    │ │ Credential Store │  │ │
-│  │  │ (hash-only)  │ │ (hash-chain) │ │ (encrypted)      │  │ │
+│  │  │ (hash-only)  │ │ (hash-chain) │ │ (backend-based)  │  │ │
 │  │  └─────────────┘ └──────────────┘ └──────────────────┘  │ │
 │  └───────────────────────────────────────────────────────────┘ │
 │                                                                 │
@@ -70,7 +70,7 @@ The ALiX Inspector security architecture provides defense-in-depth for a local-f
 |---|---|---|
 | External Network | Untrusted | Loopback binding by default, host header validation |
 | Trusted Proxy | Semi-trusted | CIDR validation, client address resolution |
-| Loopback / Localhost | Trusted | Authentication still required for API routes |
+| Loopback / Localhost | Trusted network boundary | Authentication depends on `ui.security.authentication`; disabled mode is development-only |
 | File System (Platform State) | Trusted | Permission controls (0o700 dir, 0o600 files), symlink checks |
 | File System (Project) | Trusted | Config signing, anti-rollback, provenance tracking |
 
@@ -151,7 +151,7 @@ Request Flow:
 | `inspector/security-context.ts` | Per-request security context with permissions |
 | `inspector/authorization.ts` | Permission-based route authorization |
 | `inspector/auth-store.ts` | Hash-only token storage with atomic writes |
-| `inspector/auth-service.ts` | Token CRUD, validation, doctor, rotation |
+| `inspector/auth-service.ts` | Token CRUD, validation, session-principal revalidation, doctor, rotation |
 | `inspector/browser-session-store.ts` | In-memory browser session management |
 | `inspector/host-policy.ts` | Host header validation against allowlist |
 | `inspector/origin-policy.ts` | Origin/Fetch Metadata validation |
@@ -160,7 +160,7 @@ Request Flow:
 | `inspector/rate-limiter.ts` | Pre-auth and post-auth token bucket rate limiters |
 | `inspector/connection-limiter.ts` | Per-principal and per-address connection caps |
 | `redaction/secret-detector.ts` | Regex-based secret detection in JSON responses |
-| `credentials/credential-store.ts` | Encrypted credential storage |
+| `credentials/credential-store.ts` | Credential facade over keychain, encrypted-file, or explicit plaintext backends |
 | `credentials/credential-reference.ts` | Stable credential references |
 | `credentials/credential-migration.ts` | Legacy env-var/config migration |
 | `supply-chain/dependency-policy.ts` | Lifecycle script and advisory management |
@@ -193,14 +193,14 @@ Client                    Middleware                  AuthService           Auth
   │  Authorization: Bearer X  │                           │                     │
   │──────────────────────────>│                           │                     │
   │                           │                           │                     │
-  │                           │  validateToken(hash(X))   │                     │
+  │                           │  verifyToken(X)           │                     │
   │                           │──────────────────────────>│                     │
-  │                           │                           │  get(hash(X))       │
+  │                           │                           │  get(token ID)      │
   │                           │                           │────────────────────>│
   │                           │                           │<────────────────────│
   │                           │                           │  StoredToken        │
   │                           │                           │                     │
-  │                           │  {ok, token, permissions} │                     │
+  │                           │  safe principal metadata  │                     │
   │                           │<──────────────────────────│                     │
   │                           │                           │                     │
   │                           │  SecurityContext built     │                     │
@@ -235,7 +235,7 @@ Client                    Middleware                  Server              Health
 
 ## Security Invariants
 
-1. **All API routes require authentication.** No unauthenticated access to `/api/*` (except auth session exchange).
+1. **Required mode is enforced end-to-end.** With `ui.security.authentication: "required"`, data and SSE routes require authentication and their declared permission; auth exchange/logout remain public, and unregistered `/api/*` routes fail closed. The default `disabled-loopback-development` mode is accepted only on loopback.
 2. **Hash-only token storage.** Raw tokens are never persisted to disk.
 3. **All JSON responses pass through the SecretDetector.** No raw secrets leak in API output.
 4. **Config is signed in production.** Unsigned configs fail the security gate.
@@ -244,4 +244,5 @@ Client                    Middleware                  Server              Health
 7. **Connection limiting is always active.** SSE connection slots are capped.
 8. **Loopback by default.** Remote access requires explicit configuration with TLS.
 9. **Health endpoints are passive.** They never trigger verification, audits, or tests.
-10. **All security output is redacted.** No credentials, hashes, tokens, or addresses in responses.
+10. **Browser sessions do not outlive token authority.** The source token is revalidated on each request, so revocation, expiry, and role changes take effect immediately.
+11. **All security output is redacted.** No credentials, hashes, tokens, or addresses in responses.

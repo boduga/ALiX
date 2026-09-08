@@ -5,7 +5,7 @@
  *  1. Public route is always authorized
  *  2. Authenticated route fails without auth
  *  3. Permission check
- *  4. SSE routes are allowed
+ *  4. SSE routes require authentication and permission
  *  5. Fail closed on error
  */
 
@@ -121,9 +121,37 @@ describe("authorize", () => {
   });
 
   describe("SSE routes", () => {
-    it("authorizes SSE route even without auth", () => {
+    it("denies an unauthenticated SSE route", () => {
       const ctx = createSecurityContext();
       const route = makeRoute({ auth: "sse" });
+      const result = authorize(ctx, route);
+      assert.ok(!result.ok);
+      if (!result.ok) {
+        assert.equal(result.statusCode, 401);
+        assert.equal(result.error, "authentication_required");
+      }
+    });
+
+    it("requires the SSE route permission", () => {
+      const ctx = createSecurityContext({
+        authenticated: true,
+        permissions: ["other:read"],
+      });
+      const route = makeRoute({ auth: "sse", permission: "test:read" });
+      const result = authorize(ctx, route);
+      assert.ok(!result.ok);
+      if (!result.ok) {
+        assert.equal(result.statusCode, 403);
+        assert.equal(result.error, "insufficient_permissions");
+      }
+    });
+
+    it("authorizes an authenticated SSE route with permission", () => {
+      const ctx = createSecurityContext({
+        authenticated: true,
+        permissions: ["test:read"],
+      });
+      const route = makeRoute({ auth: "sse", permission: "test:read" });
       const result = authorize(ctx, route);
       assert.ok(result.ok);
     });

@@ -284,8 +284,8 @@ export function remoteAccessDoctorReport(
  * Check whether the Inspector can safely start with the given config.
  *
  * Rules:
- *  - Loopback hosts are always safe (127.0.0.1, localhost, ::1).
- *  - 0.0.0.0 is allowed in development if remoteAccess is false and a warning is shown.
+ *  - Loopback hosts allow the explicit loopback-development authentication mode.
+ *  - 0.0.0.0 requires authentication and emits a high-visibility warning.
  *  - Any non-loopback host without authentication is rejected.
  *  - A high-visibility warning is printed for non-loopback hosts in development mode.
  */
@@ -293,6 +293,18 @@ export function checkStartupSafety(config: Pick<AlixConfig, "ui">): StartupCheck
   const warnings: string[] = [];
   const host = config.ui.host;
   const sec = config.ui.security;
+
+  if (
+    sec &&
+    sec.authentication !== "required" &&
+    sec.authentication !== "disabled-loopback-development"
+  ) {
+    return {
+      ok: false,
+      error: `Inspector cannot start: unsupported authentication mode "${String(sec.authentication)}".`,
+      warnings,
+    };
+  }
 
   if (isLoopbackHost(host)) {
     return { ok: true, warnings };
@@ -333,13 +345,8 @@ export function checkStartupSafety(config: Pick<AlixConfig, "ui">): StartupCheck
     );
   }
 
-  // 0.0.0.0 is allowed in development mode with a warning
-  if (host === "0.0.0.0") {
-    return { ok: true, warnings };
-  }
-
-  // Any other non-loopback host without authentication is rejected
-  if (!sec || sec.authentication === "disabled-loopback-development") {
+  // Every non-loopback bind, including 0.0.0.0, requires authentication.
+  if (!sec || sec.authentication !== "required") {
     return {
       ok: false,
       error: "Inspector cannot start: non-loopback host without authentication is not secure.\n" +
