@@ -7,7 +7,7 @@
  * Phase 6, step 1: non-mutating skeleton only — no branch, no commit, no PR.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -52,6 +52,14 @@ interface IssueRunSummary {
   outcome?: string;
 }
 
+export function buildIssueRunOptions(dryRun: boolean, proposalMode: boolean, parentRunId: string) {
+  return {
+    sessionMode: "bypass" as const,
+    parentRunId,
+    readOnly: dryRun || proposalMode,
+  };
+}
+
 const ALLOWED_LABELS = ["bug", "feature", "chore", "enhancement", "docs"];
 const BLOCKED_LABELS = ["blocked", "do-not-merge", "wontfix"];
 
@@ -60,8 +68,9 @@ const BLOCKED_LABELS = ["blocked", "do-not-merge", "wontfix"];
 // ---------------------------------------------------------------------------
 
 async function fetchIssue(repo: string, issue: number): Promise<IssueData> {
-  const output = execSync(
-    `gh issue view "${issue}" --repo "${repo}" --json number,title,body,state,labels,url`,
+  const output = execFileSync(
+    "gh",
+    ["issue", "view", String(issue), "--repo", repo, "--json", "number,title,body,state,labels,url"],
     { encoding: "utf-8", maxBuffer: 10 * 1024 * 1024 },
   );
   const parsed = JSON.parse(output);
@@ -192,7 +201,7 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   let result: RunResult;
   try {
     const { runTask } = await import("../../run.js");
-    result = await runTask(process.cwd(), taskPrompt, { sessionMode: "bypass", parentRunId: runId });
+    result = await runTask(process.cwd(), taskPrompt, buildIssueRunOptions(dryRun, proposalMode, runId));
   } catch (err: unknown) {
     await eventLog.append({ ...eb, type: "issue.run_failed" as const, payload: { issueNumber: issue.number, runId, error: String(err) } });
     console.error(`Execution failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -293,8 +302,9 @@ function postIssueComment(repo: string, issueNumber: number, summary: IssueRunSu
     ``,
   ].join("\n");
 
-  execSync(
-    `gh issue comment "${issueNumber}" --repo "${repo}" --body "${body.replace(/"/g, '\\"')}"`,
+  execFileSync(
+    "gh",
+    ["issue", "comment", String(issueNumber), "--repo", repo, "--body", body],
     { encoding: "utf-8" },
   );
 }

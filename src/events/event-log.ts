@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, stat, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { AlixEvent, NewEvent } from "./types.js";
 
 type EventListener = (event: AlixEvent) => void;
+const appendQueues = new Map<string, Promise<void>>();
 
 // Runtime symbol (NOT `declare`): the computed property key below is evaluated
 // at runtime, so the brand must be a real binding. Symbol-keyed properties are
@@ -194,15 +195,52 @@ export class EventLog {
     // simultaneously, and produce duplicate seqs in the same file —
     // observed in alix-init-test session 1786002949079 where session.started
     // and agent.response shared seq=6 across two EventLog writers.
-    await this.resyncFromDisk();
-    const fullEvent: AlixEvent<TType, TPayload> = {
-      ...event,
-      id: randomUUID(),
-      seq: this.nextSeq++,
-      version: 1,
-      timestamp: new Date().toISOString()
-    };
-    await appendFile(this.path, `${JSON.stringify(fullEvent)}\n`, "utf8");
+    const lockPath = `${this.path}.lock`;
+    const previous = appendQueues.get(this.path) ?? Promise.resolve();
+    let releaseQueue!: () => void;
+    const current = new Promise<void>((resolve) => { releaseQueue = resolve; });
+    const queued = previous.then(() => current);
+    appendQueues.set(this.path, queued);
+    await previous;
+    let lock: Awaited<ReturnType<typeof open>> | undefined;
+    const deadline = Date.now() + 5_000;
+    let fullEvent: AlixEvent<TType, TPayload>;
+    try {
+      while (!lock) {
+        try {
+          lock = await open(lockPath, "wx", 0o600);
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code !== "EEXIST") throw error;
+          let removedStaleLock = false;
+          try {
+            if (Date.now() - (await stat(lockPath)).mtimeMs > 5_000) {
+              await unlink(lockPath);
+              removedStaleLock = true;
+            }
+          } catch { /* another writer released it */ }
+          if (removedStaleLock) continue;
+          if (Date.now() >= deadline) throw new Error(`Timed out acquiring EventLog append lock: ${lockPath}`);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+      }
+      await this.resyncFromDisk();
+      fullEvent = {
+        ...event,
+        id: randomUUID(),
+        seq: this.nextSeq++,
+        version: 1,
+        timestamp: new Date().toISOString()
+      };
+      await appendFile(this.path, `${JSON.stringify(fullEvent)}\n`, "utf8");
+    } finally {
+      if (lock) {
+        await lock.close();
+        await unlink(lockPath).catch(() => {});
+      }
+      releaseQueue();
+      if (appendQueues.get(this.path) === queued) appendQueues.delete(this.path);
+    }
     // Notify all watchers
     for (const listener of this.watchers) {
       try { listener(fullEvent); } catch { /* ignore listener errors */ }

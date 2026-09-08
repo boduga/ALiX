@@ -19,6 +19,17 @@ async function flushedAfter(log: EventLog, count: number): Promise<void> {
   });
 }
 
+async function flushedEvent(log: EventLog, type: string, text: string): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const stop = log.watch((event) => {
+      if (event.type === type && (event.payload as { text?: string }).text === text) {
+        stop();
+        resolve();
+      }
+    });
+  });
+}
+
 /** Project the log's text-bearing events of `type` onto their text — the
  *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
 async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
@@ -254,7 +265,7 @@ describe('TuiApp -- chat-input dispatch', () => {
     for (const c of 'you') internal.handleRaw(Buffer.from(c));
     internal.handleRaw(Buffer.from([0x7f])); // backspace: 'yo'
     // Submitting a 2-char buffer should record it (not 'you').
-    const flushed2 = flushedAfter(log, 1);
+    const flushed2 = flushedEvent(log, 'chat.message', 'yo');
     internal.handleRaw(Buffer.from([0x0d]));
     await flushed2;
     expect(await timelineTexts(log, 'chat.message')).toEqual(['hi', 'yo']);

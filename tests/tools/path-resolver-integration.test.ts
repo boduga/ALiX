@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { FileToolRouter } from "../../src/tools/tool-router.js";
 import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
 import type { ToolCallRequest } from "../../src/tools/types.js";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const ROOT = "/home/user/project";
 const resolver = new WorkspacePathResolver(ROOT, [".git/**", ".env"]);
@@ -44,10 +47,32 @@ describe("FileToolRouter path validation", () => {
     assert.ok(result.message.includes("sensitive") || result.message.includes("protected"), "must reject .git");
   });
 
-  it("works without resolver (backward compatible)", async () => {
+  it("constructs a safe default resolver when none is supplied", async () => {
     const basicRouter = new FileToolRouter(ROOT);
     const result = await basicRouter.execute(request("file.read", { path: ".alix/config.json" }));
     assert.equal(result.kind, "error");
-    assert.ok(!result.message.includes("sensitive"), "without resolver, must NOT block .alix");
+    assert.ok(result.message.includes("sensitive"), "default resolver must block .alix");
+  });
+
+  it("rejects a model-controlled root outside the workspace", async () => {
+    const result = await router.execute(request("file.read", { root: "/etc", path: "hostname" }));
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /root override|outside workspace/);
+  });
+
+  it("rejects symlinks that resolve outside the workspace", async () => {
+    const root = await mkdtemp(join(tmpdir(), "alix-path-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "alix-path-outside-"));
+    try {
+      await writeFile(join(outside, "secret.txt"), "secret");
+      await symlink(outside, join(root, "escape"));
+      const guarded = new FileToolRouter(root, undefined, undefined, new WorkspacePathResolver(root));
+      const result = await guarded.execute(request("file.read", { path: "escape/secret.txt" }));
+      assert.equal(result.kind, "error");
+      assert.match(result.message, /outside workspace/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 });

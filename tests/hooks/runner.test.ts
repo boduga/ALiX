@@ -33,4 +33,15 @@ describe("runHook", () => {
     assert.equal(result.passed, true);
     assert.ok(result.output.includes("hello-world"));
   });
+
+  it("does not inherit unrelated parent credentials", async () => {
+    process.env.ALIX_HOOK_SECRET = "must-not-leak";
+    try {
+      const result = await runHook({ command: "env", reason: "test" }, process.cwd());
+      assert.equal(result.passed, true);
+      assert.ok(!result.output.includes("ALIX_HOOK_SECRET"));
+    } finally {
+      delete process.env.ALIX_HOOK_SECRET;
+    }
+  });
 });

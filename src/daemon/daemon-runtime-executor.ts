@@ -30,6 +30,7 @@ export interface DaemonRuntimeExecutorOptions {
   taskId: string;
   cwd: string;
   eventLog: any; // EventLog
+  signal?: AbortSignal;
 }
 
 /** Socket-sink adapter: RuntimeExecutor interface over a daemon client connection. */
@@ -74,11 +75,11 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
   }
 
   async executeDirect(route: TaskRoute & { kind: "direct" }, _ctx: RuntimeContext): Promise<string> {
-    return this.runAndEmit((config) => executeDirectBehavior(route, config));
+    return this.runAndEmit((config) => executeDirectBehavior(route, config, { signal: this.opts.signal }));
   }
 
   async executeChat(route: TaskRoute & { kind: "chat" }, _ctx: RuntimeContext): Promise<string> {
-    return this.runAndEmit((config) => executeChatBehavior(route, config));
+    return this.runAndEmit((config) => executeChatBehavior(route, config, { signal: this.opts.signal }));
   }
 
   async executeGroundedChat(route: TaskRoute & { kind: "grounded_chat" }, _ctx: RuntimeContext): Promise<string> {
@@ -86,6 +87,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
       executeGroundedChatBehavior(route, config, {
         eventLog: this.opts.eventLog,
         cwd: this.opts.cwd,
+        signal: this.opts.signal,
       }),
     );
   }
@@ -101,6 +103,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
       eventLog: this.opts.eventLog,
       cwd: this.opts.cwd,
       renderApprovalPrompt: false, // a socket client can't act on /approve
+      signal: this.opts.signal,
     });
     this.emitText(text);
     return text;

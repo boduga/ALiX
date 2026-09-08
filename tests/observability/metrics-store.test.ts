@@ -163,9 +163,8 @@ describe("MetricsStore query enhancements", () => {
       results.push({ name: r.name, value: r.value });
     }
     assert.ok(results.length >= 2);
-    // With desc (default), within the same daily file, rows are in append order.
-    // The order "desc" determines file iteration order (newest files first).
     assert.equal(results.length, 2);
+    assert.deepEqual(results.map((r) => r.value), [3, 1]);
   });
 
   it("orders files by asc — oldest files first", async () => {
@@ -185,6 +184,7 @@ describe("MetricsStore query enhancements", () => {
       results.push({ name: r.name, timestamp: r.timestamp });
     }
     assert.ok(results.length <= 2);
+    assert.deepEqual(results.map((r) => r.timestamp), ["2026-06-03T00:00:00.000Z", "2026-06-02T00:00:00.000Z"]);
   });
 
   it("enforces max limit", async () => {

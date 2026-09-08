@@ -47,14 +47,18 @@ const registry = new TaskRegistry();  // global ~/.alix/ path
 
 const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket }> = [];
 let taskRunning = false;
+const activeTaskControllers = new Map<string, AbortController>();
 
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
   const { task, taskId, cwd: requestCwd, route, client } = taskQueue.shift()!;
+  const controller = new AbortController();
+  activeTaskControllers.set(taskId, controller);
   try {
-    await handleRun(task, taskId, client, requestCwd ?? defaultCwd, route);
+    await handleRun(task, taskId, client, requestCwd ?? defaultCwd, route, controller.signal);
   } finally {
+    activeTaskControllers.delete(taskId);
     taskRunning = false;
     processQueue(); // process next
   }
@@ -226,6 +230,7 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
       }
       case "running": {
         registry.update(taskId, { status: "cancel_requested" });
+        activeTaskControllers.get(taskId)?.abort("cancelled by operator");
         client.write(JSON.stringify({ type: "task.cancelled", taskId, requested: true } satisfies DaemonResponse) + "\n");
         break;
       }
@@ -321,7 +326,7 @@ async function executeDirectRoute(
  * Otherwise, classify the task via taskRouter() for backward compatibility.
  * `requestCwd` is the project directory from the run command; defaults to
  * the startup `--cwd` if not provided. */
-async function handleRun(task: string, taskId: string, client: Socket, requestCwd: string, route?: TaskRoute): Promise<void> {
+async function handleRun(task: string, taskId: string, client: Socket, requestCwd: string, route: TaskRoute | undefined, signal: AbortSignal): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   currentSessionId = sessionId;
 
@@ -360,7 +365,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     // agent falls through to the runTask path below.
     if (route.kind !== "agent") {
       const daemonExecutor = new DaemonRuntimeExecutor({
-        client, sessionId, taskId, cwd: requestCwd, eventLog,
+        client, sessionId, taskId, cwd: requestCwd, eventLog, signal,
       });
       const runtimeCtx: RuntimeContext = {
         cwd: requestCwd,
@@ -394,6 +399,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         sessionDir: join(requestCwd, ".alix", "sessions", sessionId),
         eventLog,
       },
+      signal,
     }, (chunk: any) => {
       if (chunk.type === "text" && typeof chunk.text === "string") {
         streamedText = true;
@@ -431,6 +437,11 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       client.write(JSON.stringify({ type: "task.failed", sessionId, error } satisfies DaemonResponse) + "\n");
     }
   } catch (err: any) {
+    if (signal.aborted || registry.get(taskId)?.status === "cancel_requested") {
+      registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
+      safeWrite(client, { type: "task.cancelled" as const, taskId });
+      return;
+    }
     const error = err instanceof Error ? (err.stack ?? err.message) : String(err);
     registry.update(taskId, { status: "failed", error });
     safeWrite(client, { type: "task.failed" as const, sessionId, error });

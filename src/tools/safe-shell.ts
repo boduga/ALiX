@@ -69,6 +69,8 @@ export type SafeShellCommand = typeof SAFE_SHELL_COMMANDS[number];
  */
 export function isSafeShellCommand(command: string): boolean {
   const trimmed = command.trim();
+  // A "safe" command must never invoke shell composition or expansion.
+  if (/[;&|`$<>\n\r]/.test(trimmed)) return false;
 
   // Exact match
   if (SAFE_SHELL_COMMANDS.includes(trimmed as SafeShellCommand)) {
@@ -130,7 +132,7 @@ export function isSafeShellCommand(command: string): boolean {
 /**
  * Execute a safe shell command with output validation
  */
-export async function executeSafeShell(command: string): Promise<{
+export async function executeSafeShell(command: string, options: { cwd?: string; envAllowlist?: string[] } = {}): Promise<{
   allowed: boolean;
   output?: string;
   error?: string;
@@ -145,14 +147,16 @@ export async function executeSafeShell(command: string): Promise<{
   }
 
   try {
-    const { execSync } = await import("child_process");
-    const output = execSync(trimmed, {
-      encoding: "utf-8",
-      maxBuffer: SAFE_SHELL_MAX_BUFFER_BYTES,
-      timeout: SAFE_SHELL_TIMEOUT_MS,
+    const { runCommand } = await import("./shell-tool.js");
+    const result = await runCommand({
+      command: trimmed,
+      cwd: options.cwd ?? process.cwd(),
+      timeoutMs: SAFE_SHELL_TIMEOUT_MS,
+      envAllowlist: options.envAllowlist,
     });
-
-    return { allowed: true, output };
+    return result.kind === "success"
+      ? { allowed: true, output: (result.output ?? "").slice(0, SAFE_SHELL_MAX_BUFFER_BYTES) }
+      : { allowed: true, error: result.message };
   } catch (err) {
     return {
       allowed: true,  // Still allowed, but command failed

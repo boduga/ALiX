@@ -2,6 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { buildIssueRunOptions } from "../../../src/cli/commands/issue-run-handler.js";
 
 // Import helpers from the handler module
 // These are not exported, so we test via the CLI or replicate the logic here
@@ -152,5 +153,13 @@ describe("buildPrompt", () => {
       url: "https://github.com/owner/repo/issues/1",
     });
     assert.ok(prompt.includes("No body"));
+  });
+});
+
+describe("issue execution mode", () => {
+  it("enforces runtime read-only for dry-run and proposal", () => {
+    assert.equal(buildIssueRunOptions(true, false, "r1").readOnly, true);
+    assert.equal(buildIssueRunOptions(false, true, "r1").readOnly, true);
+    assert.equal(buildIssueRunOptions(false, false, "r1").readOnly, false);
   });
 });

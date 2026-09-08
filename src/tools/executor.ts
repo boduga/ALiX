@@ -29,6 +29,7 @@ import {
   type ToolRouter,
 } from "./tool-router.js";
 import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
@@ -81,14 +82,15 @@ export class ToolExecutor {
     private ownedPaths?: string[],  // OwnedPaths — owned-path auto-approval for headless write subagents
   ) {
     // Create router with all handlers
+    const pathResolver = this.workspacePathResolver ?? new WorkspacePathResolver(this.root, config.permissions?.protectedPaths ?? []);
     const composite = new CompositeToolRouter([
-      new FileToolRouter(this.root, log, this.sessionId()),
-      new ShellToolRouter(this.root),
+      new FileToolRouter(this.root, log, this.sessionId(), pathResolver),
+      new ShellToolRouter(this.root, pathResolver, config.runtime?.envAllowlist),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
       new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),
       new SelfExtendToolRouter(),
-      new WebToolsRouter(),
+      new WebToolsRouter(config.permissions?.allowNetworkDomains ?? []),
     ]);
     this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());
     this.router = this.toolAwareRouter;
@@ -193,7 +195,7 @@ export class ToolExecutor {
     if (mode === "ask" && name === "shell.run") {
       const command = typeof args?.command === "string" ? args.command : "";
       if (command && isSafeShellCommand(command)) {
-        const safeResult = await executeSafeShell(command);
+        const safeResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.config.runtime?.envAllowlist });
         if (safeResult.allowed) {
           await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
             toolCallId,

@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
 import type { Hook } from "./discover.js";
+import { buildChildEnv } from "../runtime/child-env.js";
 
 export async function runHook(hook: Hook, cwd: string): Promise<{ passed: boolean; output: string; exitCode: number }> {
   return new Promise((resolve) => {
     const proc = spawn("/bin/sh", ["-c", hook.command], {
       cwd,
-      env: { ...process.env, ...hook.env },
+      env: buildChildEnv(undefined, hook.env),
       stdio: ["pipe", "pipe", "pipe"]
     });
     let out = "";

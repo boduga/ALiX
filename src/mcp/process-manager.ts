@@ -3,6 +3,7 @@ import type { ChildProcess } from "node:child_process";
 import type { McpServerConfig } from "../config/schema.js";
 import { McpClient } from "./client.js";
 import { StdioTransport } from "./transports/stdio-transport.js";
+import { buildChildEnv } from "../runtime/child-env.js";
 
 export class ProcessManager {
   private processes = new Map<string, {
@@ -24,7 +25,7 @@ export class ProcessManager {
 
     const proc = spawn(config.command, config.args ?? [], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...config.env }
+      env: buildChildEnv(undefined, config.env)
     });
 
     const transport = new StdioTransport(name, proc);

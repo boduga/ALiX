@@ -109,6 +109,31 @@ describe("PolicyGate", () => {
     assert.equal(result.decision, "allow");
   });
 
+  for (const mode of ["auto", "bypass"] as const) {
+    it(`${mode} mode cannot override an explicit tool denial`, async () => {
+      const gate = new PolicyGate(makeConfig({ permissions: { tools: { "shell.run": "deny" } } as any }));
+      const result = await gate.evaluateToolCall({
+        requestId: `deny-${mode}`, toolName: "shell.run", args: { command: "echo safe" }, cwd: "/tmp",
+        sessionMode: mode, source: "tool",
+      });
+      assert.equal(result.decision, "deny");
+    });
+
+    it(`${mode} mode cannot override protected paths or denied commands`, async () => {
+      const gate = new PolicyGate(makeConfig());
+      const protectedResult = await gate.evaluateToolCall({
+        requestId: `path-${mode}`, toolName: "file.read", args: { path: "/etc/passwd" }, cwd: "/tmp",
+        sessionMode: mode, source: "tool",
+      });
+      const commandResult = await gate.evaluateToolCall({
+        requestId: `cmd-${mode}`, toolName: "shell.run", args: { command: "rm -rf /" }, cwd: "/tmp",
+        sessionMode: mode, source: "tool",
+      });
+      assert.equal(protectedResult.decision, "deny");
+      assert.equal(commandResult.decision, "deny");
+    });
+  }
+
   it("inferCapability works for known tool names", async () => {
     const config = makeConfig({ permissions: { tools: { "file.read": "allow" } } as any });
     const gate = new PolicyGate(config);

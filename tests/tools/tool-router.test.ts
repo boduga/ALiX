@@ -284,7 +284,7 @@ test("FileToolRouter.execute blocks path traversal on file.create", async () => 
     args: { path: "../../etc/passwd", content: "malicious content" },
   });
   assert.strictEqual(result.kind, "error");
-  assert.strictEqual(result.message, "Path is outside workspace");
+  assert.match(result.message, /outside workspace/);
   assert.strictEqual(result.retryable, false);
 });
 

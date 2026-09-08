@@ -85,6 +85,8 @@ export type RunOpts = {
   skipContext?: boolean;
   disableSkillFactory?: boolean;
   parentRunId?: string;
+  /** External operator cancellation propagated through provider and tool calls. */
+  signal?: AbortSignal;
   injectedContext?: {
     kind: string;
     content: string;

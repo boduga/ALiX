@@ -6,7 +6,7 @@
  * No autonomous merge — draft PR only.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,39 +66,40 @@ export function createDraftPr(
 
   try {
     // Ensure we're on the base branch and up to date
-    execSync(`git fetch origin ${cfg.baseBranch} 2>/dev/null || true`, { encoding: "utf-8" });
+    try { execFileSync("git", ["fetch", "origin", cfg.baseBranch!], { encoding: "utf-8", stdio: "ignore" }); } catch { /* offline/stale origin is handled by checkout */ }
 
     // Create and switch to new branch
-    execSync(`git checkout -b "${branchName}" origin/${cfg.baseBranch}`, {
+    execFileSync("git", ["checkout", "-b", branchName, `origin/${cfg.baseBranch}`], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     // Stage all changes and commit
-    execSync("git add -A", { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync("git", ["add", "-A"], { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
 
     const commitMessage = `feat: address issue #${issueNumber}\n\nAutomated by ALiX for issue #${issueNumber}: ${issueTitle}\n\nCo-Authored-By: ALiX <alix@example.com>`;
-    execSync(`git commit -m "${commitMessage}"`, {
+    execFileSync("git", ["commit", "-m", commitMessage], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     // Push branch
-    const pushFlags = cfg.forcePush ? "--force" : "";
-    execSync(`git push ${pushFlags} origin "${branchName}"`, {
+    const pushArgs = ["push", ...(cfg.forcePush ? ["--force"] : []), "origin", branchName];
+    execFileSync("git", pushArgs, {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     // Create draft PR
     const prBody = `## Summary\n\nAutomated changes for issue #${issueNumber}: ${issueTitle}\n\n---\n\n> 🤖 Generated with ALiX`;
-    const prUrl = execSync(
-      `gh pr create --draft --repo "${repo}" --base "${cfg.baseBranch}" --head "${branchName}" --title "feat: address issue #${issueNumber}" --body "${prBody}"`,
+    const prUrl = execFileSync(
+      "gh",
+      ["pr", "create", "--draft", "--repo", repo, "--base", cfg.baseBranch!, "--head", branchName, "--title", `feat: address issue #${issueNumber}`, "--body", prBody],
       { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
     ).trim();
 
     // Switch back to base branch
-    execSync(`git checkout ${cfg.baseBranch} 2>/dev/null || true`, {
+    execFileSync("git", ["checkout", cfg.baseBranch!], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -107,7 +108,7 @@ export function createDraftPr(
   } catch (err: unknown) {
     // Try to restore base branch
     try {
-      execSync(`git checkout ${cfg.baseBranch} 2>/dev/null || true`, {
+      execFileSync("git", ["checkout", cfg.baseBranch!], {
         encoding: "utf-8",
         stdio: ["ignore", "pipe", "pipe"],
       });
