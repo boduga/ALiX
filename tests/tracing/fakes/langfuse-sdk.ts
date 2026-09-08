@@ -69,6 +69,8 @@ export function resetFakeCalls(sdk: FakeLangfuseInstance): void {
   sdk.calls.spanEnds.length = 0;
   sdk.rawEndCalls.span = 0;
   sdk.rawEndCalls.generation = 0;
+  sdk.flushCalls = 0;
+  sdk.shutdownCalls = 0;
 }
 
 export class FakeLangfuse {
