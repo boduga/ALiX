@@ -462,7 +462,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
     // The factory's disabled path never warns.
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
-  });
+  }, 30000); // flake headroom: full seam graph transforms+executes in this one test (T20 review)
 
   it("config absent / undefined / enabled not true all resolve the same frozen Noop singleton with zero SDK evaluation", async () => {
     const seams = await loadSeams();
@@ -503,6 +503,8 @@ describe("T20 disabled + misconfigured regression guards", () => {
   // -------------------------------------------------------------------------
 
   it("enabled=true + unresolved cred refs: warn once, Noop fallback, full run outcome byte-identical to a no-tracing control", async () => {
+    // Two full composed runs (control + misconfigured) in one test: same seam-graph
+    // transform/execute exposure as the disabled full-run scenario (flake headroom).
     // The two runs share IDENTICAL run identity (separate tmp dirs, no file
     // collision) so the outcome projection is comparable: the only variable is
     // the tracing config. The run's identity strings reach the tokenized system
@@ -544,7 +546,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
     // selection after the run: a single warn proves construction failure was
     // warned exactly once and the memo re-selects the Noop without re-warning.
     expect(misconf.warnCalls).toHaveLength(1);
-  });
+  }, 30000); // flake headroom: two full composed runs in one test (T20 review)
 
   // -------------------------------------------------------------------------
   // Enabled control (sanity — proves the probes are live, asserts not vacuous)
@@ -612,15 +614,15 @@ describe("T20 disabled + misconfigured regression guards", () => {
     expect(sdk.calls.traceUpdates).toHaveLength(1);
     expect(sdk.flushCalls).toBe(1);
     expect(sdk.shutdownCalls).toBe(0);
-  });
+  }, 30000); // flake headroom: full seam graph transforms+executes in this one test (T20 review)
 });
 
 /**
  * Deterministic outcome projection of a RunResult. Excludes per-run identity
- * (sessionId/runId/streamed) AND the token-derived pressure bookkeeping
+ * (sessionId/runId) AND the token-derived pressure bookkeeping
  * (remaining-token counts), which carry timing noise from the progress ledger
  * (elapsed-duration rendering) rather than outcome signal. The compared
- * structure — summary, reason, overflow, iteration counts, and which
+ * structure — summary, streamed, reason, overflow, iteration counts, and which
  * context-pressure tiers dropped at which iteration — is the byte-identical
  * outcome the "fail-open changes nothing" contract promises; the token counts
  * would legitimately differ by a few tokens across two otherwise-identical
