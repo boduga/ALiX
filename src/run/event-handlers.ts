@@ -316,9 +316,13 @@ export async function handleToolCall(
   // retries in the next iteration, generating a fresh approval id every time
   // (the "23 pending shell.run" pile-up bug).
   if (execResult.kind === "denied") {
-    const approvalMatch = (execResult as { reason: string }).reason.match(/^Approval required \(([^)]+)\):/);
-    if (approvalMatch) {
-      const approvalId = approvalMatch[1]!;
+    // Approval-gated denials carry the pending id structurally (executor.ts
+    // sets approvalId); the reason-prefix fallback covers hand-constructed
+    // denials (tests, tool adapters) that omit the field.
+    const approvalId =
+      execResult.approvalId ??
+      execResult.reason.match(/^Approval required \(([^)]+)\):/)?.[1];
+    if (approvalId) {
       const outcome = await waitForApproval(approvalId, deps);
       if (outcome === "approved") {
         execResult = await deps.executor.execute({

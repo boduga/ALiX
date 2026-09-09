@@ -66,20 +66,39 @@ export function hashArgs(args: Record<string, unknown>): string {
   return createHash("sha256").update(stable).digest("hex");
 }
 
-export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
+export type ExecuteResult =
+  | ToolResult
+  | {
+      kind: "denied";
+      reason: string;
+      /**
+       * Set on the approval-gated FIRST attempt of `handleToolCall`'s
+       * execute-twice flow — the pause that waits for operator resolution and
+       * is then re-executed for real. Structurally flagged (design §21); the
+       * `reason` string keeps its historical "Approval required (id): …" shape.
+       */
+      approvalRequired?: true;
+      /** The pending approval's id, when `approvalRequired` is set. */
+      approvalId?: string;
+    };
 
 /**
  * True when a `denied` result is the approval-gated FIRST attempt in
- * `handleToolCall`'s execute-twice flow (reason starts with "Approval required").
- * That attempt does not execute the tool — it waits for operator approval and is
- * re-executed for real, so it must NOT emit a terminal span (design §21
- * exactly-once-per-physical-call). Genuine policy/ownership/mcp denials are NOT
- * this case and keep their single error span.
+ * `handleToolCall`'s execute-twice flow. That attempt does not execute the
+ * tool — it waits for operator approval and is re-executed for real, so it
+ * must NOT emit a terminal span (design §21 exactly-once-per-physical-call).
+ * Genuine policy/ownership/mcp denials are NOT this case and keep their single
+ * error span.
+ *
+ * The structured `approvalRequired` flag is the primary signal. The reason
+ * prefix fallback keeps hand-constructed denials (tests, tool adapters that
+ * build `{ kind: "denied", reason }` directly) classified correctly without
+ * requiring them to know the flag.
  */
 function isPreApprovalDenial(result: ExecuteResult | null | undefined): boolean {
   return (
     result?.kind === "denied" &&
-    /^Approval required \(/.test(result.reason)
+    (result.approvalRequired === true || /^Approval required \(/.test(result.reason))
   );
 }
 
@@ -201,12 +220,12 @@ export class ToolExecutor {
       // A pre-approval denial is a pause, not an execution — skip the span so
       // the eventual real execute emits the single terminal span (see above).
       if (run && client && !isPreApprovalDenial(result)) {
-        this.emitToolSpan(client, run, request, argsSnapshot, startedAt, result);
+        this.emitTerminalToolSpan(client, run, request, argsSnapshot, startedAt, result);
       }
       return result;
     } catch (err) {
       if (run && client) {
-        this.emitToolSpan(
+        this.emitTerminalToolSpan(
           client,
           run,
           request,
@@ -225,7 +244,7 @@ export class ToolExecutor {
    * duration is correct even though the span is begun after dispatch returns).
    * Fail-open: any tracing defect here never throws into tool execution.
    */
-  private emitToolSpan(
+  private emitTerminalToolSpan(
     client: TraceClient,
     run: TraceRun,
     request: ToolCallRequest,
@@ -237,7 +256,7 @@ export class ToolExecutor {
     try {
       const span = client.startToolSpan(run, this.buildToolSpanInput(request, args, startedAt));
       const outcome = result !== null && result !== undefined
-        ? this.buildSuccessOutcome(result)
+        ? this.buildSpanOutcome(result)
         : {
             status: err ? (isCancellationError(err) ? "cancelled" as const : "error" as const) : "error" as const,
             error: err ? (err.message || String(err)) : undefined,
@@ -272,7 +291,7 @@ export class ToolExecutor {
   }
 
   /** Terminal outcome for a resolved (non-thrown) tool result. */
-  private buildSuccessOutcome(result: ExecuteResult): SpanOutcome {
+  private buildSpanOutcome(result: ExecuteResult): SpanOutcome {
     if (result?.kind === "denied") {
       // Denials map to "error" (design status vocab), no output captured.
       return { status: "error" };
@@ -453,7 +472,12 @@ export class ToolExecutor {
         invocationId: correlation.invocationId,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      return { kind: "denied", reason: `Approval required (${decision.approvalId}): ${decision.reason}` };
+      return {
+        kind: "denied",
+        reason: `Approval required (${decision.approvalId}): ${decision.reason}`,
+        approvalRequired: true,
+        approvalId: decision.approvalId,
+      };
     }
 
     // Handle special case: "done" tool (not in router)
