@@ -33,9 +33,11 @@ import type {
 
 /**
  * Shared frozen span handle. TraceSpan is pure brand (no readable state), so
- * one module-level object satisfies every span a caller may end.
+ * one module-level object satisfies every span a caller may end. Single home
+ * for the inert span sentinel — the NoopTraceClient AND the Langfuse adapter
+ * (which uses it for unknown/ended-run spans, design §3) share it.
  */
-const NOOP_SPAN = Object.freeze({} as unknown as TraceSpan);
+export const NOOP_SPAN = Object.freeze({} as unknown as TraceSpan);
 
 /**
  * Inert TraceClient satisfying the full {@link TraceClient} interface.

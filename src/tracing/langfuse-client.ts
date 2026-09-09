@@ -57,6 +57,7 @@ import {
   type CaptureLevel,
 } from "./capture.js";
 import type { TraceClient } from "./client.js";
+import { NOOP_SPAN } from "./noop-client.js";
 import type {
   ModelSpanInput,
   RunOutcome,
@@ -73,9 +74,6 @@ import { withTimeout } from "./with-timeout.js";
 // ---------------------------------------------------------------------------
 // Module helpers
 // ---------------------------------------------------------------------------
-
-/** Shared inert span handle returned for unknown/ended runs (design §3). */
-const NOOP_SPAN = Object.freeze({}) as unknown as TraceSpan;
 
 /**
  * Stable warn-once key so a flush (or shutdown) transport failure is reported
@@ -116,6 +114,100 @@ function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
     if (value !== undefined) out[key] = value;
   }
   return out as Partial<T>;
+}
+
+/**
+ * ALiX metadata attached to a model generation. Extracted from the class so
+ * the builder is a pure function of its input (S5: honest module helpers).
+ */
+function buildModelAlix(input: ModelSpanInput): Record<string, unknown> {
+  return {
+    kind: "model",
+    ...defined({
+      provider: input.provider,
+      model: input.model,
+      resolvedModel: input.resolvedModel,
+      invocationId: input.invocationId,
+      stream: input.stream,
+      startedAtMs: input.startedAt,
+    }),
+  };
+}
+
+/** ALiX metadata attached to a tool span (S5: pure module helper). */
+function buildToolAlix(input: ToolSpanInput): Record<string, unknown> {
+  return {
+    kind: "tool",
+    toolName: input.toolName,
+    ...defined({
+      capability: input.capability,
+      toolCallId: input.toolCallId,
+      invocationId: input.invocationId,
+      executionId: input.executionId,
+      startedAtMs: input.startedAt,
+    }),
+  };
+}
+
+/** Langfuse usage body from token counts; omitted when neither is finite. */
+function buildUsage(
+  inputTokens: number | undefined,
+  outputTokens: number | undefined,
+): { input: number; output: number; unit: "TOKENS" } | undefined {
+  if (!isFiniteNumber(inputTokens) && !isFiniteNumber(outputTokens)) {
+    return undefined;
+  }
+  return {
+    input: inputTokens ?? 0,
+    output: outputTokens ?? 0,
+    unit: "TOKENS",
+  };
+}
+
+function flushWarning(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `[Tracing] flush failed (tracing transport error; agent execution continues): ${detail}`;
+}
+
+function shutdownWarning(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `[Tracing] shutdown failed (tracing transport error; process exit continues): ${detail}`;
+}
+
+/**
+ * Bounded, fail-open transport wait shared by `flush()` and `shutdown()`
+ * (S3: one shape instead of two near-identical bodies). Invokes the SDK call
+ * outside the wait so a synchronous throw is caught and warned once; absorbs
+ * rejections that settle after we have stopped awaiting (post-timeout), and
+ * warns once (key-deduped) on a pre-budget rejection. Internal to the adapter.
+ */
+async function boundedTransport(
+  budgetMs: number,
+  invoke: () => Promise<void>,
+  warn: (error: unknown) => string,
+  warnKey: string,
+): Promise<void> {
+  let op: Promise<void>;
+  try {
+    op = invoke();
+  } catch (error) {
+    // A synchronous throw from the SDK (never expected). Warn once and
+    // continue — a transport failure must never change an ALiX outcome.
+    warnOnce(warn(error), warnKey);
+    return;
+  }
+  // Absorb a rejection that settles AFTER we have stopped awaiting (timeout):
+  // fail-open transport ignores late failures, so one must never surface as
+  // an unhandled rejection. The pre-timeout rejection path is handled by the
+  // wait below.
+  op.catch(() => {
+    // handled by the wait below; this branch only absorbs post-timeout settles
+  });
+  try {
+    await withTimeout(op, budgetMs);
+  } catch (error) {
+    warnOnce(warn(error), warnKey);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -374,7 +466,7 @@ export class LangfuseTraceClient implements TraceClient {
           })
         : undefined);
 
-    const alix = this.buildModelAlix(input);
+    const alix = buildModelAlix(input);
     try {
       const sdk = record.sdkTrace.generation(
         defined({
@@ -403,7 +495,7 @@ export class LangfuseTraceClient implements TraceClient {
           })
         : undefined;
 
-    const alix = this.buildToolAlix(input);
+    const alix = buildToolAlix(input);
     try {
       const sdk = record.sdkTrace.span(
         defined({
@@ -435,7 +527,7 @@ export class LangfuseTraceClient implements TraceClient {
     try {
       if (record.kind === "model") {
         const sdk = record.sdk as LangfuseGenerationClient;
-        const usage = this.buildUsage(outcome.inputTokens, outcome.outputTokens);
+        const usage = buildUsage(outcome.inputTokens, outcome.outputTokens);
         sdk.end(
           defined({
             output: this.captureModelOutput(outcome),
@@ -466,62 +558,32 @@ export class LangfuseTraceClient implements TraceClient {
   // -------------------------------------------------------------------------
 
   async flush(): Promise<void> {
-    let sdkFlush: Promise<void>;
-    try {
-      sdkFlush = this.sdk.flushAsync();
-    } catch (error) {
-      // A synchronous throw from flushAsync (never expected). Warn once and
-      // continue — a flush failure must never change an ALiX run's outcome.
-      warnOnce(this.flushWarning(error), FLUSH_WARN_KEY);
-      return;
-    }
-    // Absorb a rejection that settles AFTER we have stopped awaiting (timeout):
-    // fail-open flush ignores late transport failures, so one must never
-    // surface as an unhandled rejection. The pre-timeout rejection path is
-    // handled by the wait below.
-    sdkFlush.catch(() => {
-      // handled by the wait below; this branch only absorbs post-timeout settles
-    });
-    try {
-      // Bounded wait (design §12): resolve on timeout → continue; a rejection
-      // before the budget expires is warned once and swallowed.
-      await withTimeout(sdkFlush, this.flushTimeoutMs);
-    } catch (error) {
-      warnOnce(this.flushWarning(error), FLUSH_WARN_KEY);
-    }
+    // Bounded wait (design §12): resolve on timeout → continue; a rejection
+    // before the budget expires is warned once and swallowed (boundedTransport).
+    await boundedTransport(
+      this.flushTimeoutMs,
+      () => this.sdk.flushAsync(),
+      flushWarning,
+      FLUSH_WARN_KEY,
+    );
   }
 
   async shutdown(): Promise<void> {
     if (this.shutdownDone) return;
     this.shutdownDone = true;
-    let sdkShutdown: Promise<void>;
-    try {
-      sdkShutdown = this.sdk.shutdownAsync();
-    } catch (error) {
-      // A synchronous throw from shutdownAsync (never expected). Warn once and
-      // continue — a shutdown failure must never fail or block process teardown.
-      warnOnce(this.shutdownWarning(error), SHUTDOWN_WARN_KEY);
-      return;
-    }
-    // Absorb a rejection that settles AFTER we have stopped awaiting (timeout):
-    // fail-open shutdown ignores late transport failures, so one must never
-    // surface as an unhandled rejection. The pre-timeout rejection path is
-    // handled by the wait below.
-    sdkShutdown.catch(() => {
-      // handled by the wait below; this branch only absorbs post-timeout settles
-    });
-    try {
-      // Bounded wait (design §12/§14): the budget is the SAME flushTimeoutMs
-      // used by flush() (Task 13) — shutdown schedules from the flush budget,
-      // never a second fresh budget on top (plan Task 13 note). Langfuse's
-      // shutdownAsync performs a final flush internally, so this single net
-      // bounded wait covers both the final flush and the resource release
-      // (never two stacked bounded waits). Timeout → resolve and let the
-      // process exit; a pre-budget rejection is warned once and absorbed.
-      await withTimeout(sdkShutdown, this.flushTimeoutMs);
-    } catch (error) {
-      warnOnce(this.shutdownWarning(error), SHUTDOWN_WARN_KEY);
-    }
+    // Bounded wait (design §12/§14): the budget is the SAME flushTimeoutMs
+    // used by flush() (Task 13) — shutdown schedules from the flush budget,
+    // never a second fresh budget on top (plan Task 13 note). Langfuse's
+    // shutdownAsync performs a final flush internally, so this single net
+    // bounded wait covers both the final flush and the resource release
+    // (never two stacked bounded waits). Timeout → resolve and let the
+    // process exit; a pre-budget rejection is warned once and absorbed.
+    await boundedTransport(
+      this.flushTimeoutMs,
+      () => this.sdk.shutdownAsync(),
+      shutdownWarning,
+      SHUTDOWN_WARN_KEY,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -565,34 +627,6 @@ export class LangfuseTraceClient implements TraceClient {
                 maxChars: this.maxMessageChars,
               })
             : undefined,
-        startedAtMs: input.startedAt,
-      }),
-    };
-  }
-
-  private buildModelAlix(input: ModelSpanInput): Record<string, unknown> {
-    return {
-      kind: "model",
-      ...defined({
-        provider: input.provider,
-        model: input.model,
-        resolvedModel: input.resolvedModel,
-        invocationId: input.invocationId,
-        stream: input.stream,
-        startedAtMs: input.startedAt,
-      }),
-    };
-  }
-
-  private buildToolAlix(input: ToolSpanInput): Record<string, unknown> {
-    return {
-      kind: "tool",
-      toolName: input.toolName,
-      ...defined({
-        capability: input.capability,
-        toolCallId: input.toolCallId,
-        invocationId: input.invocationId,
-        executionId: input.executionId,
         startedAtMs: input.startedAt,
       }),
     };
@@ -654,29 +688,5 @@ export class LangfuseTraceClient implements TraceClient {
   private captureError(error: string | undefined): string | undefined {
     if (error === undefined) return undefined;
     return captureString(error, "truncated", { maxChars: this.maxMessageChars });
-  }
-
-  private buildUsage(
-    inputTokens: number | undefined,
-    outputTokens: number | undefined,
-  ): { input: number; output: number; unit: "TOKENS" } | undefined {
-    if (!isFiniteNumber(inputTokens) && !isFiniteNumber(outputTokens)) {
-      return undefined;
-    }
-    return {
-      input: inputTokens ?? 0,
-      output: outputTokens ?? 0,
-      unit: "TOKENS",
-    };
-  }
-
-  private flushWarning(error: unknown): string {
-    const detail = error instanceof Error ? error.message : String(error);
-    return `[Tracing] flush failed (tracing transport error; agent execution continues): ${detail}`;
-  }
-
-  private shutdownWarning(error: unknown): string {
-    const detail = error instanceof Error ? error.message : String(error);
-    return `[Tracing] shutdown failed (tracing transport error; process exit continues): ${detail}`;
   }
 }
