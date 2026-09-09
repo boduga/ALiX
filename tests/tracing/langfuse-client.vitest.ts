@@ -1074,6 +1074,37 @@ describe("LangfuseTraceClient · parent-run translation", () => {
     expect(child.runId).toBe("run-child003");
     expect(() => client.endRun(child, { status: "success" })).not.toThrow();
   });
+
+  it("keeps parallel siblings under one active parent independent — ending a sibling leaves the others serving spans", () => {
+    const { client, sdk } = makeClient();
+    const parent = client.startRun(runInput()); // session-1
+
+    const siblingA = client.startRun(childRunInput("run-test1234", { runId: "run-sib-a" }));
+    const siblingB = client.startRun(childRunInput("run-test1234", { runId: "run-sib-b" }));
+
+    // One trace per runId: parent + two siblings, no invented identities.
+    expect(sdk.calls.traces.map((t) => t.id)).toEqual([
+      "run-test1234",
+      "run-sib-a",
+      "run-sib-b",
+    ]);
+    // Both siblings inherit the active parent's session while keeping their own trace ids.
+    for (const trace of [sdk.calls.traces[1], sdk.calls.traces[2]]) {
+      expect(trace.id === "run-sib-a" || trace.id === "run-sib-b").toBe(true);
+      expect(trace.sessionId).toBe("session-1");
+      expect(alixOf(trace).parentRunId).toBe("run-test1234");
+    }
+
+    // Ending sibling A must not disturb sibling B's lifecycle or span routing.
+    client.endRun(siblingA, { status: "success" });
+    expect(client.getRun("run-sib-b")).toBe(siblingB);
+
+    const span = client.startModelSpan(siblingB, { provider: "anthropic", model: "claude-sonnet-4" });
+    client.endSpan(span, { status: "success", output: "sibling b still alive" });
+    expect(sdk.calls.generations).toHaveLength(1);
+    expect(sdk.calls.generations[0].traceId).toBe("run-sib-b");
+    expect(sdk.calls.generationEnds[0].traceId).toBe("run-sib-b");
+  });
 });
 
 // ---------------------------------------------------------------------------
