@@ -85,10 +85,10 @@ import type { ContextBundle } from "../repomap/context-compiler.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import type { TraceClient } from "../tracing/client.js";
-import type { RunOutcome, TraceRun } from "../tracing/types.js";
 import { NOOP_TRACE_CLIENT } from "../tracing/noop-client.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
+import { withTraceRun } from "./run-root.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
@@ -666,6 +666,10 @@ export class AgentSessionBuilder {
 
     // Resolved runtime values (computed during init)
     let currentTask = config.task;
+    // The turn's ExecutionContext, set at the top of each processTurnBody
+    // invocation so initialize() → setupContextAndPlan → runPlanPhase can
+    // thread the same runId/sessionId into every plan-phase provider request.
+    let currentRunContext: ExecutionContext | undefined;
     // Explicit skills injected by the caller for this turn (slash commands).
     // Agent-tab only — the chat path (processChat) never sets this.
     let explicitSkills: string[] | undefined;
@@ -858,6 +862,8 @@ export class AgentSessionBuilder {
             planFilePath: config.planFilePath,
             planApprovalMode: config.planApprovalMode,
             planApprovalGate: config.planApprovalGate,
+            // Run identity for the plan-phase model call (R1, §18 coverage).
+            context: currentRunContext,
           },
         );
         contextBundle = p6.contextBundle;
@@ -1088,40 +1094,20 @@ export class AgentSessionBuilder {
         parentRunId: config.parentRunId,
         startedAt: Date.now(),
       });
-      // Fallback default so endRun fires with an error outcome even if an
-      // unexpected throw escapes the body before its outcome is mapped.
-      let traceOutcome: RunOutcome = {
-        status: "error",
-        error: "processTurn ended before its outcome could be recorded",
-        endedAt: Date.now(),
-      };
-      try {
-        const result = await processTurnBody(message, runId, options);
-        traceOutcome = {
+      // One shared terminal-outcome wrapper for all the run roots in this
+      // file (see src/agent/run-root.ts): body result mapped to success/error,
+      // an escaping throw classified cancellation-vs-error, endRun exactly
+      // once via the finally. Tracing failures never alter the turn.
+      return withTraceRun(
+        traceClient,
+        traceRun,
+        "processTurn ended before its outcome could be recorded",
+        (result) => ({
           status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
           endedAt: Date.now(),
-        };
-        return result;
-      } catch (err) {
-        traceOutcome = {
-          status: isCancellationError(err) ? "cancelled" : "error",
-          error: err instanceof Error ? err.message : String(err),
-          endedAt: Date.now(),
-        };
-        throw err;
-      } finally {
-        // Exactly-once endRun across every terminal path (recon §3 a–i): the
-        // finally fires once whether the body returned, threw a cancellation/
-        // failure, or was interrupted. endRun finalizes the trace and then
-        // awaits a flush bounded by flushTimeoutMs (Task 13, design §12); the
-        // client contract is fail-open, but the swallow keeps a broken client
-        // from altering the turn's outcome.
-        try {
-          await traceClient.endRun(traceRun, traceOutcome);
-        } catch {
-          // Tracing must never change agent results.
-        }
-      }
+        }),
+        () => processTurnBody(message, runId, options),
+      );
     }
 
     /**
@@ -1133,6 +1119,16 @@ export class AgentSessionBuilder {
       runId: string,
       options?: { skills?: string[] },
     ): Promise<AgentTurnResult> {
+      // The turn's execution context (same identity the root wrapper's startRun
+      // used). Threaded into classifier, direct-generation, grounded-chat and
+      // plan-phase provider requests so their model spans resolve to this run
+      // via getRun(request.context.runId) (R1, design §18).
+      const turnContext: ExecutionContext = {
+        runId,
+        sessionId: config.sessionId ?? "",
+        ...(config.parentRunId ? { parentRunId: config.parentRunId } : {}),
+      };
+      currentRunContext = turnContext;
       // Thread the explicit skill list (slash commands) into the next
       // initialize() pass. Undefined on the chat path — never touched there.
       explicitSkills = options?.skills;
@@ -1160,6 +1156,9 @@ export class AgentSessionBuilder {
 
       const route = await taskRouter(message, {
         classifierProvider: classifierProvider ?? undefined,
+        // Enables model-based classifier spans under the run's trace when the
+        // low-confidence fallback fires (R1, §18 coverage for the classifier).
+        context: turnContext,
       });
       if (route.kind === "direct") {
         // Fire the diagnostic callback if one is wired (Task 4).
@@ -1234,6 +1233,7 @@ export class AgentSessionBuilder {
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
               maxOutputTokens: genMaxOutputTokens,
+              context: turnContext,
             }, {
               onStream: (chunk) => {
                 if (chunk.type === "text") config.events?.onToken?.(chunk.text);
@@ -1243,6 +1243,7 @@ export class AgentSessionBuilder {
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
               maxOutputTokens: genMaxOutputTokens,
+              context: turnContext,
             })
         ).catch((err: unknown) => {
           _providerError = err instanceof Error ? err.message : String(err);
@@ -1315,6 +1316,9 @@ export class AgentSessionBuilder {
           eventLog: ctx.log,
           config: ctx.config,
           onRouteDiagnostic: config.onRouteDiagnostic,
+          // Thread the turn's run identity so grounded-chat model calls and
+          // tool spans resolve under the run's trace (R1, §18/§21 coverage).
+          context: turnContext,
         };
         // Governed execution (#404): every routed task flows through the
         // ExecutionIntent lifecycle (created→approved→running→terminal) via
@@ -2110,46 +2114,23 @@ export class AgentSessionBuilder {
         actor: "chat",
         startedAt: Date.now(),
       });
-      // Fallback default so endRun fires with an error outcome even if an
-      // unexpected throw escapes the body before its outcome is mapped.
-      let traceOutcome: RunOutcome = {
-        status: "error",
-        error: "processChat ended before its outcome could be recorded",
-        endedAt: Date.now(),
-      };
-      try {
-        const result = await processChatBody(message, chatContext);
-        // chat-error is the chat path's own caught-terminal (the body never
-        // throws); anything else — including the no-provider placeholder —
-        // is a successful invocation.
-        if (result.reason === "chat-error") {
-          traceOutcome = {
-            status: "error",
-            error: result.summary,
-            endedAt: Date.now(),
-          };
-        } else {
-          traceOutcome = { status: "success", endedAt: Date.now() };
-        }
-        return result;
-      } catch (err) {
-        traceOutcome = {
-          status: "error",
-          error: err instanceof Error ? err.message : String(err),
-          endedAt: Date.now(),
-        };
-        throw err;
-      } finally {
-        // Exactly-once endRun across every return path (recon §3: no-provider
-        // :2021-2027, success :2091-2097, chat-error :2098-2109). endRun
-        // finalizes the trace and awaits a flush bounded by flushTimeoutMs
-        // (Task 13, design §12).
-        try {
-          await traceClient.endRun(traceRun, traceOutcome);
-        } catch {
-          // Tracing must never change agent results.
-        }
-      }
+      // Shared terminal-outcome wrapper (src/agent/run-root.ts): maps the body
+      // result to success/error, classifies an escaping throw via
+      // isCancellationError (operator cancellation is a normal terminal, never
+      // a failure), and endRuns exactly once via the finally.
+      return withTraceRun(
+        traceClient,
+        traceRun,
+        "processChat ended before its outcome could be recorded",
+        (result) =>
+          // chat-error is the chat path's own caught-terminal (the body never
+          // throws); anything else — including the no-provider placeholder —
+          // is a successful invocation.
+          result.reason === "chat-error"
+            ? { status: "error", error: result.summary, endedAt: Date.now() }
+            : { status: "success", endedAt: Date.now() },
+        () => processChatBody(message, chatContext),
+      );
     }
 
     /**
@@ -2638,6 +2619,8 @@ async function setupContextAndPlan(
     planFilePath?: string;
     planApprovalMode?: "interactive" | "deferred";
     planApprovalGate?: any;
+    /** Run identity → plan-phase provider request (model spans, R1/§18). */
+    context?: ExecutionContext;
   },
 ): Promise<{
   contextBundle?: ContextBundle;
@@ -2677,6 +2660,7 @@ async function setupContextAndPlan(
     {
       approvalMode: opts?.planApprovalMode ?? "interactive",
       gate: opts?.planApprovalGate,
+      context: opts?.context,
     },
   );
 

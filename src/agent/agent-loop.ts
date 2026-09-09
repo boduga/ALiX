@@ -28,6 +28,7 @@ import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } fr
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { createTraceClient } from "../tracing/client-factory.js";
+import type { TraceClient } from "../tracing/client.js";
 import type { RunOutcome, TraceRun } from "../tracing/types.js";
 import { isCancellationError } from "../runtime/cancellation-token.js";
 import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
@@ -36,7 +37,7 @@ import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_
  *  resolves the TraceClient once ctx.config exists, starts the run, and the
  *  wrapper ends it (with the SAME client) in a finally over every terminal. */
 type RunRoot = {
-  traceClient?: import("../tracing/client.js").TraceClient;
+  traceClient?: TraceClient;
   run?: TraceRun;
 };
 
@@ -149,10 +150,11 @@ async function runTaskCoreImpl(
 
   // ── Establish the run root now that ctx + workflow exist (R1) ────────────
   // ctx.config is the authoritative resolved AlixConfig (loadConfig ran inside
-  // initAgent); the factory is memoized per process so this is the same
-  // process TraceClient a bootstrap seam would select. startRun here covers
-  // the plan-phase provider calls (runPlanPhase below), the task loop, and
-  // the resume/plan-rejected early returns.
+  // initAgent); the memoized createTraceClient factory (client-factory.ts)
+  // returns the same process TraceClient every entry path uses. startRun here
+  // covers the plan-phase provider calls (runPlanPhase below), the task loop,
+  // and the resume/plan-rejected early returns. Those model calls must carry
+  // context.runId so their spans resolve via getRun(context.runId).
   root.traceClient = await createTraceClient(ctx.config.tracing);
   root.run = root.traceClient.startRun({
     runId,
@@ -322,6 +324,9 @@ async function runTaskCoreImpl(
         const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath, {
           approvalMode: opts?.planApprovalMode ?? "interactive",
           gate: opts?.planApprovalGate,
+          // Same run identity as the task loop, so plan-phase model spans
+          // resolve under the run's trace (R1, §18 coverage).
+          context: { runId, sessionId: ctx.sessionId, workflowId: wfRun.id },
         });
         if (planResult.action === "rejected") {
           const failedRun = transitionWorkflowStatus(wfRun, "failed");

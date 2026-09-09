@@ -15,6 +15,7 @@ import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 import type { ModelAdapter, ToolDef } from "../providers/types.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 /**
  * Environment-specific dependencies an execution behavior needs beyond the
@@ -25,6 +26,14 @@ export interface ExecutionDeps {
   eventLog?: any; // EventLog
   cwd?: string;
   approvalStore?: any;
+  /**
+   * Run identity for provider/tool spans. When set, the grounded-chat model
+   * calls carry `context.runId` so their spans resolve via getRun, and the
+   * tool call threads `runId` for its tool span (R1/R2, design §18/§21).
+   * Omitted when the caller has no run root (daemon socket path keeps its
+   * no-runId behavior).
+   */
+  context?: ExecutionContext;
   /**
    * Cap on provider output tokens. When unset the field is omitted entirely,
    * so the provider's own default applies. LocalRuntimeExecutor passes 512
@@ -88,6 +97,7 @@ async function singleProviderCall(
     systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
     messages: [{ role: "user", content: prompt }],
     ...tokenCap(deps),
+    ...(deps.context ? { context: deps.context } : {}),
   });
   return response.text || "(no response)";
 }
@@ -136,6 +146,8 @@ interface ToolOutcome {
   content?: string;
   reason?: string;
   message?: string;
+  /** Pending approval id, present on approval-gated denials. */
+  approvalId?: string;
 }
 
 /**
@@ -156,8 +168,12 @@ export function renderToolResult(
       opts.renderApprovalPrompt !== false &&
       (reason.includes("approval") || reason.includes("Approval"));
     if (wantsApprovalPrompt) {
-      const idMatch = reason.match(/(approval_[a-zA-Z0-9_-]+)/);
-      const approvalId = idMatch ? idMatch[1] : "";
+      // Prefer the structured approvals field; fall back to carving it out of
+      // the reason, which keeps hand-constructed denials rendering the same.
+      const approvalId =
+        result.approvalId ??
+        reason.match(/(approval_[a-zA-Z0-9_-]+)/)?.[1] ??
+        "";
       let msg = "Approval required.\n\nPending approval:\n";
       msg += `  ${approvalId || reason}\n\n`;
       msg += "Run:\n";
@@ -258,6 +274,7 @@ export async function executeGroundedChatBehavior(
     messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
     tools: tools.length > 0 ? tools : undefined,
     ...tokenCap(deps),
+    ...(deps.context ? { context: deps.context } : {}),
   });
 
   if (response.toolCalls.length > 0) {
@@ -275,6 +292,7 @@ export async function executeGroundedChatBehavior(
       toolCallId: await newToolCallId(),
       name: tc.name,
       args: tc.args,
+      runId: deps.context?.runId,
     });
 
     const toolContent = toolResult.kind === "success"
@@ -293,6 +311,7 @@ export async function executeGroundedChatBehavior(
         { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
       ],
       ...tokenCap(deps),
+      ...(deps.context ? { context: deps.context } : {}),
     });
     return finalResponse.text || "(no response)";
   }
