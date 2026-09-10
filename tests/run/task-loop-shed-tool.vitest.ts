@@ -523,5 +523,60 @@ describe('task-loop completion termination', () => {
     expect(provider.requests).toHaveLength(3);
     expect(result.summary).toBe(finalSummary);
     expect(result.reason).toBe('completed');
+    expect(provider.requests[0]!.systemPrompt).toContain('CURRENT TURN BOUNDARY');
+    expect(provider.requests[0]!.systemPrompt).toContain('Earlier completed turns are context only');
+  });
+
+  it('does not let a progress checkpoint preempt an explicit done call', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) {
+          return {
+            text: '',
+            toolCalls: [
+              ...Array.from({ length: 5 }, (_, index) => ({
+                name: 'alix_file_read', id: `read-${index}`, args: { path: `file-${index}.txt` },
+              })),
+              { name: 'alix_done', id: 'done-after-five', args: {} },
+            ],
+          };
+        }
+        if (iteration === 2) {
+          return { text: 'I read the five requested files and completed the task.', toolCalls: [] };
+        }
+        throw new Error('progress checkpoint preempted explicit completion');
+      },
+    };
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'file content' },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read five files',
+      providerTools: [readTool, doneTool],
+      executor: executor as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toBe('I read the five requested files and completed the task.');
   });
 });

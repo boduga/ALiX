@@ -685,7 +685,11 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// scoped subset. Reusing `wireTools` makes the invariant structural.
 	const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
 	const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
-	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
+	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}\n\n` +
+	  `CURRENT TURN BOUNDARY: The current task is the latest user request. ` +
+	  `Earlier completed turns are context only. Do not describe them as work performed in this turn, ` +
+	  `and do not include their results in the final summary unless the user explicitly asks for a recap.` +
+	  toolManifest;
 
 	// ── I1: Inject progress ledger BEFORE budget admission so it is
 	// token-accounted (Tier 3, protected). The ledger is rendered and
@@ -1628,6 +1632,7 @@ if (toolCalls.length === 0) {
   const modelAlreadyNarrating = modelText.length >= NARRATING_THRESHOLD;
 
   if (
+	!trackCompleted &&
 	!modelAlreadyNarrating &&
 	(toolCallsSinceCheckpoint >= CHECKPOINT_TOOL_CALL_THRESHOLD || wallClockElapsed >= CHECKPOINT_WALL_CLOCK_MS)
   ) {
