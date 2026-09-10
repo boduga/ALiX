@@ -24,7 +24,7 @@ import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
-import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
+import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
@@ -1289,8 +1289,10 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReasonNoTools } });
   }
 
-  // Get verification checks
-  const checks = await discoverVerification(".");
+  const changedFilesForVerification = [...sessionState.created, ...sessionState.changed];
+  const checks = requiresRepositoryVerification(changedFilesForVerification)
+    ? await discoverVerification(".")
+    : [];
 
   // For docs and research tasks, skip verification
   // Also skip if no file mutations occurred (nothing to verify)
@@ -1929,7 +1931,7 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
   } else {
     const changedFiles = [...sessionState.created, ...sessionState.changed];
-    if (changedFiles.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
+    if (changedFiles.length > 0 && requiresRepositoryVerification(changedFiles) && taskType !== "docs" && taskType !== "research" && hasMutations) {
       // Use TestPlanner for smart verification selection
       const { createTestPlan } = await import("../verifier/test-planner.js");
 

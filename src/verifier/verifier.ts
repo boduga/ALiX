@@ -1,7 +1,7 @@
 // src/verifier/verifier.ts
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { runWithIsolation } from "../skills/test-isolation.js";
 import type { SessionMode } from "../config/schema.js";
 
@@ -18,17 +18,26 @@ export type VerificationResult = {
 
 const TEST_COMMANDS = ["test", "test:unit", "test:integration"];
 const BUILD_COMMANDS = ["build", "compile"];
-const TYPE_CHECK_COMMANDS = ["typecheck", "type-check", "lint", "check"];
+const TYPE_CHECK_COMMANDS = ["typecheck", "type-check", "lint"];
 
 type CheckKind = "typecheck" | "build" | "test";
 
 const COST_ORDER: CheckKind[] = ["typecheck", "build", "test"];
 
-function kindOf(name: string): CheckKind {
+function kindOf(name: string): CheckKind | undefined {
   if (TYPE_CHECK_COMMANDS.includes(name)) return "typecheck";
   if (BUILD_COMMANDS.includes(name)) return "build";
   if (TEST_COMMANDS.includes(name)) return "test";
-  return "test";
+  return undefined;
+}
+
+const NON_CODE_EXTENSIONS = new Set([
+  ".adoc", ".log", ".markdown", ".md", ".rst", ".txt",
+]);
+
+/** Whether repository build/test commands can meaningfully verify these files. */
+export function requiresRepositoryVerification(changedFiles: readonly string[]): boolean {
+  return changedFiles.some((file) => !NON_CODE_EXTENSIONS.has(extname(file).toLowerCase()));
 }
 
 export async function discoverVerification(root: string): Promise<VerificationCheck[]> {
@@ -40,7 +49,7 @@ export async function discoverVerification(root: string): Promise<VerificationCh
 
   for (const name of Object.keys(scripts)) {
     const kind = kindOf(name);
-    if (!COST_ORDER.includes(kind)) continue;
+    if (!kind) continue;
     const fullCmd = name === "test" ? "npm test" : `npm run ${name}`;
     checks.push({ kind, check: { command: fullCmd, reason: `package.json script: ${name}` } });
   }

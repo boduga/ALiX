@@ -106,6 +106,7 @@ async function makeTestDeps(overrides: {
   mcpToolIndex?: TaskLoopDeps['mcpToolIndex'];
   messages?: NormalizedMessage[];
   maxIterations?: number;
+  taskType?: TaskLoopDeps['taskType'];
   executor?: TaskLoopDeps['executor'];
   selectedTools?: TaskLoopDeps['selectedTools'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
@@ -174,7 +175,7 @@ async function makeTestDeps(overrides: {
     contextBudget,
     tokenizer: 'cl100k_base',
     task: overrides.task ?? 'test task',
-    taskType: 'docs',
+    taskType: overrides.taskType ?? 'docs',
     depth: 'quick',
     memoryStore,
     sessionId,
@@ -812,5 +813,43 @@ describe('task-loop completion termination', () => {
     expect(result.reason).toBe('completed');
     expect(result.summary).toBe('Created note.md.');
     expect(executions[0]?.allowedMutationPaths).toEqual(['note.md']);
+  });
+
+  it('does not run repository scripts after creating and reading back a text file', async () => {
+    let iteration = 0;
+    const provider = {
+      ...createMockProvider(),
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        this.requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'alix-safety-test.txt', content: 'ALiX workspace write succeeded.' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read', args: { path: 'alix-safety-test.txt' } }] };
+        if (iteration === 3) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+        return { text: 'Created and read back alix-safety-test.txt.', toolCalls: [{ name: 'alix_done', id: 'duplicate-done', args: {} }] };
+      },
+    } as ModelAdapter & { requests: RecordedRequest[] };
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: 'Create a file named alix-safety-test.txt containing the requested text, then read it back.',
+      taskType: 'command',
+      providerTools: [createTool, readTool, doneTool],
+      selectedTools: [
+        { name: 'alix_file_create', execName: 'file.create' },
+        { name: 'alix_file_read', execName: 'file.read' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: name === 'file.read' ? 'ALiX workspace write succeeded.' : 'ok' },
+      } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+    const events = await log.readAll();
+
+    expect(result.reason).toBe('completed');
+    expect(events.some((event) => event.type === 'verification.check_started')).toBe(false);
   });
 });
