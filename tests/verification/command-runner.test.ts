@@ -48,4 +48,15 @@ describe("CommandRunner", () => {
     assert.ok(result.success);
     assert.ok(output.includes("hello"));
   });
+
+  it("does not inherit unrelated parent credentials", async () => {
+    process.env.ALIX_COMMAND_RUNNER_SECRET = "must-not-leak";
+    try {
+      const result = await new CommandRunner().run("env", { timeout: 5000 });
+      assert.ok(result.success);
+      assert.ok(!result.stdout.includes("ALIX_COMMAND_RUNNER_SECRET"));
+    } finally {
+      delete process.env.ALIX_COMMAND_RUNNER_SECRET;
+    }
+  });
 });

@@ -5,7 +5,8 @@
  * paths through this single resolver instead of duplicating logic.
  */
 
-import { resolve } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +20,28 @@ export type ResolvedPath = {
   sensitive: boolean;
   reason?: string;
 };
+
+function relativeIsInside(rel: string): boolean {
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+export function isCanonicalPathWithinWorkspace(workspaceRoot: string, targetPath: string): boolean {
+  const resolvedRoot = resolve(workspaceRoot);
+  if (!existsSync(resolvedRoot)) {
+    const rel = relative(resolvedRoot, resolve(targetPath));
+    return relativeIsInside(rel);
+  }
+  const canonicalRoot = realpathSync.native(resolvedRoot);
+  let existing = resolve(targetPath);
+  while (!existsSync(existing)) {
+    const parent = dirname(existing);
+    if (parent === existing) return false;
+    existing = parent;
+  }
+  const canonicalExisting = realpathSync.native(existing);
+  const rel = relative(canonicalRoot, canonicalExisting);
+  return relativeIsInside(rel);
+}
 
 // ---------------------------------------------------------------------------
 // Sensitive path patterns
@@ -47,13 +70,19 @@ export class WorkspacePathResolver {
   ) {}
 
   resolve(rawPath: string): string {
-    if (rawPath.startsWith("/")) return rawPath;
+    if (isAbsolute(rawPath)) return rawPath;
     if (rawPath.startsWith("~")) return resolve(homedir(), rawPath.replace(/^~/, homedir()));
     return resolve(this.workspaceRoot, rawPath);
   }
 
   isInWorkspace(absolutePath: string): boolean {
-    return absolutePath === this.workspaceRoot || absolutePath.startsWith(this.workspaceRoot + "/");
+    const rel = relative(resolve(this.workspaceRoot), resolve(absolutePath));
+    return relativeIsInside(rel);
+  }
+
+  /** Reject lexical escapes and symlink traversal outside the workspace. */
+  isCanonicalInWorkspace(absolutePath: string): boolean {
+    return isCanonicalPathWithinWorkspace(this.workspaceRoot, absolutePath);
   }
 
   isProtected(absolutePath: string): boolean {
@@ -88,7 +117,7 @@ export class WorkspacePathResolver {
 
   isTraversalSafe(rawPath: string): boolean {
     if (rawPath.startsWith("..")) return false;
-    if (rawPath.startsWith("/")) return rawPath === this.workspaceRoot || rawPath.startsWith(this.workspaceRoot + "/");
+    if (isAbsolute(rawPath)) return this.isInWorkspace(rawPath);
     if (rawPath.includes("../")) return false;
     if (rawPath.startsWith("~")) return false;
     if (rawPath.startsWith("$")) return false;

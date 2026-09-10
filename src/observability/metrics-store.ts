@@ -101,6 +101,7 @@ export class MetricsStore {
         if (isNodeError(err) && err.code === "ENOENT") continue; // raced by retention
         throw err;
       }
+      const descendingRows: MetricRow[] = [];
       try {
         for await (const line of rl) {
           try {
@@ -113,9 +114,14 @@ export class MetricsStore {
             if (query?.after && row.timestamp < query.after) continue;
             if (query?.before && row.timestamp > query.before) continue;
 
-            yield row;
-            count++;
-            if (count >= cappedLimit) return;
+            if (order === "desc") {
+              descendingRows.push(row);
+              if (descendingRows.length > cappedLimit - count) descendingRows.shift();
+            } else {
+              yield row;
+              count++;
+              if (count >= cappedLimit) return;
+            }
           } catch { /* skip malformed lines */ }
         }
       } catch (err: unknown) {
@@ -124,6 +130,13 @@ export class MetricsStore {
         throw err;
       } finally {
         rl.close();
+      }
+      if (order === "desc") {
+        for (let i = descendingRows.length - 1; i >= 0; i--) {
+          yield descendingRows[i];
+          count++;
+          if (count >= cappedLimit) return;
+        }
       }
     }
   }

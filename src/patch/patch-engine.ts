@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { isAbsolute, relative, sep } from "node:path";
+import { isCanonicalPathWithinWorkspace } from "../runtime/workspace-path.js";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -306,7 +308,8 @@ export function sha256(content: string): string {
 function resolvePatchPath(root: string, patchPath: string): string {
   const resolvedRoot = resolve(root);
   const resolvedPath = resolve(resolvedRoot, patchPath);
-  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}/`)) {
+  const rel = relative(resolvedRoot, resolvedPath);
+  if ((rel !== "" && (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))) || !isCanonicalPathWithinWorkspace(resolvedRoot, resolvedPath)) {
     throw new Error(`Patch path is outside workspace: ${patchPath}`);
   }
   return resolvedPath;

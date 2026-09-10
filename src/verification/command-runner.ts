@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { exec as execCallback } from "node:child_process";
+import { buildChildEnv } from "../runtime/child-env.js";
 
 const execAsync = promisify(execCallback);
 
@@ -35,7 +36,7 @@ export class CommandRunner {
     try {
       const { stdout, stderr } = await execAsync(command, {
         cwd: options.cwd ?? process.cwd(),
-        env: { ...process.env, ...options.env },
+        env: buildChildEnv(undefined, options.env),
         timeout,
               });
 
@@ -88,7 +89,7 @@ export class CommandRunner {
 
       const child = spawn(command, {
         cwd: options.cwd ?? process.cwd(),
-        env: { ...process.env, ...options.env },
+        env: buildChildEnv(undefined, options.env),
         shell: true,
       });
 

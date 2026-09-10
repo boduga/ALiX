@@ -46,6 +46,7 @@ export interface ExecutionDeps {
    * allowlist-rejection path without a network call).
    */
   providerFactory?: (config: any) => Promise<ModelAdapter>;
+  signal?: AbortSignal;
 }
 
 /**
@@ -88,7 +89,7 @@ async function singleProviderCall(
     systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
     messages: [{ role: "user", content: prompt }],
     ...tokenCap(deps),
-  });
+  }, { signal: deps.signal });
   return response.text || "(no response)";
 }
 
@@ -210,6 +211,7 @@ export async function executeToolBehavior(
     toolCallId: await newToolCallId(),
     name: route.tool,
     args: route.args,
+    signal: deps.signal,
   });
   return renderToolResult(result, { renderApprovalPrompt: deps.renderApprovalPrompt });
 }
@@ -249,7 +251,7 @@ export async function executeGroundedChatBehavior(
   const { webSearchTool } = await import("../tools/web-search.js");
   const { webFetchTool } = await import("../tools/web-fetch.js");
   const allowedSet = new Set(route.allowedTools);
-  const tools = ([webSearchTool(), webFetchTool()] as ToolDef[])
+  const tools = ([webSearchTool(), webFetchTool({ allowDomains: config.permissions?.allowNetworkDomains ?? [] })] as ToolDef[])
     .filter((t) => allowedSet.has(t.name));
 
   // First call: model may issue a tool call for fresh information
@@ -258,7 +260,7 @@ export async function executeGroundedChatBehavior(
     messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
     tools: tools.length > 0 ? tools : undefined,
     ...tokenCap(deps),
-  });
+  }, { signal: deps.signal });
 
   if (response.toolCalls.length > 0) {
     if (response.toolCalls.length > 1) {
@@ -275,6 +277,7 @@ export async function executeGroundedChatBehavior(
       toolCallId: await newToolCallId(),
       name: tc.name,
       args: tc.args,
+      signal: deps.signal,
     });
 
     const toolContent = toolResult.kind === "success"
@@ -293,7 +296,7 @@ export async function executeGroundedChatBehavior(
         { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
       ],
       ...tokenCap(deps),
-    });
+    }, { signal: deps.signal });
     return finalResponse.text || "(no response)";
   }
 

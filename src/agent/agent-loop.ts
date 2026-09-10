@@ -28,6 +28,7 @@ import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } fr
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
+import { CancellationToken } from "../runtime/cancellation-token.js";
 
 /** Internal core — the original runTask body, wrapped by the governed
  *  `runTask` export below. Kept as a separate function so the governed
@@ -38,6 +39,10 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
   metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
 
   const ctx = await initAgent(cwd, { cwd, task, sessionId: opts?.sharedSession?.sessionId, sessionDir: opts?.sharedSession?.sessionDir, sharedSession: opts?.sharedSession, sessionMode: opts?.sessionMode });
+  const cancellationToken = new CancellationToken();
+  const cancel = () => cancellationToken.cancel(String(opts?.signal?.reason ?? "cancelled by operator"));
+  if (opts?.signal?.aborted) cancel();
+  else opts?.signal?.addEventListener("abort", cancel, { once: true });
 
   const session = { sessionId: ctx.sessionId, actor: "system" as const };
 
@@ -388,6 +393,8 @@ ${approvedPlanContent}`);
     onStream,
     hookRunner: ctx.hookRunner,
     context: taskContext,
+    cancellationToken,
+    cancelSignal: opts?.signal,
   };
 
   // Emit task.started before entering the task loop

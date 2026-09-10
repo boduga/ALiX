@@ -1,10 +1,10 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
-import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
@@ -19,6 +19,7 @@ import { measurePhase } from "../runtime/timing-events.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
+import { validateShellNetworkCommand, type ResolveNetworkHost } from "./shell-network-policy.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
 import type { ToolRegistry, CapabilityIndex } from "./tool-registry.js";
@@ -37,17 +38,23 @@ export class FileToolRouter implements ToolRouter {
     "dir.search",
   ];
 
+  private readonly pathResolver: WorkspacePathResolver;
+
   constructor(
-    private readonly root: string = "",
+    private readonly root: string = process.cwd(),
     private eventLog?: EventLog,
     private sessionId?: string,
-    private pathResolver?: WorkspacePathResolver,
-  ) {}
+    pathResolver?: WorkspacePathResolver,
+  ) {
+    this.pathResolver = pathResolver ?? new WorkspacePathResolver(this.root);
+  }
 
   /** Validate a file path through the path resolver. Returns error result if blocked. */
   private checkPath(rawPath: string): ToolResult | null {
-    if (!this.pathResolver) return null;
     const result = this.pathResolver.check(rawPath);
+    if (!result.insideWorkspace || !this.pathResolver.isCanonicalInWorkspace(result.absolute)) {
+      return { kind: "error", message: `Access denied: path is outside workspace (${result.absolute})`, retryable: false };
+    }
     // Check protected first — user-configured protections take priority over
     // the generic sensitive pattern message for better UX.
     if (result.protected && result.insideWorkspace) {
@@ -67,37 +74,37 @@ export class FileToolRouter implements ToolRouter {
     const args = request.args as any;
 
     // Path validation via WorkspacePathResolver
-    if (args.path) {
-      const blocked = this.checkPath(args.path);
-      if (blocked) return blocked;
+    if (args.root && resolve(args.root) !== resolve(this.root)) {
+      return { kind: "error", message: "Access denied: root override is outside the configured workspace", retryable: false };
     }
-    if (args.root) {
-      const blocked = this.checkPath(args.root);
+    if (args.path) {
+      const blocked = this.checkPath(resolve(this.root, args.path));
       if (blocked) return blocked;
     }
 
     switch (request.name) {
       case "file.read": {
         if (!args.path) return { kind: "error", message: "file.read requires path" };
-        return readFile({ root: args.root ?? this.root, path: args.path });
+        return readFile({ root: this.root, path: args.path });
       }
       case "dir.search": {
         if (!args.pattern) return { kind: "error", message: "dir.search requires pattern" };
         return searchDir({
-          root: args.root ?? this.root,
+          root: this.root,
           pattern: args.pattern,
           extensions: args.extensions ?? [],
         });
       }
       case "file.create": {
-        const { root: r, path, content } = args;
+        const { path, content } = args;
         if (!path || content === undefined) {
           return { kind: "error", message: "file.create requires path and content" };
         }
-        const baseRoot = resolve(r ?? this.root);
+        const baseRoot = resolve(this.root);
         const resolvedPath = resolve(baseRoot, path);
         // CRITICAL: validate path stays within workspace
-        if (!resolvedPath.startsWith(baseRoot + "/") && resolvedPath !== baseRoot) {
+        const rel = relative(baseRoot, resolvedPath);
+        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
         if (existsSync(resolvedPath)) {
@@ -121,11 +128,12 @@ export class FileToolRouter implements ToolRouter {
         };
       }
       case "file.delete": {
-        const { root: r, path } = args;
+        const { path } = args;
         if (!path) return { kind: "error", message: "file.delete requires path" };
-        const baseRoot = resolve(r ?? this.root);
+        const baseRoot = resolve(this.root);
         const resolvedPath = resolve(baseRoot, path);
-        if (!resolvedPath.startsWith(baseRoot + "/") && resolvedPath !== baseRoot) {
+        const rel = relative(baseRoot, resolvedPath);
+        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." };
         }
         const { rm } = await import("node:fs/promises");
@@ -146,7 +154,7 @@ export class FileToolRouter implements ToolRouter {
       }
       case "file.exists": {
         if (!args.path) return { kind: "error", message: "file.exists requires path" };
-        const exists = existsSync(resolve(args.root ?? this.root, args.path));
+        const exists = existsSync(resolve(this.root, args.path));
         return { kind: "success", output: exists ? "exists" : "not found", exists };
       }
       default:
@@ -157,11 +165,17 @@ export class FileToolRouter implements ToolRouter {
 
 export class ShellToolRouter implements ToolRouter {
   private shellPool?: ShellPool;
+  private readonly pathResolver: WorkspacePathResolver;
 
   constructor(
-    private readonly root: string = "",
-    private pathResolver?: WorkspacePathResolver,
-  ) {}
+    private readonly root: string = process.cwd(),
+    pathResolver?: WorkspacePathResolver,
+    private envAllowlist?: string[],
+    private allowNetworkDomains: string[] = [],
+    private resolveNetworkHost?: ResolveNetworkHost,
+  ) {
+    this.pathResolver = pathResolver ?? new WorkspacePathResolver(this.root);
+  }
 
   canHandle(name: string): boolean {
     return name === "shell.run";
@@ -169,8 +183,10 @@ export class ShellToolRouter implements ToolRouter {
 
   /** Validate a path through the resolver. Returns error result if blocked. */
   private checkPath(rawPath: string): ToolResult | null {
-    if (!this.pathResolver) return null;
     const r = this.pathResolver.check(rawPath);
+    if (!r.insideWorkspace || !this.pathResolver.isCanonicalInWorkspace(r.absolute)) {
+      return { kind: "error", message: "Shell access denied: path is outside workspace (" + r.absolute + ")", retryable: false };
+    }
     // Check protected first — user-configured protections take priority over
     // the generic sensitive pattern message for better UX (mirrors FileToolRouter).
     if (r.protected && r.insideWorkspace) {
@@ -201,6 +217,10 @@ export class ShellToolRouter implements ToolRouter {
       if (blocked) return blocked;
     }
 
+    if (r && resolve(r) !== resolve(this.root)) {
+      return { kind: "error", message: "Shell root override must be the configured workspace", retryable: false };
+    }
+
     // Scan the command string for references to known sensitive paths.
     // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
     if (command && this.pathResolver) {
@@ -224,23 +244,44 @@ export class ShellToolRouter implements ToolRouter {
       return { kind: "error", message: "shell.run requires command" };
     }
 
+    try {
+      await validateShellNetworkCommand(command, this.allowNetworkDomains, this.resolveNetworkHost);
+    } catch (error) {
+      return {
+        kind: "error",
+        message: `Shell network access denied: ${error instanceof Error ? error.message : String(error)}`,
+        retryable: false,
+      };
+    }
+
+    // Safe-shell admission is about command shape, not path authority. Every
+    // filesystem operand still goes through the same workspace/canonical-path
+    // boundary as file tools so `cat ../secret` cannot bypass containment.
+    if (isSafeShellCommand(command)) {
+      for (const operand of safeShellPathOperands(command)) {
+        const blocked = this.checkPath(operand);
+        if (blocked) return blocked;
+      }
+    }
+
     // Level 5: Check if command is safe shell (runs before policy decision)
     if (isSafeShellCommand(command)) {
-      const sResult = await executeSafeShell(command);
+      const sResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.envAllowlist });
       if (sResult.allowed) {
+        if (sResult.error) return { kind: "error", message: sResult.error };
         return {
           kind: "success",
-          output: sResult.output ?? sResult.error ?? "",
+          output: sResult.output ?? "",
         };
       }
       return { kind: "error", message: sResult.error ?? "SafeShell validation failed" };
     }
 
-    const workingDir = cwd ?? r ?? this.root;
+    const workingDir = cwd ?? this.root;
 
     if (persistent) {
       if (!this.shellPool) {
-        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs });
+        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs, envAllowlist: this.envAllowlist });
       }
       try {
         const shResult = await this.shellPool.run(command, timeoutMs);
@@ -253,7 +294,7 @@ export class ShellToolRouter implements ToolRouter {
     // Operator-cancel signal (optional) is threaded into runCommand so an
     // operator abort kills the child (via spawnCommand's cancel path) and the
     // outcome surfaces as ExecutionCancelledError, never as a tool failure.
-    return runCommand({ command, cwd: workingDir, timeoutMs, signal: request.signal });
+    return runCommand({ command, cwd: workingDir, timeoutMs, signal: request.signal, envAllowlist: this.envAllowlist });
   }
 }
 
@@ -272,12 +313,15 @@ export class PatchToolRouter implements ToolRouter {
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
-    const { format, patchText, root: r } = request.args as { root?: string; format?: string; patchText?: string };
+    const { format, patchText, root: requestedRoot } = request.args as { root?: string; format?: string; patchText?: string };
     if (!format || !patchText) {
       return { kind: "error", message: "patch.apply requires format and patchText" };
     }
 
-    const patchRoot = r ?? this.root;
+    if (requestedRoot && resolve(requestedRoot) !== resolve(this.root)) {
+      return { kind: "error", message: "Access denied: patch root override is outside the configured workspace", retryable: false };
+    }
+    const patchRoot = this.root;
     const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: resolveModelConfig(this.config).provider });
     const requestedFormat = format as EditFormat;
     const allowed = policy.allowed.includes(requestedFormat);
@@ -456,6 +500,7 @@ export class DelegateToolRouter implements ToolRouter {
 
 export class WebToolsRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
+  constructor(private readonly allowDomains: string[] = []) {}
 
   canHandle(name: string): boolean {
     return WebToolsRouter.SUPPORTED_TOOLS.includes(name);
@@ -465,7 +510,7 @@ export class WebToolsRouter implements ToolRouter {
     const { webSearchTool } = await import("./web-search.js");
     const { webFetchTool } = await import("./web-fetch.js");
 
-    const tool = request.name === "web_search" ? webSearchTool() : webFetchTool();
+    const tool = request.name === "web_search" ? webSearchTool() : webFetchTool({ allowDomains: this.allowDomains });
     const result = await tool.execute(request.args as any);
 
     if (result.ok) {

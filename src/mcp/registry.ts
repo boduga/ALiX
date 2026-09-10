@@ -7,6 +7,7 @@ import { StdioTransport } from "./transports/stdio-transport.js";
 import { HttpTransport } from "./transports/http-transport.js";
 import { WebSocketTransport } from "./transports/websocket-transport.js";
 import { spawn } from "node:child_process";
+import { buildChildEnv } from "../runtime/child-env.js";
 
 export interface RegisteredTool {
   fullName: string;     // e.g., "github/repos.list"
@@ -26,7 +27,7 @@ export class McpToolRegistry {
       case "stdio": {
         const proc = spawn(config.command, config.args ?? [], {
           stdio: ["pipe", "pipe", "pipe"],
-          env: { ...process.env, ...config.env }
+          env: buildChildEnv(undefined, config.env)
         });
         return new StdioTransport(config.name, proc);
       }

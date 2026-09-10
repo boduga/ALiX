@@ -37,14 +37,37 @@ test("shell.run with denied command returns denied", async () => {
   }
 });
 
-test("shell.run uses root as cwd when cwd is omitted", async () => {
+test("safe shell bypass cannot read a parent path", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "alix-exec-parent-"));
+  const dir = join(parent, "workspace");
+  try {
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(dir);
+    await writeFile(join(parent, "secret.txt"), "secret");
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
+    const result = await executor.execute({
+      toolCallId: "safe-traversal",
+      name: "shell.run",
+      args: { command: "cat ../secret.txt" },
+      ...TEST_CORRELATION,
+    });
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /outside workspace/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("shell.run uses the configured workspace as cwd when cwd is omitted", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
   try {
     await writeFile(join(dir, "root-marker.txt"), "marker");
     const log = new EventLog(dir);
     await log.init();
-    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, "/tmp");
-    const result = await executor.execute({ toolCallId: "3", name: "shell.run", args: { root: dir, command: "pwd && ls", timeoutMs: 5000 }, ...TEST_CORRELATION });
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
+    const result = await executor.execute({ toolCallId: "3", name: "shell.run", args: { command: "pwd && ls", timeoutMs: 5000 }, ...TEST_CORRELATION });
 
     assert.equal(result.kind, "success");
     assert.ok((result as any).output.includes(dir));

@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runCommand } from "../src/tools/shell-tool.js";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 test("runCommand returns output and exit code 0", async () => {
   const result = await runCommand({ command: "echo hello", cwd: "/tmp", timeoutMs: 5000 });
@@ -37,6 +40,33 @@ test("runCommand respects timeout", async () => {
   const result = await runCommand({ command: "sleep 10", cwd: "/tmp", timeoutMs: 500 });
   assert.equal(result.kind, "error");
   assert.ok(result.message?.includes("timed out") || result.message?.includes("SIGKILL"));
+});
+
+test("runCommand timeout kills detached descendants", async () => {
+  if (process.platform === "win32") return;
+  const dir = mkdtempSync(join(tmpdir(), "alix-shell-tree-"));
+  const marker = join(dir, "orphaned");
+  try {
+    const result = await runCommand({
+      command: `sh -c 'sleep 0.4; touch "${marker}"' & wait`, cwd: dir, timeoutMs: 50,
+    });
+    assert.equal(result.kind, "error");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.equal(existsSync(marker), false, "descendant survived the timeout");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("runCommand exposes only allowlisted environment variables", async () => {
+  process.env.ALIX_TEST_SECRET = "must-not-leak";
+  try {
+    const result = await runCommand({ command: "env", cwd: "/tmp", timeoutMs: 5000, envAllowlist: ["PATH"] });
+    assert.equal(result.kind, "success");
+    assert.doesNotMatch(result.output ?? "", /ALIX_TEST_SECRET/);
+  } finally {
+    delete process.env.ALIX_TEST_SECRET;
+  }
 });
 
 test("runCommand rejects empty command string", async () => {

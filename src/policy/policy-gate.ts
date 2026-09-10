@@ -164,18 +164,6 @@ export class PolicyGate {
   async evaluateToolCall(request: ToolPolicyRequest): Promise<PolicyGateDecision> {
     const policyRevision = computePolicyRevision(this.config);
 
-    // Bypass/auto mode short-circuits all policy checks
-    if (request.sessionMode === "bypass" || request.sessionMode === "auto") {
-      return {
-        requestId: request.requestId,
-        capability: request.capability ?? inferCapability(request.toolName),
-        decision: "allow",
-        reason: `Session mode is '${request.sessionMode}' — all tools allowed`,
-        matchedRuleId: `session-mode-${request.sessionMode}`,
-        policyRevision,
-      };
-    }
-
     const capability = request.capability ?? inferCapability(request.toolName);
     const args = request.args;
 
@@ -310,9 +298,9 @@ export class PolicyGate {
     }
 
     // 6. Default policy
-    const defaultDecision = this.config.permissions.default ?? "ask";
+    const defaultDecision = applySessionMode(this.config.permissions.default ?? "ask", request.sessionMode);
     if (defaultDecision === "allow") {
-      return { requestId: request.requestId, capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy", policyRevision };
+      return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by default policy (mode: ${request.sessionMode})`, matchedRuleId: "default-policy", policyRevision };
     }
     if (defaultDecision === "deny") {
       return { requestId: request.requestId, capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
@@ -386,7 +374,7 @@ export class PolicyGate {
       }
     }
 
-    const defaultDecision = this.config.permissions.default ?? "ask";
+    const defaultDecision = applySessionMode(this.config.permissions.default ?? "ask", request.sessionMode);
     if (defaultDecision === "allow") {
       return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy", policyRevision };
     }

@@ -84,7 +84,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         path: { type: "string", description: "Relative path to the FILE to read (NOT a directory)" }
       },
       required: ["path"]
@@ -96,7 +95,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         pattern: { type: "string", description: "Text pattern to search for" },
         extensions: { type: "array", items: { type: "string" } }
       },
@@ -122,7 +120,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         format: { type: "string", description: "Patch format: 'search_replace', 'structured_patch', or 'unified_diff'. Unified diff is auto-detected; aider '*** Begin Patch' is normalized automatically." },
         patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE\nFor unified_diff, use standard git diff: --- a/<file> / +++ b/<file> / @@ hunk headers." }
       },
@@ -135,7 +132,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         path: { type: "string", description: "Relative path to the file to create" },
         content: { type: "string", description: "The file content to write" }
       },
@@ -148,7 +144,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         path: { type: "string", description: "Relative path to the file to delete" }
       },
       required: ["path"]
@@ -160,7 +155,6 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
         path: { type: "string", description: "Relative path to the file" }
       },
       required: ["path"]
@@ -574,4 +568,3 @@ export async function continueTruncatedGeneration(
     continuations,
   };
 }
-

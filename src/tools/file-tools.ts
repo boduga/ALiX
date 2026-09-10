@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile as fsReadFile } from "node:fs/promises";
-import { join, resolve, relative } from "node:path";
+import { isAbsolute, join, resolve, relative, sep } from "node:path";
 import type { ToolResult, FileMatch } from "./types.js";
 import { withRetry } from "../runtime/retry.js";
 import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
@@ -24,7 +24,8 @@ export async function readFile(args: { root: string; path: string }): Promise<To
     return { kind: "error", message: `Invalid path: ${path}` };
   }
 
-  if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
+  const relPath = relative(resolvedRoot, resolvedPath);
+  if (relPath === ".." || relPath.startsWith(`..${sep}`) || isAbsolute(relPath)) {
     return { kind: "error", message: `Path is outside workspace: ${path}` };
   }
 

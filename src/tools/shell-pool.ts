@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { buildChildEnv } from "../runtime/child-env.js";
 
 /**
  * ShellPool maintains a persistent bash process for commands
@@ -8,11 +9,12 @@ export class ShellPool {
   private proc: ReturnType<typeof spawn>;
   private readonly marker: string;
 
-  constructor(options: { cwd: string; timeoutMs?: number }) {
+  constructor(options: { cwd: string; timeoutMs?: number; envAllowlist?: string[] }) {
     this.marker = `__SHELLPOOL_${Date.now()}_${Math.random().toString(36).slice(2)}__`;
     this.proc = spawn("/bin/bash", [], {
       cwd: options.cwd,
-      stdio: ["pipe", "pipe", "pipe"]
+      stdio: ["pipe", "pipe", "pipe"],
+      env: buildChildEnv(options.envAllowlist),
     });
   }
 

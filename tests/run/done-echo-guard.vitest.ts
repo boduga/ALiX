@@ -20,10 +20,10 @@ describe("lastToolResultShowsClientError", () => {
       lastToolResultShowsClientError([user("<tool_result>Access denied: no approval store</tool_result>")]),
     ).toBe(true);
     expect(
-      lastToolResultShowsClientError([user("<tool_result>command failed with exit 1</tool_result>")]),
+      lastToolResultShowsClientError([user("<tool_result>Error: command failed with exit 1</tool_result>")]),
     ).toBe(true);
     expect(
-      lastToolResultShowsClientError([user("<tool_result>timed out after 180000ms</tool_result>")]),
+      lastToolResultShowsClientError([user("<tool_result>Error: timed out after 180000ms</tool_result>")]),
     ).toBe(true);
   });
 
@@ -42,6 +42,15 @@ describe("lastToolResultShowsClientError", () => {
       user("<tool_result>file written ok: 12 bytes</tool_result>"),
     ];
     expect(lastToolResultShowsClientError(messages)).toBe(false);
+  });
+
+  it("does not treat failure words inside successful file content as a tool failure", () => {
+    const packageJson = JSON.stringify({
+      scripts: { test: "echo failed tests and errors for fixture coverage" },
+    });
+    expect(
+      lastToolResultShowsClientError([user(`<tool_result>${packageJson}</tool_result>`)]),
+    ).toBe(false);
   });
 });
 

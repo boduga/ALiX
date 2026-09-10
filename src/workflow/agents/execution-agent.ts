@@ -307,11 +307,10 @@ async function defaultRunTests(
   testFiles: string[],
   cwd: string,
 ): Promise<TestResult> {
-  const { execSync } = await import("node:child_process");
+  const { execFileSync } = await import("node:child_process");
   const start = Date.now();
   try {
-    const files = testFiles.join(" ");
-    execSync(`npx vitest run ${files} --config vitest.config.mts`, {
+    execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["vitest", "run", ...testFiles, "--config", "vitest.config.mts"], {
       cwd,
       encoding: "utf-8",
       timeout: 60000,
@@ -332,13 +331,13 @@ async function defaultGitCommit(
   message: string,
   cwd: string,
 ): Promise<string> {
-  const { execSync } = await import("node:child_process");
-  execSync(`git add ${files.join(" ")}`, { cwd, encoding: "utf-8" });
-  execSync(`git commit -m "${message.replace(/"/g, '\\"')}"`, {
+  const { execFileSync } = await import("node:child_process");
+  execFileSync("git", ["add", "--", ...files], { cwd, encoding: "utf-8" });
+  execFileSync("git", ["commit", "-m", message], {
     cwd,
     encoding: "utf-8",
   });
-  const sha = execSync("git rev-parse HEAD", {
+  const sha = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd,
     encoding: "utf-8",
   }).trim();

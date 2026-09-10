@@ -36,6 +36,9 @@ describe("SafeShell", () => {
       assert.strictEqual(isSafeShellCommand("cat file | sh"), false);
       assert.strictEqual(isSafeShellCommand("ls; rm -rf"), false);
       assert.strictEqual(isSafeShellCommand("ls && rm -rf"), false);
+      assert.strictEqual(isSafeShellCommand("echo $(cat /etc/passwd)"), false);
+      assert.strictEqual(isSafeShellCommand("echo $OPENAI_API_KEY"), false);
+      assert.strictEqual(isSafeShellCommand("echo `whoami`"), false);
     });
 
     it("rejects find with exec", () => {

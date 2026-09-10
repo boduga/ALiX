@@ -117,4 +117,14 @@ describe("EventLog", () => {
     const seqs = all.map(e => e.seq ?? -1);
     assert.equal(new Set(seqs).size, seqs.length, `duplicate seqs: ${seqs.join(',')}`);
   });
+
+  it("allocates unique sequences during truly concurrent multi-writer appends", async () => {
+    const logs = Array.from({ length: 20 }, () => new EventLog(dir));
+    await Promise.all(logs.map((log) => log.init()));
+    const events = await Promise.all(logs.map((log, i) => log.append({
+      sessionId: `s${i}`, type: "test.concurrent", actor: "system", payload: { i },
+    })));
+    const seqs = events.map((event) => event.seq);
+    assert.equal(new Set(seqs).size, events.length, `duplicate seqs: ${seqs.join(",")}`);
+  });
 });

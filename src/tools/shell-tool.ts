@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { buildChildEnv } from "../runtime/child-env.js";
 import type { ToolResult } from "./types.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
 import { ExecutionCancelledError, signalReason } from "../runtime/cancellation-token.js";
@@ -63,8 +64,14 @@ function spawnCommand(
   command: string,
   cwd: string,
   signal?: AbortSignal,
+  envAllowlist?: string[],
 ): { promise: Promise<ToolResult>; cancel: () => void } {
-  const child = spawn(command, [], { cwd: cwd || undefined, shell: true });
+  const child = spawn(command, [], {
+    cwd: cwd || undefined,
+    shell: true,
+    detached: process.platform !== "win32",
+    env: buildChildEnv(envAllowlist),
+  });
   let stdout = "";
   let stderr = "";
   let settled = false;
@@ -76,7 +83,7 @@ function spawnCommand(
       if (signal) signal.removeEventListener("abort", onAbort);
       // Kill the child (the operator-abort kill path) and route the outcome
       // to cancellation, never to a "command exited with code" failure.
-      if (!child.killed) child.kill("SIGKILL");
+      killProcessTree(child.pid);
       reject(new ExecutionCancelledError(signalReason(signal) ?? "cancelled by operator"));
     };
     const finish = (result: ToolResult) => {
@@ -115,12 +122,23 @@ function spawnCommand(
   return {
     promise,
     cancel: () => {
-      if (!settled) child.kill("SIGKILL");
+      if (!settled) killProcessTree(child.pid);
     },
   };
 }
 
-export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number; signal?: AbortSignal }): Promise<ToolResult> {
+function killProcessTree(pid: number | undefined): void {
+  if (!pid) return;
+  if (process.platform === "win32") {
+    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], () => {});
+    return;
+  }
+  try { process.kill(-pid, "SIGKILL"); } catch {
+    try { process.kill(pid, "SIGKILL"); } catch { /* already exited */ }
+  }
+}
+
+export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number; signal?: AbortSignal; envAllowlist?: string[] }): Promise<ToolResult> {
   const command = normalizeCommand(args.command);
   const { cwd } = args;
   const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
@@ -129,7 +147,7 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
     return { kind: "error", message: "shell.run requires a non-empty command string" };
   }
 
-  const { promise, cancel } = spawnCommand(command, cwd, args.signal);
+  const { promise, cancel } = spawnCommand(command, cwd, args.signal, args.envAllowlist);
 
   try {
     return await withTimeout(
