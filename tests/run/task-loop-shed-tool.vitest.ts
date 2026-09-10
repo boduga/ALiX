@@ -478,7 +478,7 @@ describe('task-loop completion termination', () => {
     expect(result.reason).toBe('completed');
   });
 
-  it('requests at most one synthesis after real work and accepts a substantial summary', async () => {
+  it('requests at most one synthesis after real work and ignores a redundant done attached to the summary', async () => {
     const requests: RecordedRequest[] = [];
     let iteration = 0;
     const finalSummary =
@@ -500,15 +500,18 @@ describe('task-loop completion termination', () => {
         iteration++;
         if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'README.md' } }] };
         if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done-2', args: {} }] };
-        if (iteration === 3) return { text: finalSummary, toolCalls: [] };
+        if (iteration === 3) return { text: finalSummary, toolCalls: [{ name: 'alix_done', id: 'redundant-done-3', args: {} }] };
         throw new Error('completion loop requested redundant model synthesis');
       },
     };
+    const executedTools: string[] = [];
     const executor = {
-      execute: async ({ name }: { name: string }) =>
-        name === 'done'
+      execute: async ({ name }: { name: string }) => {
+        executedTools.push(name);
+        return name === 'done'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
-          : { kind: 'success' as const, output: '# ALiX' },
+          : { kind: 'success' as const, output: '# ALiX' };
+      },
     };
     const { deps } = await makeTestDeps({
       provider,
@@ -523,8 +526,87 @@ describe('task-loop completion termination', () => {
     expect(provider.requests).toHaveLength(3);
     expect(result.summary).toBe(finalSummary);
     expect(result.reason).toBe('completed');
+    const events = await deps.log.readAll();
+    expect(executedTools.filter((name) => name === 'done')).toHaveLength(1);
+    expect(events.filter((event) => event.type === 'completion.redundant_done_ignored')).toHaveLength(1);
     expect(provider.requests[0]!.systemPrompt).toContain('CURRENT TURN BOUNDARY');
     expect(provider.requests[0]!.systemPrompt).toContain('Earlier completed turns are context only');
+  });
+
+  it('accepts a concise synthesis after an action tool without forcing done', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'README.md' } }] };
+        if (iteration === 2) return { text: 'The exact first heading is `# ALiX`.', toolCalls: [] };
+        throw new Error('concise synthesis was not accepted');
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read the first README heading',
+      providerTools: [readTool, doneTool],
+      executor: { execute: async () => ({ kind: 'success' as const, output: '# ALiX' }) } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toBe('The exact first heading is `# ALiX`.');
+    expect(result.reason).toBe('completed');
+  });
+
+  it('surfaces the latest tool denial when done has no prose summary', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-outside', args: { path: '../package.json' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done-after-denial', args: {} }] };
+        throw new Error('denied outcome requested an unnecessary extra synthesis');
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'try to read ../package.json and report the result',
+      providerTools: [readTool, doneTool],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'error' as const, message: 'Access denied: path is outside workspace (/tmp/package.json)', retryable: false },
+      } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toContain('Task could not complete: Access denied: path is outside workspace (/tmp/package.json)');
+    expect(result.reason).toBe('completed_unverified');
   });
 
   it('does not let a progress checkpoint preempt an explicit done call', async () => {

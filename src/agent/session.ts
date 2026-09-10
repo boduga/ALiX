@@ -1675,7 +1675,13 @@ export class AgentSessionBuilder {
           provider: ctx.provider,
           providerTools,
           mcpToolIndex,
-          messages,
+          // Agent executions are objective-scoped. Keep the accumulated
+          // conversation for the session UI/audit trail, but give the task
+          // loop only the current objective. The lightweight chat path below
+          // still receives full chat history, so conversational continuity is
+          // preserved where it belongs without allowing completed agent turns
+          // to leak into a later task's summary.
+          messages: [{ role: "user", content: message }],
           sessionState,
           stateMachine,
           scope: ctx.scope,

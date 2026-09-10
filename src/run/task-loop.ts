@@ -322,6 +322,24 @@ export function lastToolResultShowsClientError(
   return false;
 }
 
+/** Return a concise, user-facing description of the latest failed tool result. */
+export function latestToolFailure(
+  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== "user" || typeof message.content !== "string") continue;
+    if (!message.content.includes("<tool_result") || !CLIENT_ERROR_RESULT_RE.test(message.content)) continue;
+    const plain = message.content
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^Error:\s*/i, "");
+    if (plain) return plain.slice(0, 500);
+  }
+  return undefined;
+}
+
 /** Whether a reply or the session claims a written deliverable exists. */
 export function claimsArtifactWritten(
   text: string,
@@ -649,6 +667,10 @@ let noToolNudges = 0;
 // Without this latch, a model that answers the request with another `done`
 // call can consume the entire iteration budget repeating done/synthesis.
 let synthesisRequested = false;
+// A model can answer a synthesis request with a bare `done` call. Permit one
+// final prose-only retry, but never let that behavior become an unbounded
+// done/synthesis cycle.
+let emptySynthesisRetryRequested = false;
 
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
@@ -1057,6 +1079,26 @@ if (
   resolvedModel = continued.resolvedModel;
 }
 
+// A synthesis reply sometimes includes another `done` call even though a
+// completion tool already ran (or the runtime explicitly asked for prose).
+// `done` has no useful side effect at this point. Treat the non-empty text as
+// the terminal synthesis and suppress the redundant dispatch so the event log
+// contains one real completion action, not an artificial done loop.
+if (
+  synthesisRequested &&
+  text.trim().length > 0 &&
+  toolCalls.length > 0 &&
+  toolCalls.every((toolCall) => isCompletionTool(toolCall.name))
+) {
+  await log.append({
+    ...session,
+    actor: "system",
+    type: "completion.redundant_done_ignored",
+    payload: { iteration: i, count: toolCalls.length },
+  });
+  toolCalls = [];
+}
+
 if (text.length > 0) {
   await emitAgent(log, session, "agent.message", { text });
 }
@@ -1111,7 +1153,11 @@ if (toolCalls.length === 0) {
   // on a text-only reply: forcing tool use on a model that keeps refusing
   // just spins identical context until max_iterations.
   const nudgedOut = noToolNudges >= NO_TOOL_NUDGE_LIMIT && usedTools.size === 0;
-  const modelSaysDone = explicitDoneCalled || nudgedOut || /done|complete|finished|resolved/i.test(text);
+  const modelSaysDone =
+    explicitDoneCalled ||
+    nudgedOut ||
+    (synthesisRequested && text.trim().length > 0) ||
+    /done|complete|finished|resolved/i.test(text);
 
   // If the model emitted text but no tool calls and didn't signal done,
   // re-prompt once to nudge it into taking action. This handles the
@@ -1183,12 +1229,7 @@ if (toolCalls.length === 0) {
       // Without this, the user sees the agent's first line of text
       // labeled as the "summary" even though no work was finalized.
       const ranToolCalls = hasExecutedActionTool(usedTools);
-      if (
-        ranToolCalls &&
-        text.trim().length < SHORT_SYNTHESIS_THRESHOLD &&
-        !synthesisRequested &&
-        i < maxIterations - 1
-      ) {
+      if (ranToolCalls && text.trim().length === 0 && !synthesisRequested && i < maxIterations - 1) {
         synthesisRequested = true;
         messages.push({
           role: "user",
@@ -1665,17 +1706,20 @@ if (toolCalls.length === 0) {
     // If tools were called but the model's text is short, re-prompt once
     // for a synthesis before closing the session.
     const completedAfterAction = hasExecutedActionTool(usedTools);
+    const priorToolFailure = latestToolFailure(messages);
     if (
       completedAfterAction &&
-      text.trim().length < SHORT_SYNTHESIS_THRESHOLD &&
-      !synthesisRequested &&
+      text.trim().length === 0 &&
+      !priorToolFailure &&
+      (!synthesisRequested || !emptySynthesisRetryRequested) &&
       i < maxIterations - 1
     ) {
+      if (synthesisRequested) emptySynthesisRetryRequested = true;
       synthesisRequested = true;
       messages.push({
         role: "user",
         content:
-          "Tools completed. Write a concise summary of what you did and what you found.",
+          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call done again.",
       });
       continue;
     }
@@ -1705,10 +1749,13 @@ if (toolCalls.length === 0) {
     const missingSynthesis = completedAfterAction && text.trim().length === 0;
     const reason: RunResult["reason"] =
       unsubstantiated.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
+    const failure = priorToolFailure;
     const completionSummary = text.trim().length > 0
       ? text
       : missingSynthesis
-        ? "Task completed, but the model provided no final synthesis."
+        ? failure
+          ? `Task could not complete: ${failure}`
+          : "Task completed, but the model provided no final synthesis."
         : "Task complete.";
     return await completeSession(
       session, log, memoryStore, sessionDir,
@@ -1750,6 +1797,7 @@ if (toolCalls.length === 0) {
       role: "user",
       content: rePrompt,
     });
+    synthesisRequested = true;
     continue;
   }
 

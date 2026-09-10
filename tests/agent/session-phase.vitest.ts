@@ -155,7 +155,7 @@ describe("SessionPhase (contract)", () => {
     );
   });
 
-  it("records each completed assistant turn and passes current task metadata to the next loop", async () => {
+  it("records completed assistant turns but isolates each task loop to its current objective", async () => {
     mocks.runTaskLoop
       .mockResolvedValueOnce({ summary: "first task complete", streamed: false, reason: "completed" })
       .mockResolvedValueOnce({ summary: "second task complete", streamed: false, reason: "completed" });
@@ -170,10 +170,14 @@ describe("SessionPhase (contract)", () => {
       messages: Array<{ role: string; content: string }>;
     };
     expect(second.task).toBe("Fix the tests in this repo");
-    expect(second.messages).toEqual(expect.arrayContaining([
+    expect(second.messages).toEqual([
+      { role: "user", content: "Fix the tests in this repo" },
+    ]);
+    expect(session.getState().messages).toEqual(expect.arrayContaining([
       { role: "user", content: "Refactor this repo for clarity" },
       { role: "assistant", content: "first task complete" },
       { role: "user", content: "Fix the tests in this repo" },
+      { role: "assistant", content: "second task complete" },
     ]));
     const appendCalls = mocks.append.mock.calls as unknown as Array<[{
       type: string;
