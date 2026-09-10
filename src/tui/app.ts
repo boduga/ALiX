@@ -51,6 +51,8 @@ export interface TuiAppOptions {
   keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
   /** Theme name passed to renderResponse. Defaults to 'dark'. */
   themeName?: string;
+  /** Enables the conversation-first Workbench transcript during migration. */
+  workbenchEnabled?: boolean;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -175,7 +177,7 @@ export class TuiApp {
     this.framePainter = new FramePainter({
       state: () => this.state,
       views: () => this.views,
-      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession },
+      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession, workbenchEnabled: this.opts.workbenchEnabled },
       chatRuntime: () => this.chatRuntime,
       agentRuntime: () => this.agentRuntime,
       computeSlashStrip: () => this.slash.computeStrip(),
@@ -1137,6 +1139,14 @@ export class TuiApp {
         this.paintFullFrame();
         break;
       }
+      case 'toggleTranscriptMode': {
+        const per = this.state.views.agent;
+        per.transcriptMode = (per.transcriptMode ?? 'compact') === 'compact' ? 'detailed' : 'compact';
+        per.pinnedBottom = true;
+        this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        break;
+      }
     }
   }
 
@@ -1258,6 +1268,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
+  if (s === '\x0f') return 'Ctrl+o';   // Ctrl+O — transcript detail toggle
   if (s === '\x7f' || s === '\b') return 'Backspace';
   // Ctrl+digit: terminals reliably encode these as ESC + digit (the
   // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab

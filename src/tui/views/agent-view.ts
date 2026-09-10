@@ -3,6 +3,7 @@ import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult,
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
 import { renderSlashOverlay } from './slash-overlay.js';
 import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
+import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
@@ -89,7 +90,15 @@ export class AgentView implements TuiView {
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).
-    const allLines: ScrollbackLine[] = buildAgentScrollbackLines(ctx, vp.textWidth);
+    const allLines: ScrollbackLine[] = ctx.workbenchEnabled
+      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+      : buildAgentScrollbackLines(ctx, vp.textWidth);
+
+    if (ctx.workbenchEnabled) {
+      const mode = ctx.perTab.transcriptMode ?? 'compact';
+      const label = mode === 'compact' ? 'compact' : 'details';
+      c.write(Math.max(0, ctx.dimensions.columns - label.length - 12), STATUS_ROW, `\x1b[90m${label} · Ctrl+O${RESET}`);
+    }
 
     // Branch on pinnedBottom: pinned recomputes bottomAnchor fresh,
     // unpinned uses captured scrollOffset (absolute window-start index).
@@ -243,6 +252,8 @@ export class AgentView implements TuiView {
     // The pinnedBottom side-effect happens in app.ts (Task 3).
     const SCROLL_STEP = 3;
     switch (key) {
+      case 'Ctrl+o':
+        return { type: 'toggleTranscriptMode' };
       case 'ArrowUp':
         return { type: 'scroll', offset: ctx.perTab.scrollOffset + SCROLL_STEP };
       case 'ArrowDown': {

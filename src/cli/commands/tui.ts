@@ -359,6 +359,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     agentSession,
     approvalManager: approvals,
     themeName: opts.themeName,
+    workbenchEnabled: process.env.ALIX_TUI_WORKBENCH === '1',
     capabilityService,
     eventLog,
     chatSessionId,
