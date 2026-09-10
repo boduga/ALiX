@@ -441,3 +441,87 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     }
   });
 });
+
+describe('task-loop completion termination', () => {
+  const readTool: ToolDef = {
+    name: 'alix_file_read',
+    description: 'Read a file',
+    input_schema: { type: 'object', properties: {} },
+  };
+  const doneTool: ToolDef = {
+    name: 'alix_done',
+    description: 'Signal completion',
+    input_schema: { type: 'object', properties: {} },
+  };
+
+  it('terminates immediately when done is the only tool called', async () => {
+    const provider = createMockProvider({
+      toolCalls0: [{ name: 'alix_done', id: 'done-1', args: {} }],
+      responseText1: 'This response must never be requested.',
+    });
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      providerTools: [doneTool],
+      executor: executor as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(1);
+    expect(result.reason).toBe('completed');
+  });
+
+  it('requests at most one synthesis after real work and accepts a substantial summary', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const finalSummary =
+      'I read README.md successfully and confirmed that it documents the ALiX agent operating system. ' +
+      'The requested read completed without modifying the workspace, and the result came directly from the file tool output. ' +
+      'No additional files were accessed or changed.';
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'README.md' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done-2', args: {} }] };
+        if (iteration === 3) return { text: finalSummary, toolCalls: [] };
+        throw new Error('completion loop requested redundant model synthesis');
+      },
+    };
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: '# ALiX' },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read README.md and summarize it',
+      providerTools: [readTool, doneTool],
+      executor: executor as any,
+      maxIterations: 5,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(3);
+    expect(result.summary).toBe(finalSummary);
+    expect(result.reason).toBe('completed');
+  });
+});

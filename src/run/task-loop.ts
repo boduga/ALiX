@@ -70,6 +70,7 @@ import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../runtime/tool-correlation.js";
 import type { CancellationToken } from "../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../runtime/cancellation-token.js";
+import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -266,6 +267,14 @@ const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
 
 const NARRATING_THRESHOLD = 80;
 const SHORT_SYNTHESIS_THRESHOLD = 200;
+
+function isCompletionTool(toolName: string): boolean {
+  return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
+}
+
+function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
+  return [...usedTools].some((name) => !isCompletionTool(name));
+}
 
 /**
  * Compares a model's free-text completion summary against the tools it
@@ -636,6 +645,10 @@ let truncationContinuations = 0;
 // max_iterations. `noToolNudges` is never reset mid-run.
 const NO_TOOL_NUDGE_LIMIT = 1;
 let noToolNudges = 0;
+// A completed tool sequence gets at most one dedicated synthesis request.
+// Without this latch, a model that answers the request with another `done`
+// call can consume the entire iteration budget repeating done/synthesis.
+let synthesisRequested = false;
 
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
@@ -679,6 +692,12 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// pushed into messages so classifyCandidateContext picks it up.
 	const ledgerText = progressLedger.render(10);
 	if (ledgerText) {
+	  // The ledger is a replaceable snapshot, not conversational history.
+	  // Keep only the latest copy so each iteration does not compound the
+	  // same progress state in the model context.
+	  messages = messages.filter((message) =>
+	    !(message.role === "user" && typeof message.content === "string" && message.content.startsWith("[Progress Ledger]"))
+	  );
 	  messages.push({
 	    role: "user",
 	    content: `[Progress Ledger]\n${ledgerText}`,
@@ -1088,7 +1107,7 @@ if (toolCalls.length === 0) {
   // on a text-only reply: forcing tool use on a model that keeps refusing
   // just spins identical context until max_iterations.
   const nudgedOut = noToolNudges >= NO_TOOL_NUDGE_LIMIT && usedTools.size === 0;
-  const modelSaysDone = nudgedOut || /done|complete|finished|resolved/i.test(text);
+  const modelSaysDone = explicitDoneCalled || nudgedOut || /done|complete|finished|resolved/i.test(text);
 
   // If the model emitted text but no tool calls and didn't signal done,
   // re-prompt once to nudge it into taking action. This handles the
@@ -1159,8 +1178,14 @@ if (toolCalls.length === 0) {
       // earlier), force one more iteration to get a real final answer.
       // Without this, the user sees the agent's first line of text
       // labeled as the "summary" even though no work was finalized.
-      const ranToolCalls = usedTools.size > 0;
-      if (ranToolCalls && i < maxIterations - 1) {
+      const ranToolCalls = hasExecutedActionTool(usedTools);
+      if (
+        ranToolCalls &&
+        text.trim().length < SHORT_SYNTHESIS_THRESHOLD &&
+        !synthesisRequested &&
+        i < maxIterations - 1
+      ) {
+        synthesisRequested = true;
         messages.push({
           role: "user",
           content:
@@ -1345,7 +1370,6 @@ if (toolCalls.length === 0) {
   // doesn't short-circuit the rest (e.g., toolResult.completed from the
   // first tool must not prevent the second tool from executing).
   let trackCompleted = false;
-  let trackCompletedWithToolCalls = false;
   let trackShellComplete = false;
   let shellOutput = "";
 
@@ -1398,7 +1422,6 @@ if (toolCalls.length === 0) {
     if (toolResult.completed) {
       trackCompleted = true;
       explicitDoneCalled = true;
-      trackCompletedWithToolCalls = trackCompletedWithToolCalls || usedTools.size > 0;
     }
     if (toolResult.message) messages.push(toolResult.message);
     if ((deps.shellTask || deps.readOnly) && !toolResult.completed && !toolResult.continue) {
@@ -1636,7 +1659,14 @@ if (toolCalls.length === 0) {
     // Model explicitly requested completion via a "done" tool or similar.
     // If tools were called but the model's text is short, re-prompt once
     // for a synthesis before closing the session.
-    if (trackCompletedWithToolCalls && text.length < SHORT_SYNTHESIS_THRESHOLD && i < maxIterations - 1) {
+    const completedAfterAction = hasExecutedActionTool(usedTools);
+    if (
+      completedAfterAction &&
+      text.trim().length < SHORT_SYNTHESIS_THRESHOLD &&
+      !synthesisRequested &&
+      i < maxIterations - 1
+    ) {
+      synthesisRequested = true;
       messages.push({
         role: "user",
         content:
@@ -1667,10 +1697,17 @@ if (toolCalls.length === 0) {
       continue;
     }
 
-    const reason: RunResult["reason"] = unsubstantiated.length === 0 ? "completed" : "completed_unverified";
+    const missingSynthesis = completedAfterAction && text.trim().length === 0;
+    const reason: RunResult["reason"] =
+      unsubstantiated.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
+    const completionSummary = text.trim().length > 0
+      ? text
+      : missingSynthesis
+        ? "Task completed, but the model provided no final synthesis."
+        : "Task complete.";
     return await completeSession(
       session, log, memoryStore, sessionDir,
-      taskType, sessionId, text,
+      taskType, sessionId, completionSummary,
       model.streaming ?? false,
       "session.ended", reason,
       contextPressure.snapshot(),

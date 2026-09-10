@@ -154,6 +154,39 @@ describe("SessionPhase (contract)", () => {
       }),
     );
   });
+
+  it("records each completed assistant turn and passes current task metadata to the next loop", async () => {
+    mocks.runTaskLoop
+      .mockResolvedValueOnce({ summary: "first task complete", streamed: false, reason: "completed" })
+      .mockResolvedValueOnce({ summary: "second task complete", streamed: false, reason: "completed" });
+    const session = createAgentSession({ cwd: phaseTestCwd, task: "", planMode: false });
+
+    await session.processTurn("Refactor this repo for clarity");
+    await session.processTurn("Fix the tests in this repo");
+
+    expect(mocks.runTaskLoop).toHaveBeenCalledTimes(2);
+    const second = mocks.runTaskLoop.mock.calls[1]![0] as {
+      task: string;
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(second.task).toBe("Fix the tests in this repo");
+    expect(second.messages).toEqual(expect.arrayContaining([
+      { role: "user", content: "Refactor this repo for clarity" },
+      { role: "assistant", content: "first task complete" },
+      { role: "user", content: "Fix the tests in this repo" },
+    ]));
+    const appendCalls = mocks.append.mock.calls as unknown as Array<[{
+      type: string;
+      payload: { goal?: string; workflowId?: string };
+    }]>;
+    const workflows = appendCalls
+      .map(([event]) => event)
+      .filter((event) => event.type === "workflow.created");
+    expect(workflows).toHaveLength(2);
+    expect(workflows[0]!.payload.goal).toBe("Refactor this repo for clarity");
+    expect(workflows[1]!.payload.goal).toBe("Fix the tests in this repo");
+    expect(workflows[0]!.payload.workflowId).not.toBe(workflows[1]!.payload.workflowId);
+  });
 });
 
 describe("processChat (lightweight chat path)", () => {

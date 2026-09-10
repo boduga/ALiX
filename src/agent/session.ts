@@ -1363,6 +1363,7 @@ export class AgentSessionBuilder {
         };
       }
 
+      const continuingAgentSession = initialized;
       if (!initialized) {
         // Seed currentTask from the first message so the planning phase has
         // a task to work with (TUI creates sessions with an empty task).
@@ -1397,6 +1398,25 @@ export class AgentSessionBuilder {
           streamed: false,
           reason: "completed",
         };
+      }
+
+      // Each processTurn is a new execution objective even though the
+      // conversation history persists. Keeping the first message here made
+      // later turns inherit stale task classification/tool scoping and made
+      // their audit records point at an already-completed workflow.
+      currentTask = message;
+      const turnTaskType = classifyTask(message);
+      const turnDepth = detectResearchDepth(message);
+      const turnShellTask = route.kind === "tool" || isShellTask(message);
+      const turnReadOnlyTask = isReadOnlyTask(message) || turnShellTask;
+
+      if (continuingAgentSession) {
+        const nextWorkflow = await setupWorkflow(ctx, session.sessionId, message);
+        wfRun = nextWorkflow.wfRun;
+        taskGraph = nextWorkflow.taskGraph;
+        taskNode = nextWorkflow.taskNode;
+        wfMeta = nextWorkflow.wfMeta;
+        graphMeta = nextWorkflow.graphMeta;
       }
 
       updatedAt = new Date().toISOString();
@@ -1440,23 +1460,21 @@ export class AgentSessionBuilder {
 
       // Update graph status (first turn transitions from ready / created)
       transitionNodeStatus(taskNode, "running");
-      if (turnCount === 1) {
-        transitionGraphStatus(taskGraph, "running");
-        await ctx.log.append({
-          ...session,
-          type: "task.started",
-          actor: "system",
-          payload: { nodeId: taskNode.id, graphId: taskGraph.id },
-          meta: graphMeta,
-        });
-        await ctx.log.append({
-          ...session,
-          type: "graph.status_changed",
-          actor: "system",
-          payload: { graphId: taskGraph.id, status: "running" },
-          meta: graphMeta,
-        });
-      }
+      transitionGraphStatus(taskGraph, "running");
+      await ctx.log.append({
+        ...session,
+        type: "task.started",
+        actor: "system",
+        payload: { nodeId: taskNode.id, graphId: taskGraph.id },
+        meta: graphMeta,
+      });
+      await ctx.log.append({
+        ...session,
+        type: "graph.status_changed",
+        actor: "system",
+        payload: { graphId: taskGraph.id, status: "running" },
+        meta: graphMeta,
+      });
 
       const startTime = Date.now();
 
@@ -1667,18 +1685,14 @@ export class AgentSessionBuilder {
           mcpDiscovery,
           selectedTools,
           hooks,
-          maxIterations: cappedIterations,
+          maxIterations: turnShellTask ? Math.min(cappedIterations, 2) : cappedIterations,
           contextBudget: contextBudget!,
           tokenizer,
-          task: currentTask,
-          taskType,
-          depth,
-          readOnly: config.readOnly ?? readOnlyTask,
-          shellTask:
-            shellTask ||
-            (turnCount === 0 && currentTask === ""
-              ? isShellTask(message)
-              : false),
+          task: message,
+          taskType: turnTaskType,
+          depth: turnDepth,
+          readOnly: config.readOnly ?? turnReadOnlyTask,
+          shellTask: turnShellTask,
           memoryStore: ctx.memoryStore,
           sessionId: ctx.sessionId,
           sessionDir: ctx.sessionDir,
@@ -1865,6 +1879,11 @@ export class AgentSessionBuilder {
 
       // Update graph status based on result reason
       const isFailed = FAILURE_REASONS.has(result.reason ?? "");
+
+      // Preserve a truthful conversational boundary for the next turn. The
+      // loop works on an assembled local message array, so its summary must
+      // be explicitly committed to the session-owned history here.
+      messages.push({ role: "assistant", content: result.summary });
 
       if (isFailed) {
         transitionNodeStatus(taskNode, "failed");
