@@ -4,6 +4,7 @@ import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ShellToolRouter } from "../../src/tools/tool-router.js";
+import { validateShellNetworkCommand } from "../../src/tools/shell-network-policy.js";
 import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
 
 const ROOT = process.cwd();
@@ -117,6 +118,46 @@ describe("ShellToolRouter path validation", () => {
     } as any);
     assert.equal(result.kind, "error");
     assert.match(result.message, /exited with code|No such file/);
+  });
+
+  it("blocks curl to loopback before launching the command", async () => {
+    const result = await router.execute({
+      name: "shell.run", args: { command: "curl -s http://127.0.0.1:3000" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /Private network destinations/);
+  });
+
+  it("blocks netcat to a private destination before launching the command", async () => {
+    const result = await router.execute({
+      name: "shell.run", args: { command: "nc -zv 127.0.0.1 3000" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /Private network destinations/);
+  });
+
+  it("enforces the configured domain allowlist for shell URLs", async () => {
+    const allowlisted = new ShellToolRouter(ROOT, resolver, undefined, ["example.org"], async () => ["93.184.216.34"]);
+    const result = await allowlisted.execute({
+      name: "shell.run", args: { command: "curl https://example.com" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /Domain is not allowed/);
+  });
+
+  it("blocks a public hostname that resolves to a private address", async () => {
+    const dnsGuarded = new ShellToolRouter(ROOT, resolver, undefined, [], async () => ["10.0.0.8"]);
+    const result = await dnsGuarded.execute({
+      name: "shell.run", args: { command: "curl https://internal.example" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /Private network destinations/);
+  });
+
+  it("allows a public destination through network validation", async () => {
+    await assert.doesNotReject(() =>
+      validateShellNetworkCommand("curl https://example.com", ["example.com"], async () => ["93.184.216.34"])
+    );
   });
 
 });

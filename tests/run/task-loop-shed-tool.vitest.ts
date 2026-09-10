@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -453,6 +453,21 @@ describe('task-loop completion termination', () => {
     description: 'Signal completion',
     input_schema: { type: 'object', properties: {} },
   };
+  const shellTool: ToolDef = {
+    name: 'alix_shell_run',
+    description: 'Run a shell command',
+    input_schema: { type: 'object', properties: {} },
+  };
+  const createTool: ToolDef = {
+    name: 'alix_file_create',
+    description: 'Create a file',
+    input_schema: { type: 'object', properties: {} },
+  };
+
+  it('classifies explicit code-change objectives without treating read-only requests as mutations', () => {
+    expect(objectiveEvidenceRequirements('fix all', 'bugfix')).toEqual({ mutation: true, verification: false });
+    expect(objectiveEvidenceRequirements('review the code and do not modify anything', 'docs')).toEqual({ mutation: false, verification: false });
+  });
 
   it('terminates immediately when done is the only tool called', async () => {
     const provider = createMockProvider({
@@ -660,5 +675,94 @@ describe('task-loop completion termination', () => {
 
     expect(provider.requests).toHaveLength(2);
     expect(result.summary).toBe('I read the five requested files and completed the task.');
+  });
+
+  it('does not mark a requested edit complete without mutation and verification evidence', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_shell_run', id: 'list', args: { command: 'ls -la' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read', args: { path: 'README.md' } }] };
+        return { text: "Now I'll make a harmless improvement to README.md.", toolCalls: [{ name: 'alix_done', id: 'premature-done', args: {} }] };
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Inspect this repository and make one harmless improvement to README.md. Apply the edit, run an appropriate verification command, and report the changed file.',
+      providerTools: [shellTool, readTool, doneTool],
+      selectedTools: [
+        { name: 'alix_shell_run', execName: 'shell.run' },
+        { name: 'alix_file_read', execName: 'file.read' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: name === 'shell.run' ? 'README.md' : '# ALiX' },
+      } as any,
+      maxIterations: 3,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed_unverified');
+    expect(result.summary).toContain('missing a successful workspace mutation');
+    expect(result.summary).toContain('a successful verification command after the mutation');
+  });
+
+  it('accepts completion after successful mutation and post-mutation verification', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'note.md', content: 'safe' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_shell_run', id: 'verify', args: { command: 'pnpm test' } }] };
+        return { text: 'Created note.md and verified it with the test suite.', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Create a file named note.md and run tests to verify the change.',
+      providerTools: [createTool, shellTool, doneTool],
+      selectedTools: [
+        { name: 'alix_file_create', execName: 'file.create' },
+        { name: 'alix_shell_run', execName: 'shell.run' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+      } as any,
+      maxIterations: 3,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toBe('Created note.md and verified it with the test suite.');
   });
 });

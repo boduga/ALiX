@@ -85,7 +85,12 @@ export class ToolExecutor {
     const pathResolver = this.workspacePathResolver ?? new WorkspacePathResolver(this.root, config.permissions?.protectedPaths ?? []);
     const composite = new CompositeToolRouter([
       new FileToolRouter(this.root, log, this.sessionId(), pathResolver),
-      new ShellToolRouter(this.root, pathResolver, config.runtime?.envAllowlist),
+      new ShellToolRouter(
+        this.root,
+        pathResolver,
+        config.runtime?.envAllowlist,
+        config.permissions?.allowNetworkDomains ?? [],
+      ),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
       new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),

@@ -295,6 +295,57 @@ function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string
   return unsubstantiated;
 }
 
+type SuccessfulToolEvidence = {
+  name: string;
+  args: Record<string, unknown>;
+  ordinal: number;
+};
+
+const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
+const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
+
+export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
+  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
+  const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
+  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove)\b/i.test(task);
+  const mutation = !readOnlyInstruction && (
+    (mutationTaskType && explicitMutationVerb) ||
+    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(task) ||
+    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
+    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b/i.test(task)
+  );
+  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
+  return { mutation, verification };
+}
+
+function objectiveEvidenceGaps(
+  task: string,
+  taskType: string,
+  evidence: ReadonlyArray<SuccessfulToolEvidence>,
+): string[] {
+  const required = objectiveEvidenceRequirements(task, taskType);
+  const mutationOrdinal = evidence
+    .filter((item) => MUTATION_TOOL_NAMES.has(item.name))
+    .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
+  const verifiedAfterMutation = evidence.some((item) =>
+    item.ordinal > mutationOrdinal &&
+    item.name === "shell.run" &&
+    typeof item.args.command === "string" &&
+    VERIFICATION_COMMAND_RE.test(item.args.command)
+  );
+  const gaps: string[] = [];
+  if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
+  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push("a successful verification command after the mutation");
+  return gaps;
+}
+
+function missingEvidenceSummary(gaps: string[], text: string): string {
+  const detail = gaps.join(" and ");
+  const lastResponse = text.trim();
+  return `Task could not be verified as complete: missing ${detail}.` +
+    (lastResponse ? ` Last model response: ${lastResponse}` : "");
+}
+
 /**
  * A "done" claim that merely echoes a failed tool result (HTTP 4xx/5xx or a
  * command error) is not a completed outcome. `lastToolResultShowsClientError`
@@ -641,6 +692,8 @@ let intentStreak = 0;
 // synthesis re-prompt to tell the model what tools it hasn't tried yet,
 // and also now used to gate completion (see findUnsubstantiatedClaims).
 const usedTools = new Set<string>();
+const successfulToolEvidence: SuccessfulToolEvidence[] = [];
+let toolEvidenceOrdinal = 0;
 
 // True only when the model has made a genuine structured "done"-style tool
 // call (toolResult.completed). Prose that merely contains the word "done"
@@ -1267,24 +1320,30 @@ if (toolCalls.length === 0) {
         !explicitDoneCalled &&
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
+      const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
       const trustworthy =
-        !ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone);
+        (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
+        evidenceGaps.length === 0;
 
       if (!trustworthy && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
         unconfirmedDoneAttempts++;
         await log.append({
           ...session, actor: "system", type: "completion.claim_rejected",
-          payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
+          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
         });
 
         // Build a targeted re-prompt: list the missing tool calls with their
         // exact alix_ names so the model has no ambiguity about what to invoke.
-        const missingToolLines = unsubstantiated
+        const missingToolLines = [...unsubstantiated, ...evidenceGaps]
           .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
           .join("\n");
 
         let content: string;
-        if (errorEchoDone && unsubstantiated.length === 0) {
+        if (evidenceGaps.length > 0) {
+          content =
+            `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
+            `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`;
+        } else if (errorEchoDone && unsubstantiated.length === 0) {
           // The last tool call failed (HTTP/client error) and no deliverable
           // was produced. There are no invented claims to list — the problem
           // is ending on the error itself.
@@ -1319,12 +1378,14 @@ if (toolCalls.length === 0) {
       const reason: RunResult["reason"] = trustworthy ? "completed" : "completed_unverified";
       await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
       const failure = latestToolFailure(messages);
-      const completionSummary = text.trim().length > 0
-        ? text
+      const completionSummary = evidenceGaps.length > 0
+        ? missingEvidenceSummary(evidenceGaps, text)
+        : text.trim().length > 0
+          ? text
         : failure
           ? `Task could not complete: ${failure}`
           : "Task completed, but the model provided no final synthesis.";
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: text.trim().length > 0 ? reason : "completed_unverified", summary: completionSummary, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: text.trim().length > 0 ? reason : "completed_unverified", summary: completionSummary, unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
       return { sessionId, summary: completionSummary, streamed: model.streaming, reason: text.trim().length > 0 ? reason : "completed_unverified", contextPressure: contextPressure.snapshot() };
     }
@@ -1477,6 +1538,11 @@ if (toolCalls.length === 0) {
     }
 
     usedTools.add(toolCall.name);
+    if (!toolResult.error) {
+      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
+      recordMutationInSessionState(sessionState, execName, toolCall.args);
+    }
     if (toolResult.completed) {
       trackCompleted = true;
       explicitDoneCalled = true;
@@ -1699,11 +1765,8 @@ if (toolCalls.length === 0) {
 	continue;
   }
 
-  // Track all file mutations in sessionState
-  for (const toolCall of toolCalls) {
-    const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-    recordMutationInSessionState(sessionState, execName, toolCall.args);
-  }
+  // Successful mutations are recorded by handleToolResult. Failed calls must
+  // never become completion evidence merely because their arguments named a file.
   sessionState.fatalErrors.push(...fatalToolErrors);
   for (const failed of failedTools) {
     if (!fatalToolErrors.includes(failed)) {
@@ -1741,13 +1804,14 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    if (unsubstantiated.length > 0 && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
+    const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
+    if ((unsubstantiated.length > 0 || evidenceGaps.length > 0) && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
       unconfirmedDoneAttempts++;
       await log.append({
         ...session, actor: "system", type: "completion.claim_rejected",
-        payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, source: "trackCompleted" },
+        payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, source: "trackCompleted" },
       });
-      const missingToolLines = unsubstantiated
+      const missingToolLines = [...unsubstantiated, ...evidenceGaps]
         .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
         .join("\n");
       const content = unconfirmedDoneAttempts >= 2
@@ -1761,10 +1825,12 @@ if (toolCalls.length === 0) {
 
     const missingSynthesis = completedAfterAction && text.trim().length === 0;
     const reason: RunResult["reason"] =
-      unsubstantiated.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
+      unsubstantiated.length === 0 && evidenceGaps.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
     const failure = priorToolFailure;
-    const completionSummary = text.trim().length > 0
-      ? text
+    const completionSummary = evidenceGaps.length > 0
+      ? missingEvidenceSummary(evidenceGaps, text)
+      : text.trim().length > 0
+        ? text
       : missingSynthesis
         ? failure
           ? `Task could not complete: ${failure}`

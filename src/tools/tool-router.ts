@@ -19,6 +19,7 @@ import { measurePhase } from "../runtime/timing-events.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
+import { validateShellNetworkCommand, type ResolveNetworkHost } from "./shell-network-policy.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
 import type { ToolRegistry, CapabilityIndex } from "./tool-registry.js";
@@ -170,6 +171,8 @@ export class ShellToolRouter implements ToolRouter {
     private readonly root: string = process.cwd(),
     pathResolver?: WorkspacePathResolver,
     private envAllowlist?: string[],
+    private allowNetworkDomains: string[] = [],
+    private resolveNetworkHost?: ResolveNetworkHost,
   ) {
     this.pathResolver = pathResolver ?? new WorkspacePathResolver(this.root);
   }
@@ -239,6 +242,16 @@ export class ShellToolRouter implements ToolRouter {
 
     if (!command) {
       return { kind: "error", message: "shell.run requires command" };
+    }
+
+    try {
+      await validateShellNetworkCommand(command, this.allowNetworkDomains, this.resolveNetworkHost);
+    } catch (error) {
+      return {
+        kind: "error",
+        message: `Shell network access denied: ${error instanceof Error ? error.message : String(error)}`,
+        retryable: false,
+      };
     }
 
     // Safe-shell admission is about command shape, not path authority. Every

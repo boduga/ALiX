@@ -32,9 +32,9 @@ export type WebFetchOptions = {
   resolveHost?: (hostname: string) => Promise<string[]>;
 };
 
-function isPrivateAddress(address: string): boolean {
+export function isPrivateNetworkAddress(address: string): boolean {
   address = address.toLowerCase().replace(/^\[|\]$/g, "");
-  if (address.startsWith("::ffff:")) return isPrivateAddress(address.slice(7));
+  if (address.startsWith("::ffff:")) return isPrivateNetworkAddress(address.slice(7));
   if (isIP(address) === 6) {
     if (address === "::1" || address === "::" || address.startsWith("2001:db8:")) return true;
     // Only globally routable unicast (2000::/3) may leave the process.
@@ -47,18 +47,28 @@ function isPrivateAddress(address: string): boolean {
     (a === 100 && b >= 64 && b <= 127) || a >= 224;
 }
 
-async function validateUrl(raw: string, allowDomains: string[], resolveHost: (hostname: string) => Promise<string[]>): Promise<URL> {
-  const url = new URL(raw);
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("URL must use http:// or https://");
-  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
-  if (allowDomains.length && !allowDomains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+export async function validateNetworkHost(
+  rawHost: string,
+  allowDomains: string[],
+  resolveHost: (hostname: string) => Promise<string[]>,
+): Promise<string> {
+  const host = rawHost.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  const normalizedDomains = allowDomains.map((domain) => domain.toLowerCase().replace(/^\*\./, ""));
+  if (normalizedDomains.length && !normalizedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
     throw new Error(`Domain is not allowed: ${host}`);
   }
   if (host === "localhost" || host.endsWith(".localhost")) throw new Error("Private network destinations are not allowed");
   const addresses = isIP(host) ? [host] : await resolveHost(host);
-  if (!addresses.length || addresses.some((address) => isPrivateAddress(address))) {
+  if (!addresses.length || addresses.some((address) => isPrivateNetworkAddress(address))) {
     throw new Error("Private network destinations are not allowed");
   }
+  return host;
+}
+
+export async function validateNetworkUrl(raw: string, allowDomains: string[], resolveHost: (hostname: string) => Promise<string[]>): Promise<URL> {
+  const url = new URL(raw);
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("URL must use http:// or https://");
+  await validateNetworkHost(url.hostname, allowDomains, resolveHost);
   return url;
 }
 
@@ -103,7 +113,7 @@ export function webFetchTool(options: WebFetchOptions = {}) {
       const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15_000);
 
       try {
-        let url = await validateUrl(args.url, allowDomains, resolveHost);
+        let url = await validateNetworkUrl(args.url, allowDomains, resolveHost);
         let res: Response | undefined;
         for (let redirects = 0; redirects <= 5; redirects++) {
           res = await fetch(url, {
@@ -114,7 +124,7 @@ export function webFetchTool(options: WebFetchOptions = {}) {
           if (![301, 302, 303, 307, 308].includes(res.status)) break;
           const location = res.headers.get("location");
           if (!location || redirects === 5) throw new Error("Too many or invalid redirects");
-          url = await validateUrl(new URL(location, url).toString(), allowDomains, resolveHost);
+          url = await validateNetworkUrl(new URL(location, url).toString(), allowDomains, resolveHost);
         }
         if (!res) throw new Error("No response received");
 
