@@ -28,7 +28,7 @@ import {
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
-import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { isSafeShellCommand } from "./safe-shell.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
@@ -195,18 +195,18 @@ export class ToolExecutor {
     if (mode === "ask" && name === "shell.run") {
       const command = typeof args?.command === "string" ? args.command : "";
       if (command && isSafeShellCommand(command)) {
-        const safeResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.config.runtime?.envAllowlist });
-        if (safeResult.allowed) {
-          await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
-            toolCallId,
-            toolName: name,
-            argumentHash,
-            executionId: correlation.executionId,
-            invocationId: correlation.invocationId,
-            ...(request.replayId ? { replayId: request.replayId } : {}),
-          });
-          return { kind: "success", output: safeResult.output ?? safeResult.error ?? "" };
-        }
+        // Skip the approval gate for a whitelisted read-only command, but do
+        // not execute it here: the downstream ShellToolRouter owns workspace
+        // path validation and command-failure classification.
+        await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
+          toolCallId,
+          toolName: name,
+          argumentHash,
+          executionId: correlation.executionId,
+          invocationId: correlation.invocationId,
+          ...(request.replayId ? { replayId: request.replayId } : {}),
+        });
+        return await this.toolAwareRouter.downstream.execute(request);
       }
     }
 

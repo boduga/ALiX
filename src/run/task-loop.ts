@@ -304,10 +304,15 @@ function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string
  * gate rejects it so the model is pushed to retry/verify instead of ending on
  * an error echo.
  */
-const CLIENT_ERROR_RESULT_RE =
-  /HTTP\/[12]\s+[45]\d\d\b|\b(?:error|denied|refused|timed?\s*out|timeout|failed|unreachable|429|403|404)\b/i;
 const ARTIFACT_WRITE_RE =
   /\b(?:wrote|writes?|created|saved?|generated|produced|output to|written to)\b|\.md\b/i;
+
+function toolResultFailureBody(content: string): string | undefined {
+  const resultBody = content.replace(/^<tool_result[^>]*>\s*/i, "").trimStart();
+  return /^(?:Error|Access denied):\s*/i.test(resultBody) || /^HTTP\/[12]\s+[45]\d\d\b/i.test(resultBody)
+    ? resultBody
+    : undefined;
+}
 
 export function lastToolResultShowsClientError(
   messages: ReadonlyArray<{ role?: string; content?: unknown }>,
@@ -317,7 +322,7 @@ export function lastToolResultShowsClientError(
     if (m?.role !== "user") continue;
     const content = typeof m.content === "string" ? m.content : "";
     if (!content.includes("<tool_result")) continue;
-    return CLIENT_ERROR_RESULT_RE.test(content);
+    return toolResultFailureBody(content) !== undefined;
   }
   return false;
 }
@@ -329,12 +334,14 @@ export function latestToolFailure(
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (message?.role !== "user" || typeof message.content !== "string") continue;
-    if (!message.content.includes("<tool_result") || !CLIENT_ERROR_RESULT_RE.test(message.content)) continue;
-    const plain = message.content
-      .replace(/<[^>]+>/g, " ")
+    if (!message.content.includes("<tool_result")) continue;
+    const resultBody = toolResultFailureBody(message.content);
+    if (!resultBody) continue;
+    const plain = resultBody
+      .replace(/<\/tool_result>\s*$/i, "")
       .replace(/\s+/g, " ")
       .trim()
-      .replace(/^Error:\s*/i, "");
+      .replace(/^(?:Error|Access denied):\s*/i, "");
     if (plain) return plain.slice(0, 500);
   }
   return undefined;
@@ -1311,9 +1318,15 @@ if (toolCalls.length === 0) {
 
       const reason: RunResult["reason"] = trustworthy ? "completed" : "completed_unverified";
       await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+      const failure = latestToolFailure(messages);
+      const completionSummary = text.trim().length > 0
+        ? text
+        : failure
+          ? `Task could not complete: ${failure}`
+          : "Task completed, but the model provided no final synthesis.";
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: text.trim().length > 0 ? reason : "completed_unverified", summary: completionSummary, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: model.streaming, reason, contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: completionSummary, streamed: model.streaming, reason: text.trim().length > 0 ? reason : "completed_unverified", contextPressure: contextPressure.snapshot() };
     }
     // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {

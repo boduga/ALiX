@@ -1,7 +1,7 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
-import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -241,13 +241,24 @@ export class ShellToolRouter implements ToolRouter {
       return { kind: "error", message: "shell.run requires command" };
     }
 
+    // Safe-shell admission is about command shape, not path authority. Every
+    // filesystem operand still goes through the same workspace/canonical-path
+    // boundary as file tools so `cat ../secret` cannot bypass containment.
+    if (isSafeShellCommand(command)) {
+      for (const operand of safeShellPathOperands(command)) {
+        const blocked = this.checkPath(operand);
+        if (blocked) return blocked;
+      }
+    }
+
     // Level 5: Check if command is safe shell (runs before policy decision)
     if (isSafeShellCommand(command)) {
       const sResult = await executeSafeShell(command, { cwd: this.root, envAllowlist: this.envAllowlist });
       if (sResult.allowed) {
+        if (sResult.error) return { kind: "error", message: sResult.error };
         return {
           kind: "success",
-          output: sResult.output ?? sResult.error ?? "",
+          output: sResult.output ?? "",
         };
       }
       return { kind: "error", message: sResult.error ?? "SafeShell validation failed" };
