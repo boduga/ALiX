@@ -69,6 +69,14 @@ describe("ShellToolRouter path validation", () => {
     assert.ok(result.message.includes("sensitive"), "must block commands referencing .alix");
   });
 
+  it("blocks git config inspection that indirectly reads protected configuration", async () => {
+    for (const command of ["git config --list", "git config -l", "git config --get user.email", "git config user.name", "git -C . config --list"]) {
+      const result = await router.execute({ name: "shell.run", args: { command } } as any);
+      assert.equal(result.kind, "error");
+      assert.match(result.message, /protected Git configuration/);
+    }
+  });
+
   it("blocks relative traversal in a safe-shell file operand", async () => {
     const result = await router.execute({
       name: "shell.run", args: { command: "cat ../package.json" },

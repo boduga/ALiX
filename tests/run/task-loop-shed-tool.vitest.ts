@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
-import { objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { explicitMutationTargets, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -186,6 +186,18 @@ async function makeTestDeps(overrides: {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
+
+describe('explicit mutation target extraction', () => {
+  it('recognizes strict named and absolute-path file tasks', () => {
+    expect(explicitMutationTargets('Create a file named note.md.')).toEqual(['note.md']);
+    expect(explicitMutationTargets('Create /tmp/outside.txt containing "blocked".')).toEqual(['/tmp/outside.txt']);
+    expect(explicitMutationTargets('Create `/tmp/quoted.txt` containing "blocked".')).toEqual(['/tmp/quoted.txt']);
+  });
+
+  it('does not constrain broad repository tasks', () => {
+    expect(explicitMutationTargets('Inspect this repository and improve its documentation.')).toEqual([]);
+  });
+});
 
 describe('Task 8: shed-tool reintroduce-on-call', () => {
   it('reintroduces a shed tool when the model calls it, retries once, and logs it', async () => {
@@ -764,5 +776,41 @@ describe('task-loop completion termination', () => {
 
     expect(result.reason).toBe('completed');
     expect(result.summary).toBe('Created note.md and verified it with the test suite.');
+  });
+
+  it('records provider tool aliases as mutation evidence when selectedTools omitted the scoped tool', async () => {
+    let iteration = 0;
+    const executions: Array<{ name: string; allowedMutationPaths?: readonly string[] }> = [];
+    const provider = {
+      ...createMockProvider(),
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        this.requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) {
+          return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'note.md', content: 'safe' } }] };
+        }
+        return { text: 'Created note.md.', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+      },
+    } as ModelAdapter & { requests: RecordedRequest[] };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Create a file named note.md.',
+      providerTools: [createTool, doneTool],
+      selectedTools: [{ name: 'alix_done', execName: 'done' }],
+      executor: {
+        execute: async (request: { name: string; allowedMutationPaths?: readonly string[] }) => {
+          executions.push(request);
+          return request.name === 'done'
+            ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+            : { kind: 'success' as const, output: 'ok' };
+        },
+      } as any,
+      maxIterations: 2,
+    });
+
+    const result = await runTaskLoop(deps);
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toBe('Created note.md.');
+    expect(executions[0]?.allowedMutationPaths).toEqual(['note.md']);
   });
 });

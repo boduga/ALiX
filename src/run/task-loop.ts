@@ -272,6 +272,33 @@ function isCompletionTool(toolName: string): boolean {
   return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
 }
 
+function resolveToolExecutionName(
+  toolName: string,
+  selectedTools: ReadonlyArray<{ name: string; execName: string }>,
+): string {
+  return selectedTools.find((tool) => tool.name === toolName)?.execName
+    ?? TOOL_NAME_MAP[toolName]
+    ?? toolName;
+}
+
+/**
+ * Extract a strict single-file mutation target from imperative operator text.
+ * This intentionally recognizes only high-confidence create/delete forms;
+ * broad coding tasks keep their normal multi-file scope behavior.
+ */
+export function explicitMutationTargets(task: string): string[] {
+  const namedFile = task.match(
+    /\b(?:create|delete|remove)(?:\s+and\s+commit)?\s+(?:a\s+)?file\s+named\s*:?\s*(?:`([^`]+)`|"([^"]+)"|([^\n]+?))(?=\s+containing\b|\s*$)/im,
+  );
+  const directCreate = task.match(
+    /\bcreate\s+(?:`((?:\/|\.\.?\/)[^`]+)`|"((?:\/|\.\.?\/)[^"]+)"|'((?:\/|\.\.?\/)[^']+)'|((?:\/|\.\.?\/)[^\s"'`]+))\s+containing\b/i,
+  );
+  const target = namedFile?.slice(1).find((value) => value !== undefined)
+    ?? directCreate?.slice(1).find((value) => value !== undefined);
+  if (!target) return [];
+  return [target.trim().replace(/[.,:]$/, '')];
+}
+
 function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
   return [...usedTools].some((name) => !isCompletionTool(name));
 }
@@ -569,6 +596,8 @@ systemPrompt,
 onStream,
 onProgress,
   } = deps;
+
+  const allowedMutationPaths = explicitMutationTargets(task);
 
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
@@ -1483,6 +1512,7 @@ if (toolCalls.length === 0) {
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
+    allowedMutationPaths,
   };
 
   // Track accumulated state across all tool calls so one tool's result
@@ -1516,12 +1546,12 @@ if (toolCalls.length === 0) {
     onProgress?.("tool_completed", toolCall.name);
 
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
     }
     if (deps.hookRunner && toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_tool_error", {
         type: "tool_error",
         data: { toolName: execName, args: toolCall.args, error: toolResult.error.message, retryable: toolResult.error.retryable },
@@ -1539,7 +1569,7 @@ if (toolCalls.length === 0) {
 
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
@@ -1558,7 +1588,7 @@ if (toolCalls.length === 0) {
 
   async function runPreToolHook(toolCall: ToolCall): Promise<void> {
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
     }
@@ -1602,7 +1632,7 @@ if (toolCalls.length === 0) {
               description: `Scope expansion denied for file changes`,
               outcome: "rejected",
             });
-            const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+            const execName = resolveToolExecutionName(toolCall.name, selectedTools);
             const pathsToCheck = extractMutationPaths(execName, toolCall.args);
             const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
             if (deniedPaths.length > 0) {
@@ -1692,7 +1722,7 @@ if (toolCalls.length === 0) {
             description: `Scope expansion denied for file changes`,
             outcome: "rejected",
           });
-          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          const execName = resolveToolExecutionName(toolCall.name, selectedTools);
           // Check if we have paths to report denial for
           const pathsToCheck = extractMutationPaths(execName, toolCall.args);
           const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");

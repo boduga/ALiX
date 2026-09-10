@@ -380,6 +380,37 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(await timelineTexts(log, 'agent.response')).toEqual(['Hello world']);
   });
 
+  it('does not start or log a second submission from either tab while a turn is active', async () => {
+    let resolveTurn!: (value: unknown) => void;
+    const processTurn = vi.fn(() => new Promise((resolve) => { resolveTurn = resolve; }));
+    const processChat = vi.fn(async () => ({ summary: 'unexpected' }));
+    const { internal, log } = await makeApp({ agentSession: { processTurn, processChat } });
+    internal.getStateForTest().activeTab = 'agent';
+
+    for (const c of 'first') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(processTurn).toHaveBeenCalledTimes(1);
+
+    internal.getStateForTest().activeTab = 'chat';
+    for (const c of 'second') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(processTurn).toHaveBeenCalledTimes(1);
+    expect(processChat).not.toHaveBeenCalled();
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('second');
+    expect(await timelineTexts(log, 'agent.message')).toEqual(['first']);
+
+    resolveTurn({ summary: 'first complete', sessionId: 's', toolCalls: [], reason: 'agent' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    internal.handleRaw(Buffer.from([0x0d]));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(processChat).toHaveBeenCalledTimes(1);
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
   it('keeps partial streamed text when the agent call errors (fail-soft, no orphan line)', async () => {
     let rejectTurn!: (e: Error) => void;
     const processTurn = vi.fn(() => new Promise((_, rej) => { rejectTurn = rej; }));

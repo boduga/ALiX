@@ -224,6 +224,9 @@ export class ShellToolRouter implements ToolRouter {
     // Scan the command string for references to known sensitive paths.
     // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
     if (command && this.pathResolver) {
+      if (/\bgit\b[^;&|\n]*\bconfig\b/i.test(command)) {
+        return { kind: "error", message: "Shell access denied: command reads or writes protected Git configuration" };
+      }
       const sensitivePathPatterns: { pattern: RegExp; name: string }[] = [
         // Path-based patterns: match .alix, .ssh, .git, .env when preceded by
         // space, slash, tilde, or start-of-string (the real ways paths appear).

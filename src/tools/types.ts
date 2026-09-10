@@ -24,6 +24,8 @@ export type ToolCallRequest = {
    * cancellation omit it and behaviour is unchanged.
    */
   signal?: AbortSignal;
+  /** Runtime-derived exact targets for strict single-file mutation tasks. */
+  allowedMutationPaths?: readonly string[];
 } & Partial<CorrelationContext>;
 
 export interface FindingReport {
