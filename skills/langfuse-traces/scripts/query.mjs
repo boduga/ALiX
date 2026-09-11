@@ -111,6 +111,14 @@ function detailOf(o) {
 }
 
 async function listTraces({ baseUrl, publicKey, secretKey, limit, wantJson }) {
+  if (!baseUrl || !publicKey || !secretKey) {
+    console.log(JSON.stringify({
+      status: "unavailable",
+      reason: "missing baseUrl/publicKey/secretKey (flags or LANGFUSE_* env)",
+      traces: [],
+    }, null, 2));
+    return; // fail-open: exit 0
+  }
   const url = `${baseUrl}/api/public/traces?limit=${limit}&page=1`;
   let payload;
   try {
@@ -151,6 +159,13 @@ async function main() {
   const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
   const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
   const secretKey = args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "";
+
+  const wantFull = args.full === true || args.full === "true";
+  const wantJson = args.json === true || args.json === "true";
+  if (listMode) {
+    await listTraces({ baseUrl, publicKey, secretKey, limit, wantJson });
+    return;
+  }
   if (!baseUrl || !publicKey || !secretKey) {
     console.log(JSON.stringify({
       traceId,
@@ -161,12 +176,6 @@ async function main() {
     return;
   }
 
-  const wantFull = args.full === true || args.full === "true";
-  const wantJson = args.json === true || args.json === "true";
-  if (listMode) {
-    await listTraces({ baseUrl, publicKey, secretKey, limit, wantJson });
-    return;
-  }
   const url = `${baseUrl}/api/public/observations?traceId=${encodeURIComponent(traceId)}&limit=${limit}`;
 
   let payload;
