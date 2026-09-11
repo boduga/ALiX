@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   claimsArtifactWritten,
+  durableCompletionSummary,
   lastToolResultShowsClientError,
 } from "../../src/run/task-loop.js";
 
@@ -68,5 +69,23 @@ describe("claimsArtifactWritten", () => {
     expect(
       claimsArtifactWritten("HTTP/2 403 \r\ncache-control: private, no-store\r\nexit=0", 0),
     ).toBe(false);
+  });
+});
+
+describe("durableCompletionSummary", () => {
+  it("does not let a failed retry erase an earlier successful mutation", () => {
+    expect(
+      durableCompletionSummary(
+        "Error: No patch changes found",
+        new Set(["README.md"]),
+        "No patch changes found",
+      ),
+    ).toBe("Changed README.md. A later tool attempt failed: No patch changes found");
+  });
+
+  it("preserves a substantive model summary", () => {
+    expect(
+      durableCompletionSummary("Updated README wording.", new Set(["README.md"]), "retry failed"),
+    ).toBe("Updated README wording.");
   });
 });

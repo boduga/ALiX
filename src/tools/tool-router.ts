@@ -29,6 +29,57 @@ export interface ToolRouter {
   execute(request: ToolCallRequest): Promise<ToolResult>;
 }
 
+/** Convert Codex-style Aider update hunks (`@@` without line ranges) into
+ * exact search/replace blocks. A numbered Aider diff remains unified_diff. */
+function normalizeSimpleAiderUpdates(patchText: string): string | undefined {
+  if (!/^\*\*\* Begin Patch/m.test(patchText) || !/^@@\s*$/m.test(patchText)) return undefined;
+  if (/^\*\*\* (?:Add|Delete) File:/m.test(patchText)) return undefined;
+
+  const blocks: Array<{ path: string; oldLines: string[]; newLines: string[] }> = [];
+  let path: string | undefined;
+  let oldLines: string[] | undefined;
+  let newLines: string[] | undefined;
+  const flush = (): void => {
+    if (path && oldLines && newLines && oldLines.join("\n") !== newLines.join("\n")) {
+      blocks.push({ path, oldLines, newLines });
+    }
+    oldLines = undefined;
+    newLines = undefined;
+  };
+
+  for (const line of patchText.replace(/\r\n?/g, "\n").split("\n")) {
+    const file = line.match(/^\*\*\* Update File:\s*(.+)$/);
+    if (file) {
+      flush();
+      path = file[1].trim();
+      continue;
+    }
+    if (/^@@\s*$/.test(line)) {
+      flush();
+      oldLines = [];
+      newLines = [];
+      continue;
+    }
+    if (!oldLines || !newLines || /^\*\*\* (?:Begin|End) Patch/.test(line)) continue;
+    if (line.startsWith("-")) oldLines.push(line.slice(1));
+    else if (line.startsWith("+")) newLines.push(line.slice(1));
+    else {
+      const context = line.startsWith(" ") ? line.slice(1) : line;
+      oldLines.push(context);
+      newLines.push(context);
+    }
+  }
+  flush();
+  if (blocks.length === 0) return undefined;
+  return blocks.map((block) => [
+    `<<<<<<< SEARCH path=${block.path}`,
+    block.oldLines.join("\n"),
+    "=======",
+    block.newLines.join("\n"),
+    ">>>>>>> REPLACE",
+  ].join("\n")).join("\n");
+}
+
 export class FileToolRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = [
     "file.read",
@@ -327,7 +378,25 @@ export class PatchToolRouter implements ToolRouter {
     const patchRoot = this.root;
     const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: resolveModelConfig(this.config).provider });
     const requestedFormat = format as EditFormat;
-    const allowed = policy.allowed.includes(requestedFormat);
+    // Patch syntax is authoritative when a model labels an unmistakable
+    // unified/Aider payload as another supported format.
+    const trimmedPatch = patchText.trimStart();
+    const isSimpleAiderUpdate =
+      trimmedPatch.startsWith("*** Begin Patch") &&
+      /^@@\s*$/m.test(trimmedPatch) &&
+      !/^\*\*\* (?:Add|Delete) File:/m.test(trimmedPatch);
+    const normalizedSimpleAider = normalizeSimpleAiderUpdates(patchText);
+    if (isSimpleAiderUpdate && !normalizedSimpleAider) {
+      return { kind: "error", message: "No patch changes found" };
+    }
+    const effectivePatchText = normalizedSimpleAider ?? patchText;
+    const effectiveFormat: EditFormat = normalizedSimpleAider
+      ? "search_replace"
+      : trimmedPatch.startsWith("*** Begin Patch") ||
+      (/^---\s+\S+/m.test(trimmedPatch) && /^\+\+\+\s+\S+/m.test(trimmedPatch))
+        ? "unified_diff"
+        : requestedFormat;
+    const allowed = policy.allowed.includes(effectiveFormat);
 
     // Log edit format policy telemetry
     if (this.eventLog) {
@@ -339,9 +408,11 @@ export class PatchToolRouter implements ToolRouter {
           toolCallId: request.toolCallId,
           provider: policy.provider,
           requestedFormat: format,
+          effectiveFormat,
+          formatAutoDetected: effectiveFormat !== requestedFormat,
           preferredFormat: policy.preferred,
           allowedFormats: policy.allowed,
-          matchesPreference: requestedFormat === policy.preferred,
+          matchesPreference: effectiveFormat === policy.preferred,
           allowed,
           fullFileRewrite: policy.fullFileRewrite,
         },
@@ -351,12 +422,12 @@ export class PatchToolRouter implements ToolRouter {
     if (!allowed) {
       return {
         kind: "error",
-        message: `Patch format "${format}" is not allowed by edit format policy. Allowed formats: ${policy.allowed.join(", ")}`,
+        message: `Patch format "${effectiveFormat}" is not allowed by edit format policy. Allowed formats: ${policy.allowed.join(", ")}`,
         retryable: false,
       };
     }
 
-    const changedFiles = extractPatchPaths(requestedFormat, patchText);
+    const changedFiles = extractPatchPaths(effectiveFormat, effectivePatchText);
     let checkpointId: string | undefined;
     let checkpoint: Checkpoint | null = null;
 
@@ -381,7 +452,7 @@ export class PatchToolRouter implements ToolRouter {
     }
 
     try {
-      const patchResult = await applyPatch(patchRoot, requestedFormat, patchText, {
+      const patchResult = await applyPatch(patchRoot, effectiveFormat, effectivePatchText, {
         eventLog: this.eventLog,
         sessionId: this.sessionId,
         checkpointManager: this.checkpointManager,

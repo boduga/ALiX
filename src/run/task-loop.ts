@@ -426,6 +426,20 @@ export function latestToolFailure(
   return undefined;
 }
 
+/** Preserve durable mutation evidence when a later retry fails. */
+export function durableCompletionSummary(
+  text: string,
+  changedFiles: ReadonlySet<string>,
+  latestFailure?: string,
+): string {
+  const summary = text.trim();
+  if (changedFiles.size === 0 || !latestFailure || !/^(?:Error|Access denied):\s*/i.test(summary)) {
+    return summary;
+  }
+  const files = [...changedFiles].sort().join(", ");
+  return `Changed ${files}. A later tool attempt failed: ${latestFailure}`;
+}
+
 /** Whether a reply or the session claims a written deliverable exists. */
 export function claimsArtifactWritten(
   text: string,
@@ -1419,7 +1433,7 @@ if (toolCalls.length === 0) {
       const completionSummary = evidenceGaps.length > 0
         ? missingEvidenceSummary(evidenceGaps, text)
         : text.trim().length > 0
-          ? text
+          ? durableCompletionSummary(text, sessionState.changed, failure)
         : failure
           ? `Task could not complete: ${failure}`
           : "Task completed, but the model provided no final synthesis.";
@@ -1869,7 +1883,7 @@ if (toolCalls.length === 0) {
     const completionSummary = evidenceGaps.length > 0
       ? missingEvidenceSummary(evidenceGaps, text)
       : text.trim().length > 0
-        ? text
+        ? durableCompletionSummary(text, sessionState.changed, failure)
       : missingSynthesis
         ? failure
           ? `Task could not complete: ${failure}`
