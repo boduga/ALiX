@@ -7,6 +7,7 @@ import { minimaxSpec } from "../../src/providers/specs/minimax-spec.js";
 import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
 import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
 import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
+import { freellmapiSpec } from "../../src/providers/specs/freellmapi-spec.js";
 import { openaiBaseSpec } from "../../src/providers/specs/_openai-base.js";
 
 describe("OpenAI-compatible inheritors", () => {
@@ -18,6 +19,7 @@ describe("OpenAI-compatible inheritors", () => {
     ["zhipuai", zhipuaiSpec, "https://open.bigmodel.cn/api/paas/v4/chat/completions"],
     ["grokai", grokaiSpec, "https://api.x.ai/v1/chat/completions"],
     ["openrouter", openrouterSpec, "https://openrouter.ai/api/v1/chat/completions"],
+    ["freellmapi", freellmapiSpec, "http://10.1.1.12:3001/v1/chat/completions"],
   ] as const;
 
   for (const [name, spec, expectedUrl] of cases) {

@@ -65,6 +65,11 @@ export type ModelConfig = {
   localModelPath?: string;
   /** Launcher knobs for the local-llama provider (config > env > default). */
   localLlama?: LocalLlamaKnobConfig;
+  /**
+   * Base URL for the FreeLLMAPI provider (default http://10.1.1.12:3001).
+   * The provider targets `${freellmapiBaseUrl}/v1/chat/completions`.
+   */
+  freellmapiBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

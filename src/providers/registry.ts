@@ -33,6 +33,7 @@ const lazyProviders = {
   grokai: lazy(() => import("./grokai-provider.js").then(m => m.GrokAIProvider)),
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
   "local-llama": lazy(() => import("./local-llama-provider.js").then(m => m.LocalLlamaProvider)),
+  freellmapi: lazy(() => import("./freellmapi-provider.js").then(m => m.FreeLLMAPIProvider)),
   mock: lazy(() => import("./mock-provider.js").then(m => m.MockProvider)),
   "scripted-mock": lazy(() => import("../evals/providers/scripted-mock-provider.js").then(m => m.ScriptedMockProvider)),
 } as const;
@@ -62,12 +63,15 @@ export type ProviderConfig = {
   localModelPath?: string;
   /** Launcher knobs for local-llama (ModelConfig.localLlama). */
   localLlama?: LocalLlamaKnobConfig;
+  /** Base URL override for the freellmapi provider (ModelConfig.freellmapiBaseUrl). */
+  freellmapiBaseUrl?: string;
 };
 
 /** Default total call timeout per provider (ms). Local/hot-swapping providers get headroom. */
 const DEFAULT_TIMEOUT_MS: Record<string, number> = {
   ollama: 300_000,
   "local-llama": 300_000,
+  freellmapi: 300_000,
 };
 
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 60_000;
@@ -100,14 +104,14 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     throw new Error(`Unknown provider: ${config.provider}`);
   }
 
-  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string; timeoutMs?: number; localModelPath?: string; localLlama?: LocalLlamaKnobConfig }) => ModelAdapter;
+  const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string; timeoutMs?: number; localModelPath?: string; localLlama?: LocalLlamaKnobConfig; baseUrl?: string }) => ModelAdapter;
   // 3-minute default timeout for provider calls, 60s stream idle timeout.
   // Ollama/local-llama get extra headroom (cold starts), config overrides both.
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS[config.provider] ?? 180_000;
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   // Thread the effective total timeout into the provider so providers that use
   // an inner AbortSignal (e.g. Ollama) enforce the same bound as the wrapper.
-  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama });
+  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama, ...(config.provider === "freellmapi" && config.freellmapiBaseUrl ? { baseUrl: config.freellmapiBaseUrl } : {}) });
   const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;
@@ -129,5 +133,6 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
     { id: "grokai", name: "GrokAI", envKey: "GROKAI_API_KEY" },
     { id: "deepseek", name: "DeepSeek", envKey: "DEEPSEEK_API_KEY" },
     { id: "local-llama", name: "Local Llama.cpp (llama-server)", envKey: "ALIX_LLAMA_BASE_URL" },
+    { id: "freellmapi", name: "FreeLLMAPI (local router)", envKey: "FREELLMAPI_API_KEY" },
   ];
 }
