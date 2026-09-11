@@ -20,6 +20,8 @@ Purpose: thin per-provider `ModelAdapter` adapters, the provider registry, reque
 | `keyless-providers.ts` | Single source of truth for providers that run without an API key — `KEYLESS_PROVIDERS` set + `isKeylessProvider(providerId)` helper |
 | `parallel-tool-calls.ts` | Source-explicit `parallelToolCalls` capability resolver (`provider + model + transport/configuration` → boolean, fail-closed unknown→false). `resolveParallelToolCalls`, `isLocalLlamaJinjaTemplateParallelCapable`, `isMinimaxGroundedModel`. POC: `openrouter` true, `local-llama` Jinja + model/template dependent, `minimax` grounded false |
 | `specs/*` | Per-provider request/response/error schemas; `toErrorMessage` extracts `error.message` into `ApiError.detail` |
+| `freellmapi-provider.ts` | FreeLLMAPI adapter (local OpenAI-compat router at `http://localhost:3001`); default model `nvidia/nemotron-3-super-120b-a12b:free`; 300s timeout default (free-tier routing headroom); vision off + parallel tools fail-closed (upstream-dependent) |
+| `specs/freellmapi-spec.ts` | FreeLLMAPI spec: `openaiBaseSpec` + local `/v1/chat/completions` base URL |
 
 ## Local Contracts
 

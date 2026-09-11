@@ -33,6 +33,7 @@ const lazyProviders = {
   grokai: lazy(() => import("./grokai-provider.js").then(m => m.GrokAIProvider)),
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
   "local-llama": lazy(() => import("./local-llama-provider.js").then(m => m.LocalLlamaProvider)),
+  freellmapi: lazy(() => import("./freellmapi-provider.js").then(m => m.FreeLLMAPIProvider)),
   mock: lazy(() => import("./mock-provider.js").then(m => m.MockProvider)),
   "scripted-mock": lazy(() => import("../evals/providers/scripted-mock-provider.js").then(m => m.ScriptedMockProvider)),
 } as const;
@@ -68,6 +69,7 @@ export type ProviderConfig = {
 const DEFAULT_TIMEOUT_MS: Record<string, number> = {
   ollama: 300_000,
   "local-llama": 300_000,
+  freellmapi: 300_000,
 };
 
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 60_000;
@@ -129,5 +131,6 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
     { id: "grokai", name: "GrokAI", envKey: "GROKAI_API_KEY" },
     { id: "deepseek", name: "DeepSeek", envKey: "DEEPSEEK_API_KEY" },
     { id: "local-llama", name: "Local Llama.cpp (llama-server)", envKey: "ALIX_LLAMA_BASE_URL" },
+    { id: "freellmapi", name: "FreeLLMAPI (local router)", envKey: "FREELLMAPI_API_KEY" },
   ];
 }
