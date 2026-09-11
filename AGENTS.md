@@ -143,6 +143,7 @@ Default section order:
 | `src/kernel/AGENTS.md` | Graph execution engine — TaskGraph, GraphExecutor, projection, planner |
 | `src/policy/AGENTS.md` | Policy rules, RuleEvaluator, RuntimeGate, default policies, loader |
 | `src/registry/AGENTS.md` | Agent/tool cards, CardRegistry, CapabilityResolver, card loader |
+| `src/skills/AGENTS.md` | Agent skills — SKILL.md format, catalog matching, promotion gates, pollution detection |
 | `src/approvals/AGENTS.md` | Approval queue, ApprovalStore |
 | `src/audit/AGENTS.md` | Audit trail — JSONL append-only store |
 | `src/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
