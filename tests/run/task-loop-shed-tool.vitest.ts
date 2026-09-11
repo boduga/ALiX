@@ -480,6 +480,10 @@ describe('task-loop completion termination', () => {
   it('classifies explicit code-change objectives without treating read-only requests as mutations', () => {
     expect(objectiveEvidenceRequirements('fix all', 'bugfix')).toEqual({ mutation: true, verification: false });
     expect(objectiveEvidenceRequirements('review the code and do not modify anything', 'docs')).toEqual({ mutation: false, verification: false });
+    expect(objectiveEvidenceRequirements(
+      'Make one harmless improvement to README.md, then run an appropriate verification command.',
+      'docs',
+    )).toEqual({ mutation: true, verification: true });
   });
 
   it('terminates immediately when done is the only tool called', async () => {

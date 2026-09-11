@@ -36,8 +36,8 @@ const NON_CODE_EXTENSIONS = new Set([
 ]);
 
 /** Whether repository build/test commands can meaningfully verify these files. */
-export function requiresRepositoryVerification(changedFiles: readonly string[]): boolean {
-  return changedFiles.some((file) => !NON_CODE_EXTENSIONS.has(extname(file).toLowerCase()));
+export function requiresRepositoryVerification(changedFiles: readonly string[], force = false): boolean {
+  return force || changedFiles.some((file) => !NON_CODE_EXTENSIONS.has(extname(file).toLowerCase()));
 }
 
 export async function discoverVerification(root: string): Promise<VerificationCheck[]> {

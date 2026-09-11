@@ -143,6 +143,7 @@ export class ToolExecutor {
   }
 
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
+    const startedAt = Date.now();
     const { toolCallId, name } = request;
     let args = request.args;
     const capability = inferCapability(name);
@@ -329,8 +330,7 @@ export class ToolExecutor {
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
-      const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
-      const durationMs = Date.now() - startTime;
+      const durationMs = Date.now() - startedAt;
       await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, {
         toolCallId,
         outputPreview: "Task complete.",
@@ -399,9 +399,7 @@ export class ToolExecutor {
       result = classifyError(result);
     }
 
-    // Calculate duration from start time in toolCallId
-    const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
-    const durationMs = Date.now() - startTime;
+    const durationMs = Date.now() - startedAt;
 
     // Handle large outputs by writing to file
     const outputSize = (result.kind === "success")

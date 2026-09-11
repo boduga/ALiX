@@ -330,6 +330,7 @@ type SuccessfulToolEvidence = {
 
 const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
 const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
+const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
   const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
@@ -362,7 +363,7 @@ function objectiveEvidenceGaps(
   );
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
-  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push("a successful verification command after the mutation");
+  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push(VERIFICATION_EVIDENCE_GAP);
   return gaps;
 }
 
@@ -1290,13 +1291,19 @@ if (toolCalls.length === 0) {
   }
 
   const changedFilesForVerification = [...sessionState.created, ...sessionState.changed];
-  const checks = requiresRepositoryVerification(changedFilesForVerification)
+  const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+  const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+    .includes(VERIFICATION_EVIDENCE_GAP);
+  const checks = requiresRepositoryVerification(
+    changedFilesForVerification,
+    explicitVerificationRequired && explicitVerificationMissing,
+  )
     ? await discoverVerification(".")
     : [];
 
   // For docs and research tasks, skip verification
   // Also skip if no file mutations occurred (nothing to verify)
-  if (taskType === "docs" || taskType === "research" || !hasMutations || checks.length === 0) {
+  if ((taskType === "docs" && !explicitVerificationRequired) || taskType === "research" || !hasMutations || checks.length === 0) {
     // Check research-specific limits
     if (taskType === "research") {
       const limits = RESEARCH_LIMITS[depth];
@@ -1931,7 +1938,16 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
   } else {
     const changedFiles = [...sessionState.created, ...sessionState.changed];
-    if (changedFiles.length > 0 && requiresRepositoryVerification(changedFiles) && taskType !== "docs" && taskType !== "research" && hasMutations) {
+    const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+    const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+      .includes(VERIFICATION_EVIDENCE_GAP);
+    if (
+      changedFiles.length > 0 &&
+      requiresRepositoryVerification(changedFiles, explicitVerificationRequired && explicitVerificationMissing) &&
+      (taskType !== "docs" || explicitVerificationRequired) &&
+      taskType !== "research" &&
+      hasMutations
+    ) {
       // Use TestPlanner for smart verification selection
       const { createTestPlan } = await import("../verifier/test-planner.js");
 

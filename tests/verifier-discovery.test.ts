@@ -121,4 +121,8 @@ describe("requiresRepositoryVerification", () => {
     assert.equal(requiresRepositoryVerification(["generated/custom.artifact"]), true);
     assert.equal(requiresRepositoryVerification(["README.md", "src/index.ts"]), true);
   });
+
+  it("honors an explicit verification requirement for documentation changes", () => {
+    assert.equal(requiresRepositoryVerification(["README.md"], true), true);
+  });
 });

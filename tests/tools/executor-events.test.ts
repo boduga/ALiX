@@ -110,6 +110,22 @@ describe("Tool Executor Events", () => {
     assert.ok(payload.durationMs >= 0);
   });
 
+  it("measures duration independently of opaque UUID-style tool call ids", async () => {
+    const executor = new ToolExecutor(config, eventLog, testDir);
+
+    await executor.execute({
+      toolCallId: "call_004edce60ac04dd0803d2e2b",
+      name: "file.read",
+      args: { path: "test.txt" },
+    });
+
+    const events = await eventLog.readAll();
+    const completed = events.find((event) => event.type === "tool.completed");
+    assert.ok(completed, "Should have tool.completed event");
+    const durationMs = (completed.payload as any).durationMs;
+    assert.ok(durationMs >= 0 && durationMs < 10_000, `Expected elapsed milliseconds, received ${durationMs}`);
+  });
+
   it("emits tool.failed on error", async () => {
     const executor = new ToolExecutor(config, eventLog, testDir);
     const request = {
