@@ -999,7 +999,11 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
 });
 
 describe('TuiApp — emit into the EventLog (Phase 6)', () => {
-  async function makeEmitApp() {
+  async function makeEmitApp(agentResult?: {
+    summary: string;
+    planContent?: string;
+    planTasks?: readonly import('../../src/planning/plan-task.js').PlanTask[];
+  }) {
     const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-')));
     await log.init();
     const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
@@ -1007,7 +1011,10 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
     const metrics = { start: () => {}, stop: async () => {} };
     const agentSession = {
       processChat: vi.fn(async (text: string) => ({ summary: `reply to: ${text}`, sessionId: 'test-session', toolCalls: [] })),
-      processTurn: vi.fn(async (text: string) => ({ summary: `[agent] ${text}`, sessionId: 'test-session', toolCalls: [], reason: 'agent' })),
+      processTurn: vi.fn(async (text: string) => ({
+        ...(agentResult ?? { summary: `[agent] ${text}` }),
+        sessionId: 'test-session', toolCalls: [], reason: 'agent',
+      })),
     };
     const app = new TuiApp({
       builder, daemonMetrics: metrics, agentSession,
@@ -1049,6 +1056,21 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
     expect(events).toHaveLength(2);
     expect(events.map((e) => e.type)).toEqual(['agent.message', 'agent.response']);
     for (const e of events) expect(e.sessionId).toBe('sess-agent');
+  });
+
+  it('emits a structured agent.plan before the final agent.response', async () => {
+    const planTasks = [{ id: 'sess-agent:task:1', index: 1, title: 'Inspect', status: 'pending' as const }];
+    const { internal, log } = await makeEmitApp({ summary: 'Ready.', planContent: 'One step.', planTasks });
+    (internal.getStateForTest() as { activeTab: string }).activeTab = 'agent';
+    const flushed = flushedAfter(log, 3);
+    for (const c of 'plan it') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    await flushed;
+
+    const events = await log.readAll();
+    expect(events.map((event) => event.type)).toEqual(['agent.message', 'agent.plan', 'agent.response']);
+    expect(events[1]!.payload).toMatchObject({ text: 'One step.', planTasks });
+    for (const event of events) expect(event.sessionId).toBe('sess-agent');
   });
 });
 

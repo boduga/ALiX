@@ -80,6 +80,15 @@ export function buildWorkbenchScrollbackLines(
           out.push({ kind: 'approval', text, isFirst: index === 0 });
         });
         break;
+      case 'plan':
+        for (const task of item.tasks.slice(0, 20)) {
+          const marker = task.status === 'completed' ? '[x]' : task.status === 'in_progress' ? '[~]' : task.status === 'skipped' ? '[-]' : '[ ]';
+          wrapText(`${marker} ${task.index}. ${task.title}`, textWidth).forEach((text) => {
+            out.push({ kind: 'plan', text, isFirst: false });
+          });
+        }
+        if (item.text) appendRendered(out, 'agent', item.text, textWidth, ctx.themeName);
+        break;
       case 'phase':
         wrapText(`◇ ${item.phase}`, textWidth).forEach((text, index) => {
           out.push({ kind: 'context', text, isFirst: index === 0 });
@@ -92,21 +101,6 @@ export function buildWorkbenchScrollbackLines(
         });
         break;
       }
-    }
-  }
-
-  // Preserve the current plan surface during the migration. The semantic plan
-  // item will replace this adapter in the later operator-workflow slice.
-  if (ctx.perTab.planTasks?.length || ctx.perTab.planContent) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
-    for (const task of ctx.perTab.planTasks?.slice(0, 20) ?? []) {
-      const marker = task.status === 'completed' ? '[x]' : task.status === 'in_progress' ? '[~]' : task.status === 'skipped' ? '[-]' : '[ ]';
-      wrapText(`${marker} ${task.index}. ${task.title}`, textWidth).forEach((text) => {
-        out.push({ kind: 'plan', text, isFirst: false });
-      });
-    }
-    if (ctx.perTab.planContent) {
-      appendRendered(out, 'agent', ctx.perTab.planContent, textWidth, ctx.themeName);
     }
   }
 

@@ -1,9 +1,10 @@
 import type { AlixEvent, TimelinePayload } from '../../events/types.js';
+import type { PlanTask } from '../../planning/plan-task.js';
 import type { DurableProjectionBuilder } from './durable-projection-builder.js';
 
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
-  | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.response'
+  | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.plan' | 'agent.response'
   | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested'
   // #434 — tool lifecycle events project into the timeline so the agent
   // scrollback can render invocation + result lines in chronological
@@ -33,7 +34,7 @@ export type TimelineKind =
  *  kinds it projects — unrelated event types must not pollute the timeline. */
 export const TIMELINE_TYPES = new Set<TimelineKind>([
   'chat.message', 'chat.response',
-  'agent.message', 'agent.reasoning', 'agent.decision', 'agent.response',
+  'agent.message', 'agent.reasoning', 'agent.decision', 'agent.plan', 'agent.response',
   'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
   'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed',
   // T6 — C1 observability: context lifecycle events
@@ -49,6 +50,7 @@ export interface TimelineEntry {
   readonly sessionId: string;           // stamped origin (D1/D3)
   readonly startedAt: number;
   readonly text?: string;
+  readonly planTasks?: readonly PlanTask[];
   readonly detail?: string;
   readonly sourceEvents: { readonly firstSequence: number; readonly lastSequence?: number };
 }
@@ -58,6 +60,7 @@ function cloneEntry(e: TimelineEntry): TimelineEntry {
     id: e.id, kind: e.kind, sessionId: e.sessionId, startedAt: e.startedAt,
     ...(e.actor !== undefined ? { actor: e.actor } : {}),
     ...(e.text !== undefined ? { text: e.text } : {}),
+    ...(e.planTasks !== undefined ? { planTasks: e.planTasks.map((task) => ({ ...task })) } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
     sourceEvents: {
       firstSequence: e.sourceEvents.firstSequence,
@@ -106,6 +109,7 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
         typeof e.sessionId !== 'string' ||
         typeof e.kind !== 'string' ||
         typeof e.startedAt !== 'number' ||
+        (e.planTasks !== undefined && !isPlanTaskArray(e.planTasks)) ||
         e.sourceEvents == null || typeof e.sourceEvents !== 'object' ||
         typeof e.sourceEvents.firstSequence !== 'number'
       ) {
@@ -233,8 +237,25 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       kind, sessionId: e.sessionId, startedAt: ts,
       ...(e.actor !== undefined ? { actor: e.actor } : {}),
       ...(text !== undefined ? { text } : {}),
+      ...(kind === 'agent.plan' && isPlanTaskArray(p.planTasks)
+        ? { planTasks: p.planTasks.map((task) => ({ ...task })) }
+        : {}),
       ...(detail !== undefined ? { detail } : {}),
       sourceEvents: { firstSequence: e.seq ?? 0 },
     };
   }
+}
+
+function isPlanTaskArray(value: unknown): value is readonly PlanTask[] {
+  if (!Array.isArray(value)) return false;
+  return value.every((task) => {
+    if (task == null || typeof task !== 'object') return false;
+    const candidate = task as Partial<PlanTask>;
+    return typeof candidate.id === 'string' &&
+      typeof candidate.index === 'number' &&
+      typeof candidate.title === 'string' &&
+      (candidate.detail === undefined || typeof candidate.detail === 'string') &&
+      (candidate.status === 'pending' || candidate.status === 'in_progress' ||
+        candidate.status === 'completed' || candidate.status === 'skipped');
+  });
 }

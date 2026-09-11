@@ -1,4 +1,5 @@
 import type { ExecutionTraceStatus } from '../../runtime/execution-trace.js';
+import type { PlanTask } from '../../../planning/plan-task.js';
 
 export type TranscriptMode = 'compact' | 'detailed';
 
@@ -47,6 +48,12 @@ export interface PhaseItem extends TranscriptItemBase {
   readonly phase: string;
 }
 
+export interface PlanItem extends TranscriptItemBase {
+  readonly kind: 'plan';
+  readonly text?: string;
+  readonly tasks: readonly PlanTask[];
+}
+
 export interface DiagnosticItem extends TranscriptItemBase {
   readonly kind: 'diagnostic';
   readonly severity: 'info' | 'warning' | 'error';
@@ -58,6 +65,7 @@ export type TranscriptItem =
   | AssistantMessageItem
   | ToolGroupItem
   | ApprovalItem
+  | PlanItem
   | PhaseItem
   | DiagnosticItem;
 

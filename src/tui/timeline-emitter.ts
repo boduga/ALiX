@@ -2,6 +2,7 @@ import type { TabId } from './state.js';
 import type { EventLog } from '../events/event-log.js';
 import type { CapabilityEmitContext } from './capabilities/invocation-presenter.js';
 import { appendLogEntry } from './log-emit.js';
+import type { PlanTask } from '../planning/plan-task.js';
 
 /** Per-tab session ids + EventLog the TUI was constructed with. */
 export interface TimelineEmitterOpts {
@@ -19,6 +20,7 @@ export interface TimelineEmitterOpts {
 export interface TimelineEmitter {
   emitCtx(sessionId?: string): CapabilityEmitContext | undefined;
   emitTimelineLog(kind: 'user' | 'agent', text: string, sessionId?: string): void;
+  emitAgentPlan(text: string | undefined, tasks: readonly PlanTask[], sessionId?: string): void;
   sessionIdForTab(tab: TabId): string | undefined;
   appendAgentMessage(tab: TabId, text: string): void;
 }
@@ -49,9 +51,22 @@ export function createTimelineEmitter(opts: TimelineEmitterOpts): TimelineEmitte
     return undefined;
   };
 
+  const emitAgentPlan = (text: string | undefined, tasks: readonly PlanTask[], sessionId?: string): void => {
+    if (!opts.eventLog || !sessionId || (!text && tasks.length === 0)) return;
+    appendLogEntry(opts.eventLog, {
+      sessionId,
+      actor: 'agent',
+      type: 'agent.plan',
+      payload: {
+        ...(text !== undefined ? { text } : {}),
+        planTasks: tasks.map((task) => ({ ...task })),
+      },
+    });
+  };
+
   const appendAgentMessage = (tab: TabId, text: string): void => {
     emitTimelineLog('agent', text, sessionIdForTab(tab));
   };
 
-  return { emitCtx, emitTimelineLog, sessionIdForTab, appendAgentMessage };
+  return { emitCtx, emitTimelineLog, emitAgentPlan, sessionIdForTab, appendAgentMessage };
 }

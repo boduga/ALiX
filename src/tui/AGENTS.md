@@ -31,6 +31,7 @@
 - Prefer pure projection, reducer, layout, and formatting functions.
 - Keep raw EventLog payload interpretation inside projections, not painters.
 - Preserve source event sequence ranges on semantic transcript items.
+- Agent plans are emitted as typed `agent.plan` events before `agent.response`; Workbench renders them through `ConversationProjection`, never directly from mutable per-tab plan state.
 - Treat task and agent as separate concepts in future roster work.
 - Test narrow and wide terminal dimensions and preserve stable scroll anchors.
 - New Workbench modules belong under `src/tui/workbench/`; use adapters rather than rewriting all legacy views at once.

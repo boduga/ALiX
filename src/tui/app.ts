@@ -870,6 +870,13 @@ export class TuiApp {
     if (partialStreamed && partialStreamed.length > 0) {
       summary = `${partialStreamed}\n\n${summary}`;
     }
+    if (kind === 'agent' && (perTab.planContent || perTab.planTasks?.length)) {
+      this.timelineEmitter.emitAgentPlan(
+        perTab.planContent,
+        perTab.planTasks ?? [],
+        this.opts.agentSessionId,
+      );
+    }
     // The single log emit stamps the sub-session that matches the submission
     // kind — chat submits route to the chat collector, agent submits to the
     // agent collector (Phase 6). The per-tab in-memory cache is gone.

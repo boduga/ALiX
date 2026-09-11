@@ -48,7 +48,7 @@ function runtime(trace: readonly ExecutionTraceEntry[]): RuntimeSnapshot {
   };
 }
 
-function context(mode: 'compact' | 'detailed'): ViewRenderContext {
+function context(mode: 'compact' | 'detailed', timeline: readonly TimelineEntry[] = fixture.timeline): ViewRenderContext {
   const snap: DashboardSnapshot = {
     generatedAt: 1,
     session: { mode: 'ask', phase: SessionPhase.Idle, version: 'test', startedAt: 1, turns: 2 },
@@ -66,7 +66,7 @@ function context(mode: 'compact' | 'detailed'): ViewRenderContext {
     workbenchEnabled: true,
     runtime: {
       chat: null,
-      agent: { ...runtime([]), sessionId: 'trace-agent', timeline: fixture.timeline },
+      agent: { ...runtime([]), sessionId: 'trace-agent', timeline },
     },
   };
 }
@@ -103,5 +103,29 @@ describe('Workbench scrollback', () => {
     };
 
     expect(new AgentView().handleKey('Ctrl+o', inputContext)).toEqual({ type: 'toggleTranscriptMode' });
+  });
+
+  it('renders semantic plan tasks before the final response', () => {
+    const timeline: TimelineEntry[] = [
+      { id: 'tl-1', kind: 'agent.message', actor: 'user', sessionId: 's', startedAt: 1, text: 'Do it', sourceEvents: { firstSequence: 1 } },
+      {
+        id: 'tl-2', kind: 'agent.plan', actor: 'agent', sessionId: 's', startedAt: 2,
+        text: 'Plan accepted.',
+        planTasks: [
+          { id: 's:task:1', index: 1, title: 'Inspect', status: 'completed' },
+          { id: 's:task:2', index: 2, title: 'Edit', status: 'pending' },
+        ],
+        sourceEvents: { firstSequence: 2 },
+      },
+      { id: 'tl-3', kind: 'agent.response', actor: 'agent', sessionId: 's', startedAt: 3, text: 'Finished.', sourceEvents: { firstSequence: 3 } },
+    ];
+
+    const text = buildWorkbenchScrollbackLines(context('compact', timeline), 90)
+      .map((line) => line.text)
+      .join('\n');
+
+    expect(text).toContain('[x] 1. Inspect');
+    expect(text).toContain('[ ] 2. Edit');
+    expect(text.indexOf('Plan accepted.')).toBeLessThan(text.indexOf('Finished.'));
   });
 });

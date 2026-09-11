@@ -66,4 +66,30 @@ describe('ConversationProjection', () => {
     const snapshot = new ConversationProjection().project({ timeline, trace: [], mode: 'compact' });
     expect(snapshot.items.map((item) => item.kind)).toEqual(['assistant', 'user', 'assistant']);
   });
+
+  it('projects a structured plan in source-event order', () => {
+    const timeline: TimelineEntry[] = [
+      { id: 'tl-1', kind: 'agent.message', actor: 'user', sessionId: 's', startedAt: 1, text: 'Make a plan', sourceEvents: { firstSequence: 1 } },
+      {
+        id: 'tl-2', kind: 'agent.plan', actor: 'agent', sessionId: 's', startedAt: 2,
+        text: 'Two safe steps.',
+        planTasks: [
+          { id: 's:task:1', index: 1, title: 'Inspect files', status: 'completed' },
+          { id: 's:task:2', index: 2, title: 'Apply change', status: 'in_progress' },
+        ],
+        sourceEvents: { firstSequence: 2 },
+      },
+      { id: 'tl-3', kind: 'agent.response', actor: 'agent', sessionId: 's', startedAt: 3, text: 'Finished.', sourceEvents: { firstSequence: 3 } },
+    ];
+
+    const snapshot = new ConversationProjection().project({ timeline, trace: [], mode: 'compact' });
+
+    expect(snapshot.items.map((item) => item.kind)).toEqual(['user', 'plan', 'assistant']);
+    expect(snapshot.items[1]).toMatchObject({
+      kind: 'plan',
+      text: 'Two safe steps.',
+      tasks: [{ title: 'Inspect files' }, { title: 'Apply change' }],
+      sourceEvents: { firstSequence: 2, lastSequence: 2 },
+    });
+  });
 });

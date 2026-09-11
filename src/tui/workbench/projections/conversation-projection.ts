@@ -106,6 +106,16 @@ export class ConversationProjection {
         continue;
       }
 
+      if (entry.kind === 'agent.plan') {
+        candidates.push({
+          ...base,
+          kind: 'plan',
+          ...(text.trim() ? { text } : {}),
+          tasks: entry.planTasks ?? [],
+        });
+        continue;
+      }
+
       if (entry.kind === 'agent.session.phase_changed') {
         if (input.mode === 'detailed') {
           candidates.push({ ...base, kind: 'phase', phase: text || 'unknown' });
