@@ -274,7 +274,7 @@ export async function complete(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
 ): Promise<NormalizedResponse> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -290,7 +290,9 @@ export async function complete(
     delete body.parallel_tool_calls;
   }
   const hasTools = !!(request.tools && request.tools.length > 0);
-  const base = hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl;
+  // Full-endpoint override (same shape as spec.baseUrl); used by providers
+  // with a user-configurable server address (freellmapi).
+  const base = options.baseUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
   const url = base.replace("{model}", encodeURIComponent(model));
   const res = await fetchWithRetry(url, {
     method: "POST",
@@ -335,7 +337,7 @@ export async function* stream(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
 ): AsyncGenerator<StreamChunk> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -349,7 +351,8 @@ export async function* stream(
     delete body.parallel_tool_calls;
   }
   const hasTools = !!(request.tools && request.tools.length > 0);
-  const streamBase = spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
+  // Full-endpoint override (same shape as spec.baseUrl); see complete().
+  const streamBase = options.baseUrl ?? (spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl));
   const url = streamBase.replace("{model}", encodeURIComponent(model));
 
   // Retry the initial HTTP request on transient failure.

@@ -19,7 +19,7 @@ describe("OpenAI-compatible inheritors", () => {
     ["zhipuai", zhipuaiSpec, "https://open.bigmodel.cn/api/paas/v4/chat/completions"],
     ["grokai", grokaiSpec, "https://api.x.ai/v1/chat/completions"],
     ["openrouter", openrouterSpec, "https://openrouter.ai/api/v1/chat/completions"],
-    ["freellmapi", freellmapiSpec, "http://localhost:3001/v1/chat/completions"],
+    ["freellmapi", freellmapiSpec, "http://10.1.1.12:3001/v1/chat/completions"],
   ] as const;
 
   for (const [name, spec, expectedUrl] of cases) {

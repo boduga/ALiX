@@ -78,7 +78,7 @@ ALiX supports multiple providers. Keyed providers require an API key; keyless lo
 | `grokai` | `GROKAI_API_KEY` | |
 | `ollama` | — (keyless) | Uses local Ollama server |
 | `local-llama` | — (keyless) | Local llama.cpp server; see below |
-| `freellmapi` | `FREELLMAPI_API_KEY` | Local FreeLLMAPI router (`http://localhost:3001`); unified `freellmapi-…` key via credential store |
+| `freellmapi` | `FREELLMAPI_API_KEY` | FreeLLMAPI router (default `http://10.1.1.12:3001`; override via `models.default.freellmapiBaseUrl`); unified `freellmapi-…` key via credential store |
 
 Env vars take precedence over config file values. See [Local LLM setup](local-llama-setup.md) for the full local-llama walkthrough.
 

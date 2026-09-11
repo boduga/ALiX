@@ -122,7 +122,7 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       return data.data.map((m) => ({ id: m.id, displayName: m.id }));
     }
     case "freellmapi": {
-      const response = await fetch("http://localhost:3001/v1/models", {
+      const response = await fetch("http://10.1.1.12:3001/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(15_000),
       });

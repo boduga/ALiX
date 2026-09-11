@@ -155,6 +155,20 @@ describe("validateConfig", () => {
     assert.ok(result.issues.some(i => i.path === "models.default.localModelPath" && i.level === "error"));
   });
 
+  it("reports error when freellmapiBaseUrl is not an http(s) URL", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "freellmapi", name: "m", freellmapiBaseUrl: "not-a-url" };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.freellmapiBaseUrl" && i.level === "error"));
+  });
+
+  it("accepts a valid freellmapiBaseUrl", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "freellmapi", name: "m", freellmapiBaseUrl: "http://10.1.1.12:3001" };
+    const result = validateConfig(config);
+    assert.ok(!result.issues.some(i => i.path === "models.default.freellmapiBaseUrl"));
+  });
+
   it("reports error when a localLlama knob is an invalid number", () => {
     const config = makeValidConfig();
     config.models!.default = { provider: "local-llama", name: "m", localLlama: { port: 70000 } };

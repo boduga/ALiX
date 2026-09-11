@@ -2,11 +2,11 @@ import { openaiBaseSpec } from "./_openai-base.js";
 import type { ProviderSpec } from "../spec-types.js";
 
 /**
- * Default base URL for a local FreeLLMAPI server (docker/desktop default).
- * FreeLLMAPI aggregates free LLM tiers behind a single OpenAI-compatible
- * `/v1` endpoint; auth is a unified `freellmapi-…` Bearer token.
+ * Default base URL for the FreeLLMAPI server (LAN host; override per install
+ * via ModelConfig.freellmapiBaseUrl — server IPs move, so this is a default,
+ * not a constant).
  */
-export const DEFAULT_FREELLMAPI_BASE_URL = "http://localhost:3001";
+export const DEFAULT_FREELLMAPI_BASE_URL = "http://10.1.1.12:3001";
 
 export const freellmapiSpec: ProviderSpec = {
   ...openaiBaseSpec,

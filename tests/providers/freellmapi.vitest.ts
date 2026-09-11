@@ -13,8 +13,8 @@ afterEach(() => {
 
 describe("freellmapiSpec", () => {
   it("targets the local FreeLLMAPI OpenAI-compat endpoint", () => {
-    expect(DEFAULT_FREELLMAPI_BASE_URL).toBe("http://localhost:3001");
-    expect(freellmapiSpec.baseUrl).toBe("http://localhost:3001/v1/chat/completions");
+    expect(DEFAULT_FREELLMAPI_BASE_URL).toBe("http://10.1.1.12:3001");
+    expect(freellmapiSpec.baseUrl).toBe("http://10.1.1.12:3001/v1/chat/completions");
   });
 
   it("inherits OpenAI Bearer auth", () => {
@@ -45,7 +45,7 @@ describe("FreeLLMAPIProvider", () => {
     expect(caps.parallelToolCalls).toBe(false);
   });
 
-  it("complete() hits the local endpoint with Bearer auth and the model", async () => {
+  it("complete() hits the configured endpoint with Bearer auth and the model", async () => {
     const mock = makeMockFetch([{
       status: 200,
       body: { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] },
@@ -55,10 +55,22 @@ describe("FreeLLMAPIProvider", () => {
     const provider = new FreeLLMAPIProvider({ apiKey: "freellmapi-test", model: "m" });
     const resp = await provider.complete({ systemPrompt: "", messages: [] });
     expect(resp.text).toBe("hi");
-    expect(mock.calls[0].url).toBe("http://localhost:3001/v1/chat/completions");
+    expect(mock.calls[0].url).toBe("http://10.1.1.12:3001/v1/chat/completions");
     const headers = mock.calls[0].init.headers as Record<string, string>;
     expect(headers["Authorization"]).toBe("Bearer freellmapi-test");
     expect((mock.calls[0].init.body as string)).toContain('"model":"m"');
+  });
+
+  it("honors a configured baseUrl override (ModelConfig.freellmapiBaseUrl)", async () => {
+    const mock = makeMockFetch([{
+      status: 200,
+      body: { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] },
+    }]);
+    _setFetchForTesting(mock.fetch as any);
+
+    const provider = new FreeLLMAPIProvider({ apiKey: "k", model: "m", baseUrl: "http://other:4000" });
+    await provider.complete({ systemPrompt: "", messages: [] });
+    expect(mock.calls[0].url).toBe("http://other:4000/v1/chat/completions");
   });
 });
 
@@ -88,7 +100,7 @@ describe("freellmapi registration", () => {
 
     const resp = await complete("freellmapi", "m", { systemPrompt: "", messages: [] }, { apiKey: "k" });
     expect(resp.text).toBe("ok");
-    expect(mock.calls[0].url).toBe("http://localhost:3001/v1/chat/completions");
+    expect(mock.calls[0].url).toBe("http://10.1.1.12:3001/v1/chat/completions");
   });
 });
 
@@ -119,7 +131,7 @@ describe("freellmapi catalog", () => {
       { id: "b", displayName: "b" },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:3001/v1/models",
+      "http://10.1.1.12:3001/v1/models",
       expect.objectContaining({
         headers: { Authorization: "Bearer k" },
       }),

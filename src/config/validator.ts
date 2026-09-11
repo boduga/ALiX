@@ -233,6 +233,9 @@ function pushLocalLlamaIssues(
   }
 
   const ll = model.localLlama;
+  if (model.freellmapiBaseUrl !== undefined && !isValidHttpUrl(model.freellmapiBaseUrl)) {
+    issues.push({ path: `${path}.freellmapiBaseUrl`, level: "error", message: "freellmapiBaseUrl must be a valid http(s) URL" });
+  }
   if (!ll) return;
 
   for (const [knob, type, check] of [

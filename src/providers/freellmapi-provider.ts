@@ -1,10 +1,13 @@
 import { BaseProvider, mergeSignals } from "./base.js";
 import { complete, stream } from "./unified-complete.js";
+import { DEFAULT_FREELLMAPI_BASE_URL } from "./specs/freellmapi-spec.js";
 import type { ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type FreeLLMAPIConfig = {
   apiKey?: string;
   model?: string;
+  /** Server base URL (ModelConfig.freellmapiBaseUrl). Defaults to the LAN server. */
+  baseUrl?: string;
   /** Total call timeout (ms). Defaults to 300s: free-tier routing can queue behind rate limits. */
   timeoutMs?: number;
 };
@@ -34,15 +37,21 @@ export class FreeLLMAPIProvider extends BaseProvider {
     super({
       apiKey: config.apiKey ?? process.env.FREELLMAPI_API_KEY ?? "",
       model: config.model ?? "nvidia/nemotron-3-super-120b-a12b:free",
-      baseUrl: "http://localhost:3001",
+      baseUrl: config.baseUrl ?? DEFAULT_FREELLMAPI_BASE_URL,
       timeoutMs: config.timeoutMs ?? 300_000,
     });
+  }
+
+  /** Full chat-completions endpoint derived from the configured server address. */
+  private endpoint(): string {
+    return `${this._baseUrl.replace(/\/+$/, "")}/v1/chat/completions`;
   }
 
   async complete(request: NormalizedRequest, options?: ModelCallOptions): Promise<NormalizedResponse> {
     return complete("freellmapi", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+      baseUrl: this.endpoint(),
     });
   }
 
@@ -50,6 +59,7 @@ export class FreeLLMAPIProvider extends BaseProvider {
     yield* stream("freellmapi", this._model, request, {
       apiKey: this._apiKey,
       signal: mergeSignals(AbortSignal.timeout(this._timeoutMs), options?.signal),
+      baseUrl: this.endpoint(),
     });
   }
 }
