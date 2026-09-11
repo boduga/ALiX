@@ -12,6 +12,7 @@ import { minimaxTokenPlanSpec } from "./specs/minimax-token-plan-spec.js";
 import { zhipuaiSpec } from "./specs/zhipuai-spec.js";
 import { grokaiSpec } from "./specs/grokai-spec.js";
 import { openrouterSpec } from "./specs/openrouter-spec.js";
+import { freellmapiSpec } from "./specs/freellmapi-spec.js";
 import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
@@ -32,6 +33,7 @@ export const SPECS = new Map<string, ProviderSpec>([
   ["grokai", grokaiSpec],
   ["openrouter", openrouterSpec],
   ["local-llama", localLlamaSpec],
+  ["freellmapi", freellmapiSpec],
 ]);
 
 export const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -49,6 +51,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
   openrouter: "OPENROUTER_API_KEY",
   mock: "",
   "local-llama": "",
+  freellmapi: "FREELLMAPI_API_KEY",
 };
 
 let _fetch: typeof fetch = globalThis.fetch;
@@ -271,7 +274,7 @@ export async function complete(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
 ): Promise<NormalizedResponse> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -287,7 +290,9 @@ export async function complete(
     delete body.parallel_tool_calls;
   }
   const hasTools = !!(request.tools && request.tools.length > 0);
-  const base = hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl;
+  // Full-endpoint override (same shape as spec.baseUrl); used by providers
+  // with a user-configurable server address (freellmapi).
+  const base = options.baseUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
   const url = base.replace("{model}", encodeURIComponent(model));
   const res = await fetchWithRetry(url, {
     method: "POST",
@@ -332,7 +337,7 @@ export async function* stream(
   provider: string,
   model: string,
   request: NormalizedRequest,
-  options: { apiKey?: string; signal?: AbortSignal } = {}
+  options: { apiKey?: string; signal?: AbortSignal; baseUrl?: string } = {}
 ): AsyncGenerator<StreamChunk> {
   const spec = SPECS.get(provider);
   if (!spec) throw new Error(`Unknown provider: ${provider}`);
@@ -346,7 +351,8 @@ export async function* stream(
     delete body.parallel_tool_calls;
   }
   const hasTools = !!(request.tools && request.tools.length > 0);
-  const streamBase = spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
+  // Full-endpoint override (same shape as spec.baseUrl); see complete().
+  const streamBase = options.baseUrl ?? (spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl));
   const url = streamBase.replace("{model}", encodeURIComponent(model));
 
   // Retry the initial HTTP request on transient failure.
