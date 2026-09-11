@@ -8,6 +8,8 @@ import type { IOutput } from './io.js';
 import type { AgentSession } from '../agent/session.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PaletteController } from './palette-controller.js';
+import { projectOperatorShell } from './workbench/model/operator-shell.js';
+import { paintOperatorShell } from './workbench/views/operator-shell.js';
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
  *  reaches into the god class. */
@@ -283,6 +285,19 @@ export class FramePainter {
       // No approvals pending — right-align the pipeline fields as before.
       // Left side stays empty (ticket #433); row is quiet by default.
       c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
+    }
+
+    // The Agent Workbench owns its frame chrome as well as its transcript.
+    // Paint last so the feature-gated shell replaces the legacy dashboard
+    // banner and status counters without changing shared viewport geometry.
+    // Other tabs and non-Workbench sessions keep the established chrome.
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      paintOperatorShell({
+        canvas: c,
+        width: dims.columns,
+        height: dims.rows,
+        model: projectOperatorShell(snap, s.views.agent, liveMode),
+      });
     }
 
     // Write the complete frame — cursor home + canvas render.

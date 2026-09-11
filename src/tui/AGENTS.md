@@ -32,6 +32,7 @@
 - Keep raw EventLog payload interpretation inside projections, not painters.
 - Preserve source event sequence ranges on semantic transcript items.
 - Agent plans are emitted as typed `agent.plan` events before `agent.response`; Workbench renders them through `ConversationProjection`, never directly from mutable per-tab plan state.
+- When Workbench is enabled on the agent tab, `operator-shell.ts` replaces legacy dashboard chrome after composition while preserving shared header/footer geometry; other tabs retain legacy chrome until their own parity slices land.
 - Treat task and agent as separate concepts in future roster work.
 - Test narrow and wide terminal dimensions and preserve stable scroll anchors.
 - New Workbench modules belong under `src/tui/workbench/`; use adapters rather than rewriting all legacy views at once.
