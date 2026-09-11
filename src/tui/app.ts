@@ -51,6 +51,8 @@ export interface TuiAppOptions {
   keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
   /** Theme name passed to renderResponse. Defaults to 'dark'. */
   themeName?: string;
+  /** Enables the conversation-first Workbench transcript during migration. */
+  workbenchEnabled?: boolean;
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
@@ -89,6 +91,8 @@ export class TuiApp {
   private readonly navigation = new Navigation();
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
+  /** One AgentSession is shared by chat and agent tabs; never run two turns concurrently. */
+  private sessionDispatchActive = false;
   /**
    * Cached sub-session runtime snapshots (Phase 6, D6/D9). Sampled from
    * `opts.runtimeCollectors` on start() and every refresh(); injected into the
@@ -175,7 +179,7 @@ export class TuiApp {
     this.framePainter = new FramePainter({
       state: () => this.state,
       views: () => this.views,
-      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession },
+      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession, workbenchEnabled: this.opts.workbenchEnabled },
       chatRuntime: () => this.chatRuntime,
       agentRuntime: () => this.agentRuntime,
       computeSlashStrip: () => this.slash.computeStrip(),
@@ -513,6 +517,10 @@ export class TuiApp {
     if (tab === 'chat') {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
+        if (this.sessionDispatchActive) {
+          this.paintFullFrame();
+          return;
+        }
         if (perTab.inputBuffer.trim().length > 0) {
           // T437 (spec #429 slice 8): operator-initiated submission re-pins
           // the scrollback to bottom so the new prompt + response are visible.
@@ -559,6 +567,10 @@ export class TuiApp {
         return;
       }
       if (key === 'Enter') {
+        if (this.sessionDispatchActive) {
+          this.paintFullFrame();
+          return;
+        }
         if (this.slash.active()) {
           void this.submitSlashCommand();
           this.paintFullFrame();
@@ -766,6 +778,9 @@ export class TuiApp {
     skills?: string[],
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
+    if (this.sessionDispatchActive) return;
+    this.sessionDispatchActive = true;
+    try {
     let summary: string = `${fallbackPrefix} ${text}`;
     // Clear stale plan content and plan tasks before starting a new turn
     perTab.planContent = undefined;
@@ -855,6 +870,13 @@ export class TuiApp {
     if (partialStreamed && partialStreamed.length > 0) {
       summary = `${partialStreamed}\n\n${summary}`;
     }
+    if (kind === 'agent' && (perTab.planContent || perTab.planTasks?.length)) {
+      this.timelineEmitter.emitAgentPlan(
+        perTab.planContent,
+        perTab.planTasks ?? [],
+        this.opts.agentSessionId,
+      );
+    }
     // The single log emit stamps the sub-session that matches the submission
     // kind — chat submits route to the chat collector, agent submits to the
     // agent collector (Phase 6). The per-tab in-memory cache is gone.
@@ -862,6 +884,9 @@ export class TuiApp {
     // Auto-follow is now handled by the per-tab `pinnedBottom` flag plus the
     // view's branched render logic; the app layer no longer clamps the offset.
     this.paintFullFrame();
+    } finally {
+      this.sessionDispatchActive = false;
+    }
   }
 
   /**
@@ -1137,6 +1162,14 @@ export class TuiApp {
         this.paintFullFrame();
         break;
       }
+      case 'toggleTranscriptMode': {
+        const per = this.state.views.agent;
+        per.transcriptMode = (per.transcriptMode ?? 'compact') === 'compact' ? 'detailed' : 'compact';
+        per.pinnedBottom = true;
+        this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        break;
+      }
     }
   }
 
@@ -1258,6 +1291,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
+  if (s === '\x0f') return 'Ctrl+o';   // Ctrl+O — transcript detail toggle
   if (s === '\x7f' || s === '\b') return 'Backspace';
   // Ctrl+digit: terminals reliably encode these as ESC + digit (the
   // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab

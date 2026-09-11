@@ -151,6 +151,8 @@ export interface PerTabState {
   evolutionFocus?: 'capability' | 'stage' | 'artifact' | null;
   /** Active execution-trace filter on the Runtime tab. Default 'all'. */
   runtimeTraceFilter: RuntimeTraceFilter;
+  /** Workbench semantic transcript density. Used by the agent surface only. */
+  transcriptMode?: 'compact' | 'detailed';
   /**
    * Live-streamed assistant text for the in-flight agent turn, appended
    * token-by-token via `TuiApp.appendAgentStreamToken`. Rendered as a single
@@ -207,6 +209,7 @@ export function createInitialPerTabState(): PerTabState {
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
     runtimeTraceFilter: 'all',
+    transcriptMode: 'compact',
     evolutionSelectedCapabilityId: undefined,
     evolutionExpandedStage: null,
     evolutionInspector: null,

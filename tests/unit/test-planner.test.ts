@@ -59,6 +59,13 @@ describe("TestPlanner", () => {
 });
 
 describe("createTestPlan (convenience function)", () => {
+  it("invokes the package script name instead of embedding its command body", async () => {
+    const plan = await createTestPlan(".", ["src/auth/user.ts"]);
+
+    assert.ok(plan.checks.some((check) => check.command === "npm run typecheck"));
+    assert.ok(plan.checks.every((check) => !check.command.startsWith("npm run tsc ")));
+  });
+
   it("creates full plan from changed files", async () => {
     const plan = await createTestPlan(".", ["src/auth/user.ts"]);
 

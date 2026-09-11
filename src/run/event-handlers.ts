@@ -44,6 +44,8 @@ export type EventHandlerDeps = {
    * cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
+  /** Exact operator-requested mutation targets for strict single-file tasks. */
+  allowedMutationPaths?: readonly string[];
 };
 
 /**
@@ -314,6 +316,7 @@ export async function handleToolCall(
     executionId: correlation.executionId,
     invocationId: correlation.invocationId,
     ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+    ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
   });
 
   // If the executor reports "Approval required (id)", wait for the operator
@@ -335,6 +338,7 @@ export async function handleToolCall(
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
           ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+          ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
         });
       } else {
         // Denied or expired — keep the original denied result so the

@@ -17,6 +17,7 @@ export interface FramePainterDeps {
   opts: {
     themeName?: string;
     agentSession?: AgentSession;
+    workbenchEnabled?: boolean;
   };
   chatRuntime: () => RuntimeSnapshot | null;
   agentRuntime: () => RuntimeSnapshot | null;
@@ -43,6 +44,7 @@ export class FramePainter {
       dimensions: { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
       perTab: this.deps.state().views[tab]!,
       themeName: this.deps.opts.themeName,
+      workbenchEnabled: this.deps.opts.workbenchEnabled,
       runtime: { chat: this.deps.chatRuntime(), agent: this.deps.agentRuntime() },
     };
   }
@@ -118,6 +120,7 @@ export class FramePainter {
       perTab: s.views[s.activeTab],
       canvas: viewCanvas,
       themeName: this.deps.opts.themeName,
+      workbenchEnabled: this.deps.opts.workbenchEnabled,
       // Phase 6 (D6/D9): the chat/agent sub-session runtime snapshots, sampled
       // from the runtime collectors. ChatView/AgentView read their own tab's
       // `runtime.<tab>.timeline` projection.

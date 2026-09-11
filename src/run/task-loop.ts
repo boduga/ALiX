@@ -24,7 +24,7 @@ import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
-import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
+import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
@@ -272,6 +272,33 @@ function isCompletionTool(toolName: string): boolean {
   return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
 }
 
+function resolveToolExecutionName(
+  toolName: string,
+  selectedTools: ReadonlyArray<{ name: string; execName: string }>,
+): string {
+  return selectedTools.find((tool) => tool.name === toolName)?.execName
+    ?? TOOL_NAME_MAP[toolName]
+    ?? toolName;
+}
+
+/**
+ * Extract a strict single-file mutation target from imperative operator text.
+ * This intentionally recognizes only high-confidence create/delete forms;
+ * broad coding tasks keep their normal multi-file scope behavior.
+ */
+export function explicitMutationTargets(task: string): string[] {
+  const namedFile = task.match(
+    /\b(?:create|delete|remove)(?:\s+and\s+commit)?\s+(?:a\s+)?file\s+named\s*:?\s*(?:`([^`]+)`|"([^"]+)"|([^\n]+?))(?=\s+containing\b|\s*$)/im,
+  );
+  const directCreate = task.match(
+    /\bcreate\s+(?:`((?:\/|\.\.?\/)[^`]+)`|"((?:\/|\.\.?\/)[^"]+)"|'((?:\/|\.\.?\/)[^']+)'|((?:\/|\.\.?\/)[^\s"'`]+))\s+containing\b/i,
+  );
+  const target = namedFile?.slice(1).find((value) => value !== undefined)
+    ?? directCreate?.slice(1).find((value) => value !== undefined);
+  if (!target) return [];
+  return [target.trim().replace(/[.,:]$/, '')];
+}
+
 function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
   return [...usedTools].some((name) => !isCompletionTool(name));
 }
@@ -303,6 +330,7 @@ type SuccessfulToolEvidence = {
 
 const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
 const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
+const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
   const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
@@ -335,7 +363,7 @@ function objectiveEvidenceGaps(
   );
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
-  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push("a successful verification command after the mutation");
+  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push(VERIFICATION_EVIDENCE_GAP);
   return gaps;
 }
 
@@ -396,6 +424,20 @@ export function latestToolFailure(
     if (plain) return plain.slice(0, 500);
   }
   return undefined;
+}
+
+/** Preserve durable mutation evidence when a later retry fails. */
+export function durableCompletionSummary(
+  text: string,
+  changedFiles: ReadonlySet<string>,
+  latestFailure?: string,
+): string {
+  const summary = text.trim();
+  if (changedFiles.size === 0 || !latestFailure || !/^(?:Error|Access denied):\s*/i.test(summary)) {
+    return summary;
+  }
+  const files = [...changedFiles].sort().join(", ");
+  return `Changed ${files}. A later tool attempt failed: ${latestFailure}`;
 }
 
 /** Whether a reply or the session claims a written deliverable exists. */
@@ -569,6 +611,8 @@ systemPrompt,
 onStream,
 onProgress,
   } = deps;
+
+  const allowedMutationPaths = explicitMutationTargets(task);
 
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
@@ -1260,12 +1304,20 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReasonNoTools } });
   }
 
-  // Get verification checks
-  const checks = await discoverVerification(".");
+  const changedFilesForVerification = [...sessionState.created, ...sessionState.changed];
+  const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+  const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+    .includes(VERIFICATION_EVIDENCE_GAP);
+  const checks = requiresRepositoryVerification(
+    changedFilesForVerification,
+    explicitVerificationRequired && explicitVerificationMissing,
+  )
+    ? await discoverVerification(".")
+    : [];
 
   // For docs and research tasks, skip verification
   // Also skip if no file mutations occurred (nothing to verify)
-  if (taskType === "docs" || taskType === "research" || !hasMutations || checks.length === 0) {
+  if ((taskType === "docs" && !explicitVerificationRequired) || taskType === "research" || !hasMutations || checks.length === 0) {
     // Check research-specific limits
     if (taskType === "research") {
       const limits = RESEARCH_LIMITS[depth];
@@ -1381,7 +1433,7 @@ if (toolCalls.length === 0) {
       const completionSummary = evidenceGaps.length > 0
         ? missingEvidenceSummary(evidenceGaps, text)
         : text.trim().length > 0
-          ? text
+          ? durableCompletionSummary(text, sessionState.changed, failure)
         : failure
           ? `Task could not complete: ${failure}`
           : "Task completed, but the model provided no final synthesis.";
@@ -1483,6 +1535,7 @@ if (toolCalls.length === 0) {
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
+    allowedMutationPaths,
   };
 
   // Track accumulated state across all tool calls so one tool's result
@@ -1516,12 +1569,12 @@ if (toolCalls.length === 0) {
     onProgress?.("tool_completed", toolCall.name);
 
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
     }
     if (deps.hookRunner && toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_tool_error", {
         type: "tool_error",
         data: { toolName: execName, args: toolCall.args, error: toolResult.error.message, retryable: toolResult.error.retryable },
@@ -1539,7 +1592,7 @@ if (toolCalls.length === 0) {
 
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
@@ -1558,7 +1611,7 @@ if (toolCalls.length === 0) {
 
   async function runPreToolHook(toolCall: ToolCall): Promise<void> {
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
     }
@@ -1602,7 +1655,7 @@ if (toolCalls.length === 0) {
               description: `Scope expansion denied for file changes`,
               outcome: "rejected",
             });
-            const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+            const execName = resolveToolExecutionName(toolCall.name, selectedTools);
             const pathsToCheck = extractMutationPaths(execName, toolCall.args);
             const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
             if (deniedPaths.length > 0) {
@@ -1692,7 +1745,7 @@ if (toolCalls.length === 0) {
             description: `Scope expansion denied for file changes`,
             outcome: "rejected",
           });
-          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          const execName = resolveToolExecutionName(toolCall.name, selectedTools);
           // Check if we have paths to report denial for
           const pathsToCheck = extractMutationPaths(execName, toolCall.args);
           const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
@@ -1830,7 +1883,7 @@ if (toolCalls.length === 0) {
     const completionSummary = evidenceGaps.length > 0
       ? missingEvidenceSummary(evidenceGaps, text)
       : text.trim().length > 0
-        ? text
+        ? durableCompletionSummary(text, sessionState.changed, failure)
       : missingSynthesis
         ? failure
           ? `Task could not complete: ${failure}`
@@ -1899,7 +1952,16 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
   } else {
     const changedFiles = [...sessionState.created, ...sessionState.changed];
-    if (changedFiles.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
+    const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+    const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+      .includes(VERIFICATION_EVIDENCE_GAP);
+    if (
+      changedFiles.length > 0 &&
+      requiresRepositoryVerification(changedFiles, explicitVerificationRequired && explicitVerificationMissing) &&
+      (taskType !== "docs" || explicitVerificationRequired) &&
+      taskType !== "research" &&
+      hasMutations
+    ) {
       // Use TestPlanner for smart verification selection
       const { createTestPlan } = await import("../verifier/test-planner.js");
 

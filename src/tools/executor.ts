@@ -30,6 +30,7 @@ import {
 } from "./tool-router.js";
 import { isSafeShellCommand } from "./safe-shell.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
+import { extractMutationPaths } from "../agent/mutations.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
@@ -142,6 +143,7 @@ export class ToolExecutor {
   }
 
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
+    const startedAt = Date.now();
     const { toolCallId, name } = request;
     let args = request.args;
     const capability = inferCapability(name);
@@ -178,6 +180,27 @@ export class ToolExecutor {
       invocationId: correlation.invocationId,
       ...(request.replayId ? { replayId: request.replayId } : {}),
     });
+
+    if (request.allowedMutationPaths?.length) {
+      const mutationPaths = extractMutationPaths(name, args);
+      const allowed = new Set(request.allowedMutationPaths.map((path) => resolve(this.root, path)));
+      const changedTarget = mutationPaths.find((path) => !allowed.has(resolve(this.root, path)));
+      if (changedTarget) {
+        const message = `Task constraint denied: ${changedTarget} is not the explicitly requested target`;
+        await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
+          toolCallId,
+          toolName: name,
+          error: message,
+          durationMs: 0,
+          canonicalCapability,
+          argumentHash,
+          executionId: correlation.executionId,
+          invocationId: correlation.invocationId,
+          ...(request.replayId ? { replayId: request.replayId } : {}),
+        });
+        return { kind: "error", message, retryable: false };
+      }
+    }
 
     // Continuation resumes bypass main policy gate — approval was already verified.
     // But OwnershipGate runs ALWAYS (even for continuation-resume).
@@ -307,8 +330,7 @@ export class ToolExecutor {
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
-      const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
-      const durationMs = Date.now() - startTime;
+      const durationMs = Date.now() - startedAt;
       await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, {
         toolCallId,
         outputPreview: "Task complete.",
@@ -377,9 +399,7 @@ export class ToolExecutor {
       result = classifyError(result);
     }
 
-    // Calculate duration from start time in toolCallId
-    const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
-    const durationMs = Date.now() - startTime;
+    const durationMs = Date.now() - startedAt;
 
     // Handle large outputs by writing to file
     const outputSize = (result.kind === "success")

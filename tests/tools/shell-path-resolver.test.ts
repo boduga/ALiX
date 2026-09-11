@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ShellToolRouter } from "../../src/tools/tool-router.js";
+import { ShellToolRouter, shellSensitivePathScanText } from "../../src/tools/tool-router.js";
 import { validateShellNetworkCommand } from "../../src/tools/shell-network-policy.js";
 import { WorkspacePathResolver } from "../../src/runtime/workspace-path.js";
 
@@ -67,6 +67,33 @@ describe("ShellToolRouter path validation", () => {
     } as any);
     assert.equal(result.kind, "error");
     assert.ok(result.message.includes("sensitive"), "must block commands referencing .alix");
+  });
+
+  it("does not treat a static find exclusion as sensitive-path access", async () => {
+    const command = "find . -maxdepth 0 -not -path './.git/*' -print";
+    assert.doesNotMatch(shellSensitivePathScanText(command), /\.git/);
+    const result = await router.execute({ name: "shell.run", args: { command } } as any);
+    assert.equal(result.kind, "success");
+  });
+
+  it("still blocks positive or dynamic find references to sensitive paths", async () => {
+    for (const command of [
+      "find . -path './.git/*' -print",
+      'find . -not -path "$(cat .git/config)" -print',
+      "find . -not -path './.git/*' -exec cat .git/config ;",
+    ]) {
+      const result = await router.execute({ name: "shell.run", args: { command } } as any);
+      assert.equal(result.kind, "error", command);
+      assert.match(result.message, /sensitive|protected Git configuration/);
+    }
+  });
+
+  it("blocks git config inspection that indirectly reads protected configuration", async () => {
+    for (const command of ["git config --list", "git config -l", "git config --get user.email", "git config user.name", "git -C . config --list"]) {
+      const result = await router.execute({ name: "shell.run", args: { command } } as any);
+      assert.equal(result.kind, "error");
+      assert.match(result.message, /protected Git configuration/);
+    }
   });
 
   it("blocks relative traversal in a safe-shell file operand", async () => {

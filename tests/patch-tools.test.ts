@@ -69,6 +69,8 @@ test("patch.apply logs edit format policy telemetry", async () => {
       toolCallId: "p-policy",
       provider: "google",
       requestedFormat: "search_replace",
+      effectiveFormat: "search_replace",
+      formatAutoDetected: false,
       preferredFormat: "search_replace",
       allowedFormats: ["search_replace", "structured_patch", "unified_diff"],
       matchesPreference: true,

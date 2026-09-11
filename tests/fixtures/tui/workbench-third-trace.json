@@ -1,0 +1,100 @@
+{
+  "timeline": [
+    {
+      "id": "tl-19-agent.message",
+      "kind": "agent.message",
+      "actor": "user",
+      "sessionId": "trace-agent",
+      "startedAt": 19,
+      "text": "Read README.md and return only its exact first heading.",
+      "sourceEvents": { "firstSequence": 19 }
+    },
+    {
+      "id": "tl-36-context.assembled",
+      "kind": "context.assembled",
+      "actor": "system",
+      "sessionId": "trace-agent",
+      "startedAt": 36,
+      "text": "context assembled — 3 items admitted",
+      "sourceEvents": { "firstSequence": 36 }
+    },
+    {
+      "id": "tl-76-agent.message",
+      "kind": "agent.message",
+      "actor": "agent",
+      "sessionId": "trace-agent",
+      "startedAt": 76,
+      "text": "# ALiX",
+      "sourceEvents": { "firstSequence": 76 }
+    },
+    {
+      "id": "tl-108-agent.response",
+      "kind": "agent.response",
+      "actor": "agent",
+      "sessionId": "trace-agent",
+      "startedAt": 108,
+      "text": "# ALiX",
+      "sourceEvents": { "firstSequence": 108 }
+    },
+    {
+      "id": "tl-109-agent.message",
+      "kind": "agent.message",
+      "actor": "user",
+      "sessionId": "trace-agent",
+      "startedAt": 109,
+      "text": "Try to read ../package.json and report the exact result.",
+      "sourceEvents": { "firstSequence": 109 }
+    },
+    {
+      "id": "tl-227-context.snapshot.created",
+      "kind": "context.snapshot.created",
+      "actor": "system",
+      "sessionId": "trace-agent",
+      "startedAt": 227,
+      "text": "context snapshot created — candidate: 3,111 tokens",
+      "sourceEvents": { "firstSequence": 227 }
+    },
+    {
+      "id": "tl-240-agent.response",
+      "kind": "agent.response",
+      "actor": "agent",
+      "sessionId": "trace-agent",
+      "startedAt": 240,
+      "text": "Access denied: path is outside workspace",
+      "sourceEvents": { "firstSequence": 240 }
+    }
+  ],
+  "trace": [
+    {
+      "id": "tr-48",
+      "kind": "tool",
+      "status": "completed",
+      "title": "tool.file.read",
+      "startedAt": 48,
+      "completedAt": 55,
+      "durationMs": 0,
+      "sourceEvents": { "firstSequence": 48, "lastSequence": 55 }
+    },
+    {
+      "id": "tr-66",
+      "kind": "tool",
+      "status": "completed",
+      "title": "tool.done",
+      "startedAt": 66,
+      "completedAt": 69,
+      "durationMs": 0,
+      "sourceEvents": { "firstSequence": 66, "lastSequence": 69 }
+    },
+    {
+      "id": "tr-234",
+      "kind": "tool",
+      "status": "failed",
+      "title": "tool.file.read",
+      "detail": "Access denied: path is outside workspace",
+      "startedAt": 234,
+      "completedAt": 239,
+      "durationMs": 0,
+      "sourceEvents": { "firstSequence": 234, "lastSequence": 239 }
+    }
+  ]
+}

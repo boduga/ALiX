@@ -93,6 +93,29 @@ test("file.create creates file at correct path", async () => {
   }
 });
 
+test("file.create cannot silently change an explicit task target", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
+    const result = await executor.execute({
+      toolCallId: "strict-target",
+      name: "file.create",
+      args: { path: "fallback.txt", content: "wrong target" },
+      allowedMutationPaths: ["/tmp/requested.txt"],
+      ...TEST_CORRELATION,
+    });
+    assert.equal(result.kind, "error");
+    assert.match(result.message, /explicitly requested target/);
+    assert.equal(existsSync(join(dir, "fallback.txt")), false);
+    const events = await log.readAll();
+    assert.ok(events.some((event) => event.type === "tool.failed" && (event.payload as any).toolCallId === "strict-target"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("file.delete removes existing file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
   try {

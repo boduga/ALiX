@@ -176,6 +176,7 @@ export const AGENT_EVENT_TYPES = {
   MESSAGE: "agent.message",
   REASONING: "agent.reasoning",
   DECISION: "agent.decision",
+  PLAN: "agent.plan",
   RESPONSE: "agent.response",
 } as const;
 
@@ -190,6 +191,8 @@ export const AGENT_EVENT_TYPES = {
  *      events (TimelineBuilder extracts it as `text: \`turn ${n}\``). */
 export type TimelinePayload = {
   text?: string;
+  /** Structured operator plan emitted before the final agent response. */
+  planTasks?: readonly import('../planning/plan-task.js').PlanTask[];
   // #434 — tool lifecycle events project their name and outcome:
   //   - `toolName` on every `tool.*` event (the projection extracts it
   //     into `text` so the scrollback line builder can read it like
