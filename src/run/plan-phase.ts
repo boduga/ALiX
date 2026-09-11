@@ -20,6 +20,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 import { prompt } from "../cli/commands/prompt.js";
 import { isReadOnlyTask, isShellTask } from "../task-classifier.js";
 import {
@@ -141,10 +142,17 @@ export async function runPlanPhase(
     approvalMode?: PlanApprovalMode;
     gate?: PlanApprovalGate;
     sidecarFs?: SidecarFs;
+    /**
+     * Run identity for the plan-generation provider request (model-span
+     * resolution, R1/§18). Omitted when the caller has no run root — direct
+     * callers (tests, deploy scripts) keep context-free requests.
+     */
+    context?: ExecutionContext;
   },
 ): Promise<PlanPhaseResult> {
   const approvalMode = opts?.approvalMode ?? "interactive";
   const sidecarFs = opts?.sidecarFs ?? defaultSidecarFs;
+  const context = opts?.context;
 
   // Skip plan generation for read-only / shell tasks — no model call wasted.
   if (isReadOnlyTask(task) || isShellTask(task)) {
@@ -163,7 +171,7 @@ export async function runPlanPhase(
   // 1. Generate plan (or load from file if provided — fast path for testing)
   const planContent = planFilePath
     ? await readFile(planFilePath, "utf-8")
-    : await generatePlan(ctx, bundle, task);
+    : await generatePlan(ctx, bundle, task, context);
 
   // 2. Save plan to disk
   const projectRoot = (ctx.config as any).projectRoot ?? process.cwd();
@@ -282,12 +290,14 @@ async function generatePlan(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
+  context?: ExecutionContext,
 ): Promise<string> {
   const systemPrompt = buildPlanSystemPrompt(task, bundle);
 
   const response = await ctx.provider.complete({
     systemPrompt,
     messages: [{ role: "user", content: task }],
+    ...(context ? { context } : {}),
   });
 
   const plan = response.text.trim();

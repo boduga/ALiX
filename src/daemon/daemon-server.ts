@@ -30,6 +30,7 @@ import { executeRoute, type RuntimeContext } from "../runtime/route-executor.js"
 import { executeDirectBehavior } from "../runtime/route-execution.js";
 import { DaemonRuntimeExecutor } from "./daemon-runtime-executor.js";
 import { recordWorkspaceActivity } from "./workspace-registry.js";
+import { shutdownProcessTraceClient } from "./daemon-tracing-shutdown.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -503,5 +504,10 @@ server.listen(socketPath, () => {
 });
 
 process.on("SIGTERM", () => {
-  server.close(() => process.exit(0));
+  server.close(() => {
+    // T14 bounded shutdown — the daemon's single existing "app closing down"
+    // choke point, extracted to daemon-tracing-shutdown.ts (Task 15) for test
+    // coverage. Fail-open: tracing can never block or fail daemon exit.
+    void shutdownProcessTraceClient().then(() => process.exit(0));
+  });
 });

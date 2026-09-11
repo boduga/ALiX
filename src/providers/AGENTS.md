@@ -7,6 +7,7 @@ Purpose: thin per-provider `ModelAdapter` adapters, the provider registry, reque
 | File | Responsibility |
 |------|----------------|
 | `registry.ts` | `createProvider` (single choke point) + module-level `providerCache` keyed `provider:model:apiKey` (never auto-cleared; lazy registry maps id → class). Accepts a `ModelConfig`-shape `{provider, name?, selection?}` or legacy `{provider, model}`; resolves non-null `selection` to a concrete id before construction |
+| `provider-contract-validation.ts` | `withProviderContracts` wrapper (applied by `createProvider`): request/response/stream contract validation + per-call timeout enforcement + **model-span instrumentation (Task 11)** — one span per physical provider request, resolved via `getProcessTraceClient()` + `getRun(request.context.runId)` |
 | `base.ts` | `ApiError(status, detail)`, `BaseProvider` abstract adapter, shared response parsing helpers |
 | `openrouter-provider.ts` | OpenRouter adapter; `openrouter/free` self-healing free route; **access-control classification** (`classifyProviderAccess`, `ProviderAccessError`) |
 | `access-restriction-registry.ts` | Bounded-lifetime (TTL) registry of models refused by access-control 403s; excluded from free-candidate selection until the TTL expires, then revalidated |
@@ -22,6 +23,7 @@ Purpose: thin per-provider `ModelAdapter` adapters, the provider registry, reque
 
 ## Local Contracts
 
+- **Model spans (durable, Task 11):** `withProviderContracts` emits exactly ONE model span per PHYSICAL provider request when tracing is enabled — `complete()` and each `stream()` call (one span spanning the whole stream, never one per chunk), ending exactly once on success/error/cancellation/stream-close. The seam only starts a span when the resolved `request.context` carries a `runId` that resolves via `client.getRun(runId)`; unknown/absent runs and the disabled (Noop) path produce NO span work and never throw. The TraceClient is the process memoized instance from `getProcessTraceClient()` (src/tracing/client-factory.ts) — never a second client, and the Langfuse module graph stays off the disabled path. Raw input/output payloads are passed through; capture (redaction + truncation, M1/M2) is the adapter's job. Requests are labeled with the physical adapter's `capabilities.provider`/`.model` (routed fallback fidelity), falling back to the logical ExecutionContext.
 - **Error surface:** every provider error is an `ApiError(status, detail)`; `detail` is the human message (for OpenAI-compatible providers, `error.message`). Catalog fetch failures in `discoverOpenRouterModels` also throw `ApiError(502, ...)` (plain `new Error` avoided).
 - **OpenRouter access-classification (durable):** 403 refusals are NOT one class. `classifyProviderAccess(status, detail)` returns:
   - `model_access_restricted` — 403 + `agentic harness` (model's own access policy; e.g. `:free` models restricted to recognized agentic harnesses). A payload/tool change cannot fix it; do NOT blind-fallback/resend.

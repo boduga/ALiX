@@ -68,6 +68,7 @@ export interface ActionClassification {
 }
 
 import type { ModelAdapter } from "../providers/types.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Arithmetic parser
@@ -922,6 +923,7 @@ function parseModelClassification(
 export async function modelClassifyAction(
   input: string,
   provider: ModelAdapter,
+  context?: ExecutionContext,
 ): Promise<ActionClassification> {
   try {
     const response = await provider.complete({
@@ -940,6 +942,9 @@ export async function modelClassifyAction(
         "No explanation. No markdown. No prose.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
+      // Run identity for the classifier's model span (R1, §18 coverage) —
+      // omitted when the caller has no run root (daemon, direct callers).
+      ...(context ? { context } : {}),
       // T22 (#400): deterministic classification — the same prompt must
       // classify identically across calls. temperature:0 removes sampling
       // variance so Layer-1-uncertain prompts near a decision boundary are

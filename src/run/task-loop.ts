@@ -1536,6 +1536,7 @@ if (toolCalls.length === 0) {
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
     allowedMutationPaths,
+    runId: deps.context?.runId,
   };
 
   // Track accumulated state across all tool calls so one tool's result

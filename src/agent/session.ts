@@ -84,8 +84,11 @@ import type { TaskGraph, TaskNode } from "../kernel/task-graph.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import type { TraceClient } from "../tracing/client.js";
+import { NOOP_TRACE_CLIENT } from "../tracing/noop-client.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
+import { withTraceRun } from "./run-root.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
@@ -322,6 +325,13 @@ export interface AgentSessionConfig {
   resumeSessionId?: string;
   /** Parent run ID for execution trace correlation. */
   parentRunId?: string;
+  /**
+   * Process-level tracing facade (from `createTraceClient(config.tracing)` at
+   * the composition root). One root trace per `processTurn`/`processChat`
+   * invocation. Omit for tracing disabled (default) — the inert Noop client
+   * is used and behavior is unchanged.
+   */
+  traceClient?: TraceClient;
   /** Optional stream handler for real-time output. */
   onStream?: StreamHandler;
   /** Optional session events subscription (per spec §13). */
@@ -671,6 +681,12 @@ export class AgentSessionBuilder {
   build(): AgentSession {
     const config = this.config as AgentSessionConfig;
 
+    // Root tracing facade for this session's processTurn/processChat closures
+    // (Task 10). The composition root threads the process TraceClient; when
+    // absent (tracing disabled, the default) the inert Noop client is used so
+    // every lifecycle call is a cheap no-op and behavior is byte-identical.
+    const traceClient: TraceClient = config.traceClient ?? NOOP_TRACE_CLIENT;
+
     // ---- Mutable internal state (captured by closure) ----
     let initialized = false;
     let ctx: AgentContext;
@@ -684,6 +700,13 @@ export class AgentSessionBuilder {
       }
     }
     let session: { sessionId: string; actor: "system" };
+    // The session id as known BEFORE initialize(): config-provided, else one
+    // generated once at build time. initialize() threads this into setupSession
+    // so ctx.sessionId stays consistent, and every trace root / direct-route
+    // result created before the lazy initialize() (processTurn/processChat)
+    // carries the real session id instead of "" — otherwise CLI runs lose
+    // Langfuse session grouping (v3 parity).
+    const resolvedSessionId = config.sessionId ?? randomUUID();
     let wfRun: WorkflowRun;
     let taskGraph: TaskGraph;
     let taskNode: TaskNode;
@@ -693,6 +716,10 @@ export class AgentSessionBuilder {
 
     // Resolved runtime values (computed during init)
     let currentTask = config.task;
+    // The turn's ExecutionContext, set at the top of each processTurnBody
+    // invocation so initialize() → setupContextAndPlan → runPlanPhase can
+    // thread the same runId/sessionId into every plan-phase provider request.
+    let currentRunContext: ExecutionContext | undefined;
     // Explicit skills injected by the caller for this turn (slash commands).
     // Agent-tab only — the chat path (processChat) never sets this.
     let explicitSkills: string[] | undefined;
@@ -797,7 +824,7 @@ export class AgentSessionBuilder {
     async function initialize(): Promise<void> {
       // P0: Session init
       const p0 = await setupSession(config.cwd, config.task, {
-        sessionId: config.sessionId,
+        sessionId: resolvedSessionId,
         sessionMode: config.sessionMode,
         approvalStore: config.approvalStore,
       });
@@ -899,6 +926,8 @@ export class AgentSessionBuilder {
             planFilePath: config.planFilePath,
             planApprovalMode: config.planApprovalMode,
             planApprovalGate: config.planApprovalGate,
+            // Run identity for the plan-phase model call (R1, §18 coverage).
+            context: currentRunContext,
           },
         );
         contextBundle = p6.contextBundle;
@@ -1147,10 +1176,66 @@ export class AgentSessionBuilder {
 
     // ---- Exported interface methods ----
 
+    /**
+     * processTurn — root-instrumented turn entry (Task 10, R1).
+     *
+     * The trace root lives at the TRUE entry of processTurn — BEFORE the
+     * classifier, direct-generation, grounded-chat and plan-phase work that
+     * all precede the agent-loop runId inside processTurnBody. ONE run-<uuid8>
+     * is hoisted here and reused as the body's runId (same identity → model
+     * spans in the loop resolve via getRun(context.runId)); every terminal
+     * path (recon §3 a–i) endRuns exactly once through the finally below.
+     * When tracing is disabled (Noop) these are cheap no-ops and behavior is
+     * byte-identical to the uninstrumented path.
+     */
     async function processTurn(
       message: string,
       options?: { skills?: string[] },
     ): Promise<AgentTurnResult> {
+      const runId = `run-${randomUUID().slice(0, 8)}`;
+      const traceRun = traceClient.startRun({
+        runId,
+        sessionId: resolvedSessionId,
+        task: message,
+        actor: "agent",
+        parentRunId: config.parentRunId,
+        startedAt: Date.now(),
+      });
+      // One shared terminal-outcome wrapper for all the run roots in this
+      // file (see src/agent/run-root.ts): body result mapped to success/error,
+      // an escaping throw classified cancellation-vs-error, endRun exactly
+      // once via the finally. Tracing failures never alter the turn.
+      return withTraceRun(
+        traceClient,
+        traceRun,
+        "processTurn ended before its outcome could be recorded",
+        (result) => ({
+          status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+          endedAt: Date.now(),
+        }),
+        () => processTurnBody(message, runId, options),
+      );
+    }
+
+    /**
+     * processTurnBody — the original processTurn execution body, unchanged
+     * except that its per-turn `runId` now arrives from the root wrapper.
+     */
+    async function processTurnBody(
+      message: string,
+      runId: string,
+      options?: { skills?: string[] },
+    ): Promise<AgentTurnResult> {
+      // The turn's execution context (same identity the root wrapper's startRun
+      // used). Threaded into classifier, direct-generation, grounded-chat and
+      // plan-phase provider requests so their model spans resolve to this run
+      // via getRun(request.context.runId) (R1, design §18).
+      const turnContext: ExecutionContext = {
+        runId,
+        sessionId: resolvedSessionId,
+        ...(config.parentRunId ? { parentRunId: config.parentRunId } : {}),
+      };
+      currentRunContext = turnContext;
       // Thread the explicit skill list (slash commands) into the next
       // initialize() pass. Undefined on the chat path — never touched there.
       explicitSkills = options?.skills;
@@ -1178,6 +1263,9 @@ export class AgentSessionBuilder {
 
       const route = await taskRouter(message, {
         classifierProvider: classifierProvider ?? undefined,
+        // Enables model-based classifier spans under the run's trace when the
+        // low-confidence fallback fires (R1, §18 coverage for the classifier).
+        context: turnContext,
       });
       if (route.kind === "direct") {
         // Fire the diagnostic callback if one is wired (Task 4).
@@ -1195,7 +1283,7 @@ export class AgentSessionBuilder {
         if (route.answer !== undefined) {
           return {
             summary: route.answer,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1216,7 +1304,7 @@ export class AgentSessionBuilder {
         if (!genProvider) {
           return {
             summary: `[chat:no-provider] ${message}`,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1252,6 +1340,7 @@ export class AgentSessionBuilder {
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
               maxOutputTokens: genMaxOutputTokens,
+              context: turnContext,
             }, {
               onStream: (chunk) => {
                 if (chunk.type === "text" && typeof chunk.text === "string") {
@@ -1263,6 +1352,7 @@ export class AgentSessionBuilder {
               systemPrompt: directSystemPrompt,
               messages: [{ role: "user", content: route.prompt }],
               maxOutputTokens: genMaxOutputTokens,
+              context: turnContext,
             })
         ).catch((err: unknown) => {
           _providerError = err instanceof Error ? err.message : String(err);
@@ -1271,7 +1361,7 @@ export class AgentSessionBuilder {
         if (!genResponse) {
           return {
             summary: `[chat:provider-error] ${_providerError ?? message}`,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1279,7 +1369,7 @@ export class AgentSessionBuilder {
         }
         return {
           summary: genResponse.text || "(no response)",
-          sessionId: config.sessionId ?? "",
+          sessionId: resolvedSessionId,
           toolCalls: [],
           // The chat/direct route calls streamToResponse when streaming is on,
           // so the result reflects the actual path used. runTaskLoop and the
@@ -1335,6 +1425,9 @@ export class AgentSessionBuilder {
           eventLog: ctx.log,
           config: ctx.config,
           onRouteDiagnostic: config.onRouteDiagnostic,
+          // Thread the turn's run identity so grounded-chat model calls and
+          // tool spans resolve under the run's trace (R1, §18/§21 coverage).
+          context: turnContext,
         };
         // Governed execution (#404): every routed task flows through the
         // ExecutionIntent lifecycle (created→approved→running→terminal) via
@@ -1443,8 +1536,9 @@ export class AgentSessionBuilder {
       });
       const stateMachine = new TaskStateMachine(limiter);
 
-      // Build execution context for diagnostic correlation
-      const runId = `run-${randomUUID().slice(0, 8)}`;
+      // Build execution context for diagnostic correlation. runId is the
+      // turn root established at processTurn entry (R1) — same identity used
+      // for the trace and for model-span resolution via getRun(context.runId).
       const resolved = resolveModelConfig(ctx.config);
       const taskContext: ExecutionContext = {
         runId,
@@ -2060,7 +2154,7 @@ export class AgentSessionBuilder {
     }
 
     function getSessionId(): string {
-      if (!ctx) return config.sessionId ?? "";
+      if (!ctx) return resolvedSessionId;
       return ctx.sessionId;
     }
 
@@ -2285,7 +2379,58 @@ export class AgentSessionBuilder {
       }
     }
 
+    /**
+     * processChat — root-instrumented lightweight chat entry (Task 10, R3).
+     *
+     * processChat has no native runId, so each invocation synthesizes ONE
+     * `run-<uuid8>` and starts a run trace BEFORE any provider work. The
+     * synthetic ExecutionContext{runId, sessionId} is threaded into every
+     * physical `complete()` call (initial + each truncation continuation), so
+     * a single invocation — provider call #1, continuation provider call #2,
+     * retries — stays under exactly one synthetic runId and one trace
+     * (chat continuation invariant, design §17). endRun fires exactly once in
+     * all three returns (no-provider / success / chat-error) via the finally.
+     * When tracing is disabled (Noop) these are cheap no-ops.
+     */
     async function processChat(message: string): Promise<AgentTurnResult> {
+      const sessionId = session?.sessionId ?? "chat";
+      const runId = `run-${randomUUID().slice(0, 8)}`;
+      const chatContext: ExecutionContext = { runId, sessionId };
+      const traceRun = traceClient.startRun({
+        runId,
+        sessionId,
+        task: message,
+        actor: "chat",
+        startedAt: Date.now(),
+      });
+      // Shared terminal-outcome wrapper (src/agent/run-root.ts): maps the body
+      // result to success/error, classifies an escaping throw via
+      // isCancellationError (operator cancellation is a normal terminal, never
+      // a failure), and endRuns exactly once via the finally.
+      return withTraceRun(
+        traceClient,
+        traceRun,
+        "processChat ended before its outcome could be recorded",
+        (result) =>
+          // chat-error is the chat path's own caught-terminal (the body never
+          // throws); anything else — including the no-provider placeholder —
+          // is a successful invocation.
+          result.reason === "chat-error"
+            ? { status: "error", error: result.summary, endedAt: Date.now() }
+            : { status: "success", endedAt: Date.now() },
+        () => processChatBody(message, chatContext),
+      );
+    }
+
+    /**
+     * processChatBody — the original processChat execution body, unchanged
+     * except it threads the synthetic chat ExecutionContext into each
+     * provider `complete()` request for model-span resolution (T11).
+     */
+    async function processChatBody(
+      message: string,
+      chatContext: ExecutionContext,
+    ): Promise<AgentTurnResult> {
       const sessionId = session?.sessionId ?? "chat";
       const provider = await ensureChatProvider();
       if (!provider) {
@@ -2319,6 +2464,7 @@ export class AgentSessionBuilder {
           // Defensive copy so the provider's view of the conversation
           // doesn't change after we push the assistant reply below.
           messages: chatMessages.slice(),
+          context: chatContext,
           maxOutputTokens: await resolveDirectOutputCeiling(
             config.chatModel,
             config.chatApiKey,
@@ -2341,6 +2487,9 @@ export class AgentSessionBuilder {
               const next = await provider.complete({
                 systemPrompt: chatSystemPrompt,
                 messages: msgs,
+                // Thread the synthetic run context so continuation spans
+                // resolve to the same run/trace as the initial call (R1).
+                context: chatContext,
                 maxOutputTokens: await resolveDirectOutputCeiling(
                   config.chatModel,
                   config.chatApiKey,
@@ -2762,6 +2911,8 @@ async function setupContextAndPlan(
     planFilePath?: string;
     planApprovalMode?: "interactive" | "deferred";
     planApprovalGate?: any;
+    /** Run identity → plan-phase provider request (model spans, R1/§18). */
+    context?: ExecutionContext;
   },
 ): Promise<{
   contextBundle?: ContextBundle;
@@ -2801,6 +2952,7 @@ async function setupContextAndPlan(
     {
       approvalMode: opts?.planApprovalMode ?? "interactive",
       gate: opts?.planApprovalGate,
+      context: opts?.context,
     },
   );
 

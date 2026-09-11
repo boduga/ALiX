@@ -103,6 +103,28 @@ export const DEFAULT_CONFIG: AlixConfig = {
     defaultTtlMs: 30 * 60 * 1000,
     historyRetentionDays: 30,
   },
+  tracing: {
+    // Disabled by default (design §10): no Langfuse client is constructed, no
+    // credentials are resolved, no network requests occur, NoopTraceClient is used.
+    enabled: false,
+    langfuse: {
+      // baseUrl is empty by default; an operator enabling tracing must supply a
+      // valid http(s) URL (validator flags it otherwise). Keys are fixed store-only
+      // references resolved through the existing credential mechanism at load time.
+      baseUrl: "",
+      publicKey: "cred://langfuse/publicKey",
+      secretKey: "cred://langfuse/secretKey",
+    },
+    capture: {
+      messages: "truncated",
+      reasoning: "off",
+      toolInput: "truncated",
+      toolOutput: "truncated",
+      maxMessageChars: 4000,
+      maxToolOutputChars: 2000,
+    },
+    flushTimeoutMs: 2000,
+  },
 };
 
 /**

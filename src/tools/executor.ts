@@ -28,9 +28,18 @@ import {
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
-import { isSafeShellCommand } from "./safe-shell.js";
+import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 import { extractMutationPaths } from "../agent/mutations.js";
+import { getProcessTraceClient } from "../tracing/client-factory.js";
+import type { TraceClient } from "../tracing/client.js";
+import type {
+  SpanOutcome,
+  ToolSpanInput,
+  TraceRun,
+  TraceSpan,
+} from "../tracing/types.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
@@ -59,7 +68,41 @@ export function hashArgs(args: Record<string, unknown>): string {
   return createHash("sha256").update(stable).digest("hex");
 }
 
-export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
+export type ExecuteResult =
+  | ToolResult
+  | {
+      kind: "denied";
+      reason: string;
+      /**
+       * Set on the approval-gated FIRST attempt of `handleToolCall`'s
+       * execute-twice flow — the pause that waits for operator resolution and
+       * is then re-executed for real. Structurally flagged (design §21); the
+       * `reason` string keeps its historical "Approval required (id): …" shape.
+       */
+      approvalRequired?: true;
+      /** The pending approval's id, when `approvalRequired` is set. */
+      approvalId?: string;
+    };
+
+/**
+ * True when a `denied` result is the approval-gated FIRST attempt in
+ * `handleToolCall`'s execute-twice flow. That attempt does not execute the
+ * tool — it waits for operator approval and is re-executed for real, so it
+ * must NOT emit a terminal span (design §21 exactly-once-per-physical-call).
+ * Genuine policy/ownership/mcp denials are NOT this case and keep their single
+ * error span.
+ *
+ * The structured `approvalRequired` flag is the primary signal. The reason
+ * prefix fallback keeps hand-constructed denials (tests, tool adapters that
+ * build `{ kind: "denied", reason }` directly) classified correctly without
+ * requiring them to know the flag.
+ */
+function isPreApprovalDenial(result: ExecuteResult | null | undefined): boolean {
+  return (
+    result?.kind === "denied" &&
+    (result.approvalRequired === true || /^Approval required \(/.test(result.reason))
+  );
+}
 
 export class ToolExecutor {
   private router: ToolRouter;
@@ -142,7 +185,150 @@ export class ToolExecutor {
     await this.log.append({ sessionId: this.sessionId(), actor: "system", type, payload });
   }
 
+  /**
+   * Execute a tool call, emitting exactly one terminal tool span per PHYSICAL
+   * tool call when tracing is enabled and the request carries a runId that
+   * resolves to an active run (R2, design §21, §22 exactly-once).
+   *
+   * The span is not begun until after dispatch confirms the tool actually ran:
+   * `dispatch` can return an early, non-executing `denied` — most importantly
+   * the approval-gated first attempt (`reason` starts with "Approval required")
+   * that `handleToolCall` re-executes for real. Starting a span for that pause
+   * would burn a spurious second terminal span (branded `error`) on a normal
+   * approval wait. So we resolve the run up front (needed to end a span on the
+   * throw path too), snapshot the pre-repair args + entry time, and only start
+   * + end the span once dispatch has actually executed. Exactly one terminal
+   * span across success / error-result / throw / timeout / cancellation; zero
+   * span work when tracing is disabled, runId absent, or run unknown.
+   */
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
+    // Resolve the process TraceClient + parent run (fail-open: any tracing
+    // problem degrades to "no span", never a throw into tool execution).
+    let client: TraceClient | undefined;
+    let run: TraceRun | null = null;
+    const runId = request.runId;
+    if (runId) {
+      try {
+        client = await getProcessTraceClient();
+        run = client.getRun(runId);
+      } catch {
+        client = undefined;
+        run = null;
+      }
+    }
+
+    // Snapshot entry-time + PRE-repair args before dispatch. `dispatch` may
+    // reassign `request.args` to the repaired object when it repairs a call,
+    // so reading `request.args` here (after dispatch) would capture post-repair
+    // args; the span intentionally records the args as the model issued them.
+    const startedAt = Date.now();
+    const argsSnapshot = request.args;
+    try {
+      const result = await this.dispatch(request);
+      // A pre-approval denial is a pause, not an execution — skip the span so
+      // the eventual real execute emits the single terminal span (see above).
+      if (run && client && !isPreApprovalDenial(result)) {
+        this.emitTerminalToolSpan(client, run, request, argsSnapshot, startedAt, result);
+      }
+      return result;
+    } catch (err) {
+      if (run && client) {
+        this.emitTerminalToolSpan(
+          client,
+          run,
+          request,
+          argsSnapshot,
+          startedAt,
+          null,
+          err instanceof Error ? err : new Error(String(err)),
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Start + immediately end one tool span (startedAt/endedAt are explicit, so
+   * duration is correct even though the span is begun after dispatch returns).
+   * Fail-open: any tracing defect here never throws into tool execution.
+   */
+  private emitTerminalToolSpan(
+    client: TraceClient,
+    run: TraceRun,
+    request: ToolCallRequest,
+    args: Record<string, unknown>,
+    startedAt: number,
+    result: ExecuteResult | null,
+    err?: Error,
+  ): void {
+    try {
+      const span = client.startToolSpan(run, this.buildToolSpanInput(request, args, startedAt));
+      const outcome = result !== null && result !== undefined
+        ? this.buildSpanOutcome(result)
+        : {
+            status: err ? (isCancellationError(err) ? "cancelled" as const : "error" as const) : "error" as const,
+            error: err ? (err.message || String(err)) : undefined,
+          };
+      outcome.endedAt = Date.now();
+      this.endToolSpan(client, span, outcome);
+    } catch {
+      // Tracing must never throw into tool execution.
+    }
+  }
+
+  /**
+   * Build request-side ToolSpanInput at the seam; capture is the adapter's job.
+   * `args` and `startedAt` are the PRE-repair snapshot taken at call entry —
+   * dispatch may reassign `request.args` to the repaired object, so the span
+   * intentionally records the args as the model issued them (pre-repair).
+   */
+  private buildToolSpanInput(
+    request: ToolCallRequest,
+    args: Record<string, unknown>,
+    startedAt: number,
+  ): ToolSpanInput {
+    return {
+      toolName: request.name,
+      capability: inferCapability(request.name),
+      toolCallId: request.toolCallId,
+      invocationId: request.invocationId,
+      executionId: request.executionId,
+      args,
+      startedAt,
+    };
+  }
+
+  /** Terminal outcome for a resolved (non-thrown) tool result. */
+  private buildSpanOutcome(result: ExecuteResult): SpanOutcome {
+    if (result?.kind === "denied") {
+      // Denials map to "error" (design status vocab), no output captured.
+      return { status: "error" };
+    }
+    if (result?.kind !== "success") {
+      // kind === "error" — a tool failure is still a terminal "error" span.
+      return { status: "error", error: result.message };
+    }
+    let output: string | undefined;
+    if (typeof result.output === "string") {
+      output = result.output;
+    } else if (typeof result.content === "string") {
+      output = result.content;
+    } else if (typeof result.value === "string") {
+      output = result.value;
+    }
+    return { status: "success", output };
+  }
+
+  /** End a tool span exactly once; tracing failures never change tool results. */
+  private endToolSpan(client: TraceClient, span: TraceSpan, outcome: SpanOutcome): void {
+    try {
+      client.endSpan(span, outcome);
+    } catch {
+      // Tracing must never throw into tool execution.
+    }
+  }
+
+  private async dispatch(request: ToolCallRequest): Promise<ExecuteResult> {
     const startedAt = Date.now();
     const { toolCallId, name } = request;
     let args = request.args;
@@ -316,7 +502,12 @@ export class ToolExecutor {
         invocationId: correlation.invocationId,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
-      return { kind: "denied", reason: `Approval required (${decision.approvalId}): ${decision.reason}` };
+      return {
+        kind: "denied",
+        reason: `Approval required (${decision.approvalId}): ${decision.reason}`,
+        approvalRequired: true,
+        approvalId: decision.approvalId,
+      };
     }
 
     // Handle special case: "done" tool (not in router)

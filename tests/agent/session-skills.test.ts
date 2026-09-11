@@ -235,33 +235,33 @@ describe("Tab 4 fix — processChat unchanged", () => {
     const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session.ts");
     const src = readFileSync(sessionSrcPath, "utf8");
 
-    // Extract the processChat function body — find the declaration and the
-    // matching close brace by indentation / count. The simplest signal: the
-    // function signature must NOT include `options?:` (chat takes a bare
-    // message string).
+    // Extract the processChat body — since T10 the execution body lives in
+    // the `processChatBody` helper (processChat is a thin wrapper that adds
+    // tracing), so pin the helper. The function signature must NOT include
+    // `options?:` (chat takes a bare message string).
     const sigMatch = src.match(/async function processChat\(message: string\):/);
     assert.ok(sigMatch, "processChat signature is `(message: string)` — no options.skills");
 
-    // The body of processChat should not invoke any explicit-skill helpers.
-    const bodyMatch = src.match(/async function processChat\([\s\S]*?\n    \}\n/);
-    assert.ok(bodyMatch, "processChat body extractable");
+    // The body of the chat path should not invoke any explicit-skill helpers.
+    const bodyMatch = src.match(/async function processChatBody\([\s\S]*?\n    \}\n/);
+    assert.ok(bodyMatch, "processChatBody extractable");
     const body = bodyMatch![0];
     assert.ok(
       !body.includes("resolveExplicitSkills"),
-      "processChat must not invoke resolveExplicitSkills (chat is skill-free)",
+      "chat path must not invoke resolveExplicitSkills (chat is skill-free)",
     );
     assert.ok(
       !body.includes("explicitSkills"),
-      "processChat must not reference the explicit-skills closure var",
+      "chat path must not reference the explicit-skills closure var",
     );
     assert.ok(
       !body.includes("spliceSkillsSection"),
-      "processChat must not invoke the splice helper",
+      "chat path must not invoke the splice helper",
     );
     // Chat uses chatSystemPrompt, not systemPrompt.
     assert.ok(
       body.includes("chatSystemPrompt"),
-      "processChat uses the constant chatSystemPrompt (skill-free)",
+      "chat path uses the constant chatSystemPrompt (skill-free)",
     );
   });
 });

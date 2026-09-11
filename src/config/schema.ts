@@ -360,6 +360,67 @@ export type SynthesisFinding = {
 };
 
 /**
+ * Tracing capture level for a payload kind (design §9).
+ *
+ * Mirrors the `CaptureLevel` union exported by `src/tracing/capture.ts`
+ * ("full" | "truncated" | "off"). The values are structurally identical so the
+ * capture policy accepts these directly; kept as a separate literal in the
+ * config schema so the low-level schema module does not import the tracing
+ * leaf. Never controls whether mandatory secret redaction occurs.
+ */
+export type TracingCaptureMode = "full" | "truncated" | "off";
+
+/**
+ * Per-kind capture levels plus truncation limits for Langfuse payloads.
+ * Limits are applied only at level `"truncated"` (after mandatory redaction).
+ */
+export type TracingCaptureConfig = {
+  /** Capture level for normalized model messages. @default "truncated" */
+  messages: TracingCaptureMode;
+  /** Capture level for reasoning text. @default "off" */
+  reasoning: TracingCaptureMode;
+  /** Capture level for tool call arguments. @default "truncated" */
+  toolInput: TracingCaptureMode;
+  /** Capture level for tool call output. @default "truncated" */
+  toolOutput: TracingCaptureMode;
+  /** Max chars kept per message string leaf at "truncated". @default 4000 */
+  maxMessageChars: number;
+  /** Max chars kept per tool-output string at "truncated". @default 2000 */
+  maxToolOutputChars: number;
+};
+
+/**
+ * Langfuse endpoint credentials. Keys resolve STORE-ONLY through the existing
+ * `cred://` mechanism at config-load time (never from environment variables)
+ * and only while `tracing.enabled === true` — a disabled tracing section
+ * resolves nothing.
+ */
+export type TracingLangfuseConfig = {
+  /** Langfuse instance base URL. Must be a valid http(s) URL when tracing is enabled. @default "" */
+  baseUrl: string;
+  /** Store-only reference; resolved via `cred://langfuse/publicKey`. @default "cred://langfuse/publicKey" */
+  publicKey: string;
+  /** Store-only reference; resolved via `cred://langfuse/secretKey`. @default "cred://langfuse/secretKey" */
+  secretKey: string;
+};
+
+/**
+ * Top-level `tracing` configuration (design §9). When `enabled` is false (the
+ * default) no Langfuse client is constructed, no credentials are resolved, no
+ * network requests occur, and the runtime uses the inert `NoopTraceClient`.
+ */
+export type TracingConfig = {
+  /** Master switch. @default false */
+  enabled: boolean;
+  /** Langfuse endpoint + store-only credential references. */
+  langfuse: TracingLangfuseConfig;
+  /** Capture levels and truncation limits. */
+  capture: TracingCaptureConfig;
+  /** Max wait for a tracing flush before ALiX continues (bounded-flush contract). @default 2000 */
+  flushTimeoutMs: number;
+};
+
+/**
  * AlixConfig — the runtime configuration shape.
  *
  * Persisted (single source of truth on disk):
@@ -397,6 +458,7 @@ export type AlixConfig = {
     defaultTtlMs?: number;
     historyRetentionDays?: number;
   };
+  tracing?: TracingConfig;
   modelProfile?: string;
   models?: ModelsConfig;
 };

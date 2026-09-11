@@ -1,8 +1,18 @@
-import type { AlixConfig, ConfigValidationResult, ModelConfig, ValidationIssue } from "./schema.js";
+import type { AlixConfig, ConfigValidationResult, ModelConfig, TracingCaptureConfig, ValidationIssue } from "./schema.js";
 
 /** Returns true when host resolves to a loopback address. */
 export function isLoopbackHost(host: string): boolean {
   return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]";
+}
+
+/** Returns true when the value parses as an absolute http(s) URL. */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function validateConfig(config: AlixConfig): ConfigValidationResult {
@@ -164,8 +174,52 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     issues.push({ path: "context.repoMapMode", level: "error", message: "context.repoMapMode must be lite or full" });
   }
 
+  // tracing — a fragment may set only part of the section (e.g.
+  // `tracing: { enabled: true }`); each nested value is validated only when
+  // DEFINED, mirroring the other config sections. The fully merged config
+  // loadConfig() validates always carries defaults for every field.
+  const tracing = config.tracing;
+  if (tracing) {
+    if (tracing.enabled !== undefined && typeof tracing.enabled !== "boolean") {
+      issues.push({ path: "tracing.enabled", level: "error", message: "tracing.enabled must be a boolean" });
+    }
+
+    if (tracing.flushTimeoutMs !== undefined &&
+        (!Number.isInteger(tracing.flushTimeoutMs) || tracing.flushTimeoutMs <= 0)) {
+      issues.push({ path: "tracing.flushTimeoutMs", level: "error", message: "flushTimeoutMs must be a positive integer (ms)" });
+    }
+
+    const capture = tracing.capture;
+    if (capture) {
+      for (const field of TRACING_CAPTURE_MODE_FIELDS) {
+        const mode: unknown = capture[field];
+        if (mode !== undefined && (typeof mode !== "string" || !(TRACING_CAPTURE_MODES as readonly string[]).includes(mode))) {
+          issues.push({ path: `tracing.capture.${field}`, level: "error", message: `tracing.capture.${field} must be "full", "truncated", or "off"` });
+        }
+      }
+      for (const field of TRACING_CAPTURE_LIMIT_FIELDS) {
+        const limit: unknown = capture[field];
+        if (limit !== undefined && (typeof limit !== "number" || !Number.isInteger(limit) || limit < 0)) {
+          issues.push({ path: `tracing.capture.${field}`, level: "error", message: `tracing.capture.${field} must be a non-negative integer` });
+        }
+      }
+    }
+
+    // baseUrl must be a valid http(s) URL when tracing is enabled. The default
+    // (empty string) therefore fails closed on load until an operator sets it.
+    if (tracing.enabled === true &&
+        tracing.langfuse?.baseUrl !== undefined &&
+        !isValidHttpUrl(tracing.langfuse.baseUrl)) {
+      issues.push({ path: "tracing.langfuse.baseUrl", level: "error", message: "tracing.langfuse.baseUrl must be a valid http(s) URL when tracing is enabled" });
+    }
+  }
+
   return { valid: issues.filter(i => i.level === "error").length === 0, issues };
 }
+
+const TRACING_CAPTURE_MODE_FIELDS: Array<keyof TracingCaptureConfig> = ["messages", "reasoning", "toolInput", "toolOutput"];
+const TRACING_CAPTURE_LIMIT_FIELDS: Array<keyof TracingCaptureConfig> = ["maxMessageChars", "maxToolOutputChars"];
+const TRACING_CAPTURE_MODES = ["full", "truncated", "off"] as const;
 
 function pushLocalLlamaIssues(
   path: string,

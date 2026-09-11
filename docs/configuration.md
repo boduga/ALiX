@@ -186,6 +186,48 @@ disabled for local development. The security configuration is controlled via
 
 See [Inspector Security](security/inspector-security.md) for full details.
 
+## Tracing
+
+Langfuse tracing exports exactly one Langfuse trace per ALiX run, with model and tool spans inside it. Disabled by default: no Langfuse client is constructed, no credentials are resolved, and no network requests occur until `enabled` is `true`.
+
+```json
+{
+  "tracing": {
+    "enabled": true,
+    "langfuse": {
+      "baseUrl": "https://langfuse.example.com",
+      "publicKey": "cred://langfuse/publicKey",
+      "secretKey": "cred://langfuse/secretKey"
+    },
+    "capture": {
+      "messages": "truncated",
+      "reasoning": "off",
+      "toolInput": "truncated",
+      "toolOutput": "truncated",
+      "maxMessageChars": 4000,
+      "maxToolOutputChars": 2000
+    },
+    "flushTimeoutMs": 2000
+  }
+}
+```
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `enabled` | `false` | Master switch. When `false` (default) no client is constructed and no credentials resolve. |
+| `langfuse.baseUrl` | `""` | Langfuse instance base URL. Must be a valid `http(s)` URL when `enabled` is `true`; leave empty unless enabling, and set it when you do. |
+| `langfuse.publicKey` | `cred://langfuse/publicKey` | Key reference for the Langfuse project. Resolves through the credential store when tracing is enabled; never from an environment variable. Store the value with `alix credential set langfuse publicKey <value>`, or put a literal value here. |
+| `langfuse.secretKey` | `cred://langfuse/secretKey` | Secret key reference; same store-only resolution as `publicKey` (`alix credential set langfuse secretKey <value>`). |
+| `capture.messages` | `"truncated"` | Capture level for normalized model messages AND model output text (one shared knob): `"full"` / `"truncated"` / `"off"`. `"off"` omits both model input and output. |
+| `capture.reasoning` | `"off"` | Capture level for model reasoning text. |
+| `capture.toolInput` | `"truncated"` | Capture level for tool call arguments. |
+| `capture.toolOutput` | `"truncated"` | Capture level for tool call output text. |
+| `capture.maxMessageChars` | `4000` | Max chars kept per string leaf at `"truncated"` for messages, reasoning, tool arguments, and error text. |
+| `capture.maxToolOutputChars` | `2000` | Max chars kept per tool-output string at `"truncated"`. |
+| `flushTimeoutMs` | `2000` | Max wait (ms) for tracing transport before ALiX continues — bounds both the per-run flush and the process shutdown flush. Must be a positive integer; `0`/negative/`NaN`/`Infinity` are rejected by the validator. |
+
+Tracing configuration is config-file-only: there are no environment variables for Langfuse keys. Capture applies mandatory secret redaction (`sk-`/`pk-` tokens, `api_key`/`secret` assignments, `Authorization`/`Bearer`/`Basic`, `cred://` references, PEM blocks) before truncation at every level; `"full"` capture never means unredacted.
+
 ## Supply chain
 
 ALiX pins all direct dependencies. Verify with:
