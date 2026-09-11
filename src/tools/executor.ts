@@ -28,7 +28,7 @@ import {
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
-import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
+import { isSafeShellCommand } from "./safe-shell.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 import { extractMutationPaths } from "../agent/mutations.js";
 import { getProcessTraceClient } from "../tracing/client-factory.js";
