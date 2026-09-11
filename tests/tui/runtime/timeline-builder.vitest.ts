@@ -112,6 +112,22 @@ describe('TimelineBuilder', () => {
     expect((snap[1] as any).detail).toBe('2 failing');
   });
 
+  it('projects agent.plan with detached structured tasks', () => {
+    const b = new TimelineBuilder('s1');
+    const tasks = [{ id: 's1:task:1', index: 1, title: 'Inspect', status: 'pending' as const }];
+    b.update([evt(1, 'agent.plan', 's1', { text: 'One step.', planTasks: tasks })]);
+
+    const first = b.snapshot();
+    expect(first[0]).toMatchObject({
+      kind: 'agent.plan',
+      text: 'One step.',
+      planTasks: [{ title: 'Inspect', status: 'pending' }],
+    });
+
+    (first[0]!.planTasks![0] as { title: string }).title = 'mutated';
+    expect(b.snapshot()[0]!.planTasks![0]!.title).toBe('Inspect');
+  });
+
 
   it('drops foreign-session events AND non-whitelisted events in the same update', () => {
     const b = new TimelineBuilder('s1');

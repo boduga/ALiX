@@ -12,3 +12,7 @@ allowBuilds:
   sharp: true
 minimumReleaseAgeExclude:
   - tsx@4.22.5
+  - '@langfuse/client@5.11.1'
+  - '@langfuse/core@5.11.1'
+  - '@langfuse/otel@5.11.1'
+  - '@langfuse/tracing@5.11.1'

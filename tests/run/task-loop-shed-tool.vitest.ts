@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
-import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { explicitMutationTargets, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -106,6 +106,7 @@ async function makeTestDeps(overrides: {
   mcpToolIndex?: TaskLoopDeps['mcpToolIndex'];
   messages?: NormalizedMessage[];
   maxIterations?: number;
+  taskType?: TaskLoopDeps['taskType'];
   executor?: TaskLoopDeps['executor'];
   selectedTools?: TaskLoopDeps['selectedTools'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
@@ -174,7 +175,7 @@ async function makeTestDeps(overrides: {
     contextBudget,
     tokenizer: 'cl100k_base',
     task: overrides.task ?? 'test task',
-    taskType: 'docs',
+    taskType: overrides.taskType ?? 'docs',
     depth: 'quick',
     memoryStore,
     sessionId,
@@ -186,6 +187,18 @@ async function makeTestDeps(overrides: {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
+
+describe('explicit mutation target extraction', () => {
+  it('recognizes strict named and absolute-path file tasks', () => {
+    expect(explicitMutationTargets('Create a file named note.md.')).toEqual(['note.md']);
+    expect(explicitMutationTargets('Create /tmp/outside.txt containing "blocked".')).toEqual(['/tmp/outside.txt']);
+    expect(explicitMutationTargets('Create `/tmp/quoted.txt` containing "blocked".')).toEqual(['/tmp/quoted.txt']);
+  });
+
+  it('does not constrain broad repository tasks', () => {
+    expect(explicitMutationTargets('Inspect this repository and improve its documentation.')).toEqual([]);
+  });
+});
 
 describe('Task 8: shed-tool reintroduce-on-call', () => {
   it('reintroduces a shed tool when the model calls it, retries once, and logs it', async () => {
@@ -439,5 +452,408 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
       if (originalHome === undefined) delete process.env.HOME;
       else process.env.HOME = originalHome;
     }
+  });
+});
+
+describe('task-loop completion termination', () => {
+  const readTool: ToolDef = {
+    name: 'alix_file_read',
+    description: 'Read a file',
+    input_schema: { type: 'object', properties: {} },
+  };
+  const doneTool: ToolDef = {
+    name: 'alix_done',
+    description: 'Signal completion',
+    input_schema: { type: 'object', properties: {} },
+  };
+  const shellTool: ToolDef = {
+    name: 'alix_shell_run',
+    description: 'Run a shell command',
+    input_schema: { type: 'object', properties: {} },
+  };
+  const createTool: ToolDef = {
+    name: 'alix_file_create',
+    description: 'Create a file',
+    input_schema: { type: 'object', properties: {} },
+  };
+
+  it('classifies explicit code-change objectives without treating read-only requests as mutations', () => {
+    expect(objectiveEvidenceRequirements('fix all', 'bugfix')).toEqual({ mutation: true, verification: false });
+    expect(objectiveEvidenceRequirements('review the code and do not modify anything', 'docs')).toEqual({ mutation: false, verification: false });
+    expect(objectiveEvidenceRequirements(
+      'Make one harmless improvement to README.md, then run an appropriate verification command.',
+      'docs',
+    )).toEqual({ mutation: true, verification: true });
+  });
+
+  it('terminates immediately when done is the only tool called', async () => {
+    const provider = createMockProvider({
+      toolCalls0: [{ name: 'alix_done', id: 'done-1', args: {} }],
+      responseText1: 'This response must never be requested.',
+    });
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      providerTools: [doneTool],
+      executor: executor as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(1);
+    expect(result.reason).toBe('completed');
+  });
+
+  it('requests at most one synthesis after real work and ignores a redundant done attached to the summary', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const finalSummary =
+      'I read README.md successfully and confirmed that it documents the ALiX agent operating system. ' +
+      'The requested read completed without modifying the workspace, and the result came directly from the file tool output. ' +
+      'No additional files were accessed or changed.';
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'README.md' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done-2', args: {} }] };
+        if (iteration === 3) return { text: finalSummary, toolCalls: [{ name: 'alix_done', id: 'redundant-done-3', args: {} }] };
+        throw new Error('completion loop requested redundant model synthesis');
+      },
+    };
+    const executedTools: string[] = [];
+    const executor = {
+      execute: async ({ name }: { name: string }) => {
+        executedTools.push(name);
+        return name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: '# ALiX' };
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read README.md and summarize it',
+      providerTools: [readTool, doneTool],
+      executor: executor as any,
+      maxIterations: 5,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(3);
+    expect(result.summary).toBe(finalSummary);
+    expect(result.reason).toBe('completed');
+    const events = await deps.log.readAll();
+    expect(executedTools.filter((name) => name === 'done')).toHaveLength(1);
+    expect(events.filter((event) => event.type === 'completion.redundant_done_ignored')).toHaveLength(1);
+    expect(provider.requests[0]!.systemPrompt).toContain('CURRENT TURN BOUNDARY');
+    expect(provider.requests[0]!.systemPrompt).toContain('Earlier completed turns are context only');
+  });
+
+  it('accepts a concise synthesis after an action tool without forcing done', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'README.md' } }] };
+        if (iteration === 2) return { text: 'The exact first heading is `# ALiX`.', toolCalls: [] };
+        throw new Error('concise synthesis was not accepted');
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read the first README heading',
+      providerTools: [readTool, doneTool],
+      executor: { execute: async () => ({ kind: 'success' as const, output: '# ALiX' }) } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toBe('The exact first heading is `# ALiX`.');
+    expect(result.reason).toBe('completed');
+  });
+
+  it('surfaces the latest tool denial when done has no prose summary', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-outside', args: { path: '../package.json' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done-after-denial', args: {} }] };
+        throw new Error('denied outcome requested an unnecessary extra synthesis');
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'try to read ../package.json and report the result',
+      providerTools: [readTool, doneTool],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'error' as const, message: 'Access denied: path is outside workspace (/tmp/package.json)', retryable: false },
+      } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toContain('Task could not complete: Access denied: path is outside workspace (/tmp/package.json)');
+    expect(result.reason).toBe('completed_unverified');
+  });
+
+  it('does not let a progress checkpoint preempt an explicit done call', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) {
+          return {
+            text: '',
+            toolCalls: [
+              ...Array.from({ length: 5 }, (_, index) => ({
+                name: 'alix_file_read', id: `read-${index}`, args: { path: `file-${index}.txt` },
+              })),
+              { name: 'alix_done', id: 'done-after-five', args: {} },
+            ],
+          };
+        }
+        if (iteration === 2) {
+          return { text: 'I read the five requested files and completed the task.', toolCalls: [] };
+        }
+        throw new Error('progress checkpoint preempted explicit completion');
+      },
+    };
+    const executor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'file content' },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'read five files',
+      providerTools: [readTool, doneTool],
+      executor: executor as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(provider.requests).toHaveLength(2);
+    expect(result.summary).toBe('I read the five requested files and completed the task.');
+  });
+
+  it('does not mark a requested edit complete without mutation and verification evidence', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_shell_run', id: 'list', args: { command: 'ls -la' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read', args: { path: 'README.md' } }] };
+        return { text: "Now I'll make a harmless improvement to README.md.", toolCalls: [{ name: 'alix_done', id: 'premature-done', args: {} }] };
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Inspect this repository and make one harmless improvement to README.md. Apply the edit, run an appropriate verification command, and report the changed file.',
+      providerTools: [shellTool, readTool, doneTool],
+      selectedTools: [
+        { name: 'alix_shell_run', execName: 'shell.run' },
+        { name: 'alix_file_read', execName: 'file.read' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: name === 'shell.run' ? 'README.md' : '# ALiX' },
+      } as any,
+      maxIterations: 3,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed_unverified');
+    expect(result.summary).toContain('missing a successful workspace mutation');
+    expect(result.summary).toContain('a successful verification command after the mutation');
+  });
+
+  it('accepts completion after successful mutation and post-mutation verification', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'note.md', content: 'safe' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_shell_run', id: 'verify', args: { command: 'pnpm test' } }] };
+        return { text: 'Created note.md and verified it with the test suite.', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+      },
+    };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Create a file named note.md and run tests to verify the change.',
+      providerTools: [createTool, shellTool, doneTool],
+      selectedTools: [
+        { name: 'alix_file_create', execName: 'file.create' },
+        { name: 'alix_shell_run', execName: 'shell.run' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+      } as any,
+      maxIterations: 3,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toBe('Created note.md and verified it with the test suite.');
+  });
+
+  it('records provider tool aliases as mutation evidence when selectedTools omitted the scoped tool', async () => {
+    let iteration = 0;
+    const executions: Array<{ name: string; allowedMutationPaths?: readonly string[] }> = [];
+    const provider = {
+      ...createMockProvider(),
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        this.requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) {
+          return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'note.md', content: 'safe' } }] };
+        }
+        return { text: 'Created note.md.', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+      },
+    } as ModelAdapter & { requests: RecordedRequest[] };
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Create a file named note.md.',
+      providerTools: [createTool, doneTool],
+      selectedTools: [{ name: 'alix_done', execName: 'done' }],
+      executor: {
+        execute: async (request: { name: string; allowedMutationPaths?: readonly string[] }) => {
+          executions.push(request);
+          return request.name === 'done'
+            ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+            : { kind: 'success' as const, output: 'ok' };
+        },
+      } as any,
+      maxIterations: 2,
+    });
+
+    const result = await runTaskLoop(deps);
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toBe('Created note.md.');
+    expect(executions[0]?.allowedMutationPaths).toEqual(['note.md']);
+  });
+
+  it('does not run repository scripts after creating and reading back a text file', async () => {
+    let iteration = 0;
+    const provider = {
+      ...createMockProvider(),
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        this.requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_create', id: 'create', args: { path: 'alix-safety-test.txt', content: 'ALiX workspace write succeeded.' } }] };
+        if (iteration === 2) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read', args: { path: 'alix-safety-test.txt' } }] };
+        if (iteration === 3) return { text: '', toolCalls: [{ name: 'alix_done', id: 'done', args: {} }] };
+        return { text: 'Created and read back alix-safety-test.txt.', toolCalls: [{ name: 'alix_done', id: 'duplicate-done', args: {} }] };
+      },
+    } as ModelAdapter & { requests: RecordedRequest[] };
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: 'Create a file named alix-safety-test.txt containing the requested text, then read it back.',
+      taskType: 'command',
+      providerTools: [createTool, readTool, doneTool],
+      selectedTools: [
+        { name: 'alix_file_create', execName: 'file.create' },
+        { name: 'alix_file_read', execName: 'file.read' },
+        { name: 'alix_done', execName: 'done' },
+      ],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: name === 'file.read' ? 'ALiX workspace write succeeded.' : 'ok' },
+      } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+    const events = await log.readAll();
+
+    expect(result.reason).toBe('completed');
+    expect(events.some((event) => event.type === 'verification.check_started')).toBe(false);
   });
 });

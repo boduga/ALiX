@@ -65,6 +65,32 @@ export const SAFE_SHELL_COMMANDS = [
 export type SafeShellCommand = typeof SAFE_SHELL_COMMANDS[number];
 
 /**
+ * Extract filesystem operands from commands admitted by isSafeShellCommand.
+ * The whitelist grammar deliberately excludes quoting for file operands, so
+ * whitespace tokenization is sufficient and fails closed for traversal.
+ */
+export function safeShellPathOperands(command: string): string[] {
+  const tokens = command.trim().split(/\s+/);
+  const executable = tokens[0];
+  if (executable === "cat" || executable === "stat" || executable === "file" || executable === "md5sum" || executable === "sha256sum") {
+    return tokens.slice(1);
+  }
+  if (executable === "head" || executable === "tail") {
+    return tokens.slice(1).filter((token, index, all) => {
+      if (token === "-n") return false;
+      if (index > 0 && all[index - 1] === "-n") return false;
+      return !/^\d+$/.test(token);
+    });
+  }
+  if (executable === "wc") return tokens.slice(1).filter((token) => !token.startsWith("-"));
+  if (executable === "grep" || executable === "rg") {
+    const quotedPattern = command.match(/^\w+\s+(['"])[\s\S]*?\1\s+([\s\S]+)$/);
+    return quotedPattern?.[2]?.trim().split(/\s+/) ?? [];
+  }
+  return [];
+}
+
+/**
  * Check if a command is in the safe shell whitelist
  */
 export function isSafeShellCommand(command: string): boolean {

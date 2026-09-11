@@ -5,6 +5,7 @@ import { formatActivityLine } from './activity-line.js';
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 import type { TimelineEntry } from '../runtime/timeline-builder.js';
+import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
  *  and scroll-math all compute panelRow/scrollbackTop/textWidth
@@ -794,6 +795,10 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
  *  End/clear/tab-switch. */
 export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat'): number {
   const vp = computeViewport(ctx.dimensions, kind);
-  const allLines = kind === 'agent' ? buildAgentScrollbackLines(ctx, vp.textWidth) : buildChatScrollbackLines(ctx, vp.textWidth);
+  const allLines = kind === 'agent'
+    ? (ctx.workbenchEnabled
+      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+      : buildAgentScrollbackLines(ctx, vp.textWidth))
+    : buildChatScrollbackLines(ctx, vp.textWidth);
   return Math.max(0, allLines.length - vp.scrollbackRows);
 }

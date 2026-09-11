@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   claimsArtifactWritten,
+  durableCompletionSummary,
   lastToolResultShowsClientError,
 } from "../../src/run/task-loop.js";
 
@@ -20,10 +21,10 @@ describe("lastToolResultShowsClientError", () => {
       lastToolResultShowsClientError([user("<tool_result>Access denied: no approval store</tool_result>")]),
     ).toBe(true);
     expect(
-      lastToolResultShowsClientError([user("<tool_result>command failed with exit 1</tool_result>")]),
+      lastToolResultShowsClientError([user("<tool_result>Error: command failed with exit 1</tool_result>")]),
     ).toBe(true);
     expect(
-      lastToolResultShowsClientError([user("<tool_result>timed out after 180000ms</tool_result>")]),
+      lastToolResultShowsClientError([user("<tool_result>Error: timed out after 180000ms</tool_result>")]),
     ).toBe(true);
   });
 
@@ -43,6 +44,15 @@ describe("lastToolResultShowsClientError", () => {
     ];
     expect(lastToolResultShowsClientError(messages)).toBe(false);
   });
+
+  it("does not treat failure words inside successful file content as a tool failure", () => {
+    const packageJson = JSON.stringify({
+      scripts: { test: "echo failed tests and errors for fixture coverage" },
+    });
+    expect(
+      lastToolResultShowsClientError([user(`<tool_result>${packageJson}</tool_result>`)]),
+    ).toBe(false);
+  });
 });
 
 describe("claimsArtifactWritten", () => {
@@ -59,5 +69,23 @@ describe("claimsArtifactWritten", () => {
     expect(
       claimsArtifactWritten("HTTP/2 403 \r\ncache-control: private, no-store\r\nexit=0", 0),
     ).toBe(false);
+  });
+});
+
+describe("durableCompletionSummary", () => {
+  it("does not let a failed retry erase an earlier successful mutation", () => {
+    expect(
+      durableCompletionSummary(
+        "Error: No patch changes found",
+        new Set(["README.md"]),
+        "No patch changes found",
+      ),
+    ).toBe("Changed README.md. A later tool attempt failed: No patch changes found");
+  });
+
+  it("preserves a substantive model summary", () => {
+    expect(
+      durableCompletionSummary("Updated README wording.", new Set(["README.md"]), "retry failed"),
+    ).toBe("Updated README wording.");
   });
 });

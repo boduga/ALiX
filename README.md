@@ -16,7 +16,7 @@ alix run "explain the architecture of this project"
 
 | Feature | What it does |
 |---------|-------------|
-| **Graph execution** | Structured multi-node TaskGraphs with dependency ordering, timeouts, and rerun |
+| **Graph execution** | Structured multi-node TaskGraphs with dependency ordering, timeouts, and reruns |
 | **Capability registry** | Agent/tool cards declare what each component can do. Resolve capabilities to agents and tools |
 | **Policy engine** | First-match-wins policy rules: allow/ask/deny per capability, risk level, or tool |
 | **Approval queue** | File-backed approval requests. CLI-first: list, approve, deny. Cooperative cancel |

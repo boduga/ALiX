@@ -18,6 +18,7 @@
  */
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 import {
   executeChatBehavior,
   executeDirectBehavior,
@@ -37,6 +38,12 @@ export interface RuntimeContext {
   config: any;   // AlixConfig
   approvalStore?: any;
   onStream?: (chunk: any) => void;
+  /**
+   * Run identity threaded into provider/tool spans (R1/R2, design §18/§21).
+   * Set on the local path by the session's turn context; omitted on the
+   * daemon socket path (keeps its no-runId behavior).
+   */
+  context?: ExecutionContext;
   /**
    * Non-persistent diagnostic callback. Fires once per dispatch with the
    * route's `RouteDiagnostic` (when present). Callers that want to surface
@@ -137,6 +144,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       approvalStore: ctx.approvalStore,
       // Local passes its historical 512-token cap; the daemon omits it.
       maxOutputTokens: 512,
+      context: ctx.context,
     });
   }
 

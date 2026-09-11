@@ -44,6 +44,10 @@ export type EventHandlerDeps = {
    * cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
+  /** Exact operator-requested mutation targets for strict single-file tasks. */
+  allowedMutationPaths?: readonly string[];
+  /** Authoritative run id for the enclosing execution (Task 12 tool spans). */
+  runId?: string;
 };
 
 /**
@@ -305,7 +309,7 @@ export async function handleToolCall(
     };
   }
 
-  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread)
+  // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread). T12: thread runId for tool-span parent resolution where the caller provides it.
   let execResult = await deps.executor.execute({
     toolCallId: toolCall.id,
     name: execName,
@@ -314,6 +318,8 @@ export async function handleToolCall(
     executionId: correlation.executionId,
     invocationId: correlation.invocationId,
     ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+    ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
+    runId: deps.runId,
   });
 
   // If the executor reports "Approval required (id)", wait for the operator
@@ -322,9 +328,13 @@ export async function handleToolCall(
   // retries in the next iteration, generating a fresh approval id every time
   // (the "23 pending shell.run" pile-up bug).
   if (execResult.kind === "denied") {
-    const approvalMatch = (execResult as { reason: string }).reason.match(/^Approval required \(([^)]+)\):/);
-    if (approvalMatch) {
-      const approvalId = approvalMatch[1]!;
+    // Approval-gated denials carry the pending id structurally (executor.ts
+    // sets approvalId); the reason-prefix fallback covers hand-constructed
+    // denials (tests, tool adapters) that omit the field.
+    const approvalId =
+      execResult.approvalId ??
+      execResult.reason.match(/^Approval required \(([^)]+)\):/)?.[1];
+    if (approvalId) {
       const outcome = await waitForApproval(approvalId, deps);
       if (outcome === "approved") {
         execResult = await deps.executor.execute({
@@ -335,6 +345,8 @@ export async function handleToolCall(
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
           ...(deps.cancelSignal ? { signal: deps.cancelSignal } : {}),
+          ...(deps.allowedMutationPaths?.length ? { allowedMutationPaths: deps.allowedMutationPaths } : {}),
+          runId: deps.runId,
         });
       } else {
         // Denied or expired — keep the original denied result so the

@@ -24,7 +24,7 @@ import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
-import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
+import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
@@ -70,6 +70,7 @@ import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../runtime/tool-correlation.js";
 import type { CancellationToken } from "../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../runtime/cancellation-token.js";
+import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -267,6 +268,41 @@ const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
 const NARRATING_THRESHOLD = 80;
 const SHORT_SYNTHESIS_THRESHOLD = 200;
 
+function isCompletionTool(toolName: string): boolean {
+  return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
+}
+
+function resolveToolExecutionName(
+  toolName: string,
+  selectedTools: ReadonlyArray<{ name: string; execName: string }>,
+): string {
+  return selectedTools.find((tool) => tool.name === toolName)?.execName
+    ?? TOOL_NAME_MAP[toolName]
+    ?? toolName;
+}
+
+/**
+ * Extract a strict single-file mutation target from imperative operator text.
+ * This intentionally recognizes only high-confidence create/delete forms;
+ * broad coding tasks keep their normal multi-file scope behavior.
+ */
+export function explicitMutationTargets(task: string): string[] {
+  const namedFile = task.match(
+    /\b(?:create|delete|remove)(?:\s+and\s+commit)?\s+(?:a\s+)?file\s+named\s*:?\s*(?:`([^`]+)`|"([^"]+)"|([^\n]+?))(?=\s+containing\b|\s*$)/im,
+  );
+  const directCreate = task.match(
+    /\bcreate\s+(?:`((?:\/|\.\.?\/)[^`]+)`|"((?:\/|\.\.?\/)[^"]+)"|'((?:\/|\.\.?\/)[^']+)'|((?:\/|\.\.?\/)[^\s"'`]+))\s+containing\b/i,
+  );
+  const target = namedFile?.slice(1).find((value) => value !== undefined)
+    ?? directCreate?.slice(1).find((value) => value !== undefined);
+  if (!target) return [];
+  return [target.trim().replace(/[.,:]$/, '')];
+}
+
+function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
+  return [...usedTools].some((name) => !isCompletionTool(name));
+}
+
 /**
  * Compares a model's free-text completion summary against the tools it
  * actually invoked this session. Returns a human-readable list of claims
@@ -286,6 +322,58 @@ function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string
   return unsubstantiated;
 }
 
+type SuccessfulToolEvidence = {
+  name: string;
+  args: Record<string, unknown>;
+  ordinal: number;
+};
+
+const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
+const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
+const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
+
+export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
+  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
+  const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
+  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove)\b/i.test(task);
+  const mutation = !readOnlyInstruction && (
+    (mutationTaskType && explicitMutationVerb) ||
+    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(task) ||
+    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
+    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b/i.test(task)
+  );
+  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
+  return { mutation, verification };
+}
+
+function objectiveEvidenceGaps(
+  task: string,
+  taskType: string,
+  evidence: ReadonlyArray<SuccessfulToolEvidence>,
+): string[] {
+  const required = objectiveEvidenceRequirements(task, taskType);
+  const mutationOrdinal = evidence
+    .filter((item) => MUTATION_TOOL_NAMES.has(item.name))
+    .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
+  const verifiedAfterMutation = evidence.some((item) =>
+    item.ordinal > mutationOrdinal &&
+    item.name === "shell.run" &&
+    typeof item.args.command === "string" &&
+    VERIFICATION_COMMAND_RE.test(item.args.command)
+  );
+  const gaps: string[] = [];
+  if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
+  if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push(VERIFICATION_EVIDENCE_GAP);
+  return gaps;
+}
+
+function missingEvidenceSummary(gaps: string[], text: string): string {
+  const detail = gaps.join(" and ");
+  const lastResponse = text.trim();
+  return `Task could not be verified as complete: missing ${detail}.` +
+    (lastResponse ? ` Last model response: ${lastResponse}` : "");
+}
+
 /**
  * A "done" claim that merely echoes a failed tool result (HTTP 4xx/5xx or a
  * command error) is not a completed outcome. `lastToolResultShowsClientError`
@@ -295,10 +383,15 @@ function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string
  * gate rejects it so the model is pushed to retry/verify instead of ending on
  * an error echo.
  */
-const CLIENT_ERROR_RESULT_RE =
-  /HTTP\/[12]\s+[45]\d\d\b|\b(?:error|denied|refused|timed?\s*out|timeout|failed|unreachable|429|403|404)\b/i;
 const ARTIFACT_WRITE_RE =
   /\b(?:wrote|writes?|created|saved?|generated|produced|output to|written to)\b|\.md\b/i;
+
+function toolResultFailureBody(content: string): string | undefined {
+  const resultBody = content.replace(/^<tool_result[^>]*>\s*/i, "").trimStart();
+  return /^(?:Error|Access denied):\s*/i.test(resultBody) || /^HTTP\/[12]\s+[45]\d\d\b/i.test(resultBody)
+    ? resultBody
+    : undefined;
+}
 
 export function lastToolResultShowsClientError(
   messages: ReadonlyArray<{ role?: string; content?: unknown }>,
@@ -308,9 +401,43 @@ export function lastToolResultShowsClientError(
     if (m?.role !== "user") continue;
     const content = typeof m.content === "string" ? m.content : "";
     if (!content.includes("<tool_result")) continue;
-    return CLIENT_ERROR_RESULT_RE.test(content);
+    return toolResultFailureBody(content) !== undefined;
   }
   return false;
+}
+
+/** Return a concise, user-facing description of the latest failed tool result. */
+export function latestToolFailure(
+  messages: ReadonlyArray<{ role?: string; content?: unknown }>,
+): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role !== "user" || typeof message.content !== "string") continue;
+    if (!message.content.includes("<tool_result")) continue;
+    const resultBody = toolResultFailureBody(message.content);
+    if (!resultBody) continue;
+    const plain = resultBody
+      .replace(/<\/tool_result>\s*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^(?:Error|Access denied):\s*/i, "");
+    if (plain) return plain.slice(0, 500);
+  }
+  return undefined;
+}
+
+/** Preserve durable mutation evidence when a later retry fails. */
+export function durableCompletionSummary(
+  text: string,
+  changedFiles: ReadonlySet<string>,
+  latestFailure?: string,
+): string {
+  const summary = text.trim();
+  if (changedFiles.size === 0 || !latestFailure || !/^(?:Error|Access denied):\s*/i.test(summary)) {
+    return summary;
+  }
+  const files = [...changedFiles].sort().join(", ");
+  return `Changed ${files}. A later tool attempt failed: ${latestFailure}`;
 }
 
 /** Whether a reply or the session claims a written deliverable exists. */
@@ -485,6 +612,8 @@ onStream,
 onProgress,
   } = deps;
 
+  const allowedMutationPaths = explicitMutationTargets(task);
+
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
   const model = resolveModelConfig(config);
@@ -607,6 +736,8 @@ let intentStreak = 0;
 // synthesis re-prompt to tell the model what tools it hasn't tried yet,
 // and also now used to gate completion (see findUnsubstantiatedClaims).
 const usedTools = new Set<string>();
+const successfulToolEvidence: SuccessfulToolEvidence[] = [];
+let toolEvidenceOrdinal = 0;
 
 // True only when the model has made a genuine structured "done"-style tool
 // call (toolResult.completed). Prose that merely contains the word "done"
@@ -636,6 +767,14 @@ let truncationContinuations = 0;
 // max_iterations. `noToolNudges` is never reset mid-run.
 const NO_TOOL_NUDGE_LIMIT = 1;
 let noToolNudges = 0;
+// A completed tool sequence gets at most one dedicated synthesis request.
+// Without this latch, a model that answers the request with another `done`
+// call can consume the entire iteration budget repeating done/synthesis.
+let synthesisRequested = false;
+// A model can answer a synthesis request with a bare `done` call. Permit one
+// final prose-only retry, but never let that behavior become an unbounded
+// done/synthesis cycle.
+let emptySynthesisRetryRequested = false;
 
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
@@ -672,13 +811,23 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// scoped subset. Reusing `wireTools` makes the invariant structural.
 	const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
 	const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
-	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
+	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}\n\n` +
+	  `CURRENT TURN BOUNDARY: The current task is the latest user request. ` +
+	  `Earlier completed turns are context only. Do not describe them as work performed in this turn, ` +
+	  `and do not include their results in the final summary unless the user explicitly asks for a recap.` +
+	  toolManifest;
 
 	// ── I1: Inject progress ledger BEFORE budget admission so it is
 	// token-accounted (Tier 3, protected). The ledger is rendered and
 	// pushed into messages so classifyCandidateContext picks it up.
 	const ledgerText = progressLedger.render(10);
 	if (ledgerText) {
+	  // The ledger is a replaceable snapshot, not conversational history.
+	  // Keep only the latest copy so each iteration does not compound the
+	  // same progress state in the model context.
+	  messages = messages.filter((message) =>
+	    !(message.role === "user" && typeof message.content === "string" && message.content.startsWith("[Progress Ledger]"))
+	  );
 	  messages.push({
 	    role: "user",
 	    content: `[Progress Ledger]\n${ledgerText}`,
@@ -1034,6 +1183,26 @@ if (
   resolvedModel = continued.resolvedModel;
 }
 
+// A synthesis reply sometimes includes another `done` call even though a
+// completion tool already ran (or the runtime explicitly asked for prose).
+// `done` has no useful side effect at this point. Treat the non-empty text as
+// the terminal synthesis and suppress the redundant dispatch so the event log
+// contains one real completion action, not an artificial done loop.
+if (
+  synthesisRequested &&
+  text.trim().length > 0 &&
+  toolCalls.length > 0 &&
+  toolCalls.every((toolCall) => isCompletionTool(toolCall.name))
+) {
+  await log.append({
+    ...session,
+    actor: "system",
+    type: "completion.redundant_done_ignored",
+    payload: { iteration: i, count: toolCalls.length },
+  });
+  toolCalls = [];
+}
+
 if (text.length > 0) {
   await emitAgent(log, session, "agent.message", { text });
 }
@@ -1088,7 +1257,11 @@ if (toolCalls.length === 0) {
   // on a text-only reply: forcing tool use on a model that keeps refusing
   // just spins identical context until max_iterations.
   const nudgedOut = noToolNudges >= NO_TOOL_NUDGE_LIMIT && usedTools.size === 0;
-  const modelSaysDone = nudgedOut || /done|complete|finished|resolved/i.test(text);
+  const modelSaysDone =
+    explicitDoneCalled ||
+    nudgedOut ||
+    (synthesisRequested && text.trim().length > 0) ||
+    /done|complete|finished|resolved/i.test(text);
 
   // If the model emitted text but no tool calls and didn't signal done,
   // re-prompt once to nudge it into taking action. This handles the
@@ -1131,12 +1304,20 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReasonNoTools } });
   }
 
-  // Get verification checks
-  const checks = await discoverVerification(".");
+  const changedFilesForVerification = [...sessionState.created, ...sessionState.changed];
+  const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+  const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+    .includes(VERIFICATION_EVIDENCE_GAP);
+  const checks = requiresRepositoryVerification(
+    changedFilesForVerification,
+    explicitVerificationRequired && explicitVerificationMissing,
+  )
+    ? await discoverVerification(".")
+    : [];
 
   // For docs and research tasks, skip verification
   // Also skip if no file mutations occurred (nothing to verify)
-  if (taskType === "docs" || taskType === "research" || !hasMutations || checks.length === 0) {
+  if ((taskType === "docs" && !explicitVerificationRequired) || taskType === "research" || !hasMutations || checks.length === 0) {
     // Check research-specific limits
     if (taskType === "research") {
       const limits = RESEARCH_LIMITS[depth];
@@ -1159,8 +1340,9 @@ if (toolCalls.length === 0) {
       // earlier), force one more iteration to get a real final answer.
       // Without this, the user sees the agent's first line of text
       // labeled as the "summary" even though no work was finalized.
-      const ranToolCalls = usedTools.size > 0;
-      if (ranToolCalls && i < maxIterations - 1) {
+      const ranToolCalls = hasExecutedActionTool(usedTools);
+      if (ranToolCalls && text.trim().length === 0 && !synthesisRequested && i < maxIterations - 1) {
+        synthesisRequested = true;
         messages.push({
           role: "user",
           content:
@@ -1190,24 +1372,30 @@ if (toolCalls.length === 0) {
         !explicitDoneCalled &&
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
+      const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
       const trustworthy =
-        !ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone);
+        (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
+        evidenceGaps.length === 0;
 
       if (!trustworthy && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
         unconfirmedDoneAttempts++;
         await log.append({
           ...session, actor: "system", type: "completion.claim_rejected",
-          payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
+          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
         });
 
         // Build a targeted re-prompt: list the missing tool calls with their
         // exact alix_ names so the model has no ambiguity about what to invoke.
-        const missingToolLines = unsubstantiated
+        const missingToolLines = [...unsubstantiated, ...evidenceGaps]
           .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
           .join("\n");
 
         let content: string;
-        if (errorEchoDone && unsubstantiated.length === 0) {
+        if (evidenceGaps.length > 0) {
+          content =
+            `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
+            `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`;
+        } else if (errorEchoDone && unsubstantiated.length === 0) {
           // The last tool call failed (HTTP/client error) and no deliverable
           // was produced. There are no invented claims to list — the problem
           // is ending on the error itself.
@@ -1241,9 +1429,17 @@ if (toolCalls.length === 0) {
 
       const reason: RunResult["reason"] = trustworthy ? "completed" : "completed_unverified";
       await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason, summary: text, unsubstantiatedClaims: unsubstantiated, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+      const failure = latestToolFailure(messages);
+      const completionSummary = evidenceGaps.length > 0
+        ? missingEvidenceSummary(evidenceGaps, text)
+        : text.trim().length > 0
+          ? durableCompletionSummary(text, sessionState.changed, failure)
+        : failure
+          ? `Task could not complete: ${failure}`
+          : "Task completed, but the model provided no final synthesis.";
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: text.trim().length > 0 ? reason : "completed_unverified", summary: completionSummary, unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: model.streaming, reason, contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: completionSummary, streamed: model.streaming, reason: text.trim().length > 0 ? reason : "completed_unverified", contextPressure: contextPressure.snapshot() };
     }
     // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {
@@ -1339,13 +1535,14 @@ if (toolCalls.length === 0) {
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
+    allowedMutationPaths,
+    runId: deps.context?.runId,
   };
 
   // Track accumulated state across all tool calls so one tool's result
   // doesn't short-circuit the rest (e.g., toolResult.completed from the
   // first tool must not prevent the second tool from executing).
   let trackCompleted = false;
-  let trackCompletedWithToolCalls = false;
   let trackShellComplete = false;
   let shellOutput = "";
 
@@ -1373,12 +1570,12 @@ if (toolCalls.length === 0) {
     onProgress?.("tool_completed", toolCall.name);
 
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
     }
     if (deps.hookRunner && toolResult.error) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_tool_error", {
         type: "tool_error",
         data: { toolName: execName, args: toolCall.args, error: toolResult.error.message, retryable: toolResult.error.retryable },
@@ -1395,10 +1592,14 @@ if (toolCalls.length === 0) {
     }
 
     usedTools.add(toolCall.name);
+    if (!toolResult.error) {
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
+      recordMutationInSessionState(sessionState, execName, toolCall.args);
+    }
     if (toolResult.completed) {
       trackCompleted = true;
       explicitDoneCalled = true;
-      trackCompletedWithToolCalls = trackCompletedWithToolCalls || usedTools.size > 0;
     }
     if (toolResult.message) messages.push(toolResult.message);
     if ((deps.shellTask || deps.readOnly) && !toolResult.completed && !toolResult.continue) {
@@ -1411,7 +1612,7 @@ if (toolCalls.length === 0) {
 
   async function runPreToolHook(toolCall: ToolCall): Promise<void> {
     if (deps.hookRunner) {
-      const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
       const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
     }
@@ -1455,7 +1656,7 @@ if (toolCalls.length === 0) {
               description: `Scope expansion denied for file changes`,
               outcome: "rejected",
             });
-            const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+            const execName = resolveToolExecutionName(toolCall.name, selectedTools);
             const pathsToCheck = extractMutationPaths(execName, toolCall.args);
             const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
             if (deniedPaths.length > 0) {
@@ -1545,7 +1746,7 @@ if (toolCalls.length === 0) {
             description: `Scope expansion denied for file changes`,
             outcome: "rejected",
           });
-          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          const execName = resolveToolExecutionName(toolCall.name, selectedTools);
           // Check if we have paths to report denial for
           const pathsToCheck = extractMutationPaths(execName, toolCall.args);
           const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
@@ -1605,6 +1806,7 @@ if (toolCalls.length === 0) {
   const modelAlreadyNarrating = modelText.length >= NARRATING_THRESHOLD;
 
   if (
+	!trackCompleted &&
 	!modelAlreadyNarrating &&
 	(toolCallsSinceCheckpoint >= CHECKPOINT_TOOL_CALL_THRESHOLD || wallClockElapsed >= CHECKPOINT_WALL_CLOCK_MS)
   ) {
@@ -1617,11 +1819,8 @@ if (toolCalls.length === 0) {
 	continue;
   }
 
-  // Track all file mutations in sessionState
-  for (const toolCall of toolCalls) {
-    const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-    recordMutationInSessionState(sessionState, execName, toolCall.args);
-  }
+  // Successful mutations are recorded by handleToolResult. Failed calls must
+  // never become completion evidence merely because their arguments named a file.
   sessionState.fatalErrors.push(...fatalToolErrors);
   for (const failed of failedTools) {
     if (!fatalToolErrors.includes(failed)) {
@@ -1636,11 +1835,21 @@ if (toolCalls.length === 0) {
     // Model explicitly requested completion via a "done" tool or similar.
     // If tools were called but the model's text is short, re-prompt once
     // for a synthesis before closing the session.
-    if (trackCompletedWithToolCalls && text.length < SHORT_SYNTHESIS_THRESHOLD && i < maxIterations - 1) {
+    const completedAfterAction = hasExecutedActionTool(usedTools);
+    const priorToolFailure = latestToolFailure(messages);
+    if (
+      completedAfterAction &&
+      text.trim().length === 0 &&
+      !priorToolFailure &&
+      (!synthesisRequested || !emptySynthesisRetryRequested) &&
+      i < maxIterations - 1
+    ) {
+      if (synthesisRequested) emptySynthesisRetryRequested = true;
+      synthesisRequested = true;
       messages.push({
         role: "user",
         content:
-          "Tools completed. Write a concise summary of what you did and what you found.",
+          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call done again.",
       });
       continue;
     }
@@ -1649,13 +1858,14 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    if (unsubstantiated.length > 0 && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
+    const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
+    if ((unsubstantiated.length > 0 || evidenceGaps.length > 0) && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
       unconfirmedDoneAttempts++;
       await log.append({
         ...session, actor: "system", type: "completion.claim_rejected",
-        payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, source: "trackCompleted" },
+        payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, source: "trackCompleted" },
       });
-      const missingToolLines = unsubstantiated
+      const missingToolLines = [...unsubstantiated, ...evidenceGaps]
         .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
         .join("\n");
       const content = unconfirmedDoneAttempts >= 2
@@ -1667,10 +1877,22 @@ if (toolCalls.length === 0) {
       continue;
     }
 
-    const reason: RunResult["reason"] = unsubstantiated.length === 0 ? "completed" : "completed_unverified";
+    const missingSynthesis = completedAfterAction && text.trim().length === 0;
+    const reason: RunResult["reason"] =
+      unsubstantiated.length === 0 && evidenceGaps.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
+    const failure = priorToolFailure;
+    const completionSummary = evidenceGaps.length > 0
+      ? missingEvidenceSummary(evidenceGaps, text)
+      : text.trim().length > 0
+        ? durableCompletionSummary(text, sessionState.changed, failure)
+      : missingSynthesis
+        ? failure
+          ? `Task could not complete: ${failure}`
+          : "Task completed, but the model provided no final synthesis."
+        : "Task complete.";
     return await completeSession(
       session, log, memoryStore, sessionDir,
-      taskType, sessionId, text,
+      taskType, sessionId, completionSummary,
       model.streaming ?? false,
       "session.ended", reason,
       contextPressure.snapshot(),
@@ -1708,6 +1930,7 @@ if (toolCalls.length === 0) {
       role: "user",
       content: rePrompt,
     });
+    synthesisRequested = true;
     continue;
   }
 
@@ -1730,7 +1953,16 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
   } else {
     const changedFiles = [...sessionState.created, ...sessionState.changed];
-    if (changedFiles.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
+    const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
+    const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+      .includes(VERIFICATION_EVIDENCE_GAP);
+    if (
+      changedFiles.length > 0 &&
+      requiresRepositoryVerification(changedFiles, explicitVerificationRequired && explicitVerificationMissing) &&
+      (taskType !== "docs" || explicitVerificationRequired) &&
+      taskType !== "research" &&
+      hasMutations
+    ) {
       // Use TestPlanner for smart verification selection
       const { createTestPlan } = await import("../verifier/test-planner.js");
 

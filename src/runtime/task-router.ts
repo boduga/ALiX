@@ -17,6 +17,7 @@ import {
   type ActionClassification,
 } from "./action-classifier.js";
 import type { ModelAdapter } from "../providers/types.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 /** Route kinds the runtime can dispatch. */
 export type TaskRouteKind = "direct" | "tool" | "chat" | "grounded_chat" | "agent";
@@ -364,7 +365,7 @@ function isExplicitFileOutputRequest(task: string): boolean {
  */
 export async function taskRouter(
   task: string,
-  opts?: { classifierProvider?: ModelAdapter },
+  opts?: { classifierProvider?: ModelAdapter; context?: ExecutionContext },
 ): Promise<TaskRoute> {
   // 1. Deterministic classification with confidence score.
   const classification = classifyActionWithConfidence(task);
@@ -479,7 +480,7 @@ export async function taskRouter(
     opts?.classifierProvider &&
     (classification.intent === "ambiguous" || classification.confidence < CONFIDENCE_THRESHOLD)
   ) {
-    const modelResult = await modelClassifyAction(task, opts.classifierProvider);
+    const modelResult = await modelClassifyAction(task, opts.classifierProvider, opts.context);
     // T24 (#402): enforce the Layer-2 confidence floor. A model label is
     // trusted only when it is a valid non-ambiguous intent AND carries
     // confidence at or above MODEL_CONFIDENCE_THRESHOLD. Below the floor (or

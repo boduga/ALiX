@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig } from "./schema.js";
+import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig, TracingConfig } from "./schema.js";
 import { isValidModelConfig, MODEL_SUBAGENT_TIERS, seedLegacyModelDefault } from "./schema.js";
 import { NO_MODEL_CONFIGURED_MESSAGE } from "./model-resolver.js";
 import { validateConfig } from "./validator.js";
@@ -78,7 +78,10 @@ let homedirOverride: string | undefined;
 export function _setHomedirOverride(path: string | undefined): void { homedirOverride = path; }
 function homedir(): string { return homedirOverride ?? realHomedir(); }
 
-type PartialConfig = Partial<AlixConfig> & {
+// tracing is declared explicitly (not via Partial<AlixConfig>) so nested
+// langfuse/capture overrides can be partial — an intersection with the full
+// optional TracingConfig would otherwise require every nested field.
+type PartialConfig = Omit<Partial<AlixConfig>, "tracing"> & {
   model?: Partial<AlixConfig["model"]>;
   permissions?: Partial<AlixConfig["permissions"]>;
   context?: Partial<AlixConfig["context"]>;
@@ -88,6 +91,12 @@ type PartialConfig = Partial<AlixConfig> & {
   mcpServerPaths?: string[];
   subagents?: SubagentConfig;
   modelTiers?: Partial<Record<Exclude<ModelTier, "default">, Partial<ModelTierConfig>>>;
+  tracing?: {
+    enabled?: TracingConfig["enabled"];
+    langfuse?: Partial<TracingConfig["langfuse"]>;
+    capture?: Partial<TracingConfig["capture"]>;
+    flushTimeoutMs?: TracingConfig["flushTimeoutMs"];
+  };
 };
 
 // Load config from two sources (in order of precedence):
@@ -238,6 +247,14 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     result.apiKeys = apiKeys as Record<string, string>;
   }
 
+  // Resolve tracing.langfuse credential references (design §9, store-only —
+  // never environment variables). Gated on tracing.enabled: when tracing is
+  // disabled (the default) nothing is resolved and no store is loaded (§10).
+  result.tracing = await resolveTracingCredentials(
+    result.tracing,
+    options.credentialStore,
+  );
+
   // Streaming default/override lands on `models.default` (authoritative, §2.8.3)
   // so the `model` projection below reflects it. Falls back to the legacy
   // `model` when no canonical default exists yet — normalizeModelConfig seeds
@@ -343,6 +360,70 @@ async function readJson(path: string): Promise<PartialConfig> {
   return JSON.parse(text) as PartialConfig;
 }
 
+/**
+ * Resolve `cred://` references in `tracing.langfuse.publicKey/secretKey`
+ * through the existing credential store (design §9).
+ *
+ * Store-only: environment variables are never consulted. Gated on
+ * `tracing.enabled === true` — when tracing is disabled (the default) no
+ * credentials are resolved and no store is loaded (design §10).
+ *
+ * Fail-open contract (design §11): a missing credential or an unavailable
+ * store must NOT fail config load (which would fail every agent run). Instead
+ * the reference is left unresolved in place and a warning is emitted, so the
+ * later tracing factory can detect the still-`cred://` value and degrade to
+ * `NoopTraceClient` (warn-once → Noop) at construction.
+ */
+async function resolveTracingCredentials(
+  tracing: AlixConfig["tracing"],
+  credentialStoreOption: CredentialStore | undefined,
+): Promise<AlixConfig["tracing"]> {
+  if (!tracing || tracing.enabled !== true) return tracing;
+
+  const langfuse = tracing.langfuse;
+  const refs: Array<{ key: keyof TracingConfig["langfuse"]; ref: string }> = [];
+  for (const key of ["publicKey", "secretKey"] as const) {
+    const value = langfuse?.[key];
+    if (typeof value === "string" && isCredentialReference(value)) {
+      refs.push({ key, ref: value });
+    }
+  }
+  if (refs.length === 0) return tracing;
+
+  let store = credentialStoreOption;
+  if (!store) {
+    try {
+      const backend = await chooseBackend();
+      store = await loadCredentialStoreWithKeychainFallback(
+        backend,
+        (msg) => console.warn(`During config load: ${msg}`),
+      );
+    } catch (err) {
+      console.warn(
+        `[Config WARN] tracing.langfuse: credential store unavailable; tracing ` +
+        `credentials left unresolved (tracing will fail open). ` +
+        `Details: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return tracing;
+    }
+  }
+
+  const resolvedLangfuse = { ...(langfuse ?? {}) };
+  for (const { key, ref } of refs) {
+    const resolved = resolveCredential(ref, store);
+    if (resolved === null) {
+      console.warn(
+        `[Config WARN] tracing.langfuse.${key}: credential not found for ${ref}. ` +
+        `Store it with: alix credential set langfuse ${key} <value>`,
+      );
+      continue;
+    }
+    resolvedLangfuse[key] = resolved;
+  }
+
+  return { ...tracing, langfuse: resolvedLangfuse };
+}
+
 export function mergeConfig(
   base: AlixConfig,
   ...overrides: PartialConfig[]
@@ -367,6 +448,16 @@ export function mergeConfig(
         ...override.ui,
         security: { ...result.ui?.security, ...override.ui?.security } as AlixConfig["ui"]["security"] | undefined,
       },
+      // tracing is nested two levels (langfuse / capture) — a shallow top-level
+      // spread would clobber sibling tracing fields. Deep-merge each nested
+      // block so e.g. overriding tracing.capture.messages preserves
+      // tracing.langfuse / tracing.capture.toolOutput / tracing.flushTimeoutMs.
+      tracing: {
+        ...result.tracing,
+        ...override.tracing,
+        langfuse: { ...result.tracing?.langfuse, ...override.tracing?.langfuse },
+        capture: { ...result.tracing?.capture, ...override.tracing?.capture },
+      } as AlixConfig["tracing"],
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),

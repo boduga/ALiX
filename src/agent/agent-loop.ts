@@ -27,14 +27,87 @@ import { randomUUID } from "node:crypto";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import { createTraceClient } from "../tracing/client-factory.js";
+import type { TraceClient } from "../tracing/client.js";
+import type { RunOutcome, TraceRun } from "../tracing/types.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
 import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
 import { CancellationToken } from "../runtime/cancellation-token.js";
+
+/** Shared mutable handle between the run root wrapper and its impl. The impl
+ *  resolves the TraceClient once ctx.config exists, starts the run, and the
+ *  wrapper ends it (with the SAME client) in a finally over every terminal. */
+type RunRoot = {
+  traceClient?: TraceClient;
+  run?: TraceRun;
+};
 
 /** Internal core — the original runTask body, wrapped by the governed
  *  `runTask` export below. Kept as a separate function so the governed
  *  wrapper (ExecutionIntent + terminal evidence) surrounds it without
  *  changing the agent-loop's internal behavior. */
 async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
+  // ── Root run trace (R1) ──────────────────────────────────────────────────
+  // The trace root lives at the TRUE entry of runTaskCore. ONE run-<uuid8> is
+  // hoisted here and shared with the task-loop ExecutionContext inside the
+  // impl (same identity → model spans in plan-phase/task-loop resolve via
+  // getRun(context.runId)). startRun fires inside the impl once ctx/workflow
+  // exist but BEFORE the plan-phase/classifier provider calls and the resume
+  // early-return; endRun fires exactly once on EVERY terminal path through
+  // the finally below (resume-return :90-95, plan-rejected :244, success
+  // :457, throw :430). When tracing is disabled (Noop) these are cheap no-ops.
+  const runId = `run-${randomUUID().slice(0, 8)}`;
+  const root: RunRoot = {};
+  // Fallback default so endRun fires with an error outcome even if an
+  // unexpected throw escapes the impl before its outcome is mapped.
+  let traceOutcome: RunOutcome = {
+    status: "error",
+    error: "runTaskCore ended before its outcome could be recorded",
+    endedAt: Date.now(),
+  };
+  try {
+    const result = await runTaskCoreImpl(cwd, task, runId, root, opts, onStream);
+    // A result-reason failure (max_iterations / max_repairs / scope / budget)
+    // is a failed task even though it returns normally; everything else —
+    // including resume-already-completed and plan-rejected summaries — is a
+    // successful run completion from the trace's perspective.
+    traceOutcome = {
+      status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+      endedAt: Date.now(),
+    };
+    return result;
+  } catch (err) {
+    traceOutcome = {
+      status: isCancellationError(err) ? "cancelled" : "error",
+      error: err instanceof Error ? err.message : String(err),
+      endedAt: Date.now(),
+    };
+    throw err;
+  } finally {
+    if (root.traceClient && root.run) {
+      // Exactly-once endRun: the finally fires once on every terminal path.
+      // endRun finalizes the trace and awaits a flush bounded by
+      // flushTimeoutMs (Task 13, design §12) — a hung SDK flush can delay the
+      // task by at most that budget, never indefinitely. The client contract
+      // is fail-open, but the swallow keeps a broken client from altering the
+      // task's outcome.
+      try {
+        await root.traceClient.endRun(root.run, traceOutcome);
+      } catch {
+        // Tracing must never change task results.
+      }
+    }
+  }
+}
+
+async function runTaskCoreImpl(
+  cwd: string,
+  task: string,
+  runId: string,
+  root: RunRoot,
+  opts?: RunOpts,
+  onStream?: StreamHandler,
+): Promise<RunResult> {
   const metrics = new MinimalMetrics();
   metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
 
@@ -78,6 +151,24 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     ...session, type: "task.ready", actor: "system",
     payload: { nodeId: taskNode.id, graphId: taskGraph.id, goal: task },
     meta: graphMeta,
+  });
+
+  // ── Establish the run root now that ctx + workflow exist (R1) ────────────
+  // ctx.config is the authoritative resolved AlixConfig (loadConfig ran inside
+  // initAgent); the memoized createTraceClient factory (client-factory.ts)
+  // returns the same process TraceClient every entry path uses. startRun here
+  // covers the plan-phase provider calls (runPlanPhase below), the task loop,
+  // and the resume/plan-rejected early returns. Those model calls must carry
+  // context.runId so their spans resolve via getRun(context.runId).
+  root.traceClient = await createTraceClient(ctx.config.tracing);
+  root.run = root.traceClient.startRun({
+    runId,
+    sessionId: ctx.sessionId,
+    workflowId: wfRun.id,
+    task,
+    actor: "agent",
+    parentRunId: opts?.parentRunId,
+    startedAt: Date.now(),
   });
 
   // Resume path — reconstruct state from a prior session
@@ -238,6 +329,9 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
         const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath, {
           approvalMode: opts?.planApprovalMode ?? "interactive",
           gate: opts?.planApprovalGate,
+          // Same run identity as the task loop, so plan-phase model spans
+          // resolve under the run's trace (R1, §18 coverage).
+          context: { runId, sessionId: ctx.sessionId, workflowId: wfRun.id },
         });
         if (planResult.action === "rejected") {
           const failedRun = transitionWorkflowStatus(wfRun, "failed");
@@ -339,12 +433,13 @@ ${approvedPlanContent}`);
   const { discoverHooks } = await import("../hooks/discover.js");
   const hooks = await discoverHooks(cwd);
 
-  // Build task loop deps
-  // Build execution context for diagnostic correlation
-  const runId = `run-${randomUUID().slice(0, 8)}`;
+  // Build task loop deps.
   // Resolve the effective model from the canonical `models` source (single-source
   // invariant) — `model` is a loader projection and is never read directly.
   const resolvedModel = resolveModelConfig(ctx.config);
+  // Build execution context for diagnostic correlation. runId is the root
+  // established at runTaskCore entry (R1) — same identity used for the trace
+  // and for model-span resolution via getRun(context.runId).
   const taskContext: ExecutionContext = {
     runId,
     sessionId: ctx.sessionId,

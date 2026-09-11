@@ -53,6 +53,8 @@ export interface ViewRenderContext {
   readonly canvas?: import('../canvas.js').TerminalCanvas;
   /** Theme name for render pipeline. Defaults to 'dark'. */
   readonly themeName?: string;
+  /** Enables the conversation-first semantic transcript during migration. */
+  readonly workbenchEnabled?: boolean;
   /** Phase 6 (D6/D9): projected chat/agent sub-session runtime snapshots. */
   readonly runtime?: PerTabRuntime;
   /** Slash-command completion strip, present only while slash mode is active. */
@@ -77,7 +79,8 @@ export type ViewAction =
   | { type: 'scheduleRefresh' }
   | { type: 'switchTab'; tab: TabId }
   | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' }
-  | { type: 'copyScrollback' };
+  | { type: 'copyScrollback' }
+  | { type: 'toggleTranscriptMode' };
 
 export interface TuiView {
   readonly id: TabId;

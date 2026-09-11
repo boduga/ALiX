@@ -177,6 +177,7 @@ describe("M1.1 — Event Contract", () => {
     assert.equal(TOOL_EVENT_TYPES.REQUESTED, "tool.requested");
     assert.equal(PATCH_EVENT_TYPES.ROLLED_BACK, "patch.rolled_back");
     assert.equal(AGENT_EVENT_TYPES.REASONING, "agent.reasoning");
+    assert.equal(AGENT_EVENT_TYPES.PLAN, "agent.plan");
     assert.equal(OWNERSHIP_EVENT_TYPES.ACQUIRED, "ownership.acquired");
   });
 });

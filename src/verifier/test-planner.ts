@@ -147,9 +147,8 @@ export async function createTestPlan(
       const scripts = pkg.scripts ?? {};
 
       if (scripts.typecheck || scripts["type-check"] || scripts.lint) {
-        const cmd = scripts.typecheck || scripts["type-check"] || scripts.lint;
         const scriptName = scripts.typecheck ? "typecheck" : scripts["type-check"] ? "type-check" : "lint";
-        baseCommands.push({ command: `npm run ${cmd}`, reason: scriptName });
+        baseCommands.push({ command: `npm run ${scriptName}`, reason: scriptName });
       }
       if (scripts.build) {
         baseCommands.push({ command: "npm run build", reason: "build" });

@@ -24,6 +24,15 @@ export type ToolCallRequest = {
    * cancellation omit it and behaviour is unchanged.
    */
   signal?: AbortSignal;
+  /** Runtime-derived exact targets for strict single-file mutation tasks. */
+  allowedMutationPaths?: readonly string[];
+  /**
+   * Authoritative ALiX run id for the enclosing execution (design §21, R2).
+   * Threaded from run roots through the task-loop / event-handlers so the
+   * tool executor can resolve the parent run for a tool span. Absent/unknown
+   * runId → no tool span (never invented, never a throw).
+   */
+  runId?: string;
 } & Partial<CorrelationContext>;
 
 export interface FindingReport {

@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { EventLog } from "../../src/events/event-log.js";
 import { FileToolRouter, PatchToolRouter } from "../../src/tools/tool-router.js";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -90,6 +90,63 @@ line 4
       assert.equal(result.kind, "success");
       const typedResult = result as { changedFiles?: string[] };
       assert.ok(typedResult.changedFiles?.includes("example.txt"));
+    });
+  });
+
+  it("auto-detects an Aider patch mislabeled as search_replace", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "README.md"), "old wording\n");
+      const router = new PatchToolRouter(
+        dir,
+        { models: { default: { provider: "anthropic", name: "test-model" } } } as any,
+      );
+
+      const result = await router.execute({
+        toolCallId: "call-mislabeled-aider",
+        name: "patch.apply",
+        args: {
+          format: "search_replace",
+          patchText: [
+            "*** Begin Patch",
+            "*** Update File: README.md",
+            "@@",
+            "-old wording",
+            "+clear wording",
+            "*** End Patch",
+          ].join("\n"),
+        },
+      });
+
+      assert.equal(result.kind, "success");
+      assert.equal(await readFile(join(dir, "README.md"), "utf8"), "clear wording\n");
+    });
+  });
+
+  it("rejects a simplified Aider patch with no actual changes", async () => {
+    await withTempDir(async (dir) => {
+      await writeFile(join(dir, "README.md"), "same wording\n");
+      const router = new PatchToolRouter(
+        dir,
+        { models: { default: { provider: "anthropic", name: "test-model" } } } as any,
+      );
+
+      const result = await router.execute({
+        toolCallId: "call-noop-aider",
+        name: "patch.apply",
+        args: {
+          format: "unified_diff",
+          patchText: [
+            "*** Begin Patch",
+            "*** Update File: README.md",
+            "@@",
+            " same wording",
+            "*** End Patch",
+          ].join("\n"),
+        },
+      });
+
+      assert.equal(result.kind, "error");
+      assert.equal(await readFile(join(dir, "README.md"), "utf8"), "same wording\n");
     });
   });
 

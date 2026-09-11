@@ -30,6 +30,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: "groq", name: "Groq", env: "GROQ_API_KEY", hint: "gsk_..." },
   { id: "ollama", name: "Ollama", env: "OLLAMA_API_KEY", hint: "(local, may be empty)" },
   { id: "local-llama", name: "Local Llama.cpp", env: "ALIX_LLAMA_BASE_URL", hint: "(local, no API key)" },
+  { id: "freellmapi", name: "FreeLLMAPI", env: "FREELLMAPI_API_KEY", hint: "freellmapi-..." },
   { id: "perplexity", name: "Perplexity", env: "PERPLEXITY_API_KEY", hint: "pplx-..." },
   { id: "minimax", name: "MiniMax", env: "MINIMAX_API_KEY", hint: "..." },
   { id: "minimax-token-plan", name: "MiniMax (Token Plan)", env: "MINIMAX_TOKEN_PLAN_KEY", hint: "sk-cp-..." },
@@ -113,6 +114,15 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
     }
     case "deepseek": {
       const response = await fetch("https://api.deepseek.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.id }));
+    }
+    case "freellmapi": {
+      const response = await fetch("http://10.1.1.12:3001/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
         signal: AbortSignal.timeout(15_000),
       });
@@ -281,6 +291,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   zhipuai: "glm-4-flash",
   grokai: "grok-2-latest",
   deepseek: "deepseek-chat",
+  freellmapi: "nvidia/nemotron-3-super-120b-a12b:free",
 };
 
 /**
