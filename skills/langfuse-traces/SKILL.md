@@ -26,6 +26,7 @@ observations endpoint with a read-only key:
 
 ```sh
 node scripts/query.mjs --trace-id <trace-id> [--limit 20] [--full] [--json]
+node scripts/query.mjs --list [--limit 20] [--json]
 ```
 
 Resolve `scripts/` relative to this skill's install dir

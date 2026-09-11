@@ -39,6 +39,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "usage: query.mjs --trace-id <id> [--limit 20] [--full] [--json]",
+    "   or: query.mjs --list [--limit 20] [--json]",
     "       [--base-url URL] [--public-key K] [--secret-key K]",
     "env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY",
   ].join("\n");
@@ -109,10 +110,36 @@ function detailOf(o) {
   };
 }
 
+async function listTraces({ baseUrl, publicKey, secretKey, limit, wantJson }) {
+  const url = `${baseUrl}/api/public/traces?limit=${limit}&page=1`;
+  let payload;
+  try {
+    payload = await fetchJson(url, publicKey, secretKey);
+  } catch (err) {
+    const reason = err?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : String(err?.message ?? err);
+    console.log(JSON.stringify({ status: "unavailable", reason, traces: [] }, null, 2));
+    return; // fail-open: exit 0
+  }
+  const data = Array.isArray(payload?.data) ? payload.data : [];
+  const traces = data.map((t) => ({ id: t.id, name: t.name, sessionId: t.sessionId }));
+  const result = { status: "ok", count: traces.length, traces };
+  if (payload?.meta?.totalItems !== undefined && payload.meta.totalItems > traces.length) {
+    result.note = `showing ${traces.length} of ${payload.meta.totalItems} (limit ${limit})`;
+  }
+  if (wantJson) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  const lines = traces.map((t) => `${t.id}  ${t.name ?? "(no name)"}${t.sessionId ? `  [${t.sessionId}]` : ""}`);
+  if (result.note) lines.push(result.note);
+  console.log(lines.join("\n") || "(no traces)");
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const traceId = args["trace-id"];
-  if (!traceId) {
+  const listMode = args.list === true || args.list === "true";
+  if (!traceId && !listMode) {
     console.error(usage());
     process.exitCode = 0; // fail-open: never fail the calling task
     return;
@@ -136,6 +163,10 @@ async function main() {
 
   const wantFull = args.full === true || args.full === "true";
   const wantJson = args.json === true || args.json === "true";
+  if (listMode) {
+    await listTraces({ baseUrl, publicKey, secretKey, limit, wantJson });
+    return;
+  }
   const url = `${baseUrl}/api/public/observations?traceId=${encodeURIComponent(traceId)}&limit=${limit}`;
 
   let payload;

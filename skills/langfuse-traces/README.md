@@ -19,6 +19,7 @@ no polling, no guessing.
 
 ```sh
 node ~/.alix/skills/langfuse-traces/scripts/query.mjs --trace-id <id> [--limit 20] [--full] [--json]
+node ~/.alix/skills/langfuse-traces/scripts/query.mjs --list [--limit 20] [--json]
 ```
 
 Keys via flags or `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` /
