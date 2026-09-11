@@ -1,7 +1,20 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach, after } from "node:test";
 import assert from "node:assert";
-import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync, unlinkSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// Isolate from the operator's real ~/.alix/skills: promotion.ts resolves
+// HOME at import time and these tests create + wipe skill dirs, so HOME must
+// point at a temp dir BEFORE any src/skills module is (dynamically) imported
+// below. Fail-closed: if mkdtemp throws, the file fails at load and no test
+// runs against the real home.
+const testHome = mkdtempSync(join(tmpdir(), "alix-skills-test-"));
+process.env.HOME = testHome;
+
+after(() => {
+  try { rmSync(testHome, { recursive: true, force: true }); } catch {}
+});
 
 describe("promotion lifecycle", () => {
   const home = process.env.HOME ?? "/home/babasola";
@@ -66,6 +79,112 @@ Follow red-green-refactor.`);
     await promoteIfEligible(testSessionId);
     const entries = readdirSync(skillsDir).filter(e => e === "tdd-loop");
     assert.strictEqual(entries.length, 1);
+  });
+
+  it("blocks promotion of a candidate colliding with an installed skill", async () => {
+    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    mkdirSync(join(skillsDir, "loop-guardian"), { recursive: true });
+    writeFileSync(join(skillsDir, "loop-guardian", "SKILL.md"), `---
+name: loop-guardian
+description: Stop infinite execution loops
+trigger: /prevent-loops
+version: "1.0.0"
+is_core: false
+---
+# Loop Guardian`);
+    const blockSessionId = `block-test-${Date.now()}`;
+    const blockCandidateDir = join(candidatesDir, blockSessionId);
+    try {
+      mkdirSync(blockCandidateDir, { recursive: true });
+      writeFileSync(join(blockCandidateDir, "SKILL.md"), `---
+name: loop-helper
+description: Detect and break out of infinite iteration loops
+trigger: /prevent-loops
+version: "1.0.0"
+is_core: false
+---
+# Loop Helper`);
+      await promoteIfEligible(blockSessionId);
+      const result = await promoteIfEligible(blockSessionId);
+      assert.strictEqual(result.promoted, false);
+      assert.ok(result.blocked?.includes("loop-guardian"), "blocked reason names the colliding skill");
+      assert.ok(!existsSync(join(skillsDir, "loop-helper")), "colliding candidate must not be installed");
+    } finally {
+      try { rmSync(blockCandidateDir, { recursive: true }); } catch {}
+    }
+  });
+
+  it("blocks a same-name candidate with a duplicate body", async () => {
+    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    mkdirSync(join(skillsDir, "dup-skill"), { recursive: true });
+    writeFileSync(join(skillsDir, "dup-skill", "SKILL.md"), `---
+name: dup-skill
+description: A duplicated skill
+trigger: /dup
+version: "1.0.0"
+is_core: false
+---
+# Dup Skill
+
+Same body content here.`);
+    const dupSessionId = `dup-test-${Date.now()}`;
+    const dupCandidateDir = join(candidatesDir, dupSessionId);
+    try {
+      mkdirSync(dupCandidateDir, { recursive: true });
+      writeFileSync(join(dupCandidateDir, "SKILL.md"), `---
+name: dup-skill
+description: A duplicated skill
+trigger: /dup
+version: "1.0.0"
+is_core: false
+---
+# Dup Skill
+
+Same body content here.`);
+      await promoteIfEligible(dupSessionId);
+      const result = await promoteIfEligible(dupSessionId);
+      assert.strictEqual(result.promoted, false);
+      assert.ok(result.blocked?.includes("duplicates"), "blocked reason mentions duplication");
+      assert.ok(!existsSync(join(skillsDir, "dup-skill-v1-0-0")), "no version-suffixed dupe");
+    } finally {
+      try { rmSync(dupCandidateDir, { recursive: true }); } catch {}
+    }
+  });
+
+  it("versions a same-name candidate with a revised body", async () => {
+    const { promoteIfEligible } = await import("../../src/skills/promotion.js");
+    mkdirSync(join(skillsDir, "rev-skill"), { recursive: true });
+    writeFileSync(join(skillsDir, "rev-skill", "SKILL.md"), `---
+name: rev-skill
+description: Original skill
+trigger: /rev
+version: "1.0.0"
+is_core: false
+---
+# Rev Skill
+
+Original approach with execution budgets and milestone checkpoints.`);
+    const revSessionId = `rev-test-${Date.now()}`;
+    const revCandidateDir = join(candidatesDir, revSessionId);
+    try {
+      mkdirSync(revCandidateDir, { recursive: true });
+      writeFileSync(join(revCandidateDir, "SKILL.md"), `---
+name: rev-skill
+description: Revised skill
+trigger: /rev
+version: "1.0.0"
+is_core: false
+---
+# Rev Skill
+
+Completely rewritten circuit breaker protocol with state summaries and forced strategy pivots.`);
+      await promoteIfEligible(revSessionId);
+      const result = await promoteIfEligible(revSessionId);
+      assert.strictEqual(result.promoted, true);
+      assert.strictEqual(result.blocked, undefined);
+    } finally {
+      try { rmSync(revCandidateDir, { recursive: true }); } catch {}
+    }
   });
 });
 

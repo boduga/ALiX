@@ -2,6 +2,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { parseSkillContent } from "./types.js";
+import { loadSkillManifests, loadSkillContent } from "./loader.js";
+import { findCandidateCollisions, isDuplicateBody } from "./pollution.js";
+import { canonicalSkillId } from "./slash.js";
 
 const homeDir = process.env.HOME ?? "";
 const candidatesDir = join(homeDir, ".alix", "candidates");
@@ -30,11 +33,13 @@ function readCandidate(sessionId: string): string | null {
   try { return readFileSync(candidatePath, "utf8"); } catch { return null; }
 }
 
-export async function promoteIfEligible(sessionId: string): Promise<{ promoted: boolean; name: string }> {
+export async function promoteIfEligible(
+  sessionId: string,
+): Promise<{ promoted: boolean; name: string; blocked?: string }> {
   const content = readCandidate(sessionId);
   if (!content) return { promoted: false, name: "" };
 
-  const { manifest } = parseSkillContent(content);
+  const { manifest, body: candidateBody } = parseSkillContent(content);
   if (!manifest) return { promoted: false, name: "" };
 
   const usage = readUsage();
@@ -49,6 +54,48 @@ export async function promoteIfEligible(sessionId: string): Promise<{ promoted: 
   const shouldPromote = usage[skillName].successCount >= 2;
 
   if (shouldPromote) {
+    // Pollution gate: refuse to install a candidate that collides with an
+    // installed skill (shared trigger, subsuming pattern + similar text).
+    // Same-name pairs are skipped by the detector (resolveNamingCollision
+    // owns versioning below). Manifest-only scan — no body reads.
+    const installed = await loadSkillManifests(skillsDir);
+    const collisions = findCandidateCollisions(
+      { manifest },
+      installed.map((entry) => ({ manifest: entry.manifest })),
+      { includeBody: false },
+    );
+    if (collisions.length > 0) {
+      const clash = collisions[0];
+      const other = clash.a === skillName ? clash.b : clash.a;
+      const reason =
+        `collides with installed skill "${other}" ` +
+        `(score ${clash.score.toFixed(2)}` +
+        `${clash.signals.sameTrigger ? ", shared trigger" : ""}` +
+        `${clash.signals.patternOverlap ? ", overlapping pattern" : ""})`;
+      console.warn(`[skill-promotion] Blocked "${skillName}": ${reason}.`);
+      writeUsage(usage);
+      return { promoted: false, name: skillName, blocked: reason };
+    }
+
+    // Same-name body gate: a candidate whose body is a near-duplicate of
+    // the installed same-name skill adds nothing — block instead of
+    // minting a version-suffixed copy. Genuinely revised bodies fall
+    // through to versioning below. Single file read, only on name hits.
+    const sameName = installed.find(
+      (entry) => canonicalSkillId(entry.manifest) === skillName,
+    );
+    if (sameName) {
+      const installedContent = await loadSkillContent(sameName.path);
+      const installedBody = installedContent?.body ?? "";
+      if (isDuplicateBody(candidateBody, installedBody)) {
+        const reason =
+          `body duplicates installed skill "${skillName}" — no new content to version`;
+        console.warn(`[skill-promotion] Blocked "${skillName}": ${reason}.`);
+        writeUsage(usage);
+        return { promoted: false, name: skillName, blocked: reason };
+      }
+    }
+
     const finalName = resolveNamingCollision(skillName, manifest.version ?? "1.0.0");
     const targetDir = join(skillsDir, finalName);
     mkdirSync(targetDir, { recursive: true });
