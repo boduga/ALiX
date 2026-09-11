@@ -11,11 +11,11 @@
  *                                                      + executor.execute runId
  *
  * Same real-seam harness as T16/T18: real memoized `createTraceClient(enabled)`
- * (shared SDK surface via the fake recorder), real `withProviderContracts`
- * around scripted models, `startRun`/`endRun` per scenario. A generation only
- * exists for a complete() whose `request.context.runId` resolves via
- * `client.getRun` — so the generation counts below are themselves the threading
- * proof for each seam.
+ * (shared recorder surface via the @langfuse/otel LangfuseSpanProcessor fake),
+ * real `withProviderContracts` around scripted models, `startRun`/`endRun` per
+ * scenario. A generation only exists for a complete() whose
+ * `request.context.runId` resolves via `client.getRun` — so the generation
+ * counts below are themselves the threading proof for each seam.
  *
  * Constraints (see fakes/langfuse-sdk.ts): never static-import
  * langfuse-client.js (hoisting TDZ); keep the vi.mock factory shape; use
@@ -24,6 +24,7 @@
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md
  * Review: PR #656 two-axis review — Spec findings #3 (plan-phase/classifier)
  * and #4 (direct/grounded-chat model spans).
+ * Migrated: v3 fake-SDK surface → v5/OTel shared recorder surface.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
@@ -44,9 +45,18 @@ import type {
   ToolCall,
 } from "../../src/providers/types.js";
 
-import { FakeLangfuse, fakeRecorder, resetFakeCalls } from "./fakes/langfuse-sdk.js";
+import {
+  FakeLangfuseSpanProcessor,
+  fakeRecorder,
+  resetFakeCalls,
+  alixOf,
+  attrOf,
+  observationsOf,
+  rootSpanOf,
+  type FakeLangfuseSpanProcessorInstance,
+} from "./fakes/langfuse-sdk.js";
 
-vi.mock("langfuse", () => ({ default: FakeLangfuse }));
+vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 
 const tmpDirs: string[] = [];
 async function makeTmpRoot(prefix: string): Promise<string> {
@@ -114,15 +124,20 @@ function scriptedModel(opts: {
 }
 
 /**
- * Enable the memoized client and return { client, sdk } with a clean fake-SDK
+ * Enable the memoized client and return { client, proc } with a clean recorder
  * delta baseline. Reuses the one per-process instance across every scenario.
+ * The guard throws if the enabled-branch shrank back to NOOP_TRACE_CLIENT (no
+ * processor instance would exist and no span could ever be recorded).
  */
 async function tracedHarness() {
   const client = await createTraceClient(tracingConfig());
-  const sdk = fakeRecorder.instances[fakeRecorder.instances.length - 1];
-  if (!sdk) throw new Error("no fake SDK instance constructed for enabled tracing");
-  resetFakeCalls(sdk);
-  return { client, sdk };
+  const proc: FakeLangfuseSpanProcessorInstance =
+    fakeRecorder.instances[fakeRecorder.instances.length - 1]!;
+  if (!proc || !Array.isArray(proc.spans)) {
+    throw new Error("no fake SDK instance constructed for enabled tracing");
+  }
+  resetFakeCalls(proc);
+  return { client, proc };
 }
 
 describe("previously-uncovered seams: plan-phase / classifier / grounded-chat model spans", () => {
@@ -131,7 +146,7 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
   });
 
   it("runPlanPhase (deferred) emits a model span for the plan-generation request under runId", async () => {
-    const { client, sdk } = await tracedHarness();
+    const { client, proc } = await tracedHarness();
     const tmp = await makeTmpRoot("seams-plan-");
     const context: ExecutionContext = { runId: "run-plan", sessionId: "seams-plan", workflowId: "wf-plan" };
     const run = client.startRun({ runId: "run-plan", sessionId: "seams-plan", workflowId: "wf-plan", task: "plan seam", actor: "agent", startedAt: Date.now() });
@@ -162,17 +177,25 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
       await client.endRun(run, { status: "success", endedAt: Date.now() });
     }
 
-    expect(sdk.calls.traces).toHaveLength(1);
-    expect(sdk.calls.traces[0].id).toBe("run-plan");
-    expect(sdk.calls.generations).toHaveLength(1);
-    expect(sdk.calls.generations[0].traceId).toBe("run-plan");
-    expect(sdk.calls.generationEnds).toHaveLength(1);
-    expect(sdk.rawEndCalls.generation).toBe(1);
-    expect(sdk.calls.generations[0].body.name).toContain("mock-seam-model");
+    // One run root + exactly ONE generation (the invocations count proves the
+    // single complete), both ended exactly once, threaded to the runId trace.
+    const root = rootSpanOf(proc, "run-plan")!;
+    expect(root).toBeDefined();
+    expect(alixOf(root)).toMatchObject({ kind: "run", runId: "run-plan", status: "success" });
+    expect(root.endTimeMs).toBeGreaterThan(0);
+
+    const obs = observationsOf(proc, "run-plan");
+    expect(obs).toHaveLength(2); // root + 1 generation
+    const gen = obs.find((s) => attrOf(s, "type") === "generation");
+    expect(gen).toBeDefined();
+    expect(gen!.traceId).toBe(root.traceId); // generation resolves under the runId thread
+    expect(gen!.parentSpanId).toBe(root.spanId);
+    expect(gen!.name).toContain("mock-seam-model");
+    expect(gen!.endTimeMs).toBeGreaterThan(0); // ended exactly once
   });
 
   it("modelClassifyAction threads context into the classifier request → model span under runId", async () => {
-    const { client, sdk } = await tracedHarness();
+    const { client, proc } = await tracedHarness();
     const context: ExecutionContext = { runId: "run-classifier", sessionId: "seams-classifier" };
     const run = client.startRun({ runId: "run-classifier", sessionId: "seams-classifier", task: "classify seam", actor: "agent", startedAt: Date.now() });
 
@@ -190,14 +213,19 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
       await client.endRun(run, { status: "success", endedAt: Date.now() });
     }
 
-    expect(sdk.calls.generations).toHaveLength(1);
-    expect(sdk.calls.generations[0].traceId).toBe("run-classifier");
-    expect(sdk.calls.generationEnds).toHaveLength(1);
-    expect(sdk.rawEndCalls.generation).toBe(1);
+    const root = rootSpanOf(proc, "run-classifier")!;
+    expect(root).toBeDefined();
+    const obs = observationsOf(proc, "run-classifier");
+    expect(obs).toHaveLength(2); // root + 1 generation
+    const gen = obs.find((s) => attrOf(s, "type") === "generation");
+    expect(gen).toBeDefined();
+    expect(gen!.traceId).toBe(root.traceId);
+    expect(gen!.parentSpanId).toBe(root.spanId);
+    expect(gen!.endTimeMs).toBeGreaterThan(0); // exactly one end
   });
 
   it("grounded-chat threads context into BOTH provider calls and runId into the tool call", async () => {
-    const { client, sdk } = await tracedHarness();
+    const { client, proc } = await tracedHarness();
     const tmp = await makeTmpRoot("seams-grounded-");
     const sessionId = "seams-grounded";
     const sessionDir = join(tmp, ".alix", "sessions", sessionId);
@@ -263,15 +291,28 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
       await client.endRun(run, { status: "success", endedAt: Date.now() });
     }
 
-    // Both provider calls + the executed (denied) tool call all resolve under
-    // the runId-threaded trace.
-    expect(sdk.calls.generations).toHaveLength(2);
-    for (const g of sdk.calls.generations) expect(g.traceId).toBe("run-grounded");
-    expect(sdk.calls.generationEnds).toHaveLength(2);
-    expect(sdk.rawEndCalls.generation).toBe(2);
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.spans[0].traceId).toBe("run-grounded");
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-    expect(sdk.rawEndCalls.span).toBe(1);
+    // Both provider calls (2 generations) + the executed (denied) web_search
+    // tool call (1 span-kind child) all resolve under the runId-threaded trace,
+    // each observation ended exactly once.
+    const root = rootSpanOf(proc, "run-grounded")!;
+    expect(root).toBeDefined();
+    expect(alixOf(root)).toMatchObject({ kind: "run", runId: "run-grounded", status: "success" });
+
+    const obs = observationsOf(proc, "run-grounded");
+    expect(obs).toHaveLength(4); // root + 2 generations + 1 tool span
+    const gens = obs.filter((s) => attrOf(s, "type") === "generation");
+    expect(gens).toHaveLength(2);
+    for (const gen of gens) {
+      expect(gen.traceId).toBe(root.traceId);
+      expect(gen.parentSpanId).toBe(root.spanId);
+      expect(gen.endTimeMs).toBeGreaterThan(0);
+    }
+    const tool = obs.find((s) => attrOf(s, "type") === "span" && s.parentSpanId !== undefined);
+    expect(tool).toBeDefined();
+    expect(tool!.traceId).toBe(root.traceId);
+    expect(tool!.parentSpanId).toBe(root.spanId);
+    expect(tool!.name).toBe("web_search");
+    expect(alixOf(tool!)).toMatchObject({ kind: "tool", toolName: "web_search" });
+    expect(tool!.endTimeMs).toBeGreaterThan(0); // exactly one end
   });
 });

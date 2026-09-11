@@ -39,7 +39,7 @@
  * succeeding afterwards. When the fallback ALSO fails, the error propagates out
  * of streamToResponse → runTaskLoop rejects → the run root commits the ERROR
  * terminal. The 2nd span still exists and is a generation END (fail-soft = 2
- * ends at the SDK surface; fail-hard would abandon after request 1 = 1 end).
+ * ends at the OTel surface; fail-hard would abandon after request 1 = 1 end).
  *
  * Error mapping (honest, byte-precise to the adapter): both terminals carry
  * status "error" + level "ERROR" + statusMessage/alix.error (outcomeForError,
@@ -50,7 +50,8 @@
  * undefined, exactly as the code does.
  *
  * Layers — identical to tests/tracing/tracing-e2e-wiring.vitest.ts (Task 16):
- *   - SDK:            vi.mock('langfuse') fake recorder (no network)
+ *   - SDK:            vi.mock('@langfuse/otel') shared recorder (no network;
+ *                     real @langfuse/tracing emits the spans)
  *   - adapter:        REAL LangfuseTraceClient (via createTraceClient)
  *   - run root:       startRun → runTaskLoop → endRun (thin hand-made root,
  *                     runTaskCore/processTurn NOT invoked — T16 layering)
@@ -72,7 +73,7 @@
  * Task: Task 24 of
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -90,9 +91,18 @@ import type { AlixConfig } from "../../src/config/schema.js";
 import type { ExecutionContext } from "../../src/observability/execution-context.js";
 import type { ModelAdapter, NormalizedResponse, StreamChunk, ToolDef } from "../../src/providers/types.js";
 
-import { FakeLangfuse, fakeRecorder, type FakeLangfuseInstance } from "./fakes/langfuse-sdk.js";
+import {
+  FakeLangfuseSpanProcessor,
+  fakeRecorder,
+  resetFakeCalls,
+  alixOf,
+  attrOf,
+  observationsOf,
+  rootSpanOf,
+  type FakeLangfuseSpanProcessorInstance,
+} from "./fakes/langfuse-sdk.js";
 
-vi.mock("langfuse", () => ({ default: FakeLangfuse }));
+vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 
 // ---------------------------------------------------------------------------
 // Harness — the T16/T20 composed seam graph (real runTaskLoop + real
@@ -282,20 +292,11 @@ async function makeTmpRoot(prefix: string): Promise<string> {
   return dir;
 }
 
-function alix(record: { body: Record<string, unknown> }): Record<string, unknown> {
-  const meta = record.body.metadata as { alix: Record<string, unknown> };
-  return meta.alix;
-}
-
 // ---------------------------------------------------------------------------
 // Test
 // ---------------------------------------------------------------------------
 
 describe("T24 R6 loop-level fail-soft streaming (2 physical requests → 2 model spans)", () => {
-  beforeEach(() => {
-    fakeRecorder.instances.length = 0;
-  });
-
   afterEach(async () => {
     await Promise.all(tmpDirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
   });
@@ -308,8 +309,11 @@ describe("T24 R6 loop-level fail-soft streaming (2 physical requests → 2 model
       const runId = "run-t24failsoft";
 
       const client = await createTraceClient(tracingConfig());
-      const sdk: FakeLangfuseInstance = fakeRecorder.instances[0]!;
+      const proc: FakeLangfuseSpanProcessorInstance =
+        fakeRecorder.instances[fakeRecorder.instances.length - 1]!;
       expect(fakeRecorder.instances).toHaveLength(1);
+      // Scenario delta baseline: one memoized processor for the whole process.
+      resetFakeCalls(proc);
 
       const run = client.startRun({
         runId,
@@ -350,74 +354,79 @@ describe("T24 R6 loop-level fail-soft streaming (2 physical requests → 2 model
       expect(model.streamCalls).toBe(1);
       expect(model.completeCalls).toBe(1);
 
-      // ── Exactly 2 model spans under the SAME trace/run, each ended once ──
-      expect(sdk.calls.traces).toHaveLength(1);
-      expect(sdk.calls.traces[0]!.id).toBe(runId);
-      expect(sdk.calls.generations).toHaveLength(2);
-      expect(sdk.calls.generationEnds).toHaveLength(2);
-      // Unguarded SDK-level counter: fail-soft means BOTH ends fired at the SDK
-      // surface (a fail-hard engine would stop at one generation/one end).
-      expect(sdk.rawEndCalls.generation).toBe(2);
-      // Balanced — no orphan span, no double-close.
-      expect(sdk.calls.generationEnds.length).toBe(sdk.calls.generations.length);
-
-      const [gen0, gen1] = sdk.calls.generations;
-      const [end0, end1] = sdk.calls.generationEnds;
-      expect(gen0!.traceId).toBe(runId);
-      expect(gen1!.traceId).toBe(runId);
-      expect(end0!.traceId).toBe(runId);
-      expect(end1!.traceId).toBe(runId);
-      // Both direct children of the trace root — no invented parent links.
-      for (const rec of [gen0!, gen1!]) {
-        expect("parentObservationId" in rec.body).toBe(false);
+      // ── Exactly 2 model spans under the SAME run root/trace, each ended once ──
+      const root = rootSpanOf(proc, runId);
+      expect(root).toBeDefined();
+      const rootSpan = root!;
+      const obs = observationsOf(proc, runId);
+      const generations = obs.filter((s) => attrOf(s, "type") === "generation");
+      // Balanced — root + exactly 2 generations, no orphan span, no double-close
+      // (v5 OTel spans dedupe their own end(): fail-soft = 2 ENDED generations at
+      // the OTel surface; fail-hard would abandon after request 1 = 1 span).
+      expect(obs).toHaveLength(3);
+      expect(generations).toHaveLength(2);
+      for (const s of obs) {
+        expect(s.endTimeMs).toBeGreaterThan(0);
       }
 
-      // ── Span 1 = the PHYSICAL stream request that failed mid-stream ──
-      const g0 = alix({ body: gen0!.body });
-      expect(g0).toMatchObject({ kind: "model", provider: "mock", model: "mock-stream-model", stream: true });
-      expect(gen0!.body.name).toBe("mock-stream-model");
-      // The error landed on the span whose stream actually failed.
-      const g0End = alix({ body: end0!.body });
-      expect(g0End.status).toBe("error");
-      expect(end0!.body.level).toBe("ERROR");
-      expect(String(end0!.body.statusMessage)).toContain("mid-stream stream failure");
-      expect(String(g0End.error)).toContain("mid-stream stream failure");
-      // Error terminal drops partial output (outcomeForError carries
-      // status/error/endedAt only — Task-11-approved; capture-fidelity open T25).
-      expect(end0!.body.output).toBeUndefined();
-
-      // ── Span 2 = the PHYSICAL complete fallback request that also failed ──
-      const g1 = alix({ body: gen1!.body });
-      expect(g1).toMatchObject({ kind: "model", provider: "mock", model: "mock-stream-model", stream: false });
-      expect(gen1!.body.name).toBe("mock-stream-model");
-      const g1End = alix({ body: end1!.body });
-      expect(g1End.status).toBe("error");
-      expect(end1!.body.level).toBe("ERROR");
-      expect(String(end1!.body.statusMessage)).toContain("complete fallback failure");
-      expect(String(g1End.error)).toContain("complete fallback failure");
-      expect(end1!.body.output).toBeUndefined();
+      const [gen0, gen1] = generations;
+      expect(gen0!.traceId).toBe(rootSpan.traceId);
+      expect(gen1!.traceId).toBe(rootSpan.traceId);
+      // Both direct children of the run root — no invented parent links.
+      for (const gen of generations) {
+        expect(gen.parentSpanId).toBe(rootSpan.spanId);
+      }
 
       // ── Run terminal: the ERROR outcome the engine commits to ──
-      expect(sdk.calls.traceUpdates).toHaveLength(1);
-      expect(sdk.calls.traceUpdates[0]!.id).toBe(runId);
-      expect(alix({ body: sdk.calls.traceUpdates[0]!.body })).toMatchObject({
+      expect(rootSpan.name).toBe("fail-soft streaming: partial answer then error");
+      expect(alixOf(rootSpan)).toMatchObject({
+        kind: "run",
+        runId,
         status: "error",
       });
-      expect(String(alix({ body: sdk.calls.traceUpdates[0]!.body }).error)).toContain("complete fallback failure");
+      expect(String(alixOf(rootSpan).error)).toContain("complete fallback failure");
+      expect(rootSpan.status.code).toBe(2); // SpanStatusCode.ERROR
+      expect(String(rootSpan.status.message)).toContain("complete fallback failure");
+
+      // ── Span 1 = the PHYSICAL stream request that failed mid-stream ──
+      const g0 = alixOf(gen0!);
+      expect(g0).toMatchObject({ kind: "model", provider: "mock", model: "mock-stream-model", stream: true });
+      expect(gen0!.name).toBe("mock-stream-model");
+      expect(attrOf(gen0!, "model.name")).toBe("mock-stream-model");
+      // The error landed on the span whose stream actually failed.
+      expect(g0.status).toBe("error");
+      expect(attrOf(gen0!, "level")).toBe("ERROR");
+      expect(String(attrOf(gen0!, "status_message"))).toContain("mid-stream stream failure");
+      expect(String(g0.error)).toContain("mid-stream stream failure");
+      expect(gen0!.status.code).toBe(2);
+      // Error terminal drops partial output (outcomeForError carries
+      // status/error/endedAt only — Task-11-approved; capture-fidelity open T25).
+      expect(attrOf(gen0!, "output")).toBeUndefined();
+
+      // ── Span 2 = the PHYSICAL complete fallback request that also failed ──
+      const g1 = alixOf(gen1!);
+      expect(g1).toMatchObject({ kind: "model", provider: "mock", model: "mock-stream-model", stream: false });
+      expect(gen1!.name).toBe("mock-stream-model");
+      expect(g1.status).toBe("error");
+      expect(attrOf(gen1!, "level")).toBe("ERROR");
+      expect(String(attrOf(gen1!, "status_message"))).toContain("complete fallback failure");
+      expect(String(g1.error)).toContain("complete fallback failure");
+      expect(gen1!.status.code).toBe(2);
+      expect(attrOf(gen1!, "output")).toBeUndefined();
 
       // ── Timing bracket: request 2 starts only after request 1 ended (the
       //    T16-minor end→start bracket, folded in here where this file OWNS
       //    streaming timing) + per-span endedAt >= startedAt (T17 fold-in). ──
       const g0Start = g0.startedAtMs as number;
-      const g0EndAt = g0End.endedAtMs as number;
+      const g0EndAt = g0.endedAtMs as number;
       const g1Start = g1.startedAtMs as number;
       expect(g0EndAt).toBeGreaterThanOrEqual(g0Start);
       expect(g1Start).toBeGreaterThanOrEqual(g0EndAt);
       expect(g1).toMatchObject({ startedAtMs: expect.any(Number) });
 
       // ── Lifecycle: one bounded flush at endRun, no shutdown ──
-      expect(sdk.flushCalls).toBe(1);
-      expect(sdk.shutdownCalls).toBe(0);
+      expect(proc.flushCalls).toBe(1);
+      expect(proc.shutdownCalls).toBe(0);
     },
     30000,
   );

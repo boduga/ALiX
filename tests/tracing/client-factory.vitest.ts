@@ -1,15 +1,18 @@
 /**
  * Tracing client factory — runtime selection semantics (design §4, §10-11).
  *
- * Uses a vi.mock('langfuse') fake (no network) plus a recording subclass of the
- * real LangfuseTraceClient so both the factory's decision logic and the real
- * adapter's construction validation run hermetically. Verifies:
+ * Uses the SHARED fake recorder substrate (tests/tracing/fakes/langfuse-sdk.ts):
+ * `@langfuse/otel` is the ONLY mocked SDK module (the real `@langfuse/tracing`
+ * stays unmocked), so the adapter's `new LangfuseSpanProcessor(...)` lands in
+ * `fakeRecorder.instances`. A recording subclass of the real LangfuseTraceClient
+ * counts adapter construction attempts while still running the real adapter's
+ * construction validation hermetically. Verifies:
  *   - enabled=false → frozen NOOP_TRACE_CLIENT singleton; zero Langfuse
- *     construction attempts, zero SDK construction, no warn
- *   - enabled=false never evaluates the langfuse module graph (lazy-load
+ *     construction attempts, zero processor construction, no warn
+ *   - enabled=false never evaluates the @langfuse/otel module graph (lazy-load
  *     regression for the Task 10 review fix: the adapter is dynamic-imported
  *     only on the enabled branch)
- *   - enabled=true + valid config → LangfuseTraceClient
+ *   - enabled=true + valid config → LangfuseTraceClient (one processor instance)
  *   - enabled=true + invalid config (empty baseUrl, unresolved cred:// ref)
  *     → warn once → Noop, no throw, application continues
  *   - enabled=true + SDK construction throw → warn once → Noop
@@ -18,10 +21,22 @@
  *   - the returned promise never rejects (fail-open holds across configs)
  *   - warnOnce helper dedupes per key
  *
+ * v5/OTel mechanism: the adapter constructs
+ * `new LangfuseSpanProcessor({publicKey, secretKey, baseUrl, exportMode})`
+ * from `@langfuse/otel` inside its constructor, so "SDK construction" is now a
+ * processor construction observed as `fakeRecorder.instances.length`, and the
+ * old "new Langfuse() throws" scenario is simulated with a throw flag read at
+ * construction time by the mocked processor subclass (`sdkCtorShouldThrow`).
+ * The file-scoped `@langfuse/otel` mock factory also counts module evaluations
+ * (`otelModuleEvaluations`) — the v5 lazy-load signal. Because `vi.mock`
+ * factories are cached per file, that counter is trustworthy only in the FIRST
+ * test (ordered first below), which is the only domain where it is still 0
+ * unless the disabled path really skipped the SDK graph.
+ *
  * Since the Task 10 review fix, createTraceClient is async (memoized promise):
  * the adapter module is loaded lazily by dynamic import inside the enabled
- * branch, so a default-disabled process never evaluates the `langfuse` module
- * graph at runtime. The resolved TraceClient's lifecycle methods stay
+ * branch, so a default-disabled process never evaluates the `@langfuse/otel`
+ * module graph at runtime. The resolved TraceClient's lifecycle methods stay
  * synchronous; only acquisition is async, once, at bootstrap.
  *
  * Each scenario imports the factory fresh (vi.resetModules) so the module-level
@@ -31,34 +46,47 @@
  * Task: Task 9 of
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  * Lazy adapter load: Task 10 review fix (Important #1).
+ * v5/OTel recorder: migrated from the vi.mock('langfuse') fake on 2026-09-09.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type { TracingConfig } from "../../src/config/schema.js";
 import type { TraceRun } from "../../src/tracing/types.js";
 
+import {
+  FakeLangfuseSpanProcessor,
+  fakeRecorder,
+} from "./fakes/langfuse-sdk.js";
+
 // Hoisted state shared by the vi.mock factories below (mock factories cannot
-// close over non-hoisted module variables). `langfuseModuleEvaluations` counts
-// how many times the langfuse mock module is *evaluated* (its factory runs only
-// when the module is actually imported) — the lazy-load regression signal.
+// close over non-hoisted module variables). `otelModuleEvaluations` counts how
+// many times the @langfuse/otel mock module is *evaluated* (its factory runs
+// only when the module is actually imported) — the v5 lazy-load regression
+// signal. `sdkConstructions`/`sdkCtorShouldThrow` drive the mocked
+// LangfuseSpanProcessor's constructor: the old "new Langfuse() throws" scenario
+// is now "new LangfuseSpanProcessor(...) throws", decided at construction time
+// (the wrapper class is built once by the cached mock factory, so the flag must
+// be read per construction, not per factory run).
 const state = vi.hoisted(() => ({
   adapterAttempts: 0,
   sdkConstructions: 0,
   sdkCtorShouldThrow: false,
-  langfuseModuleEvaluations: 0,
+  otelModuleEvaluations: 0,
 }));
 
-vi.mock("langfuse", () => {
-  state.langfuseModuleEvaluations += 1;
-  class FakeLangfuse {
-    constructor() {
-      state.sdkConstructions += 1;
-      if (state.sdkCtorShouldThrow) {
-        throw new Error("synthetic SDK constructor failure");
+vi.mock("@langfuse/otel", () => {
+  state.otelModuleEvaluations += 1;
+  return {
+    LangfuseSpanProcessor: class extends FakeLangfuseSpanProcessor {
+      constructor(options?: Record<string, unknown>) {
+        state.sdkConstructions += 1;
+        if (state.sdkCtorShouldThrow) {
+          throw new Error("synthetic SDK constructor failure");
+        }
+        super(options);
       }
-    }
-  }
-  return { default: FakeLangfuse };
+    },
+  };
 });
 
 vi.mock("../../src/tracing/langfuse-client.js", async (importOriginal) => {
@@ -131,7 +159,33 @@ describe("createTraceClient", () => {
     state.adapterAttempts = 0;
     state.sdkConstructions = 0;
     state.sdkCtorShouldThrow = false;
-    state.langfuseModuleEvaluations = 0;
+    fakeRecorder.instances.length = 0;
+    // NOTE: state.otelModuleEvaluations is deliberately NOT reset here. The
+    // file-scoped vi.mock factory runs at most once per file (cached), so the
+    // counter is only trustworthy in the FIRST test — the lazy-load regression
+    // test below must therefore be ordered first and never import the adapter.
+  });
+
+  it("disabled: importing the factory and calling it never evaluates the @langfuse/otel module graph (lazy-load regression)", async () => {
+    // The Task 10 review fix: the adapter (and through it the `@langfuse/otel`
+    // package) must be dynamic-imported ONLY on the enabled branch. If a
+    // static import crept back into client-factory, evaluating that module
+    // would run the @langfuse/otel mock factory below (otelModuleEvaluations
+    // > 0) even before createTraceClient is called. This test imports ONLY the
+    // factory + noop modules (never the adapter) and asserts the @langfuse/otel
+    // module graph was never evaluated on the disabled path.
+    vi.resetModules();
+    const factory = await import("../../src/tracing/client-factory.js");
+    const noop = await import("../../src/tracing/noop-client.js");
+    expect(state.otelModuleEvaluations).toBe(0);
+
+    const client = await factory.createTraceClient(tracingConfig({ enabled: false }));
+
+    expect(client).toBe(noop.NOOP_TRACE_CLIENT);
+    expect(state.otelModuleEvaluations).toBe(0);
+    expect(state.adapterAttempts).toBe(0);
+    expect(state.sdkConstructions).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
   });
 
   it("returns the frozen NOOP singleton when tracing.enabled is false", async () => {
@@ -143,6 +197,7 @@ describe("createTraceClient", () => {
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(0);
     expect(state.sdkConstructions).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -155,27 +210,7 @@ describe("createTraceClient", () => {
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(0);
     expect(state.sdkConstructions).toBe(0);
-  });
-
-  it("disabled: importing the factory and calling it never evaluates the langfuse module graph (lazy-load regression)", async () => {
-    // The Task 10 review fix: the adapter (and through it the `langfuse`
-    // package) must be dynamic-imported ONLY on the enabled branch. If a
-    // static import crept back into client-factory, evaluating that module
-    // would run the langfuse mock factory below (langfuseModuleEvaluations > 0)
-    // even before createTraceClient is called. This test imports ONLY the
-    // factory + noop modules (never the adapter) and asserts the langfuse
-    // module graph was never evaluated on the disabled path.
-    vi.resetModules();
-    const factory = await import("../../src/tracing/client-factory.js");
-    const noop = await import("../../src/tracing/noop-client.js");
-    expect(state.langfuseModuleEvaluations).toBe(0);
-
-    const client = await factory.createTraceClient(tracingConfig({ enabled: false }));
-
-    expect(client).toBe(noop.NOOP_TRACE_CLIENT);
-    expect(state.langfuseModuleEvaluations).toBe(0);
-    expect(state.adapterAttempts).toBe(0);
-    expect(state.sdkConstructions).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
   });
 
   it("returns a LangfuseTraceClient for enabled=true with a valid config", async () => {
@@ -186,6 +221,7 @@ describe("createTraceClient", () => {
     expect(client).toBeInstanceOf(LangfuseTraceClient);
     expect(state.adapterAttempts).toBe(1);
     expect(state.sdkConstructions).toBe(1);
+    expect(fakeRecorder.instances).toHaveLength(1);
   });
 
   it("enabled=true with an empty baseUrl warns once and falls back to Noop", async () => {
@@ -197,6 +233,7 @@ describe("createTraceClient", () => {
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(1);
     expect(state.sdkConstructions).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("Langfuse tracing disabled for this process"),
@@ -218,6 +255,7 @@ describe("createTraceClient", () => {
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(1);
     expect(state.sdkConstructions).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
@@ -231,7 +269,10 @@ describe("createTraceClient", () => {
 
     expect(client).toBe(NOOP_TRACE_CLIENT);
     expect(state.adapterAttempts).toBe(1);
+    // The processor construction was attempted (counted before the throw) but
+    // no instance was recorded.
     expect(state.sdkConstructions).toBe(1);
+    expect(fakeRecorder.instances).toHaveLength(0);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
@@ -245,6 +286,7 @@ describe("createTraceClient", () => {
     expect(first).toBe(second);
     expect(state.adapterAttempts).toBe(1);
     expect(state.sdkConstructions).toBe(1);
+    expect(fakeRecorder.instances).toHaveLength(1);
   });
 
   it("warns only once and re-uses the Noop fallback on repeated failed calls", async () => {
@@ -272,6 +314,7 @@ describe("createTraceClient", () => {
     expect(second).toBe(NOOP_TRACE_CLIENT);
     expect(warn).not.toHaveBeenCalled();
     expect(state.adapterAttempts).toBe(0);
+    expect(fakeRecorder.instances).toHaveLength(0);
     warn.mockRestore();
   });
 

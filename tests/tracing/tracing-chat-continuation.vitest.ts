@@ -2,47 +2,50 @@
  * Task 19 — chat continuation run-identity contract (design §17 chat
  * continuation invariant, §24.11 chat continuation test).
  *
- * Locks the synthetic-chat identity at the SHARED fake-SDK surface, driving the
- * REAL production seam:
+ * Locks the synthetic-chat identity at the SHARED fake-recorder surface
+ * (v5/OTel), driving the REAL production seam:
  *
- *     REAL processChat (session.ts:2102 wrapper)
+ *     REAL processChat (session.ts:2106 wrapper)
  *         ├── startRun(run-<uuid8>)            ← ONE synthetic run id
- *         └── REAL processChatBody (session.ts:2160)
+ *         └── REAL processChatBody (session.ts:2141)
  *               ├── provider.complete #1       → REAL withProviderContracts
  *               │                                → gen span #1 (finishReason "length")
  *               └── truncation continuation loop
  *                     └── provider.complete #2 → gen span #2 (finishReason "stop")
- *         └── endRun → exactly one trace finalize (update) + one bounded flush
+ *         └── endRun → exactly one run-root terminal + one bounded flush
  *
  * Unlike the Task 10 chat-root tests (which record startRun/endRun against a
  * hand-rolled RecordingTraceClient whose getRun always returns null), this file
- * proves the invariant all the way down at the Langfuse SDK surface: REAL
- * createTraceClient → REAL LangfuseTraceClient → vi.mock('langfuse') fake SDK.
+ * proves the invariant all the way down at the Langfuse v5/OTel surface: REAL
+ * createTraceClient → REAL LangfuseTraceClient → vi.mock('@langfuse/otel')
+ * shared recorder (the real @langfuse/tracing emits the spans; the fake
+ * LangfuseSpanProcessor captures them).
  * The provider is the REAL withProviderContracts contract wrapper around a
  * scripted model injected as config.chatProvider, so "two provider calls" means
  * two physical complete() requests, each resolving its model span via
  * getRun(request.context.runId) — the span count is itself the runId-threading
  * proof (a fresh/mismatched runId would resolve to null → no span).
  *
- * Asserted (all at the fake-SDK recorder surface):
- *   - one synthetic runId  (trace.id matches run-<uuid8>; a single value)
- *   - one Langfuse trace per invocation (no second trace at the continuation)
- *   - two model generations parented to that same trace, no orphan, no
- *     parentObservationId
- *   - the continuation did NOT call startRun with a new id (traceCount stays 1
- *     across provider call #2)
- *   - no leaks: 2 gen / 2 genEnd balanced, UNGUARDED rawEndCalls.generation ===
- *     2, every span closed, endRun awaited → flushCalls === 1, shutdownCalls ===
- *     0, one finalizing traceUpdate
+ * Asserted (all at the shared fake-recorder surface):
+ *   - one synthetic runId (alixOf(root).runId matches run-<uuid8>; a single root)
+ *   - one run root observation per invocation (no second root at the
+ *     continuation), all observations sharing ONE OTel trace id
+ *   - two model generations parented to that same trace root, no orphan, no
+ *     invented parent links (parentSpanId === root.spanId)
+ *   - the continuation did NOT call startRun with a new id (a single run-kind
+ *     root persists across provider call #2)
+ *   - no leaks: 2 generations balanced against a 3-observation trace (root + 2),
+ *     every observation ended exactly once (endTimeMs > 0), endRun awaited →
+ *     flushCalls === 1, shutdownCalls === 0, one run-root terminal (success)
  *   - session metadata: the synthetic run's sessionId (asserted honestly — the
  *     chat seam threads `session?.sessionId ?? "chat"`, and processChat never
  *     runs session initialize(), so a fresh session carries the literal "chat"
- *     fallback; see report)
+ *     fallback; see report) — propagated onto EVERY observation (session.id)
  *   - per-invocation identity: a SECOND processChat on the same session starts
- *     a NEW synthetic run/trace, and its continuation still stays within that
- *     single new trace (2 invocations → exactly 2 traces, 4 generations
- *     partitioned 2/2 — would be 4 traces if any continuation re-called
- *     startRun)
+ *     a NEW synthetic run/root with its own OTel trace, and its continuation
+ *     still stays within that single new trace (2 invocations → exactly 2 run
+ *     roots, 4 generations partitioned 2/2 — would be 4 roots if any
+ *     continuation re-called startRun)
  *
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md (§17, §24.11)
  * Task: Task 19 of
@@ -61,13 +64,17 @@ import type { AlixConfig } from "../../src/config/schema.js";
 import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/providers/types.js";
 
 import {
-  FakeLangfuse,
+  FakeLangfuseSpanProcessor,
   fakeRecorder,
   resetFakeCalls,
-  type FakeLangfuseInstance,
+  alixOf,
+  attrOf,
+  observationsOf,
+  rootSpanOf,
+  type FakeLangfuseSpanProcessorInstance,
 } from "./fakes/langfuse-sdk.js";
 
-vi.mock("langfuse", () => ({ default: FakeLangfuse }));
+vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -164,11 +171,6 @@ function createContinuationModel(): ChatModel & {
   };
 }
 
-function alix(record: { body: Record<string, unknown> }): Record<string, unknown> {
-  const meta = record.body.metadata as { alix: Record<string, unknown> };
-  return meta.alix;
-}
-
 const tmpDirs: string[] = [];
 async function makeTmpRoot(prefix: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
@@ -182,20 +184,22 @@ async function makeTmpRoot(prefix: string): Promise<string> {
 
 describe("T19 chat continuation run identity (design §17 / §24.11)", () => {
   let client: TraceClient;
-  let sdk: FakeLangfuseInstance;
+  let proc: FakeLangfuseSpanProcessorInstance;
 
   beforeAll(async () => {
     // Real memoized enabled client, shared by the session root (threaded as
     // AgentSessionConfig.traceClient) AND the provider seam (withProviderContracts
     // via getProcessTraceClient) — the same process instance, like production.
     client = await createTraceClient(tracingConfig());
-    sdk = fakeRecorder.instances[0];
+    proc = fakeRecorder.instances[fakeRecorder.instances.length - 1]!;
+    expect(fakeRecorder.instances).toHaveLength(1);
   });
 
   beforeEach(() => {
-    // Per-scenario delta baseline: the SDK instance persists across scenarios
-    // (factory memoization), its recorded calls are wiped per test.
-    resetFakeCalls(sdk);
+    // Per-scenario delta baseline: the one memoized processor lives across
+    // scenarios (factory memoization), its recorded spans + transport counters
+    // are wiped per test.
+    resetFakeCalls(proc);
   });
 
   afterAll(async () => {
@@ -227,63 +231,76 @@ describe("T19 chat continuation run identity (design §17 / §24.11)", () => {
 
     expect(fakeRecorder.instances).toHaveLength(1);
 
-    // ── 1 + 3. One synthetic runId, one trace, two model spans in it, no leak ──
-    expect(sdk.calls.traces).toHaveLength(1);
-    const [trace] = sdk.calls.traces;
-    const runId = trace.id as string;
+    // ── 1 + 3. One synthetic runId, one run root / trace, two model spans ──
+    const roots = proc.spans.filter(
+      (s) => !s.parentSpanId && (alixOf(s) as Record<string, unknown>).kind === "run",
+    );
+    expect(roots).toHaveLength(1); // the runId IS the identity — never a second root
+    const root = roots[0]!;
+    const runId = alixOf(root).runId as string;
     expect(runId).toMatch(RUN_ID_RE);
-    expect(trace.id).toBe(runId); // the runId IS the Langfuse trace id (§14)
+    const traceId = root.traceId;
 
-    expect(sdk.calls.generations).toHaveLength(2);
-    expect(sdk.calls.generationEnds).toHaveLength(2);
-    // Unguarded double-end counter: a terminated-then-ended-again span would
-    // fail here even though the adapter's endSpan guard swallows the second end.
-    expect(sdk.rawEndCalls.generation).toBe(2);
-    expect(sdk.calls.spans).toHaveLength(0); // chat path has no tools
-    expect(sdk.calls.spanEnds).toHaveLength(0);
+    const obs = observationsOf(proc, runId);
+    const generations = obs.filter((s) => attrOf(s, "type") === "generation");
+    // chat path has no tools: the only "span"-typed observation is the run root.
+    const toolChildSpans = obs.filter(
+      (s) => s.parentSpanId !== undefined && attrOf(s, "type") === "span",
+    );
+    expect(toolChildSpans).toHaveLength(0);
+    // Balanced: root + exactly 2 generations, every observation ended exactly
+    // once (v5 OTel spans dedupe their own end() — no orphan, no double-close).
+    expect(obs).toHaveLength(3);
+    expect(generations).toHaveLength(2);
+    for (const s of obs) {
+      expect(s.endTimeMs).toBeGreaterThan(0);
+    }
 
-    const [gen0, gen1] = sdk.calls.generations;
-    for (const rec of [gen0, gen1]) {
-      expect(rec.traceId).toBe(runId); // BOTH spans parent to the SAME trace
-      expect("parentObservationId" in rec.body).toBe(false); // no orphan links
+    const [gen0, gen1] = generations;
+    for (const gen of [gen0, gen1]) {
+      expect(gen.traceId).toBe(traceId); // BOTH spans parent to the SAME trace
+      expect(gen.parentSpanId).toBe(root.spanId); // direct children, no orphan links
     }
     // Same run id on both physical calls — a fresh/random id per provider call
-    // would resolve getRun → null and produce NO span at all, so even the
-    // existence of two spans THREADED TO THIS TRACE is the runId proof.
-    expect(sdk.calls.generationEnds[0].traceId).toBe(runId);
-    expect(sdk.calls.generationEnds[1].traceId).toBe(runId);
+    // would resolve getRun → null and produce NO span at all (and would never
+    // group under this trace), so even the existence of two spans THREADED TO
+    // THIS ROOT is the runId proof.
+    const gen0Start = alixOf(gen0).startedAtMs as number;
+    const gen1Start = alixOf(gen1).startedAtMs as number;
 
     // ── 4. Continuation did NOT call startRun with a new id ──
-    // traceCount is still 1 AFTER provider call #2 finished. A regression that
-    // called startRun in the continuation loop would have minted trace #2 here.
-    expect(sdk.calls.traces).toHaveLength(1);
+    // Exactly one run-kind root STILL after provider call #2 finished. A
+    // regression that called startRun in the continuation loop would have
+    // minted root #2 here.
+    expect(
+      proc.spans.filter((s) => (alixOf(s) as Record<string, unknown>).kind === "run"),
+    ).toHaveLength(1);
 
-    // ── 5. No leaks: one endRun (finalizing update), one bounded flush ──
-    expect(sdk.calls.traceUpdates).toHaveLength(1);
-    expect(sdk.calls.traceUpdates[0].id).toBe(runId);
-    expect(alix({ body: sdk.calls.traceUpdates[0].body })).toMatchObject({
-      kind: "run",
-      runId,
-      status: "success",
-    });
-    expect(sdk.flushCalls).toBe(1); // endRun awaited the bounded flush (T13)
-    expect(sdk.shutdownCalls).toBe(0); // no premature shutdown
+    // ── 5. No leaks: one run-root terminal, one bounded flush ──
+    expect(alixOf(root)).toMatchObject({ kind: "run", runId, status: "success" });
+    expect(root.status.code).toBe(1); // SpanStatusCode.OK — success terminal
+    expect(proc.flushCalls).toBe(1); // endRun awaited the bounded flush (T13)
+    expect(proc.shutdownCalls).toBe(0); // no premature shutdown
 
     // ── 6. Session metadata crosses the synthetic run (R3, §17) ──
-    expect(trace.sessionId).toBe("chat"); // honest: fresh chat session → "chat" fallback
-    expect(alix({ body: trace })).toMatchObject({
+    expect(root.propagated["session.id"]).toBe("chat"); // honest: fresh chat session → "chat" fallback
+    expect(root.propagated["langfuse.trace.name"]).toBe("long answer please");
+    // Every observation self-describes its session (v3 parity — the adapter
+    // re-propagates session.id onto each child).
+    for (const s of obs) {
+      expect(s.propagated["session.id"]).toBe("chat");
+    }
+    expect(alixOf(root)).toMatchObject({
       kind: "run",
       runId,
       sessionId: "chat",
       actor: "chat",
       task: "long answer please",
     });
-    expect(trace.name).toBe("long answer please");
+    expect(root.name).toBe("long answer please");
 
     // ── 2. The continuation is a REAL truncation re-prompt, not a 2nd root ──
-    const gen0End = alix({ body: sdk.calls.generationEnds[0].body });
-    const gen1End = alix({ body: sdk.calls.generationEnds[1].body });
-    expect(gen0End).toMatchObject({
+    expect(alixOf(gen0)).toMatchObject({
       kind: "model",
       status: "success",
       finishReason: "length",
@@ -293,23 +310,20 @@ describe("T19 chat continuation run identity (design §17 / §24.11)", () => {
       inputTokens: 10,
       outputTokens: 5,
     });
-    expect(sdk.calls.generationEnds[0].body.output).toBe("Part one.");
-    expect(gen1End).toMatchObject({ status: "success", finishReason: "stop" });
-    expect(sdk.calls.generationEnds[1].body.output).toBe("Part two.");
-    expect(sdk.calls.generationEnds[1].body.usage).toMatchObject({
-      input: 12,
-      output: 7,
-      unit: "TOKENS",
-    });
+    expect(attrOf(gen0, "output")).toBe("Part one.");
+    expect(attrOf(gen0, "level")).toBe("DEFAULT");
+    expect(gen0.status.code).toBe(1);
+    expect(attrOf(gen0, "status_message")).toBeUndefined(); // present only on error
+    expect(alixOf(gen1)).toMatchObject({ status: "success", finishReason: "stop" });
+    expect(attrOf(gen1, "output")).toBe("Part two.");
+    expect(attrOf(gen1, "usage_details")).toMatchObject({ input: 12, output: 7 });
     // Both ends closed after their start (T16-minor end→start bracket).
-    const gen0Start = alix({ body: gen0.body }).startedAtMs as number;
-    const gen1Start = alix({ body: gen1.body }).startedAtMs as number;
     expect(gen1Start).toBeGreaterThanOrEqual(gen0Start);
 
     // Messages threading the continuation: call #2 carries [user, assistant
     // "Part one.", user cut-off re-prompt] — the re-prompter drove the complete.
-    const gen0Input = gen0.body.input as Array<{ role: string; content: string }>;
-    const gen1Input = gen1.body.input as Array<{ role: string; content: string }>;
+    const gen0Input = attrOf(gen0, "input") as Array<{ role: string; content: string }>;
+    const gen1Input = attrOf(gen1, "input") as Array<{ role: string; content: string }>;
     expect(gen0Input).toHaveLength(1);
     expect(gen0Input[0]).toMatchObject({ role: "user", content: "long answer please" });
     expect(gen1Input).toHaveLength(3);
@@ -335,37 +349,43 @@ describe("T19 chat continuation run identity (design §17 / §24.11)", () => {
 
     expect(fakeRecorder.instances).toHaveLength(1);
 
-    // Two invocations → exactly two traces, distinct synthetic run ids — the
-    // identity is per-invocation, never a shared/reused run across turns.
-    expect(sdk.calls.traces).toHaveLength(2);
-    const [traceA, traceB] = sdk.calls.traces;
-    const runA = traceA.id as string;
-    const runB = traceB.id as string;
+    // Two invocations → exactly two run roots, each with its own OTel trace —
+    // the identity is per-invocation, never a shared/reused run across turns.
+    const roots = proc.spans.filter(
+      (s) => !s.parentSpanId && (alixOf(s) as Record<string, unknown>).kind === "run",
+    );
+    expect(roots).toHaveLength(2);
+    const rootA = roots[0]!;
+    const rootB = roots[1]!;
+    const runA = alixOf(rootA).runId as string;
+    const runB = alixOf(rootB).runId as string;
     expect(runA).toMatch(RUN_ID_RE);
     expect(runB).toMatch(RUN_ID_RE);
     expect(runA).not.toBe(runB);
+    expect(rootA.traceId).not.toBe(rootB.traceId);
 
     // Each invocation did its own continuation (2 physical calls each) yet each
-    // produced EXACTLY ONE trace — had either continuation re-called startRun
-    // with a new id, this would be 4 traces.
+    // produced EXACTLY ONE trace (root + 2 generations) — had either
+    // continuation re-called startRun with a new id, this would be 4 roots.
     expect(model.invocations).toBe(4);
-    expect(sdk.calls.generations).toHaveLength(4);
-    expect(sdk.calls.generationEnds).toHaveLength(4);
-    expect(sdk.rawEndCalls.generation).toBe(4);
-
-    const genTraces = sdk.calls.generations.map((g) => g.traceId);
-    expect(genTraces.filter((id) => id === runA)).toHaveLength(2);
-    expect(genTraces.filter((id) => id === runB)).toHaveLength(2);
-    for (const id of genTraces) {
-      expect([runA, runB]).toContain(id);
+    const obsA = observationsOf(proc, runA);
+    const obsB = observationsOf(proc, runB);
+    expect(obsA).toHaveLength(3);
+    expect(obsB).toHaveLength(3);
+    expect(obsA.filter((s) => attrOf(s, "type") === "generation")).toHaveLength(2);
+    expect(obsB.filter((s) => attrOf(s, "type") === "generation")).toHaveLength(2);
+    for (const s of [...obsA, ...obsB]) {
+      expect(s.endTimeMs).toBeGreaterThan(0);
+      if (attrOf(s, "type") === "generation") {
+        expect([rootA.traceId, rootB.traceId]).toContain(s.traceId);
+      }
     }
 
-    // Each run finalized/ended exactly once (2 updates, ids match the traces).
-    expect(sdk.calls.traceUpdates).toHaveLength(2);
-    expect(
-      sdk.calls.traceUpdates.map((u) => u.id).sort(),
-    ).toEqual([runA, runB].sort());
-    expect(sdk.flushCalls).toBe(2); // each endRun awaited its bounded flush
-    expect(sdk.shutdownCalls).toBe(0);
+    // Each run finalized/ended exactly once (both root terminals success), one
+    // bounded flush per endRun, zero shutdown.
+    expect(alixOf(rootA)).toMatchObject({ kind: "run", runId: runA, status: "success" });
+    expect(alixOf(rootB)).toMatchObject({ kind: "run", runId: runB, status: "success" });
+    expect(proc.flushCalls).toBe(2); // each endRun awaited its bounded flush
+    expect(proc.shutdownCalls).toBe(0);
   });
 });

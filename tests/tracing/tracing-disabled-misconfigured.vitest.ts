@@ -13,7 +13,7 @@
  *       singleton (`instanceof NoopTraceClient`, not merely "zero instances"),
  *       and a FULL composed run:
  *       - constructs ZERO Langfuse SDK instances (shared fake recorder empty)
- *       - never EVALUATES the langfuse module graph (module-load probes)
+ *       - never EVALUATES the @langfuse/otel module graph (module-load probes)
  *       - never resolves a credential (resolveCredential spy + untouched refs)
  *       - performs ZERO tracing network activity (no SDK object exists to
  *         own a transport; the Noop is a pure local object)
@@ -33,8 +33,9 @@
  *
  * Probes — the strongest observable at each seam (each documented honestly):
  *   - Module-evaluation counters inside per-scenario `vi.doMock` factories. The
- *     `langfuse` doMock factory runs exactly when the SDK module graph is
- *     imported; the `langfuse-client` doMock factory runs when the adapter
+ *     `@langfuse/otel` doMock factory runs exactly when the SDK's processor
+ *     module is imported; the `langfuse-client` doMock factory runs when the
+ *     adapter
  *     module is imported. Both stay 0 across importing the ENTIRE run-loop graph
  *     and running a full disabled run; both go to 1 exactly in the scenario
  *     where the enabled branch of `createTraceClient` fires its dynamic
@@ -71,7 +72,7 @@
  *
  * NOT duplicated (reused instead): factory-level Noop/warn/cred-failure asserts
  * (tests/tracing/client-factory.vitest.ts — incl. the "never evaluates the
- * langfuse module graph" factory-scope probe at :160), the E2E zero-instances
+ * @langfuse/otel module graph" factory-scope probe), the E2E zero-instances
  * assert (tests/tracing/tracing-e2e-wiring.vitest.ts :441-454), the fail-open
  * matrix (T15: langfuse-client.vitest.ts + noop-client.vitest.ts + the run-CLI
  * outcome-unchanged test), and the loader credential gate
@@ -113,13 +114,21 @@ import type { TaskLoopDeps } from "../../src/run/task-loop.js";
 import type { TraceClient } from "../../src/tracing/client.js";
 import type * as NoopNamespace from "../../src/tracing/noop-client.js";
 
-import { FakeLangfuse, fakeRecorder } from "./fakes/langfuse-sdk.js";
+import {
+  FakeLangfuseSpanProcessor,
+  alixOf,
+  attrOf,
+  fakeRecorder,
+  observationsOf,
+  resetFakeCalls,
+  rootSpanOf,
+} from "./fakes/langfuse-sdk.js";
 
 // Hoisted module-evaluation probes. The probe object is shared with the
 // per-scenario `vi.doMock` factories installed by installProbes() (see below);
 // it cannot live in a normal binding because the factories resolve lazily.
 const probe = vi.hoisted(() => ({
-  langfuseModuleEvaluations: 0,
+  otelModuleEvaluations: 0,
   adapterModuleEvaluations: 0,
 }));
 
@@ -133,9 +142,9 @@ const probe = vi.hoisted(() => ({
 // disabled domain (which never imports either) leaves both at 0 regardless of
 // what earlier domains did.
 function installProbes() {
-  vi.doMock("langfuse", () => {
-    probe.langfuseModuleEvaluations += 1;
-    return { default: FakeLangfuse };
+  vi.doMock("@langfuse/otel", () => {
+    probe.otelModuleEvaluations += 1;
+    return { LangfuseSpanProcessor: FakeLangfuseSpanProcessor };
   });
   vi.doMock("../../src/tracing/langfuse-client.js", async (importOriginal) => {
     probe.adapterModuleEvaluations += 1;
@@ -370,7 +379,7 @@ async function spyResolveCredential() {
 describe("T20 disabled + misconfigured regression guards", () => {
   beforeEach(() => {
     fakeRecorder.instances.length = 0;
-    probe.langfuseModuleEvaluations = 0;
+    probe.otelModuleEvaluations = 0;
     probe.adapterModuleEvaluations = 0;
   });
 
@@ -389,8 +398,8 @@ describe("T20 disabled + misconfigured regression guards", () => {
     const { resolveSpy } = await spyResolveCredential();
 
     // Even importing the ENTIRE run-loop seam graph evaluates neither the
-    // adapter nor the langfuse SDK module (Task 10 lazy-load guarantee).
-    expect(probe.langfuseModuleEvaluations).toBe(0);
+    // adapter nor the @langfuse/otel module (Task 10 lazy-load guarantee).
+    expect(probe.otelModuleEvaluations).toBe(0);
     expect(probe.adapterModuleEvaluations).toBe(0);
 
     // The disabled config still carries unresolved store refs (the loader
@@ -452,7 +461,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
     // ZERO SDK construction / module evaluation / credential resolution /
     // network activity across the entire run:
     expect(fakeRecorder.instances).toHaveLength(0);
-    expect(probe.langfuseModuleEvaluations).toBe(0);
+    expect(probe.otelModuleEvaluations).toBe(0);
     expect(probe.adapterModuleEvaluations).toBe(0);
     expect(resolveSpy).not.toHaveBeenCalled();
     // The Noop has no transport by construction — no SDK object ever existed,
@@ -474,7 +483,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
       seams.factory.createTraceClient(tracingConfig({ enabled: false })),
     ).resolves.toBe(seams.noop.NOOP_TRACE_CLIENT);
 
-    expect(probe.langfuseModuleEvaluations).toBe(0);
+    expect(probe.otelModuleEvaluations).toBe(0);
     expect(probe.adapterModuleEvaluations).toBe(0);
     expect(fakeRecorder.instances).toHaveLength(0);
     expect(warn).not.toHaveBeenCalled();
@@ -494,7 +503,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
 
     // Still nothing constructed or evaluated — the calls were pure local no-ops.
     expect(fakeRecorder.instances).toHaveLength(0);
-    expect(probe.langfuseModuleEvaluations).toBe(0);
+    expect(probe.otelModuleEvaluations).toBe(0);
     expect(probe.adapterModuleEvaluations).toBe(0);
   });
 
@@ -549,6 +558,54 @@ describe("T20 disabled + misconfigured regression guards", () => {
   }, 30000); // flake headroom: two full composed runs in one test (T20 review)
 
   // -------------------------------------------------------------------------
+  // Misconfigured (enabled=true + SDK construction throws) — fail-open
+  // -------------------------------------------------------------------------
+
+  it("enabled=true + LangfuseSpanProcessor construction throws: module-level @langfuse/otel doMock → Noop + warn once, repeated call does not re-warn", async () => {
+    // Fresh import domain with @langfuse/otel mocked to throw AT MODULE
+    // EVALUATION: the enabled branch's dynamic import() of the adapter then
+    // fails before any LangfuseSpanProcessor can be constructed, exercising
+    // the same factory construction-failure contract as the config-validation
+    // throw (warn once → frozen Noop singleton, never rejects).
+    // NOTE: installProbes' pass-through mock of the adapter must be unwound
+    // FIRST — vitest keeps the transformed mock module across resetModules, so
+    // without unmocking both probed ids the previous scenario's cached export
+    // map silently shadows this throw re-mock and the "enabled" branch would
+    // construct normally instead of failing.
+    vi.doUnmock("../../src/tracing/langfuse-client.js");
+    vi.doUnmock("@langfuse/otel");
+    vi.resetModules();
+    vi.doMock("@langfuse/otel", () => {
+      throw new Error("boom");
+    });
+    const factory = await import("../../src/tracing/client-factory.js");
+    const noop = await import("../../src/tracing/noop-client.js");
+    const warn = stubWarn();
+
+    const config = tracingConfig({ enabled: true });
+    const first = await factory.createTraceClient(config);
+
+    expect(first).toBe(noop.NOOP_TRACE_CLIENT);
+    expect(first).toBeInstanceOf(noop.NoopTraceClient);
+    expect(fakeRecorder.instances).toHaveLength(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("Langfuse tracing disabled for this process"),
+    );
+
+    // Memoized selection: repeated calls reuse the Noop fallback without a
+    // re-warn or a re-attempt.
+    const second = await factory.createTraceClient(config);
+    expect(second).toBe(noop.NOOP_TRACE_CLIENT);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    warn.mockRestore();
+    vi.doUnmock("@langfuse/otel");
+    vi.doUnmock("../../src/tracing/langfuse-client.js");
+    vi.resetModules();
+  });
+
+  // -------------------------------------------------------------------------
   // Enabled control (sanity — proves the probes are live, asserts not vacuous)
   // -------------------------------------------------------------------------
 
@@ -556,7 +613,7 @@ describe("T20 disabled + misconfigured regression guards", () => {
     const seams = await loadSeams();
 
     // Importing the seam graph alone still evaluates nothing.
-    expect(probe.langfuseModuleEvaluations).toBe(0);
+    expect(probe.otelModuleEvaluations).toBe(0);
     expect(probe.adapterModuleEvaluations).toBe(0);
     expect(fakeRecorder.instances).toHaveLength(0);
 
@@ -565,9 +622,11 @@ describe("T20 disabled + misconfigured regression guards", () => {
 
     // The enabled branch fired the dynamic import exactly once.
     expect(probe.adapterModuleEvaluations).toBe(1);
-    expect(probe.langfuseModuleEvaluations).toBe(1);
+    expect(probe.otelModuleEvaluations).toBe(1);
     expect(client).toBeInstanceOf((await import("../../src/tracing/langfuse-client.js")).LangfuseTraceClient);
     expect(fakeRecorder.instances).toHaveLength(1);
+    const proc = fakeRecorder.instances[0]!;
+    resetFakeCalls(proc);
 
     // ── full composed run ──
     const tmp = await makeTmpRoot("t20-enabled-");
@@ -603,17 +662,31 @@ describe("T20 disabled + misconfigured regression guards", () => {
     expect(result).toBeDefined();
     expect(model.invocations).toBe(2);
 
-    // The disabled asserts flipped: ONE instance, ONE trace, TWO model spans,
+    // The disabled asserts flipped: ONE processor instance, ONE trace (root +
+    // 2 model generations + 1 tool span, every observation ended exactly once),
     // ONE bounded flush, no shutdown.
-    const sdk = fakeRecorder.instances[0];
-    expect(fakeRecorder.instances).toHaveLength(1);
-    expect(sdk.calls.traces).toHaveLength(1);
-    expect(sdk.calls.traces[0].id).toBe(runId);
-    expect(sdk.calls.generations).toHaveLength(2);
-    expect(sdk.calls.generationEnds).toHaveLength(2);
-    expect(sdk.calls.traceUpdates).toHaveLength(1);
-    expect(sdk.flushCalls).toBe(1);
-    expect(sdk.shutdownCalls).toBe(0);
+    const root = rootSpanOf(proc, runId);
+    expect(root).toBeDefined();
+    expect(root!.parentSpanId).toBe(undefined);
+    expect((alixOf(root!) as { runId?: unknown }).runId).toBe(runId);
+    expect((alixOf(root!) as { status?: unknown }).status).toBe("success");
+    // OTel ended status: 1 = OK (2 = ERROR). The run carries no level attribute
+    // (level/statusMessage live on model + tool observations), so the OTel
+    // status.code is the root's ended-state observable.
+    expect(root!.status.code).toBe(1);
+    const all = observationsOf(proc, runId);
+    expect(all).toHaveLength(4);
+    expect(all.every((s) => s.endTimeMs > 0)).toBe(true);
+    expect(all.filter((s) => attrOf(s, "type") === "generation")).toHaveLength(2);
+    const toolSpans = all.filter(
+      (s) => attrOf(s, "type") === "span" && s.parentSpanId !== undefined,
+    );
+    expect(toolSpans).toHaveLength(1);
+    // Tool spans are named by the executed tool's execName (v5 convention,
+    // matching tracing-e2e-wiring.vitest.ts :404).
+    expect(toolSpans[0]!.name).toBe("file.read");
+    expect(proc.flushCalls).toBe(1);
+    expect(proc.shutdownCalls).toBe(0);
   }, 30000); // flake headroom: full seam graph transforms+executes in this one test (T20 review)
 });
 

@@ -224,6 +224,34 @@ describe("processTurn root trace (Task 10, R1)", () => {
     expect(recorder.lastEnd!.run).toBe(recorder.handleFor(recorder.lastStart!.runId)!);
   });
 
+  it("fresh session without sessionId resolves a stable id for pre-init trace roots", async () => {
+    // Regression: processTurn startRuns BEFORE initialize() lazily creates the
+    // session, so the root used to carry sessionId "" — CLI runs lost Langfuse
+    // session grouping. A session built without an explicit sessionId must
+    // resolve one once at build time and thread it into every pre-init root
+    // and direct-route result.
+    const recorder = new RecordingTraceClient();
+    const session = createAgentSession({
+      cwd: testCwd,
+      task: "",
+      traceClient: recorder,
+    });
+
+    const result = await session.processTurn("2+2");
+
+    expect(result.reason).toBe("direct");
+    expect(recorder.starts).toHaveLength(1);
+    const resolved = recorder.lastStart!.sessionId;
+    expect(typeof resolved).toBe("string");
+    expect(resolved).not.toBe("");
+    expect(result.sessionId).toBe(resolved);
+    expect(mocks.initAgent).not.toHaveBeenCalled();
+
+    const second = await session.processTurn("2+2+2");
+    expect(recorder.lastStart!.sessionId).toBe(resolved);
+    expect(second.sessionId).toBe(resolved);
+  });
+
   it("direct-generation success: one startRun + one endRun(success)", async () => {
     const recorder = new RecordingTraceClient();
     const complete = vi.fn(async () => ({ text: "fib", toolCalls: [] }));

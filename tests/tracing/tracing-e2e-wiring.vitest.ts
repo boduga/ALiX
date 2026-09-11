@@ -1,28 +1,28 @@
 /**
  * Task 16 — end-to-end trace wiring (design §24.4, §18, §19, §21, §24.7, §24.8).
  *
- * The full trace-wiring run against a vi.mock('langfuse') fake SDK — no network:
+ * The full trace-wiring run against a vi.mock('@langfuse/otel') shared recorder — no network:
  *
  *     startRun → runTaskLoop [ model request → alix_file_read → model request ] → endRun
  *
  * Seams are the REAL production seams composed exactly like runTaskCore paths (R1/R3):
  *   - run root: real `createTraceClient(enabled)` → real `LangfuseTraceClient`
- *     (single memoized SDK construction), `startRun` with run/session/workflow identity
+ *     (single memoized adapter construction), `startRun` with run/session/workflow identity
  *   - model spans: real `withProviderContracts` wrapper (design §18) around a scripted
  *     MockModel; every physical `complete()` → exactly one generation
  *   - tool span: real `ToolExecutor` (design §21); the executed tool call → exactly one span
  *   - loop: REAL `runTaskLoop` (real event-handlers + real T5 correlation)
  *
- * Assertion surface is the fake SDK recording (§24.4 "Enabled wiring test"):
- *   - exactly ONE trace (id = runId) with session/workflow/task metadata
- *   - exactly TWO model spans + ONE tool span, all children of that same trace
- *     (traceId === runId on every observation; no invented parent links)
+ * Assertion surface is the shared fake recorder (§24.4 "Enabled wiring test"):
+ *   - exactly ONE root observation (run) with session/workflow/task metadata
+ *   - exactly TWO generation observations + ONE span observation, all children of the root
+ *     (parentSpanId === root.spanId on every child; no invented parent links)
  *   - identity: tool span carries toolCallId / invocationId / executionId
  *     (executionId === workflowId — T5 run-level correlation root); model spans carry
  *     provider/model/stream only — invocationId is intentionally NOT threaded at the
  *     provider seam (plan R5; Task 12 note), asserted explicitly so the gap stays visible
  *   - capture policy (truncated): model input/output + tool input/output + trace-level
- *     task reach the SDK, redaction before SDK (sk-proj key never escapes)
+ *     task reach the recorder, redaction before SDK (sk-proj key never escapes)
  *   - ordering: tool span strictly bracketed by the two model spans
  *   - exactly one bounded flush at endRun; no premature shutdown
  *   - disabled tracing → zero SDK calls end-to-end (Noop everywhere, no adapter ctor)
@@ -59,9 +59,17 @@ import type {
   ToolDef,
 } from "../../src/providers/types.js";
 
-import { FakeLangfuse, fakeRecorder } from "./fakes/langfuse-sdk.js";
+import {
+  FakeLangfuseSpanProcessor,
+  fakeRecorder,
+  resetFakeCalls,
+  alixOf,
+  attrOf,
+  observationsOf,
+  rootSpanOf,
+} from "./fakes/langfuse-sdk.js";
 
-vi.mock("langfuse", () => ({ default: FakeLangfuse }));
+vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 
 // ---------------------------------------------------------------------------
 // Harness — mirrors tests/runtime/parallel-tool-execution.vitest.ts (real
@@ -240,11 +248,6 @@ function tracingConfig(): AlixConfig["tracing"] {
   };
 }
 
-function alix(record: { body: Record<string, unknown> }): Record<string, unknown> {
-  const meta = record.body.metadata as { alix: Record<string, unknown> };
-  return meta.alix;
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -303,6 +306,10 @@ describe("T16 end-to-end trace wiring", () => {
       startedAt: Date.now(),
     });
 
+    // Scenario delta baseline — the memoized adapter is one shared instance.
+    const proc = fakeRecorder.instances[fakeRecorder.instances.length - 1]!;
+    resetFakeCalls(proc);
+
     try {
       const model = createScriptedModel({
         toolCallsSequence: [[tc("alix_file_read", "tc-e2e", { path: "a.txt" })], []],
@@ -324,119 +331,103 @@ describe("T16 end-to-end trace wiring", () => {
 
       await runTaskLoop(deps);
       expect(model.invocations).toBe(2);
-      // runId threading is proven by the generation/tool-span resolutions below:
-      // withProviderContracts only begins a span when callContext.runId resolves
-      // via getRun(runId), so two generations + one tool span in THIS trace are
-      // themselves the threading evidence. (The contract wrapper validates the
-      // wire request before calling the adapter, so the ExecutionContext is read
-      // by the seam, not forwarded into the adapter.)
     } finally {
       await client.endRun(run, { status: "success", endedAt: Date.now() });
     }
 
-    // ── 1. Exactly ONE trace (design §14: one runId → one trace) ──
-    const sdk = fakeRecorder.instances[0];
-    expect(fakeRecorder.instances).toHaveLength(1);
-    expect(sdk.calls.traces).toHaveLength(1);
-    const trace = sdk.calls.traces[0];
-    expect(trace.id).toBe("run-t16e2e");
-    // Trace-level task capture (M1) — redacted before it reaches the SDK.
-    expect(trace.name).toContain("<redacted>");
-    expect(String(trace.name)).not.toContain(SK_PROJ_KEY);
-    expect(trace.sessionId).toBe(sessionId);
-    const traceAlix = alix({ body: trace });
-    expect(traceAlix).toMatchObject({
+    // ── 1. Exactly ONE root observation (design §14: one runId → one trace) ──
+    const root = rootSpanOf(proc, "run-t16e2e")!;
+    expect(root).toBeDefined();
+    // Trace-level task capture (M1) — the adapter names the root with the
+    // captured (redacted) task before it reaches the SDK.
+    expect(String(root.name)).toContain("<redacted>");
+    expect(String(root.name)).not.toContain(SK_PROJ_KEY);
+    expect(String(alixOf(root).task)).toContain("<redacted>");
+    expect(String(alixOf(root).task)).not.toContain(SK_PROJ_KEY);
+    expect(alixOf(root).sessionId).toBe(sessionId);
+    expect(alixOf(root)).toMatchObject({
       kind: "run",
       runId: "run-t16e2e",
       sessionId,
       workflowId,
       actor: "agent",
     });
-    expect(String(traceAlix.task)).toContain("<redacted>");
-    expect(String(traceAlix.task)).not.toContain(SK_PROJ_KEY);
 
-    // ── 2. Exactly two model spans + one tool span, all in the SAME trace ──
-    expect(sdk.calls.generations).toHaveLength(2);
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.generationEnds).toHaveLength(2);
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-
-    const [gen0, gen1] = sdk.calls.generations;
-    const [span] = sdk.calls.spans;
-    expect(gen0.traceId).toBe("run-t16e2e");
-    expect(gen1.traceId).toBe("run-t16e2e");
-    expect(span.traceId).toBe("run-t16e2e");
-    // Every observation is a direct child of the trace root — no invented parent
-    // links, no cross-span parentage (design §21: parent never inferred from order).
-    for (const rec of [gen0, gen1, span]) {
-      expect("parentObservationId" in rec.body).toBe(false);
+    // ── 2. Exactly two generations + one span, all children of the root ──
+    const obs = observationsOf(proc, "run-t16e2e");
+    const generations = obs.filter((s) => alixOf(s).kind === "model");
+    const toolSpans = obs.filter((s) => alixOf(s).kind === "tool");
+    expect(generations).toHaveLength(2);
+    expect(toolSpans).toHaveLength(1);
+    // root + 2 generations + 1 tool span
+    expect(obs).toHaveLength(4);
+    // Every child is a direct child of the root — no invented parent links,
+    // no cross-span parentage (design §21: parent never inferred from order).
+    for (const child of obs.filter((s) => s !== root)) {
+      expect(child.parentSpanId).toBe(root.spanId);
     }
-    // endRun finalized the trace exactly once (update), with one bounded flush (T13).
-    expect(sdk.calls.traceUpdates).toHaveLength(1);
-    expect(sdk.calls.traceUpdates[0].id).toBe("run-t16e2e");
-    expect(alix({ body: sdk.calls.traceUpdates[0].body })).toMatchObject({
-      kind: "run",
-      runId: "run-t16e2e",
-      status: "success",
-    });
-    expect(sdk.flushCalls).toBe(1);
-    expect(sdk.shutdownCalls).toBe(0);
+    // endRun finalized the run exactly once; one bounded flush (T13), zero shutdown.
+    expect(alixOf(root)).toMatchObject({ kind: "run", runId: "run-t16e2e", status: "success" });
+    expect(proc.flushCalls).toBe(1);
+    expect(proc.shutdownCalls).toBe(0);
 
-    // ── 3. Model spans: provider/model labels, capture, status ──
-    for (const gen of [gen0, gen1]) {
-      expect(gen.body.name).toBe("mock-e2e-model");
-      expect(gen.body.model).toBe("mock-e2e-model");
-      const g = alix({ body: gen.body });
+    // ── 3. Generations: provider/model labels, capture, status ──
+    const [gen0, gen1] = generations;
+    for (const gen of generations) {
+      expect(gen.name).toBe("mock-e2e-model");
+      expect(attrOf(gen, "model.name")).toBe("mock-e2e-model");
+      const g = alixOf(gen);
       expect(g).toMatchObject({ kind: "model", provider: "mock", stream: false });
       // Model-input capture (M1) — the user message (task) is captured, redacted.
-      expect((gen.body.input as Array<{ role: string; content: string }>)[0]).toMatchObject({ role: "user" });
-      const firstContent = (gen.body.input as Array<{ content: string }>)[0].content;
+      const input = attrOf(gen, "input") as Array<{ role: string; content: string }>;
+      expect(input[0]).toMatchObject({ role: "user" });
+      const firstContent = (input[0] as { content: string }).content;
       expect(firstContent).toContain("<redacted>");
       expect(firstContent).not.toContain(SK_PROJ_KEY);
       // invocationId is NOT threaded at the provider seam (plan R5 — left unset by
       // Task 11; model spans carry provider/model/stream only). Asserted explicitly
       // so this plan-sanctioned gap stays visible rather than silently drifting.
-      expect(g.invocationId).toBeUndefined();
+      expect(alixOf(gen).invocationId).toBeUndefined();
     }
-    // Model output capture + per-span terminal status.
-    const gen0End = alix({ body: sdk.calls.generationEnds[0].body });
-    const gen1End = alix({ body: sdk.calls.generationEnds[1].body });
-    expect(gen0End).toMatchObject({ status: "success", finishReason: "tool_calls" });
-    expect(sdk.calls.generationEnds[0].body.output).toBe("");
-    expect(gen1End).toMatchObject({ status: "success", finishReason: "stop" });
-    expect(String(sdk.calls.generationEnds[1].body.output)).toContain("Final answer");
-    // usage reached the SDK (inputTokens/outputTokens from the normalized response).
-    expect(sdk.calls.generationEnds[0].body.usage).toMatchObject({ input: 120, output: 40, unit: "TOKENS" });
-    // reasoning capture is off → no reasoning field, no reasoning in output.
-    expect(sdk.calls.generationEnds[0].body.reasoning).toBeUndefined();
-    expect(gen0End.reasoning).toBeUndefined();
+    // Generation output + per-span terminal status.
+    expect(attrOf(gen0, "output")).toBe("");
+    expect(String(attrOf(gen1, "output"))).toContain("Final answer");
+    expect(alixOf(gen0)).toMatchObject({ status: "success", finishReason: "tool_calls" });
+    expect(alixOf(gen1)).toMatchObject({ status: "success", finishReason: "stop" });
+    // usage reached the recorder (inputTokens/outputTokens from the normalized response).
+    expect(attrOf(gen0, "usage_details")).toMatchObject({ input: 120, output: 40 });
+    // reasoning capture is off → no reasoning field.
+    expect(alixOf(gen0).reasoning).toBeUndefined();
 
     // ── 4. Tool span: identity + capture ──
-    expect(span.body.name).toBe("file.read");
-    expect(span.body.input).toEqual({ path: "a.txt" });
-    const spanAlix = alix({ body: span.body });
-    expect(spanAlix).toMatchObject({
+    const span = toolSpans[0]!;
+    expect(span.name).toBe("file.read");
+    const spanInput = attrOf(span, "input") as Record<string, unknown>;
+    expect(spanInput).toEqual({ path: "a.txt" });
+    expect(alixOf(span)).toMatchObject({
       kind: "tool",
       toolName: "file.read",
       capability: "file.read",
       toolCallId: "tc-e2e",
     });
-    expect(spanAlix.invocationId).toMatch(/^inv-/);
+    expect(alixOf(span).invocationId).toMatch(/^inv-/);
     // T5 run-level correlation root: executionId === workflowId (deps.context).
-    expect(spanAlix.executionId).toBe(workflowId);
+    expect(alixOf(span).executionId).toBe(workflowId);
     // Tool-output capture (M2), real file read result, redacted before the SDK.
-    const spanEnd = sdk.calls.spanEnds[0];
-    expect(alix({ body: spanEnd.body })).toMatchObject({ status: "success" });
-    expect(String(spanEnd.body.output)).toContain("trace payload v1");
-    expect(String(spanEnd.body.output)).toContain("<redacted>");
-    expect(String(spanEnd.body.output)).not.toContain(SK_PROJ_KEY);
+    expect(alixOf(span).status).toBe("success");
+    const spanOutput = String(attrOf(span, "output"));
+    expect(spanOutput).toContain("trace payload v1");
+    expect(spanOutput).toContain("<redacted>");
+    expect(spanOutput).not.toContain(SK_PROJ_KEY);
 
     // ── 5. Ordering: tool span strictly bracketed by the two model spans ──
-    const gen0Start = alix({ body: gen0.body }).startedAtMs as number;
-    const gen1Start = alix({ body: gen1.body }).startedAtMs as number;
-    const spanStart = spanAlix.startedAtMs as number;
-    expect(spanStart).toBeGreaterThanOrEqual(gen0Start);
-    expect(gen1Start).toBeGreaterThanOrEqual(spanStart);
-    expect(gen1Start).toBeGreaterThanOrEqual(gen0Start);
+    expect(span.startTimeMs).toBeGreaterThanOrEqual(gen0.startTimeMs);
+    expect(gen1.startTimeMs).toBeGreaterThanOrEqual(span.startTimeMs);
+    expect(gen1.startTimeMs).toBeGreaterThanOrEqual(gen0.startTimeMs);
+
+    // ── 6. Every observation ended (exactly-once invariant proof) ──
+    for (const s of obs) {
+      expect(s.endTimeMs).toBeGreaterThan(0);
+    }
   });
 });

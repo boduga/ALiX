@@ -1,12 +1,12 @@
 /**
- * Task 18 — tool exactly-once at the fake-SDK surface (design §21 tool spans,
- * §24.8 exactly-once tool span).
+ * Task 18 — tool exactly-once at the shared-recorder surface (design §21 tool
+ * spans, §24.8 exactly-once tool span).
  *
  * The most likely tool-span duplication regressions are a tool that opens two
  * spans, double-closes, or mints a SECOND span for the terminal (throw /
- * timeout / cancellation). This file locks the invariant at the REAL SDK
+ * timeout / cancellation). This file locks the invariant at the REAL adapter
  * surface, driving the REAL production seam (ToolExecutor.execute → real
- * LangfuseTraceClient → vi.mock('langfuse') fake SDK):
+ * LangfuseTraceClient → vi.mock('@langfuse/otel') shared span processor):
  *
  *     one physical tool execution  →  exactly one span  →  exactly one terminal
  *     spanEnd  (success / throw / timeout / cancellation), no orphan.
@@ -26,20 +26,19 @@
  * executor and asserts the caller-visible result/error is byte-identical —
  * tracing must never alter the underlying tool outcome.
  *
- * Double-close observability: the adapter guards repeated endSpan calls
- * (langfuse-client.ts endSpan no-ops after the first terminal end), which the
- * T7 adapter tests already pin (langfuse-client.vitest.ts: repeated endSpan is
- * a no-op after the first terminal end — NOT duplicated here). To surface a
- * hypothetical double-end at this seam anyway, the shared fake counts every
- * SDK-level span.end() invocation UNGUARDED via `rawEndCalls.span`; each
- * scenario asserts it stays 1.
+ * Exactly-once observability: the old v3 `rawEndCalls.span` UNGUARDED end-call
+ * counter is gone in v5 (OTel Span.end() dedupes — the SDK never re-invokes
+ * onEnd). Exactly-once here is locked via balanced per-run observation counts +
+ * every observation ended (endTimeMs > 0); the adapter-side repeated-endSpan
+ * guard is pinned in langfuse-client.vitest.ts (superset fake, someone else's
+ * scope — not duplicated here).
  *
  * Layers — mirrors tests/tracing/tracing-e2e-wiring.vitest.ts (Task 16) but for
  * the tool-execution path specifically, with the lighter Task 12 harness (no
  * runTaskLoop): a real ToolExecutor + real EventLog + real ToolExecutor roots,
  * a real startRun per scenario, and the real memoized adapter shared across
  * scenarios (beforeAll). Scenario assertions are per-scenario deltas after a
- * beforeEach reset of the SDK call log (resetFakeCalls).
+ * beforeEach reset of the recorder (resetFakeCalls).
  *
  * Design: docs/superpowers/specs/2026-09-06-langfuse-tracing-design.md (§21, §24.8)
  * Task: Task 18 of
@@ -50,7 +49,15 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { FakeLangfuse, fakeRecorder, resetFakeCalls, type FakeLangfuseInstance } from "./fakes/langfuse-sdk.js";
+import {
+  FakeLangfuseSpanProcessor,
+  fakeRecorder,
+  resetFakeCalls,
+  alixOf,
+  attrOf,
+  observationsOf,
+  type FakeLangfuseSpanProcessorInstance,
+} from "./fakes/langfuse-sdk.js";
 import { EventLog } from "../../src/events/event-log.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import { createTraceClient } from "../../src/tracing/client-factory.js";
@@ -62,7 +69,7 @@ import {
   isCancellationError,
 } from "../../src/runtime/cancellation-token.js";
 
-vi.mock("langfuse", () => ({ default: FakeLangfuse }));
+vi.mock("@langfuse/otel", () => ({ LangfuseSpanProcessor: FakeLangfuseSpanProcessor }));
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -152,11 +159,6 @@ function untraced(req: ReturnType<typeof toolCallReq>): ReturnType<typeof toolCa
   return copy;
 }
 
-function alix(record: { body: Record<string, unknown> }): Record<string, unknown> {
-  const meta = record.body.metadata as { alix: Record<string, unknown> };
-  return meta.alix;
-}
-
 /**
  * Minimal EventLog-shaped stub with a deliberate append failure so a throw (or
  * cancellation) can be forced deterministically out of dispatch — the executor
@@ -205,15 +207,15 @@ const cleanup: string[] = [];
 // ---------------------------------------------------------------------------
 
 let client: TraceClient;
-let sdk: FakeLangfuseInstance;
+let proc: FakeLangfuseSpanProcessorInstance;
 
 beforeAll(async () => {
   client = await createTraceClient(tracingConfig());
-  sdk = fakeRecorder.instances[0];
+  proc = fakeRecorder.instances[fakeRecorder.instances.length - 1]!;
 });
 
 beforeEach(() => {
-  resetFakeCalls(sdk);
+  resetFakeCalls(proc);
 });
 
 afterEach(async () => {
@@ -222,9 +224,11 @@ afterEach(async () => {
 
 afterAll(async () => {
   await client.shutdown();
+  // The memoized adapter's processor got one shutdown at teardown.
+  expect(proc.shutdownCalls).toBeGreaterThanOrEqual(1);
 });
 
-describe("T18 tool exactly-once at the fake SDK surface", () => {
+describe("T18 tool exactly-once at the shared recorder surface", () => {
   it("success — real file.read → exactly ONE terminal success span; untraced result identical", async () => {
     const runId = "t18-success";
     const run = client.startRun({
@@ -247,20 +251,22 @@ describe("T18 tool exactly-once at the fake SDK surface", () => {
     expect((plain as { content?: string }).content).toBe("Hello, World!");
     expect(traced).toEqual(plain);
 
-    // EXACTLY ONCE at the SDK surface: one span started, one terminal end, one
-    // unguarded SDK end call.
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-    expect(sdk.calls.spanEnds.length).toBe(sdk.calls.spans.length);
-    expect(sdk.rawEndCalls.span).toBe(1);
-    expect(sdk.calls.spans.filter((x) => x.traceId === runId)).toHaveLength(1);
+    // Finalize the run so the root observation is recorded (v5 spans record on
+    // end — the tool span itself ended during dispatch, the root on endRun).
+    await client.endRun(run, { status: "success", endedAt: Date.now() });
 
-    const span = sdk.calls.spans[0]!;
-    expect(span.traceId).toBe(runId);
-    expect(span.body.name).toBe("file.read");
-    expect(span.body.input).toEqual({ path: "hello.txt" });
-    const spanAlix = alix({ body: span.body });
-    expect(spanAlix).toMatchObject({
+    // EXACTLY ONCE at the recorder surface: one tool span observation in this
+    // run's trace, terminal (ended, endTimeMs > 0), no orphan, no duplicate.
+    const obs = observationsOf(proc, runId);
+    const spans = obs.filter((s) => alixOf(s).kind === "tool");
+    expect(spans).toHaveLength(1);
+    for (const s of obs) expect(s.endTimeMs).toBeGreaterThan(0);
+
+    const span = spans[0]!;
+    expect(span.name).toBe("file.read");
+    const spanInput = attrOf(span, "input") as Record<string, unknown>;
+    expect(spanInput).toEqual({ path: "hello.txt" });
+    expect(alixOf(span)).toMatchObject({
       kind: "tool",
       toolName: "file.read",
       capability: "file.read",
@@ -268,20 +274,13 @@ describe("T18 tool exactly-once at the fake SDK surface", () => {
       invocationId: "inv-t18",
       executionId: "exec-t18",
     });
-
-    const end = sdk.calls.spanEnds[0]!;
-    const endAlix = alix({ body: end.body });
-    expect(endAlix.status).toBe("success");
-    // Success → DEFAULT level, tool output captured verbatim, no error.
-    expect(end.body.level).toBe("DEFAULT");
-    expect(end.body.output).toBe("Hello, World!");
-    expect(end.body.statusMessage).toBeUndefined();
-    expect(endAlix.error).toBeUndefined();
+    expect(alixOf(span).status).toBe("success");
+    expect(attrOf(span, "output")).toBe("Hello, World!");
+    expect(alixOf(span).error).toBeUndefined();
     // Ordering fold-in (T16 minor): endedAt >= startedAt on the same span.
-    expect(endAlix.endedAtMs as number).toBeGreaterThanOrEqual(spanAlix.startedAtMs as number);
-    expect(endAlix.durationMs as number).toBeGreaterThanOrEqual(0);
+    expect(span.endTimeMs).toBeGreaterThanOrEqual(span.startTimeMs);
+    expect((alixOf(span).durationMs as number) ?? 0).toBeGreaterThanOrEqual(0);
 
-    await client.endRun(run, { status: "success", endedAt: Date.now() });
   });
 
   it("throw — real file.create under an existing file → exactly ONE terminal error span; original error rethrown unchanged", async () => {
@@ -325,29 +324,29 @@ describe("T18 tool exactly-once at the fake SDK surface", () => {
     // And it is the real filesystem error from the real router.
     expect((tracedErr as Error).message).toMatch(/file already exists|ENOTDIR|EEXIST/);
 
-    // EXACTLY ONCE — one error span closed exactly once, rethrown unchanged.
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-    expect(sdk.calls.spanEnds.length).toBe(sdk.calls.spans.length);
-    expect(sdk.rawEndCalls.span).toBe(1);
-    expect(sdk.calls.spans.filter((x) => x.traceId === runId)).toHaveLength(1);
-
-    const span = sdk.calls.spans[0]!;
-    expect(span.body.name).toBe("file.create");
-    expect(span.body.input).toEqual({ path: "parent.txt/child.txt", content: "x" });
-
-    const end = sdk.calls.spanEnds[0]!;
-    const endAlix = alix({ body: end.body });
-    expect(endAlix.status).toBe("error");
-    expect(end.body.level).toBe("ERROR");
-    const msg = (tracedErr as Error).message;
-    expect(String(end.body.statusMessage)).toContain(msg.slice(0, 40));
-    expect(String(endAlix.error)).toContain(msg.slice(0, 40));
-    // Honest capture note: the error terminal carries no partial output.
-    expect(end.body.output).toBeUndefined();
-    expect(endAlix.endedAtMs as number).toBeGreaterThanOrEqual(alix({ body: span.body }).startedAtMs as number);
-
+    // Finalize the run so the root observation is recorded (v5 spans record on end).
     await client.endRun(run, { status: "error", endedAt: Date.now() });
+
+    // EXACTLY ONCE — one error span closed exactly once, rethrown unchanged.
+    const obs = observationsOf(proc, runId);
+    const spans = obs.filter((s) => alixOf(s).kind === "tool");
+    expect(spans).toHaveLength(1);
+    for (const s of obs) expect(s.endTimeMs).toBeGreaterThan(0);
+
+    const span = spans[0]!;
+    expect(span.name).toBe("file.create");
+    const spanInput = attrOf(span, "input") as Record<string, unknown>;
+    expect(spanInput).toEqual({ path: "parent.txt/child.txt", content: "x" });
+
+    expect(alixOf(span).status).toBe("error");
+    expect(attrOf(span, "level")).toBe("ERROR");
+    const msg = (tracedErr as Error).message;
+    expect(String(attrOf(span, "status_message"))).toContain(msg.slice(0, 40));
+    expect(String(alixOf(span).error)).toContain(msg.slice(0, 40));
+    // Honest capture note: the error terminal carries no partial output.
+    expect(attrOf(span, "output")).toBeUndefined();
+    expect(span.endTimeMs).toBeGreaterThanOrEqual(span.startTimeMs);
+
   });
 
   it("timeout — real shell.run (sleep 5, timeoutMs 150) → exactly ONE terminal error span; timeout is an error RESPONSE, not a throw", async () => {
@@ -371,28 +370,28 @@ describe("T18 tool exactly-once at the fake SDK surface", () => {
     expect(String((plain as { message?: string }).message)).toMatch(/timed out after 150ms/);
     expect(traced).toEqual(plain);
 
+    // Finalize the run so the root observation is recorded (v5 spans record on end).
+    await client.endRun(run, { status: "error", endedAt: Date.now() });
+
     // EXACTLY ONE — the timeout maps to a single error span (executor
     // status mapping: timeouts → "error", never a second/neutral span).
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-    expect(sdk.calls.spanEnds.length).toBe(sdk.calls.spans.length);
-    expect(sdk.rawEndCalls.span).toBe(1);
-    expect(sdk.calls.spans.filter((x) => x.traceId === runId)).toHaveLength(1);
+    const obs = observationsOf(proc, runId);
+    const spans = obs.filter((s) => alixOf(s).kind === "tool");
+    expect(spans).toHaveLength(1);
+    for (const s of obs) expect(s.endTimeMs).toBeGreaterThan(0);
 
-    const span = sdk.calls.spans[0]!;
-    expect(span.body.name).toBe("shell.run");
-    expect(span.body.input).toEqual({ command: "sleep 5", timeoutMs: 150 });
+    const span = spans[0]!;
+    expect(span.name).toBe("shell.run");
+    const spanInput = attrOf(span, "input") as Record<string, unknown>;
+    expect(spanInput).toEqual({ command: "sleep 5", timeoutMs: 150 });
 
-    const end = sdk.calls.spanEnds[0]!;
-    const endAlix = alix({ body: end.body });
-    expect(endAlix.status).toBe("error");
-    expect(end.body.level).toBe("ERROR");
-    expect(String(end.body.statusMessage)).toContain("timed out after 150ms");
-    expect(String(endAlix.error)).toContain("timed out after 150ms");
-    expect(end.body.output).toBeUndefined();
-    expect(endAlix.endedAtMs as number).toBeGreaterThanOrEqual(alix({ body: span.body }).startedAtMs as number);
+    expect(alixOf(span).status).toBe("error");
+    expect(attrOf(span, "level")).toBe("ERROR");
+    expect(String(attrOf(span, "status_message"))).toContain("timed out after 150ms");
+    expect(String(alixOf(span).error)).toContain("timed out after 150ms");
+    expect(attrOf(span, "output")).toBeUndefined();
+    expect(span.endTimeMs).toBeGreaterThanOrEqual(span.startTimeMs);
 
-    await client.endRun(run, { status: "error", endedAt: Date.now() });
   });
 
   it("cancel — a genuine CancellationToken ExecutionCancelledError out of dispatch → exactly ONE terminal cancelled span; original error rethrown unchanged", async () => {
@@ -439,29 +438,28 @@ describe("T18 tool exactly-once at the fake SDK surface", () => {
     expect(plainErr).toBeInstanceOf(ExecutionCancelledError);
     expect((plainErr as Error).message).toBe((tracedErr as Error).message);
 
+    // Finalize the run so the root observation is recorded (v5 spans record on end).
+    await client.endRun(run, { status: "cancelled", endedAt: Date.now() });
+
     // EXACTLY ONE — cancellation maps to a single terminal "cancelled" span.
-    expect(sdk.calls.spans).toHaveLength(1);
-    expect(sdk.calls.spanEnds).toHaveLength(1);
-    expect(sdk.calls.spanEnds.length).toBe(sdk.calls.spans.length);
-    expect(sdk.rawEndCalls.span).toBe(1);
-    expect(sdk.calls.spans.filter((x) => x.traceId === runId)).toHaveLength(1);
+    const obs = observationsOf(proc, runId);
+    const spans = obs.filter((s) => alixOf(s).kind === "tool");
+    expect(spans).toHaveLength(1);
+    for (const s of obs) expect(s.endTimeMs).toBeGreaterThan(0);
 
-    const span = sdk.calls.spans[0]!;
-    expect(span.body.name).toBe("file.read");
+    const span = spans[0]!;
+    expect(span.name).toBe("file.read");
 
-    const end = sdk.calls.spanEnds[0]!;
-    const endAlix = alix({ body: end.body });
     // Operator cancellation → alix.status "cancelled" (executor status mapping:
     // isCancellationError → cancelled). Langfuse has no cancelled level, so
     // level stays DEFAULT while statusMessage/alix.error carry the reason — the
     // same convention the model-span cancel terminal uses (Task 17).
-    expect(endAlix.status).toBe("cancelled");
-    expect(end.body.level).toBe("DEFAULT");
-    expect(String(end.body.statusMessage)).toContain("Execution cancelled: operator cancelled tool");
-    expect(String(endAlix.error)).toContain("Execution cancelled: operator cancelled tool");
-    expect(end.body.output).toBeUndefined();
-    expect(endAlix.endedAtMs as number).toBeGreaterThanOrEqual(alix({ body: span.body }).startedAtMs as number);
+    expect(alixOf(span).status).toBe("cancelled");
+    expect(attrOf(span, "level")).toBe("DEFAULT");
+    expect(String(attrOf(span, "status_message"))).toContain("Execution cancelled: operator cancelled tool");
+    expect(String(alixOf(span).error)).toContain("Execution cancelled: operator cancelled tool");
+    expect(attrOf(span, "output")).toBeUndefined();
+    expect(span.endTimeMs).toBeGreaterThanOrEqual(span.startTimeMs);
 
-    await client.endRun(run, { status: "cancelled", endedAt: Date.now() });
   });
 });

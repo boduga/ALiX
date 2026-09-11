@@ -657,6 +657,13 @@ export class AgentSessionBuilder {
       }
     }
     let session: { sessionId: string; actor: "system" };
+    // The session id as known BEFORE initialize(): config-provided, else one
+    // generated once at build time. initialize() threads this into setupSession
+    // so ctx.sessionId stays consistent, and every trace root / direct-route
+    // result created before the lazy initialize() (processTurn/processChat)
+    // carries the real session id instead of "" — otherwise CLI runs lose
+    // Langfuse session grouping (v3 parity).
+    const resolvedSessionId = config.sessionId ?? randomUUID();
     let wfRun: WorkflowRun;
     let taskGraph: TaskGraph;
     let taskNode: TaskNode;
@@ -760,7 +767,7 @@ export class AgentSessionBuilder {
     async function initialize(): Promise<void> {
       // P0: Session init
       const p0 = await setupSession(config.cwd, config.task, {
-        sessionId: config.sessionId,
+        sessionId: resolvedSessionId,
         sessionMode: config.sessionMode,
         approvalStore: config.approvalStore,
       });
@@ -1088,7 +1095,7 @@ export class AgentSessionBuilder {
       const runId = `run-${randomUUID().slice(0, 8)}`;
       const traceRun = traceClient.startRun({
         runId,
-        sessionId: config.sessionId ?? "",
+        sessionId: resolvedSessionId,
         task: message,
         actor: "agent",
         parentRunId: config.parentRunId,
@@ -1125,7 +1132,7 @@ export class AgentSessionBuilder {
       // via getRun(request.context.runId) (R1, design §18).
       const turnContext: ExecutionContext = {
         runId,
-        sessionId: config.sessionId ?? "",
+        sessionId: resolvedSessionId,
         ...(config.parentRunId ? { parentRunId: config.parentRunId } : {}),
       };
       currentRunContext = turnContext;
@@ -1176,7 +1183,7 @@ export class AgentSessionBuilder {
         if (route.answer !== undefined) {
           return {
             summary: route.answer,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1197,7 +1204,7 @@ export class AgentSessionBuilder {
         if (!genProvider) {
           return {
             summary: `[chat:no-provider] ${message}`,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1252,7 +1259,7 @@ export class AgentSessionBuilder {
         if (!genResponse) {
           return {
             summary: `[chat:provider-error] ${_providerError ?? message}`,
-            sessionId: config.sessionId ?? "",
+            sessionId: resolvedSessionId,
             toolCalls: [],
             streamed: false,
             reason: "direct",
@@ -1260,7 +1267,7 @@ export class AgentSessionBuilder {
         }
         return {
           summary: genResponse.text || "(no response)",
-          sessionId: config.sessionId ?? "",
+          sessionId: resolvedSessionId,
           toolCalls: [],
           // The chat/direct route calls streamToResponse when streaming is on,
           // so the result reflects the actual path used. runTaskLoop and the
@@ -1865,7 +1872,7 @@ export class AgentSessionBuilder {
     }
 
     function getSessionId(): string {
-      if (!ctx) return config.sessionId ?? "";
+      if (!ctx) return resolvedSessionId;
       return ctx.sessionId;
     }
 

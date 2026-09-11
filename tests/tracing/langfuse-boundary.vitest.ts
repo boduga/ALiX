@@ -8,10 +8,12 @@
  * Boundary contract (design §1, §3 "only", src/tracing/AGENTS.md "Dependency
  * direction"):
  *
- *   1. The ONLY file allowed to STATICALLY import "langfuse" (or a
- *      "langfuse/..." submodule) is src/tracing/langfuse-client.ts — the
- *      adapter — and it MUST contain such an import. Any other static
- *      `langfuse` import anywhere under src/ is a violation.
+ *   1. The ONLY file allowed to STATICALLY import the Langfuse SDK surface —
+ *      "langfuse" (v3), "@langfuse/tracing"/"@langfuse/otel", and their
+ *      "@opentelemetry/*" companion packages (api, context-async-hooks,
+ *      sdk-trace-base) — is src/tracing/langfuse-client.ts, the adapter, and
+ *      it MUST contain such an import. Any other static SDK import anywhere
+ *      under src/ is a violation.
  *
  *   2. The ONLY file allowed a DYNAMIC `import("langfuse")` (T10 lazy-load):
  *      a direct dynamic import of the SDK is the design of
@@ -36,7 +38,9 @@
  * Detection is LINE-ANCHORED against actual import statements, never a bare
  * word search, so docs/comments/strings that merely mention "langfuse" cannot
  * false-positive. Matched forms:
- *   - `from "langfuse"` / `from "langfuse/xyz"`       (static import)
+ *   - `from "langfuse"` / `from "langfuse/xyz"`       (v3 static import)
+ *   - `from "@langfuse/tracing"` / `from "@langfuse/otel"`  (v5 static)
+ *   - `from "@opentelemetry/api"` / `context-async-hooks` / `sdk-trace-base`
  *   - `import "langfuse"`                              (static side-effect)
  *   - `require("langfuse")`                            (CJS, defensive)
  *   - `import("langfuse")` / `await import("langfuse")` (dynamic — allowed in
@@ -96,6 +100,13 @@ const SRC_FILES = globSync("**/*.{ts,tsx}", {
  *  below in `matchedLines`. */
 const STATIC_SDK_IMPORT = /\bfrom\s+["']langfuse(?:\/|["'])/;
 
+/** Static v5 imports — the current adapter surface:
+ *  `from "@langfuse/tracing"`, `from "@langfuse/otel"` (or submodules). */
+const STATIC_LANGFUSE_NS_IMPORT = /\bfrom\s+["']@langfuse\/(?:tracing|otel)(?:\/|["'])/;
+
+/** Static OTel companion imports that are adapter-exclusive. */
+const STATIC_OTEL_IMPORT = /\bfrom\s+["']@opentelemetry\/(?:api|context-async-hooks|sdk-trace-base)(?:\/|["'])/;
+
 /** Static side-effect `import "langfuse";` — no `from` clause. */
 const SIDE_EFFECT_SDK_IMPORT = /^\s*import\s+["']langfuse(?:\/|["'])/m;
 
@@ -147,6 +158,8 @@ describe("Langfuse architectural boundary (Task 22)", () => {
       const src = readRel(rel);
       for (const line of [
         ...matchedLines(src, STATIC_SDK_IMPORT),
+        ...matchedLines(src, STATIC_LANGFUSE_NS_IMPORT),
+        ...matchedLines(src, STATIC_OTEL_IMPORT),
         ...matchedLines(src, SIDE_EFFECT_SDK_IMPORT),
         ...matchedLines(src, REQUIRE_SDK_IMPORT),
       ]) {
@@ -161,6 +174,8 @@ describe("Langfuse architectural boundary (Task 22)", () => {
     const adapter = readRel(ALLOWED_ADAPTER);
     const lines = [
       ...matchedLines(adapter, STATIC_SDK_IMPORT),
+      ...matchedLines(adapter, STATIC_LANGFUSE_NS_IMPORT),
+      ...matchedLines(adapter, STATIC_OTEL_IMPORT),
       ...matchedLines(adapter, SIDE_EFFECT_SDK_IMPORT),
       ...matchedLines(adapter, REQUIRE_SDK_IMPORT),
     ];
