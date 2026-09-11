@@ -80,6 +80,17 @@ function normalizeSimpleAiderUpdates(patchText: string): string | undefined {
   ].join("\n")).join("\n");
 }
 
+/** Build the text inspected by the sensitive-path guard. A static, quoted
+ * `find -not -path` predicate excludes a path from traversal; it does not
+ * access that path. Dynamic expressions are deliberately left untouched. */
+export function shellSensitivePathScanText(command: string): string {
+  if (!/^\s*find(?:\s|$)/.test(command)) return command;
+  return command.replace(
+    /(^|\s)(?:-not|!)\s+-path\s+(['"])[A-Za-z0-9_./*?\[\]-]+\2/g,
+    "$1",
+  );
+}
+
 export class FileToolRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = [
     "file.read",
@@ -275,7 +286,8 @@ export class ShellToolRouter implements ToolRouter {
     // Scan the command string for references to known sensitive paths.
     // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
     if (command && this.pathResolver) {
-      if (/\bgit\b[^;&|\n]*\bconfig\b/i.test(command)) {
+      const scanText = shellSensitivePathScanText(command);
+      if (/\bgit\b[^;&|\n]*\bconfig\b/i.test(scanText)) {
         return { kind: "error", message: "Shell access denied: command reads or writes protected Git configuration" };
       }
       const sensitivePathPatterns: { pattern: RegExp; name: string }[] = [
@@ -288,7 +300,7 @@ export class ShellToolRouter implements ToolRouter {
         { pattern: /\/config\.json\b/, name: "config.json" },
       ];
       for (const { pattern, name } of sensitivePathPatterns) {
-        if (pattern.test(command)) {
+        if (pattern.test(scanText)) {
           return { kind: "error", message: "Shell access denied: command references sensitive path (" + name + ")" };
         }
       }
