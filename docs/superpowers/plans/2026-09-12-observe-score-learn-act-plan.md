@@ -70,10 +70,13 @@ Write one quality record per run, keyed by `traceId`:
 
 ## Phase 3 — Learn: trace-fed factory + regression corpus
 
-- **Mine:** `runSkillFactory` gains a trace-evidence adapter: real prompts,
-  real tool sequences (from observations), real outcomes — instead of
-  session-summary prose. Candidate threshold: ≥ 5 high-score runs sharing a
-  tool-sequence shape.
+- **Mine:** `runSkillFactory` gains a trace-evidence adapter: real tool
+  sequences (from observations) + outcome scores (from the ledger) —
+  instead of session-summary prose. Prompt TEXT is explicitly out of
+  scope: v2 gateway rows carry no I/O payloads (proven live), so there is
+  nothing to reconstruct prompts from. Candidate threshold: ≥ 5 unique
+  high-score (≥ 0.8) traces sharing a tool-sequence shape, enforced
+  factory-side on unique traceIds (the runs counter can inflate).
 - **Corpus:** failures + edge cases append to datasets (or JSONL fallback),
   one entry per incident with traceId backlink. Growth is production-fed,
   not hand-written fixtures.
@@ -85,10 +88,13 @@ Write one quality record per run, keyed by `traceId`:
 
 - Candidate prompts A/B against the corpus; winner promotes on win-rate
   delta ≥ +10pp over ≥ 20 eval runs (tunables).
-- Nightly eval run over the dataset (digest cadence); regressions block,
-  improvements auto-promote.
+- Nightly eval run over the dataset (digest cadence — system cron driving
+  `alix evals run-dataset`, same pattern as digest.mjs); regressions block,
+  improvements auto-promote. Auto-execution of the promotion (prompt.mjs
+  carrying the write) stays operator-gated: the CLI prints the exact
+  command on a promote verdict but never writes prompts itself.
 - Prompt objects versioned like skills (same-name change → new version,
-  never silent overwrite).
+  never silent overwrite — proven live: re-create returned version 2).
 
 ## Phase 5 — Govern (continuous, not last)
 
