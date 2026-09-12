@@ -1,12 +1,14 @@
 import { runInstall, parseSkillsArgs, printSkillsHelp, type InstallOptions } from "./install.js";
 import { listAvailableSkills, runMarketplaceCommand } from "./marketplace.js";
 import { runSkillCommand } from "./run-skill.js";
+import { handleSkillsDistillFromTraces } from "./distill-from-traces.js";
 
 export type SkillsCommand =
   | { type: "help" }
   | { type: "available" }
   | { type: "install"; opts: InstallOptions }
   | { type: "run"; name: string; script: string; args: string[] }
+  | { type: "distill-from-traces"; args: string[] }
   | { type: "marketplace"; action: "list" | "add" | "remove"; name?: string; url?: string };
 
 /**
@@ -67,6 +69,10 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
       opts: { remove: true, name: positional[1] },
     };
   }
+  if (sub === "distill-from-traces") {
+    // Flags belong to the handler — pass everything after the subcommand.
+    return { type: "distill-from-traces", args: args.slice(args.indexOf(sub) + 1) };
+  }
   return { type: "help" };
 }
 
@@ -82,6 +88,9 @@ export async function runSkillsCommand(args: string[]): Promise<void> {
       return;
     case "run":
       await runSkillCommand(cmd.name, cmd.script, cmd.args);
+      return;
+    case "distill-from-traces":
+      await handleSkillsDistillFromTraces(cmd.args);
       return;
     case "marketplace":
       await runMarketplaceCommand(cmd.action, cmd.name, cmd.url);
