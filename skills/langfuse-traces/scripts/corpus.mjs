@@ -74,12 +74,20 @@ async function main() {
   }
   // Root-span name = the run's task (same heuristic as query.mjs list).
   // Stored on the item so the eval loop can re-run the task without
-  // re-fetching the gateway.
+  // re-fetching the gateway. Enclosing span (earliest start + latest end)
+  // outranks longest duration: parallel children can outlast the root on
+  // duration alone but never enclose it. Still a heuristic — labelled below.
   for (const t of byTrace.values()) {
-    let best = -1;
-    for (const s of t.spans) {
-      const dur = Date.parse(s.endTime) - Date.parse(s.startTime);
-      if (Number.isFinite(dur) && dur > best) { best = dur; t.task = s.name; }
+    const timed = t.spans
+      .map((s) => ({ name: s.name, start: Date.parse(s.startTime), end: Date.parse(s.endTime) }))
+      .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end));
+    const minStart = Math.min(...timed.map((s) => s.start));
+    const maxEnd = Math.max(...timed.map((s) => s.end));
+    const enclosing = timed.filter((s) => s.start === minStart && s.end === maxEnd);
+    const pick = enclosing.length > 0 ? enclosing : timed;
+    let bestDur = -1;
+    for (const s of pick) {
+      if (s.end - s.start > bestDur) { bestDur = s.end - s.start; t.task = s.name; }
     }
     delete t.spans;
   }

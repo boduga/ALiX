@@ -61,14 +61,19 @@ async function main() {
     return;
   }
   const matched = [...base.keys()].filter((id) => cand.has(id));
+  const rate = (m) => matched.filter((id) => (m.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
+  // Rates always computed — insufficient hides nothing about near-bar state.
+  const baseRate = rate(base);
+  const candRate = rate(cand);
   if (matched.length < minRuns) {
-    const result = { verdict: "insufficient", reason: `matched ${matched.length} < ${minRuns}`, runs: matched.length };
+    const result = {
+      verdict: "insufficient", reason: `matched ${matched.length} < ${minRuns}`, runs: matched.length,
+      baselineWinRate: Number(baseRate.toFixed(3)), candidateWinRate: Number(candRate.toFixed(3)),
+      delta: Number((candRate - baseRate).toFixed(3)),
+    };
     console.log(wantJson ? JSON.stringify(result, null, 2) : `# eval-gate — insufficient (${matched.length}/${minRuns} matched)`);
     return;
   }
-  const rate = (m) => matched.filter((id) => m.get(id) >= winAt).length / matched.length;
-  const baseRate = rate(base);
-  const candRate = rate(cand);
   const delta = candRate - baseRate;
   // No middle verdict: at/above bar promotes, anything below blocks.
   const verdict = delta >= minDelta ? "promote" : "block";
