@@ -148,17 +148,19 @@ describe("distillMinedCandidates", () => {
       JSON.stringify(thinCandidate),
       "NOT-JSON{",
       "{}",
+      "null",
     ].join("\n") + "\n");
     const result = await factory.distillMinedCandidates(file, {
       config, provider: stubSkill(SKILL_MD),
     });
     assert.deepEqual(result.distilled, ["mined-1-file.read"]);
-    assert.equal(result.rejected.length, 3);
+    assert.equal(result.rejected.length, 4);
     assert.equal(result.rejected[0].name, "mined-2-thin");
     assert.equal(result.rejected[1].name, "(unparseable row)");
     // Valid JSON, wrong shape: isolated as a bar reject, batch survives.
     assert.equal(result.rejected[2].name, "(unnamed)");
     assert.match(result.rejected[2].reason, /empty tool sequence/);
+    assert.equal(result.rejected[3].name, "(unparseable row)");
     const path = join(process.env.HOME!, ".alix", "candidates", "mined", "SKILL.md");
     assert.ok(existsSync(path), "mined candidate SKILL.md written");
   });

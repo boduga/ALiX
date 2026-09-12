@@ -164,12 +164,23 @@ export async function distillMinedCandidates(
   const rejected: Array<{ name: string; reason: string }> = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
-    // Parse AND shape-read inside the loop: a malformed line or a
-    // valid-JSON wrong-shape row ({}, null, 123) rejects as a row — neither
-    // aborts the batch (the header contract).
+    // Shape-check before naming: only objects are candidate rows. A JSON
+    // error or a non-object (null, 123, "hi") is not a row at all —
+    // "(unparseable row)". Objects without a name are "(unnamed)" bar
+    // rejects. Neither aborts the batch (the header contract).
+    let row: MinedCandidate | null = null;
     try {
-      const row = JSON.parse(line) as MinedCandidate;
-      const name = row.suggestedName ?? row.toolSequence?.[0] ?? "(unnamed)";
+      const parsed: unknown = JSON.parse(line);
+      if (parsed !== null && typeof parsed === "object") row = parsed as MinedCandidate;
+    } catch {
+      row = null;
+    }
+    if (row === null) {
+      rejected.push({ name: "(unparseable row)", reason: "not a candidate object" });
+      continue;
+    }
+    const name = row.suggestedName ?? row.toolSequence?.[0] ?? "(unnamed)";
+    try {
       const outcome = await runSkillFactoryFromTrace({
         sessionId: "mined",
         toolSequence: row.toolSequence ?? [],
@@ -186,9 +197,8 @@ export async function distillMinedCandidates(
       if (outcome.accepted) distilled.push(name);
       else rejected.push({ name, reason: outcome.reason ?? "rejected" });
     } catch (err) {
-      // One bad row (malformed JSON, wrong shape, provider down) never
-      // aborts the batch.
-      rejected.push({ name: "(unparseable row)", reason: String(err instanceof Error ? err.message : err) });
+      // One bad row (provider down, malformed shape) never aborts the batch.
+      rejected.push({ name, reason: String(err instanceof Error ? err.message : err) });
     }
   }
   return { distilled, rejected };

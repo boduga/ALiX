@@ -30,15 +30,15 @@ export function parseDistillArgs(args: string[]): DistillOptions {
   if (!candidatesFile) {
     throw new Error("Usage: alix skills distill-from-traces --candidates <file> [--min-runs 5] [--min-score 0.8] [--provider p] [--model m] [--json]");
   }
-  const num = (value: unknown): number | undefined => {
+  const toFiniteNumber = (value: unknown): number | undefined => {
     if (value === undefined) return undefined;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   };
   return {
     candidatesFile,
-    minRuns: num(parsed["min-runs"]),
-    minScore: num(parsed["min-score"]),
+    minRuns: toFiniteNumber(parsed["min-runs"]),
+    minScore: toFiniteNumber(parsed["min-score"]),
     provider: parsed.provider !== undefined ? String(parsed.provider) : undefined,
     model: parsed.model !== undefined ? String(parsed.model) : undefined,
     asJson: parsed.json === true,
