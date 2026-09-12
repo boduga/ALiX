@@ -17,48 +17,15 @@
  * Fail-open: transport failure prints an `unavailable` digest, exits 0.
  */
 
+import { parseArgs } from "./lib/args.mjs";
+import { makeClient } from "./lib/client.mjs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
 const LIST_MAX_ROWS = 500;
 const DEFAULT_HOURS = 24;
 const ERR_TRUNCATE = 300;
-const TIMEOUT_MS = 15_000;
-
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
-
-async function fetchJson(url, publicKey, secretKey) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status} ${res.statusText}${body ? `: ${body.slice(0, 200)}` : ""}`);
-    }
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function short(s) {
   if (s === undefined || s === null) return "(no message)";
@@ -70,29 +37,30 @@ async function main() {
   const args = parseArgs(process.argv);
   let hours = Number.parseFloat(args.hours ?? String(DEFAULT_HOURS));
   if (!Number.isFinite(hours) || hours <= 0) hours = DEFAULT_HOURS;
-  const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
-  const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
-  const secretKey = args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "";
+  const client = makeClient({
+    baseUrl: args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "",
+    publicKey: args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "",
+    secretKey: args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "",
+  });
   const to = new Date();
   const from = new Date(to.getTime() - hours * 3600_000);
 
   const header = `# trace digest — last ${hours}h (${from.toISOString()} → ${to.toISOString()})`;
-  if (!baseUrl || !publicKey || !secretKey) {
+  if (client.missing) {
     console.log(`${header}\n\nstatus: unavailable (missing baseUrl/publicKey/secretKey)`);
     return;
   }
 
-  const params = new URLSearchParams({
-    limit: String(LIST_MAX_ROWS),
-    fromStartTime: from.toISOString(),
-    toStartTime: to.toISOString(),
-  });
   let payload;
   try {
-    payload = await fetchJson(`${baseUrl}/api/public/v2/observations?${params}`, publicKey, secretKey);
+    const text = await client.apiGet("/api/public/v2/observations", {
+      limit: String(LIST_MAX_ROWS),
+      fromStartTime: from.toISOString(),
+      toStartTime: to.toISOString(),
+    });
+    payload = JSON.parse(text);
   } catch (err) {
-    const reason = err?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : String(err?.message ?? err);
-    console.log(`${header}\n\nstatus: unavailable (${reason})`);
+    console.log(`${header}\n\nstatus: unavailable (${String(err?.message ?? err)})`);
     return;
   }
 
@@ -148,6 +116,20 @@ async function main() {
   lines.push(...(sessions.length > 0 ? sessions.map(([s, c]) => `- ${s}: ${c} obs`) : ["(none)"]));
   if (payload?.meta?.totalItems !== undefined && payload.meta.totalItems > data.length) {
     lines.push("", `_window truncated: ${data.length} of ${payload.meta.totalItems} rows; narrow --hours for precision_`);
+  }
+  // P1 cost section (optional): ALiX-side rollup over session model.usage
+  // events. Spawned, not imported — one tool, one owner (cost-rollup.mjs).
+  if (args["sessions-dir"]) {
+    lines.push("", "## cost rollup (ALiX-side session events)");
+    try {
+      const here = dirname(fileURLToPath(import.meta.url));
+      const out = execFileSync(process.execPath,
+        [join(here, "cost-rollup.mjs"), "--sessions-dir", String(args["sessions-dir"])],
+        { encoding: "utf8", timeout: 60_000 });
+      lines.push(out.trim() || "(no cost data)");
+    } catch (err) {
+      lines.push(`(cost rollup unavailable: ${String(err?.message ?? err).slice(0, 200)})`);
+    }
   }
   console.log(lines.join("\n"));
 }
