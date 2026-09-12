@@ -47,6 +47,40 @@ chmod +x ~/.alix/skills/langfuse-traces/scripts/query.mjs
 `setupSkills` auto-injects it on `/traces` or the skill pattern —
 no polling, no guessing.
 
+## Fresh installation (new machine, end to end)
+
+1. **Prereqs:** Node 22+, `alix` on PATH (`alix --version`).
+2. **Creds (store-only, never env files):**
+   ```sh
+   alix credential set langfuse publicKey <key>
+   alix credential set langfuse secretKey <key>
+   ```
+   Use a read-only Langfuse key for the loop; mint a write key as
+   `langfuse-write publicKey/secretKey` and point only the nightly jobs
+   at it (cred split — writers run nightly-gated, hot loop stays read-only).
+   Set `tracing.langfuse.baseUrl` in `~/.config/alix/config.json`.
+   The nightly distill/eval jobs need a provider — enable the factory
+   (same file, `skills.factory`: `{enabled:true, provider, model,
+   maxStore:50, maxCandidates:200, autoPromote:false}`) and pin
+   `--provider/--model` on the `run-dataset` cron line (no certified
+   default; empty model fails at provider creation).
+3. **Skill:** the Install block above. Hooks-snippet merge is optional —
+   hot-loop tiered capture only; the nightly chain doesn't need it.
+4. **Verify gateway:**
+   ```sh
+   node ~/.alix/skills/langfuse-traces/scripts/query.mjs --list --limit 5
+   node ~/.alix/skills/langfuse-traces/scripts/probe-writes.mjs --trace-id t --base-url <url>
+   ```
+   Probes write namespaced `alix-probe-*` artifacts only.
+5. **Seed:** create the dataset once (Langfuse UI); write the baseline
+   prompt file (`~/.alix/prompts/<name>.txt`); run `alix evals
+   run-dataset` once *without* `--baseline-scores`, review `cand.jsonl`,
+   and promote it to `base.jsonl` when champion-quality.
+6. **Schedule:** install the Nightly crontab below with local paths/keys.
+7. **Operate:** mornings = logs + verdicts; on `promote` the eval log
+   prints the exact paste-ready `prompt.mjs --create` command — run it by
+   hand. Promotions are always manual (operator-gated).
+
 ## Query
 
 ```sh
