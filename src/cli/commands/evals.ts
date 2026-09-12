@@ -69,8 +69,8 @@ type EvalsRunDatasetOptions = {
   asJson: boolean;
 };
 
-/** Single-quote a value for paste-ready shell commands. */
-function shellQuote(value: string): string {
+/** Single-quote a value for paste-ready shell commands. Exported for tests. */
+export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 

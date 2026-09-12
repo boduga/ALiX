@@ -12,18 +12,47 @@
 
 import { parseKeyValueArgs } from "../../helpers/parse-args.js";
 
-export async function handleSkillsDistillFromTraces(args: string[]): Promise<void> {
+export type DistillOptions = {
+  candidatesFile: string;
+  minRuns?: number;
+  minScore?: number;
+  provider: string;
+  model: string;
+  asJson: boolean;
+};
+
+/** Pure arg parsing (throws usage error); the handler maps it to exit 1. */
+export function parseDistillArgs(args: string[]): DistillOptions {
   const parsed = parseKeyValueArgs(args,
     ["candidates", "min-runs", "min-score", "provider", "model"],
     ["json"]);
   const candidatesFile = String(parsed.candidates ?? "");
   if (!candidatesFile) {
-    console.error("Usage: alix skills distill-from-traces --candidates <file> [--min-runs 5] [--min-score 0.8] [--provider p] [--model m] [--json]");
+    throw new Error("Usage: alix skills distill-from-traces --candidates <file> [--min-runs 5] [--min-score 0.8] [--provider p] [--model m] [--json]");
+  }
+  const num = (value: unknown): number | undefined => {
+    if (value === undefined) return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  return {
+    candidatesFile,
+    minRuns: num(parsed["min-runs"]),
+    minScore: num(parsed["min-score"]),
+    provider: String(parsed.provider ?? ""),
+    model: String(parsed.model ?? ""),
+    asJson: parsed.json === true,
+  };
+}
+
+export async function handleSkillsDistillFromTraces(args: string[]): Promise<void> {
+  let opts: DistillOptions;
+  try {
+    opts = parseDistillArgs(args);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   }
-  const minRuns = parsed["min-runs"] !== undefined ? Number(parsed["min-runs"]) : undefined;
-  const minScore = parsed["min-score"] !== undefined ? Number(parsed["min-score"]) : undefined;
-
   const { loadConfig } = await import("../../../config/loader.js");
   const { getSavedApiKey } = await import("../../helpers/api-keys.js");
   const { createProvider } = await import("../../../providers/registry.js");
@@ -35,18 +64,18 @@ export async function handleSkillsDistillFromTraces(args: string[]): Promise<voi
     console.error("Skill factory is not enabled (skills.factory in config). Nothing distilled.");
     process.exit(1);
   }
-  const providerId = String(parsed.provider ?? "") || factoryConf.provider || "ollama";
-  const model = String(parsed.model ?? "") || factoryConf.model || "";
+  const providerId = opts.provider || factoryConf.provider || "ollama";
+  const model = opts.model || factoryConf.model || "";
   const apiKey = (await getSavedApiKey(providerId)) ?? "";
   const provider = await createProvider({ provider: providerId, model }, apiKey);
 
-  const result = await distillMinedCandidates(candidatesFile, {
+  const result = await distillMinedCandidates(opts.candidatesFile, {
     config: factoryConf, provider,
-    minRuns: minRuns !== undefined && Number.isFinite(minRuns) ? minRuns : undefined,
-    minScore: minScore !== undefined && Number.isFinite(minScore) ? minScore : undefined,
+    minRuns: opts.minRuns,
+    minScore: opts.minScore,
   });
 
-  if (parsed.json === true) {
+  if (opts.asJson) {
     console.log(JSON.stringify(result, null, 2));
     return;
   }
