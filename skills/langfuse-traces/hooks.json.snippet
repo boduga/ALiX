@@ -1,0 +1,8 @@
+{
+  "post_task": [
+    {
+      "command": "node ~/.alix/skills/langfuse-traces/scripts/query.mjs --list --session \"$ALIX_SESSION_ID\" --hours 1",
+      "reason": "Tiered trace inspect: summary always, error detail per trace. $ALIX_SESSION_ID targets this run (task-loop injects run identity; hook output is log-capped at 500 chars)."
+    }
+  ]
+}

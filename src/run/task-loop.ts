@@ -685,6 +685,16 @@ onProgress,
     ?? (deps.context?.runId as string | undefined)
     ?? session.sessionId;
 
+  // Run identity for hook commands. The shell expands $VAR natively, so a
+  // post_task entry like `query.mjs --list --session "$ALIX_SESSION_ID"`
+  // targets this run's traces (sessionId rides every Langfuse observation;
+  // the OTel trace id is opaque by design and never exposed here).
+  // Status is per-site below (running at pre_task, success at the done path).
+  const hookRunEnv: Record<string, string> = {
+    ALIX_RUN_ID: (deps.context?.runId as string | undefined) ?? "",
+    ALIX_SESSION_ID: deps.sessionId ?? session.sessionId ?? "",
+  };
+
   // Initialize EnhancedVerifier for historical failure matching
   const embedderDbPath = deps.embedderDbPath ?? join(homedir(), ".alix", "failures.db");
   let enhancedVerifier: EnhancedVerifier | null = null;
@@ -1007,7 +1017,7 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 const { runHook } = await import("../hooks/runner.js");
 for (const hook of hooks.pre_task ?? []) {
   await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, reason: hook.reason } });
-  const result = await runHook(hook, deps.sessionId);
+  const result = await runHook(hook, deps.sessionId, { ...hookRunEnv, ALIX_RUN_STATUS: "running" });
   await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
 }
 
@@ -1292,7 +1302,7 @@ if (toolCalls.length === 0) {
   // Run post_task hooks
   for (const hook of hooks.post_task ?? []) {
     await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, reason: hook.reason } });
-    const result = await runHook(hook, deps.sessionId);
+    const result = await runHook(hook, deps.sessionId, { ...hookRunEnv, ALIX_RUN_STATUS: "success" });
     await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
   }
 

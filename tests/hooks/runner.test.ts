@@ -44,4 +44,19 @@ describe("runHook", () => {
       delete process.env.ALIX_HOOK_SECRET;
     }
   });
+
+  it("exposes caller run context via extraEnv (shell expands $VAR)", async () => {
+    const hook: Hook = { command: "echo $ALIX_RUN_ID/$ALIX_RUN_STATUS", reason: "test" };
+    const result = await runHook(hook, process.cwd(), { ALIX_RUN_ID: "run-abc", ALIX_RUN_STATUS: "success" });
+    assert.equal(result.passed, true);
+    assert.ok(result.output.includes("run-abc/success"));
+  });
+
+  it("prefers explicit hook.env over caller extraEnv", async () => {
+    const hook: Hook = { command: "echo $ALIX_RUN_ID", reason: "test", env: { ALIX_RUN_ID: "hook-wins" } };
+    const result = await runHook(hook, process.cwd(), { ALIX_RUN_ID: "caller" });
+    assert.equal(result.passed, true);
+    assert.ok(result.output.includes("hook-wins"));
+    assert.ok(!result.output.includes("caller"));
+  });
 });
