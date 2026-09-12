@@ -129,6 +129,26 @@ describe("runSkillFactoryFromTrace", () => {
     assert.equal(scoreless.accepted, false);
     assert.match(scoreless.reason ?? "", /no per-trace scores/);
   });
+
+  it("reports failure when distillation writes nothing", async () => {
+    const ids = ["t1", "t2", "t3", "t4", "t5"];
+    const base = {
+      sessionId: "dead-provider", toolSequence: ["file.read"],
+      traceIds: ids, runs: 5,
+      scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
+      config,
+    };
+    const short = await factory.runSkillFactoryFromTrace({
+      ...base, provider: stubProvider(["too short"]),
+    });
+    assert.equal(short.accepted, false);
+    assert.match(short.reason ?? "", /no candidate/);
+    const down = await factory.runSkillFactoryFromTrace({
+      ...base,
+      provider: stubProvider([], undefined, () => { throw new Error("down"); }),
+    });
+    assert.equal(down.accepted, false);
+  });
 });
 
 describe("distillMinedCandidates", () => {

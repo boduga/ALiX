@@ -122,14 +122,19 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
     );
   }
 
-  await distillWithProvider(
+  const distilled = await distillWithProvider(
     provider,
     "You are a skill distillation engine. Generate a Hermes-format skill from the provided tool sequence observed across successful runs. Output ONLY the SKILL.md content with valid YAML front matter and a markdown body. No explanations, no preamble.",
     prompt,
     ev.sessionId,
     ev.config,
   );
-  return { accepted: true };
+  // distillWithProvider swallows provider-side failure (fire-and-forget for
+  // the hot loop) — but this reporter must not claim a distill that wrote
+  // nothing. Promotion-check failure stays accepted: the file was written.
+  return distilled
+    ? { accepted: true as const }
+    : { accepted: false as const, reason: "distillation produced no candidate (provider down or invalid output)" };
 }
 
 /**
@@ -242,6 +247,7 @@ export function buildTraceDistillationPrompt(ev: TraceEvidence): string {
 /**
  * Shared distillation tail: complete → validate → write candidate →
  * promote-if-eligible. Never throws (provider may be down); warns and returns.
+ * Returns true only when a candidate file was written.
  */
 async function distillWithProvider(
   provider: ModelAdapter,
@@ -249,7 +255,7 @@ async function distillWithProvider(
   userPrompt: string,
   sessionId: string,
   config: SkillFactoryConfig,
-): Promise<void> {
+): Promise<boolean> {
   let skillContent = "";
   try {
     const response = await provider.complete({
@@ -261,19 +267,19 @@ async function distillWithProvider(
   } catch (err) {
     // Ollama may not be running - that's fine, fire-and-forget
     console.warn("[skill-factory] Ollama call failed:", err);
-    return;
+    return false;
   }
 
   if (!skillContent || skillContent.length < 100) {
     console.warn("[skill-factory] Content too short:", skillContent?.length ?? 0, "bytes");
-    return;
+    return false;
   }
 
   // Validate the skill has front matter
   const { manifest } = parseSkillContent(skillContent);
   if (!manifest) {
     console.warn("[skill-factory] Invalid skill manifest from Ollama");
-    return;
+    return false;
   }
 
   // Write to candidates directory
@@ -284,7 +290,7 @@ async function distillWithProvider(
   await mkdir(sessionCandidateDir, { recursive: true });
   await writeFile(join(sessionCandidateDir, "SKILL.md"), skillContent, "utf8");
 
-  if (!config.autoPromote) return; // skip entirely if not auto-promoting
+  if (!config.autoPromote) return true; // skip entirely if not auto-promoting
   // Try to promote — on first write this will fail (successCount=1),
   // on second write it will succeed. Call every time to handle re-use.
   try {
@@ -293,6 +299,7 @@ async function distillWithProvider(
     // best effort — non-blocking
     console.warn("[skill-factory] Promotion check failed:", err);
   }
+  return true;
 }
 
 function buildDistillationPrompt(params: DispatchParams): string {

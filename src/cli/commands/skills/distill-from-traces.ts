@@ -32,8 +32,8 @@ export function parseDistillArgs(args: string[]): DistillOptions {
   }
   const toFiniteNumber = (value: unknown): number | undefined => {
     if (value === undefined) return undefined;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : undefined;
   };
   return {
     candidatesFile,
