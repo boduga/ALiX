@@ -49,7 +49,12 @@ export function parseJudgeScore(text: string): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** Normalize a corpus mirror row or plain incident into DatasetIncident. */
+/**
+ * Normalize one incident row. Two shapes accepted, explicitly:
+ * - corpus mirror rows: { datasetName?, input: { traceId, sessionId?, task? }, metadata?: { errorNames? } }
+ * - plain incidents: { traceId, sessionId?, task?, errorNames? }
+ * Anything without a string traceId is rejected (null).
+ */
 export function normalizeIncident(row: unknown): DatasetIncident | null {
   if (!row || typeof row !== "object") return null;
   const r = row as Record<string, unknown>;
@@ -64,6 +69,61 @@ export function normalizeIncident(row: unknown): DatasetIncident | null {
     errorNames: Array.isArray(metadata.errorNames)
       ? (metadata.errorNames as unknown[]).filter((e): e is string => typeof e === "string")
       : [],
+  };
+}
+
+/** One provider turn: system prompt + single user message, text out. */
+async function completeText(
+  provider: ModelAdapter,
+  systemPrompt: string,
+  userContent: string,
+): Promise<string> {
+  const response = await provider.complete({
+    systemPrompt,
+    messages: [{ role: "user", content: userContent }],
+    tools: [],
+  });
+  return response.text?.trim() ?? "";
+}
+
+export type EvalGateVerdict = "promote" | "block" | "insufficient";
+
+export type EvalGateResult = {
+  verdict: EvalGateVerdict;
+  runs: number;
+  baselineWinRate: number;
+  candidateWinRate: number;
+  delta: number;
+};
+
+/**
+ * In-process Act gate (mirrors eval-gate.mjs math for CLI use): win =
+ * value >= winAt over matched traceIds. Deltas at/above minDelta promote;
+ * anything below blocks. Fewer than minRuns matched traces → insufficient.
+ */
+export function gateDatasetEval(
+  baseline: Map<string, number>,
+  candidate: Map<string, number>,
+  opts?: { minRuns?: number; minDelta?: number; winAt?: number },
+): EvalGateResult {
+  const minRuns = opts?.minRuns ?? 20;
+  const minDelta = opts?.minDelta ?? 0.1;
+  const winAt = opts?.winAt ?? 0.8;
+  const matched = [...baseline.keys()].filter((id) => candidate.has(id));
+  const rate = (m: Map<string, number>) =>
+    matched.filter((id) => (m.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
+  if (matched.length < minRuns) {
+    return { verdict: "insufficient", runs: matched.length, baselineWinRate: 0, candidateWinRate: 0, delta: 0 };
+  }
+  const baselineWinRate = rate(baseline);
+  const candidateWinRate = rate(candidate);
+  const delta = candidateWinRate - baselineWinRate;
+  return {
+    verdict: delta >= minDelta ? "promote" : "block",
+    runs: matched.length,
+    baselineWinRate: Number(baselineWinRate.toFixed(3)),
+    candidateWinRate: Number(candidateWinRate.toFixed(3)),
+    delta: Number(delta.toFixed(3)),
   };
 }
 
@@ -85,28 +145,21 @@ export async function runDatasetEval(opts: {
       continue;
     }
     try {
-      const attempt = await opts.provider.complete({
-        systemPrompt: opts.promptText,
-        messages: [{
-          role: "user",
-          content: `Task: ${incident.task}\nKnown failure signals: ${(incident.errorNames ?? []).join(", ") || "none recorded"}`,
-        }],
-        tools: [],
-      });
-      const responseText = attempt.text?.trim() ?? "";
+      const responseText = await completeText(
+        opts.provider,
+        opts.promptText,
+        `Task: ${incident.task}\nKnown failure signals: ${(incident.errorNames ?? []).join(", ") || "none recorded"}`,
+      );
       if (!responseText) {
         skipped.push({ traceId: incident.traceId, reason: "empty candidate response" });
         continue;
       }
-      const judged = await judge.complete({
-        systemPrompt: JUDGE_SYSTEM_PROMPT,
-        messages: [{
-          role: "user",
-          content: `Incident errors: ${(incident.errorNames ?? []).join(", ") || "none recorded"}\nCandidate response:\n${responseText}`,
-        }],
-        tools: [],
-      });
-      const value = parseJudgeScore(judged.text ?? "");
+      const judgeText = await completeText(
+        judge,
+        JUDGE_SYSTEM_PROMPT,
+        `Incident errors: ${(incident.errorNames ?? []).join(", ") || "none recorded"}\nCandidate response:\n${responseText}`,
+      );
+      const value = parseJudgeScore(judgeText);
       if (Number.isNaN(value)) {
         skipped.push({ traceId: incident.traceId, reason: "unparseable judge output" });
         continue;

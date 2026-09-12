@@ -51,6 +51,36 @@ function printJson(run: unknown): void {
   console.log(JSON.stringify(run, null, 2));
 }
 
+type EvalsRunDatasetOptions = {
+  mirror: string;
+  promptName: string;
+  promptText: string;
+  promptFile: string;
+  providerName: string;
+  modelName: string;
+  judgeModel: string;
+  scoresOut: string;
+  baselineScores: string;
+  asJson: boolean;
+};
+
+/** Shared --key value / --flag parser for evals subcommands. */
+function parseEvalsArgs(args: string[], keys: string[], flags: string[]): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {};
+  for (let i = 0; i < args.length; i++) {
+    if (!args[i].startsWith("--")) continue;
+    const key = args[i].slice(2);
+    const next = args[i + 1];
+    if (keys.includes(key) && next !== undefined && !next.startsWith("--")) {
+      out[key] = next;
+      i++;
+    } else if (flags.includes(key)) {
+      out[key] = true;
+    }
+  }
+  return out;
+}
+
 export async function handleEvalsRun(args: string[]): Promise<void> {
   const { loadConfig } = await import("../../config/loader.js");
   const { runEvalSuite, saveRun } = await import("../../evals/evals-runner.js");
@@ -106,28 +136,25 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
  * (self-judge limitation — use a stronger --judge-model when it matters).
  */
 export async function handleEvalsRunDataset(args: string[]): Promise<void> {
-  let mirror = "";
-  let promptName = "";
-  let promptText = "";
-  let promptFile = "";
-  let providerName = "";
-  let modelName = "";
-  let judgeModel = "";
-  let scoresOut = "";
-  let asJson = false;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--mirror" && args[i + 1]) mirror = args[++i];
-    else if (args[i] === "--prompt-name" && args[i + 1]) promptName = args[++i];
-    else if (args[i] === "--prompt-text" && args[i + 1]) promptText = args[++i];
-    else if (args[i] === "--prompt-file" && args[i + 1]) promptFile = args[++i];
-    else if (args[i] === "--provider" && args[i + 1]) providerName = args[++i];
-    else if (args[i] === "--model" && args[i + 1]) modelName = args[++i];
-    else if (args[i] === "--judge-model" && args[i + 1]) judgeModel = args[++i];
-    else if (args[i] === "--scores-out" && args[i + 1]) scoresOut = args[++i];
-    else if (args[i] === "--json") asJson = true;
-  }
-  if (!mirror || !promptName || (!promptText && !promptFile)) {
-    console.error("Usage: alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--provider p] [--model m] [--judge-model m] [--scores-out f] [--json]");
+  const parsed = parseEvalsArgs(args,
+    ["mirror", "prompt-name", "prompt-text", "prompt-file", "provider", "model", "judge-model", "scores-out", "baseline-scores"],
+    ["json"]);
+  const opts: EvalsRunDatasetOptions = {
+    mirror: String(parsed.mirror ?? ""),
+    promptName: String(parsed["prompt-name"] ?? ""),
+    promptText: String(parsed["prompt-text"] ?? ""),
+    promptFile: String(parsed["prompt-file"] ?? ""),
+    providerName: String(parsed.provider ?? ""),
+    modelName: String(parsed.model ?? ""),
+    judgeModel: String(parsed["judge-model"] ?? ""),
+    scoresOut: String(parsed["scores-out"] ?? ""),
+    baselineScores: String(parsed["baseline-scores"] ?? ""),
+    asJson: parsed.json === true,
+  };
+  const { mirror, promptName, providerName, modelName, judgeModel, scoresOut, baselineScores, asJson } = opts;
+  let { promptText } = opts;
+  if (!mirror || !promptName || (!promptText && !opts.promptFile)) {
+    console.error("Usage: alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--provider p] [--model m] [--judge-model m] [--scores-out f] [--baseline-scores f] [--json]");
     process.exit(1);
   }
 
@@ -142,7 +169,7 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   const factoryConf = config.skills?.factory;
   const providerId = providerName || factoryConf?.provider || "ollama";
   const model = modelName || factoryConf?.model || "";
-  if (promptFile) promptText = await readFile(promptFile, "utf8");
+  if (opts.promptFile) promptText = await readFile(opts.promptFile, "utf8");
 
   let rows: unknown[] = [];
   try {
@@ -169,13 +196,47 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   if (scoresOut) {
     await writeFile(scoresOut, result.scores.map((s) => JSON.stringify(s)).join("\n") + "\n", "utf8");
   }
+
+  // Act wiring (P4): optional baseline gate. On promote, print the exact
+  // promotion command (prompt.mjs carries the write); this CLI never writes
+  // prompts itself.
+  let gate: { verdict: string } | null = null;
+  if (baselineScores) {
+    const { gateDatasetEval } = await import("../../evals/dataset-eval.js");
+    const readScores = async (path: string): Promise<Map<string, number>> => {
+      const m = new Map<string, number>();
+      const text = await readFile(path, "utf8");
+      for (const line of text.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const r = JSON.parse(line) as { traceId?: unknown; value?: unknown };
+          if (typeof r.traceId === "string" && typeof r.value === "number") {
+            if (!m.has(r.traceId) || r.value > (m.get(r.traceId) ?? 0)) m.set(r.traceId, r.value);
+          }
+        } catch {
+          continue;
+        }
+      }
+      return m;
+    };
+    const base = await readScores(baselineScores);
+    const cand = new Map(result.scores.map((s) => [s.traceId, s.value]));
+    gate = gateDatasetEval(base, cand);
+  }
+
   if (asJson) {
-    console.log(JSON.stringify({ ...result, scoresOut: scoresOut || undefined }, null, 2));
+    console.log(JSON.stringify({ ...result, scoresOut: scoresOut || undefined, gate }, null, 2));
   } else {
     console.log(`# dataset eval — ${promptName}: ${result.scores.length} scored, ${result.skipped.length} skipped`);
     for (const s of result.scores) console.log(`- ${s.traceId}: ${s.value}`);
     for (const sk of result.skipped) console.log(`SKIP ${sk.traceId}: ${sk.reason}`);
     if (scoresOut) console.log(`Scores written to ${scoresOut}`);
+    if (gate) {
+      console.log(`verdict: ${gate.verdict}`);
+      if (gate.verdict === "promote") {
+        console.log(`promote with: node ~/.alix/skills/langfuse-traces/scripts/prompt.mjs --create --name ${promptName} --text <final-prompt-text> --label champion`);
+      }
+    }
   }
 }
 

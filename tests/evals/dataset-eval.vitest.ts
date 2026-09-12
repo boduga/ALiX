@@ -9,18 +9,10 @@ import {
   runDatasetEval,
   normalizeIncident,
   parseJudgeScore,
+  gateDatasetEval,
 } from "../../src/evals/dataset-eval.js";
 import type { ModelAdapter } from "../../src/providers/types.js";
-
-function stubProvider(texts: string[], onCalls?: string[]): ModelAdapter {
-  return {
-    complete: async (req: { messages?: Array<{ content?: string }> }) => {
-      onCalls?.push(req.messages?.[0]?.content ?? "");
-      const text = texts.length > 1 ? texts.shift()! : texts[0];
-      return { text } as unknown as Awaited<ReturnType<ModelAdapter["complete"]>>;
-    },
-  } as unknown as ModelAdapter;
-}
+import { stubProvider } from "../helpers/stub-provider.js";
 
 describe("parseJudgeScore", () => {
   it("extracts the first 0..1 number and clamps", () => {
@@ -49,6 +41,16 @@ describe("normalizeIncident", () => {
   });
 });
 
+describe("gateDatasetEval", () => {
+  const m = (pairs: Array<[string, number]>) => new Map(pairs);
+  it("promotes deltas at bar, blocks below, insufficient under count", () => {
+    const base = m(Array.from({ length: 20 }, (_, i) => [`t${i}`, i % 2 === 0 ? 0.9 : 0.3]));
+    const good = m(Array.from({ length: 20 }, (_, i) => [`t${i}`, i < 16 ? 0.95 : 0.3]));
+    expect(gateDatasetEval(base, good).verdict).toBe("promote");
+    expect(gateDatasetEval(good, base).verdict).toBe("block");
+    expect(gateDatasetEval(m([["a", 1]]), m([["a", 1]])).verdict).toBe("insufficient");
+  });
+});
 describe("runDatasetEval", () => {
   it("runs, judges, and emits score records", async () => {
     const provider = stubProvider(["fixed it"]);
