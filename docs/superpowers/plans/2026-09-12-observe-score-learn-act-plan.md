@@ -1,7 +1,7 @@
 # Observe → Score → Learn → Act — Buildable Plan
 
 **Date:** 2026-09-12
-**Status:** Spec ready, unstarted
+**Status:** P0–P4 shipped (#661 TS scripts, #663 factory adapter, #665 corpus, #666 dataset loop); this file is the as-built record
 **Base:** `main` post-#660 (narrow skill, tiered hook, bounds, nightly digest all shipped)
 **Goal:** every agent run makes the next one cheaper and better — the skill
 lifecycle (`observe → score → promote/evict`) generalized to runs, prompts, models.
@@ -38,8 +38,9 @@ Accepted bounds (not scope creep — point-4 bounds discipline): `--limit`
 caps per script, `mine.mjs` 50-obs/trace cap, `corpus.mjs` 2000-row cap,
 `suggestedName` + `source:"alix-probe"` as downstream join keys,
 `prompt.mjs` arbitrary `--label` (labels observed on the object; champion
-is convention, not enforcement). Model-running eval loop deferred (needs
-provider wiring).
+is convention, not enforcement). Provider wiring for the model-running
+eval loop landed in P4 (`alix evals run-dataset`); what stays deferred is
+execution inside the hot loop — evals run nightly/operator-gated only.
 
 ## Phase 0 — Gateway write probes (gate for all write phases)
 
@@ -76,7 +77,8 @@ Write one quality record per run, keyed by `traceId`:
   scope: v2 gateway rows carry no I/O payloads (proven live), so there is
   nothing to reconstruct prompts from. Candidate threshold: ≥ 5 unique
   high-score (≥ 0.8) traces sharing a tool-sequence shape, enforced
-  factory-side on unique traceIds (the runs counter can inflate).
+  factory-side on unique traceIds (the runs counter can inflate). Wired:
+  `mine.mjs --factory-out` → `alix skills distill-from-traces`.
 - **Corpus:** failures + edge cases append to datasets (or JSONL fallback),
   one entry per incident with traceId backlink. Growth is production-fed,
   not hand-written fixtures.
@@ -95,6 +97,12 @@ Write one quality record per run, keyed by `traceId`:
   command on a promote verdict but never writes prompts itself.
 - Prompt objects versioned like skills (same-name change → new version,
   never silent overwrite — proven live: re-create returned version 2).
+- P4 design resolutions (as built): judge defaults to the candidate's own
+  provider (self-judge limitation — pass `--judge-model` when it matters);
+  judge scores take the last 0..1-looking number (verdicts land at the
+  end); taskless incidents evaluate against an error-derived task flagged
+  `degraded` rather than skipping, so the write path never produces rows
+  the read path cannot use.
 
 ## Phase 5 — Govern (continuous, not last)
 
