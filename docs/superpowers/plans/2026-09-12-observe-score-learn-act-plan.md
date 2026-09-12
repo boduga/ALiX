@@ -92,7 +92,10 @@ Write one quality record per run, keyed by `traceId`:
   delta ≥ +10pp over ≥ 20 eval runs (tunables).
 - Nightly eval run over the dataset (digest cadence — system cron driving
   `alix evals run-dataset`, same pattern as digest.mjs); regressions block,
-  improvements auto-promote. Auto-execution of the promotion (prompt.mjs
+  improvements auto-promote. Nightly scope is the documented pattern
+  (example crontabs in script headers + README), operator-installed —
+  the repo ships scripts, not scheduler wiring, same contract as digest.
+  Auto-execution of the promotion (prompt.mjs
   carrying the write) stays operator-gated: the CLI prints the exact
   command on a promote verdict but never writes prompts itself.
 - Prompt objects versioned like skills (same-name change → new version,
