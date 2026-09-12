@@ -20,9 +20,10 @@ eligible candidates under usage gating.
   Identity is unique traceIds (run counters can inflate); per-trace
   `scores` are mandatory — scoreless evidence is rejected, never distilled
   on count alone.
-- **Fire-and-forget:** `runSkillFactory(FromTrace)` never throw into the
-  caller (provider may be down); they report `{accepted, reason}` so batch
-  callers can summarize. `distillMinedCandidates` additionally isolates
+- **Fire-and-forget:** `runSkillFactoryFromTrace` never throws into the
+  caller (provider may be down); it reports `{accepted, reason}` so batch
+  callers can summarize. (`runSkillFactory` stays `void` — only the trace
+  variant reports.) `distillMinedCandidates` additionally isolates
   per-row failures (including malformed JSONL) — one bad row never aborts
   the batch. A missing batch file itself throws (caller usage error).
 - **Write target:** candidates land in `~/.alix/candidates/<sessionId>/`
@@ -32,6 +33,13 @@ eligible candidates under usage gating.
   `alix skills distill-from-traces` distills them with the configured
   factory provider. Sessions ride as prompt provenance (`traceSessions`),
   not identity.
+
+## Work Guidance
+
+- New distillation inputs go through the candidate bar in
+  `runSkillFactoryFromTrace` — never gate caller-side.
+- Keep `MinedCandidate` a `Pick` of `TraceEvidence` so the mine/factory
+  contract cannot drift field by field.
 
 ## Verification
 

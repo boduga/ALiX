@@ -104,7 +104,8 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
     console.warn("[skill-factory] Below quality bar: no per-trace scores supplied");
     return { accepted: false, reason: "below quality bar: no per-trace scores supplied" };
   }
-  const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
+  const scores = ev.scores;
+  const belowBar = uniqueIds.filter((id) => (scores[id] ?? 0) < minScore);
   if (belowBar.length > 0) {
     console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
     return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
@@ -163,17 +164,12 @@ export async function distillMinedCandidates(
   const rejected: Array<{ name: string; reason: string }> = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
-    // Parse inside the loop: one malformed line rejects as a row, it never
+    // Parse AND shape-read inside the loop: a malformed line or a
+    // valid-JSON wrong-shape row ({}, null, 123) rejects as a row — neither
     // aborts the batch (the header contract).
-    let row: MinedCandidate;
     try {
-      row = JSON.parse(line) as MinedCandidate;
-    } catch (err) {
-      rejected.push({ name: "(unparseable row)", reason: String(err instanceof Error ? err.message : err) });
-      continue;
-    }
-    const name = row.suggestedName ?? row.toolSequence[0] ?? "(unnamed)";
-    try {
+      const row = JSON.parse(line) as MinedCandidate;
+      const name = row.suggestedName ?? row.toolSequence?.[0] ?? "(unnamed)";
       const outcome = await runSkillFactoryFromTrace({
         sessionId: "mined",
         toolSequence: row.toolSequence ?? [],
@@ -190,8 +186,9 @@ export async function distillMinedCandidates(
       if (outcome.accepted) distilled.push(name);
       else rejected.push({ name, reason: outcome.reason ?? "rejected" });
     } catch (err) {
-      // One bad row (provider down, malformed) never aborts the batch.
-      rejected.push({ name, reason: String(err instanceof Error ? err.message : err) });
+      // One bad row (malformed JSON, wrong shape, provider down) never
+      // aborts the batch.
+      rejected.push({ name: "(unparseable row)", reason: String(err instanceof Error ? err.message : err) });
     }
   }
   return { distilled, rejected };

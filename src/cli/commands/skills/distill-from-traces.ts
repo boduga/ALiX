@@ -16,8 +16,8 @@ export type DistillOptions = {
   candidatesFile: string;
   minRuns?: number;
   minScore?: number;
-  provider: string;
-  model: string;
+  provider?: string;
+  model?: string;
   asJson: boolean;
 };
 
@@ -39,8 +39,8 @@ export function parseDistillArgs(args: string[]): DistillOptions {
     candidatesFile,
     minRuns: num(parsed["min-runs"]),
     minScore: num(parsed["min-score"]),
-    provider: String(parsed.provider ?? ""),
-    model: String(parsed.model ?? ""),
+    provider: parsed.provider !== undefined ? String(parsed.provider) : undefined,
+    model: parsed.model !== undefined ? String(parsed.model) : undefined,
     asJson: parsed.json === true,
   };
 }
@@ -64,8 +64,8 @@ export async function handleSkillsDistillFromTraces(args: string[]): Promise<voi
     console.error("Skill factory is not enabled (skills.factory in config). Nothing distilled.");
     process.exit(1);
   }
-  const providerId = opts.provider || factoryConf.provider || "ollama";
-  const model = opts.model || factoryConf.model || "";
+  const providerId = opts.provider ?? factoryConf.provider ?? "ollama";
+  const model = opts.model ?? factoryConf.model ?? "";
   const apiKey = (await getSavedApiKey(providerId)) ?? "";
   const provider = await createProvider({ provider: providerId, model }, apiKey);
 

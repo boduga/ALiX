@@ -8,8 +8,8 @@ describe("parseDistillArgs", () => {
       candidatesFile: "c.json",
       minRuns: undefined,
       minScore: undefined,
-      provider: "",
-      model: "",
+      provider: undefined,
+      model: undefined,
       asJson: false,
     });
   });

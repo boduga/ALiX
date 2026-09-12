@@ -24,6 +24,12 @@ and distill mined trace candidates into candidate skills.
 - **Operator context:** distill/eval commands run nightly/operator-gated
   with write creds or local files — never in the hot loop.
 
+## Work Guidance
+
+- New subcommands take raw post-subcommand args and parse them with the
+  shared `parseKeyValueArgs`; keep usage-throwing pure parsing apart from
+  the exiting handler so it stays unit-testable.
+
 ## Verification
 
 ```bash

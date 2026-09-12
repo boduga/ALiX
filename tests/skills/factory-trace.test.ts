@@ -143,14 +143,22 @@ describe("distillMinedCandidates", () => {
       scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
     };
     const thinCandidate = { ...passingCandidate, suggestedName: "mined-2-thin", traceIds: ["t1"], runs: 1 };
-    writeFileSync(file, [passingCandidate, thinCandidate, "NOT-JSON{"].map((r) => typeof r === "string" ? r : JSON.stringify(r)).join("\n") + "\n");
+    writeFileSync(file, [
+      JSON.stringify(passingCandidate),
+      JSON.stringify(thinCandidate),
+      "NOT-JSON{",
+      "{}",
+    ].join("\n") + "\n");
     const result = await factory.distillMinedCandidates(file, {
       config, provider: stubSkill(SKILL_MD),
     });
     assert.deepEqual(result.distilled, ["mined-1-file.read"]);
-    assert.equal(result.rejected.length, 2);
+    assert.equal(result.rejected.length, 3);
     assert.equal(result.rejected[0].name, "mined-2-thin");
     assert.equal(result.rejected[1].name, "(unparseable row)");
+    // Valid JSON, wrong shape: isolated as a bar reject, batch survives.
+    assert.equal(result.rejected[2].name, "(unnamed)");
+    assert.match(result.rejected[2].reason, /empty tool sequence/);
     const path = join(process.env.HOME!, ".alix", "candidates", "mined", "SKILL.md");
     assert.ok(existsSync(path), "mined candidate SKILL.md written");
   });
