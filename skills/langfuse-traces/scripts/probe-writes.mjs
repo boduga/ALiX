@@ -44,9 +44,10 @@ async function main() {
     },
     {
       name: "dataset item append",
-      // Shape per corpus.mjs; proves the incident path, not just create.
+      // Verified live 2026-09-12: key is dataset NAME, not id.
+      // Uses the dataset created by the probe above (same TAG name).
       run: () => client.apiRaw("POST", "/api/public/dataset-items", undefined,
-        { datasetId: TAG, input: { traceId, probe: true }, metadata: { source: "alix-probe" } }),
+        { datasetName: TAG, input: { traceId, probe: true }, metadata: { source: "alix-probe" } }),
     },
     {
       name: "prompt create",

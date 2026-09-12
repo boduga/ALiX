@@ -4,14 +4,15 @@
  *
  * Scans one v2 observations window for traces carrying ERROR observations
  * and appends one incident per trace to a Langfuse dataset:
- *   POST {baseUrl}/api/public/dataset-items { datasetId, input, metadata }
+ *   POST {baseUrl}/api/public/dataset-items { datasetName, input, metadata }
+ * (verified live 2026-09-12: the key is dataset NAME, not id).
  * input = { traceId, sessionId }; metadata = { errorNames, errorCount,
  * obsCount }. No I/O payloads cross — aggregates only (digest discipline).
  *
  * WRITE PATH: run with write creds in a nightly/operator context — never in
- * the hot loop. Requires --dataset-id (create once via UI or API probe).
+ * the hot loop. Requires --dataset (name; create once via UI or API probe).
  *
- * Run: corpus.mjs --dataset-id <id> [--hours 24] [--limit-rows 200] [--json]
+ * Run: corpus.mjs --dataset <name> [--hours 24] [--limit-rows 200] [--json]
  *        [--base-url URL] [--public-key K] [--secret-key K]
  * env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
  * Fail-open: per-item PASS/FAIL report, exits 0.
@@ -26,9 +27,9 @@ const DEFAULT_ROWS = 200;
 async function main() {
   const args = parseArgs(process.argv);
   const wantJson = isOn(args.json);
-  const datasetId = args["dataset-id"];
-  if (!datasetId) {
-    console.error("usage: corpus.mjs --dataset-id <id> [--hours 24] [--limit-rows 200] [--json]");
+  const datasetName = args.dataset ?? args["dataset-id"];
+  if (!datasetName) {
+    console.error("usage: corpus.mjs --dataset <name> [--hours 24] [--limit-rows 200] [--json]");
     return;
   }
   const hours = Number(args.hours ?? DEFAULT_HOURS) || DEFAULT_HOURS;
@@ -75,7 +76,7 @@ async function main() {
   for (const [traceId, t] of byTrace) {
     if (t.errors.length === 0 || traceId === "(unknown)") continue;
     const item = {
-      datasetId,
+      datasetName,
       input: { traceId, sessionId: t.sessionId ?? null },
       metadata: { errorNames: [...new Set(t.errors)], errorCount: t.errors.length, source: "alix-corpus" },
     };
@@ -84,12 +85,12 @@ async function main() {
     else failed.push({ traceId, reason: `HTTP ${r.status} ${r.body}` });
   }
 
-  const result = { status: failed.length === 0 ? "ok" : "partial", datasetId, appended, failed };
+  const result = { status: failed.length === 0 ? "ok" : "partial", dataset: datasetName, appended, failed };
   if (wantJson) {
     console.log(JSON.stringify(result, null, 2));
     return;
   }
-  console.log(`# corpus — ${appended.length} incidents appended to ${datasetId} (${failed.length} failed)`);
+  console.log(`# corpus — ${appended.length} incidents appended to ${datasetName} (${failed.length} failed)`);
   for (const id of appended) console.log(`- ${id}`);
   for (const f of failed) console.log(`FAIL ${f.traceId}: ${f.reason}`);
 }

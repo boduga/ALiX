@@ -2,9 +2,8 @@
 /**
  * prompt.mjs — P4 prompt version manager for the observe→score→learn→act plan.
  *
- * Langfuse versions prompts server-side on same-name create (v1 observed on
- * verified create; same-name re-create assumed v2 — confirm live on first
- * real promote). Promotion is label-carried: the winning version is created
+ * Langfuse versions prompts server-side on same-name create (proven live
+ * 2026-09-12: re-create returned version 2). Promotion is label-carried: the winning version is created
  * with `--label champion` (labels observed on the prompt object). Nothing is
  * ever overwritten or activated here — pass --label only, never isActive.
  *

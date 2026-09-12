@@ -125,6 +125,8 @@ commit. No phase edits hot-loop capture; the loop stays read-only throughout.
 | 2026-09-12 | scores write (`POST /api/public/scores`, `{traceId,name,value}`) | PASS — id returned |
 | 2026-09-12 | dataset create (`POST /api/public/datasets`, `{name,description}`) | PASS — full object returned |
 | 2026-09-12 | prompt create (`POST /api/public/prompts`, chat variant) | PASS — requires `{type:"chat", prompt:[{role,content}], isActive:false, labels}`; text variant and missing `isActive` 400 |
+| 2026-09-12 | dataset item append (`POST /api/public/dataset-items`) | PASS after fix — key is `datasetName` (name, not id); first attempt with `datasetId` 400 |
+| 2026-09-12 | prompt re-create same name | PASS — returned `version: 2`; versioning proven, not assumed |
 
 P0 gate: PASS on all three. Loop phases take the API path; JSONL fallback
 dropped (kept only as contingency). Probe artifacts namespaced

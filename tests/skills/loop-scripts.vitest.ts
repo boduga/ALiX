@@ -123,7 +123,7 @@ describe("loop scripts (stub gateway + fixture sessions)", () => {
   });
 
   it("corpus.mjs appends only error traces", async () => {
-    const r = await run("corpus.mjs", ["--dataset-id", "ds", "--json", "--base-url", baseUrl]);
+    const r = await run("corpus.mjs", ["--dataset", "ds", "--json", "--base-url", baseUrl]);
     const parsed = JSON.parse(r.stdout);
     expect(parsed.status).toBe("ok");
     expect(parsed.appended).toEqual(["t3"]);
