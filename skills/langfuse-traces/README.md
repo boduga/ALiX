@@ -59,6 +59,11 @@ no polling, no guessing.
    `langfuse-write publicKey/secretKey` and point only the nightly jobs
    at it (cred split — writers run nightly-gated, hot loop stays read-only).
    Set `tracing.langfuse.baseUrl` in `~/.config/alix/config.json`.
+   The nightly distill/eval jobs need a provider — enable the factory
+   (same file, `skills.factory`: `{enabled:true, provider, model,
+   maxStore:50, maxCandidates:200, autoPromote:false}`) and pin
+   `--provider/--model` on the `run-dataset` cron line (no certified
+   default; empty model fails at provider creation).
 3. **Skill:** the Install block above. Hooks-snippet merge is optional —
    hot-loop tiered capture only; the nightly chain doesn't need it.
 4. **Verify gateway:**
