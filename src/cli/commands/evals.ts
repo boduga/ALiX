@@ -51,13 +51,17 @@ function printJson(run: unknown): void {
   console.log(JSON.stringify(run, null, 2));
 }
 
+type ProviderRef = {
+  name: string;
+  model: string;
+};
+
 type EvalsRunDatasetOptions = {
   mirror: string;
   promptName: string;
   promptText: string;
   promptFile: string;
-  providerName: string;
-  modelName: string;
+  provider: ProviderRef;
   judgeModel: string;
   scoresOut: string;
   baselineScores: string;
@@ -144,14 +148,16 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
     promptName: String(parsed["prompt-name"] ?? ""),
     promptText: String(parsed["prompt-text"] ?? ""),
     promptFile: String(parsed["prompt-file"] ?? ""),
-    providerName: String(parsed.provider ?? ""),
-    modelName: String(parsed.model ?? ""),
+    provider: {
+      name: String(parsed.provider ?? ""),
+      model: String(parsed.model ?? ""),
+    },
     judgeModel: String(parsed["judge-model"] ?? ""),
     scoresOut: String(parsed["scores-out"] ?? ""),
     baselineScores: String(parsed["baseline-scores"] ?? ""),
     asJson: parsed.json === true,
   };
-  const { mirror, promptName, providerName, modelName, judgeModel, scoresOut, baselineScores, asJson } = opts;
+  const { mirror, promptName, provider, judgeModel, scoresOut, baselineScores, asJson } = opts;
   let { promptText } = opts;
   if (!mirror || !promptName || (!promptText && !opts.promptFile)) {
     console.error("Usage: alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--provider p] [--model m] [--judge-model m] [--scores-out f] [--baseline-scores f] [--json]");
@@ -161,14 +167,14 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   const { loadConfig } = await import("../../config/loader.js");
   const { getSavedApiKey } = await import("../helpers/api-keys.js");
   const { createProvider } = await import("../../providers/registry.js");
-  const { runDatasetEval, normalizeIncident } = await import("../../evals/dataset-eval.js");
+  const { runDatasetEval, normalizeIncident, readScoreLedger, gateDatasetEval } = await import("../../evals/dataset-eval.js");
   const { readFile, writeFile } = await import("node:fs/promises");
 
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
   const factoryConf = config.skills?.factory;
-  const providerId = providerName || factoryConf?.provider || "ollama";
-  const model = modelName || factoryConf?.model || "";
+  const providerId = provider.name || factoryConf?.provider || "ollama";
+  const model = provider.model || factoryConf?.model || "";
   if (opts.promptFile) promptText = await readFile(opts.promptFile, "utf8");
 
   let rows: unknown[] = [];
@@ -184,13 +190,13 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
     .filter((r): r is NonNullable<typeof r> => r !== null);
 
   const apiKey = (await getSavedApiKey(providerId)) ?? "";
-  const provider = await createProvider({ provider: providerId, model }, apiKey);
+  const modelProvider = await createProvider({ provider: providerId, model }, apiKey);
   const judge = judgeModel
     ? await createProvider({ provider: providerId, model: judgeModel }, apiKey)
     : undefined;
 
   const result = await runDatasetEval({
-    incidents, promptName, promptText, provider, judgeProvider: judge,
+    incidents, promptName, promptText, provider: modelProvider, judgeProvider: judge,
   });
 
   if (scoresOut) {
@@ -202,24 +208,7 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   // prompts itself.
   let gate: { verdict: string } | null = null;
   if (baselineScores) {
-    const { gateDatasetEval } = await import("../../evals/dataset-eval.js");
-    const readScores = async (path: string): Promise<Map<string, number>> => {
-      const m = new Map<string, number>();
-      const text = await readFile(path, "utf8");
-      for (const line of text.split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const r = JSON.parse(line) as { traceId?: unknown; value?: unknown };
-          if (typeof r.traceId === "string" && typeof r.value === "number") {
-            if (!m.has(r.traceId) || r.value > (m.get(r.traceId) ?? 0)) m.set(r.traceId, r.value);
-          }
-        } catch {
-          continue;
-        }
-      }
-      return m;
-    };
-    const base = await readScores(baselineScores);
+    const base = await readScoreLedger(baselineScores);
     const cand = new Map(result.scores.map((s) => [s.traceId, s.value]));
     gate = gateDatasetEval(base, cand);
   }

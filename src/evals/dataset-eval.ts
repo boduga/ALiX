@@ -26,7 +26,14 @@ export type DatasetEvalScore = {
   traceId: string;
   name: string;
   value: number;
+  /** True when the task was inferred from error names (no task on incident). */
+  degraded?: boolean;
 };
+
+/** Plan-tunable defaults (single source for the gate below). */
+export const GATE_DEFAULT_MIN_RUNS = 20;
+export const GATE_DEFAULT_MIN_DELTA = 0.1;
+export const GATE_DEFAULT_WIN_AT = 0.8;
 
 export type DatasetEvalResult = {
   scores: DatasetEvalScore[];
@@ -40,11 +47,15 @@ const JUDGE_SYSTEM_PROMPT = [
   "No explanations, no preamble — just the number.",
 ].join(" ");
 
-/** First 0..1-looking number in text, clamped. NaN when none found. */
+/**
+ * Score token in text. Takes the LAST 0..1-looking number — judges that
+ * reason out loud ("tried 0.3, final 0.9") put the verdict at the end.
+ * NaN when none found.
+ */
 export function parseJudgeScore(text: string): number {
-  const match = text.match(/(0?\.\d+|\b[01](?:\.0+)?\b)/);
-  if (!match) return NaN;
-  const value = Number(match[1]);
+  const matches = text.match(/(0?\.\d+|\b[01](?:\.0+)?\b)/g);
+  if (!matches || matches.length === 0) return NaN;
+  const value = Number(matches[matches.length - 1]);
   if (!Number.isFinite(value)) return NaN;
   return Math.min(1, Math.max(0, value));
 }
@@ -106,17 +117,24 @@ export function gateDatasetEval(
   candidate: Map<string, number>,
   opts?: { minRuns?: number; minDelta?: number; winAt?: number },
 ): EvalGateResult {
-  const minRuns = opts?.minRuns ?? 20;
-  const minDelta = opts?.minDelta ?? 0.1;
-  const winAt = opts?.winAt ?? 0.8;
+  const minRuns = opts?.minRuns ?? GATE_DEFAULT_MIN_RUNS;
+  const minDelta = opts?.minDelta ?? GATE_DEFAULT_MIN_DELTA;
+  const winAt = opts?.winAt ?? GATE_DEFAULT_WIN_AT;
   const matched = [...baseline.keys()].filter((id) => candidate.has(id));
   const rate = (m: Map<string, number>) =>
     matched.filter((id) => (m.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
-  if (matched.length < minRuns) {
-    return { verdict: "insufficient", runs: matched.length, baselineWinRate: 0, candidateWinRate: 0, delta: 0 };
-  }
+  // Rates always computed — insufficient hides nothing about near-bar state.
   const baselineWinRate = rate(baseline);
   const candidateWinRate = rate(candidate);
+  if (matched.length < minRuns) {
+    return {
+      verdict: "insufficient",
+      runs: matched.length,
+      baselineWinRate: Number(baselineWinRate.toFixed(3)),
+      candidateWinRate: Number(candidateWinRate.toFixed(3)),
+      delta: Number((candidateWinRate - baselineWinRate).toFixed(3)),
+    };
+  }
   const delta = candidateWinRate - baselineWinRate;
   return {
     verdict: delta >= minDelta ? "promote" : "block",
@@ -125,6 +143,25 @@ export function gateDatasetEval(
     candidateWinRate: Number(candidateWinRate.toFixed(3)),
     delta: Number(delta.toFixed(3)),
   };
+}
+
+/** Read a score ledger file (score.mjs batch shape) into traceId → best value. */
+export async function readScoreLedger(path: string): Promise<Map<string, number>> {
+  const { readFile } = await import("node:fs/promises");
+  const m = new Map<string, number>();
+  const text = await readFile(path, "utf8");
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const r = JSON.parse(line) as { traceId?: unknown; value?: unknown };
+      if (typeof r.traceId === "string" && typeof r.value === "number") {
+        if (!m.has(r.traceId) || r.value > (m.get(r.traceId) ?? 0)) m.set(r.traceId, r.value);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return m;
 }
 
 export async function runDatasetEval(opts: {
@@ -140,15 +177,17 @@ export async function runDatasetEval(opts: {
   const skipped: Array<{ traceId: string; reason: string }> = [];
 
   for (const incident of opts.incidents) {
-    if (!incident.task) {
-      skipped.push({ traceId: incident.traceId, reason: "no task on incident" });
-      continue;
-    }
+    // Taskless incidents still evaluate: the task is inferred from error
+    // names and the score is flagged degraded, so the write path never
+    // produces rows this read path cannot use.
+    const degraded = !incident.task;
+    const task = incident.task
+      ?? `Investigate and fix these failure signals: ${(incident.errorNames ?? []).join(", ") || "unknown errors"}`;
     try {
       const responseText = await completeText(
         opts.provider,
         opts.promptText,
-        `Task: ${incident.task}\nKnown failure signals: ${(incident.errorNames ?? []).join(", ") || "none recorded"}`,
+        `Task: ${task}\nKnown failure signals: ${(incident.errorNames ?? []).join(", ") || "none recorded"}${degraded ? "\n(note: task inferred from failure signals, not observed)" : ""}`,
       );
       if (!responseText) {
         skipped.push({ traceId: incident.traceId, reason: "empty candidate response" });
@@ -164,7 +203,12 @@ export async function runDatasetEval(opts: {
         skipped.push({ traceId: incident.traceId, reason: "unparseable judge output" });
         continue;
       }
-      const score: DatasetEvalScore = { traceId: incident.traceId, name: `eval:${opts.promptName}`, value };
+      const score: DatasetEvalScore = {
+        traceId: incident.traceId,
+        name: `eval:${opts.promptName}`,
+        value,
+        ...(degraded ? { degraded: true as const } : {}),
+      };
       scores.push(score);
       opts.onScore?.(score);
     } catch (err) {

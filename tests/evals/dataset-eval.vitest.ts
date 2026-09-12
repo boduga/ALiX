@@ -15,10 +15,11 @@ import type { ModelAdapter } from "../../src/providers/types.js";
 import { stubProvider } from "../helpers/stub-provider.js";
 
 describe("parseJudgeScore", () => {
-  it("extracts the first 0..1 number and clamps", () => {
+  it("takes the last 0..1 number and clamps", () => {
     expect(parseJudgeScore("0.85")).toBe(0.85);
     expect(parseJudgeScore("Score: 1")).toBe(1);
     expect(parseJudgeScore("I give it 0")).toBe(0);
+    expect(parseJudgeScore("tried 0.3, final 0.9")).toBe(0.9);
     expect(parseJudgeScore("7 out of 10")).toBeNaN();
     expect(parseJudgeScore("no number here")).toBeNaN();
   });
@@ -48,7 +49,10 @@ describe("gateDatasetEval", () => {
     const good = m(Array.from({ length: 20 }, (_, i) => [`t${i}`, i < 16 ? 0.95 : 0.3]));
     expect(gateDatasetEval(base, good).verdict).toBe("promote");
     expect(gateDatasetEval(good, base).verdict).toBe("block");
-    expect(gateDatasetEval(m([["a", 1]]), m([["a", 1]])).verdict).toBe("insufficient");
+    const thin = gateDatasetEval(m([["a", 1]]), m([["a", 1]]));
+    expect(thin.verdict).toBe("insufficient");
+    expect(thin.runs).toBe(1);
+    expect(thin.candidateWinRate).toBe(1);
   });
 });
 describe("runDatasetEval", () => {
@@ -66,21 +70,32 @@ describe("runDatasetEval", () => {
     expect(result.scores).toEqual([{ traceId: "t1", name: "eval:cand", value: 0.9 }]);
   });
 
-  it("skips taskless incidents and unparseable judges", async () => {
+  it("flags taskless incidents degraded instead of skipping", async () => {
+    const provider = stubProvider(["answer"]);
+    const judge = stubProvider(["0.7"]);
+    const result = await runDatasetEval({
+      incidents: [{ traceId: "no-task", errorNames: ["file.read"] }],
+      promptName: "cand",
+      promptText: "prompt",
+      provider,
+      judgeProvider: judge,
+    });
+    expect(result.scores).toEqual([{ traceId: "no-task", name: "eval:cand", value: 0.7, degraded: true }]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("skips unparseable judges", async () => {
     const provider = stubProvider(["answer"]);
     const judge = stubProvider(["absolutely"]);
     const result = await runDatasetEval({
-      incidents: [
-        { traceId: "no-task" },
-        { traceId: "bad-judge", task: "do it" },
-      ],
+      incidents: [{ traceId: "bad-judge", task: "do it" }],
       promptName: "cand",
       promptText: "prompt",
       provider,
       judgeProvider: judge,
     });
     expect(result.scores).toEqual([]);
-    expect(result.skipped.map((s) => s.traceId).sort()).toEqual(["bad-judge", "no-task"]);
+    expect(result.skipped.map((s) => s.traceId)).toEqual(["bad-judge"]);
   });
 
   it("skips on provider throw without aborting siblings", async () => {
