@@ -115,6 +115,10 @@ commit. No phase edits hot-loop capture; the loop stays read-only throughout.
 
 | Date | Endpoint | Result |
 |------|----------|--------|
-| — | scores write | unprobed |
-| — | dataset create/append | unprobed |
-| — | prompt object write | unprobed |
+| 2026-09-12 | scores write (`POST /api/public/scores`, `{traceId,name,value}`) | PASS — id returned |
+| 2026-09-12 | dataset create (`POST /api/public/datasets`, `{name,description}`) | PASS — full object returned |
+| 2026-09-12 | prompt create (`POST /api/public/prompts`, chat variant) | PASS — requires `{type:"chat", prompt:[{role,content}], isActive:false, labels}`; text variant and missing `isActive` 400 |
+
+P0 gate: PASS on all three. Loop phases take the API path; JSONL fallback
+dropped (kept only as contingency). Probe artifacts namespaced
+`alix-probe-*`, safe to delete from the gateway UI.

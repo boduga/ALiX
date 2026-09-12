@@ -81,9 +81,11 @@ async function main() {
     },
     {
       name: "prompt create",
+      // Verified 2026-09-12: chat variant requires type + isActive;
+      // text variant and missing isActive 400 on v4 events_only.
       run: () => call("POST", `${baseUrl}/api/public/prompts`,
         publicKey, secretKey,
-        { name: `${TAG}-prompt`, prompt: [{ role: "user", content: "P0 probe" }], labels: [TAG] }),
+        { name: `${TAG}-prompt`, type: "chat", prompt: [{ role: "user", content: "P0 probe" }], isActive: false, labels: [TAG] }),
     },
   ];
 
