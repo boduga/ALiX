@@ -6,6 +6,8 @@
  *   alix evals run --driver delegate
  *   alix evals run --driver main-loop
  *   alix evals run --json
+ *   alix evals run-dataset --mirror <file> --prompt-name <n> --prompt-text <t>
+ *                                     Run a candidate prompt over corpus incidents (P4)
  *
  * @module
  */
@@ -93,16 +95,100 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
 
 const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   run: handleEvalsRun,
+  "run-dataset": handleEvalsRunDataset,
 };
+
+/**
+ * P4 model-running eval loop: score a candidate prompt over corpus incidents.
+ * Reads incident rows (corpus.mjs mirror shape), runs each task through the
+ * candidate, LLM-judges the response, and emits score JSONL ready for
+ * score.mjs --batch and eval-gate.mjs. Judge defaults to the same provider
+ * (self-judge limitation — use a stronger --judge-model when it matters).
+ */
+export async function handleEvalsRunDataset(args: string[]): Promise<void> {
+  let mirror = "";
+  let promptName = "";
+  let promptText = "";
+  let promptFile = "";
+  let providerName = "";
+  let modelName = "";
+  let judgeModel = "";
+  let scoresOut = "";
+  let asJson = false;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--mirror" && args[i + 1]) mirror = args[++i];
+    else if (args[i] === "--prompt-name" && args[i + 1]) promptName = args[++i];
+    else if (args[i] === "--prompt-text" && args[i + 1]) promptText = args[++i];
+    else if (args[i] === "--prompt-file" && args[i + 1]) promptFile = args[++i];
+    else if (args[i] === "--provider" && args[i + 1]) providerName = args[++i];
+    else if (args[i] === "--model" && args[i + 1]) modelName = args[++i];
+    else if (args[i] === "--judge-model" && args[i + 1]) judgeModel = args[++i];
+    else if (args[i] === "--scores-out" && args[i + 1]) scoresOut = args[++i];
+    else if (args[i] === "--json") asJson = true;
+  }
+  if (!mirror || !promptName || (!promptText && !promptFile)) {
+    console.error("Usage: alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--provider p] [--model m] [--judge-model m] [--scores-out f] [--json]");
+    process.exit(1);
+  }
+
+  const { loadConfig } = await import("../../config/loader.js");
+  const { getSavedApiKey } = await import("../helpers/api-keys.js");
+  const { createProvider } = await import("../../providers/registry.js");
+  const { runDatasetEval, normalizeIncident } = await import("../../evals/dataset-eval.js");
+  const { readFile, writeFile } = await import("node:fs/promises");
+
+  const cwd = process.cwd();
+  const config = await loadConfig(cwd);
+  const factoryConf = config.skills?.factory;
+  const providerId = providerName || factoryConf?.provider || "ollama";
+  const model = modelName || factoryConf?.model || "";
+  if (promptFile) promptText = await readFile(promptFile, "utf8");
+
+  let rows: unknown[] = [];
+  try {
+    const text = await readFile(mirror, "utf8");
+    rows = text.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+  } catch (err) {
+    console.error(`Cannot read mirror ${mirror}: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+  const incidents = rows
+    .map(normalizeIncident)
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const apiKey = (await getSavedApiKey(providerId)) ?? "";
+  const provider = await createProvider({ provider: providerId, model }, apiKey);
+  const judge = judgeModel
+    ? await createProvider({ provider: providerId, model: judgeModel }, apiKey)
+    : undefined;
+
+  const result = await runDatasetEval({
+    incidents, promptName, promptText, provider, judgeProvider: judge,
+  });
+
+  if (scoresOut) {
+    await writeFile(scoresOut, result.scores.map((s) => JSON.stringify(s)).join("\n") + "\n", "utf8");
+  }
+  if (asJson) {
+    console.log(JSON.stringify({ ...result, scoresOut: scoresOut || undefined }, null, 2));
+  } else {
+    console.log(`# dataset eval — ${promptName}: ${result.scores.length} scored, ${result.skipped.length} skipped`);
+    for (const s of result.scores) console.log(`- ${s.traceId}: ${s.value}`);
+    for (const sk of result.skipped) console.log(`SKIP ${sk.traceId}: ${sk.reason}`);
+    if (scoresOut) console.log(`Scores written to ${scoresOut}`);
+  }
+}
 
 export async function handleEvalsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const handler = HANDLERS[sub];
   if (!handler) {
-    console.error("Usage: alix evals <run>");
+    console.error("Usage: alix evals <run|run-dataset>");
     console.error("  alix evals run                    Run all eval cases, both drivers");
     console.error("  alix evals run --driver delegate  Run delegate (Matrix-G) cases only");
     console.error("  alix evals run --json             Emit JSON results");
+    console.error("  alix evals run-dataset --mirror <file> --prompt-name <n> --prompt-text <t>");
+    console.error("                                    Score a candidate prompt over corpus incidents");
     process.exit(1);
   }
   await handler(args.slice(1));

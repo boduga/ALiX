@@ -20,6 +20,7 @@
 
 import { parseArgs, isOn } from "./lib/args.mjs";
 import { makeClient } from "./lib/client.mjs";
+import { join } from "node:path";
 
 const DEFAULT_HOURS = 24;
 const DEFAULT_ROWS = 200;
@@ -65,27 +66,53 @@ async function main() {
   const byTrace = new Map();
   for (const o of data) {
     const id = o.traceId ?? "(unknown)";
-    if (!byTrace.has(id)) byTrace.set(id, { errors: [], sessionId: o.sessionId });
+    if (!byTrace.has(id)) byTrace.set(id, { errors: [], sessionId: o.sessionId, spans: [] });
     const t = byTrace.get(id);
     if (t.sessionId === undefined && o.sessionId !== undefined) t.sessionId = o.sessionId;
     if (o.level === "ERROR") t.errors.push(o.name ?? "(unnamed)");
+    if (o.type === "SPAN" && o.name && o.startTime && o.endTime) t.spans.push(o);
+  }
+  // Root-span name = the run's task (same heuristic as query.mjs list).
+  // Stored on the item so the eval loop can re-run the task without
+  // re-fetching the gateway.
+  for (const t of byTrace.values()) {
+    let best = -1;
+    for (const s of t.spans) {
+      const dur = Date.parse(s.endTime) - Date.parse(s.startTime);
+      if (Number.isFinite(dur) && dur > best) { best = dur; t.task = s.name; }
+    }
+    delete t.spans;
   }
 
   const appended = [];
   const failed = [];
+  // Local mirror: the eval loop reads incidents without a dataset-list
+  // endpoint (no such read path verified on events_only gateways).
+  // Append-only JSONL, one incident per line; mirror failures never fail.
+  let mirrorPath = null;
+  const { appendFile, mkdir } = await import("node:fs/promises");
+  const { homedir } = await import("node:os");
   for (const [traceId, t] of byTrace) {
     if (t.errors.length === 0 || traceId === "(unknown)") continue;
     const item = {
       datasetName,
-      input: { traceId, sessionId: t.sessionId ?? null },
+      input: { traceId, sessionId: t.sessionId ?? null, task: t.task ?? null },
       metadata: { errorNames: [...new Set(t.errors)], errorCount: t.errors.length, source: "alix-corpus" },
     };
     const r = await client.apiRaw("POST", "/api/public/dataset-items", undefined, item);
     if (r.status === 200 || r.status === 201) appended.push(traceId);
     else failed.push({ traceId, reason: `HTTP ${r.status} ${r.body}` });
+    try {
+      const dir = join(homedir(), ".alix", "corpus");
+      await mkdir(dir, { recursive: true });
+      mirrorPath = join(dir, `${datasetName}.jsonl`);
+      await appendFile(mirrorPath, JSON.stringify({ ...item, mirroredAt: new Date().toISOString() }) + "\n");
+    } catch {
+      // fail-open: mirror never fails the run
+    }
   }
 
-  const result = { status: failed.length === 0 ? "ok" : "partial", dataset: datasetName, appended, failed };
+  const result = { status: failed.length === 0 ? "ok" : "partial", dataset: datasetName, appended, failed, mirror: mirrorPath };
   if (wantJson) {
     console.log(JSON.stringify(result, null, 2));
     return;
