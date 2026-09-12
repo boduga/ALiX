@@ -28,11 +28,11 @@ lifecycle (`observe → score → promote/evict`) generalized to runs, prompts, 
 | Capture | `src/tracing/` spans + capture policy | nothing |
 | Cost numbers | metrics JSONL contract (stable per `metrics-store.ts`: newest-first, corrupt lines skipped) — not TS imports, because hook/cron scripts run without a repo build | per-model rollup + digest section |
 | Quality signals | `successCount` (promotion.ts), task completion | score writer; `--session-id` stamps the join key into the record comment (agent-side signals carry no trace keys) |
-| Skill mining input | `runSkillFactory` (factory.ts), `dispatcher.ts` | trace-evidence adapter (tool sequences from observations, not prose) — **deferred to TS-side work**; `mine.mjs` emits candidates only |
+| Skill mining input | `runSkillFactory` (factory.ts), `dispatcher.ts` | trace-evidence adapter (tool sequences + per-trace scores; prompt text unavailable from gateway rows) — candidate bar ≥5 runs, all ≥0.8, enforced factory-side |
 | Promotion gates | `promoteIfEligible` shape (success-gated, versioned) | prompt-variant application of the shape |
 | Pollution gates | — (absent on main, see constraint 3) | exact-duplicate rejection until it lands |
-| Regression corpus | digest.mjs pattern (nightly, aggregate, fail-open) | dataset writer |
-| Eval gate | nightly digest cadence | eval runner + block/promote verdict (verdicts exactly promote\|block\|insufficient — below-bar deltas block) |
+| Regression corpus | digest.mjs pattern (nightly, aggregate, fail-open) | dataset writer + local JSONL mirror (`~/.alix/corpus/`) — the mirror is the eval-readable record because no dataset-list read path exists on `events_only` gateways; incident `task` is root-span heuristic, labelled `taskSource` |
+| Eval gate | nightly digest cadence | eval runner + block/promote verdict (verdicts exactly promote\|block\|insufficient — below-bar deltas block); CLI `alix evals run-dataset` with shared arg parser; Act = gate verdict + promotion command hint (prompt.mjs carries the write; CLI never writes prompts) |
 
 Accepted bounds (not scope creep — point-4 bounds discipline): `--limit`
 caps per script, `mine.mjs` 50-obs/trace cap, `corpus.mjs` 2000-row cap,
@@ -70,10 +70,13 @@ Write one quality record per run, keyed by `traceId`:
 
 ## Phase 3 — Learn: trace-fed factory + regression corpus
 
-- **Mine:** `runSkillFactory` gains a trace-evidence adapter: real prompts,
-  real tool sequences (from observations), real outcomes — instead of
-  session-summary prose. Candidate threshold: ≥ 5 high-score runs sharing a
-  tool-sequence shape.
+- **Mine:** `runSkillFactory` gains a trace-evidence adapter: real tool
+  sequences (from observations) + outcome scores (from the ledger) —
+  instead of session-summary prose. Prompt TEXT is explicitly out of
+  scope: v2 gateway rows carry no I/O payloads (proven live), so there is
+  nothing to reconstruct prompts from. Candidate threshold: ≥ 5 unique
+  high-score (≥ 0.8) traces sharing a tool-sequence shape, enforced
+  factory-side on unique traceIds (the runs counter can inflate).
 - **Corpus:** failures + edge cases append to datasets (or JSONL fallback),
   one entry per incident with traceId backlink. Growth is production-fed,
   not hand-written fixtures.
@@ -85,10 +88,13 @@ Write one quality record per run, keyed by `traceId`:
 
 - Candidate prompts A/B against the corpus; winner promotes on win-rate
   delta ≥ +10pp over ≥ 20 eval runs (tunables).
-- Nightly eval run over the dataset (digest cadence); regressions block,
-  improvements auto-promote.
+- Nightly eval run over the dataset (digest cadence — system cron driving
+  `alix evals run-dataset`, same pattern as digest.mjs); regressions block,
+  improvements auto-promote. Auto-execution of the promotion (prompt.mjs
+  carrying the write) stays operator-gated: the CLI prints the exact
+  command on a promote verdict but never writes prompts itself.
 - Prompt objects versioned like skills (same-name change → new version,
-  never silent overwrite).
+  never silent overwrite — proven live: re-create returned version 2).
 
 ## Phase 5 — Govern (continuous, not last)
 
