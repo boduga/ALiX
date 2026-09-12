@@ -13,52 +13,21 @@
  * pattern) — never in the hot loop. The loop stays read-only.
  *
  * Run: score.mjs --trace-id <id> --value <0..1> [--name quality]
- *        [--comment text] [--batch file.jsonl]
+ *        [--comment text] [--session-id sid] [--batch file.jsonl]
  *        [--base-url URL] [--public-key K] [--secret-key K]
  * env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
  * Fail-open: transport failure prints the failed record, exits 0.
  */
 
-const TIMEOUT_MS = 15_000;
+import { parseArgs } from "./lib/args.mjs";
+import { makeClient } from "./lib/client.mjs";
 
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
-
-async function postScore(baseUrl, publicKey, secretKey, rec) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+async function postScore(client, rec) {
   try {
-    const res = await fetch(`${baseUrl}/api/public/scores`, {
-      method: "POST",
-      signal: ctrl.signal,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(rec),
-    });
-    const text = await res.text().catch(() => "");
-    if (!res.ok) throw new Error(`HTTP ${res.status}${text ? `: ${text.slice(0, 200)}` : ""}`);
+    const text = await client.apiPost("/api/public/scores", rec);
     return { ok: true, id: tryId(text) };
   } catch (err) {
-    const reason = err?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : String(err?.message ?? err);
-    return { ok: false, reason };
-  } finally {
-    clearTimeout(timer);
+    return { ok: false, reason: String(err?.message ?? err) };
   }
 }
 
@@ -79,9 +48,15 @@ function validRec(r) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
-  const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
-  const secretKey = args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "";
+  // P2 input wiring: --session-id stamps the originating session into the
+  // record comment (successCount/completion signals live agent-side without
+  // trace keys, so the ledger carries the join key instead).
+  const sessionTag = args["session-id"] !== undefined ? ` [session:${String(args["session-id"])}]` : "";
+  const client = makeClient({
+    baseUrl: args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "",
+    publicKey: args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "",
+    secretKey: args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "",
+  });
 
   let recs = [];
   if (args.batch) {
@@ -111,11 +86,13 @@ async function main() {
       traceId: String(args["trace-id"]),
       name: String(args.name ?? "quality"),
       value: Number(args.value),
-      ...(args.comment !== undefined ? { comment: String(args.comment) } : {}),
+      ...((args.comment !== undefined || sessionTag)
+        ? { comment: `${args.comment !== undefined ? String(args.comment) : ""}${sessionTag}` }
+        : {}),
     }];
   }
 
-  if (!baseUrl || !publicKey || !secretKey) {
+  if (client.missing) {
     console.log(JSON.stringify({ status: "unavailable", reason: "missing baseUrl/publicKey/secretKey", written: [] }));
     return;
   }
@@ -128,7 +105,7 @@ async function main() {
       failed.push({ rec, reason: problem });
       continue;
     }
-    const r = await postScore(baseUrl, publicKey, secretKey, rec);
+    const r = await postScore(client, rec);
     if (r.ok) written.push({ traceId: rec.traceId, name: rec.name, id: r.id });
     else failed.push({ rec, reason: r.reason });
   }

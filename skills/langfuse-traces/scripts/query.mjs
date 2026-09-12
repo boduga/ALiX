@@ -17,29 +17,14 @@
  * - never persists or logs keys
  */
 
+import { parseArgs, isOn } from "./lib/args.mjs";
+import { makeClient } from "./lib/client.mjs";
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 const LIST_MAX_ROWS = 500;
 const DEFAULT_HOURS = 24;
 const IO_TRUNCATE = 2000;
-const TIMEOUT_MS = 15_000;
-
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
 
 function usage() {
   return [
@@ -56,25 +41,10 @@ function trunc(s, n = IO_TRUNCATE) {
   return str.length > n ? str.slice(0, n) + "…[truncated]" : str;
 }
 
-async function fetchJson(url, publicKey, secretKey) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`HTTP ${res.status} ${res.statusText}${body ? `: ${body.slice(0, 300)}` : ""}`);
-    }
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+async function fetchPayload(client, params) {
+  const text = await client.apiGet("/api/public/v2/observations", params);
+  const payload = JSON.parse(text);
+  return payload;
 }
 
 function summarize(observations) {
@@ -115,8 +85,8 @@ function detailOf(o) {
   };
 }
 
-async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson, session }) {
-  if (!baseUrl || !publicKey || !secretKey) {
+async function listTraces(client, { limit, window, wantJson, session }) {
+  if (client.missing) {
     console.log(JSON.stringify({
       status: "unavailable",
       reason: "missing baseUrl/publicKey/secretKey (flags or LANGFUSE_* env)",
@@ -124,18 +94,15 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJs
     }, null, 2));
     return; // fail-open: exit 0
   }
-  const params = new URLSearchParams({
-    limit: String(limit),
-    fromStartTime: window.from,
-    toStartTime: window.to,
-  });
-  const url = `${baseUrl}/api/public/v2/observations?${params}`;
   let payload;
   try {
-    payload = await fetchJson(url, publicKey, secretKey);
+    payload = await fetchPayload(client, {
+      limit: String(limit),
+      fromStartTime: window.from,
+      toStartTime: window.to,
+    });
   } catch (err) {
-    const reason = err?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : String(err?.message ?? err);
-    console.log(JSON.stringify({ status: "unavailable", reason, traces: [] }, null, 2));
+    console.log(JSON.stringify({ status: "unavailable", reason: String(err?.message ?? err), traces: [] }, null, 2));
     return; // fail-open: exit 0
   }
   const data = Array.isArray(payload?.data) ? payload.data : [];
@@ -189,7 +156,7 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJs
 async function main() {
   const args = parseArgs(process.argv);
   const traceId = args["trace-id"];
-  const listMode = args.list === true || args.list === "true";
+  const listMode = isOn(args.list);
   if (!traceId && !listMode) {
     console.error(usage());
     process.exitCode = 0; // fail-open: never fail the calling task
@@ -200,23 +167,25 @@ async function main() {
   let hours = Number.parseFloat(args.hours ?? String(DEFAULT_HOURS));
   if (!Number.isFinite(hours) || hours <= 0) hours = DEFAULT_HOURS;
 
-  const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
-  const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
-  const secretKey = args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "";
+  const client = makeClient({
+    baseUrl: args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "",
+    publicKey: args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "",
+    secretKey: args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "",
+  });
 
-  const wantFull = args.full === true || args.full === "true";
-  const wantJson = args.json === true || args.json === "true";
+  const wantFull = isOn(args.full);
+  const wantJson = isOn(args.json);
   const to = new Date();
   const from = new Date(to.getTime() - hours * 3600_000);
   const window = { from: from.toISOString(), to: to.toISOString() };
   if (listMode) {
     limit = args.limit === undefined ? 200 : limit;
     limit = Math.min(limit, LIST_MAX_ROWS);
-    await listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson, session: args.session });
+    await listTraces(client, { limit, window, wantJson, session: args.session });
     return;
   }
   limit = Math.min(limit, MAX_LIMIT);
-  if (!baseUrl || !publicKey || !secretKey) {
+  if (client.missing) {
     console.log(JSON.stringify({
       traceId,
       status: "unavailable",
@@ -226,23 +195,19 @@ async function main() {
     return;
   }
 
-  const params = new URLSearchParams({
-    traceId,
-    limit: String(limit),
-    fromStartTime: window.from,
-    toStartTime: window.to,
-  });
-  const url = `${baseUrl}/api/public/v2/observations?${params}`;
-
   let payload;
   try {
-    payload = await fetchJson(url, publicKey, secretKey);
+    payload = await fetchPayload(client, {
+      traceId,
+      limit: String(limit),
+      fromStartTime: window.from,
+      toStartTime: window.to,
+    });
   } catch (err) {
-    const reason = err?.name === "AbortError" ? `timeout after ${TIMEOUT_MS}ms` : String(err?.message ?? err);
     console.log(JSON.stringify({
       traceId,
       status: "unavailable",
-      reason,
+      reason: String(err?.message ?? err),
       summary: { count: 0, byType: {}, errors: [], tokens: { input: 0, output: 0 } },
     }, null, 2));
     return; // fail-open: exit 0

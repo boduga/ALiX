@@ -26,13 +26,20 @@ lifecycle (`observe → score → promote/evict`) generalized to runs, prompts, 
 |------|-------|-----|
 | Run identity | `runId`/`sessionId`/`workflowId` (authoritative) | nothing |
 | Capture | `src/tracing/` spans + capture policy | nothing |
-| Cost numbers | `src/observability/cost-attribution.ts`, `metrics-store.ts` | per-agent/task-class rollup |
-| Quality signals | `successCount` (promotion.ts), task completion | score writer (trace-keyed) |
-| Skill mining input | `runSkillFactory` (factory.ts), `dispatcher.ts` | trace-evidence adapter (tool sequences from observations, not prose) |
+| Cost numbers | metrics JSONL contract (stable per `metrics-store.ts`: newest-first, corrupt lines skipped) — not TS imports, because hook/cron scripts run without a repo build | per-model rollup + digest section |
+| Quality signals | `successCount` (promotion.ts), task completion | score writer; `--session-id` stamps the join key into the record comment (agent-side signals carry no trace keys) |
+| Skill mining input | `runSkillFactory` (factory.ts), `dispatcher.ts` | trace-evidence adapter (tool sequences from observations, not prose) — **deferred to TS-side work**; `mine.mjs` emits candidates only |
 | Promotion gates | `promoteIfEligible` shape (success-gated, versioned) | prompt-variant application of the shape |
-| Pollution gates | — (absent on main, see constraint 3) | specify minimal gates or wait |
-| Regression corpus | digest.mjs pattern (nightly, aggregate, fail-open) | dataset writer / JSONL fallback |
-| Eval gate | nightly digest cadence | eval runner + block/promote verdict |
+| Pollution gates | — (absent on main, see constraint 3) | exact-duplicate rejection until it lands |
+| Regression corpus | digest.mjs pattern (nightly, aggregate, fail-open) | dataset writer |
+| Eval gate | nightly digest cadence | eval runner + block/promote verdict (verdicts exactly promote\|block\|insufficient — below-bar deltas block) |
+
+Accepted bounds (not scope creep — point-4 bounds discipline): `--limit`
+caps per script, `mine.mjs` 50-obs/trace cap, `corpus.mjs` 2000-row cap,
+`suggestedName` + `source:"alix-probe"` as downstream join keys,
+`prompt.mjs` arbitrary `--label` (labels observed on the object; champion
+is convention, not enforcement). Model-running eval loop deferred (needs
+provider wiring).
 
 ## Phase 0 — Gateway write probes (gate for all write phases)
 

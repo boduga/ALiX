@@ -17,53 +17,15 @@
  * Fail-open: per-item PASS/FAIL report, exits 0.
  */
 
-const TIMEOUT_MS = 15_000;
+import { parseArgs, isOn } from "./lib/args.mjs";
+import { makeClient } from "./lib/client.mjs";
+
 const DEFAULT_HOURS = 24;
 const DEFAULT_ROWS = 200;
 
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
-
-async function callJson(method, url, publicKey, secretKey, body) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method,
-      signal: ctrl.signal,
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${publicKey}:${secretKey}`).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const text = await res.text().catch(() => "");
-    // Truncate only failures: success bodies must parse whole.
-    return { ok: res.ok, status: res.status, body: res.ok ? text : text.slice(0, 300) };
-  } catch (err) {
-    return { ok: false, status: "TRANSPORT", body: err?.name === "AbortError" ? "timeout" : String(err?.message ?? err) };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function main() {
   const args = parseArgs(process.argv);
-  const wantJson = args.json === true || args.json === "true";
+  const wantJson = isOn(args.json);
   const datasetId = args["dataset-id"];
   if (!datasetId) {
     console.error("usage: corpus.mjs --dataset-id <id> [--hours 24] [--limit-rows 200] [--json]");
@@ -71,22 +33,23 @@ async function main() {
   }
   const hours = Number(args.hours ?? DEFAULT_HOURS) || DEFAULT_HOURS;
   const limitRows = Math.min(2000, Math.max(1, Number.parseInt(args["limit-rows"] ?? String(DEFAULT_ROWS), 10) || DEFAULT_ROWS));
-  const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
-  const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
-  const secretKey = args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "";
-  if (!baseUrl || !publicKey || !secretKey) {
+  const client = makeClient({
+    baseUrl: args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "",
+    publicKey: args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "",
+    secretKey: args["secret-key"] ?? process.env.LANGFUSE_SECRET_KEY ?? "",
+  });
+  if (client.missing) {
     console.log(JSON.stringify({ status: "unavailable", reason: "missing baseUrl/publicKey/secretKey", appended: [] }));
     return;
   }
 
   const to = new Date();
   const from = new Date(to.getTime() - hours * 3600_000);
-  const params = new URLSearchParams({
+  const got = await client.apiRaw("GET", "/api/public/v2/observations", {
     limit: String(limitRows),
     fromStartTime: from.toISOString(), toStartTime: to.toISOString(),
   });
-  const got = await callJson("GET", `${baseUrl}/api/public/v2/observations?${params}`, publicKey, secretKey);
-  if (!got.ok) {
+  if (got.status !== 200) {
     console.log(JSON.stringify({ status: "unavailable", reason: `window fetch: HTTP ${got.status} ${got.body}`, appended: [] }));
     return;
   }
@@ -116,8 +79,8 @@ async function main() {
       input: { traceId, sessionId: t.sessionId ?? null },
       metadata: { errorNames: [...new Set(t.errors)], errorCount: t.errors.length, source: "alix-corpus" },
     };
-    const r = await callJson("POST", `${baseUrl}/api/public/dataset-items`, publicKey, secretKey, item);
-    if (r.ok) appended.push(traceId);
+    const r = await client.apiRaw("POST", "/api/public/dataset-items", undefined, item);
+    if (r.status === 200 || r.status === 201) appended.push(traceId);
     else failed.push({ traceId, reason: `HTTP ${r.status} ${r.body}` });
   }
 

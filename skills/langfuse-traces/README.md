@@ -4,6 +4,38 @@ Agent-facing read-only trace skill. Narrow tool for unattended loops;
 the marketplace `langfuse` skill stays human-invoked for platform work
 (datasets, scores, prompts, evals).
 
+## Why dependency-free `.mjs` (not `src/` TypeScript)
+
+The hook sandbox (`src/hooks/runner.ts` → `/bin/sh`) and cron run these
+scripts directly with no repo build step. So: no TS imports, no npm deps,
+one shared `scripts/lib/` (`args.mjs` CLI parsing, `client.mjs` gateway
+client). This is a deliberate carve-out from the repo's TS/strict norm —
+the stable contracts are the gateway v2 API and the JSONL shapes, both
+pinned by `tests/skills/loop-scripts.vitest.ts`.
+
+## Scripts
+
+| Script | Privilege | Purpose |
+|--------|-----------|---------|
+| `query.mjs` | read-only | tiered trace inspect (`--trace-id`/`--list`/`--session`) |
+| `digest.mjs` | read-only | nightly aggregate digest (+ optional `--sessions-dir` cost section) |
+| `cost-rollup.mjs` | reads local session logs | P1 token rollup, 3× alerts, routing evidence |
+| `score.mjs` | **write** | P2 quality ledger (nightly/operator only, never hot loop) |
+| `mine.mjs` | read-only | P3 candidates from high-score tool sequences |
+| `corpus.mjs` | **write** | P3 incidents → datasets (nightly/operator only) |
+| `prompt.mjs` | **write** | P4 label-carried prompt versions (never `isActive` here) |
+| `eval-gate.mjs` | pure compute | P4 promote/block/insufficient verdicts |
+| `probe-writes.mjs` | **write** | P0 gateway probes (namespaced `alix-probe-*` artifacts) |
+
+## Govern
+
+- Retention: windowed reads only (`--hours`); no full-history pulls.
+- Redaction: aggregates only in digests/corpus; error strings ≤ 300 chars;
+  I/O truncated at 2000 chars and treated untrusted.
+- Cred split: loop paths (query/digest/mine/cost-rollup/eval-gate) hold
+  read-only keys; writers (score/corpus/prompt/probes) run nightly-gated
+  with write creds.
+
 ## Install
 
 ```sh

@@ -8,8 +8,9 @@
  * traceIds and returns promote | block | insufficient.
  *
  * Thresholds (plan tunables): --min-runs 20 matched traces minimum,
- * --min-delta 0.10 win-rate improvement minimum. Regressions (delta < 0
- * at sufficient runs) block; improvements at bar auto-promote upstream.
+ * --min-delta 0.10 win-rate improvement minimum. Regressions AND
+ * below-bar non-improvements block; only deltas at/above bar promote.
+ * Verdicts are exactly promote | block | insufficient (no middle state).
  *
  * The model-running eval loop (executing candidate prompts over dataset
  * items via a provider) is future work — this gate consumes its score
@@ -21,26 +22,11 @@
 
 import { readFile } from "node:fs/promises";
 
+import { parseArgs, isOn } from "./lib/args.mjs";
+
 const DEFAULT_MIN_RUNS = 20;
 const DEFAULT_MIN_DELTA = 0.1;
 const DEFAULT_WIN_AT = 0.8;
-
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
 
 async function loadLedger(path) {
   const text = await readFile(String(path), "utf8");
@@ -57,7 +43,7 @@ async function loadLedger(path) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  const wantJson = args.json === true || args.json === "true";
+  const wantJson = isOn(args.json);
   if (!args.baseline || !args.candidate) {
     console.error("usage: eval-gate.mjs --baseline base.jsonl --candidate cand.jsonl [--min-runs 20] [--min-delta 0.10] [--win-at 0.8]");
     return;
@@ -84,7 +70,8 @@ async function main() {
   const baseRate = rate(base);
   const candRate = rate(cand);
   const delta = candRate - baseRate;
-  const verdict = delta >= minDelta ? "promote" : delta < 0 ? "block" : "hold";
+  // No middle verdict: at/above bar promotes, anything below blocks.
+  const verdict = delta >= minDelta ? "promote" : "block";
   const result = {
     verdict, runs: matched.length,
     baselineWinRate: Number(baseRate.toFixed(3)),

@@ -23,26 +23,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
+import { parseArgs, isOn } from "./lib/args.mjs";
+
 const DEFAULT_WINDOW = 20;
 const DEFAULT_MULT = 3;
 const DEFAULT_MIN_RUNS = 20;
-
-function parseArgs(argv) {
-  const out = {};
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
 
 function median(sorted) {
   if (sorted.length === 0) return 0;
@@ -56,7 +41,7 @@ async function main() {
   const window = Math.max(1, Number.parseInt(args["median-window"] ?? String(DEFAULT_WINDOW), 10) || DEFAULT_WINDOW);
   const mult = Number.parseFloat(args["alert-mult"] ?? String(DEFAULT_MULT));
   const minRuns = Math.max(1, Number.parseInt(args["min-runs"] ?? String(DEFAULT_MIN_RUNS), 10) || DEFAULT_MIN_RUNS);
-  const wantJson = args.json === true || args.json === "true";
+  const wantJson = isOn(args.json);
 
   /** runId -> { tokens, calls, latencyMs, model, sessionId, ts } */
   const runs = new Map();
