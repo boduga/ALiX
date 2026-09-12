@@ -4,11 +4,12 @@
  */
 import type { ModelAdapter } from "../../src/providers/types.js";
 
-export function stubProvider(texts: string[], onCalls?: string[]): ModelAdapter {
+export function stubProvider(texts: string[], onCalls?: string[], onComplete?: () => void): ModelAdapter {
   const queue = [...texts];
   return {
     complete: async (req: { messages?: Array<{ content?: string }> }) => {
       onCalls?.push(req.messages?.[0]?.content ?? "");
+      onComplete?.();
       const text = queue.length > 1 ? queue.shift()! : queue[0] ?? "";
       return { text } as unknown as Awaited<ReturnType<ModelAdapter["complete"]>>;
     },

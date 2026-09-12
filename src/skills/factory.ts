@@ -78,20 +78,22 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<void>
   }
   // Candidate bar (plan: >= minRuns high-score runs sharing the shape).
   // Empty tool sequences never distill — there is no pattern to capture.
+  // Identity is unique traceIds (not the runs counter, which can inflate).
   if (ev.toolSequence.length === 0) {
     console.warn("[skill-factory] Empty tool sequence — nothing to distill");
     return;
   }
   const minRuns = ev.minRuns ?? 5;
   const minScore = ev.minScore ?? 0.8;
-  if (ev.runs < minRuns || ev.traceIds.length < minRuns) {
-    console.warn(`[skill-factory] Below candidate bar: ${ev.runs} runs < ${minRuns}`);
+  const uniqueIds = [...new Set(ev.traceIds)];
+  if (uniqueIds.length < minRuns) {
+    console.warn(`[skill-factory] Below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}`);
     return;
   }
   if (ev.scores) {
-    const low = ev.traceIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
-    if (low.length > 0) {
-      console.warn(`[skill-factory] Below quality bar: ${low.length} traces < ${minScore}`);
+    const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
+    if (belowBar.length > 0) {
+      console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
       return;
     }
   }

@@ -45,7 +45,7 @@ describe("runSkillFactoryFromTrace", () => {
       runs: 5,
       suggestedName: "mined-1-file.read",
       config,
-      provider: stubSkill(SKILL_MD) as any,
+      provider: stubSkill(SKILL_MD),
     });
     const path = join(process.env.HOME!, ".alix", "candidates", sessionId, "SKILL.md");
     assert.ok(existsSync(path), "candidate SKILL.md written");
@@ -67,29 +67,27 @@ describe("runSkillFactoryFromTrace", () => {
 
   it("no-ops when disabled or evidence-empty", async () => {
     let calls = 0;
-    const counting = stubProvider([SKILL_MD]);
-    const origComplete = (counting as any).complete;
-    (counting as any).complete = async (...a: any[]) => { calls++; return origComplete(...a); };
+    const counting = stubProvider([SKILL_MD], undefined, () => { calls++; });
     await factory.runSkillFactoryFromTrace({
-      sessionId: "x", toolSequence: [], traceIds: [], runs: 0, config, provider: counting as any,
+      sessionId: "x", toolSequence: [], traceIds: [], runs: 0, config, provider: counting,
     });
     await factory.runSkillFactoryFromTrace({
       sessionId: "y", toolSequence: ["a"], traceIds: ["t"], runs: 1,
-      config: { ...config, enabled: false }, provider: counting as any,
+      config: { ...config, enabled: false }, provider: counting,
     });
     assert.equal(calls, 0);
   });
 
   it("enforces the candidate bar: >=5 runs, scores >= 0.8", async () => {
     let calls = 0;
-    const counting = stubProvider([SKILL_MD]);
-    const origComplete = (counting as any).complete;
-    (counting as any).complete = async (...a: any[]) => { calls++; return origComplete(...a); };
+    const counting = stubProvider([SKILL_MD], undefined, () => { calls++; });
     const base = {
-      sessionId: "bar", toolSequence: ["file.read"], config, provider: counting as any,
+      sessionId: "bar", toolSequence: ["file.read"], config, provider: counting,
     };
     // Too few runs.
     await factory.runSkillFactoryFromTrace({ ...base, traceIds: ["t1", "t2"], runs: 2 });
+    // Inflated run counter, too few unique traces.
+    await factory.runSkillFactoryFromTrace({ ...base, traceIds: ["t1", "t2", "t3"], runs: 9 });
     // Enough runs but a low score.
     await factory.runSkillFactoryFromTrace({
       ...base, traceIds: ["t1", "t2", "t3", "t4", "t5"], runs: 5,
