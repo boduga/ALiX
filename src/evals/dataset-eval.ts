@@ -108,9 +108,12 @@ export type EvalGateResult = {
 };
 
 /**
- * In-process Act gate (mirrors eval-gate.mjs math for CLI use): win =
- * value >= winAt over matched traceIds. Deltas at/above minDelta promote;
- * anything below blocks. Fewer than minRuns matched traces → insufficient.
+ * In-process Act gate. JS parity pair: eval-gate.mjs implements the same
+ * math as a standalone script (scripts run without a repo build, so the
+ * two cannot share code — keep the constants, rounding (toFixed(3)), and
+ * verdict order identical). Win = value >= winAt over matched traceIds.
+ * Deltas at/above minDelta promote; anything below blocks. Fewer than
+ * minRuns matched traces → insufficient.
  */
 export function gateDatasetEval(
   baseline: Map<string, number>,
@@ -121,11 +124,11 @@ export function gateDatasetEval(
   const minDelta = opts?.minDelta ?? GATE_DEFAULT_MIN_DELTA;
   const winAt = opts?.winAt ?? GATE_DEFAULT_WIN_AT;
   const matched = [...baseline.keys()].filter((id) => candidate.has(id));
-  const rate = (m: Map<string, number>) =>
-    matched.filter((id) => (m.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
+  const winRate = (ledger: Map<string, number>) =>
+    matched.filter((id) => (ledger.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
   // Rates always computed — insufficient hides nothing about near-bar state.
-  const baselineWinRate = rate(baseline);
-  const candidateWinRate = rate(candidate);
+  const baselineWinRate = winRate(baseline);
+  const candidateWinRate = winRate(candidate);
   if (matched.length < minRuns) {
     return {
       verdict: "insufficient",
@@ -170,7 +173,6 @@ export async function runDatasetEval(opts: {
   promptText: string;
   provider: ModelAdapter;
   judgeProvider?: ModelAdapter;
-  onScore?: (score: DatasetEvalScore) => void;
 }): Promise<DatasetEvalResult> {
   const judge = opts.judgeProvider ?? opts.provider;
   const scores: DatasetEvalScore[] = [];
@@ -210,7 +212,6 @@ export async function runDatasetEval(opts: {
         ...(degraded ? { degraded: true as const } : {}),
       };
       scores.push(score);
-      opts.onScore?.(score);
     } catch (err) {
       skipped.push({ traceId: incident.traceId, reason: String(err instanceof Error ? err.message : err) });
     }

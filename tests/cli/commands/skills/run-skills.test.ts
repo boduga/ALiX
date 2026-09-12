@@ -87,6 +87,15 @@ describe("resolveSkillsCommand", () => {
     const cmd = resolveSkillsCommand(["install", "x", "--from", "/tmp/x", "--force"]);
     assert.ok(cmd.type === "install" && cmd.opts.force === true);
   });
+
+  it("parses 'distill-from-traces' with flags after the subcommand", () => {
+    const cmd = resolveSkillsCommand(
+      ["distill-from-traces", "--candidates", "c.json", "--min-runs", "5"]);
+    assert.deepEqual(cmd, {
+      type: "distill-from-traces",
+      args: ["--candidates", "c.json", "--min-runs", "5"],
+    });
+  });
 });
 
 describe("resolveSkillScriptPath", () => {

@@ -334,6 +334,7 @@ Usage:
   alix skills install <name> --from <path|url>       Install a skill from a local dir/file or https URL
   alix skills install --list                         List installed skills
   alix skills run <name> <script> [args...]          Run a skill script sandboxed (no network, temp HOME, timeout)
+  alix skills distill-from-traces --candidates <f>   Distill mined trace candidates into candidate skills
   alix skills remove <name>                          Remove an installed skill
   alix skills marketplace list                       List registered marketplaces
   alix skills marketplace add <name> <url>           Register a marketplace (github.com https URL)

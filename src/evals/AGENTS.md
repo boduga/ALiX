@@ -18,7 +18,7 @@ Purpose: an independent behavioral-evaluation harness that runs scripted task ca
 | `evals-runner.ts` | `runEvalCase`, `runEvalSuite`, `installEvalConfig`, `installSeed`, `saveRun`, `loadPreviousRuns`; isolated cwd + `.alix/evals/<runId>.json` persistence |
 | `dataset-eval.ts` | P4 model-running loop over corpus incidents: candidate prompt per task, LLM-judge 0..1 scores (`eval:<name>`), fail-open per incident. Judge is a direction check, not a verified fix — the gate decides. Feeds score.mjs batch + eval-gate.mjs. |
 
-CLI: `src/cli/commands/evals.ts` (`alix evals run [--suite behavioral] [--driver delegate|main-loop|both] [--json] [--synthetic]`, plus `alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--scores-out <f>]` for the dataset loop), dispatched from `src/cli.ts` (`alix evals`).
+CLI: `src/cli/commands/evals.ts` (`alix evals run [--suite behavioral] [--driver delegate|main-loop|both] [--json] [--synthetic]`, plus `alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--scores-out <f>]` for the dataset loop), dispatched from `src/cli.ts` (`alix evals`). `run-dataset` runs nightly via system cron (example in the handler header), never in the hot loop.
 
 ## Local Contracts
 
