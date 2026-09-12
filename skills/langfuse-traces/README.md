@@ -64,6 +64,20 @@ no polling, no guessing.
    maxStore:50, maxCandidates:200, autoPromote:false}`) and pin
    `--provider/--model` on the `run-dataset` cron line (no certified
    default; empty model fails at provider creation).
+   **Headless cron wall:** cron has no Secret Service bus, so the
+   OS-keychain backend is unreachable from scheduled jobs — `alix
+   credential get` fails there while working in your login session.
+   Nightly jobs therefore source an owner-only env file (canonical store
+   stays the keychain; never migrate the global backend for this):
+   ```sh
+   printf 'export LANGFUSE_PUBLIC_KEY="%s"\nexport LANGFUSE_SECRET_KEY="%s"\n' \
+     "$(alix credential get langfuse publicKey)" \
+     "$(alix credential get langfuse secretKey)" > ~/.alix/nightly-env
+   chmod 600 ~/.alix/nightly-env
+   ```
+   Every cron line starts with `. ~/.alix/nightly-env;` (`export` is
+   required — sourced-but-unexported vars never reach child processes).
+   Re-run the `printf` after rotating keys.
 3. **Skill:** the Install block above. Hooks-snippet merge is optional —
    hot-loop tiered capture only; the nightly chain doesn't need it.
 4. **Verify gateway:**
