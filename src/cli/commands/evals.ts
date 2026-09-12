@@ -200,9 +200,15 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   //   30 3 * * * alix evals run-dataset --mirror ~/.alix/corpus/<ds>.jsonl --prompt-name <n> --prompt-file <f> --scores-out ~/.alix/scores/cand.jsonl --baseline-scores ~/.alix/scores/base.jsonl
   let gate: { verdict: string } | null = null;
   if (baselineScores) {
-    const base = await readScoreLedger(baselineScores);
-    const cand = new Map(result.scores.map((s) => [s.traceId, s.value]));
-    gate = gateDatasetEval(base, cand);
+    try {
+      const base = await readScoreLedger(baselineScores);
+      const cand = new Map(result.scores.map((s) => [s.traceId, s.value]));
+      gate = gateDatasetEval(base, cand);
+    } catch (err) {
+      // No baseline yet (first night) or unreadable — report unjudged
+      // rather than crashing the nightly run; next nights gate normally.
+      console.warn(`[run-dataset] baseline unreadable, skipping gate: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   if (asJson) {
