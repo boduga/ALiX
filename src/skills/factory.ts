@@ -14,17 +14,25 @@ const candidatesDir = join(homeDir, ".alix", "candidates");
 /**
  * Trace evidence for skill mining (P3): a tool sequence shape observed
  * across high-score runs (mine.mjs candidate shape), instead of a prose
- * session summary. Real prompts, real tool sequences, real outcomes.
+ * session summary. Carries tool sequences, trace backlinks, and outcome
+ * scores. Real prompt TEXT is unavailable — v2 gateway rows carry no I/O
+ * payloads (proven live) — so scores stand in for outcomes.
  */
 export type TraceEvidence = {
   sessionId: string;
   toolSequence: string[];
   traceIds: string[];
   runs: number;
+  /** Per-trace quality scores (score.mjs ledger values); outcomes for gating. */
+  scores?: Record<string, number>;
   suggestedName?: string;
   config: SkillFactoryConfig;
   /** Injected provider (tests, scripted runs). Defaults to configured provider. */
   provider?: ModelAdapter;
+  /** Candidate bar (plan tunables): min runs sharing the shape. Default 5. */
+  minRuns?: number;
+  /** Candidate bar: min quality score every traced run must meet. Default 0.8. */
+  minScore?: number;
 };
 
 /**
@@ -68,8 +76,24 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<void>
   if (!ev.config.enabled) {
     return;
   }
-  if (ev.toolSequence.length === 0 && ev.traceIds.length === 0) {
+  // Candidate bar (plan: >= minRuns high-score runs sharing the shape).
+  // Empty tool sequences never distill — there is no pattern to capture.
+  if (ev.toolSequence.length === 0) {
+    console.warn("[skill-factory] Empty tool sequence — nothing to distill");
     return;
+  }
+  const minRuns = ev.minRuns ?? 5;
+  const minScore = ev.minScore ?? 0.8;
+  if (ev.runs < minRuns || ev.traceIds.length < minRuns) {
+    console.warn(`[skill-factory] Below candidate bar: ${ev.runs} runs < ${minRuns}`);
+    return;
+  }
+  if (ev.scores) {
+    const low = ev.traceIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
+    if (low.length > 0) {
+      console.warn(`[skill-factory] Below quality bar: ${low.length} traces < ${minScore}`);
+      return;
+    }
   }
 
   const prompt = buildTraceDistillationPrompt(ev);
@@ -92,13 +116,15 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<void>
   );
 }
 
-/** Distillation prompt from real tool sequences + example trace IDs. */
+/** Distillation prompt from real tool sequences + example trace IDs + outcome scores. */
 export function buildTraceDistillationPrompt(ev: TraceEvidence): string {
+  const scored = ev.traceIds.map((id) =>
+    ev.scores?.[id] !== undefined ? `${id} (${ev.scores[id]})` : id);
   const lines = [
     "Distill this observed tool pattern into a reusable Hermes-format skill.",
     "",
     `Tool sequence (observed in order, ${ev.runs} successful runs): ` + (ev.toolSequence.join(" → ") || "(no tool steps)"),
-    "Example trace IDs: " + (ev.traceIds.join(", ") || "none"),
+    "Example traces with quality scores: " + (scored.join(", ") || "none"),
     "Session ID: " + ev.sessionId,
     ...(ev.suggestedName ? [`Suggested name: ${ev.suggestedName}`] : []),
     "",

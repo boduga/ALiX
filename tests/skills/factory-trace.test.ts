@@ -4,6 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { stubProvider } from "../helpers/stub-provider.js";
 
 // Isolate HOME before the factory module evaluates candidatesDir.
 process.env.HOME = mkdtempSync(join(tmpdir(), "factory-trace-"));
@@ -27,9 +28,7 @@ before(async () => {
   factory = await import("../../src/skills/factory.js");
 });
 
-const stubProvider = (text: string) => ({
-  complete: async () => ({ text }),
-});
+const stubSkill = (text: string) => stubProvider([text]);
 
 const config = {
   enabled: true, provider: "ollama", model: "llama3",
@@ -42,11 +41,11 @@ describe("runSkillFactoryFromTrace", () => {
     await factory.runSkillFactoryFromTrace({
       sessionId,
       toolSequence: ["file.read", "shell.run"],
-      traceIds: ["t1", "t2"],
+      traceIds: ["t1", "t2", "t3", "t4", "t5"],
       runs: 5,
       suggestedName: "mined-1-file.read",
       config,
-      provider: stubProvider(SKILL_MD) as any,
+      provider: stubSkill(SKILL_MD) as any,
     });
     const path = join(process.env.HOME!, ".alix", "candidates", sessionId, "SKILL.md");
     assert.ok(existsSync(path), "candidate SKILL.md written");
@@ -68,7 +67,9 @@ describe("runSkillFactoryFromTrace", () => {
 
   it("no-ops when disabled or evidence-empty", async () => {
     let calls = 0;
-    const counting = { complete: async () => { calls++; return { text: SKILL_MD }; } };
+    const counting = stubProvider([SKILL_MD]);
+    const origComplete = (counting as any).complete;
+    (counting as any).complete = async (...a: any[]) => { calls++; return origComplete(...a); };
     await factory.runSkillFactoryFromTrace({
       sessionId: "x", toolSequence: [], traceIds: [], runs: 0, config, provider: counting as any,
     });
@@ -77,5 +78,29 @@ describe("runSkillFactoryFromTrace", () => {
       config: { ...config, enabled: false }, provider: counting as any,
     });
     assert.equal(calls, 0);
+  });
+
+  it("enforces the candidate bar: >=5 runs, scores >= 0.8", async () => {
+    let calls = 0;
+    const counting = stubProvider([SKILL_MD]);
+    const origComplete = (counting as any).complete;
+    (counting as any).complete = async (...a: any[]) => { calls++; return origComplete(...a); };
+    const base = {
+      sessionId: "bar", toolSequence: ["file.read"], config, provider: counting as any,
+    };
+    // Too few runs.
+    await factory.runSkillFactoryFromTrace({ ...base, traceIds: ["t1", "t2"], runs: 2 });
+    // Enough runs but a low score.
+    await factory.runSkillFactoryFromTrace({
+      ...base, traceIds: ["t1", "t2", "t3", "t4", "t5"], runs: 5,
+      scores: { t1: 0.9, t2: 0.9, t3: 0.9, t4: 0.9, t5: 0.4 },
+    });
+    assert.equal(calls, 0);
+    // Bar met: distills.
+    await factory.runSkillFactoryFromTrace({
+      ...base, sessionId: "bar-ok", traceIds: ["t1", "t2", "t3", "t4", "t5"], runs: 5,
+      scores: { t1: 0.9, t2: 0.85, t3: 0.9, t4: 1, t5: 0.8 },
+    });
+    assert.equal(calls, 1);
   });
 });
