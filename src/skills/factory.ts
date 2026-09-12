@@ -25,6 +25,8 @@ export type TraceEvidence = {
   runs: number;
   /** Per-trace quality scores (score.mjs ledger values); outcomes for gating. */
   scores?: Record<string, number>;
+  /** Sessions the evidence was mined from (provenance for the prompt, not identity). */
+  traceSessions?: string[];
   suggestedName?: string;
   config: SkillFactoryConfig;
   /** Injected provider (tests, scripted runs). Defaults to configured provider. */
@@ -71,30 +73,35 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
  * observed across high-score runs into a candidate skill. Same lifecycle as
  * runSkillFactory (validate → write → promote-if-eligible), different input.
  * Fire-and-forget safe: never throws into the caller (Ollama may be down).
+ * Reports whether the evidence cleared the candidate bar (callers use this
+ * to summarize batch distill runs).
  */
-export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<void> {
+export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ accepted: boolean; reason?: string }> {
   if (!ev.config.enabled) {
-    return;
+    return { accepted: false, reason: "factory disabled" };
   }
   // Candidate bar (plan: >= minRuns high-score runs sharing the shape).
+  // Authoritative enforcement: mine.mjs prefilters with its own flags to
+  // save fetches, but this gate is the one that decides — its overrides
+  // win on divergence.
   // Empty tool sequences never distill — there is no pattern to capture.
   // Identity is unique traceIds (not the runs counter, which can inflate).
   if (ev.toolSequence.length === 0) {
     console.warn("[skill-factory] Empty tool sequence — nothing to distill");
-    return;
+    return { accepted: false, reason: "empty tool sequence" };
   }
   const minRuns = ev.minRuns ?? 5;
   const minScore = ev.minScore ?? 0.8;
   const uniqueIds = [...new Set(ev.traceIds)];
   if (uniqueIds.length < minRuns) {
     console.warn(`[skill-factory] Below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}`);
-    return;
+    return { accepted: false, reason: `below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}` };
   }
   if (ev.scores) {
     const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
     if (belowBar.length > 0) {
       console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
-      return;
+      return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
     }
   }
 
@@ -116,6 +123,68 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<void>
     ev.sessionId,
     ev.config,
   );
+  return { accepted: true };
+}
+
+/**
+ * One mined candidate row (mine.mjs --factory-out shape): adapter-ready
+ * evidence minus the caller-side config/provider.
+ */
+export type MinedCandidate = {
+  suggestedName?: string;
+  toolSequence: string[];
+  traceIds: string[];
+  runs: number;
+  scores?: Record<string, number>;
+  sessions?: string[];
+};
+
+/**
+ * Distill a mine.mjs --factory-out file: one runSkillFactoryFromTrace per
+ * candidate, with the caller's factory config/provider. Returns per-row
+ * outcomes so batch callers (CLI, nightly) can report distilled vs
+ * rejected without re-implementing the bar.
+ */
+export async function distillMinedCandidates(
+  file: string,
+  deps: {
+    config: SkillFactoryConfig;
+    provider?: ModelAdapter;
+    minRuns?: number;
+    minScore?: number;
+  },
+): Promise<{ distilled: string[]; rejected: Array<{ name: string; reason: string }> }> {
+  const { readFile } = await import("node:fs/promises");
+  const rows = (await readFile(file, "utf8"))
+    .split("\n")
+    .filter((line) => line.trim())
+    .map((line) => JSON.parse(line) as MinedCandidate);
+  const distilled: string[] = [];
+  const rejected: Array<{ name: string; reason: string }> = [];
+  for (const row of rows) {
+    const name = row.suggestedName ?? row.toolSequence[0] ?? "(unnamed)";
+    try {
+      const outcome = await runSkillFactoryFromTrace({
+        sessionId: "mined",
+        toolSequence: row.toolSequence ?? [],
+        traceIds: row.traceIds ?? [],
+        runs: row.runs ?? 0,
+        scores: row.scores,
+        traceSessions: row.sessions,
+        suggestedName: row.suggestedName,
+        config: deps.config,
+        provider: deps.provider,
+        minRuns: deps.minRuns,
+        minScore: deps.minScore,
+      });
+      if (outcome.accepted) distilled.push(name);
+      else rejected.push({ name, reason: outcome.reason ?? "rejected" });
+    } catch (err) {
+      // One bad row (provider down, malformed) never aborts the batch.
+      rejected.push({ name, reason: String(err instanceof Error ? err.message : err) });
+    }
+  }
+  return { distilled, rejected };
 }
 
 /** Distillation prompt from real tool sequences + example trace IDs + outcome scores. */
@@ -127,6 +196,7 @@ export function buildTraceDistillationPrompt(ev: TraceEvidence): string {
     "",
     `Tool sequence (observed in order, ${ev.runs} successful runs): ` + (ev.toolSequence.join(" → ") || "(no tool steps)"),
     "Example traces with quality scores: " + (scored.join(", ") || "none"),
+    ...(ev.traceSessions && ev.traceSessions.length > 0 ? [`Sessions: ${ev.traceSessions.join(", ")}`] : []),
     "Session ID: " + ev.sessionId,
     ...(ev.suggestedName ? [`Suggested name: ${ev.suggestedName}`] : []),
     "",

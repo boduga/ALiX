@@ -14,6 +14,7 @@
 
 import { performance } from "node:perf_hooks";
 import type { EvalCase, EvalDriverKind } from "../../evals/evals-types.js";
+import { parseKeyValueArgs } from "../helpers/parse-args.js";
 
 const VALID_SUITES = ["behavioral"] as const;
 const VALID_DRIVERS = ["delegate", "main-loop", "both"] as const;
@@ -68,21 +69,9 @@ type EvalsRunDatasetOptions = {
   asJson: boolean;
 };
 
-/** Shared --key value / --flag parser for evals subcommands. */
-function parseEvalsArgs(args: string[], keys: string[], flags: string[]): Record<string, string | boolean> {
-  const out: Record<string, string | boolean> = {};
-  for (let i = 0; i < args.length; i++) {
-    if (!args[i].startsWith("--")) continue;
-    const key = args[i].slice(2);
-    const next = args[i + 1];
-    if (keys.includes(key) && next !== undefined && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else if (flags.includes(key)) {
-      out[key] = true;
-    }
-  }
-  return out;
+/** Single-quote a value for paste-ready shell commands. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 export async function handleEvalsRun(args: string[]): Promise<void> {
@@ -140,7 +129,7 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
  * (self-judge limitation — use a stronger --judge-model when it matters).
  */
 export async function handleEvalsRunDataset(args: string[]): Promise<void> {
-  const parsed = parseEvalsArgs(args,
+  const parsed = parseKeyValueArgs(args,
     ["mirror", "prompt-name", "prompt-text", "prompt-file", "provider", "model", "judge-model", "scores-out", "baseline-scores"],
     ["json"]);
   const opts: EvalsRunDatasetOptions = {
@@ -206,6 +195,9 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   // Act wiring (P4): optional baseline gate. On promote, print the exact
   // promotion command (prompt.mjs carries the write); this CLI never writes
   // prompts itself.
+  // Nightly pattern (plan Phase 4, same cadence as digest.mjs — the daemon
+  // is an on-demand queue, not a scheduler; system cron drives):
+  //   30 3 * * * alix evals run-dataset --mirror ~/.alix/corpus/<ds>.jsonl --prompt-name <n> --prompt-file <f> --scores-out ~/.alix/scores/cand.jsonl --baseline-scores ~/.alix/scores/base.jsonl
   let gate: { verdict: string } | null = null;
   if (baselineScores) {
     const base = await readScoreLedger(baselineScores);
@@ -223,7 +215,9 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
     if (gate) {
       console.log(`verdict: ${gate.verdict}`);
       if (gate.verdict === "promote") {
-        console.log(`promote with: node ~/.alix/skills/langfuse-traces/scripts/prompt.mjs --create --name ${promptName} --text <final-prompt-text> --label champion`);
+        // Exact command: the evaluated candidate text, shell-quoted —
+        // paste-ready for the operator-gated promotion (plan Phase 4).
+        console.log(`promote with: node ~/.alix/skills/langfuse-traces/scripts/prompt.mjs --create --name ${shellQuote(promptName)} --text ${shellQuote(promptText)} --label champion`);
       }
     }
   }

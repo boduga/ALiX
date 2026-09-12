@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   runDatasetEval,
   normalizeIncident,
@@ -53,6 +55,19 @@ describe("gateDatasetEval", () => {
     expect(thin.verdict).toBe("insufficient");
     expect(thin.runs).toBe(1);
     expect(thin.candidateWinRate).toBe(1);
+  });
+
+  it("agrees with eval-gate.mjs on shared vectors", () => {
+    const vectors = JSON.parse(
+      readFileSync(join(process.cwd(), "tests", "fixtures", "gate-vectors.json"), "utf8"));
+    for (const v of vectors.cases) {
+      const got = gateDatasetEval(m(Object.entries(v.base)), m(Object.entries(v.candidate)), { minRuns: v.minRuns });
+      expect({ case: v.name, verdict: got.verdict }).toEqual({ case: v.name, verdict: v.verdict });
+      expect(got.baselineWinRate).toBe(v.baselineWinRate);
+      expect(got.candidateWinRate).toBe(v.candidateWinRate);
+      expect(got.delta).toBe(v.delta);
+      if (v.runs !== undefined) expect(got.runs).toBe(v.runs);
+    }
   });
 });
 describe("runDatasetEval", () => {

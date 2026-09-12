@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { stubProvider } from "../helpers/stub-provider.js";
 
 // Isolate HOME before the factory module evaluates candidatesDir.
@@ -58,10 +58,12 @@ describe("runSkillFactoryFromTrace", () => {
       toolSequence: ["file.read"],
       traceIds: ["t1"],
       runs: 5,
+      traceSessions: ["sess-a", "sess-b"],
       config,
     });
     assert.match(prompt, /file\.read/);
     assert.match(prompt, /t1/);
+    assert.match(prompt, /Sessions: sess-a, sess-b/);
     assert.doesNotMatch(prompt, /Session summary/);
   });
 
@@ -100,5 +102,45 @@ describe("runSkillFactoryFromTrace", () => {
       scores: { t1: 0.9, t2: 0.85, t3: 0.9, t4: 1, t5: 0.8 },
     });
     assert.equal(calls, 1);
+  });
+
+  it("reports acceptance so batch callers can summarize", async () => {
+    const counting = stubProvider([SKILL_MD]);
+    const ok = await factory.runSkillFactoryFromTrace({
+      sessionId: "rep-ok", toolSequence: ["file.read"],
+      traceIds: ["t1", "t2", "t3", "t4", "t5"], runs: 5, config,
+      provider: counting,
+    });
+    assert.equal(ok.accepted, true);
+    const no = await factory.runSkillFactoryFromTrace({
+      sessionId: "rep-no", toolSequence: ["file.read"],
+      traceIds: ["t1"], runs: 1, config, provider: counting,
+    });
+    assert.equal(no.accepted, false);
+    assert.match(no.reason ?? "", /candidate bar/);
+  });
+});
+
+describe("distillMinedCandidates", () => {
+  it("distills passing candidates and reports rejects", async () => {
+    const file = join(process.env.HOME!, "candidates.json");
+    const ids = ["t1", "t2", "t3", "t4", "t5"];
+    const good = {
+      suggestedName: "mined-1-file.read",
+      toolSequence: ["file.read"],
+      traceIds: ids,
+      runs: 5,
+      scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
+    };
+    const thin = { ...good, suggestedName: "mined-2-thin", traceIds: ["t1"], runs: 1 };
+    writeFileSync(file, [good, thin].map((r) => JSON.stringify(r)).join("\n") + "\n");
+    const result = await factory.distillMinedCandidates(file, {
+      config, provider: stubSkill(SKILL_MD),
+    });
+    assert.deepEqual(result.distilled, ["mined-1-file.read"]);
+    assert.equal(result.rejected.length, 1);
+    assert.equal(result.rejected[0].name, "mined-2-thin");
+    const path = join(process.env.HOME!, ".alix", "candidates", "mined", "SKILL.md");
+    assert.ok(existsSync(path), "mined candidate SKILL.md written");
   });
 });
