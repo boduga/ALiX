@@ -44,7 +44,7 @@ function parseArgs(argv) {
 function usage() {
   return [
     "usage: query.mjs --trace-id <id> [--limit 20] [--hours 24] [--full] [--json]",
-    "   or: query.mjs --list [--limit 20] [--hours 24] [--json]",
+    "   or: query.mjs --list [--session <id>] [--limit 200] [--hours 24] [--json]",
     "       [--base-url URL] [--public-key K] [--secret-key K]",
     "env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY",
   ].join("\n");
@@ -115,7 +115,7 @@ function detailOf(o) {
   };
 }
 
-async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson }) {
+async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson, session }) {
   if (!baseUrl || !publicKey || !secretKey) {
     console.log(JSON.stringify({
       status: "unavailable",
@@ -139,11 +139,15 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJs
     return; // fail-open: exit 0
   }
   const data = Array.isArray(payload?.data) ? payload.data : [];
+  // --session narrows client-side: every observation self-describes its
+  // session, and $ALIX_SESSION_ID is the hook-safe run correlator
+  // (the OTel trace id is opaque by design and never exposed to hooks).
+  const rows = session ? data.filter((o) => o.sessionId === session) : data;
   // No trace-list endpoint in events_only mode: group the window's rows.
   // v2 rows carry no traceName — the run ROOT span (longest-duration SPAN,
   // named after the captured task) lends its name.
   const byTrace = new Map();
-  for (const o of data) {
+  for (const o of rows) {
     const id = o.traceId ?? "(unknown)";
     if (!byTrace.has(id)) {
       byTrace.set(id, { id, sessionId: o.sessionId, count: 0, errors: 0, spans: [] });
@@ -208,7 +212,7 @@ async function main() {
   if (listMode) {
     limit = args.limit === undefined ? 200 : limit;
     limit = Math.min(limit, LIST_MAX_ROWS);
-    await listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson });
+    await listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson, session: args.session });
     return;
   }
   limit = Math.min(limit, MAX_LIMIT);
