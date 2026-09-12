@@ -2,20 +2,25 @@
 /**
  * query.mjs — read-only Langfuse observations fetch for the langfuse-traces skill.
  *
- * Speaks the Langfuse public API v2 observations endpoint:
- *   GET {baseUrl}/api/public/observations?traceId={id}&limit={n}
+ * Targets Langfuse v4 `events_only` gateways, where the v3 REST reads are
+ * disabled. The gateway's replacement read path is the v2 observations API:
+ *   GET {baseUrl}/api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>
  * with Basic auth (publicKey:secretKey) from a READ-ONLY key.
+ * Time window is mandatory; --trace-id narrows to one trace, --list groups
+ * a window's rows by traceId client-side (no trace-list endpoint exists).
  *
  * Contract (mirrors SKILL.md):
  * - summary always (counts by type, error strings, token sums)
  * - detail only on failure or --full (truncated I/O, 2000 chars)
- * - one --trace-id per call, --limit default 20 cap 50, 15s timeout
- * - fail-open: transport failure prints an error summary, exits 0
+ * - one --trace-id per call, --limit default 20 cap 50 (trace) / 500 (list rows)
+ * - 15s timeout, fail-open: transport failure prints an error summary, exits 0
  * - never persists or logs keys
  */
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+const LIST_MAX_ROWS = 500;
+const DEFAULT_HOURS = 24;
 const IO_TRUNCATE = 2000;
 const TIMEOUT_MS = 15_000;
 
@@ -38,8 +43,8 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "usage: query.mjs --trace-id <id> [--limit 20] [--full] [--json]",
-    "   or: query.mjs --list [--limit 20] [--json]",
+    "usage: query.mjs --trace-id <id> [--limit 20] [--hours 24] [--full] [--json]",
+    "   or: query.mjs --list [--limit 20] [--hours 24] [--json]",
     "       [--base-url URL] [--public-key K] [--secret-key K]",
     "env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY",
   ].join("\n");
@@ -110,7 +115,7 @@ function detailOf(o) {
   };
 }
 
-async function listTraces({ baseUrl, publicKey, secretKey, limit, wantJson }) {
+async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson }) {
   if (!baseUrl || !publicKey || !secretKey) {
     console.log(JSON.stringify({
       status: "unavailable",
@@ -119,7 +124,12 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, wantJson }) {
     }, null, 2));
     return; // fail-open: exit 0
   }
-  const url = `${baseUrl}/api/public/traces?limit=${limit}&page=1`;
+  const params = new URLSearchParams({
+    limit: String(limit),
+    fromStartTime: window.from,
+    toStartTime: window.to,
+  });
+  const url = `${baseUrl}/api/public/v2/observations?${params}`;
   let payload;
   try {
     payload = await fetchJson(url, publicKey, secretKey);
@@ -129,16 +139,29 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, wantJson }) {
     return; // fail-open: exit 0
   }
   const data = Array.isArray(payload?.data) ? payload.data : [];
-  const traces = data.map((t) => ({ id: t.id, name: t.name, sessionId: t.sessionId }));
+  // No trace-list endpoint in events_only mode: group the window's rows.
+  const byTrace = new Map();
+  for (const o of data) {
+    const id = o.traceId ?? "(unknown)";
+    if (!byTrace.has(id)) {
+      byTrace.set(id, { id, name: o.traceName, sessionId: o.sessionId, count: 0, errors: 0 });
+    }
+    const t = byTrace.get(id);
+    if (t.name === undefined && o.traceName !== undefined) t.name = o.traceName;
+    if (t.sessionId === undefined && o.sessionId !== undefined) t.sessionId = o.sessionId;
+    t.count++;
+    if (o.level === "ERROR") t.errors++;
+  }
+  const traces = [...byTrace.values()];
   const result = { status: "ok", count: traces.length, traces };
-  if (payload?.meta?.totalItems !== undefined && payload.meta.totalItems > traces.length) {
-    result.note = `showing ${traces.length} of ${payload.meta.totalItems} (limit ${limit})`;
+  if (payload?.meta?.totalItems !== undefined && payload.meta.totalItems > data.length) {
+    result.note = `grouped ${data.length} of ${payload.meta.totalItems} rows (limit ${limit}); narrow --hours, do not page`;
   }
   if (wantJson) {
     console.log(JSON.stringify(result, null, 2));
     return;
   }
-  const lines = traces.map((t) => `${t.id}  ${t.name ?? "(no name)"}${t.sessionId ? `  [${t.sessionId}]` : ""}`);
+  const lines = traces.map((t) => `${t.id}  ${t.name ?? "(no name)"}${t.sessionId ? `  [${t.sessionId}]` : ""}  obs=${t.count}${t.errors ? ` ERR=${t.errors}` : ""}`);
   if (result.note) lines.push(result.note);
   console.log(lines.join("\n") || "(no traces)");
 }
@@ -154,7 +177,8 @@ async function main() {
   }
   let limit = Number.parseInt(args.limit ?? String(DEFAULT_LIMIT), 10);
   if (!Number.isFinite(limit) || limit < 1) limit = DEFAULT_LIMIT;
-  limit = Math.min(limit, MAX_LIMIT);
+  let hours = Number.parseFloat(args.hours ?? String(DEFAULT_HOURS));
+  if (!Number.isFinite(hours) || hours <= 0) hours = DEFAULT_HOURS;
 
   const baseUrl = (args["base-url"] ?? process.env.LANGFUSE_BASE_URL ?? "").replace(/\/+$/, "");
   const publicKey = args["public-key"] ?? process.env.LANGFUSE_PUBLIC_KEY ?? "";
@@ -162,10 +186,15 @@ async function main() {
 
   const wantFull = args.full === true || args.full === "true";
   const wantJson = args.json === true || args.json === "true";
+  const to = new Date();
+  const from = new Date(to.getTime() - hours * 3600_000);
+  const window = { from: from.toISOString(), to: to.toISOString() };
   if (listMode) {
-    await listTraces({ baseUrl, publicKey, secretKey, limit, wantJson });
+    limit = Math.min(limit, LIST_MAX_ROWS);
+    await listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson });
     return;
   }
+  limit = Math.min(limit, MAX_LIMIT);
   if (!baseUrl || !publicKey || !secretKey) {
     console.log(JSON.stringify({
       traceId,
@@ -176,7 +205,13 @@ async function main() {
     return;
   }
 
-  const url = `${baseUrl}/api/public/observations?traceId=${encodeURIComponent(traceId)}&limit=${limit}`;
+  const params = new URLSearchParams({
+    traceId,
+    limit: String(limit),
+    fromStartTime: window.from,
+    toStartTime: window.to,
+  });
+  const url = `${baseUrl}/api/public/v2/observations?${params}`;
 
   let payload;
   try {

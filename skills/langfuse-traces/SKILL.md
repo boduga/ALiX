@@ -21,12 +21,13 @@ unprompted. Do not load on every turn.
 
 ## How to query
 
-Run the bundled helper. It speaks the Langfuse public API v2
-observations endpoint with a read-only key:
+Run the bundled helper. It speaks the Langfuse v2 observations API
+(`GET /api/public/v2/observations`, the read path v4 `events_only`
+gateways keep) with a read-only key:
 
 ```sh
-node scripts/query.mjs --trace-id <trace-id> [--limit 20] [--full] [--json]
-node scripts/query.mjs --list [--limit 20] [--json]
+node scripts/query.mjs --trace-id <trace-id> [--limit 20] [--hours 24] [--full] [--json]
+node scripts/query.mjs --list [--limit 20] [--hours 24] [--json]
 ```
 
 Resolve `scripts/` relative to this skill's install dir
@@ -47,7 +48,9 @@ Resolve `scripts/` relative to this skill's install dir
 
 ## Bounds (hard)
 
-- One `--trace-id` per invocation. No cursor paging across traces.
+- One `--trace-id` per invocation. `--list` groups a time window
+  client-side (no trace-list endpoint in `events_only` mode).
+  No cursor paging across windows — narrow `--hours` instead.
 - `--limit` defaults 20, caps at 50. A debugging loop must not page
   forever — same rule as step budgets.
 - Transport timeout 15s, fail-open: on transport failure print the
