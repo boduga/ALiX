@@ -20,6 +20,7 @@
 
 import { parseArgs, isOn } from "./lib/args.mjs";
 import { makeClient } from "./lib/client.mjs";
+import { pickRootName } from "./lib/spans.mjs";
 import { join } from "node:path";
 
 const DEFAULT_HOURS = 24;
@@ -72,52 +73,70 @@ async function main() {
     if (o.level === "ERROR") t.errors.push(o.name ?? "(unnamed)");
     if (o.type === "SPAN" && o.name && o.startTime && o.endTime) t.spans.push(o);
   }
-  // Root-span name = the run's task (same heuristic as query.mjs list).
+  // Root-span name = the run's task (pickRootName, shared with query.mjs).
   // Stored on the item so the eval loop can re-run the task without
   // re-fetching the gateway. Enclosing span (earliest start + latest end)
   // outranks longest duration: parallel children can outlast the root on
   // duration alone but never enclose it. Still a heuristic — labelled below.
   for (const t of byTrace.values()) {
-    const timed = t.spans
-      .map((s) => ({ name: s.name, start: Date.parse(s.startTime), end: Date.parse(s.endTime) }))
-      .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end));
-    const minStart = Math.min(...timed.map((s) => s.start));
-    const maxEnd = Math.max(...timed.map((s) => s.end));
-    const enclosing = timed.filter((s) => s.start === minStart && s.end === maxEnd);
-    const pick = enclosing.length > 0 ? enclosing : timed;
-    let bestDur = -1;
-    for (const s of pick) {
-      if (s.end - s.start > bestDur) { bestDur = s.end - s.start; t.task = s.name; }
-    }
+    t.task = pickRootName(t.spans);
     delete t.spans;
   }
 
   const appended = [];
   const failed = [];
+  const skipped = [];
   // Local mirror: the eval loop reads incidents without a dataset-list
   // endpoint (no such read path verified on events_only gateways).
   // Append-only JSONL, one incident per line; mirror failures never fail.
-  let mirrorPath = null;
-  const { appendFile, mkdir } = await import("node:fs/promises");
+  // The mirror doubles as the exact-duplicate record (plan Phase 3: until
+  // pollution-grade dedup lands, exact-duplicate rejection only — keyed on
+  // traceId, the one stable identity across re-runs and windows).
+  const { appendFile, mkdir, readFile } = await import("node:fs/promises");
   const { homedir } = await import("node:os");
+  const dir = join(homedir(), ".alix", "corpus");
+  const mirrorPath = join(dir, `${datasetName}.jsonl`);
+  const seen = new Set();
+  try {
+    const prior = await readFile(mirrorPath, "utf8");
+    for (const line of prior.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const row = JSON.parse(line);
+        const id = row?.input?.traceId ?? row?.traceId;
+        if (typeof id === "string") seen.add(id);
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // No mirror yet (first run) or unreadable — proceed; API-side dupes are
+    // possible but the mirror still records this run for the next one.
+  }
   for (const [traceId, t] of byTrace) {
     if (t.errors.length === 0 || traceId === "(unknown)") continue;
+    if (seen.has(traceId)) {
+      skipped.push({ traceId, reason: "duplicate (mirror)" });
+      continue;
+    }
     const item = {
       datasetName,
-      // taskSource labels the heuristic: longest-duration SPAN names the run
-      // in the common single-root case but misattributes on parallel or
-      // child-heavy traces — consumers must treat task as a hint, traceId
-      // as the key.
+      // taskSource labels the heuristic: the enclosing root SPAN names the
+      // run in the common single-root case but misattributes on traces with
+      // no clean enclosing span — consumers must treat task as a hint,
+      // traceId as the key.
       input: { traceId, sessionId: t.sessionId ?? null, task: t.task ?? null, taskSource: t.task ? "root-span-heuristic" : "absent" },
       metadata: { errorNames: [...new Set(t.errors)], errorCount: t.errors.length, source: "alix-corpus" },
     };
     const r = await client.apiRaw("POST", "/api/public/dataset-items", undefined, item);
-    if (r.status === 200 || r.status === 201) appended.push(traceId);
-    else failed.push({ traceId, reason: `HTTP ${r.status} ${r.body}` });
+    if (r.status === 200 || r.status === 201) {
+      appended.push(traceId);
+      seen.add(traceId);
+    } else {
+      failed.push({ traceId, reason: `HTTP ${r.status} ${r.body}` });
+    }
     try {
-      const dir = join(homedir(), ".alix", "corpus");
       await mkdir(dir, { recursive: true });
-      mirrorPath = join(dir, `${datasetName}.jsonl`);
       await appendFile(mirrorPath, JSON.stringify({ ...item, mirroredAt: new Date().toISOString() }) + "\n");
     } catch (err) {
       // Mirror is best-effort, but silence hides disk-full/permission rot —
@@ -126,13 +145,14 @@ async function main() {
     }
   }
 
-  const result = { status: failed.length === 0 ? "ok" : "partial", dataset: datasetName, appended, failed, mirror: mirrorPath };
+  const result = { status: failed.length === 0 ? "ok" : "partial", dataset: datasetName, appended, skipped, failed, mirror: mirrorPath };
   if (wantJson) {
     console.log(JSON.stringify(result, null, 2));
     return;
   }
-  console.log(`# corpus — ${appended.length} incidents appended to ${datasetName} (${failed.length} failed)`);
+  console.log(`# corpus — ${appended.length} incidents appended to ${datasetName} (${failed.length} failed, ${skipped.length} duplicate-skipped)`);
   for (const id of appended) console.log(`- ${id}`);
+  for (const s of skipped) console.log(`SKIP ${s.traceId}: ${s.reason}`);
   for (const f of failed) console.log(`FAIL ${f.traceId}: ${f.reason}`);
 }
 

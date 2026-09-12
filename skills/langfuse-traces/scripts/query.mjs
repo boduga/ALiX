@@ -19,6 +19,7 @@
 
 import { parseArgs, isOn } from "./lib/args.mjs";
 import { makeClient } from "./lib/client.mjs";
+import { pickRootName } from "./lib/spans.mjs";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -111,9 +112,9 @@ async function listTraces(client, { limit, window, wantJson, session }) {
   // (the OTel trace id is opaque by design and never exposed to hooks).
   const rows = session ? data.filter((o) => o.sessionId === session) : data;
   // No trace-list endpoint in events_only mode: group the window's rows.
-  // v2 rows carry no traceName — the run ROOT span lends its name. Enclosing
-  // span (earliest start + latest end) outranks longest duration; a parallel
-  // child can outlast the root on duration but never enclose it.
+  // v2 rows carry no traceName — the run ROOT span lends its name
+  // (pickRootName: enclosing span outranks longest duration; a parallel
+  // child can outlast the root on duration but never enclose it).
   const byTrace = new Map();
   for (const o of rows) {
     const id = o.traceId ?? "(unknown)";
@@ -129,20 +130,7 @@ async function listTraces(client, { limit, window, wantJson, session }) {
     }
   }
   const traces = [...byTrace.values()].map((t) => {
-    const timed = t.spans
-      .map((s) => ({ name: s.name, start: Date.parse(s.startTime), end: Date.parse(s.endTime) }))
-      .filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end));
-    let name;
-    if (timed.length > 0) {
-      const minStart = Math.min(...timed.map((s) => s.start));
-      const maxEnd = Math.max(...timed.map((s) => s.end));
-      const enclosing = timed.filter((s) => s.start === minStart && s.end === maxEnd);
-      const pick = enclosing.length > 0 ? enclosing : timed;
-      let bestDur = -1;
-      for (const s of pick) {
-        if (s.end - s.start > bestDur) { bestDur = s.end - s.start; name = s.name; }
-      }
-    }
+    const name = pickRootName(t.spans);
     const { spans, ...rest } = t;
     return { ...rest, name };
   });

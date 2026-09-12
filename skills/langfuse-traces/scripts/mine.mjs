@@ -7,17 +7,23 @@
  * groups identical ordered tool sequences (SPAN names by startTime).
  * Groups at >= --min-runs runs become skill candidates: real prompts are
  * NOT reconstructed here — the candidate carries tool sequence + example
- * traceIds for runSkillFactory's trace-evidence adapter (TS side, future).
+ * traceIds + per-trace outcome scores for runSkillFactory's trace-evidence
+ * adapter, distilled via `alix skills distill-from-traces`.
+ * --factory-out writes that adapter-ready JSON (config/provider are
+ * supplied caller-side by the distill command).
  *
- * Read-only: no writes anywhere. Fail-open exit 0.
+ * Read-only: no writes anywhere except --factory-out (a local file).
+ * Fail-open exit 0.
  *
  * Run: mine.mjs --scores ledger.jsonl [--min-score 0.8] [--min-runs 5]
- *        [--hours 24] [--json] [--base-url URL] [--public-key K] [--secret-key K]
+ *        [--hours 24] [--json] [--factory-out candidates.json]
+ *        [--base-url URL] [--public-key K] [--secret-key K]
  * env fallback: LANGFUSE_BASE_URL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
  */
 
 import { parseArgs, isOn } from "./lib/args.mjs";
 import { makeClient } from "./lib/client.mjs";
+import { pickRootName } from "./lib/spans.mjs";
 
 const DEFAULT_MIN_SCORE = 0.8;
 const DEFAULT_MIN_RUNS = 5;
@@ -33,7 +39,7 @@ async function main() {
   const args = parseArgs(process.argv);
   const wantJson = isOn(args.json);
   if (!args.scores) {
-    console.error("usage: mine.mjs --scores ledger.jsonl [--min-score 0.8] [--min-runs 5] [--hours 24] [--json]");
+    console.error("usage: mine.mjs --scores ledger.jsonl [--min-score 0.8] [--min-runs 5] [--hours 24] [--json] [--factory-out candidates.json]");
     return;
   }
   const minScore = Number(args["min-score"] ?? DEFAULT_MIN_SCORE);
@@ -91,17 +97,12 @@ async function main() {
       .filter((o) => o.type === "SPAN" && o.name)
       .sort((a, b) => (a.startTime < b.startTime ? -1 : 1))
       .map((o) => o.name);
-    // Skip the run-root span (longest duration) — it names the task, it is
-    // not a tool step. Heuristic mirrors query.mjs list naming.
+    // Skip the run-root span (pickRootName, shared with query.mjs) — it
+    // names the task, it is not a tool step.
     let seq = tools;
     if (tools.length > 1) {
       const spans = data.filter((o) => o.type === "SPAN" && o.name && o.startTime && o.endTime);
-      let root = null;
-      let bestDur = -1;
-      for (const s of spans) {
-        const dur = Date.parse(s.endTime) - Date.parse(s.startTime);
-        if (Number.isFinite(dur) && dur > bestDur) { bestDur = dur; root = s.name; }
-      }
+      const root = pickRootName(spans);
       if (root) seq = tools.filter((n) => n !== root);
     }
     const key = JSON.stringify(seq);
@@ -116,7 +117,21 @@ async function main() {
       toolSequence: g.toolSequence,
       traceIds: g.traceIds,
       runs: g.traceIds.length,
+      scores: Object.fromEntries(g.traceIds.map((id) => [id, best.get(id)])),
     }));
+
+  // Adapter-ready evidence for `alix skills distill-from-traces`: the same
+  // candidates plus the caller-supplied session slot (config/provider live
+  // TS-side). Local file write only.
+  if (args["factory-out"]) {
+    const { writeFile } = await import("node:fs/promises");
+    const evidence = candidates.map((c) => ({ sessionId: "mined", ...c }));
+    try {
+      await writeFile(String(args["factory-out"]), evidence.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+    } catch (err) {
+      console.warn(`[mine] factory-out write failed: ${String(err?.message ?? err)}`);
+    }
+  }
 
   const result = { status: "ok", highScoreTraces: high.length, candidates, failed };
   if (wantJson) {

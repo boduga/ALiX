@@ -12,6 +12,11 @@
  * below-bar non-improvements block; only deltas at/above bar promote.
  * Verdicts are exactly promote | block | insufficient (no middle state).
  *
+ * TS parity pair: gateDatasetEval in src/evals/dataset-eval.ts implements
+ * the same math in-process for the run-dataset CLI (scripts run without a
+ * repo build, so the two cannot share code — keep the constants,
+ * rounding (toFixed(3)), and verdict order identical).
+ *
  * The model-running eval loop (executing candidate prompts over dataset
  * items via a provider) is future work — this gate consumes its score
  * output. No network, no creds, pure compute.

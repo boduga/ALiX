@@ -130,6 +130,32 @@ describe("loop scripts (stub gateway + fixture sessions)", () => {
     expect(parsed.mirror).toMatch("ds.jsonl");
   });
 
+  it("corpus.mjs rejects exact duplicates via the mirror", async () => {
+    const r = await run("corpus.mjs", ["--dataset", "ds", "--json", "--base-url", baseUrl], { HOME: tmp });
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe("ok");
+    expect(parsed.appended).toEqual([]);
+    expect(parsed.skipped).toEqual([{ traceId: "t3", reason: "duplicate (mirror)" }]);
+  });
+
+  it("mine.mjs emits factory-ready evidence with scores", async () => {
+    const out = join(tmp, "factory.json");
+    const r = await run("mine.mjs",
+      ["--scores", join(tmp, "ledger.jsonl"), "--min-runs", "2", "--factory-out", out, "--json", "--base-url", baseUrl]);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.candidates).toHaveLength(1);
+    expect(parsed.candidates[0].scores).toEqual({ t1: 0.9, t2: 0.9 });
+    const { readFileSync } = await import("node:fs");
+    const rows = readFileSync(out, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      sessionId: "mined",
+      toolSequence: ["file.read"],
+      runs: 2,
+      scores: { t1: 0.9, t2: 0.9 },
+    });
+  });
+
   it("prompt.mjs creates a labelled version", async () => {
     const r = await run("prompt.mjs",
       ["--create", "--name", "p", "--text", "hi", "--label", "champion", "--base-url", baseUrl]);
