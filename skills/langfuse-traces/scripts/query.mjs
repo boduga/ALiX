@@ -140,19 +140,35 @@ async function listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJs
   }
   const data = Array.isArray(payload?.data) ? payload.data : [];
   // No trace-list endpoint in events_only mode: group the window's rows.
+  // v2 rows carry no traceName — the run ROOT span (longest-duration SPAN,
+  // named after the captured task) lends its name.
   const byTrace = new Map();
   for (const o of data) {
     const id = o.traceId ?? "(unknown)";
     if (!byTrace.has(id)) {
-      byTrace.set(id, { id, name: o.traceName, sessionId: o.sessionId, count: 0, errors: 0 });
+      byTrace.set(id, { id, sessionId: o.sessionId, count: 0, errors: 0, spans: [] });
     }
     const t = byTrace.get(id);
-    if (t.name === undefined && o.traceName !== undefined) t.name = o.traceName;
     if (t.sessionId === undefined && o.sessionId !== undefined) t.sessionId = o.sessionId;
     t.count++;
     if (o.level === "ERROR") t.errors++;
+    if (o.type === "SPAN" && o.name && o.startTime && o.endTime) {
+      t.spans.push(o);
+    }
   }
-  const traces = [...byTrace.values()];
+  const traces = [...byTrace.values()].map((t) => {
+    let name;
+    let best = -1;
+    for (const s of t.spans) {
+      const dur = Date.parse(s.endTime) - Date.parse(s.startTime);
+      if (Number.isFinite(dur) && dur > best) {
+        best = dur;
+        name = s.name;
+      }
+    }
+    const { spans, ...rest } = t;
+    return { ...rest, name };
+  });
   const result = { status: "ok", count: traces.length, traces };
   if (payload?.meta?.totalItems !== undefined && payload.meta.totalItems > data.length) {
     result.note = `grouped ${data.length} of ${payload.meta.totalItems} rows (limit ${limit}); narrow --hours, do not page`;

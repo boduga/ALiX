@@ -26,6 +26,16 @@ Keys via flags or `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` /
 `LANGFUSE_SECRET_KEY` env. Use the read-only key from
 `tracing.langfuse` (`cred://langfuse/*`, store-only). Never persist keys.
 
+## Gateway notes (v4 `events_only`, verified live)
+
+- Read path is `GET /api/public/v2/observations` with a mandatory time
+  window (`--hours`, default 24). v3 REST reads are disabled server-side.
+- Rows carry no `traceName`: `--list` names a trace from its root span
+  (longest-duration SPAN, named after the captured task).
+- Rows carry no `usage` and often no I/O payloads: token sums read 0
+  and `statusMessage` is the diagnostic. Cost/latency governance needs
+  the metrics path, not v2 rows.
+
 ## Hook wiring (tiered post_task)
 
 Merge `hooks.json.snippet` into the project's `.alix/hooks.json`
