@@ -1,0 +1,36 @@
+{
+  "comment": "Shared gate vectors: eval-gate.mjs (via loop-scripts.vitest.ts) and gateDatasetEval (via dataset-eval.vitest.ts) must agree on every case. Thresholds exercised: win line 0.8, min delta 0.10, min runs 20 default with per-case override.",
+  "cases": [
+    {
+      "name": "promote",
+      "minRuns": 4,
+      "base": { "t1": 0.9, "t2": 0.3, "t3": 0.9, "t4": 0.3 },
+      "candidate": { "t1": 0.95, "t2": 0.95, "t3": 0.95, "t4": 0.3 },
+      "verdict": "promote",
+      "baselineWinRate": 0.5,
+      "candidateWinRate": 0.75,
+      "delta": 0.25
+    },
+    {
+      "name": "block",
+      "minRuns": 4,
+      "base": { "t1": 0.95, "t2": 0.95, "t3": 0.95, "t4": 0.3 },
+      "candidate": { "t1": 0.9, "t2": 0.3, "t3": 0.9, "t4": 0.3 },
+      "verdict": "block",
+      "baselineWinRate": 0.75,
+      "candidateWinRate": 0.5,
+      "delta": -0.25
+    },
+    {
+      "name": "insufficient",
+      "minRuns": 20,
+      "base": { "t1": 0.9 },
+      "candidate": { "t1": 0.9 },
+      "verdict": "insufficient",
+      "runs": 1,
+      "baselineWinRate": 1,
+      "candidateWinRate": 1,
+      "delta": 0
+    }
+  ]
+}

@@ -130,6 +130,33 @@ describe("loop scripts (stub gateway + fixture sessions)", () => {
     expect(parsed.mirror).toMatch("ds.jsonl");
   });
 
+  it("corpus.mjs rejects exact duplicates via the mirror", async () => {
+    const r = await run("corpus.mjs", ["--dataset", "ds", "--json", "--base-url", baseUrl], { HOME: tmp });
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.status).toBe("ok");
+    expect(parsed.appended).toEqual([]);
+    expect(parsed.skipped).toEqual([{ traceId: "t3", reason: "duplicate (mirror)" }]);
+  });
+
+  it("mine.mjs emits factory-ready evidence with scores", async () => {
+    const out = join(tmp, "factory.json");
+    const r = await run("mine.mjs",
+      ["--scores", join(tmp, "ledger.jsonl"), "--min-runs", "2", "--factory-out", out, "--json", "--base-url", baseUrl]);
+    const parsed = JSON.parse(r.stdout);
+    expect(parsed.candidates).toHaveLength(1);
+    expect(parsed.candidates[0].scores).toEqual({ t1: 0.9, t2: 0.9 });
+    const { readFileSync } = await import("node:fs");
+    const rows = readFileSync(out, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      sessionId: "mined",
+      toolSequence: ["file.read"],
+      runs: 2,
+      sessions: ["s"],
+      scores: { t1: 0.9, t2: 0.9 },
+    });
+  });
+
   it("prompt.mjs creates a labelled version", async () => {
     const r = await run("prompt.mjs",
       ["--create", "--name", "p", "--text", "hi", "--label", "champion", "--base-url", baseUrl]);
@@ -145,6 +172,27 @@ describe("loop scripts (stub gateway + fixture sessions)", () => {
     const blk = await run("eval-gate.mjs",
       ["--baseline", join(tmp, "cand.jsonl"), "--candidate", join(tmp, "base.jsonl"), "--json"]);
     expect(JSON.parse(blk.stdout).verdict).toBe("block");
+  });
+
+  it("eval-gate.mjs agrees with gateDatasetEval on shared vectors", async () => {
+    const { readFileSync, writeFileSync } = await import("node:fs");
+    const vectors = JSON.parse(readFileSync(join(process.cwd(), "tests", "fixtures", "gate-vectors.json"), "utf8"));
+    for (const v of vectors.cases) {
+      const led = (obj: Record<string, number>) => Object.entries(obj)
+        .map(([traceId, value]) => JSON.stringify({ traceId, name: "quality", value })).join("\n");
+      const base = join(tmp, `gate-${v.name}-base.jsonl`);
+      const cand = join(tmp, `gate-${v.name}-cand.jsonl`);
+      writeFileSync(base, led(v.base));
+      writeFileSync(cand, led(v.candidate));
+      const r = await run("eval-gate.mjs",
+        ["--baseline", base, "--candidate", cand, "--min-runs", String(v.minRuns), "--json"]);
+      const parsed = JSON.parse(r.stdout);
+      expect({ case: v.name, verdict: parsed.verdict }).toEqual({ case: v.name, verdict: v.verdict });
+      expect(parsed.baselineWinRate).toBe(v.baselineWinRate);
+      expect(parsed.candidateWinRate).toBe(v.candidateWinRate);
+      expect(parsed.delta).toBe(v.delta);
+      if (v.runs !== undefined) expect(parsed.runs).toBe(v.runs);
+    }
   });
 
   it("probe-writes.mjs passes all four probes against the stub", async () => {
