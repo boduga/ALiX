@@ -206,6 +206,7 @@ async function main() {
   const from = new Date(to.getTime() - hours * 3600_000);
   const window = { from: from.toISOString(), to: to.toISOString() };
   if (listMode) {
+    limit = args.limit === undefined ? 200 : limit;
     limit = Math.min(limit, LIST_MAX_ROWS);
     await listTraces({ baseUrl, publicKey, secretKey, limit, window, wantJson });
     return;

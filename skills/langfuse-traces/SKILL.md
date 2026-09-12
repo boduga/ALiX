@@ -50,7 +50,8 @@ Resolve `scripts/` relative to this skill's install dir
 ## Bounds (hard)
 
 - One `--trace-id` per invocation. `--list` groups a time window
-  client-side (no trace-list endpoint in `events_only` mode).
+  client-side (no trace-list endpoint in `events_only` mode); it
+  fetches up to 200 rows by default so per-trace groups stay whole.
   No cursor paging across windows — narrow `--hours` instead.
 - `--limit` defaults 20, caps at 50. A debugging loop must not page
   forever — same rule as step budgets.
