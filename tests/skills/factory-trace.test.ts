@@ -38,11 +38,13 @@ const config = {
 describe("runSkillFactoryFromTrace", () => {
   it("distills a tool sequence into a candidate SKILL.md", async () => {
     const sessionId = "trace-sess-1";
+    const ids = ["t1", "t2", "t3", "t4", "t5"];
     await factory.runSkillFactoryFromTrace({
       sessionId,
       toolSequence: ["file.read", "shell.run"],
-      traceIds: ["t1", "t2", "t3", "t4", "t5"],
+      traceIds: ids,
       runs: 5,
+      scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
       suggestedName: "mined-1-file.read",
       config,
       provider: stubSkill(SKILL_MD),
@@ -106,18 +108,46 @@ describe("runSkillFactoryFromTrace", () => {
 
   it("reports acceptance so batch callers can summarize", async () => {
     const counting = stubProvider([SKILL_MD]);
+    const ids = ["t1", "t2", "t3", "t4", "t5"];
+    const passingScores = Object.fromEntries(ids.map((id) => [id, 0.9]));
     const ok = await factory.runSkillFactoryFromTrace({
       sessionId: "rep-ok", toolSequence: ["file.read"],
-      traceIds: ["t1", "t2", "t3", "t4", "t5"], runs: 5, config,
+      traceIds: ids, runs: 5, scores: passingScores, config,
       provider: counting,
     });
     assert.equal(ok.accepted, true);
     const no = await factory.runSkillFactoryFromTrace({
       sessionId: "rep-no", toolSequence: ["file.read"],
-      traceIds: ["t1"], runs: 1, config, provider: counting,
+      traceIds: ["t1"], runs: 1, scores: { t1: 0.9 }, config, provider: counting,
     });
     assert.equal(no.accepted, false);
     assert.match(no.reason ?? "", /candidate bar/);
+    const scoreless = await factory.runSkillFactoryFromTrace({
+      sessionId: "rep-scoreless", toolSequence: ["file.read"],
+      traceIds: ids, runs: 5, config, provider: counting,
+    });
+    assert.equal(scoreless.accepted, false);
+    assert.match(scoreless.reason ?? "", /no per-trace scores/);
+  });
+
+  it("reports failure when distillation writes nothing", async () => {
+    const ids = ["t1", "t2", "t3", "t4", "t5"];
+    const base = {
+      sessionId: "dead-provider", toolSequence: ["file.read"],
+      traceIds: ids, runs: 5,
+      scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
+      config,
+    };
+    const short = await factory.runSkillFactoryFromTrace({
+      ...base, provider: stubProvider(["too short"]),
+    });
+    assert.equal(short.accepted, false);
+    assert.match(short.reason ?? "", /no candidate/);
+    const down = await factory.runSkillFactoryFromTrace({
+      ...base,
+      provider: stubProvider([], undefined, () => { throw new Error("down"); }),
+    });
+    assert.equal(down.accepted, false);
   });
 });
 
@@ -125,21 +155,32 @@ describe("distillMinedCandidates", () => {
   it("distills passing candidates and reports rejects", async () => {
     const file = join(process.env.HOME!, "candidates.json");
     const ids = ["t1", "t2", "t3", "t4", "t5"];
-    const good = {
+    const passingCandidate = {
       suggestedName: "mined-1-file.read",
       toolSequence: ["file.read"],
       traceIds: ids,
       runs: 5,
       scores: Object.fromEntries(ids.map((id) => [id, 0.9])),
     };
-    const thin = { ...good, suggestedName: "mined-2-thin", traceIds: ["t1"], runs: 1 };
-    writeFileSync(file, [good, thin].map((r) => JSON.stringify(r)).join("\n") + "\n");
+    const thinCandidate = { ...passingCandidate, suggestedName: "mined-2-thin", traceIds: ["t1"], runs: 1 };
+    writeFileSync(file, [
+      JSON.stringify(passingCandidate),
+      JSON.stringify(thinCandidate),
+      "NOT-JSON{",
+      "{}",
+      "null",
+    ].join("\n") + "\n");
     const result = await factory.distillMinedCandidates(file, {
       config, provider: stubSkill(SKILL_MD),
     });
     assert.deepEqual(result.distilled, ["mined-1-file.read"]);
-    assert.equal(result.rejected.length, 1);
+    assert.equal(result.rejected.length, 4);
     assert.equal(result.rejected[0].name, "mined-2-thin");
+    assert.equal(result.rejected[1].name, "(unparseable row)");
+    // Valid JSON, wrong shape: isolated as a bar reject, batch survives.
+    assert.equal(result.rejected[2].name, "(unnamed)");
+    assert.match(result.rejected[2].reason, /empty tool sequence/);
+    assert.equal(result.rejected[3].name, "(unparseable row)");
     const path = join(process.env.HOME!, ".alix", "candidates", "mined", "SKILL.md");
     assert.ok(existsSync(path), "mined candidate SKILL.md written");
   });

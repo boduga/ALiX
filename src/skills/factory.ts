@@ -97,12 +97,18 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
     console.warn(`[skill-factory] Below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}`);
     return { accepted: false, reason: `below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}` };
   }
-  if (ev.scores) {
-    const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
-    if (belowBar.length > 0) {
-      console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
-      return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
-    }
+  // Scores are mandatory, not optional: the bar is "high-score runs", and a
+  // scoreless file distilling on count alone would bypass the quality half.
+  // Mine always emits scores; callers with arbitrary files must supply them.
+  if (!ev.scores) {
+    console.warn("[skill-factory] Below quality bar: no per-trace scores supplied");
+    return { accepted: false, reason: "below quality bar: no per-trace scores supplied" };
+  }
+  const scores = ev.scores;
+  const belowBar = uniqueIds.filter((id) => (scores[id] ?? 0) < minScore);
+  if (belowBar.length > 0) {
+    console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
+    return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
   }
 
   const prompt = buildTraceDistillationPrompt(ev);
@@ -116,26 +122,29 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
     );
   }
 
-  await distillWithProvider(
+  const distilled = await distillWithProvider(
     provider,
     "You are a skill distillation engine. Generate a Hermes-format skill from the provided tool sequence observed across successful runs. Output ONLY the SKILL.md content with valid YAML front matter and a markdown body. No explanations, no preamble.",
     prompt,
     ev.sessionId,
     ev.config,
   );
-  return { accepted: true };
+  // distillWithProvider swallows provider-side failure (fire-and-forget for
+  // the hot loop) — but this reporter must not claim a distill that wrote
+  // nothing. Promotion-check failure stays accepted: the file was written.
+  return distilled
+    ? { accepted: true as const }
+    : { accepted: false as const, reason: "distillation produced no candidate (provider down or invalid output)" };
 }
 
 /**
- * One mined candidate row (mine.mjs --factory-out shape): adapter-ready
- * evidence minus the caller-side config/provider.
+ * One mined candidate row (mine.mjs --factory-out shape): the TraceEvidence
+ * fields minus caller-side config/provider/session, plus the gateway-side
+ * `sessions` list (mapped to traceSessions on the way in).
  */
-export type MinedCandidate = {
-  suggestedName?: string;
-  toolSequence: string[];
-  traceIds: string[];
-  runs: number;
-  scores?: Record<string, number>;
+export type MinedCandidate = Pick<
+  TraceEvidence, "suggestedName" | "toolSequence" | "traceIds" | "runs" | "scores"
+> & {
   sessions?: string[];
 };
 
@@ -155,14 +164,27 @@ export async function distillMinedCandidates(
   },
 ): Promise<{ distilled: string[]; rejected: Array<{ name: string; reason: string }> }> {
   const { readFile } = await import("node:fs/promises");
-  const rows = (await readFile(file, "utf8"))
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as MinedCandidate);
+  const text = await readFile(file, "utf8");
   const distilled: string[] = [];
   const rejected: Array<{ name: string; reason: string }> = [];
-  for (const row of rows) {
-    const name = row.suggestedName ?? row.toolSequence[0] ?? "(unnamed)";
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    // Shape-check before naming: only objects are candidate rows. A JSON
+    // error or a non-object (null, 123, "hi") is not a row at all —
+    // "(unparseable row)". Objects without a name are "(unnamed)" bar
+    // rejects. Neither aborts the batch (the header contract).
+    let row: MinedCandidate | null = null;
+    try {
+      const parsed: unknown = JSON.parse(line);
+      if (parsed !== null && typeof parsed === "object") row = parsed as MinedCandidate;
+    } catch {
+      row = null;
+    }
+    if (row === null) {
+      rejected.push({ name: "(unparseable row)", reason: "not a candidate object" });
+      continue;
+    }
+    const name = row.suggestedName ?? row.toolSequence?.[0] ?? "(unnamed)";
     try {
       const outcome = await runSkillFactoryFromTrace({
         sessionId: "mined",
@@ -180,7 +202,7 @@ export async function distillMinedCandidates(
       if (outcome.accepted) distilled.push(name);
       else rejected.push({ name, reason: outcome.reason ?? "rejected" });
     } catch (err) {
-      // One bad row (provider down, malformed) never aborts the batch.
+      // One bad row (provider down, malformed shape) never aborts the batch.
       rejected.push({ name, reason: String(err instanceof Error ? err.message : err) });
     }
   }
@@ -225,6 +247,7 @@ export function buildTraceDistillationPrompt(ev: TraceEvidence): string {
 /**
  * Shared distillation tail: complete → validate → write candidate →
  * promote-if-eligible. Never throws (provider may be down); warns and returns.
+ * Returns true only when a candidate file was written.
  */
 async function distillWithProvider(
   provider: ModelAdapter,
@@ -232,7 +255,7 @@ async function distillWithProvider(
   userPrompt: string,
   sessionId: string,
   config: SkillFactoryConfig,
-): Promise<void> {
+): Promise<boolean> {
   let skillContent = "";
   try {
     const response = await provider.complete({
@@ -244,19 +267,19 @@ async function distillWithProvider(
   } catch (err) {
     // Ollama may not be running - that's fine, fire-and-forget
     console.warn("[skill-factory] Ollama call failed:", err);
-    return;
+    return false;
   }
 
   if (!skillContent || skillContent.length < 100) {
     console.warn("[skill-factory] Content too short:", skillContent?.length ?? 0, "bytes");
-    return;
+    return false;
   }
 
   // Validate the skill has front matter
   const { manifest } = parseSkillContent(skillContent);
   if (!manifest) {
     console.warn("[skill-factory] Invalid skill manifest from Ollama");
-    return;
+    return false;
   }
 
   // Write to candidates directory
@@ -267,7 +290,7 @@ async function distillWithProvider(
   await mkdir(sessionCandidateDir, { recursive: true });
   await writeFile(join(sessionCandidateDir, "SKILL.md"), skillContent, "utf8");
 
-  if (!config.autoPromote) return; // skip entirely if not auto-promoting
+  if (!config.autoPromote) return true; // skip entirely if not auto-promoting
   // Try to promote — on first write this will fail (successCount=1),
   // on second write it will succeed. Call every time to handle re-use.
   try {
@@ -276,6 +299,7 @@ async function distillWithProvider(
     // best effort — non-blocking
     console.warn("[skill-factory] Promotion check failed:", err);
   }
+  return true;
 }
 
 function buildDistillationPrompt(params: DispatchParams): string {
