@@ -12,6 +12,11 @@
  * below-bar non-improvements block; only deltas at/above bar promote.
  * Verdicts are exactly promote | block | insufficient (no middle state).
  *
+ * TS parity pair: gateDatasetEval in src/evals/dataset-eval.ts implements
+ * the same math in-process for the run-dataset CLI (scripts run without a
+ * repo build, so the two cannot share code — keep the constants,
+ * rounding (toFixed(3)), and verdict order identical).
+ *
  * The model-running eval loop (executing candidate prompts over dataset
  * items via a provider) is future work — this gate consumes its score
  * output. No network, no creds, pure compute.
@@ -61,10 +66,11 @@ async function main() {
     return;
   }
   const matched = [...base.keys()].filter((id) => cand.has(id));
-  const rate = (m) => matched.filter((id) => (m.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
+  // Named winRate to match the TS parity pair (gateDatasetEval).
+  const winRate = (ledger) => matched.filter((id) => (ledger.get(id) ?? 0) >= winAt).length / Math.max(1, matched.length);
   // Rates always computed — insufficient hides nothing about near-bar state.
-  const baseRate = rate(base);
-  const candRate = rate(cand);
+  const baseRate = winRate(base);
+  const candRate = winRate(cand);
   if (matched.length < minRuns) {
     const result = {
       verdict: "insufficient", reason: `matched ${matched.length} < ${minRuns}`, runs: matched.length,
