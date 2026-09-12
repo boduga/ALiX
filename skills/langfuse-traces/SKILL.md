@@ -69,7 +69,8 @@ touches write creds — those belong to the promotion step only.
 ## Explicit non-goals
 
 - No dataset writes, no score writes, no prompt edits.
-- No metrics drift, no eval gates — those run nightly in the daemon
-  task registry and produce one digest, never per-turn output.
+- No metrics drift, no eval gates — those run nightly via
+  `scripts/digest.mjs` (system cron; the daemon is an on-demand queue,
+  not a scheduler) producing one digest, never per-turn output.
 - No session-start history pulls beyond the single trace in scope,
   unless the prompt asks for continuity explicitly.
