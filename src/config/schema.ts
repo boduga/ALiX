@@ -70,6 +70,21 @@ export type ModelConfig = {
    * The provider targets `${freellmapiBaseUrl}/v1/chat/completions`.
    */
   freellmapiBaseUrl?: string;
+  /**
+   * Server root for the ollama provider (default http://localhost:11434).
+   * Resolution: config `ollamaBaseUrl` > env `OLLAMA_BASE_URL`/`OLLAMA_HOST` > default.
+   * The provider targets `${ollamaBaseUrl}/api/generate` (no tools) and
+   * `${ollamaBaseUrl}/api/chat` (with tools).
+   */
+  ollamaBaseUrl?: string;
+  /**
+   * Server endpoint for the local-llama provider
+   * (default http://localhost:8080/v1/chat/completions).
+   * Resolution: config `localLlamaBaseUrl` > env `ALIX_LLAMA_BASE_URL` > default.
+   * A bare server root (http://host:port) is accepted and normalized to the
+   * full `/v1/chat/completions` endpoint.
+   */
+  localLlamaBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

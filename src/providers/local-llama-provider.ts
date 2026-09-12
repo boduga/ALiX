@@ -32,6 +32,18 @@ export type LocalLlamaConfig = {
   localLlama?: LocalLlamaKnobConfig;
 };
 
+export const DEFAULT_LOCAL_LLAMA_BASE_URL = "http://localhost:8080/v1/chat/completions";
+
+/**
+ * Resolve the llama-server endpoint: config > env > default. A bare server
+ * root (http://host:port) is normalized to the full /v1/chat/completions
+ * endpoint; trailing slashes are stripped.
+ */
+export function resolveLocalLlamaBaseUrl(configBaseUrl?: string, env: NodeJS.ProcessEnv = process.env): string {
+  const raw = (configBaseUrl ?? env.ALIX_LLAMA_BASE_URL ?? DEFAULT_LOCAL_LLAMA_BASE_URL).replace(/\/+$/, "");
+  return raw.endsWith("/v1/chat/completions") ? raw : `${raw}/v1/chat/completions`;
+}
+
 export class LocalLlamaProvider extends BaseProvider {
   id = "local-llama";
   editFormatPreference = "structured_patch" as const;
@@ -56,9 +68,7 @@ export class LocalLlamaProvider extends BaseProvider {
   private localLlama?: LocalLlamaKnobConfig;
 
   constructor(config: LocalLlamaConfig = {}) {
-    const baseUrl = config.baseUrl
-      ?? process.env.ALIX_LLAMA_BASE_URL
-      ?? "http://localhost:8080/v1/chat/completions";
+    const baseUrl = resolveLocalLlamaBaseUrl(config.baseUrl);
     super({
       apiKey: config.apiKey ?? "",
       model: config.model ?? "local-model",
@@ -97,6 +107,7 @@ export class LocalLlamaProvider extends BaseProvider {
     await this.ensureRunning();
     return complete("local-llama", this._model, request, {
       apiKey: this._apiKey,
+      baseUrl: this.baseUrl,
       ...(options?.signal ? { signal: options.signal } : {}),
     });
   }
@@ -108,6 +119,7 @@ export class LocalLlamaProvider extends BaseProvider {
     if (request.tools && request.tools.length > 0 && !request.structuredOutputSchema) {
       const res = await complete("local-llama", this._model, { ...request, stream: false }, {
         apiKey: this._apiKey,
+        baseUrl: this.baseUrl,
         ...(options?.signal ? { signal: options.signal } : {}),
       });
       if (res.text) yield { type: "text_delta", text: res.text };
@@ -117,6 +129,7 @@ export class LocalLlamaProvider extends BaseProvider {
     }
     yield* stream("local-llama", this._model, request, {
       apiKey: this._apiKey,
+      baseUrl: this.baseUrl,
       ...(options?.signal ? { signal: options.signal } : {}),
     });
   }

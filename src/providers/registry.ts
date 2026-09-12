@@ -65,6 +65,10 @@ export type ProviderConfig = {
   localLlama?: LocalLlamaKnobConfig;
   /** Base URL override for the freellmapi provider (ModelConfig.freellmapiBaseUrl). */
   freellmapiBaseUrl?: string;
+  /** Server root for ollama (ModelConfig.ollamaBaseUrl). */
+  ollamaBaseUrl?: string;
+  /** Server endpoint for local-llama (ModelConfig.localLlamaBaseUrl). */
+  localLlamaBaseUrl?: string;
 };
 
 /** Default total call timeout per provider (ms). Local/hot-swapping providers get headroom. */
@@ -92,7 +96,7 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     }
   }
 
-  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}`;
+  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}:${config.freellmapiBaseUrl ?? ""}:${config.ollamaBaseUrl ?? ""}:${config.localLlamaBaseUrl ?? ""}`;
 
   if (providerCache.has(key)) {
     return providerCache.get(key)!;
@@ -111,7 +115,7 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   // Thread the effective total timeout into the provider so providers that use
   // an inner AbortSignal (e.g. Ollama) enforce the same bound as the wrapper.
-  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama, ...(config.provider === "freellmapi" && config.freellmapiBaseUrl ? { baseUrl: config.freellmapiBaseUrl } : {}) });
+  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama, ...(config.provider === "freellmapi" && config.freellmapiBaseUrl ? { baseUrl: config.freellmapiBaseUrl } : {}), ...(config.provider === "ollama" && config.ollamaBaseUrl ? { baseUrl: config.ollamaBaseUrl } : {}), ...(config.provider === "local-llama" && config.localLlamaBaseUrl ? { baseUrl: config.localLlamaBaseUrl } : {}) });
   const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;

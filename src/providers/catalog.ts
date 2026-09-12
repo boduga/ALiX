@@ -101,7 +101,7 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
     }
     case "ollama": {
-      const base = "http://localhost:11434";
+      const base = (process.env.OLLAMA_BASE_URL ?? process.env.OLLAMA_HOST ?? "http://localhost:11434").replace(/\/+$/, "");
       const response = await fetch(`${base}/api/tags`, {
         signal: AbortSignal.timeout(10_000),
       });
@@ -110,6 +110,23 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       return data.models.map((m) => ({ id: m.name, displayName: m.name }));
     }
     case "local-llama": {
+      // Remote server (explicit ALIX_LLAMA_BASE_URL): list from its OpenAI-
+      // compatible /v1/models. Local default: scan the GGUF directory.
+      // Server failure falls back to the GGUF scan so a stopped server never
+      // breaks listing that used to work.
+      if (process.env.ALIX_LLAMA_BASE_URL) {
+        try {
+          const root = process.env.ALIX_LLAMA_BASE_URL.replace(/\/+$/, "").replace(/\/v1\/chat\/completions$/, "");
+          const response = await fetch(`${root}/v1/models`, {
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!response.ok) throw new Error(`API error ${response.status}`);
+          const data = (await response.json()) as { data: Array<{ id: string }> };
+          return data.data.map((m) => ({ id: m.id, displayName: m.id }));
+        } catch {
+          // fall through to the GGUF scan below
+        }
+      }
       return listLocalLlamaGgufModels(resolveLocalLlamaScanDir(readUserConfigLocalModelPath()));
     }
     case "deepseek": {

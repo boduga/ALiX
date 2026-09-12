@@ -36,6 +36,12 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   // → valid (the launcher owns the defaults).
   for (const [tier, model] of Object.entries(config.models ?? {})) {
     pushLocalLlamaIssues(`models.${tier}`, model, issues);
+    if (model?.ollamaBaseUrl !== undefined && !isValidHttpUrl(model.ollamaBaseUrl)) {
+      issues.push({ path: `models.${tier}.ollamaBaseUrl`, level: "error", message: "ollamaBaseUrl must be a valid http(s) URL" });
+    }
+    if (model?.localLlamaBaseUrl !== undefined && !isValidHttpUrl(model.localLlamaBaseUrl)) {
+      issues.push({ path: `models.${tier}.localLlamaBaseUrl`, level: "error", message: "localLlamaBaseUrl must be a valid http(s) URL" });
+    }
   }
 
   // Sections below may be ABSENT in a config fragment — the raw on-disk file

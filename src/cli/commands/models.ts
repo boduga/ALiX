@@ -164,7 +164,7 @@ export async function handleModelsResolve(args: string[]): Promise<void> {
 export async function persistModelSelection(
   cwd: string,
   tier: ModelTier,
-  selection: { provider: string; name: string },
+  selection: { provider: string; name: string; ollamaBaseUrl?: string; localLlamaBaseUrl?: string },
 ): Promise<string> {
   const { readFile, mkdir } = await import("node:fs/promises");
   const { existsSync } = await import("node:fs");
@@ -190,7 +190,12 @@ export async function persistModelSelection(
   const persisted = withoutDerivedModelProjections(existing as unknown as import("../../config/schema.js").AlixConfig);
   persisted.models = {
     ...(persisted.models ?? {}),
-    [tier]: { provider: selection.provider, name: selection.name },
+    [tier]: {
+      provider: selection.provider,
+      name: selection.name,
+      ...(selection.ollamaBaseUrl ? { ollamaBaseUrl: selection.ollamaBaseUrl } : {}),
+      ...(selection.localLlamaBaseUrl ? { localLlamaBaseUrl: selection.localLlamaBaseUrl } : {}),
+    },
   };
 
   await mkdir(configDir, { recursive: true });
@@ -214,9 +219,11 @@ export function resolveTierArg(name: string | undefined): (typeof MODEL_SUBAGENT
 }
 
 /** Shared interactive flow: pick a provider (with API key) then a model. */
-async function selectProviderAndModel(): Promise<{ providerId: string; model: ModelInfo }> {
+async function selectProviderAndModel(): Promise<{ providerId: string; model: ModelInfo; ollamaBaseUrl?: string; localLlamaBaseUrl?: string }> {
   const { resolveProviders, getAvailableModels, selectFromList, selectModelInteractive } = await import("../helpers/provider-selection.js");
   const { getApiKey, setApiKey } = await import("../helpers/api-keys.js");
+  const { isKeylessProvider } = await import("../../providers/keyless-providers.js");
+  const { isValidHttpUrl } = await import("../../config/validator.js");
   const { prompt } = await import("./prompt.js");
 
   const avail = await resolveProviders();
@@ -227,14 +234,52 @@ async function selectProviderAndModel(): Promise<{ providerId: string; model: Mo
   );
   if (!pick) { console.log("Cancelled."); process.exit(0); }
 
+  // Local providers can target a remote server: ask for the base URL first so
+  // the model list is fetched from the right place (config > env > default).
+  let ollamaBaseUrl: string | undefined;
+  let localLlamaBaseUrl: string | undefined;
+  if (pick.id === "ollama") {
+    const def = process.env.OLLAMA_BASE_URL ?? process.env.OLLAMA_HOST ?? "http://localhost:11434";
+    const answer = (await prompt(`Ollama base URL [${def}]: `)).trim();
+    const raw = answer || def;
+    if (!isValidHttpUrl(raw)) {
+      console.log(`Invalid URL "${raw}" — must be http(s). Cancelled.`);
+      process.exit(1);
+    }
+    ollamaBaseUrl = raw.replace(/\/+$/, "");
+    // listModels() resolves the server from env — seed it for this process.
+    process.env.OLLAMA_BASE_URL = ollamaBaseUrl;
+  } else if (pick.id === "local-llama") {
+    const def = process.env.ALIX_LLAMA_BASE_URL ?? "http://localhost:8080/v1/chat/completions";
+    const answer = (await prompt(`llama.cpp server URL [${def}]: `)).trim();
+    const raw = answer || def;
+    if (!isValidHttpUrl(raw)) {
+      console.log(`Invalid URL "${raw}" — must be http(s). Cancelled.`);
+      process.exit(1);
+    }
+    localLlamaBaseUrl = raw.replace(/\/+$/, "");
+    // listModels() resolves the server from env — seed it for this process.
+    process.env.ALIX_LLAMA_BASE_URL = localLlamaBaseUrl;
+  }
+
   let apiKey = await getApiKey(pick.id);
   if (apiKey === undefined) {
-    console.log(`\nNo API key found for ${pick.name}.`);
-    const key = await prompt(`Enter API key (${pick.hint}): `);
-    if (!key) { console.log("Cancelled."); process.exit(0); }
-    await setApiKey(pick.id, key);
-    apiKey = key;
-    process.env[pick.env] = key;
+    if (isKeylessProvider(pick.id)) {
+      // Local providers run without a key — empty input proceeds, nothing persisted.
+      const key = await prompt(`Enter API key (${pick.hint}, empty to skip): `);
+      apiKey = key.trim() || "";
+      if (apiKey) {
+        await setApiKey(pick.id, apiKey);
+        process.env[pick.env] = apiKey;
+      }
+    } else {
+      console.log(`\nNo API key found for ${pick.name}.`);
+      const key = await prompt(`Enter API key (${pick.hint}): `);
+      if (!key) { console.log("Cancelled."); process.exit(0); }
+      await setApiKey(pick.id, key);
+      apiKey = key;
+      process.env[pick.env] = key;
+    }
   }
 
   console.log(`\nFetching available models for ${pick.name}...\n`);
@@ -242,13 +287,14 @@ async function selectProviderAndModel(): Promise<{ providerId: string; model: Mo
   if (models.length === 0) { console.log("No models found."); process.exit(1); }
   const selected = await selectModelInteractive(models);
   if (!selected) { console.log("Cancelled."); process.exit(0); }
-  return { providerId: pick.id, model: selected };
+  return { providerId: pick.id, model: selected, ...(ollamaBaseUrl ? { ollamaBaseUrl } : {}), ...(localLlamaBaseUrl ? { localLlamaBaseUrl } : {}) };
 }
 
 export async function handleModelsSetDefault(_args: string[]): Promise<void> {
-  const { providerId, model } = await selectProviderAndModel();
-  const configPath = await persistModelSelection(process.cwd(), "default", { provider: providerId, name: model.id });
-  console.log(`\nDefault model set to "${model.id}" for ${providerId}.`);
+  const { providerId, model, ollamaBaseUrl, localLlamaBaseUrl } = await selectProviderAndModel();
+  const serverUrl = ollamaBaseUrl ?? localLlamaBaseUrl;
+  const configPath = await persistModelSelection(process.cwd(), "default", { provider: providerId, name: model.id, ...(ollamaBaseUrl ? { ollamaBaseUrl } : {}), ...(localLlamaBaseUrl ? { localLlamaBaseUrl } : {}) });
+  console.log(`\nDefault model set to "${model.id}" for ${providerId}${serverUrl ? ` at ${serverUrl}` : ""}.`);
   console.log(`Saved to ${configPath}`);
 }
 
@@ -276,9 +322,10 @@ export async function handleModelsSetTier(args: string[]): Promise<void> {
     tierName = MODEL_SUBAGENT_TIERS[num - 1];
   }
 
-  const { providerId, model } = await selectProviderAndModel();
-  const configPath = await persistModelSelection(process.cwd(), tierName, { provider: providerId, name: model.id });
-  console.log(`\nTier "${tierName}" set to ${providerId}/${model.id}.`);
+  const { providerId, model, ollamaBaseUrl, localLlamaBaseUrl } = await selectProviderAndModel();
+  const serverUrl = ollamaBaseUrl ?? localLlamaBaseUrl;
+  const configPath = await persistModelSelection(process.cwd(), tierName, { provider: providerId, name: model.id, ...(ollamaBaseUrl ? { ollamaBaseUrl } : {}), ...(localLlamaBaseUrl ? { localLlamaBaseUrl } : {}) });
+  console.log(`\nTier "${tierName}" set to ${providerId}/${model.id}${serverUrl ? ` at ${serverUrl}` : ""}.`);
   console.log(`Saved to ${configPath}`);
 }
 

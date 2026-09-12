@@ -67,14 +67,14 @@ export async function buildRoutingAdapter(
   const fallbackModels = buildFallbackChain(effective);
 
   if (fallbackModels.length === 0) {
-    return createProvider({ provider: effective.provider, model: effective.name }, apiKeyFor(effective.provider));
+    return createProvider({ provider: effective.provider, model: effective.name, timeoutMs: effective.timeoutMs, streamIdleTimeoutMs: effective.streamIdleTimeoutMs, ollamaBaseUrl: effective.ollamaBaseUrl, localLlamaBaseUrl: effective.localLlamaBaseUrl }, apiKeyFor(effective.provider));
   }
 
   const candidates: RoutingCandidate[] = [
     {
       key: `${effective.provider}/${effective.name}`,
       label: `${effective.provider}/${effective.name}`,
-      adapter: await createProvider({ provider: effective.provider, model: effective.name }, apiKeyFor(effective.provider)),
+      adapter: await createProvider({ provider: effective.provider, model: effective.name, timeoutMs: effective.timeoutMs, streamIdleTimeoutMs: effective.streamIdleTimeoutMs, ollamaBaseUrl: effective.ollamaBaseUrl, localLlamaBaseUrl: effective.localLlamaBaseUrl }, apiKeyFor(effective.provider)),
     },
   ];
   for (const fb of fallbackModels) {

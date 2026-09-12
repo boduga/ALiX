@@ -291,7 +291,7 @@ export async function complete(
   }
   const hasTools = !!(request.tools && request.tools.length > 0);
   // Full-endpoint override (same shape as spec.baseUrl); used by providers
-  // with a user-configurable server address (freellmapi).
+  // with a user-configurable server address (freellmapi, ollama, local-llama).
   const base = options.baseUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
   const url = base.replace("{model}", encodeURIComponent(model));
   const res = await fetchWithRetry(url, {
