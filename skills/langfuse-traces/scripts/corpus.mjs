@@ -96,7 +96,11 @@ async function main() {
     if (t.errors.length === 0 || traceId === "(unknown)") continue;
     const item = {
       datasetName,
-      input: { traceId, sessionId: t.sessionId ?? null, task: t.task ?? null },
+      // taskSource labels the heuristic: longest-duration SPAN names the run
+      // in the common single-root case but misattributes on parallel or
+      // child-heavy traces — consumers must treat task as a hint, traceId
+      // as the key.
+      input: { traceId, sessionId: t.sessionId ?? null, task: t.task ?? null, taskSource: t.task ? "root-span-heuristic" : "absent" },
       metadata: { errorNames: [...new Set(t.errors)], errorCount: t.errors.length, source: "alix-corpus" },
     };
     const r = await client.apiRaw("POST", "/api/public/dataset-items", undefined, item);
@@ -107,8 +111,10 @@ async function main() {
       await mkdir(dir, { recursive: true });
       mirrorPath = join(dir, `${datasetName}.jsonl`);
       await appendFile(mirrorPath, JSON.stringify({ ...item, mirroredAt: new Date().toISOString() }) + "\n");
-    } catch {
-      // fail-open: mirror never fails the run
+    } catch (err) {
+      // Mirror is best-effort, but silence hides disk-full/permission rot —
+      // warn loudly, still fail open.
+      console.warn(`[corpus] mirror append failed: ${String(err?.message ?? err)}`);
     }
   }
 
