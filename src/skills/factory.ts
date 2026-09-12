@@ -97,12 +97,17 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
     console.warn(`[skill-factory] Below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}`);
     return { accepted: false, reason: `below candidate bar: ${uniqueIds.length} unique traces < ${minRuns}` };
   }
-  if (ev.scores) {
-    const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
-    if (belowBar.length > 0) {
-      console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
-      return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
-    }
+  // Scores are mandatory, not optional: the bar is "high-score runs", and a
+  // scoreless file distilling on count alone would bypass the quality half.
+  // Mine always emits scores; callers with arbitrary files must supply them.
+  if (!ev.scores) {
+    console.warn("[skill-factory] Below quality bar: no per-trace scores supplied");
+    return { accepted: false, reason: "below quality bar: no per-trace scores supplied" };
+  }
+  const belowBar = uniqueIds.filter((id) => (ev.scores?.[id] ?? 0) < minScore);
+  if (belowBar.length > 0) {
+    console.warn(`[skill-factory] Below quality bar: ${belowBar.length} traces < ${minScore}`);
+    return { accepted: false, reason: `below quality bar: ${belowBar.length} traces < ${minScore}` };
   }
 
   const prompt = buildTraceDistillationPrompt(ev);
@@ -127,15 +132,13 @@ export async function runSkillFactoryFromTrace(ev: TraceEvidence): Promise<{ acc
 }
 
 /**
- * One mined candidate row (mine.mjs --factory-out shape): adapter-ready
- * evidence minus the caller-side config/provider.
+ * One mined candidate row (mine.mjs --factory-out shape): the TraceEvidence
+ * fields minus caller-side config/provider/session, plus the gateway-side
+ * `sessions` list (mapped to traceSessions on the way in).
  */
-export type MinedCandidate = {
-  suggestedName?: string;
-  toolSequence: string[];
-  traceIds: string[];
-  runs: number;
-  scores?: Record<string, number>;
+export type MinedCandidate = Pick<
+  TraceEvidence, "suggestedName" | "toolSequence" | "traceIds" | "runs" | "scores"
+> & {
   sessions?: string[];
 };
 
@@ -155,13 +158,20 @@ export async function distillMinedCandidates(
   },
 ): Promise<{ distilled: string[]; rejected: Array<{ name: string; reason: string }> }> {
   const { readFile } = await import("node:fs/promises");
-  const rows = (await readFile(file, "utf8"))
-    .split("\n")
-    .filter((line) => line.trim())
-    .map((line) => JSON.parse(line) as MinedCandidate);
+  const text = await readFile(file, "utf8");
   const distilled: string[] = [];
   const rejected: Array<{ name: string; reason: string }> = [];
-  for (const row of rows) {
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    // Parse inside the loop: one malformed line rejects as a row, it never
+    // aborts the batch (the header contract).
+    let row: MinedCandidate;
+    try {
+      row = JSON.parse(line) as MinedCandidate;
+    } catch (err) {
+      rejected.push({ name: "(unparseable row)", reason: String(err instanceof Error ? err.message : err) });
+      continue;
+    }
     const name = row.suggestedName ?? row.toolSequence[0] ?? "(unnamed)";
     try {
       const outcome = await runSkillFactoryFromTrace({
