@@ -542,7 +542,18 @@ const RETRIEVAL_SIGNALS: readonly RegExp[] = [
   /\bnews\b/i,
   /\bvulnerabilit(?:y|ies)\b/i,
   /\bcve\b/i,
-  /\bversion\b/i,
+  // `version` alone is too loose — "(version 0.1.0)" inside a build
+  // prompt misrouted to the web-only grounded_chat (#677), the same
+  // history as bare `current` (#645: composite anchors only).
+  // Genuine version queries carry an interrogative, a recency/update
+  // verb, or a history noun — those stay below.
+  /\bwhat(?:'s|\s+is)?\s+(?:the\s+|current\s+)?(?:\w+\s+){0,3}?version\b/i,
+  /\bwhich\s+version\b/i,
+  /\bversion\s+(?:of|for)\b/i,
+  /\bcheck\s+[^.!?]{0,40}?\bversion\b/i,
+  /\b(?:latest|current|newest)\s+(?:\w+\s+){0,3}?version\b/i,
+  /\bversion\s+(?:history|notes|changelog)\b/i,
+  /\b(?:update|upgrade|outdated)\b[^.!?]{0,30}?\bversion\b/i,
   /\bschedule\b/i,
   /\bprice\b/i,
   /\brelease\b/i,

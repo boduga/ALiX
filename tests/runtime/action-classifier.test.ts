@@ -220,6 +220,25 @@ describe("classifyAction — external retrieval", () => {
     const result = classifyAction("What is the current weather in Tokyo?");
     assert.equal(result.intent, "external_retrieval");
   });
+
+  it("does not let a bare 'version' in a build prompt hijack the route (#677)", () => {
+    // REGRESSION: "(version 0.1.0)" matched bare /\bversion\b/ and routed a
+    // build request to the web-only grounded_chat (no tools, run exits 0
+    // with zero files). Bare version must not imply external retrieval —
+    // same policy as bare `current` (#645).
+    const result = classifyAction(
+      "Continue building the system. Context: src/__init__.py (version 0.1.0) exists. Create src/config.py."
+    );
+    assert.notEqual(result.intent, "external_retrieval");
+  });
+
+  it("still routes genuine version queries to external_retrieval (#677)", () => {
+    assert.equal(classifyAction("what is the Python version").intent, "external_retrieval");
+    assert.equal(classifyAction("which version is deployed").intent, "external_retrieval");
+    assert.equal(classifyAction("check the app version").intent, "external_retrieval");
+    assert.equal(classifyAction("linux version history").intent, "external_retrieval");
+    assert.equal(classifyAction("latest Node.js LTS version").intent, "external_retrieval");
+  });
 });
 
 // ── Classification: standalone generation ────────────────────────────
