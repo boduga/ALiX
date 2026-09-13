@@ -160,8 +160,17 @@ export async function handleEvalsRunDataset(args: string[]): Promise<void> {
   const { readFile, writeFile } = await import("node:fs/promises");
 
   const cwd = process.cwd();
-  const config = await loadConfig(cwd);
-  const factoryConf = config.skills?.factory;
+  // Headless tolerance: loadConfig resolves EVERY cred:// ref in the user
+  // config, so one unreachable backend (no Secret Service bus under cron)
+  // must not kill a run whose flags already supply provider+model.
+  // Fall back to flags/defaults with a warning; interactive use is
+  // unaffected (config loads, no warning).
+  let factoryConf: { provider?: string; model?: string } | undefined;
+  try {
+    factoryConf = (await loadConfig(cwd)).skills?.factory;
+  } catch (err) {
+    console.warn(`[run-dataset] config unavailable, using flags/defaults: ${err instanceof Error ? err.message : err}`);
+  }
   const providerId = provider.name || factoryConf?.provider || "ollama";
   const model = provider.model || factoryConf?.model || "";
   if (opts.promptFile) promptText = await readFile(opts.promptFile, "utf8");

@@ -11,6 +11,7 @@
  */
 
 import { parseKeyValueArgs } from "../../helpers/parse-args.js";
+import type { SkillFactoryConfig } from "../../../config/schema.js";
 
 export type DistillOptions = {
   candidatesFile: string;
@@ -58,8 +59,18 @@ export async function handleSkillsDistillFromTraces(args: string[]): Promise<voi
   const { createProvider } = await import("../../../providers/registry.js");
   const { distillMinedCandidates } = await import("../../../skills/factory.js");
 
-  const config = await loadConfig(process.cwd());
-  const factoryConf = config.skills?.factory;
+  const config = await loadConfig(process.cwd()).catch((err) => {
+    // Headless tolerance (see run-dataset): no Secret Service bus under
+    // cron breaks full config load. The scheduled invocation IS the
+    // enablement intent — fall back to flag-supplied provider/model with
+    // safe distill defaults, loudly.
+    console.warn(`[distill-from-traces] config unavailable, using flags/defaults: ${err instanceof Error ? err.message : err}`);
+    return null;
+  });
+  const factoryConf: SkillFactoryConfig | undefined = config?.skills?.factory ?? {
+    enabled: true, provider: opts.provider ?? "ollama", model: opts.model ?? "",
+    maxStore: 50, maxCandidates: 200, autoPromote: false,
+  };
   if (!factoryConf || !factoryConf.enabled) {
     console.error("Skill factory is not enabled (skills.factory in config). Nothing distilled.");
     process.exit(1);
