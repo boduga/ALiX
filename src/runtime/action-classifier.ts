@@ -384,8 +384,12 @@ const LOCAL_SYSTEM_ANCHORS: readonly RegExp[] = [
  * required a preposition after the verb; the MUTATION_ANCHORS family
  * accepts several shapes:
  *
- *   - imperative verb + object: "create a file", "install curl", "delete foo.txt"
- *   - verb + object + preposition: "write X to Y", "save X to Y"
+  *   - imperative verb + object: "create a file", "install curl", "delete foo.txt"
+  *   - deliverable-creation verb + system noun: "build a queue worker
+  *     system", "scaffold an API service", "generate the implementation"
+  *     (language words like "in Python" must NOT pull these into the
+  *     one-shot generation route — it has no tools and writes no files)
+  *   - verb + object + preposition: "write X to Y", "save X to Y"
  *   - rename/move: "rename X to Y", "move X to Y"
  *   - file-system verbs: "mkdir foo", "touch foo"
  *
@@ -409,10 +413,25 @@ const MUTATION_ANCHORS: readonly RegExp[] = [
   // does NOT match (the noun "install" is part of an explanation, not
   // an imperative). Captures "install curl", "create foo.ts",
   // "delete foo.txt", "remove the cache from npm", "edit config.ts",
-  // "update README.md", "rename foo.ts", "touch bar", "mkdir foo".
-  /^(?:install|uninstall|create|delete|remove|rm|rename|edit|update|touch|mkdir|chmod|chown)\s+\S+/i,
+  // "update README.md", "rename foo.ts", "touch bar", "mkdir foo",
+  // "build a queue worker", "scaffold an API service",
+  // "implement the auth module".
+  /^(?:install|uninstall|create|delete|remove|rm|rename|edit|update|touch|mkdir|chmod|chown|build|scaffold|implement)\s+\S+/i,
   // Create-new mutation object forms (noun after the verb).
   /\bcreate\s+(?:a\s+|an\s+|the\s+)?(?:file|directory|folder|script|module|component|class|function|endpoint|note|document|test|spec|backup)\b/i,
+  // Deliverable-creation verbs with a system/project noun, anywhere in
+  // the prompt: "build a queue worker system", "can you scaffold a REST
+  // API service?", "implement the auth module". Up to four adjective
+  // words may sit between the article and the noun ("build a
+  // distributed queue worker system"). Fires BEFORE GENERATION_SIGNALS
+  // so a language word ("in Python") can't pull a build request into
+  // the one-shot direct route, which has no tools and writes no files.
+  /\b(?:build|scaffold|implement)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,4}?(?:system|service|app|application|api|server|worker|client|library|package|framework|tool|prototype|project|microservice|module|class|function|feature|endpoint)\b/i,
+  // "generate" counts as mutation ONLY with a deliverable noun:
+  // "generate the implementation". Prose nouns (poem, story,
+  // specification, summary, ...) are excluded so generation requests
+  // keep routing to direct (pinned regression #645).
+  /\bgenerate\s+(?:a\s+|an\s+|the\s+)?(?:implementation|service|module|component|endpoint|migration|schema|boilerplate)\b/i,
   // Rename / move forms.
   /\b(?:rename|move|mv)\s+\S+\s+(?:to|into)\b/i,
   // "make a X" creation.

@@ -335,12 +335,12 @@ const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the m
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
   const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
   const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
-  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove)\b/i.test(task);
+  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(task);
   const mutation = !readOnlyInstruction && (
     (mutationTaskType && explicitMutationVerb) ||
     /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(task) ||
-    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
-    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change)\b/i.test(task)
+    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
+    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(task)
   );
   const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
   return { mutation, verification };

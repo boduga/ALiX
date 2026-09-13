@@ -534,6 +534,28 @@ describe("classifyAction — workspace-mutation recognition contract", () => {
       const result = classifyAction("mkdir foo");
       assert.equal(result.intent, "workspace_mutation");
     });
+    it("routes a bare 'Build ... in <language>' deliverable request to workspace_mutation (not generation)", () => {
+      // REGRESSION: "Build a distributed queue worker system in Python ..."
+      // matched GENERATION_SIGNALS (`in Python`) and routed to the one-shot
+      // direct executor — no tools, no files written. A build verb with a
+      // system noun must dominate the language-context signal.
+      const result = classifyAction(
+        "Build a distributed queue worker system in Python using Redis and PostgreSQL"
+      );
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'Implement a queue worker in Go using Redis' to workspace_mutation", () => {
+      const result = classifyAction("Implement a queue worker in Go using Redis");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'Scaffold a new REST API service' to workspace_mutation", () => {
+      const result = classifyAction("Scaffold a new REST API service");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'Generate the implementation for the queue worker' to workspace_mutation", () => {
+      const result = classifyAction("Generate the implementation for the queue worker");
+      assert.equal(result.intent, "workspace_mutation");
+    });
   });
 
   describe("negative corpus (must NOT classify workspace_mutation)", () => {

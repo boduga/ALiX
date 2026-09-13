@@ -29,8 +29,10 @@ Distinct from adjacent intent families:
 
 | Pattern | Matches |
 |---|---|
-| `^(?:install|uninstall|create|delete|remove|rm|rename|edit|update|touch|mkdir|chmod|chown)\s+\S+` | Imperative verbs at the start of the prompt: "install curl", "create foo.ts", "delete foo.txt" |
+| `^(?:install|uninstall|create|delete|remove|rm|rename|edit|update|touch|mkdir|chmod|chown|build|scaffold|implement)\s+\S+` | Imperative verbs at the start of the prompt: "install curl", "create foo.ts", "delete foo.txt", "build a queue worker", "implement the auth module" |
 | `\b(?:write|put|save|create|make|append|delete|remove|rm)\s+\S+\s+(?:to|into|in|as|from|on)\b` | Superset of legacy `hasWorkspaceWriteIntent` carve-out (now deleted) |
+| `\b(?:build|scaffold|implement)\s+(?:a\s+|an\s+|the\s+)?(?:\w+\s+){0,4}?(?:system|service|app|...|feature|endpoint)\b` | Deliverable-creation verb + system noun (up to 4 adjective words between): "build a distributed queue worker system". Fires before generation signals so "in Python" can't pull a build into the one-shot direct route |
+| `\bgenerate\s+(?:a\s+|an\s+|the\s+)?(?:implementation|service|module|component|endpoint|migration|schema|boilerplate)\b` | "generate" counts as mutation ONLY with a deliverable noun ("generate the implementation"); prose nouns (poem, specification, summary) stay generation |
 | `\bcreate\s+(?:a\s+|an\s+|the\s+)?(?:file|directory|folder|script|module|component|class|function|endpoint|note|document|test|spec|backup)\b` | Create-new mutation forms |
 | `\b(?:rename|move|mv)\s+\S+\s+(?:to|into)\b` | Rename / move forms |
 | `\bmake\s+(?:a\s+|an\s+|the\s+)?(?:file|directory|note|script|module|change|list|plan|copy|backup)\b` | "make a X" creation |
@@ -59,6 +61,10 @@ Each test in `tests/runtime/action-classifier.test.ts → describe("positive cor
 | `update README.md` | `workspace_mutation` | 0.95 |
 | `save changes` | `workspace_mutation` | 0.95 |
 | `mkdir foo` | `workspace_mutation` | 0.95 |
+| `Build a distributed queue worker system in Python using Redis and PostgreSQL` | `workspace_mutation` | 0.95 |
+| `Implement a queue worker in Go using Redis` | `workspace_mutation` | 0.95 |
+| `Scaffold a new REST API service` | `workspace_mutation` | 0.95 |
+| `Generate the implementation for the queue worker` | `workspace_mutation` | 0.95 |
 
 ## Negative corpus (must NOT classify `workspace_mutation`)
 
@@ -120,7 +126,7 @@ The legacy carve-out was a regex re-derivation of intent from raw prompt text th
 ## Done checklist
 
 - ✅ Recognizer documented (this file)
-- ✅ Positive corpus (10 prompts, all routing correctly)
+- ✅ Positive corpus (14 prompts, all routing correctly)
 - ✅ Negative corpus (7 prompts, none routing here)
 - ✅ Ambiguous corpus (2 prompts with documented routing policy)
 - ✅ Confidence boundary (0.95 ≥ 0.7 Layer-1 floor)

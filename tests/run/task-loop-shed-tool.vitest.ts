@@ -484,6 +484,20 @@ describe('task-loop completion termination', () => {
       'Make one harmless improvement to README.md, then run an appropriate verification command.',
       'docs',
     )).toEqual({ mutation: true, verification: true });
+    // Build/scaffold/generate are deliverable-creation verbs: a no-mutation
+    // session must not pass as completed for them.
+    expect(objectiveEvidenceRequirements(
+      'Build a distributed queue worker system in Python using Redis and PostgreSQL',
+      'feature',
+    )).toEqual({ mutation: true, verification: false });
+    expect(objectiveEvidenceRequirements(
+      'Generate the implementation for the queue worker',
+      'feature',
+    )).toEqual({ mutation: true, verification: false });
+    expect(objectiveEvidenceRequirements(
+      'Scaffold a new service in src/',
+      'feature',
+    )).toEqual({ mutation: true, verification: false });
   });
 
   it('terminates immediately when done is the only tool called', async () => {

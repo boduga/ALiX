@@ -198,6 +198,17 @@ describe("taskRouter", async () => {
     const r = await taskRouter("Implement feature");
     assert.equal(r.kind, "agent");
   });
+
+  it("routes a bare deliverable-creation prompt to agent (not direct generation)", async () => {
+    // REGRESSION: "Build a ... system in Python ..." matched the
+    // language-context generation signal and routed to the one-shot direct
+    // executor — prose answer, no tools, no files. Deliverable-creation
+    // verbs must reach the agent loop.
+    const r = await taskRouter(
+      "Build a distributed queue worker system in Python using Redis and PostgreSQL"
+    );
+    assert.equal(r.kind, "agent");
+  });
 });
 
 // ── Direct routes (Task 2 addition) ────────────────────────────────────
