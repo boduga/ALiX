@@ -9,7 +9,7 @@
  * @module a9-composition-root
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,6 +43,18 @@ afterEach(() => {
 });
 
 describe("A9 composition-root wiring (CapabilityPlatform.a9)", () => {
+  beforeEach(() => {
+    // Pin wall-clock to the file's fictional NOW. EventLog.append stamps
+    // real time while forecast horizons anchor at NOW — without the pin
+    // this suite is a FORECAST_HORIZON_DAYS-day time bomb.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("exposes the constructed A9 adapters + engines bound to the platform EventLog", () => {
     const eventLog = new EventLog(sessionDir);
     const platform = new CapabilityPlatform({
