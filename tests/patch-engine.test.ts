@@ -283,3 +283,31 @@ test("buildEditFormatPolicy allows unified_diff once engine supports it", () => 
   assert.ok(policy.allowed.includes("unified_diff"));
   assert.deepEqual(policy.allowed, ["unified_diff", "search_replace", "structured_patch"]);
 });
+
+test("preimage rejection guides the model toward search_replace (#678)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"));
+    await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
+    const patch = JSON.stringify({
+      version: 1,
+      files: [{ path: "src/a.ts", operation: "modify", preimageHash: "<sha256>", content: "const a = 2;\n" }]
+    });
+    await assert.rejects(
+      () => applyPatch(dir, "structured_patch", patch),
+      /Preimage validation failed for src\/a\.ts.*search_replace/s
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("tool descriptions steer small edits to search_replace (#678)", async () => {
+  const { patchFormatDescription, patchTextDescription } = await import("../src/run/helpers.js");
+  const { buildEditFormatPolicy } = await import("../src/patch/edit-format-policy.js");
+  const policy = buildEditFormatPolicy({ provider: "freellmapi" });
+  assert.match(patchFormatDescription(policy), /search_replace/);
+  const text = patchTextDescription(policy.preferred);
+  assert.doesNotMatch(text, /"preimageHash":"<sha256>"/);
+  assert.match(text, /search_replace/);
+});

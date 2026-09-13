@@ -60,7 +60,7 @@ export function buildStateSummary(state: SessionState): string {
 export function patchFormatDescription(policy: EditFormatPolicy): string {
   const preferred = policy.preferred;
   const alternate = preferred === "search_replace" ? "structured_patch" : "search_replace";
-  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. unified_diff is also accepted and auto-detected. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}.`;
+  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. unified_diff is also accepted and auto-detected. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}. For small edits to existing files prefer search_replace (exact original block, no hash needed); use structured_patch for large rewrites with a correct preimageHash.`;
 }
 
 /**
@@ -68,7 +68,7 @@ export function patchFormatDescription(policy: EditFormatPolicy): string {
  */
 export function patchTextDescription(preferred: EditFormatPolicy["preferred"]): string {
   if (preferred === "structured_patch") {
-    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer. unified_diff is also accepted and auto-detected.`;
+    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256 hex of the CURRENT file content>","content":"<full new content>"}]}. preimageHash must be the exact sha256 of the file as it exists now (read the file first; compute it with sha256sum) — a literal placeholder never validates. For small edits prefer search_replace with the exact original block instead (no hash needed). unified_diff is also accepted and auto-detected.`;
   }
   if (preferred === "unified_diff") {
     return "The patch content. Preferred unified_diff format is a standard git diff: --- a/<file> / +++ b/<file> / @@ hunk headers. search_replace and structured_patch are also accepted.";

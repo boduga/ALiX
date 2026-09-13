@@ -229,12 +229,14 @@ async function applyPatchBody(root: string, format: EditFormat, patchData: unkno
       if (file.operation === "modify") {
         const content = await readFile(path, "utf8");
         if (!file.preimageHash || sha256(content) !== file.preimageHash) {
-          throw new Error(`Preimage validation failed for ${file.path}`);
+          throw new Error(
+            `Preimage validation failed for ${file.path}: preimageHash does not match the current file content (a literal "<sha256>" placeholder never validates). Re-read the file; for a small edit prefer search_replace with the exact original block instead (no hash needed), or resubmit structured_patch with the correct sha256 hex of the current content.`
+          );
         }
       }
       if (file.operation === "delete" && file.preimageHash) {
         const content = await readFile(path, "utf8");
-        if (sha256(content) !== file.preimageHash) throw new Error(`Preimage validation failed for ${file.path}`);
+        if (sha256(content) !== file.preimageHash) throw new Error(`Preimage validation failed for ${file.path}: preimageHash does not match the current file content. Re-read the file and resubmit with the correct sha256 hex.`);
       }
     }
     for (const file of patch.files) {
