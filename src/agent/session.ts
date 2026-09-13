@@ -716,6 +716,12 @@ export class AgentSessionBuilder {
 
     // Resolved runtime values (computed during init)
     let currentTask = config.task;
+    // First-turn session objective, captured once initialize() completes.
+    // Threaded into the task loop as `sessionGoal` so bare continuation
+    // turns ("continue", "proceed") are verified against the original
+    // objective instead of passing with no-ops. Stays undefined for
+    // sessions that never complete a first turn (legacy behavior).
+    let sessionGoal: string | undefined;
     // The turn's ExecutionContext, set at the top of each processTurnBody
     // invocation so initialize() → setupContextAndPlan → runPlanPhase can
     // thread the same runId/sessionId into every plan-phase provider request.
@@ -1463,6 +1469,9 @@ export class AgentSessionBuilder {
         // a task to work with (TUI creates sessions with an empty task).
         if (!currentTask) currentTask = message;
         await initialize();
+        // Capture the first-turn objective exactly once, after initialize()
+        // has normalized currentTask from the opening message.
+        sessionGoal ??= currentTask;
       } else {
         // Lifecycle phase: subsequent turn started → Understanding. First-turn
         // initialization performs the same transition once ctx.log is available.
@@ -1791,6 +1800,7 @@ export class AgentSessionBuilder {
           tokenizer,
           task: message,
           taskType: turnTaskType,
+          sessionGoal,
           depth: turnDepth,
           readOnly: config.readOnly ?? turnReadOnlyTask,
           shellTask: turnShellTask,

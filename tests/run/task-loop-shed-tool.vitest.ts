@@ -13,7 +13,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
-import { explicitMutationTargets, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { explicitMutationTargets, isContinuationMessage, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -107,6 +107,7 @@ async function makeTestDeps(overrides: {
   messages?: NormalizedMessage[];
   maxIterations?: number;
   taskType?: TaskLoopDeps['taskType'];
+  sessionGoal?: TaskLoopDeps['sessionGoal'];
   executor?: TaskLoopDeps['executor'];
   selectedTools?: TaskLoopDeps['selectedTools'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
@@ -176,6 +177,7 @@ async function makeTestDeps(overrides: {
     tokenizer: 'cl100k_base',
     task: overrides.task ?? 'test task',
     taskType: overrides.taskType ?? 'docs',
+    sessionGoal: overrides.sessionGoal,
     depth: 'quick',
     memoryStore,
     sessionId,
@@ -498,6 +500,86 @@ describe('task-loop completion termination', () => {
       'Scaffold a new service in src/',
       'feature',
     )).toEqual({ mutation: true, verification: false });
+  });
+
+  describe('continuation message detection', () => {
+    it.each([
+      'continue', 'Continue.', 'CONTINUE', '  continue  ',
+      'next', 'next step', 'Next Step.', 'proceed', 'go on',
+      'keep going', 'carry on', 'finalize', 'Finalize.',
+    ])('treats %j as a bare continuation', (text) => {
+      expect(isContinuationMessage(text)).toBe(true);
+    });
+
+    it.each([
+      '', 'continue the report', 'discontinue', 'finalize the report',
+      'next quarter results', 'done', 'finish',
+      'Build a distributed queue worker system in Python',
+    ])('does not treat %j as a bare continuation', (text) => {
+      expect(isContinuationMessage(text)).toBe(false);
+    });
+  });
+
+  describe('session-goal evidence scope', () => {
+    const doneOnlyProvider = () => {
+      let iteration = 0;
+      const requests: RecordedRequest[] = [];
+      const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+        id: 'mock',
+        capabilities: {
+          provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+          outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+          supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+        },
+        editFormatPreference: 'search_replace',
+        longContextStrategy: 'trimmed_context',
+        requests,
+        async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+          requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+          iteration++;
+          return { text: '', toolCalls: [{ name: 'alix_done', id: `done-${iteration}`, args: {} }] };
+        },
+      };
+      return provider;
+    };
+    const doneExecutor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+    } as any;
+
+    it('holds a bare continuation to the session goal (completed_unverified without mutation)', async () => {
+      const provider = doneOnlyProvider();
+      const { deps } = await makeTestDeps({
+        provider,
+        task: 'continue',
+        sessionGoal: 'Build a distributed queue worker system in Python using Redis and PostgreSQL',
+        providerTools: [doneTool],
+        executor: doneExecutor,
+        maxIterations: 4,
+      });
+
+      const result = await runTaskLoop(deps);
+
+      expect(result.reason).toBe('completed_unverified');
+      expect(result.summary).toContain('missing a successful workspace mutation');
+    });
+
+    it('leaves a bare continuation without a session goal on the legacy path (completed)', async () => {
+      const provider = doneOnlyProvider();
+      const { deps } = await makeTestDeps({
+        provider,
+        task: 'continue',
+        providerTools: [doneTool],
+        executor: doneExecutor,
+        maxIterations: 4,
+      });
+
+      const result = await runTaskLoop(deps);
+
+      expect(result.reason).toBe('completed');
+    });
   });
 
   it('terminates immediately when done is the only tool called', async () => {

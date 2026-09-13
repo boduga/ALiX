@@ -19,6 +19,7 @@ import type { ExecutionContext } from "../observability/execution-context.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { TaskStateMachine } from "../autonomy/state-machine.js";
 import type { TaskType } from "../task-classifier.js";
+import { classifyTask } from "../task-classifier.js";
 import type { MutationSessionState, RunResult, ContextPressure } from "../run.js";
 import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
@@ -332,6 +333,20 @@ const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete",
 const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
 const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 
+/**
+ * Bare continuation cues — a turn whose entire message is one of these
+ * carries no objective of its own ("continue", "proceed", ...). Anchored
+ * so contentful turns ("continue the report", "finalize the migration")
+ * never match. "done"/"finish" are deliberately excluded: they are stop
+ * signals, not continuations.
+ */
+const CONTINUATION_RE = /^(?:continue|next(?:\s+step)?|proceed|go\s+on|keep\s+going|carry\s+on|finalize)\.?$/i;
+
+/** True when the turn text is a bare continuation cue with no objective. */
+export function isContinuationMessage(text: string): boolean {
+  return CONTINUATION_RE.test(text.trim());
+}
+
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
   const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
   const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
@@ -346,8 +361,7 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
   return { mutation, verification };
 }
 
-function objectiveEvidenceGaps(
-  task: string,
+function objectiveEvidenceGaps(  task: string,
   taskType: string,
   evidence: ReadonlyArray<SuccessfulToolEvidence>,
 ): string[] {
@@ -537,6 +551,14 @@ post_task?: { command: string; reason: string }[];
   tokenizer: TokenizerName;
   task: string;
   taskType: string;
+  /**
+   * First-turn session objective. When the turn task is a bare continuation
+   * (see `isContinuationMessage`), evidence requirements are evaluated
+   * against this instead of the turn text — otherwise follow-up turns can
+   * `ls + done` their way to `completed` on a build objective. Optional;
+   * when unset, evidence is evaluated against the turn task (legacy).
+   */
+  sessionGoal?: string;
   depth: "quick" | "deep";
   readOnly?: boolean;
   shellTask?: boolean;
@@ -601,9 +623,10 @@ hooks,
 maxIterations,
 contextBudget,
 tokenizer,
-task,
-taskType,
-depth,
+  task,
+  taskType,
+  sessionGoal,
+  depth,
 memoryStore,
 sessionId,
 sessionDir,
@@ -613,6 +636,13 @@ onProgress,
   } = deps;
 
   const allowedMutationPaths = explicitMutationTargets(task);
+
+  // Evidence scope: a bare continuation turn ("continue", "proceed", ...)
+  // inherits the session's original objective for verification purposes,
+  // so follow-up turns are held to the same bar as the first turn.
+  // `task` itself is untouched — prompts and scope stay turn-scoped.
+  const evidenceTask = sessionGoal && isContinuationMessage(task) ? sessionGoal : task;
+  const evidenceTaskType = evidenceTask === task ? taskType : classifyTask(evidenceTask);
 
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
@@ -1315,8 +1345,8 @@ if (toolCalls.length === 0) {
   }
 
   const changedFilesForVerification = [...sessionState.created, ...sessionState.changed];
-  const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
-  const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+  const explicitVerificationRequired = objectiveEvidenceRequirements(evidenceTask, evidenceTaskType).verification;
+  const explicitVerificationMissing = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence)
     .includes(VERIFICATION_EVIDENCE_GAP);
   const checks = requiresRepositoryVerification(
     changedFilesForVerification,
@@ -1382,7 +1412,7 @@ if (toolCalls.length === 0) {
         !explicitDoneCalled &&
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
-      const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
+      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence);
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
         evidenceGaps.length === 0;
@@ -1868,7 +1898,7 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    const evidenceGaps = objectiveEvidenceGaps(task, taskType, successfulToolEvidence);
+    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence);
     if ((unsubstantiated.length > 0 || evidenceGaps.length > 0) && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
       unconfirmedDoneAttempts++;
       await log.append({
@@ -1963,8 +1993,8 @@ if (toolCalls.length === 0) {
     await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
   } else {
     const changedFiles = [...sessionState.created, ...sessionState.changed];
-    const explicitVerificationRequired = objectiveEvidenceRequirements(task, taskType).verification;
-    const explicitVerificationMissing = objectiveEvidenceGaps(task, taskType, successfulToolEvidence)
+    const explicitVerificationRequired = objectiveEvidenceRequirements(evidenceTask, evidenceTaskType).verification;
+    const explicitVerificationMissing = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence)
       .includes(VERIFICATION_EVIDENCE_GAP);
     if (
       changedFiles.length > 0 &&
