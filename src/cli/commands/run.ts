@@ -5,6 +5,7 @@ import { createAgentSession, type AgentTurnResult } from "../../agent/session.js
 import { createTraceClient } from "../../tracing/client-factory.js";
 import type { TraceClient } from "../../tracing/client.js";
 import { loadConfig } from "../../config/loader.js";
+import type { TracingConfig } from "../../config/schema.js";
 import { ApiError } from "../../providers/base.js";
 import { tryResolveModelConfig } from "../../config/model-resolver.js";
 import { parseRunArgs } from "../run-args.js";
@@ -49,15 +50,27 @@ export async function handler(args: string[]): Promise<number> {
     // chat routes get a provider (mirrors the TUI). Without this, a
     // generation-only prompt routed to the direct path returns the
     // `[chat:no-provider]` placeholder even when models.default is set.
-    const loadedConfig = await loadConfig(process.cwd());
-    const defaultModel = tryResolveModelConfig(loadedConfig);
-    const chatModelOpt = defaultModel?.provider
-      ? { chatModel: { provider: defaultModel.provider, model: defaultModel.name } }
-      : {};
+    // Headless tolerance (#680, mirrors #679): loadConfig resolves EVERY
+    // cred:// ref, so one unreachable backend (no Secret Service bus under
+    // cron) must not kill a run before any turn begins. Fall back with a
+    // warning: no chat-model hint, Noop tracing. Interactive use is
+    // unaffected (config loads, no warning).
+    let chatModelOpt: { chatModel?: { provider: string; model: string } } = {};
+    let tracingConfig: TracingConfig | undefined;
+    try {
+      const loadedConfig = await loadConfig(process.cwd());
+      const defaultModel = tryResolveModelConfig(loadedConfig);
+      if (defaultModel?.provider) {
+        chatModelOpt = { chatModel: { provider: defaultModel.provider, model: defaultModel.name } };
+      }
+      tracingConfig = loadedConfig.tracing;
+    } catch (err) {
+      console.warn(`[run] config unavailable, using flags/defaults: ${err instanceof Error ? err.message : err}`);
+    }
 
     const { createReplRenderer, createReplEvents } = await import("../renderers/repl.js");
     const { JsonlSessionStore } = await import("../../agent/session-store-jsonl.js");
-    runTraceClient = await createTraceClient((await loadConfig(process.cwd())).tracing);
+    runTraceClient = await createTraceClient(tracingConfig);
     if (chat) {
       // Wire a streaming events subscription into both the session and the
       // renderer (spec 13) so the REPL renders tokens/tool calls as they

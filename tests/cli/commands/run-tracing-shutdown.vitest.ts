@@ -143,4 +143,30 @@ describe("run handler · bounded shutdown at the composition root (Task 14)", ()
     expect(code).toBe(1);
     expect(createTraceClient).not.toHaveBeenCalled();
   });
+
+  it("survives an unreachable credential backend: warns and runs with fallbacks (#680)", async () => {
+    // Headless tolerance: loadConfig throws when no Secret Service bus is
+    // available (cron). The run must proceed with no chat-model hint and a
+    // (mocked) trace client instead of dying before any turn begins.
+    const { loadConfig } = await import("../../../src/config/loader.js");
+    (loadConfig as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("Credential store is unavailable")
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { client, shutdown } = fakeTraceClient();
+      (createTraceClient as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(client);
+
+      const code = await handler(["refactor the double lookup"]);
+
+      expect(code).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0] ?? "")).toMatch(/config unavailable/);
+      expect(createTraceClient).toHaveBeenCalledTimes(1);
+      expect(createTraceClient).toHaveBeenCalledWith(undefined);
+      expect(shutdown).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
