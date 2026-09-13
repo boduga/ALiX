@@ -890,10 +890,11 @@ export class AgentSessionBuilder {
         currentTask,
         ctx.config.skills?.factory,
         explicitSkills,
+        { projectDir: config.cwd },
       );
       // Persist for per-turn splicing in processTurn (subsequent-turn path).
       firstTurnMatchedSkills = matchedSkills;
-      firstTurnExplicitSkills = await resolveExplicitSkills(explicitSkills);
+      firstTurnExplicitSkills = await resolveExplicitSkills(explicitSkills, config.cwd);
 
       // P5: Context limits + task classification — resolve the runtime model
       // from the canonical `models` object (§10.1/§10.2).
@@ -1244,7 +1245,7 @@ export class AgentSessionBuilder {
       // subsequent-turn splice (to inject slash skills into the existing
       // system prompt). Recomputed every turn so a persistent session's
       // subsequent turns don't silently drop the selected skill (Tab 4 fix).
-      const currentTurnExplicit = await resolveExplicitSkills(explicitSkills);
+      const currentTurnExplicit = await resolveExplicitSkills(explicitSkills, config.cwd);
       // ── Preflight classification ─────────────────────────────────────────
       // Classify the message BEFORE any initialization. Direct routes bypass
       // the full agent lifecycle entirely. Grounded_chat routes are handled
@@ -2693,13 +2694,14 @@ async function setupMemory(
  */
 export async function resolveExplicitSkills(
   explicitSkills?: string[],
+  projectDir?: string | null,
 ): Promise<any[]> {
   if (!explicitSkills || explicitSkills.length === 0) return [];
   try {
-    const skillsHome = join(homedir(), ".alix", "skills");
-    const { loadSkillManifests, loadSkillContent } = await import("../skills/loader.js");
+    const { loadDiscoveredSkillManifests } = await import("../skills/discovery.js");
+    const { loadSkillContent } = await import("../skills/loader.js");
     const { buildSkillCatalog } = await import("../skills/catalog.js");
-    const skillManifests = await loadSkillManifests(skillsHome);
+    const skillManifests = await loadDiscoveredSkillManifests(homedir(), projectDir);
     const skillCatalog = buildSkillCatalog(skillManifests);
     const entries: SkillEntry[] = [];
     for (const ref of explicitSkills) {
@@ -2749,23 +2751,22 @@ export async function setupSkills(
   task: string,
   factoryConfig?: { maxStore: number; maxCandidates: number },
   explicitSkills?: string[],
-  opts?: { autoMatch?: boolean },
+  opts?: { autoMatch?: boolean; projectDir?: string | null },
 ): Promise<any[]> {
   try {
-    const skillsHome = join(homedir(), ".alix", "skills");
-    const { loadSkillManifests } = await import("../skills/loader.js");
+    const { loadDiscoveredSkillManifests, getAlixSkillsDir } = await import("../skills/discovery.js");
     const { buildSkillCatalog } = await import("../skills/catalog.js");
     const { canonicalSkillId } = await import("../skills/slash.js");
-    const skillManifests = await loadSkillManifests(skillsHome);
+    const skillManifests = await loadDiscoveredSkillManifests(homedir(), opts?.projectDir);
     const skillCatalog = buildSkillCatalog(skillManifests);
     const { maxStore, maxCandidates } = factoryConfig ?? DEFAULT_FACTORY_CONFIG;
-    evictIfNeeded(skillsHome, {
+    evictIfNeeded(getAlixSkillsDir(homedir()), {
       maxStore,
       maxCandidates: maxCandidates ?? 200,
     });
 
     // Explicit: resolve per-name (non-fatal), load transactionally (all-or-nothing).
-    const explicit = await resolveExplicitSkills(explicitSkills);
+    const explicit = await resolveExplicitSkills(explicitSkills, opts?.projectDir);
 
     // Auto-match (preserved; skipped when the caller opts out, e.g. chat path).
     const autoMatched = opts?.autoMatch === false ? [] : await skillCatalog.getMatchedContent(task);

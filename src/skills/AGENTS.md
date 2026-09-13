@@ -12,8 +12,20 @@ eligible candidates under usage gating.
 | `dispatcher.ts` | Post-session factory dispatch |
 | `promotion.ts` | `promoteIfEligible` (success-gated install, versioning) |
 | `types.ts` | `parseSkillContent` (front-matter manifest validation) |
+| `discovery.ts` | Discovery roots + union loading (`getSkillDiscoveryRoots`, `loadDiscoveredSkillManifests`, `resolveDiscoveredSkillDir`); `loader.ts` stays single-root |
 
 ## Local Contracts
+
+- **Discovery roots (durable):** read paths (slash catalog, agent/session
+  catalogs, `run` route detection, `skills run` resolution) union
+  `<cwd>/.alix/skills` (first, when a project dir is known) >
+  `~/.alix/skills` > read-only `~/.agents/skills`. First root wins on
+  `manifest.name` collision. Management pins scope explicitly:
+  `alix skills install/remove/list/run` default (and `--global`) to the
+  user store; `--project` selects `<cwd>/.alix/skills` (`--project` +
+  `--global` is a usage error; `run` scope flags must precede the script
+  name). Promotion and eviction stay user-store-only: the factory never
+  writes the project store, and the project store is never auto-evicted.
 
 - **Candidate bar** (plan tunables, enforced factory-side): ≥ 5 unique
   traceIds sharing a tool-sequence shape, every traced run scoring ≥ 0.8.

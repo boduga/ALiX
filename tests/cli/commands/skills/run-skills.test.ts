@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { resolveSkillsCommand } from "../../../../src/cli/commands/skills/run-skills.js";
-import { resolveSkillScriptPath } from "../../../../src/cli/commands/skills/run-skill.js";
+import { runSkillCommand, resolveSkillScriptPath } from "../../../../src/cli/commands/skills/run-skill.js";
 
 describe("resolveSkillsCommand", () => {
   it('maps ["available"] to { type: "available" }', () => {
@@ -34,28 +34,28 @@ describe("resolveSkillsCommand", () => {
   it('maps ["install", "brand"] to install with name "brand"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "brand"]), {
       type: "install",
-      opts: { available: false, list: false, name: "brand", from: undefined, force: false },
+      opts: { available: false, list: false, name: "brand", from: undefined, force: false, project: false, global: false },
     });
   });
 
   it('maps ["install", "brand", "--from", "./x"] to install with from "./x"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "brand", "--from", "./x"]), {
       type: "install",
-      opts: { available: false, list: false, name: "brand", from: "./x", force: false },
+      opts: { available: false, list: false, name: "brand", from: "./x", force: false, project: false, global: false },
     });
   });
 
   it('maps ["install", "list"] (bare subcommand) to install with list: true, not a skill named "list"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "list"]), {
       type: "install",
-      opts: { available: false, list: true, name: undefined, from: undefined, force: false },
+      opts: { available: false, list: true, name: undefined, from: undefined, force: false, project: false, global: false },
     });
   });
 
   it('maps ["install", "--list"] to install with list: true', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "--list"]), {
       type: "install",
-      opts: { available: false, list: true, name: undefined, from: undefined, force: false },
+      opts: { available: false, list: true, name: undefined, from: undefined, force: false, project: false, global: false },
     });
   });
 
@@ -70,8 +70,31 @@ describe("resolveSkillsCommand", () => {
   it('maps ["remove", "brand"] to install with remove: true and name "brand"', () => {
     assert.deepEqual(resolveSkillsCommand(["remove", "brand"]), {
       type: "install",
-      opts: { remove: true, name: "brand" },
+      opts: { remove: true, name: "brand", project: false, global: false },
     });
+  });
+
+  it('maps ["remove", "brand", "--project"] to scoped remove', () => {
+    assert.deepEqual(resolveSkillsCommand(["remove", "brand", "--project"]), {
+      type: "install",
+      opts: { remove: true, name: "brand", project: true, global: false },
+    });
+  });
+
+  it("parses 'skills run --project <skill> <script>' with scope before the script", () => {
+    const cmd = resolveSkillsCommand(["run", "--project", "xlsx", "recalc.py", "--file", "a.xlsx"]);
+    assert.deepEqual(cmd, { type: "run", name: "xlsx", script: "recalc.py", args: ["--file", "a.xlsx"], project: true, global: false });
+  });
+
+  it("leaves '--project' after the script name to the script itself", () => {
+    const cmd = resolveSkillsCommand(["run", "xlsx", "recalc.py", "--project"]);
+    assert.deepEqual(cmd, { type: "run", name: "xlsx", script: "recalc.py", args: ["--project"], project: false, global: false });
+  });
+
+  it("rejects conflicting scope flags", () => {
+    assert.throws(() => resolveSkillsCommand(["install", "x", "--project", "--global"]), /not both/);
+    assert.throws(() => resolveSkillsCommand(["remove", "x", "--project", "--global"]), /not both/);
+    assert.throws(() => resolveSkillsCommand(["run", "--project", "--global", "x", "s.sh"]), /not both/);
   });
 
   it("maps empty args to { type: 'help' }", () => {
@@ -80,7 +103,7 @@ describe("resolveSkillsCommand", () => {
 
   it("parses 'skills run <skill> <script> [args]'", () => {
     const cmd = resolveSkillsCommand(["run", "xlsx", "recalc.py", "--file", "a.xlsx"]);
-    assert.deepEqual(cmd, { type: "run", name: "xlsx", script: "recalc.py", args: ["--file", "a.xlsx"] });
+    assert.deepEqual(cmd, { type: "run", name: "xlsx", script: "recalc.py", args: ["--file", "a.xlsx"], project: false, global: false });
   });
 
   it("parses 'install --force'", () => {
@@ -95,6 +118,22 @@ describe("resolveSkillsCommand", () => {
       type: "distill-from-traces",
       args: ["--candidates", "c.json", "--min-runs", "5"],
     });
+  });
+});
+
+describe("runSkillCommand scope", () => {
+  it("rejects --project when the skill is not in the project store", async () => {
+    await assert.rejects(
+      runSkillCommand("missing-skill", "s.sh", [], { project: true, cwd: "/tmp/alix-no-such-project" }),
+      /not installed/,
+    );
+  });
+
+  it("rejects --project --global together", async () => {
+    await assert.rejects(
+      runSkillCommand("x", "s.sh", [], { project: true, global: true }),
+      /not both/,
+    );
   });
 });
 

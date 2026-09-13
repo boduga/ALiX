@@ -129,17 +129,19 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   const { discoverHooks } = await import("../hooks/discover.js");
   const hooks = await discoverHooks(cwd);
 
-  // Load skills (manifests only at startup, bodies lazy-loaded on match)
-  const skillsHome = join(process.env.HOME ?? "", ".alix", "skills");
-  const { loadSkillManifests } = await import("../skills/loader.js");
+  // Load skills (manifests only at startup, bodies lazy-loaded on match).
+  // Discovery unions project-local (<cwd>/.alix/skills) with the ALiX user
+  // store and ~/.agents/skills; eviction stays scoped to the ALiX user
+  // store (the project store is managed explicitly, never auto-evicted).
+  const { loadDiscoveredSkillManifests, getAlixSkillsDir } = await import("../skills/discovery.js");
   const { buildSkillCatalog } = await import("../skills/catalog.js");
-  const skillManifests = await loadSkillManifests(skillsHome);
+  const skillManifests = await loadDiscoveredSkillManifests(process.env.HOME ?? "", cwd);
   const skillCatalog = buildSkillCatalog(skillManifests);
 
   // Enforce store limits
   const { evictIfNeeded } = await import("../skills/lifecycle.js");
   const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
-  evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
+  evictIfNeeded(getAlixSkillsDir(process.env.HOME ?? ""), { maxStore, maxCandidates: maxCandidates ?? 200 });
 
   // Initialize subagent infrastructure only if enabled
   let ownershipRegistry: import("../agents/ownership-registry.js").OwnershipRegistry | undefined;

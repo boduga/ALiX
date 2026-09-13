@@ -12,44 +12,60 @@ const testDir = join(process.cwd(), ".test-alix-skills");
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
     assert.deepEqual(resolveInstallOptions(["available"]), {
-      available: true, list: false, name: undefined, from: undefined, force: false,
+      available: true, list: false, name: undefined, from: undefined, force: false, project: false, global: false,
     });
   });
 
   it("resolves 'install <name>' — name is the second arg, not 'install'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "tdd"]), {
-      available: false, list: false, name: "tdd", from: undefined, force: false,
+      available: false, list: false, name: "tdd", from: undefined, force: false, project: false, global: false,
     });
   });
 
   it("resolves 'install --list'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--list"]), {
-      available: false, list: true, name: undefined, from: undefined, force: false,
+      available: false, list: true, name: undefined, from: undefined, force: false, project: false, global: false,
     });
   });
 
   it("resolves legacy '--available' flag", () => {
     assert.deepEqual(resolveInstallOptions(["--available"]), {
-      available: true, list: false, name: undefined, from: undefined, force: false,
+      available: true, list: false, name: undefined, from: undefined, force: false, project: false, global: false,
     });
   });
 
   it("resolves empty args to a bare call (help path)", () => {
     assert.deepEqual(resolveInstallOptions([]), {
-      available: false, list: false, name: undefined, from: undefined, force: false,
+      available: false, list: false, name: undefined, from: undefined, force: false, project: false, global: false,
     });
   });
 
   it("resolves 'install --from <path>' with an explicit name", () => {
     assert.deepEqual(resolveInstallOptions(["install", "langfuse", "--from", "./langfuse"]), {
-      available: false, list: false, name: "langfuse", from: "./langfuse", force: false,
+      available: false, list: false, name: "langfuse", from: "./langfuse", force: false, project: false, global: false,
     });
   });
 
   it("resolves 'install --from <url>' without a name (derived from manifest)", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--from", "https://example.com/skill.md"]), {
-      available: false, list: false, name: undefined, from: "https://example.com/skill.md", force: false,
+      available: false, list: false, name: undefined, from: "https://example.com/skill.md", force: false, project: false, global: false,
     });
+  });
+
+  it("resolves 'install --project' scope pin", () => {
+    assert.deepEqual(resolveInstallOptions(["install", "tdd", "--project"]), {
+      available: false, list: false, name: "tdd", from: undefined, force: false, project: true, global: false,
+    });
+  });
+
+  it("resolves 'install --global' scope pin", () => {
+    assert.deepEqual(resolveInstallOptions(["install", "tdd", "--global"]), {
+      available: false, list: false, name: "tdd", from: undefined, force: false, project: false, global: true,
+    });
+  });
+
+  it("rejects '--project --global' together", () => {
+    assert.throws(() => resolveInstallOptions(["install", "tdd", "--project", "--global"]), /not both/);
   });
 });
 
@@ -160,6 +176,55 @@ describe("skill remove", () => {
 
   it("throws when remove is used without a name", async () => {
     await assert.rejects(runInstall({ remove: true }), /Usage: alix skills remove/);
+  });
+});
+
+describe("install --project scope", () => {
+  const VALID = "---\nname: proj-skill\ndescription: Project skill\n---\nBody.\n";
+  // Fake project root distinct from the fake HOME so project and user
+  // stores never coincide.
+  const projRoot = join(testDir, "proj");
+
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  function writeProjectFixture(): string {
+    const dir = join(testDir, "fixtures", "proj-skill");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "SKILL.md"), VALID);
+    return dir;
+  }
+
+  it("installs --project into <cwd>/.alix/skills, not the user store", async () => {
+    const dir = writeProjectFixture();
+    await runInstall({ from: dir, project: true, force: true }, { cwd: projRoot });
+    assert.ok(existsSync(join(projRoot, ".alix", "skills", "proj-skill", "SKILL.md")), "project store should hold the skill");
+    assert.ok(!existsSync(join(testDir, ".alix", "skills", "proj-skill")), "user store should not hold the skill");
+  });
+
+  it("default install (no flag) targets the user store, not the project store", async () => {
+    const dir = writeProjectFixture();
+    await runInstall({ from: dir, force: true }, { cwd: projRoot });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "proj-skill", "SKILL.md")), "user store should hold the skill");
+    assert.ok(!existsSync(join(projRoot, ".alix", "skills", "proj-skill")), "project store should not hold the skill");
+  });
+
+  it("removes --project from the project store only", async () => {
+    const dir = writeProjectFixture();
+    await runInstall({ from: dir, project: true, force: true }, { cwd: projRoot });
+    await runInstall({ from: dir, force: true }, { cwd: projRoot });
+    await runInstall({ remove: true, name: "proj-skill", project: true }, { cwd: projRoot });
+    assert.ok(!existsSync(join(projRoot, ".alix", "skills", "proj-skill")), "project skill should be removed");
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "proj-skill", "SKILL.md")), "user skill should survive");
+  });
+
+  it("rejects --project --global together", async () => {
+    await assert.rejects(runInstall({ list: true, project: true, global: true }, { cwd: projRoot }), /not both/);
   });
 });
 

@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { homedir } from "node:os";
 import type { SkillManifest } from "./types.js";
 
 /**
@@ -18,18 +16,30 @@ import type { SkillManifest } from "./types.js";
 
 type Loader = () => Promise<SkillManifest[]>;
 
-const skillsHome = () => join(homedir(), ".alix", "skills");
-
 let generation = 0;
 let cached: { gen: number; manifests: SkillManifest[] } | null = null;
 let inFlight: Promise<SkillManifest[]> | null = null;
 let loader: Loader | null = null;
+/** Project root for project-local discovery (<dir>/.alix/skills, first priority). */
+let projectDir: string | null = null;
 
 async function defaultLoader(): Promise<SkillManifest[]> {
-  const { loadSkillManifests } = await import("./loader.js");
-  // loadSkillManifests returns { manifest, path }[] — the catalog caches bare
-  // manifests, so unwrap each entry.
-  return (await loadSkillManifests(skillsHome())).map((s) => s.manifest);
+  const { loadDiscoveredSkillManifests } = await import("./discovery.js");
+  // loadDiscoveredSkillManifests returns { manifest, path }[] — the catalog
+  // caches bare manifests, so unwrap each entry.
+  return (await loadDiscoveredSkillManifests(undefined, projectDir)).map((s) => s.manifest);
+}
+
+/**
+ * Point slash completion at a project root (or back to null). Bumps the
+ * generation only on actual change, so per-tick syncing is cheap. The TUI
+ * calls this from its refresh path with the snapshot cwd.
+ */
+export function setSlashCatalogProjectDir(dir: string | null): void {
+  const next = dir ? dir : null;
+  if (next === projectDir) return;
+  projectDir = next;
+  invalidateSlashCatalog();
 }
 
 /** Test seam — replace the loader (or restore the default with null). */

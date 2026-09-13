@@ -7,7 +7,7 @@ export type SkillsCommand =
   | { type: "help" }
   | { type: "available" }
   | { type: "install"; opts: InstallOptions }
-  | { type: "run"; name: string; script: string; args: string[] }
+  | { type: "run"; name: string; script: string; args: string[]; project: boolean; global: boolean }
   | { type: "distill-from-traces"; args: string[] }
   | { type: "marketplace"; action: "list" | "add" | "remove"; name?: string; url?: string };
 
@@ -40,6 +40,9 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
     };
   }
   if (sub === "install") {
+    if (flags.has("--project") && flags.has("--global")) {
+      throw new Error("Usage: pass either --project or --global, not both");
+    }
     return {
       type: "install",
       opts: {
@@ -50,23 +53,38 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
         name: positional[1] !== "list" ? positional[1] : undefined,
         from,
         force: flags.has("--force"),
+        project: flags.has("--project"),
+        global: flags.has("--global"),
       },
     };
   }
   if (sub === "run") {
-    return {
-      type: "run",
-      name: positional[1] ?? "",
-      script: positional[2] ?? "",
-      // Flags after the script name belong to the script, not the CLI — use the
-      // raw arg list (parseSkillsArgs strips `--flag`s into the flags set).
-      args: args.slice(3),
-    };
+    // Scope flags must precede the script name: everything from the script
+    // token on is passed raw to the script (a script's own --flags are
+    // never consumed here). Locate the script token with a sequential scan
+    // so leading scope flags don't shift the raw-arg split.
+    const headFlags = args.slice(0, 3);
+    const project = headFlags.includes("--project");
+    const global = headFlags.includes("--global");
+    if (project && global) {
+      throw new Error("Usage: pass either --project or --global, not both");
+    }
+    const name = positional[1] ?? "";
+    const script = positional[2] ?? "";
+    let i = 1;
+    while (i < args.length && args[i]!.startsWith("--")) i++;
+    if (i < args.length && args[i] === positional[1]) i++;
+    while (i < args.length && args[i]!.startsWith("--")) i++;
+    if (i < args.length && args[i] === positional[2]) i++;
+    return { type: "run", name, script, args: args.slice(i), project, global };
   }
   if (sub === "remove") {
+    if (flags.has("--project") && flags.has("--global")) {
+      throw new Error("Usage: pass either --project or --global, not both");
+    }
     return {
       type: "install",
-      opts: { remove: true, name: positional[1] },
+      opts: { remove: true, name: positional[1], project: flags.has("--project"), global: flags.has("--global") },
     };
   }
   if (sub === "distill-from-traces") {
@@ -87,7 +105,7 @@ export async function runSkillsCommand(args: string[]): Promise<void> {
       await runInstall(cmd.opts);
       return;
     case "run":
-      await runSkillCommand(cmd.name, cmd.script, cmd.args);
+      await runSkillCommand(cmd.name, cmd.script, cmd.args, { project: cmd.project, global: cmd.global });
       return;
     case "distill-from-traces":
       await handleSkillsDistillFromTraces(cmd.args);

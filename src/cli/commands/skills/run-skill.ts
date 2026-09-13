@@ -30,16 +30,43 @@ export function resolveSkillScriptPath(skillDir: string, script: string): string
   return join(skillDir, "scripts", script);
 }
 
-export async function runSkillCommand(name: string, script: string, args: string[]): Promise<void> {
+export interface RunSkillOptions {
+  /** Pin resolution to <cwd>/.alix/skills. */
+  project?: boolean;
+  /** Pin resolution to ~/.alix/skills (part of the default union). */
+  global?: boolean;
+  /** Project root for --project (defaults to process.cwd()). Test seam. */
+  cwd?: string;
+}
+
+export async function runSkillCommand(
+  name: string,
+  script: string,
+  args: string[],
+  opts?: RunSkillOptions,
+): Promise<void> {
   if (!name || !script) {
     console.error("Usage: alix skills run <skill> <script> [args...]");
     process.exitCode = 1;
     return;
   }
+  if (opts?.project && opts?.global) {
+    throw new Error("Usage: pass either --project or --global, not both");
+  }
   const safety = await loadSafetyConfig();
   const homeDir = process.env.HOME ?? "";
-  const skillDir = join(homeDir, ".alix", "skills", name);
-  if (!existsSync(join(skillDir, "SKILL.md"))) {
+  const cwd = opts?.cwd ?? process.cwd();
+  const { resolveDiscoveredSkillDir, getProjectSkillsDir } = await import("../../../skills/discovery.js");
+  // --project pins the project-local store; otherwise resolve across the
+  // user-global store + shared agents dir (the pre-scope default union).
+  let skillDir: string | null;
+  if (opts?.project) {
+    const dir = join(getProjectSkillsDir(cwd), name);
+    skillDir = existsSync(join(dir, "SKILL.md")) ? dir : null;
+  } else {
+    skillDir = resolveDiscoveredSkillDir(name, homeDir);
+  }
+  if (!skillDir) {
     throw new Error(`Skill '${name}' is not installed.`);
   }
   const scriptPath = resolveSkillScriptPath(skillDir, script);

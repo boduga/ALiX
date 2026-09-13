@@ -22,13 +22,25 @@ import {
 export interface InstallOptions {
   list?: boolean;
   available?: boolean;
-  /** Remove an installed skill from ~/.alix/skills/<name>. */
+  /** Remove an installed skill from the scoped store. */
   remove?: boolean;
   name?: string;
   /** Install a skill from a local dir/file or https URL. */
   from?: string;
   /** Bypass the trust confirmation (never bypasses hard scan denials). */
   force?: boolean;
+  /** Scope pin: install/remove/list in <cwd>/.alix/skills instead of ~/.alix/skills. */
+  project?: boolean;
+  /** Scope pin: explicitly select ~/.alix/skills (the default when no flag is given). */
+  global?: boolean;
+}
+
+/** Resolve `--project`/`--global` to a scope label. Throws usage on conflict. */
+export function resolveScopeLabel(opts: { project?: boolean; global?: boolean }): "project" | "global" {
+  if (opts.project && opts.global) {
+    throw new Error("Usage: pass either --project or --global, not both");
+  }
+  return opts.project ? "project" : "global";
 }
 
 /**
@@ -134,12 +146,19 @@ export function parseSkillsArgs(args: string[]): { flags: Set<string>; positiona
 export function resolveInstallOptions(args: string[]): InstallOptions {
   const { flags, positional, from } = parseSkillsArgs(args);
   const sub = positional[0] ?? "";
+  const project = flags.has("--project");
+  const global = flags.has("--global");
+  if (project && global) {
+    throw new Error("Usage: pass either --project or --global, not both");
+  }
   return {
     available: sub === "available" || flags.has("--available"),
     list: flags.has("--list"),
     name: sub === "install" ? positional[1] : undefined,
     from,
     force: flags.has("--force"),
+    project,
+    global,
   };
 }
 
@@ -224,10 +243,14 @@ async function gateAndRecordInstall(params: {
   return result;
 }
 
-export async function runInstall(opts: InstallOptions): Promise<void> {
+export async function runInstall(opts: InstallOptions, overrides?: { cwd?: string }): Promise<void> {
   const homeDir = process.env.HOME ?? "";
+  const scope = resolveScopeLabel(opts);
+  const cwd = overrides?.cwd ?? process.cwd();
   const alixDir = join(homeDir, ".alix");
-  const skillsDir = join(alixDir, "skills");
+  // --project pins the project-local store (<cwd>/.alix/skills); default and
+  // --global use the user-global store (~/.alix/skills).
+  const skillsDir = scope === "project" ? join(cwd, ".alix", "skills") : join(alixDir, "skills");
 
   // Show available skills across registered marketplaces
   if (opts.available) {
@@ -235,17 +258,14 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     return;
   }
 
-  // Ensure .alix directory exists
-  if (!existsSync(alixDir)) {
-    await mkdir(alixDir, { recursive: true });
-  }
+  // Ensure the scoped store exists (project scope creates <cwd>/.alix/skills)
   if (!existsSync(skillsDir)) {
     await mkdir(skillsDir, { recursive: true });
   }
 
   // List installed skills
   if (opts.list) {
-    await listInstalledSkills(skillsDir);
+    await listInstalledSkills(skillsDir, scope);
     return;
   }
 
@@ -330,15 +350,22 @@ export function printSkillsHelp(): void {
 
 Usage:
   alix skills available                              List skills available from registered marketplaces
-  alix skills install <name>                         Install a skill from a registered marketplace
-  alix skills install <name> --from <path|url>       Install a skill from a local dir/file or https URL
-  alix skills install --list                         List installed skills
-  alix skills run <name> <script> [args...]          Run a skill script sandboxed (no network, temp HOME, timeout)
+  alix skills install <name> [--project|--global]    Install a skill from a registered marketplace
+  alix skills install <name> --from <path|url> [--project|--global]
+                                                     Install a skill from a local dir/file or https URL
+  alix skills install --list [--project|--global]    List installed skills
+  alix skills run <name> <script> [args...] [--project|--global]
+                                                     Run a skill script sandboxed (no network, temp HOME, timeout)
   alix skills distill-from-traces --candidates <f>   Distill mined trace candidates into candidate skills
-  alix skills remove <name>                          Remove an installed skill
+  alix skills remove <name> [--project|--global]     Remove an installed skill
   alix skills marketplace list                       List registered marketplaces
   alix skills marketplace add <name> <url>           Register a marketplace (github.com https URL)
   alix skills marketplace remove <name>              Unregister a marketplace
+
+Scope: no flag (or --global) uses the user-global store (~/.alix/skills);
+--project uses the project-local store (<cwd>/.alix/skills). Discovery
+(slash completion, agent matching) unions project > global > ~/.agents/skills.
+Scope flags for 'run' must come before the script name.
 
 Run 'alix skills available' to see skills you can install.
 `);
@@ -571,7 +598,7 @@ async function installFromSource(source: string, name: string | undefined, skill
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }
 
-/** Remove an installed skill from ~/.alix/skills/<name>. */
+/** Remove an installed skill from the scoped store (<scope>/<name>). */
 async function removeSkill(name: string, skillsDir: string): Promise<void> {
   const target = join(skillsDir, name);
   if (!existsSync(join(target, "SKILL.md"))) {
@@ -582,7 +609,7 @@ async function removeSkill(name: string, skillsDir: string): Promise<void> {
   console.log(`Removed: ${name}`);
 }
 
-async function listInstalledSkills(dir: string): Promise<void> {
+async function listInstalledSkills(dir: string, scope: "project" | "global"): Promise<void> {
   if (!existsSync(dir)) {
     console.log("No skills installed.");
     return;
@@ -594,7 +621,7 @@ async function listInstalledSkills(dir: string): Promise<void> {
     return;
   }
 
-  console.log("Installed skills:\n");
+  console.log(`Installed skills (${scope}, ${dir}):\n`);
   for (const name of entries) {
     const skillPath = join(dir, name, "SKILL.md");
     if (existsSync(skillPath)) {

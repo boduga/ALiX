@@ -209,19 +209,22 @@ async function runTaskCoreImpl(
   const memoryContext = await buildMemoryContext(ctx.memoryStore);
   const memoryStats = await buildMemoryStats(ctx.memoryStore);
 
-  // Load skills (manifests only at startup, bodies lazy-loaded on match)
+  // Load skills (manifests only at startup, bodies lazy-loaded on match).
+  // Discovery unions project-local (<cwd>/.alix/skills) with the ALiX user
+  // store and ~/.agents/skills; eviction stays scoped to the ALiX user
+  // store (the project store is managed explicitly, never auto-evicted).
   let skillCatalog: any = null;
   if (!opts?.disableSkillFactory) {
-    const skillsHome = join(process.env.HOME ?? "", ".alix", "skills");
-    const { loadSkillManifests } = await import("../skills/loader.js");
+    const { loadDiscoveredSkillManifests, getAlixSkillsDir } = await import("../skills/discovery.js");
     const { buildSkillCatalog } = await import("../skills/catalog.js");
-    const skillManifests = await loadSkillManifests(skillsHome);
+    const home = process.env.HOME ?? "";
+    const skillManifests = await loadDiscoveredSkillManifests(home, cwd);
     skillCatalog = buildSkillCatalog(skillManifests);
 
     // Enforce store limits
     const { evictIfNeeded: evict } = await import("../skills/lifecycle.js");
     const { maxStore, maxCandidates } = ctx.config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
-    evict(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
+    evict(getAlixSkillsDir(home), { maxStore, maxCandidates: maxCandidates ?? 200 });
   }
 
   	// Resolve context window and tokenizer from config or API, then

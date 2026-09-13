@@ -17,14 +17,13 @@ export async function handler(args: string[]): Promise<number> {
     return 1;
   }
 
-  // Skill route detection (best-effort): check if input matches an installed skill
+  // Skill route detection (best-effort): check if input matches a discovered skill
   let matchedSkillId: string | undefined;
   if (task) {
     try {
-      const skillsHome = join(homedir(), ".alix", "skills");
-      const { loadSkillManifests } = await import("../../skills/loader.js");
+      const { loadDiscoveredSkillManifests } = await import("../../skills/discovery.js");
       const { buildSkillCatalog } = await import("../../skills/catalog.js");
-      const manifests = await loadSkillManifests(skillsHome);
+      const manifests = await loadDiscoveredSkillManifests(homedir(), process.cwd());
       const catalog = buildSkillCatalog(manifests);
       const matched = catalog.match(task);
       if (matched.length > 0) {

@@ -5,6 +5,7 @@ import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
 import type { ViewAction, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { parseSlashInput, rankSkillMatches, canonicalSkillId } from '../skills/slash.js';
+import { setSlashCatalogProjectDir } from '../skills/slash-catalog.js';
 import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
@@ -311,6 +312,9 @@ export class TuiApp {
     const snap = await this.opts.builder.build(generation);
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
+    // Project-scoped slash completion: the snapshot carries the TUI command's
+    // cwd, so <cwd>/.alix/skills joins discovery (no-op when unchanged).
+    setSlashCatalogProjectDir(snap.cwd || null);
     this.syncPendingApprovals();
     this.syncCurrentIntent();
     await this.sampleRuntimeCollectors();
