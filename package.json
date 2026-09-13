@@ -71,7 +71,7 @@
     "glob": "13.0.6",
     "minimatch": "10.2.6",
     "typescript": "7.0.2",
-    "undici-types": "8.5.0",
+    "undici-types": "8.10.2",
     "vitest": "4.1.10"
   },
   "dependencies": {
