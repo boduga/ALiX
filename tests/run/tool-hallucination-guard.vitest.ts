@@ -92,4 +92,30 @@ describe("handleToolCall unknown-tool guard", () => {
       '<tool_result id="call-2" invocationId="inv-test" executionId="exec-test">\nok\n</tool_result>',
     );
   });
+
+  it("short-circuits repeated identical read-only search calls", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", matches: [] }) };
+    const deps = { ...makeDeps(executor), searchCallGuard: new Map<string, number>() };
+    const call = (id: string) =>
+      handleToolCall({ id, name: "alix_grep_search", args: { pattern: "needle" } }, deps, [], []);
+
+    await call("s1");
+    await call("s2");
+    await call("s3");
+    const fourth = await call("s4");
+
+    // Only the first three executed; the fourth is short-circuited with a hint.
+    expect(executor.execute).toHaveBeenCalledTimes(3);
+    expect(fourth.message?.content).toContain("repeated identical search call");
+    expect(fourth.continue).toBe(true);
+  });
+
+  it("does not guard a different search pattern", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", matches: [] }) };
+    const deps = { ...makeDeps(executor), searchCallGuard: new Map<string, number>() };
+    for (let i = 0; i < 5; i++) {
+      await handleToolCall({ id: `p${i}`, name: "alix_grep_search", args: { pattern: `needle-${i}` } }, deps, [], []);
+    }
+    expect(executor.execute).toHaveBeenCalledTimes(5);
+  });
 });

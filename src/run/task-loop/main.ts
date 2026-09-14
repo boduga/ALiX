@@ -334,6 +334,9 @@ let intentStreak = 0;
 // synthesis re-prompt to tell the model what tools it hasn't tried yet,
 // and also now used to gate completion (see findUnsubstantiatedClaims).
 const usedTools = new Set<string>();
+// Per-turn guard against a model looping on the same read-only search call
+// (e.g. 20× identical grep.search). Keyed by tool+args signature.
+const searchCallGuard = new Map<string, number>();
 const successfulToolEvidence: SuccessfulToolEvidence[] = [];
 let toolEvidenceOrdinal = 0;
 
@@ -996,6 +999,7 @@ if (toolCalls.length === 0) {
     cancelSignal: deps.cancelSignal,
     allowedMutationPaths,
     runId: deps.context?.runId,
+    searchCallGuard,
   };
 
   // Track accumulated state across all tool calls so one tool's result

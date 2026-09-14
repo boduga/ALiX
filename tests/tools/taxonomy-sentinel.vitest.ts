@@ -103,6 +103,9 @@ describe('taxonomy unification architecture sentinels', () => {
     //     self-extend tools, deliberately NOT offered (nothing requires them).
     //   - mcp_search_tools: MCP tool-search sentinel, not an executable tool.
     //   - mcp.* tools are added at runtime by the agent loop, never statically.
+    //   - alix_dir_search: retired from the model surface (#719/#721 follow-up);
+    //     grep.search (contents) + glob.match (filenames) supersede it. The
+    //     executor/registry still support `dir.search` for internal callers.
     const offered = new Set(BASE_TOOLS.map((t) => t.name));
     const mapKeys = new Set(Object.keys(TOOL_NAME_MAP));
     const scopedOut = new Set([
@@ -110,6 +113,7 @@ describe('taxonomy unification architecture sentinels', () => {
       'alix_list_extensions',
       'alix_inspect_extension',
       'mcp_search_tools',
+      'alix_dir_search',
     ]);
 
     // 1. Every offered name is a real TOOL_NAME_MAP key (model-facing, alix_*).

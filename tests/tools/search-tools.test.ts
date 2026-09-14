@@ -19,6 +19,9 @@ async function seed(): Promise<string> {
   await writeFile(join(root, ".gitignore"), "ignored-dir/\n");
   await mkdir(join(root, "ignored-dir"), { recursive: true });
   await writeFile(join(root, "ignored-dir", "x.ts"), "const needle = 100;\n");
+  // Non-code planning tree that must not pollute content search.
+  await mkdir(join(root, ".superpowers", "sdd"), { recursive: true });
+  await writeFile(join(root, ".superpowers", "sdd", "plan.md"), "const needle = 200;\n");
   return root;
 }
 
@@ -79,6 +82,27 @@ test("grepSearch falls back to literal for invalid regex", async () => {
   try {
     const result = await grepSearch({ root, pattern: "(" });
     assert.equal(result.kind, "success");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("grepSearch accepts an inline (?i) flag", async () => {
+  const root = await seed();
+  try {
+    const result = await grepSearch({ root, pattern: "(?i)NEEDLE" });
+    assert.ok((result as { matches: unknown[] }).matches.length > 0, "(?i)NEEDLE matches case-insensitively");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("grepSearch does not traverse .superpowers planning trees", async () => {
+  const root = await seed();
+  try {
+    const result = await grepSearch({ root, pattern: "needle" });
+    const paths = (result as { matches: { path: string }[] }).matches.map((m) => m.path);
+    assert.ok(!paths.some((p) => p.startsWith(".superpowers/")), ".superpowers ignored");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -169,6 +193,9 @@ test("dir.search honors headLimit and shares ignore rules (#721)", async () => {
     const paths = (all as { matches: { path: string }[] }).matches.map((m) => m.path);
     assert.ok(!paths.some((p) => p.startsWith("node_modules/")), "node_modules ignored");
     assert.ok(!paths.some((p) => p.startsWith("ignored-dir/")), ".gitignore honored");
+
+    const ci = await router.execute({ toolCallId: "d3", name: "dir.search", args: { pattern: "(?i)NEEDLE" } });
+    assert.ok((ci as { matches: unknown[] }).matches.length > 0, "dir.search honors inline (?i)");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

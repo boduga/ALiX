@@ -19,6 +19,9 @@ export const IGNORED_DIRS: ReadonlySet<string> = new Set([
   "coverage",
   ".next",
   ".alix",
+  // Non-code planning/index trees that pollute content search results.
+  ".superpowers",
+  ".gitnexus",
 ]);
 
 /**

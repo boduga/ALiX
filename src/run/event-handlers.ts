@@ -46,7 +46,19 @@ export type EventHandlerDeps = {
   allowedMutationPaths?: readonly string[];
   /** Authoritative run id for the enclosing execution (Task 12 tool spans). */
   runId?: string;
+  /**
+   * Per-turn signature counter for read-only search tools. When provided, an
+   * identical (tool + args) search call beyond {@link SEARCH_REPEAT_LIMIT} is
+   * short-circuited with a corrective message instead of re-executing — this
+   * breaks the "same grep 20×" loop a confused model can fall into.
+   */
+  searchCallGuard?: Map<string, number>;
 };
+
+/** Read-only search tools subject to the repeated-call guard. */
+const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match", "dir.search"]);
+/** How many identical search calls are allowed before the guard fires. */
+const SEARCH_REPEAT_LIMIT = 3;
 
 /**
  * Handle MCP tool search requests
@@ -305,6 +317,24 @@ export async function handleToolCall(
         content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
       },
     };
+  }
+
+  // Repeated-search guard: an identical read-only search call past the limit is
+  // short-circuited so a stuck model cannot burn the iteration budget. Only
+  // active when the caller supplies a per-turn counter.
+  if (deps.searchCallGuard && GUARDED_SEARCH_TOOLS.has(execName)) {
+    const signature = `${execName}:${JSON.stringify(toolCall.args ?? {})}`;
+    const count = (deps.searchCallGuard.get(signature) ?? 0) + 1;
+    deps.searchCallGuard.set(signature, count);
+    if (count > SEARCH_REPEAT_LIMIT) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: repeated identical search call — "${execName}" with these exact arguments has already run ${count - 1} times and will return the same result. Use the previous result, change the pattern/scope (e.g. narrower \`path\`, different \`include\`), or answer with what you have.\n</tool_result>`,
+        },
+      };
+    }
   }
 
   // First attempt — T5 correlation: pass executionId → invocationId → toolCallId to executor via typed CorrelationContext (no Record spread). T12: thread runId for tool-span parent resolution where the caller provides it.

@@ -28,6 +28,30 @@ function escapeRegExp(text: string): string {
 }
 
 /**
+ * Strip a leading inline-flags group (e.g. `(?i)`, `(?-i)`) from a pattern and
+ * fold it into the `caseSensitive` flag. JavaScript regexes do not support
+ * inline flags, so without this `(?i)TODO` is an invalid pattern and would be
+ * silently treated as a literal (returning no matches). Returns the cleaned
+ * pattern and the effective case sensitivity.
+ */
+function stripInlineFlags(
+  pattern: string,
+  caseSensitive: boolean | undefined,
+): { pattern: string; caseSensitive: boolean } {
+  let cs = caseSensitive === true;
+  let p = pattern;
+  const m = /^\(\?([a-z]*)(?:-([a-z]+))?\)/.exec(p);
+  if (m) {
+    const on = m[1] ?? "";
+    const off = m[2] ?? "";
+    if (on.includes("i")) cs = false;
+    if (off.includes("i")) cs = true;
+    p = p.slice(m[0].length);
+  }
+  return { pattern: p, caseSensitive: cs };
+}
+
+/**
  * Walk workspace files (relative paths), skipping ignored directories and
  * gitignored paths. Sequential and bounded by the caller's early exit.
  */
@@ -95,9 +119,11 @@ export type GrepSearchArgs = {
  * to a literal match for invalid regexes), bounded by headLimit.
  */
 export async function grepSearch(args: GrepSearchArgs): Promise<ToolResult> {
-  const { root, pattern } = args;
+  const { root } = args;
   const headLimit = clampLimit(args.headLimit, DEFAULT_GREP_LIMIT);
-  const flags = args.caseSensitive ? "" : "i";
+  const normalized = stripInlineFlags(args.pattern, args.caseSensitive);
+  const pattern = normalized.pattern;
+  const flags = normalized.caseSensitive ? "" : "i";
   let matcher: RegExp;
   try {
     matcher = new RegExp(pattern, flags);
@@ -199,8 +225,14 @@ export type DirSearchArgs = {
  * headLimit matches are collected.
  */
 export async function searchDir(args: DirSearchArgs): Promise<ToolResult> {
-  const { root, pattern, extensions } = args;
+  const { root, extensions } = args;
   const headLimit = clampLimit(args.headLimit, DEFAULT_GREP_LIMIT);
+  // Literal substring search. A leading `(?i)` makes it case-insensitive;
+  // otherwise matching stays case-sensitive (unchanged default).
+  const inline = /^\(\?([a-z]*)\)/.exec(args.pattern);
+  const caseInsensitive = inline ? inline[1].includes("i") : false;
+  const pattern = inline ? args.pattern.slice(inline[0].length) : args.pattern;
+  const needle = caseInsensitive ? pattern.toLowerCase() : pattern;
   const ignorePatterns = loadGitignore(root);
   const matches: FileMatch[] = [];
 
@@ -211,7 +243,8 @@ export async function searchDir(args: DirSearchArgs): Promise<ToolResult> {
     }
     try {
       for await (const { lineNumber, line } of readLinesStreaming(join(root, rel))) {
-        if (line.includes(pattern)) {
+        const hay = caseInsensitive ? line.toLowerCase() : line;
+        if (hay.includes(needle)) {
           matches.push({ path: rel, lineNumber, line });
           if (matches.length >= headLimit) return { kind: "success", matches };
         }

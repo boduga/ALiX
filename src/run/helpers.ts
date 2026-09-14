@@ -90,26 +90,12 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "alix_dir_search",
-    description: "Search for a pattern across files in the workspace.",
-    input_schema: {
-      type: "object",
-      properties: {
-        pattern: { type: "string", description: "Text pattern to search for" },
-        extensions: { type: "array", items: { type: "string" } },
-        headLimit: { type: "integer", description: "Maximum matches to return (default 200)" },
-        path: { type: "string", description: "Optional workspace-relative subdirectory to scope the search" }
-      },
-      required: ["pattern"]
-    }
-  },
-  {
     name: "alix_grep_search",
-    description: "Regex-search file CONTENTS across the workspace and return path:line matches. Prefer this over alix_shell_run for read-only content searches (no shell approval).",
+    description: "Search the CONTENTS of workspace files (regex or literal) and return path:line matches. Use this for any code/text search inside the repo — it needs no shell approval. For finding files by NAME/path use alix_glob_match. This does NOT search the web.",
     input_schema: {
       type: "object",
       properties: {
-        pattern: { type: "string", description: "Regex (or literal) pattern to search for" },
+        pattern: { type: "string", description: "Regex (or literal) pattern to search for. Case-insensitive by default; a leading (?i) also works." },
         caseSensitive: { type: "boolean", description: "Case-sensitive match (default false)" },
         include: { type: "array", items: { type: "string" }, description: "Glob(s) limiting which files are searched, e.g. src/**/*.ts" },
         headLimit: { type: "integer", description: "Maximum matches to return (default 200)" },
@@ -120,7 +106,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_glob_match",
-    description: "Match FILENAMES across the workspace with a glob (*, **, ?, {a,b}) and return workspace-relative paths. Prefer this over alix_shell_run for read-only filename searches (no shell approval).",
+    description: "Find FILES by NAME across the workspace using a glob (*, **, ?, {a,b}), returning workspace-relative paths. Use this to locate files by name/extension (e.g. **/*.test.ts). For searching file CONTENTS use alix_grep_search. Needs no shell approval.",
     input_schema: {
       type: "object",
       properties: {
@@ -234,7 +220,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_web_search",
-    description: "Search the web for current information. Use for questions about current events, recent data, or facts beyond the model's training cutoff. Requires BRAVE_API_KEY env var.",
+    description: "Search the public WEB for current information (news, recent data, facts beyond the model's cutoff). This does NOT search the local workspace — for local code/text use alix_grep_search, for local filenames use alix_glob_match. Requires a configured Brave API key.",
     input_schema: {
       type: "object",
       properties: {
@@ -265,7 +251,6 @@ export const BASE_TOOLS: ToolDef[] = [
  */
 export const READ_ONLY_TOOL_NAMES = new Set([
   "alix_file_read",
-  "alix_dir_search",
   "alix_grep_search",
   "alix_glob_match",
   "alix_shell_run",
