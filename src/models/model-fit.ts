@@ -5,7 +5,7 @@
  */
 
 import type { ProfileData } from "../config/profile-types.js";
-import { matchHardware, type SystemInfo, type HardwareMatchResult } from "../config/profile-registry.js";
+import { matchHardware, type SystemInfo } from "../config/profile-registry.js";
 
 export type FitRanking = { profile: ProfileData; rank: number; status: "best fit" | "alternative" | "not recommended"; reasons: string[]; compatibility: "compatible" | "partial" | "incompatible" };
 export type FitOptions = { role?: string; mode?: string };

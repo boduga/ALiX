@@ -1,18 +1,16 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
-import { readFile, searchDir } from "./file-tools.js";
+import { readFile, searchDir, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 import { extractPatchPaths } from "../patch/patch-paths.js";
-import { createFileCheckpoint, restoreFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
-import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
-import type { CheckpointManager } from "../patch/checkpoint.js";
+import { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
 import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
 import { measurePhase } from "../runtime/timing-events.js";
@@ -22,7 +20,6 @@ import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 import { validateShellNetworkCommand, type ResolveNetworkHost } from "./shell-network-policy.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
-import type { ToolRegistry, CapabilityIndex } from "./tool-registry.js";
 
 export interface ToolRouter {
   canHandle(name: string): boolean;
@@ -98,6 +95,8 @@ export class FileToolRouter implements ToolRouter {
     "file.delete",
     "file.exists",
     "dir.search",
+    "grep.search",
+    "glob.match",
   ];
 
   private readonly pathResolver: WorkspacePathResolver;
@@ -155,6 +154,28 @@ export class FileToolRouter implements ToolRouter {
           root: this.root,
           pattern: args.pattern,
           extensions: args.extensions ?? [],
+          headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
+          path: typeof args.path === "string" ? args.path : undefined,
+        });
+      }
+      case "grep.search": {
+        if (!args.pattern) return { kind: "error", message: "grep.search requires pattern" };
+        return grepSearch({
+          root: this.root,
+          pattern: args.pattern,
+          caseSensitive: args.caseSensitive === true,
+          include: Array.isArray(args.include) ? args.include : undefined,
+          headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
+          path: typeof args.path === "string" ? args.path : undefined,
+        });
+      }
+      case "glob.match": {
+        if (!args.pattern) return { kind: "error", message: "glob.match requires pattern" };
+        return globMatch({
+          root: this.root,
+          pattern: args.pattern,
+          headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
+          path: typeof args.path === "string" ? args.path : undefined,
         });
       }
       case "file.create": {
@@ -440,26 +461,23 @@ export class PatchToolRouter implements ToolRouter {
     }
 
     const changedFiles = extractPatchPaths(effectiveFormat, effectivePatchText);
+    // Single checkpoint authority (#714): the patch CheckpointManager.
+    // Default-constructed when the caller supplied none (create() makes
+    // its own directories, so no init handshake is needed here).
+    const checkpointManager =
+      this.checkpointManager ?? new CheckpointManager(join(patchRoot, ".alix", "checkpoints"));
     let checkpointId: string | undefined;
-    let checkpoint: Checkpoint | null = null;
 
     const toolCallId = request.toolCallId;
     if (changedFiles.length > 0) {
-      if (this.checkpointManager) {
-        try {
-          const cp = await this.checkpointManager.create("patch", changedFiles.map((f) => resolve(patchRoot, f)));
-          checkpointId = cp.id;
-          if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.checkpoint_created", payload: { toolCallId, checkpointId: cp.id, files: changedFiles } });
-          }
-        } catch {
-          // Continue without checkpoint
-        }
-      } else {
-        checkpoint = await createFileCheckpoint(patchRoot, changedFiles);
+      try {
+        const cp = await checkpointManager.create("patch", changedFiles.map((f) => resolve(patchRoot, f)));
+        checkpointId = cp.id;
         if (this.eventLog) {
-          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.checkpoint_created", payload: { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files, missingFiles: checkpoint.missingFiles } });
+          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.checkpoint_created", payload: { toolCallId, checkpointId: cp.id, files: changedFiles } });
         }
+      } catch {
+        // Continue without checkpoint
       }
     }
 
@@ -484,33 +502,18 @@ export class PatchToolRouter implements ToolRouter {
       return { kind: "error", message: "Patch invalid" };
     } catch (e: unknown) {
       // Rollback on failure
-      const cpToRestore = checkpointId && this.checkpointManager ? { id: checkpointId } : checkpoint;
-      if (cpToRestore && this.checkpointManager) {
+      if (checkpointId) {
         if (this.eventLog) {
-          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_started", payload: { toolCallId, checkpointId: cpToRestore.id, files: changedFiles } });
+          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_started", payload: { toolCallId, checkpointId, files: changedFiles } });
         }
         try {
-          await this.checkpointManager.restore(cpToRestore.id);
+          await checkpointManager.restore(checkpointId);
           if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_completed", payload: { toolCallId, checkpointId: cpToRestore.id, files: changedFiles } });
+            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_completed", payload: { toolCallId, checkpointId, files: changedFiles } });
           }
         } catch (rollbackError: unknown) {
           if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_failed", payload: { toolCallId, checkpointId: cpToRestore.id, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) } });
-          }
-        }
-      } else if (checkpoint) {
-        if (this.eventLog) {
-          await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_started", payload: { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files } });
-        }
-        try {
-          await restoreFileCheckpoint(checkpoint);
-          if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_completed", payload: { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files } });
-          }
-        } catch (rollbackError: unknown) {
-          if (this.eventLog) {
-            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_failed", payload: { toolCallId, checkpointId: checkpoint.id, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) } });
+            await this.eventLog.append({ sessionId: this.sessionId ?? "unknown", actor: "system", type: "patch.rollback_failed", payload: { toolCallId, checkpointId, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) } });
           }
         }
       }

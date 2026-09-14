@@ -25,15 +25,7 @@
 import type { CoordinationRun, PlanRevision, PlanTriggerKind } from "./coordination-types.js";
 import { recomputeRunStatus } from "./coordination-types.js";
 import { computeFingerprint, createProposalRecord } from "./replan-types.js";
-import type {
-  PlanRevisionDraft,
-  ModelReplanContext,
-  TriggerEvidence,
-  ImpactAnalysis,
-  ProposalRecord,
-  SimulatedGraph,
-  ValidationResult,
-} from "./replan-types.js";
+import type { PlanRevisionDraft, ModelReplanContext, TriggerEvidence, ImpactAnalysis, ProposalRecord, SimulatedGraph } from "./replan-types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CollaborationContextBuilder } from "./collaboration-context-builder.js";
 import { ModelReplanAdapter, ReplanAdapterError } from "./model-replan-adapter.js";

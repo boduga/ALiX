@@ -59,7 +59,7 @@ function loadSignals(bundlePath: string) {
 // Build handler (read-only)
 // ---------------------------------------------------------------------------
 
-function handleBuild(args: string[], cwd: string): string {
+function handleBuild(args: string[], _cwd: string): string {
   const inputPath = flag(args, "--input");
   if (!inputPath) {
     return "ERROR: --input <path> required.\n" + usage();

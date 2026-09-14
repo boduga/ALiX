@@ -12,10 +12,10 @@
 /**
  * Sanitize an ISO-8601 timestamp into a filesystem-safe form:
  *   "2026-06-25T12:00:00.000Z" → "20260625T120000000Z"
+ *
+ * Shared canonical implementation (strict alphanumeric strip).
  */
-function sanitizeTimestamp(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(".", "");
-}
+import { sanitizeTimestamp } from "../utils/ids.js";
 
 /**
  * Build a deterministic report ID from planId and timestamp.

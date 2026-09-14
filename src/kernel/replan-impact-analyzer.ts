@@ -17,9 +17,7 @@ import type { CapabilityRegistry } from "./collaborative-planner.js";
 import type { PlanRevisionDraft, OwnershipImpact, PolicyDecision, ImpactAnalysis, SimulatedGraph } from "./replan-types.js";
 import type { WorkerAssignment } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
-import { PolicyEngine } from "../policy/policy-engine.js";
-import type { ToolCallRequest } from "../policy/policy-engine.js";
-import type { SessionMode } from "../config/schema.js";
+import type { PolicyGate } from "../policy/policy-gate.js";
 
 // ─── Risk helpers ──────────────────────────────────────────────────────────
 
@@ -90,11 +88,14 @@ export interface ReplanImpactAnalyzerOptions {
    */
   protectedScopes?: string[];
   /**
-   * Optional PolicyEngine instance for real policy evaluation.
+   * Optional PolicyGate instance for real policy evaluation.
    * When provided, enables "deny" decisions for high-risk operations.
    * When omitted, uses simplified policy logic ("allow" / "ask" only).
+   * Provide a gate backed by the live approval store: an "ask" outcome
+   * creates the pending approval that authorizes the replan at execution
+   * time (reused, not duplicated, via pending-approval reuse).
    */
-  policyEngine?: PolicyEngine;
+  policyGate?: PolicyGate;
 }
 
 // ─── Analyzer ──────────────────────────────────────────────────────────────
@@ -123,12 +124,9 @@ export class ReplanImpactAnalyzer {
   async analyze(
     draft: PlanRevisionDraft,
     existingWorkers: WorkerAssignment[],
-    simulatedGraph: SimulatedGraph,
+    _simulatedGraph: SimulatedGraph,
   ): Promise<AnalyzeResult> {
     const existingById = new Map(existingWorkers.map((w) => [w.id, w]));
-    const replaceTargets = new Set(draft.workersToReplace.map((rs) => rs.targetWorkerId));
-    const cancelSet = new Set(draft.workersToCancel);
-    const modifySet = new Set(draft.workersToModify.map((m) => m.workerId));
 
     // ── 1. Assign agents to new/replacement workers ─────────────────────
 
@@ -230,7 +228,7 @@ export class ReplanImpactAnalyzer {
 
     let riskLevel = "low";
 
-    for (const w of draft.workersToAdd) {
+    for (const _w of draft.workersToAdd) {
       // New workers default to "medium"
       riskLevel = higherRisk(riskLevel, "medium");
     }
@@ -369,13 +367,13 @@ export class ReplanImpactAnalyzer {
 
     for (const w of draft.workersToAdd) {
       policyDecisions.push(
-        this.evaluateWorkerPolicy(w.draftWorkerId, undefined, existingById),
+        await this.evaluateWorkerPolicy(w.draftWorkerId, undefined, existingById),
       );
     }
 
     for (const rs of draft.workersToReplace) {
       policyDecisions.push(
-        this.evaluateWorkerPolicy(
+        await this.evaluateWorkerPolicy(
           rs.replacement.draftWorkerId,
           rs.targetWorkerId,
           existingById,
@@ -466,23 +464,23 @@ export class ReplanImpactAnalyzer {
   /**
    * Evaluate policy for a single worker (new or replacement).
    *
-   * When a PolicyEngine is available, delegates to evaluateWithPolicyEngine
+   * When a PolicyGate is available, delegates to evaluateWithPolicyGate
    * for full policy evaluation including "deny" decisions.
    *
-   * Fallback (no PolicyEngine):
+   * Fallback (no PolicyGate):
    * - New workers without an explicit approvalMode default to "auto" (allow).
    * - Replacement workers inherit the existing approvalMode (or "auto").
    * - "manual" approvalMode → "ask" decision.
    * - No "deny" in fallback mode — always "allow" unless manual.
    */
-  private evaluateWorkerPolicy(
+  private async evaluateWorkerPolicy(
     workerRef: string,
     targetWorkerId: string | undefined,
     existingById: Map<string, WorkerAssignment>,
-  ): PolicyDecision {
-    // When PolicyEngine is available, use it for full evaluation
-    if (this.options.policyEngine) {
-      return this.evaluateWithPolicyEngine(workerRef, targetWorkerId, existingById);
+  ): Promise<PolicyDecision> {
+    // When a PolicyGate is available, use it for full evaluation
+    if (this.options.policyGate) {
+      return this.evaluateWithPolicyGate(workerRef, targetWorkerId, existingById);
     }
 
     const existing = targetWorkerId ? existingById.get(targetWorkerId) : undefined;
@@ -504,51 +502,42 @@ export class ReplanImpactAnalyzer {
   }
 
   /**
-   * Evaluate worker policy using the real PolicyEngine instance.
+   * Evaluate worker policy through the shared PolicyGate (the single
+   * policy authority — no divergent pattern set).
    *
-   * Constructs a ToolRequest wrapping the "coordination.plan.revise" capability
-   * and delegates to PolicyEngine.evaluatePolicy() for the actual decision.
-   * This enables "deny" decisions for high-risk operations that the simplified
-   * fallback logic cannot produce.
+   * Frames the replan authorization as a capability check for
+   * "coordination.plan.revise" and maps the gate decision straight
+   * through, keeping the worker-level approvalMode check on allow.
    *
-   * NOTE: PolicyEngine.evaluatePolicy() is designed for tool-call-level
-   * authorization (file read/write, shell commands, network fetches). Using
-   * it at the worker level by injecting "coordination.plan.revise" as the
-   * capability is a best-effort integration. The PolicyEngine checks
-   * protected paths, capability registry approval requirements, and default
-   * policy — but it does not natively understand worker-level concepts like
-   * approvalMode or ownership scopes. Those remain handled by the caller.
+   * NOTE: like any ask-path evaluation, an "ask" outcome records a pending
+   * approval. That approval is the replan's authorization vehicle: the
+   * execution-time ask reuses it instead of duplicating it.
    */
-  private evaluateWithPolicyEngine(
+  private async evaluateWithPolicyGate(
     workerRef: string,
     targetWorkerId: string | undefined,
     existingById: Map<string, WorkerAssignment>,
-  ): PolicyDecision {
-    const engine = this.options.policyEngine!;
+  ): Promise<PolicyDecision> {
+    const gate = this.options.policyGate!;
     const existing = targetWorkerId ? existingById.get(targetWorkerId) : undefined;
 
-    // Build a ToolRequest that wraps the replan authorization as a capability check
-    const request: ToolCallRequest = {
-      toolCallId: `replan_${workerRef}`,
-      toolName: "coordination.plan",
-      args: {},
+    const gateDecision = await gate.evaluateCapability({
+      requestId: `replan_${workerRef}`,
       capability: "coordination.plan.revise",
-      sessionMode: "auto" as SessionMode,
-    };
+      sessionMode: "auto",
+      source: "graph",
+    });
 
-    const engineDecision = engine.check(request);
+    const decision = gateDecision.decision;
 
-    // Map the engine's decision to our PolicyDecision shape
-    const decision = engineDecision.decision;
-
-    // If the engine says "deny", respect it.
+    // If the gate says "deny", respect it.
     // If "ask", return ask (needs authorization).
     // If "allow", still check approvalMode for manual workers.
     if (decision === "deny") {
       return {
         workerRef,
         decision: "deny",
-        reason: engineDecision.reason,
+        reason: gateDecision.reason,
       };
     }
 
@@ -556,11 +545,11 @@ export class ReplanImpactAnalyzer {
       return {
         workerRef,
         decision: "ask",
-        reason: engineDecision.reason,
+        reason: gateDecision.reason,
       };
     }
 
-    // Engine allowed it — also check worker-level approvalMode
+    // Gate allowed it — also check worker-level approvalMode
     const approvalMode = existing?.approvalMode ?? "auto";
     if (approvalMode === "manual") {
       return {
@@ -573,7 +562,7 @@ export class ReplanImpactAnalyzer {
     return {
       workerRef,
       decision: "allow",
-      reason: `PolicyEngine allowed; worker policy permits execution (approvalMode: "${approvalMode}")`,
+      reason: `PolicyGate allowed; worker policy permits execution (approvalMode: "${approvalMode}")`,
     };
   }
 

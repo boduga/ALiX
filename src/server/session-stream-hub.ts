@@ -26,10 +26,10 @@
  * @module
  */
 
-import { existsSync, statSync, watch, createReadStream, type Stats } from "node:fs";
+import { existsSync, statSync, watch } from "node:fs";
 import { open, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
+import "node:path";
+import "node:readline";
 import { isValidSessionId, sessionEventsPath } from "../inspector/session-reader.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
 import { redactValue } from "../security/redaction/redactor.js";
@@ -96,7 +96,6 @@ class SessionTailer {
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
   private fileCheckTimer: ReturnType<typeof setInterval> | undefined;
   private stopped = false;
-  private fileSize = 0;
   private fileInode = 0;
 
   private readonly detector: SecretDetector;
@@ -256,7 +255,6 @@ class SessionTailer {
 
     try {
       const st = await stat(this.eventsPath);
-      this.fileSize = st.size;
       this.fileInode = st.ino;
       this.readPos = 0; // start from beginning for new tailer
 
@@ -315,8 +313,7 @@ class SessionTailer {
       // Inode change → file replaced
       if (st.ino !== this.fileInode) {
         this.fileInode = st.ino;
-        this.fileSize = st.size;
-        this.readPos = 0;
+          this.readPos = 0;
         this.partialLine = "";
         this.eventCache.length = 0;
         this.readNewBytes();
@@ -330,7 +327,6 @@ class SessionTailer {
         this.eventCache.length = 0;
       }
 
-      this.fileSize = st.size;
       this.readNewBytes();
     } catch {
       // File disappeared
@@ -550,13 +546,6 @@ export class SessionStreamHub {
         this.tailers.delete(sessionId);
       });
 
-      // Cleanup when tailer stops
-      const checkStopped = (): void => {
-        if (tailer && tailer.subscriberCount === 0) {
-          tailer.stop();
-          this.tailers.delete(sessionId);
-        }
-      };
       // Poll for stopped tailers periodically (lightweight)
       // Actually, the tailer handles its own idle cleanup
     }

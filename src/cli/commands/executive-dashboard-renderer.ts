@@ -8,8 +8,7 @@
  * @module
  */
 
-import type { ExecutiveDashboardReport, DashboardPanelData,
-  ExecutiveAlert, ExecutiveSummaryRow } from "../../executive/executive-dashboard.js";
+import type { ExecutiveDashboardReport, DashboardPanelData } from "../../executive/executive-dashboard.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Formatter helpers

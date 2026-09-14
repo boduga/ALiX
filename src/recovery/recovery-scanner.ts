@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, dirname, basename, extname } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import type {
   RecoveryFinding,
@@ -16,6 +16,7 @@ import type {
   RecoverySeverity,
   RecoveryFindingKind,
 } from "./recovery-types.js";
+import { resolveDaemonTasksPath } from "../daemon/daemon-paths.js";
 
 // =========================================================================
 // Helpers
@@ -52,10 +53,6 @@ function isDir(path: string): boolean {
   }
 }
 
-function relativePath(root: string, absPath: string): string {
-  const rel = absPath.startsWith(root) ? absPath.slice(root.length) : absPath;
-  return rel.startsWith("/") ? rel.slice(1) : rel;
-}
 
 // Lock meta files contain { pid, token, acquiredAt }
 function readLockMeta(lockDir: string): { pid?: number; acquiredAt?: number } | null {
@@ -115,7 +112,7 @@ function addFinding(
 
 function scanTempFiles(
   findings: RecoveryFinding[],
-  root: string,
+  _root: string,
   dir: string,
   subsystem: RecoverySubsystem,
 ): void {
@@ -343,7 +340,7 @@ function scanCrossFileConsistency(findings: RecoveryFinding[], root: string): vo
 
     // Check for proposals per run
     const replanRunDir = join(replansDir, runId);
-    const hasReplanDir = isDir(replanRunDir);
+    isDir(replanRunDir);
 
     // Load the run to check worker consistency
     const runPath = join(coordDir, f);
@@ -402,7 +399,7 @@ function scanCrossFileConsistency(findings: RecoveryFinding[], root: string): vo
 // -- Daemon stores --------------------------------------------------------
 
 function scanDaemonStores(findings: RecoveryFinding[], root: string): void {
-  const daemonDir = join(root, ".alix");
+  join(root, ".alix");
   const homeDaemon = join(homedir(), ".alix");
 
   // PID file
@@ -424,8 +421,8 @@ function scanDaemonStores(findings: RecoveryFinding[], root: string): void {
     }
   }
 
-  // Task registry
-  const tasksFile = join(homeDaemon, "daemon-tasks.json");
+  // Task registry (global — see daemon-paths.ts)
+  const tasksFile = resolveDaemonTasksPath();
   const tasksResult = readJsonSafe(tasksFile);
   if (tasksResult.ok && Array.isArray(tasksResult.data)) {
     for (const task of tasksResult.data) {
@@ -615,7 +612,7 @@ export async function scan(root: string, options?: ScanOptions): Promise<Recover
 
   const completedAt = now();
   const criticals = findings.filter(f => f.severity === "critical");
-  const warnings = findings.filter(f => f.severity === "warning");
+  findings.filter(f => f.severity === "warning");
   const repairable = findings.filter(f => f.repairable);
 
   let summary = `${findings.length} finding(s): ${bySeverity.critical} critical, ${bySeverity.warning} warning, ${bySeverity.info} info. `;

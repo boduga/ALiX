@@ -5,7 +5,7 @@ import type { ExecutionStateStore } from "../../src/executive/execution-state-st
 import type { StepRunner } from "../../src/executive/step-runner.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 import type { PersistedExecutionPlan, PlanExecutionState, ExecutiveStepExecutionResult } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 
 function makePlan(steps: Partial<ExecutionStep>[] = [{ id: "step-1", action: "diagnose_root_cause" }]): PersistedExecutionPlan {
   return {

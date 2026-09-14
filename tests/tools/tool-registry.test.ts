@@ -449,7 +449,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   const retriever = new ToolRetriever(registry, index);
 
   const fsTools = retriever.selectForDomain("filesystem");
-  assert.strictEqual(fsTools.length, 5);
+  assert.strictEqual(fsTools.length, 7);
   assert.ok(fsTools.every(t => t.domain === "filesystem"));
 
   const systemTools = retriever.selectForDomain("system");
@@ -487,10 +487,10 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 16 tools", () => {
+test("buildDefaultToolIndex registers 18 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 16);
+  assert.strictEqual(all.length, 18);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
@@ -503,6 +503,8 @@ test("buildDefaultToolIndex registers 16 tools", () => {
     "file.delete",
     "file.exists",
     "file.read",
+    "glob.match",
+    "grep.search",
     "inspect_extension",
     "list_extensions",
     "mcp.*",
@@ -519,11 +521,11 @@ test("buildDefaultToolIndex indexes all tags", () => {
 
   // Verify all expected tags are present
   const expectedTags = [
-    "agent", "check", "code", "command", "complete", "config",
+    "agent", "check", "code", "command", "complete", "config", "content",
     "create", "delete", "delegate", "directory", "done", "edit",
-    "execute", "extension", "fetch", "file", "finish", "hook",
-    "inspect", "list", "mcp", "modify", "patch", "read",
-    "remove", "run", "search", "self-extend", "shell", "skill",
+    "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
+    "grep", "hook", "inspect", "list", "mcp", "modify", "patch", "read",
+    "regex", "remove", "run", "search", "self-extend", "shell", "skill",
     "subtask", "tool", "web", "write",
   ];
   for (const tag of expectedTags) {

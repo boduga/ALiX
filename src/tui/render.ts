@@ -13,8 +13,6 @@
 //   23     — reserved
 
 
-const STATUS = 4;
-const LINE = (n: number) => `\x1b[${n + 1};1H`;
 
 export type Region = 'header' | 'body' | 'tabs' | 'status' | 'all';
 

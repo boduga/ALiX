@@ -25,12 +25,10 @@ export interface DiffInput {
 export class DiffRenderer {
   private format: DiffFormat;
   private color: boolean;
-  private contextLines: number;
 
   constructor(options: DiffRendererOptions = {}) {
     this.format = options.format ?? "unified";
     this.color = options.color ?? false;
-    this.contextLines = options.contextLines ?? 3;
   }
 
   render(input: DiffInput): string {
@@ -128,7 +126,6 @@ export class DiffRenderer {
     let hunkLines: { type: "context" | "add" | "delete"; content: string }[] = [];
 
     while (i < oldLines.length || j < newLines.length) {
-      const oldMatch = i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j];
       const oldOnly = i < oldLines.length && (j >= newLines.length || oldLines[i] !== newLines[j]);
       const newOnly = j < newLines.length && (i >= oldLines.length || newLines[j] !== oldLines[i]);
 

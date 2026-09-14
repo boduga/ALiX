@@ -13,7 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { IntelligenceReport } from "./intelligence-types.js";
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 
 /**
  * Persists intelligence reports as standalone JSON files.
@@ -85,7 +85,7 @@ export class IntelligenceStore {
   async findSimilarProposals(
     actionType: string,
     excludeProposalId: string,
-    proposalStore: ProposalStore,
+    proposalStore: AdaptationProposalStore,
   ): Promise<Array<{ proposalId: string; outcome: string; confidence: number }>> {
     const files = await this.list();
     const similar: Array<{ proposalId: string; outcome: string; confidence: number }> = [];

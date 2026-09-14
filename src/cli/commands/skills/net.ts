@@ -1,4 +1,6 @@
+import { lookup } from "node:dns/promises";
 import { parseSkillContent } from "../../../skills/types.js";
+import { validateNetworkHost } from "../../../tools/web-fetch.js";
 
 /**
  * Top-level directory entries that are never copied when installing a skill
@@ -52,14 +54,59 @@ export function parseGithubUrl(source: string): ParsedGithubUrl | null {
 }
 
 /** Reject anything but https — fetched skill content is trusted and injected into prompts. */
-function assertHttps(url: string): void {
-  let proto: string;
+function assertHttps(url: string): URL {
+  let parsed: URL;
   try {
-    proto = new URL(url).protocol;
+    parsed = new URL(url);
   } catch {
     throw new Error(`Not a valid URL: ${url}`);
   }
-  if (proto !== "https:") throw new Error(`Only https URLs are allowed: ${url}`);
+  if (parsed.protocol !== "https:") throw new Error(`Only https URLs are allowed: ${url}`);
+  return parsed;
+}
+
+function defaultResolveHost(hostname: string): Promise<string[]> {
+  return lookup(hostname, { all: true, verbatim: true }).then((records) => records.map(({ address }) => address));
+}
+
+/**
+ * Validate a skill URL against the same network policy as web_fetch
+ * (domain allowlist empty = any public host; private/loopback blocked),
+ * on top of the https-only rule. Throws when the destination is rejected.
+ */
+async function validateSkillHost(
+  parsed: URL,
+  resolveHost: (hostname: string) => Promise<string[]> = defaultResolveHost,
+): Promise<void> {
+  await validateNetworkHost(parsed.hostname, [], resolveHost);
+}
+
+/** Validated redirect follower for skill fetches: https-only, validated per hop. */
+async function fetchValidated(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  resolveHost: (hostname: string) => Promise<string[]>,
+): Promise<Response> {
+  let current = assertHttps(url);
+  await validateSkillHost(current, resolveHost);
+  for (let redirects = 0; redirects <= 5; redirects++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetch(current, { ...init, redirect: "manual", signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (![301, 302, 303, 307, 308].includes(res.status)) return res;
+    const location = res.headers.get("location");
+    if (!location || redirects === 5) throw new Error("Too many or invalid redirects");
+    await res.arrayBuffer().catch(() => {});
+    current = assertHttps(new URL(location, current).toString());
+    await validateSkillHost(current, resolveHost);
+  }
+  throw new Error("Too many or invalid redirects");
 }
 
 /**
@@ -152,12 +199,15 @@ export async function fetchSkillFromUrls(urls: string[], sourceLabel: string, na
 }
 
 /** Fetch a remote text payload over https with a 15s timeout and 1MB cap. */
-export async function fetchText(url: string): Promise<{ content: string; isHtml: boolean }> {
-  assertHttps(url);
+export async function fetchText(
+  url: string,
+  opts?: { resolveHost?: (hostname: string) => Promise<string[]> },
+): Promise<{ content: string; isHtml: boolean }> {
+  const resolveHost = opts?.resolveHost ?? defaultResolveHost;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetchValidated(url, {}, 15_000, resolveHost);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const len = res.headers.get("content-length");
     if (len && Number(len) > 1_000_000) {
@@ -165,6 +215,9 @@ export async function fetchText(url: string): Promise<{ content: string; isHtml:
     }
     // Keep the timeout alive through the body read so a mid-body stall aborts too.
     const content = await res.text();
+    if (content.length > 1_000_000) {
+      throw new Error(`response larger than 1MB`);
+    }
     const ctype = res.headers.get("content-type") ?? "";
     return { content, isHtml: ctype.includes("text/html") };
   } finally {
@@ -173,12 +226,20 @@ export async function fetchText(url: string): Promise<{ content: string; isHtml:
 }
 
 /** Fetch a JSON payload over https with a 15s timeout. Always sends a UA (GitHub requires one for api.github.com). */
-export async function fetchJson<T>(url: string, headers?: Record<string, string>): Promise<T> {
-  assertHttps(url);
+export async function fetchJson<T>(
+  url: string,
+  opts?: { headers?: Record<string, string>; resolveHost?: (hostname: string) => Promise<string[]> },
+): Promise<T> {
+  const resolveHost = opts?.resolveHost ?? defaultResolveHost;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "alix", ...headers } });
+    const res = await fetchValidated(
+      url,
+      { headers: { "User-Agent": "alix", ...opts?.headers } },
+      15_000,
+      resolveHost,
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     // Keep the timeout alive through the body read so a mid-body stall aborts too.
     return (await res.json()) as T;

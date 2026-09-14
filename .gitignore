@@ -69,3 +69,5 @@ tmp-*.json
 
 # Runtime EventLog artifacts (regenerated each session)
 events.jsonl
+
+events.jsonl.lock

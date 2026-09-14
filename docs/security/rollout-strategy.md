@@ -17,7 +17,7 @@ P4.3-S delivers the ALiX Inspector security hardening across 8 milestones. The r
 ### Entry Criteria
 - All P4.3-S milestones implemented and committed
 - `pnpm build` passes
-- `pnpm test:unit:node` passes (all security test suites)
+- `pnpm test:ci` passes (all security test suites)
 
 ### Validation Steps
 
@@ -73,7 +73,7 @@ P4.3-S delivers the ALiX Inspector security hardening across 8 milestones. The r
 3. **Verify all security tests run in CI:**
    ```yaml
    - name: Security Tests
-     run: pnpm test:unit:node
+     run: pnpm test:ci
    ```
 
 ### Acceptance

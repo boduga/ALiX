@@ -46,8 +46,6 @@ export interface OriginPolicyContext {
 // Sec-Fetch-Site values
 // ---------------------------------------------------------------------------
 
-type SecFetchSite = "cross-site" | "same-origin" | "same-site" | "none";
-
 const VALID_SEC_FETCH_SITE: ReadonlySet<string> = new Set([
   "cross-site",
   "same-origin",
@@ -132,17 +130,6 @@ function isSameOrigin(originHost: string, requestHost: string): boolean {
 /**
  * Determine the effective scheme for the incoming request.
  */
-function requestScheme(req: IncomingMessage): string {
-  // Check for TLS termination proxy header
-  const fwdProto = getHeader(req, "x-forwarded-proto");
-  if (fwdProto?.toLowerCase() === "https") return "https";
-
-  // Direct TLS
-  const sock = req.socket as unknown as { encrypted?: boolean } | null;
-  if (sock?.encrypted) return "https";
-
-  return "http";
-}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -166,7 +153,7 @@ export function validateOrigin(
   ctx: OriginPolicyContext,
 ): OriginPolicyResult {
   const originHeader = getHeader(req, "origin");
-  const secFetchSite = getHeader(req, "sec-fetch-site");
+  getHeader(req, "sec-fetch-site");
   const hostHeader = getHeader(req, "host");
 
   // ── 1. No Origin header ───────────────────────────────────────────

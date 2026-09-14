@@ -19,14 +19,12 @@ export interface ScoringResult {
 
 export class EmbeddingScorer {
   private dimensions: number;
-  private modelName: string;
 
-  constructor(private config: EmbedderConfig) {
+  constructor(config: EmbedderConfig) {
     if (config.dimensions <= 0) {
       throw new Error("dimensions must be positive");
     }
     this.dimensions = config.dimensions;
-    this.modelName = config.modelName;
   }
 
   async createEmbedding(context: VerificationContext): Promise<Float32Array> {

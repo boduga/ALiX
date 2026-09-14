@@ -230,7 +230,7 @@ export function subagentToolError(result: { kind: string; message?: string; reas
 }
 
 export function buildResult(
-  taskId: string, role: SubagentRole, mode: "read_only" | "write",
+  taskId: string, role: SubagentRole, _mode: "read_only" | "write",
   text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
 ): SubagentResult {
   const status = computeSubagentStatus(progress, ownedPaths, process.cwd());

@@ -2,7 +2,7 @@
  * P10.4c — ExecutionEngine apply_remediation reconciler dispatch integration tests.
  *
  * Exercises engine's new apply_remediation dispatch branch end-to-end with fake
- * StepRunner, fake ProposalStore, fake EvidenceEventWriter.
+ * StepRunner, fake AdaptationProposalStore, fake EvidenceEventWriter.
  *
  * Validates:
  *   (a) Completes step when matching applied proposal exists + records evidence
@@ -17,10 +17,10 @@ import type { PlanStore } from "../../src/executive/plan-store.js";
 import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
 import type { StepRunner } from "../../src/executive/step-runner.js";
 import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import type { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 import type { StepRunnerResult } from "../../src/executive/executive-plan-types.js";
 
 // -----------------------------------------------------------------------
@@ -203,7 +203,7 @@ describe("P10.4c engine dispatch — apply_remediation reconciler", () => {
       createMocks();
     const proposalStore = {
       list: vi.fn().mockResolvedValue([makeAppliedProposal()]),
-    } as unknown as ProposalStore;
+    } as unknown as AdaptationProposalStore;
 
     const engine = new ExecutionEngine(
       planStore, stateStore, runner, writer, proposalStore,
@@ -229,7 +229,7 @@ describe("P10.4c engine dispatch — apply_remediation reconciler", () => {
     // Simulate that the create step hasn't been bridged yet — no proposals exist
     const proposalStore = {
       list: vi.fn().mockResolvedValue([] as AdaptationProposal[]),
-    } as unknown as ProposalStore;
+    } as unknown as AdaptationProposalStore;
 
     const engine = new ExecutionEngine(
       planStore, stateStore, runner, writer, proposalStore,

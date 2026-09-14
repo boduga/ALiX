@@ -5,7 +5,7 @@
  * Supports interactive and non-interactive (flag-based) modes, dry-run,
  * JSON output, and payload file validation.
  *
- * Side-effect boundary: creates child proposals in ProposalStore on save.
+ * Side-effect boundary: creates child proposals in AdaptationProposalStore on save.
  * --dry-run skips the save step.
  *
  * @module
@@ -13,7 +13,7 @@
 
 import { join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import { nextProposalId } from "../../adaptation/recommendation-to-proposal.js";
 import {
   createDefaultRegistry,
@@ -57,7 +57,7 @@ export async function handleRemediateCommand(args: string[]): Promise<void> {
 
   // Load proposal
   const cwd = process.cwd();
-  const proposalStore = new ProposalStore(
+  const proposalStore = new AdaptationProposalStore(
     join(cwd, ".alix", "adaptation", "proposals"),
   );
   let parent: AdaptationProposal | null = null;

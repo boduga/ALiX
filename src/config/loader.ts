@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelConfig, ModelTier, ModelTierConfig, SubagentConfig, TracingConfig } from "./schema.js";
+import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelTier, ModelTierConfig, SubagentConfig, TracingConfig } from "./schema.js";
 import { isValidModelConfig, MODEL_SUBAGENT_TIERS, seedLegacyModelDefault } from "./schema.js";
 import { NO_MODEL_CONFIGURED_MESSAGE } from "./model-resolver.js";
 import { validateConfig } from "./validator.js";
@@ -304,7 +304,6 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   if (trustOpts) {
     const productionMode = typeof trustOpts === "object" ? (trustOpts.productionMode ?? false) : false;
     const publicKeyPem = typeof trustOpts === "object" ? (trustOpts.publicKeyPem ?? null) : null;
-    const stampPath = typeof trustOpts === "object" ? (trustOpts.stampPath ?? undefined) : undefined;
 
     const projectConfigDirResolved = projectConfigDir(cwd);
     let configVersion = 0;

@@ -12,7 +12,7 @@
 import { join } from "node:path";
 import { createDefaultBaselineRegistry } from "../../baseline/baseline-registry.js";
 import { ExecutiveTrendStore } from "../../executive/trend-store.js";
-import { CorrelationEngine } from "../../correlation/correlation-engine.js";
+import { CorrelationEngine } from "../../correlation/baseline-correlation-engine.js";
 import { CorrelationGraphStore } from "../../correlation/correlation-graph-store.js";
 import { DEFAULT_CORRELATION_CONFIG } from "../../correlation/correlation-config.js";
 import type { CorrelationGraph } from "../../correlation/correlation-types.js";

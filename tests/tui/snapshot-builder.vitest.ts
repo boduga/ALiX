@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SnapshotBuilder, type DaemonMetricsCollector, type ApprovalCollector } from '../../src/tui/snapshot-builder.js';
 import type { AgentSession } from '../../src/agent/session.js';
-import type { PolicyEngine } from '../../src/policy/policy-engine.js';
+import type { PolicyGate } from '../../src/policy/policy-gate.js';
 import type { EventLog } from '../../src/events/event-log.js';
 import type { DaemonMetricsSnapshot } from '../../src/tui/snapshot.js';
 
@@ -31,7 +31,7 @@ function mkFakes() {
     }),
   } as unknown as ApprovalCollector;
 
-  const policy = { snapshot: async () => ({ rules: [], violations: [], enforcementMode: 'strict' as const, recentViolationCount: 0 }) } as unknown as PolicyEngine;
+  const policy = { snapshot: async () => ({ rules: [], violations: [], enforcementMode: 'strict' as const, recentViolationCount: 0 }) } as unknown as PolicyGate;
   const sops = { snapshot: async () => ({ items: [], totalLoaded: 0 }) } as unknown as { snapshot(): Promise<unknown> };
   const eventLog = { snapshot: async () => ({ events: [], workflow: null, totalEventCount: 0, lastEventAt: null }) } as unknown as EventLog;
   const daemon: DaemonMetricsCollector = {
@@ -111,7 +111,7 @@ describe('SnapshotBuilder.build — happy path', () => {
 describe('SnapshotBuilder.build — failure isolation', () => {
   it('nulls one subsystem when it throws; others stay populated', async () => {
     const f = mkFakes();
-    const brokenPolicy = { snapshot: async () => { throw new Error('policy down'); } } as unknown as PolicyEngine;
+    const brokenPolicy = { snapshot: async () => { throw new Error('policy down'); } } as unknown as PolicyGate;
     const b = new SnapshotBuilder(f.session, f.approvals, brokenPolicy, f.sops, f.eventLog, f.daemon);
     const snap = await b.build(1);
     expect(snap).not.toBeNull();

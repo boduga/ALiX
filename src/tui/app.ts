@@ -1,4 +1,4 @@
-import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
+import type { PerTabState, TabId, TuiAppState } from './state.js';
 import { createInitialTuiAppState, TAB_ORDER } from './state.js';
 import type { RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
@@ -168,7 +168,7 @@ export class TuiApp {
       chatSessionId: this.opts.chatSessionId,
       agentSessionId: this.opts.agentSessionId,
     });
-    this.paletteController = new PaletteController({ capabilityService: this.opts.capabilityService });
+    this.paletteController = new PaletteController();
     this.approvalResolver = createApprovalResolver({
       views: () => this.state.views,
       activeTab: () => this.state.activeTab,
@@ -304,7 +304,7 @@ export class TuiApp {
   get slashHintForTest(): string | null { return this.slash.hint; }
   get slashSelectionForTest(): number { return this.slash.selection; }
   /** Raw manifests accessor — test seam for `internal.slashManifests` casts. */
-  private get slashManifests(): any[] { return this.slash.manifests; }
+  get slashManifests(): any[] { return this.slash.manifests; }
   private set slashManifests(v: any[]) { this.slash.manifests = v; }
 
   private async refresh(): Promise<void> {

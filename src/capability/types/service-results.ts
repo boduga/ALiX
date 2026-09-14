@@ -169,7 +169,7 @@ export interface CapabilityApplyResult {
  *  backward compat with CAP-8 call-sites that only consume read methods
  *  (list/inspect/search/health/recommend). When `proposalGenerator` is
  *  absent, `service.propose()` throws `CapabilityServiceNotImplementedError`
- *  (CAP-8 ruling #4 — stable error contract). The `ProposalStore` is
+ *  (CAP-8 ruling #4 — stable error contract). The `GovernanceProposalStore` is
  *  derived inside the constructor from the injected `eventLog`, so the
  *  service does not grow a separate persistence constructor dep. */
 export interface CapabilityServiceOptions {

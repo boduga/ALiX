@@ -1,6 +1,9 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { githubRawCandidates } from "../../../../src/cli/commands/skills/net.js";
+import { githubRawCandidates, fetchText, fetchJson } from "../../../../src/cli/commands/skills/net.js";
+
+const PUBLIC_RESOLVE = async () => ["93.184.216.34"];
+const PRIVATE_RESOLVE = async () => ["10.9.9.9"];
 
 describe("githubRawCandidates", () => {
   // Pure function — no fetch stubbing needed. The contract for tree URLs
@@ -58,5 +61,53 @@ describe("githubRawCandidates", () => {
     assert.ok(candidates, "githubRawCandidates should return non-null for a tree URL");
     assert.equal(candidates[0], "https://raw.githubusercontent.com/example/repo/dev/skills/SKILL.md");
     assert.equal(candidates[1], "https://raw.githubusercontent.com/example/repo/dev/skills/foo/SKILL.md");
+  });
+});
+
+describe("fetchText/fetchJson network policy", () => {
+  const origFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
+
+  it("rejects private destinations before fetching", async () => {
+    globalThis.fetch = (async () => {
+      throw new Error("fetch must not be called for private destinations");
+    }) as typeof fetch;
+    await assert.rejects(
+      fetchText("https://evil.test/SKILL.md", { resolveHost: PRIVATE_RESOLVE }),
+      /Private network/,
+    );
+    await assert.rejects(
+      fetchJson("https://169.254.169.254/x", { resolveHost: PUBLIC_RESOLVE }),
+      /Private network/,
+    );
+  });
+
+  it("still enforces https-only", async () => {
+    await assert.rejects(fetchText("http://example.com/SKILL.md"), /Only https/);
+  });
+
+  it("blocks redirects to private destinations", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response("moved", { status: 302, headers: { location: "https://evil.test/SKILL.md" } });
+    }) as typeof fetch;
+    const resolveHost = async (host: string) => (host === "example.com" ? ["93.184.216.34"] : ["10.9.9.9"]);
+    await assert.rejects(
+      fetchText("https://example.com/start", { resolveHost }),
+      /Private network/,
+    );
+    assert.equal(calls, 1);
+  });
+
+  it("fetches public https content", async () => {
+    const VALID = "---\nname: x\ndescription: y\n---\nBody.\n";
+    globalThis.fetch = (async () =>
+      new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } })) as typeof fetch;
+    const { content, isHtml } = await fetchText("https://example.com/SKILL.md", { resolveHost: PUBLIC_RESOLVE });
+    assert.equal(content, VALID);
+    assert.equal(isHtml, false);
   });
 });

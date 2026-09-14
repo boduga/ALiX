@@ -11,10 +11,9 @@
 // Imports
 // ---------------------------------------------------------------------------
 
-import { readFile, appendFile, mkdir, access } from "node:fs/promises";
-import { constants } from "node:fs";
 import { join } from "node:path";
 import { canonicalHash } from "../security/audit/canonical-json.js";
+import { JsonlStore, parseJsonl } from "../storage/jsonl-store.js";
 import {
   validateAuditEventInput,
   type GovernanceAuditEvent,
@@ -85,37 +84,26 @@ export function computeEventHash(body: Record<string, unknown>): string {
 
 export class FileAuditStore implements AuditStore {
   private readonly dir: string;
+  private readonly store: JsonlStore;
 
   constructor(baseDir: string = process.cwd()) {
     this.dir = join(baseDir, STORE_DIR);
-  }
-
-  private get storePath(): string {
-    return join(this.dir, STORE_FILE);
+    this.store = new JsonlStore(join(this.dir, STORE_FILE));
   }
 
   // -----------------------------------------------------------------------
   // Internal helpers
   // -----------------------------------------------------------------------
 
-  private async ensureDir(): Promise<void> {
-    try {
-      await access(this.dir, constants.F_OK);
-    } catch {
-      await mkdir(this.dir, { recursive: true });
-    }
-  }
-
   /**
    * Read the eventHash of the last event in the store.
    * Returns null if the store is empty or doesn't exist.
    */
   private async readLastEventHash(): Promise<string | null> {
+    const last = await this.store.readLastLine();
+    if (last === null) return null;
     try {
-      const content = await readFile(this.storePath, "utf8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      if (lines.length === 0) return null;
-      const parsed = JSON.parse(lines[lines.length - 1]);
+      const parsed = JSON.parse(last) as { eventHash?: unknown };
       return typeof parsed.eventHash === "string" ? parsed.eventHash : null;
     } catch {
       return null;
@@ -127,17 +115,7 @@ export class FileAuditStore implements AuditStore {
    * Malformed lines are silently skipped.
    */
   private parseEvents(content: string): GovernanceAuditEvent[] {
-    const lines = content.trim().split("\n").filter(Boolean);
-    const events: GovernanceAuditEvent[] = [];
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as GovernanceAuditEvent;
-        events.push(parsed);
-      } catch {
-        // Skip malformed lines
-      }
-    }
-    return events;
+    return parseJsonl<GovernanceAuditEvent>(content).records;
   }
 
   // -----------------------------------------------------------------------
@@ -169,8 +147,7 @@ export class FileAuditStore implements AuditStore {
     };
 
     // Ensure directory exists and append
-    await this.ensureDir();
-    await appendFile(this.storePath, JSON.stringify(event) + "\n", "utf8");
+    await this.store.appendRecord(event);
 
     return event;
   }
@@ -185,12 +162,8 @@ export class FileAuditStore implements AuditStore {
   }
 
   async listChronological(): Promise<GovernanceAuditEvent[]> {
-    let content: string;
-    try {
-      content = await readFile(this.storePath, "utf8");
-    } catch {
-      return [];
-    }
+    const content = await this.store.readText();
+    if (content === null) return [];
     return this.parseEvents(content);
   }
 

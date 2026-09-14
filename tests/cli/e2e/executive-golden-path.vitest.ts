@@ -26,13 +26,13 @@ import { PlanApprovalGate } from "../../../src/executive/plan-approval-gate.js";
 import { StepRunner } from "../../../src/executive/step-runner.js";
 import { ExecutionEngine } from "../../../src/executive/execution-engine.js";
 import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
-import { buildExecutionPlan } from "../../../src/executive/planning-engine.js";
-import type { ExecutionPlan } from "../../../src/executive/planning-engine.js";
+import { buildExecutionPlan } from "../../../src/executive/execution-plan-builder.js";
+import type { ExecutionPlan } from "../../../src/executive/execution-plan-builder.js";
 import type { ExecutiveObjective, ExecutiveObjectiveReport } from "../../../src/executive/objective-engine.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "../../../src/executive/executive-plan-types.js";
 
 // Proposal APIs
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
 
 // CLI handlers
@@ -59,7 +59,7 @@ const testWriter = new EvidenceEventWriter(
   (_type, _payload) => Promise.resolve({ id: `evt-${Date.now()}` } as any),
 );
 
-function createEngine(planStore: PlanStore, stateStore: ExecutionStateStore, proposalStore: ProposalStore): ExecutionEngine {
+function createEngine(planStore: PlanStore, stateStore: ExecutionStateStore, proposalStore: AdaptationProposalStore): ExecutionEngine {
   const runner = new StepRunner(testWriter);
   return new ExecutionEngine(planStore, stateStore, runner, testWriter, proposalStore);
 }
@@ -95,14 +95,14 @@ function makeObjectiveReport(windowDays: number): ExecutiveObjectiveReport {
 async function createSetup(cwd: string): Promise<{
   planStore: PlanStore;
   stateStore: ExecutionStateStore;
-  proposalStore: ProposalStore;
+  proposalStore: AdaptationProposalStore;
   engine: ExecutionEngine;
   plan: PersistedExecutionPlan;
 }> {
   const plan = buildExecutionPlan(makeObjectiveReport(7));
   const planStore = new PlanStore(join(cwd, PLANS_DIR));
   const stateStore = new ExecutionStateStore(join(cwd, PLANS_DIR));
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const proposalStore = new AdaptationProposalStore(join(cwd, PROPOSALS_DIR));
   const saved = await planStore.save(plan);
   const planId = saved.id;
   stateStore.init(saved);

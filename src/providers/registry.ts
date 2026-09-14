@@ -1,18 +1,5 @@
 import type { ModelAdapter } from "./types.js";
 
-import { AnthropicProvider } from "./anthropic-provider.js";
-import { MockProvider } from "./mock-provider.js";
-import { OpenAIProvider } from "./openai-provider.js";
-import { GeminiProvider } from "./gemini-provider.js";
-import { OpenRouterProvider } from "./openrouter-provider.js";
-import { GroqProvider } from "./groq-provider.js";
-import { OllamaProvider } from "./ollama-provider.js";
-import { PerplexityProvider } from "./perplexity-provider.js";
-import { MiniMaxProvider } from "./minimax-provider.js";
-import { MiniMaxTokenPlanProvider } from "./minimax-token-plan-provider.js";
-import { ZhipuAIProvider } from "./zhipuai-provider.js";
-import { GrokAIProvider } from "./grokai-provider.js";
-import { DeepSeekProvider } from "./deepseek-provider.js";
 import { lazy } from "../utils/lazy-import.js";
 import { withProviderContracts } from "./provider-contract-validation.js";
 import { resolveModelSelectionId } from "./model-resolver.js";

@@ -26,7 +26,7 @@ function truncate(text: string, maxChars: number): string {
   return text.slice(0, maxChars) + "\n...[truncated]";
 }
 
-function renderResults(results: WorkerContextManifest["results"], maxChars: number): string {
+function renderResults(results: WorkerContextManifest["results"], _maxChars: number): string {
   if (results.length === 0) return "    (none)";
   return results.map(r =>
     `    [Result: ${r.sourceWorkerId}]\n    Outcome: ${r.outcome}\n    Ref: ${r.resultRef}`

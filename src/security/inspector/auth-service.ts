@@ -19,13 +19,7 @@ import {
   verifyTokenHash,
   parseToken,
 } from "./token-format.js";
-import {
-  AuthStore,
-  createTokenRecord,
-  createRevocation,
-  type StoredToken,
-  MAX_TOKEN_COUNT,
-} from "./auth-store.js";
+import { AuthStore, createTokenRecord, createRevocation, MAX_TOKEN_COUNT } from "./auth-store.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -187,12 +181,18 @@ export class AuthService {
     });
 
     // Write-ahead audit: record intent BEFORE store mutation.
-    // If audit fails the token is never persisted, preventing stranded tokens.
-    await this.audit({
-      action: "token.created",
-      tokenId: generated.id,
-      details: { name, role },
-    });
+    // Fail-closed (#685): if the audit cannot persist, the token is never
+    // created and the caller gets `audit_write_failed` — no unlogged mutation.
+    try {
+      await this.audit({
+        action: "token.created",
+        tokenId: generated.id,
+        details: { name, role },
+      });
+    } catch {
+      this.metrics("token.created", { role: role as SecurityMetricLabelValue, status: "failed" });
+      return { ok: false, error: "audit_write_failed" };
+    }
 
     // Persist
     const addResult = await this.store.add(record);
@@ -282,12 +282,17 @@ export class AuthService {
     });
 
     // Write-ahead audit: record intent before mutations.
-    // If audit fails, neither token is changed.
-    await this.audit({
-      action: "token.rotated",
-      tokenId: generated.id,
-      details: { previousId: id, graceMs },
-    });
+    // Fail-closed (#685): if the audit cannot persist, neither token is changed.
+    try {
+      await this.audit({
+        action: "token.rotated",
+        tokenId: generated.id,
+        details: { previousId: id, graceMs },
+      });
+    } catch {
+      this.metrics("token.rotated", { role: existing.role as SecurityMetricLabelValue, status: "failed" });
+      return { ok: false, error: "audit_write_failed" };
+    }
 
     // Persist new token
     const addResult = await this.store.add(record);
@@ -350,11 +355,17 @@ export class AuthService {
     const revocation = createRevocation(reason);
 
     // Write-ahead audit: record intent before mutation.
-    await this.audit({
-      action: "token.revoked",
-      tokenId: id,
-      details: { reason },
-    });
+    // Fail-closed (#685): if the audit cannot persist, the token is not revoked.
+    try {
+      await this.audit({
+        action: "token.revoked",
+        tokenId: id,
+        details: { reason },
+      });
+    } catch {
+      this.metrics("token.revoked", { status: "failed" });
+      return { ok: false, error: "audit_write_failed" };
+    }
 
     const updateResult = await this.store.update(id, { revocation });
     if (!updateResult.ok) return updateResult;

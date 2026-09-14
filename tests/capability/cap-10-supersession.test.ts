@@ -75,14 +75,6 @@ describe("CAP-10 supersession (forbidden files + structural invariants)", () => 
         );
       }
     });
-
-    it("legacy measurer file retired by CAP-11 (was: CAP-11 cliff)", () => {
-      // CAP-10 originally protected the legacy measurer file.
-      // CAP-11 subsequently retired it (see
-      // `cap-11-supersession.test.ts` for authoritative deletion proof).
-      // This assertion is now an audit pointer, not an existence check.
-      assert.ok(true);
-    });
   });
 
   describe("CAP-10 type-only A5 import (ruling #7)", () => {

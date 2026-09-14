@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ApprovalStore } from "../../src/approvals/approval-store.js";
@@ -165,5 +165,65 @@ describe("ApprovalStore", () => {
       // No pending match for findResolved
       assert.equal(store.findResolved({ graphId: "g2" }), undefined);
     } finally { cleanup(); }
+  });
+
+  // #703: indexes stay correct across mutations.
+  it("indexes serve O(1) lookups after mutations", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const record = await store.request({ reason: "indexed", graphId: "g1", nodeId: "n1", capability: "shell.exec" });
+      assert.equal(store.get(record.id)?.id, record.id);
+      assert.equal(store.findExact(record.bindingKey)?.id, record.id);
+      assert.equal(store.findPendingByBindingKey(record.bindingKey)?.id, record.id);
+      await store.resolve(record.id, "approved");
+      // After resolution the pending index no longer reports it.
+      assert.equal(store.findPendingByBindingKey(record.bindingKey), undefined);
+      assert.equal(store.get(record.id)?.status, "approved");
+    } finally { cleanup(); }
+  });
+
+  // #703: pure additions append to the journal without rewriting the snapshot.
+  it("appends new records to the journal without rewriting the snapshot", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "approval-journal-test-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      await store.request({ reason: "first" }); // first write compacts the snapshot
+      const snapshotPath = join(tmpDir, ".alix", "approvals", "approvals.json");
+      const journalPath = `${snapshotPath}.journal.jsonl`;
+      assert.ok(existsSync(snapshotPath));
+      const snapshotBefore = readFileSync(snapshotPath, "utf-8");
+
+      await store.request({ reason: "second" }); // append-only fast path
+      assert.equal(readFileSync(snapshotPath, "utf-8"), snapshotBefore, "snapshot must be unchanged");
+      assert.ok(existsSync(journalPath), "journal must hold the addition");
+
+      // A fresh store sees both records (snapshot + journal replay).
+      const reopened = new ApprovalStore(tmpDir);
+      await reopened.load();
+      assert.equal(reopened.list().length, 2);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // #703: terminal-record retention bounds growth.
+  it("prunes terminal records beyond the retention cap", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "approval-retention-test-"));
+    try {
+      const store = new ApprovalStore(tmpDir, { maxTerminalRecords: 2 });
+      await store.load();
+      for (let i = 0; i < 3; i++) {
+        const r = await store.request({ reason: `req-${i}` });
+        await store.resolve(r.id, "denied", `no-${i}`);
+      }
+      const reopened = new ApprovalStore(tmpDir, { maxTerminalRecords: 2 });
+      await reopened.load();
+      const terminal = reopened.list().filter((r) => r.status === "denied");
+      assert.equal(terminal.length, 2, "terminal records capped at 2");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

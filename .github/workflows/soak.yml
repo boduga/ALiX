@@ -1,0 +1,37 @@
+name: Soak (nightly)
+
+# Heavier soak tiers that are too slow for per-PR CI (#696).
+# - Tier 1 quick (corruption + store load + memory + daemon resources)
+# - Adaptation soak tier (ALIX_SOAK_LEVEL=ci)
+# Bounded tiers only — medium/long profiles stay manual via SOAK_PROFILE.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  soak-nightly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # actions/checkout v4 — pinned SHA
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # pnpm/action-setup — pinned SHA (see #691 for version pinning)
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        with:
+          version: 11
+      # actions/setup-node v4 — pinned SHA
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Soak Tier 1 (quick)
+        run: pnpm test:soak:quick
+      - name: Adaptation soak tier
+        run: pnpm test:soak:ci

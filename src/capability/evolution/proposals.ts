@@ -27,7 +27,7 @@
  *
  * Persistence is `service.propose()`'s sole responsibility (ruling #3).
  * The ledger-bound `proposalId` (SHA-256 of canonical-JSON candidate body)
- * is computed inside `ProposalStore.append()` — A7 only emits the candidate.
+ * is computed inside `GovernanceProposalStore.append()` — A7 only emits the candidate.
  *
  * The default factory (`defaultCapabilityProposalGenerator()`) is intentionally a
  * composition-root placeholder. Tests inject a fake `ProposalSignalSource`
@@ -41,14 +41,7 @@ import type { CapabilityEvolutionCandidate } from "../../adaptation/capability-e
 import { CapabilityEvolutionProposalGenerator } from "../../adaptation/capability-evolution-proposal-generator.js";
 import type { CapabilityDefinition } from "../../capability/canonical/definition.js";
 import type { CapabilityDefinitionPatch } from "../mutation-contract.js";
-import {
-  type ConsolidationIdentity,
-  type ConsolidationOpportunitySignal,
-  type SourceDisposition,
-  bundleConsolidationIdentity,
-  isSourceDisposition,
-  isWellFormedConsolidateDefinition,
-} from "./consolidation-identity.js";
+import { type ConsolidationOpportunitySignal, type SourceDisposition, bundleConsolidationIdentity, isSourceDisposition, isWellFormedConsolidateDefinition } from "./consolidation-identity.js";
 
 // ---------------------------------------------------------------------------
 // Signal discriminator
@@ -244,7 +237,7 @@ export class CapabilityProposalGenerator {
  *   - everything else → `a7-<kind>-<capabilityId>`
  *
  * NOTE: `proposalId` itself (the SHA-256 ledger identifier) is computed by
- * `ProposalStore.append()` via `computeProposalId(candidate)` — see
+ * `GovernanceProposalStore.append()` via `computeProposalId(candidate)` — see
  * `src/capability/governance/proposal-identity.ts`. This `candidateId` is
  * the A7 candidate-body identifier; the two are distinct by design.
  */

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { readGovernanceSource } from "../helpers/governance-source.js";
 import { buildWorkbenchSnapshot } from "../../src/governance/governance-workbench.js";
 import type {
   GovernanceWorkbenchSnapshot,
@@ -298,7 +299,7 @@ describe("workbench CLI output", () => {
 
 describe("workbench CLI sentinel checks", () => {
   it("CLI handler does not call append/write/transition methods", () => {
-    const source = readFileSync("src/cli/commands/governance.ts", "utf-8");
+    const source = readGovernanceSource();
 
     // The workbench handler section should not contain write/append calls
     const workbenchSection = source.split("// P18 — Governance Workbench CLI handlers")[1]
@@ -311,7 +312,7 @@ describe("workbench CLI sentinel checks", () => {
   });
 
   it("governance.ts imports no audit emitters", () => {
-    const source = readFileSync("src/cli/commands/governance.ts", "utf-8");
+    const source = readGovernanceSource();
     assert.equal(source.includes("audit-emitter"), false);
     assert.equal(source.includes("auditEmitter"), false);
     assert.equal(source.includes("emitAuditEvent"), false);

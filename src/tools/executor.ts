@@ -1,15 +1,15 @@
-import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import "node:fs";
+import "node:fs/promises";
+import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { AlixConfig } from "../config/schema.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
-import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
+import type { ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import type { McpManager } from "../mcp/manager.js";
-import { redactValue } from "../policy/secret-scanner.js";
+import "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult, ToolCallRequest } from "./types.js";
@@ -117,9 +117,9 @@ export class ToolExecutor {
     private log: EventLog,
     private root: string,
     private mcpManager?: McpManager,
-    private editFormatPolicy?: EditFormatPolicy,
-    private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
-    private checkpointManager?: CheckpointManager,
+    editFormatPolicy?: EditFormatPolicy,
+    extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
+    checkpointManager?: CheckpointManager,
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
     private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate

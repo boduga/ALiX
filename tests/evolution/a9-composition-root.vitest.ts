@@ -158,10 +158,10 @@ describe("A9 composition-root wiring (CapabilityPlatform.a9)", () => {
     const realCwd = process.cwd();
     const alixRoot = mkdtempSync(join(tmpdir(), "a9-cr-enriched-"));
     const proposalsDir = join(alixRoot, ".alix", "adaptation", "proposals");
-    const { ProposalStore } = await import("../../src/adaptation/proposal-store.js");
+    const { AdaptationProposalStore } = await import("../../src/adaptation/adaptation-proposal-store.js");
     const { EffectivenessStore } = await import("../../src/adaptation/effectiveness-store.js");
     const { EvidenceStore } = await import("../../src/security/evidence/evidence-store.js");
-    const store = new ProposalStore(proposalsDir);
+    const store = new AdaptationProposalStore(proposalsDir);
     await store.save({
       id: "prop-1",
       createdAt: "2026-08-10T00:00:00.000Z",

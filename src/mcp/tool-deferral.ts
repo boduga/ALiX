@@ -1,4 +1,4 @@
-import type { McpToolRegistry, RegisteredTool } from "./registry.js";
+import type { McpToolRegistry } from "./registry.js";
 import type { ToolDef } from "../providers/types.js";
 import { InMemoryCacheManager, type CacheManager } from "../utils/cache-manager.js";
 import { searchTools, type SearchResult } from "./tool-search.js";

@@ -6,9 +6,9 @@
  */
 
 import { createHash } from "node:crypto";
-import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationRun } from "./coordination-types.js";
 import type { SharedFinding } from "./collaboration-types.js";
-import type { FindingClaim } from "./collaboration-conflict-types.js";
+import "./collaboration-conflict-types.js";
 import { computeFindingStatus } from "./collaboration-freshness.js";
 
 export type CandidateLimits = {

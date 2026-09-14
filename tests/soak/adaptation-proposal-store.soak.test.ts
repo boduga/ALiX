@@ -1,5 +1,5 @@
 /**
- * adaptation-proposal-store.soak.test.ts — ProposalStore soak test.
+ * adaptation-proposal-store.soak.test.ts — AdaptationProposalStore soak test.
  *
  * CI mode (default): 100 proposals. Benchmark mode: 1000 proposals.
  * Measures write/list/filter/update latencies with p50/p95/avg.
@@ -12,21 +12,21 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 
 const SOAK_LEVEL = process.env.ALIX_SOAK_LEVEL || "ci";
 const PROPOSAL_COUNT = SOAK_LEVEL === "bench" ? 1000 : 100;
 
-describe(`ProposalStore soak (${PROPOSAL_COUNT} proposals, level=${SOAK_LEVEL})`, () => {
+describe(`AdaptationProposalStore soak (${PROPOSAL_COUNT} proposals, level=${SOAK_LEVEL})`, () => {
   let dir: string;
-  let store: ProposalStore;
+  let store: AdaptationProposalStore;
   const latencies: number[] = [];
   let memBefore: NodeJS.MemoryUsage;
 
   before(() => {
     memBefore = process.memoryUsage();
     dir = mkdtempSync(join(tmpdir(), "proposal-soak-"));
-    store = new ProposalStore(dir);
+    store = new AdaptationProposalStore(dir);
   });
 
   after(() => {
@@ -38,7 +38,7 @@ describe(`ProposalStore soak (${PROPOSAL_COUNT} proposals, level=${SOAK_LEVEL})`
     const total = latencies.reduce((a, b) => a + b, 0);
     const avg = total / latencies.length;
     const memAfter = process.memoryUsage();
-    console.log(`\n📊 ProposalStore soak results (${PROPOSAL_COUNT} proposals):`);
+    console.log(`\n📊 AdaptationProposalStore soak results (${PROPOSAL_COUNT} proposals):`);
     console.log(`   p50: ${p50.toFixed(2)}ms`);
     console.log(`   p95: ${p95.toFixed(2)}ms`);
     console.log(`   max: ${max.toFixed(2)}ms`);

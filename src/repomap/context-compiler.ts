@@ -6,9 +6,9 @@ import { ContextPipeline, RankingStage, BudgetingStage, RepoMapStage, SemanticSe
 import type { RepoMapOutput, ContextBundle as PipelineContextBundle, ContextItem as PipelineContextItem } from "./context-pipeline.js";
 import { EmbeddingCache, SEMANTIC_EMBEDDER, CODE_EMBEDDER } from "./embedding-cache.js";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
-import { mkdir, stat as statSync, readFile, writeFile } from "node:fs/promises";
-import { rankContextCandidate } from "./context-ranker.js";
+import "node:fs";
+import "node:fs/promises";
+import "./context-ranker.js";
 import { readGitActivity } from "./git-activity.js";
 import { PatternRegistry } from "../context/pattern-registry.js";
 
@@ -75,7 +75,7 @@ export class ContextCompiler {
     return this.repoMap;
   }
 
-  private async buildEmbeddings(): Promise<void> {
+  async buildEmbeddings(): Promise<void> {
     if (!this.repoMap || !this.embeddingCache) return;
     const files = [...this.repoMap.fileEntries.values()]
       .filter(e => e.kind === "source" && e.content)

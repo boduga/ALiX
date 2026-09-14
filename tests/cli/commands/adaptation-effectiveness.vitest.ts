@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, existsSync, readFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleAdaptationCommand } from "../../../src/cli/commands/adaptation.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
 
@@ -25,7 +25,7 @@ function captureConsole() {
 const T = "2026-06-12T00:00:00.000Z"; // appliedAt boundary
 
 async function seedAppliedProposal(id: string, sourceRecommendationType: string): Promise<AdaptationProposal> {
-  const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+  const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
   const proposal: AdaptationProposal = {
     id,
     createdAt: "2026-06-11T00:00:00.000Z",
@@ -106,7 +106,7 @@ describe("alix adaptation effectiveness <id>", () => {
     expect(ev.records[0].payload.recommendation).toBe("keep");
 
     // Proposal NOT mutated (still applied with the same appliedAt — assess is read-only)
-    const proposalStore = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const proposalStore = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     const reloaded = await proposalStore.load("prop-keep");
     expect(reloaded!.status).toBe("applied");
     expect(reloaded!.appliedAt).toBe(T);

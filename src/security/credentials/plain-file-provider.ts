@@ -35,7 +35,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { type CredentialEntry, type StoreSchema } from "./credential-store.js";
-import type { CredentialProvider } from "./credential-provider.js";
+import "./credential-provider.js";
 import { MemoryCredentialProvider } from "./memory-credential-provider.js";
 
 /** Default store file name within the credentials directory. */
@@ -65,9 +65,6 @@ interface PersistedCredential {
   value: string;
 }
 
-function now(): string {
-  return new Date().toISOString();
-}
 
 function resolveStorePath(override?: string): string {
   if (override) return override;

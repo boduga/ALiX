@@ -9,7 +9,7 @@
  * @module
  */
 import type { AdaptationProposal } from "./adaptation-types.js";
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import { RecommendationToProposal, nextProposalId } from "./recommendation-to-proposal.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type { ReflectionReport } from "../reflection/reflection-types.js";
@@ -32,7 +32,7 @@ export interface GenerateResult {
 
 export class AutomaticProposalGenerator {
   constructor(
-    private readonly store: ProposalStore,
+    private readonly store: AdaptationProposalStore,
     private readonly writer: EvidenceEventWriter,
   ) {}
 

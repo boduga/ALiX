@@ -173,66 +173,72 @@ describe("A9 sentinel — foreign IDs are references; measurement namespace carr
 });
 
 describe("A9 sentinel — CAP-9 five-event proposal taxonomy unchanged", () => {
-  it("the governance proposal event set is exactly the five CAP-9 kinds", () => {
-    const typesSrc = readFileSync(
-      join(SRC_ROOT, "capability", "governance", "governance-types.ts"),
-      "utf-8",
+  it("the governance proposal event set is exactly the five CAP-9 kinds", async () => {
+    const {
+      CAPABILITY_GOVERNANCE_EVENT_TYPES,
+      GOVERNANCE_EVENT_PREFIX,
+      isGovernanceEventType,
+    } = await import("../../src/capability/governance/governance-types.js");
+    const proposalKinds = CAPABILITY_GOVERNANCE_EVENT_TYPES.filter((k) => k.startsWith(GOVERNANCE_EVENT_PREFIX));
+    expect([...proposalKinds].sort()).toEqual(
+      [
+        "capability.governance.proposal.approved",
+        "capability.governance.proposal.executed",
+        "capability.governance.proposal.execution_failed",
+        "capability.governance.proposal.rejected",
+        "capability.governance.proposal.submitted",
+      ].sort(),
     );
-    const five = [
-      '"capability.governance.proposal.submitted"',
-      '"capability.governance.proposal.approved"',
-      '"capability.governance.proposal.rejected"',
-      '"capability.governance.proposal.executed"',
-      '"capability.governance.proposal.execution_failed"',
-    ];
-    for (const kind of five) {
-      expect(typesSrc.includes(kind), `CAP-9 kind ${kind} must remain`).toBe(true);
-    }
-    // No sixth proposal.* kind in the event type union.
-    const proposalKindMatches = typesSrc.match(/"capability\.governance\.proposal\.[a-z_]+"/g) ?? [];
-    const distinct = [...new Set(proposalKindMatches)];
-    expect(distinct.length).toBe(5);
+    // No sixth proposal.* kind: the validator agrees with the vocabulary.
+    expect(isGovernanceEventType("capability.governance.proposal.submitted")).toBe(true);
+    expect(isGovernanceEventType("capability.governance.proposal.archived")).toBe(false);
   });
 });
 
 describe("A9 sentinel — A2.5 / A3 taxonomy frozen", () => {
-  it("A2.5 has exactly six recommendation kinds incl. RISK_GATED_REVIEW", () => {
-    const recSrc = readFileSync(
-      join(SRC_ROOT, "evolution", "verification", "contracts", "recommendation-contract.ts"),
-      "utf-8",
+  it("A2.5 has exactly six recommendation kinds incl. RISK_GATED_REVIEW", async () => {
+    const {
+      GOVERNANCE_RECOMMENDATION_KINDS,
+      isValidGovernanceRecommendationKind,
+    } = await import("../../src/evolution/verification/contracts/recommendation-contract.js");
+    expect([...GOVERNANCE_RECOMMENDATION_KINDS].sort()).toEqual(
+      ["APPROVE", "ESCALATE", "MONITOR", "REJECT", "REQUEST_ADDITIONAL_EVIDENCE", "RISK_GATED_REVIEW"].sort(),
     );
-    const six = [
-      '"APPROVE"',
-      '"MONITOR"',
-      '"REQUEST_ADDITIONAL_EVIDENCE"',
-      '"REJECT"',
-      '"ESCALATE"',
-      '"RISK_GATED_REVIEW"',
-    ];
-    for (const kind of six) {
-      expect(recSrc.includes(kind), `A2.5 kind ${kind} must remain`).toBe(true);
-    }
-    const arrayMatch = recSrc.match(/GOVERNANCE_RECOMMENDATION_KINDS[^=]*=.*\[([\s\S]*?)\];/);
-    expect(arrayMatch).not.toBeNull();
-    const inArray = (arrayMatch![1]!.match(/"[A-Z_]+"/g) ?? []);
-    expect(new Set(inArray).size).toBe(6);
+    expect(isValidGovernanceRecommendationKind("RISK_GATED_REVIEW")).toBe(true);
+    expect(isValidGovernanceRecommendationKind("MAYBE")).toBe(false);
   });
 
-  it("A3 retains exactly four binding decision kinds and three target states", () => {
-    const decSrc = readFileSync(
-      join(SRC_ROOT, "evolution", "governance", "contracts", "decision-contract.ts"),
-      "utf-8",
+  it("A3 retains exactly four binding decision kinds and three target states", async () => {
+    const {
+      VALID_GOVERNANCE_DECISION_KINDS,
+      isValidGovernanceDecisionKind,
+      validateGovernanceDecision,
+    } = await import("../../src/evolution/governance/contracts/decision-contract.js");
+    expect([...VALID_GOVERNANCE_DECISION_KINDS].sort()).toEqual(
+      ["APPROVE", "MONITOR", "REJECT", "REQUEST_MORE_EVIDENCE"].sort(),
     );
-    const four = ['"APPROVE"', '"REJECT"', '"MONITOR"', '"REQUEST_MORE_EVIDENCE"'];
-    for (const kind of four) {
-      expect(decSrc.includes(kind), `A3 kind ${kind} must remain`).toBe(true);
-    }
-    const kindArray = decSrc.match(/VALID_GOVERNANCE_DECISION_KINDS[^=]*=.*\[([\s\S]*?)\];/);
-    expect(kindArray).not.toBeNull();
-    expect(new Set(kindArray![1]!.match(/"[A-Z_]+"/g) ?? []).size).toBe(4);
-    const three = ['"APPROVED"', '"REJECTED"', '"UNDER_REVIEW"'];
-    for (const state of three) {
-      expect(decSrc.includes(state), `A3 target state ${state} must remain`).toBe(true);
+    expect(isValidGovernanceDecisionKind("APPROVE")).toBe(true);
+    expect(isValidGovernanceDecisionKind("MAYBE")).toBe(false);
+    // Target states surface through the validator: bogus is rejected with
+    // the exact closed set; each valid state produces no targetState error.
+    const base = {
+      decisionId: "govd-1",
+      proposalId: "p",
+      evolutionId: "e",
+      kind: "APPROVE",
+      confidence: 0.5,
+      reasoning: "r",
+      risks: [],
+      evidenceId: "ev",
+      recommendationAvailable: false,
+      followedRecommendation: false,
+      policySnapshot: {},
+    };
+    const bogus = validateGovernanceDecision({ ...base, targetState: "BOGUS" });
+    expect(bogus.errors.some((e) => e.includes("APPROVED") && e.includes("REJECTED") && e.includes("UNDER_REVIEW"))).toBe(true);
+    for (const state of ["APPROVED", "REJECTED", "UNDER_REVIEW"]) {
+      const result = validateGovernanceDecision({ ...base, targetState: state });
+      expect(result.errors.some((e) => e.includes("targetState"))).toBe(false);
     }
   });
 

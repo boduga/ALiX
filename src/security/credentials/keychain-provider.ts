@@ -29,7 +29,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import type { Entry } from "@napi-rs/keyring";
+import "@napi-rs/keyring";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { lookupKey, type CredentialEntry, type StoreSchema } from "./credential-store.js";
 import type { CredentialProvider } from "./credential-provider.js";

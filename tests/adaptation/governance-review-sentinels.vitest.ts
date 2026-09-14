@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { LensScore } from "../../src/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -168,25 +169,51 @@ describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => 
 });
 
 describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
-  it("has complete() method", () => {
-    const source = sourceOf("../../src/adaptation/provider-catalog-adapter.ts");
-    expect(source).toContain("implements LLMAdapter");
-    expect(source).toContain("async complete(");
+  it("delegates complete() to the model adapter and tags provider/model", async () => {
+    const { ProviderCatalogAdapter } = await import("../../src/adaptation/provider-catalog-adapter.js");
+    const seen: unknown[] = [];
+    const adapter = new ProviderCatalogAdapter(
+      {
+        complete: async (req: unknown) => {
+          seen.push(req);
+          return { text: "hello" };
+        },
+      } as never,
+      { provider: "test-provider", model: "test-model" },
+    );
+    const out = await adapter.complete({ system: "s", user: "u" });
+    expect(out.content).toBe("hello");
+    expect(out.provider).toBe("test-provider");
+    expect(out.model).toBe("test-model");
+    expect(seen).toHaveLength(1);
   });
 });
 
 describe("P6.5b — LENS_JSON_SUFFIX is present in every prompt", () => {
-  it("lens-agent.ts exports LENS_JSON_SUFFIX", () => {
-    const source = sourceOf("../../src/adaptation/lens-agent.ts");
-    expect(source).toContain("export const LENS_JSON_SUFFIX");
+  it("lens-agent.ts exports a non-empty LENS_JSON_SUFFIX", async () => {
+    const { LENS_JSON_SUFFIX } = await import("../../src/adaptation/lens-agent.js");
+    expect(typeof LENS_JSON_SUFFIX).toBe("string");
+    expect(LENS_JSON_SUFFIX).toContain("JSON");
+    expect(LENS_JSON_SUFFIX.length).toBeGreaterThan(20);
   });
 });
 
 describe("P6.5b — LensScore has optional provider/model", () => {
-  it("governance-review-types.ts has provider? and model? fields", () => {
-    const source = sourceOf("../../src/adaptation/governance-review-types.ts");
-    expect(source).toContain("provider?:");
-    expect(source).toContain("model?:");
+  it("provider/model fields exist and carry values at runtime", () => {
+    // Type-level pin: assigning provider/model in an object literal
+    // annotated as LensScore fails COMPILATION if the fields are removed
+    // (a comment in the type file cannot satisfy tsc) — plus a runtime
+    // value check that the fields flow through.
+    const typed: LensScore = {
+      lens: "red_team",
+      recommendedVerdict: "challenge",
+      confidence: 0.7,
+      rationale: "r",
+      provider: "test-provider",
+      model: "test-model",
+    };
+    expect(typed.provider).toBe("test-provider");
+    expect(typed.model).toBe("test-model");
   });
 });
 

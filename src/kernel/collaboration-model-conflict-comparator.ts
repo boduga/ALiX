@@ -37,8 +37,8 @@ export interface ModelConflictComparator {
  */
 export class IdentityConflictComparator implements ModelConflictComparator {
   async compare(
-    input: ModelConflictComparisonInput,
-    options: { timeoutMs: number; signal?: AbortSignal },
+    _input: ModelConflictComparisonInput,
+    _options: { timeoutMs: number; signal?: AbortSignal },
   ): Promise<ModelConflictComparisonResult> {
     return {
       compatibility: "uncertain",

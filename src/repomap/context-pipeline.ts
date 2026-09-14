@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
-import { rankContextCandidate } from "./context-ranker.js";
+import "./context-ranker.js";
 import type { TaskType } from "../task-classifier.js";
-import { SemanticSearchIndex, type SearchResult } from "../context/semantic-search.js";
+import { SemanticSearchIndex } from "../context/semantic-search.js";
 import type { EmbeddingCache } from "./embedding-cache.js";
 
 /**
@@ -149,10 +149,13 @@ export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapO
         if (entry.kind === "source" && entry.content) {
           try {
             const fullPath = join(input.root, relPath);
-            await this.searchIndex.indexFile(fullPath, entry.content);
+            // Batch persistence: unchanged files are skipped by content hash
+            // (#721) and the index is written once via flush().
+            await this.searchIndex.indexFile(fullPath, entry.content, { persist: false });
           } catch { /* skip indexing errors */ }
         }
       }
+      await this.searchIndex.flush();
       this.indexed = true;
     }
 
@@ -351,7 +354,7 @@ const MIN_SCORE_THRESHOLD = 50;
 // Only add dependencies for high-confidence matches
 const DEPENDENCY_THRESHOLD = 80;
 
-function estimateFileTokens(path: string, lineCount: number, isSource: boolean): number {
+function estimateFileTokens(_path: string, lineCount: number, isSource: boolean): number {
   const base = isSource ? lineCount * 2 : lineCount * 1.5;
   return Math.ceil(base);
 }

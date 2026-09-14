@@ -2,7 +2,7 @@ import yaml from "yaml";
 import fs from "node:fs";
 import path from "node:path";
 import { MemoryStore } from "./store.js";
-import type { MemoryEntry } from "./types.js";
+import "./types.js";
 
 export type ConsolidateResult = {
   decisions: string[];

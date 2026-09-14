@@ -12,14 +12,7 @@
 
 import { createHash } from "node:crypto";
 import type { WorkerAssignment } from "./coordination-types.js";
-import type {
-  DependencyRewire,
-  PlanRevisionDraft,
-  SimulatedGraph,
-  SimulatedWorker,
-  ValidationError,
-  ValidationWarning,
-} from "./replan-types.js";
+import type { PlanRevisionDraft, SimulatedGraph, SimulatedWorker, ValidationError, ValidationWarning } from "./replan-types.js";
 
 export interface ReplanSimulatorOptions {
   /** Maximum number of workers allowed in the simulated graph (default: 50). */

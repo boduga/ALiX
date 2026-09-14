@@ -1,4 +1,4 @@
-import type { Token, TokenKind, Tokenizer } from '../types.js';
+import type { Token } from '../types.js';
 
 /**
  * Skip whitespace run starting at `i`. Push a `plain` token for it.

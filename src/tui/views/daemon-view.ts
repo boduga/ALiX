@@ -1,6 +1,6 @@
 import { writeRowsToCanvas } from '../canvas.js';
 import type { DaemonMetricsSnapshot } from '../daemon-metrics-collector.js';
-import type { TuiView, ViewRenderContext, TerminalDimensions } from './types.js';
+import type { TuiView, ViewRenderContext } from './types.js';
 
 const NO_DATA = '○ not running';
 const BAR_WIDTH = 24;

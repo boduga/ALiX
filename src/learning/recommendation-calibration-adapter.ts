@@ -7,12 +7,12 @@
  * writes to LearningStore — the orchestrator is the sole writer.
  *
  * Adapter Purity Invariant: this file imports NO mutation surface
- * (LearningStore/ProposalStore/ApprovalGate/appliers). Sentinel-enforced.
+ * (LearningStore/AdaptationProposalStore/ApprovalGate/appliers). Sentinel-enforced.
  *
  * @module
  */
 
-import type { OutcomeRecord } from "../adaptation/outcome-types.js";
+import "../adaptation/outcome-types.js";
 import type { OutcomeStore } from "../adaptation/outcome-store.js";
 import { RecommendationCalibrationBuilder } from "./recommendation-calibration-builder.js";
 import type { ConfidenceBucketObservation } from "./recommendation-calibration-builder.js";

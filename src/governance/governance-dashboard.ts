@@ -119,7 +119,7 @@ import { detectGovernanceDrift } from "./governance-drift-detector.js";
 import { buildGovernanceIntegrity } from "./governance-integrity.js";
 import { reviewLenses } from "./governance-lens-review.js";
 import { GovernanceStore } from "./governance-store.js";
-import { ProposalStore } from "../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
 import { SnapshotStore } from "../adaptation/snapshot-store.js";
 import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
 import type { Recommendation } from "./governance-types.js";
@@ -170,7 +170,7 @@ export async function buildGovernanceDashboardReport(
 
   // ---- 2. Read stores ---------------------------------------------------
   const govStore = new GovernanceStore(join(opts.cwd, GOVERNANCE_DIR));
-  const proposalStore = new ProposalStore(join(opts.cwd, ADAPTATION_DIR, "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(opts.cwd, ADAPTATION_DIR, "proposals"));
   const snapshotStore = new SnapshotStore(join(opts.cwd, SNAPSHOT_DIR));
 
   const recommendationReports = await govStore.list("recommendations").catch(() => []);

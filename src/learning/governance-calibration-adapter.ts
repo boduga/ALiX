@@ -19,7 +19,7 @@
  * @module
  */
 
-import type { GovernanceReview } from "../adaptation/governance-review-types.js";
+import "../adaptation/governance-review-types.js";
 import type { GovernanceReviewStore } from "../adaptation/governance-review-store.js";
 import type { OutcomeStore } from "../adaptation/outcome-store.js";
 import { LensCalibrationBuilder } from "../adaptation/lens-calibration-builder.js";

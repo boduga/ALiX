@@ -2,7 +2,7 @@
  * P6.0a — DecisionContextBuilder.
  *
  * Builds a read-only DecisionContext for a given proposal by aggregating:
- * - ProposalStore (proposal state)
+ * - AdaptationProposalStore (proposal state)
  * - LineageBuilder (lifecycle graph)
  * - EvidenceStore (evidence fingerprints)
  * - EffectivenessStore (effectiveness history)
@@ -14,7 +14,7 @@
  * @module
  */
 
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import type { EvidenceStore } from "../security/evidence/evidence-store.js";
 import type { LineageBuilder } from "./lineage-builder.js";
 import type { EffectivenessStore } from "./effectiveness-store.js";
@@ -39,8 +39,8 @@ import {
 
 export class DecisionContextBuilder {
   constructor(
-    private readonly proposalStore: ProposalStore,
-    private readonly evidenceStore: EvidenceStore,
+    private readonly proposalStore: AdaptationProposalStore,
+    _evidenceStore: EvidenceStore,
     private readonly lineageBuilder: LineageBuilder,
     private readonly effectivenessStore: EffectivenessStore,
     private readonly intelligenceStore: IntelligenceStore,
@@ -63,7 +63,7 @@ export class DecisionContextBuilder {
         contextStatus: "insufficient_data",
         confidence: 0,
         reasons: ["Proposal not found"],
-        warnings: [{ message: `Proposal ${proposalId} not found in ProposalStore`, severity: "critical" }],
+        warnings: [{ message: `Proposal ${proposalId} not found in AdaptationProposalStore`, severity: "critical" }],
         evidenceRefs: [],
         generatedAt,
         proposalId,

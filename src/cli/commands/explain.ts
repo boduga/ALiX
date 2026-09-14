@@ -137,7 +137,6 @@ async function runExplainGovernance(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");
 
   const windowIdx = args.indexOf("--window");
-  let windowDays = 90;
 
   const positionals: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -159,7 +158,6 @@ async function runExplainGovernance(args: string[]): Promise<void> {
       console.error("Error: --window requires a positive integer");
       process.exit(1);
     }
-    windowDays = parsed;
   }
 
   const artifactId = positionals[0];

@@ -16,7 +16,7 @@
  */
 
 import { existsSync, mkdirSync, createWriteStream, createReadStream } from "node:fs";
-import { readdir, unlink } from "node:fs/promises";
+import { readdir, unlink, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -45,13 +45,70 @@ export interface MetricsQuery {
 
 const DEFAULT_MAX_LIMIT = 10000;
 const ABSOLUTE_MAX_LIMIT = 100000;
+/** Close the reused append stream after this much idle time (#706). */
+const APPEND_STREAM_IDLE_MS = 250;
 
 export class MetricsStore {
   private baseDir: string;
+  /** Reused append stream + the day it targets (#706). */
+  private writeStream?: ReturnType<typeof createWriteStream>;
+  private streamDay?: string;
+  private dirReady = false;
+  private idleTimer?: ReturnType<typeof setTimeout>;
 
-  constructor(private cwd: string) {
+  constructor(cwd: string) {
+    // No filesystem work here — the directory is created lazily on first
+    // write so constructing the store is free (#706).
     this.baseDir = join(cwd, ".alix", "observability", "metrics");
-    if (!existsSync(this.baseDir)) mkdirSync(this.baseDir, { recursive: true });
+  }
+
+  /** Create the metrics directory once, on first write. */
+  private async ensureDir(): Promise<void> {
+    if (this.dirReady) return;
+    if (!existsSync(this.baseDir)) {
+      await mkdir(this.baseDir, { recursive: true });
+    }
+    this.dirReady = true;
+  }
+
+  /** Get (or open) the append stream for the given day, closing a stale one. */
+  private async streamFor(day: string, filePath: string): Promise<ReturnType<typeof createWriteStream>> {
+    if (this.writeStream && this.streamDay === day && !this.writeStream.destroyed) {
+      return this.writeStream;
+    }
+    if (this.writeStream) {
+      const old = this.writeStream;
+      this.writeStream = undefined;
+      await new Promise<void>((resolve) => old.end(resolve));
+    }
+    const ws = createWriteStream(filePath, { flags: "a" });
+    this.writeStream = ws;
+    this.streamDay = day;
+    return ws;
+  }
+
+  /** Schedule closing the idle append stream so it does not hold the loop open. */
+  private scheduleIdleClose(): void {
+    if (this.idleTimer !== undefined) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = undefined;
+      void this.close();
+    }, APPEND_STREAM_IDLE_MS);
+    this.idleTimer.unref?.();
+  }
+
+  /** Flush and close the reused append stream. */
+  async close(): Promise<void> {
+    if (this.idleTimer !== undefined) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = undefined;
+    }
+    const ws = this.writeStream;
+    this.writeStream = undefined;
+    this.streamDay = undefined;
+    if (ws && !ws.destroyed) {
+      await new Promise<void>((resolve) => ws.end(resolve));
+    }
   }
 
   /**
@@ -60,13 +117,14 @@ export class MetricsStore {
    */
   async *append(row: MetricRow): AsyncGenerator<string> {
     this.validate(row);
-    const filePath = join(this.baseDir, this.datePath());
-    const line = JSON.stringify(row) + "\n";
-    const ws = createWriteStream(filePath, { flags: "a" });
+    await this.ensureDir();
+    const day = this.datePath();
+    const filePath = join(this.baseDir, day);
+    const ws = await this.streamFor(day, filePath);
     await new Promise<void>((resolve, reject) => {
-      ws.write(line, "utf-8", (err) => err ? reject(err) : resolve());
-      ws.end();
+      ws.write(JSON.stringify(row) + "\n", "utf-8", (err) => err ? reject(err) : resolve());
     });
+    this.scheduleIdleClose();
     yield filePath;
   }
 

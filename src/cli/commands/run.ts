@@ -151,11 +151,11 @@ export async function handler(args: string[]): Promise<number> {
           console.error(`  Use --intent instead of --propose for generic task capture.`);
           console.error(`  For skill-matched runs, --propose works automatically.`);
         } else {
-          const { ProposalStore } = await import("../../adaptation/proposal-store.js");
+          const { AdaptationProposalStore } = await import("../../adaptation/adaptation-proposal-store.js");
           const { IntentProposalMapper } = await import("../../adaptation/intent-proposal-mapper.js");
 
           const proposalsDir = join(process.cwd(), ".alix", "adaptation", "proposals");
-          const proposalStore = new ProposalStore(proposalsDir);
+          const proposalStore = new AdaptationProposalStore(proposalsDir);
           const mapper = new IntentProposalMapper(proposalStore);
 
           const mappingResult = await mapper.mapToProposal(intent as any, store);

@@ -68,10 +68,10 @@ function mockExit(): { spy: ReturnType<typeof vi.spyOn>; calls: () => (string | 
   return { spy, calls: () => calls };
 }
 
-/** Seed a proposal directly via ProposalStore. */
+/** Seed a proposal directly via AdaptationProposalStore. */
 async function seedProposal(overrides: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
-  const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-  const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+  const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
 
   const id = (overrides.id as string) || "prop-test-001";
   const action = (overrides.action as string) || "update_agent_card";
@@ -189,8 +189,8 @@ describe("adaptation revert CLI", () => {
     c.restore();
 
     // Load the store and verify the revert proposal was created.
-    const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     const all = await store.list();
     // Should have source proposal + revert proposal.
     expect(all.length).toBeGreaterThanOrEqual(2);
@@ -259,8 +259,8 @@ describe("adaptation revert CLI", () => {
 
     // Create and approve a revert_proposal.
     const revertProposalId = "prop-revert-001";
-    const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     const revertProposal = {
       id: revertProposalId,
       createdAt: new Date().toISOString(),

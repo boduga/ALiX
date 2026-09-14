@@ -3,7 +3,7 @@ import { evaluatePlanOutcome } from "../../src/executive/outcome-evaluator.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
 import type { PlanExecutionState } from "../../src/executive/executive-plan-types.js";
 import type { ExecutiveTrendSnapshot } from "../../src/executive/trend-store.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 
 // -----------------------------------------------------------------------
 // Factory helpers

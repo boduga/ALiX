@@ -9,7 +9,10 @@ export type TaskGraphStatus =
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type ApprovalMode = "auto" | "ask" | "deny";
-export type GraphStrategy = "sequential" | "parallel" | "map_reduce" | "critic_loop" | "human_gated" | "hybrid";
+// Supported execution strategies (#711): the executor runs every graph the
+// same way and the planner only infers these two, so the type matches
+// implemented behavior instead of advertising unimplemented variants.
+export type GraphStrategy = "sequential" | "hybrid";
 export type EdgeType = "requires" | "informs" | "blocks" | "critiques" | "approves";
 
 export interface TaskNode {

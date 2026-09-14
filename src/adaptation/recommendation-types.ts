@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { DecisionArtifact, SourceArtifact, EnrichedWarning } from "./decision-types.js";
+import type { DecisionArtifact, SourceArtifact } from "./decision-types.js";
 import type { RiskItem } from "./risk-score-types.js";
 
 // ---------------------------------------------------------------------------

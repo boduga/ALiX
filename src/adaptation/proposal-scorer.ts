@@ -25,7 +25,7 @@ import type {
 } from "./priority-types.js";
 import { SCORING_VERSION } from "./priority-types.js";
 import { PriorityStore } from "./priority-store.js";
-import { ProposalStore } from "./proposal-store.js";
+import { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 
 // ---------------------------------------------------------------------------
 // Scoring constants
@@ -52,7 +52,7 @@ const DECILES = [
 
 export class ProposalScorer {
   constructor(
-    private readonly proposalStore: ProposalStore,
+    private readonly proposalStore: AdaptationProposalStore,
     private readonly intelligenceStore: IntelligenceStore,
     private readonly priorityStore: PriorityStore,
   ) {}
@@ -239,8 +239,8 @@ export class ProposalScorer {
   /** Build a human-readable rationale string for a scored proposal. */
   #buildRationale(
     proposal: AdaptationProposal,
-    confidence: string,
-    historicalSuccessWeight: number,
+    _confidence: string,
+    _historicalSuccessWeight: number,
     sufficientBuckets: BucketStat[],
     revertPenalty: number,
   ): string {

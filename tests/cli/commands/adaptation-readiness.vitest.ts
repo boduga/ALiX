@@ -39,10 +39,10 @@ afterEach(() => {
 async function seedProposal(
   overrides: Partial<AdaptationProposal> = {},
 ): Promise<AdaptationProposal> {
-  const { ProposalStore } = await import(
-    "../../../src/adaptation/proposal-store.js"
+  const { AdaptationProposalStore } = await import(
+    "../../../src/adaptation/adaptation-proposal-store.js"
   );
-  const store = new ProposalStore(
+  const store = new AdaptationProposalStore(
     join(tempRoot, ".alix", "adaptation", "proposals"),
   );
   const proposal: AdaptationProposal = {
@@ -212,10 +212,10 @@ describe("adaptation CLI — readiness integration", () => {
       const joined = c.out().join("\n");
       expect(joined).toContain("Applied:");
 
-      const { ProposalStore } = await import(
-        "../../../src/adaptation/proposal-store.js"
+      const { AdaptationProposalStore } = await import(
+        "../../../src/adaptation/adaptation-proposal-store.js"
       );
-      const store = new ProposalStore(
+      const store = new AdaptationProposalStore(
         join(tempRoot, ".alix", "adaptation", "proposals"),
       );
       const reloaded = await store.load("prop-apply-rdy");
@@ -337,7 +337,7 @@ describe("adaptation CLI — readiness integration", () => {
 
     it("blocked refused", async () => {
       // Write a proposal with an unknown target kind directly to disk
-      // (bypassing ProposalStore.save() validation) to test that the
+      // (bypassing AdaptationProposalStore.save() validation) to test that the
       // readiness checker handles unrecognized target kinds.
       const { mkdirSync, writeFileSync } = await import("node:fs");
       const { join } = await import("node:path");

@@ -286,7 +286,7 @@ function styleToken(token: Token, theme: Theme): string {
 function renderTable(
   block: Extract<ResponseBlock, { type: 'table' }>,
   theme: Theme,
-  width: number,
+  _width: number,
   isFirst: boolean,
 ): StyledRow[] {
   const { headers, rows, align } = block;

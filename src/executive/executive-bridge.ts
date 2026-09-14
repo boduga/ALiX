@@ -19,7 +19,7 @@
 
 import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
-import type { ExecutionStep } from "./planning-engine.js";
+import type { ExecutionStep } from "./execution-plan-builder.js";
 import type { ExecutiveSubsystemName } from "./executive-health.js";
 import type { GeneratedArtifactRef } from "./executive-plan-types.js";
 

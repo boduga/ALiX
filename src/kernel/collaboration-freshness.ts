@@ -6,7 +6,7 @@
  */
 
 import type { SharedFinding } from "./collaboration-types.js";
-import type { CoordinationRun } from "./coordination-types.js";
+import "./coordination-types.js";
 
 export interface Clock {
   now(): Date;

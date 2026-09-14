@@ -112,7 +112,7 @@ export async function handleSopCommand(args: string[]): Promise<void> {
       if (!sopId) { console.error("Usage: alix sop run <id> --topic \"<topic>\" | --input key=value ..."); process.exit(1); }
 
       const sopCwd = process.cwd();
-      const { getSop, listSops } = await import("../../sop/sop-registry.js");
+      const { getSop } = await import("../../sop/sop-registry.js");
 
       const sop = getSop(sopId);
       if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }

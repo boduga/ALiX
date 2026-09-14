@@ -13,9 +13,10 @@ describe("ApprovalWatcher", () => {
 
   it("starts and stops without error", () => {
     const watcher = new ApprovalWatcher(cwd);
-    watcher.start();
-    watcher.stop();
-    assert.ok(true);
+    assert.doesNotThrow(() => {
+      watcher.start();
+      watcher.stop();
+    });
   });
 
   it("scan does not throw", async () => {
@@ -24,7 +25,7 @@ describe("ApprovalWatcher", () => {
     const store = new ApprovalStore(cwd);
     await store.request({ reason: "test" });
     watcher.start();
+    await assert.doesNotReject(watcher.scan());
     watcher.stop();
-    assert.ok(true);
   });
 });

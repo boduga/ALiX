@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { initAgent, type AgentContext } from "./agent.js";
+import { initAgent } from "./agent.js";
 import { buildToolsForProvider, buildContextBundleEventPayload, renderContextBundleForPrompt } from "./messages.js";
 import type { StreamHandler } from "./stream.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
@@ -14,13 +14,13 @@ import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
-import type { NormalizedMessage } from "../providers/types.js";
+import "../providers/types.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { ensureEncoder } from "../utils/tokens.js";
 import { createContextBudget, type ContextBudget } from "../config/context-budget.js";
-import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
+import "../patch/edit-format-policy.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
-import { evictIfNeeded } from "../skills/lifecycle.js";
+import "../skills/lifecycle.js";
 import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
 import { toCanonicalEvent, CanonicalEventSink } from "../kernel/event-envelope.js";
 import { randomUUID } from "node:crypto";
@@ -177,7 +177,7 @@ async function runTaskCoreImpl(
     const reconstructed = await reconstructSession(cwd, opts.resumeSessionId);
 
     if (reconstructed.completed) {
-      const completedRun = transitionWorkflowStatus(wfRun, "completed");
+      transitionWorkflowStatus(wfRun, "completed");
       await ctx.log.append({
         ...session, type: "workflow.completed", actor: "system",
         payload: { workflowId: wfRun.id, summary: `Session ${opts.resumeSessionId} is already completed. Use a different session or start a new task.` },
@@ -337,7 +337,7 @@ async function runTaskCoreImpl(
           context: { runId, sessionId: ctx.sessionId, workflowId: wfRun.id },
         });
         if (planResult.action === "rejected") {
-          const failedRun = transitionWorkflowStatus(wfRun, "failed");
+          transitionWorkflowStatus(wfRun, "failed");
           await ctx.log.append({
             ...session, type: "workflow.failed", actor: "system",
             payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
@@ -526,7 +526,7 @@ ${approvedPlanContent}`);
       payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: String(err) },
       meta: graphMeta,
     });
-    const failedRun = transitionWorkflowStatus(wfRun, "failed");
+    transitionWorkflowStatus(wfRun, "failed");
     await ctx.log.append({
       ...session, type: "workflow.failed", actor: "system",
       payload: { workflowId: wfRun.id, summary: String(err) },
@@ -539,14 +539,14 @@ ${approvedPlanContent}`);
   if (isFailed) {
     transitionNodeStatus(taskNode, "failed");
     transitionGraphStatus(taskGraph, "failed");
-    const failedRun = transitionWorkflowStatus(wfRun, "failed");
+    transitionWorkflowStatus(wfRun, "failed");
     await ctx.log.append({ ...session, type: "task.failed", actor: "system", payload: { nodeId: taskNode.id, graphId: taskGraph.id, reason: result.reason, summary: result.summary }, meta: graphMeta });
     await ctx.log.append({ ...session, type: "graph.failed", actor: "system", payload: { graphId: taskGraph.id, workflowId: wfRun.id, reason: result.reason, summary: result.summary }, meta: graphMeta });
     await ctx.log.append({ ...session, type: "workflow.failed", actor: "system", payload: { workflowId: wfRun.id, reason: result.reason, summary: result.summary }, meta: wfMeta });
   } else {
     transitionNodeStatus(taskNode, "done");
     transitionGraphStatus(taskGraph, "completed");
-    const completedRun = transitionWorkflowStatus(wfRun, "completed");
+    transitionWorkflowStatus(wfRun, "completed");
     await ctx.log.append({ ...session, type: "task.done", actor: "system", payload: { nodeId: taskNode.id, graphId: taskGraph.id, summary: result.summary }, meta: graphMeta });
     await ctx.log.append({ ...session, type: "graph.completed", actor: "system", payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: result.summary }, meta: graphMeta });
     await ctx.log.append({ ...session, type: "workflow.completed", actor: "system", payload: { workflowId: wfRun.id, summary: result.summary }, meta: wfMeta });
@@ -583,7 +583,7 @@ export async function runTask(
 ): Promise<RunResult> {
   // Create the canonical ExecutionIntent BEFORE execution begins.
   const { createExecutionIntent } = await import("../runtime/execution-intent-factory.js");
-  const { createIntentId } = await import("../runtime/contracts/execution-intent-contract.js");
+  const {  } = await import("../runtime/contracts/execution-intent-contract.js");
   const { PersistenceEvidenceEmitter } = await import("../runtime/execution-persistence.js");
   const { ExecutionEvidenceStore } = await import("../runtime/execution-evidence-store.js");
 

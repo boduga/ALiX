@@ -89,9 +89,6 @@ const INVESTIGATE_ACTIONS = new Set([
 const IMPROVE_ACTIONS = new Set([
   "audit_metrics", "identify_optimization_targets", "implement_improvements",
 ]);
-const MAINTAIN_ACTIONS = new Set([
-  "schedule_health_check", "review_baseline_metrics", "update_documentation",
-]);
 
 function inferObjectiveType(
   steps: PersistedExecutionPlan["steps"],

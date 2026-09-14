@@ -500,7 +500,7 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     }
   };
 
-  const hasUserMessage = turns.some((t) => t.userText !== null);
+  turns.some((t) => t.userText !== null);
 
   // Stage decoration (#432). The label is a 2-space indent + the uppercase
   // phase name right-padded to GUTTER_WIDTH. The duration is `· X.Ys` for

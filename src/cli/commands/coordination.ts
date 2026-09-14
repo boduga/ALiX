@@ -535,7 +535,7 @@ async function handleConflictDismiss(cwd: string, args: string[]): Promise<void>
   }
   const [runId, conflictId] = positional;
   const actor = readFlag(args, "--actor") ?? "cli";
-  const reason = readFlag(args, "--reason") ?? "dismissed by operator";
+  readFlag(args, "--reason") ?? "dismissed by operator";
   const store = new CollaborationStore(cwd, runId);
   const repo = new ConflictRepository(store);
   const conflict = await repo.updateConflictStatus(conflictId, "dismissed", { kind: "operator", actorId: actor });

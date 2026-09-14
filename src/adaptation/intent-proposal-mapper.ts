@@ -12,7 +12,7 @@
  *   1. Validates that the intent has proposedAction + proposedTarget
  *   2. Validates that the intent status is "captured" (not already proposed)
  *   3. Creates a pending AdaptationProposal
- *   4. Saves to ProposalStore
+ *   4. Saves to AdaptationProposalStore
  *   5. Marks the intent status as "proposed" (append-only IntentStore)
  *
  * @module
@@ -20,7 +20,7 @@
 
 import type { ExecutionIntent } from "./execution-intent-types.js";
 import type { AdaptationProposal } from "./adaptation-types.js";
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import type { IntentStore } from "./intent-store.js";
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ export interface ProposalMappingResult {
 // ---------------------------------------------------------------------------
 
 export class IntentProposalMapper {
-  constructor(private readonly proposalStore: ProposalStore) {}
+  constructor(private readonly proposalStore: AdaptationProposalStore) {}
 
   /**
    * Map an ExecutionIntent to an AdaptationProposal.

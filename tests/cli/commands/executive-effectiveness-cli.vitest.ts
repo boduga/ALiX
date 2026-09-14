@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleEffectivenessCommand } from "../../../src/cli/commands/executive-effectiveness-handler.js";
 import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import type { RecommendationReport, ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
 
@@ -125,7 +125,7 @@ describe("executive effectiveness CLI", () => {
       reason: "test proposal",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
-    const proposalStore = new ProposalStore(join(adaptationDir, "proposals"));
+    const proposalStore = new AdaptationProposalStore(join(adaptationDir, "proposals"));
     await proposalStore.save(proposal);
 
     const recWithProposal = makeExecRec({ proposalId: "effectiveness-prop-1" });
@@ -300,7 +300,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       evidenceFingerprints: [], reason: "test",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
-    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    const props = new AdaptationProposalStore(join(adaptationDir, "proposals"));
     await props.save(proposal);
 
     const rec = makeExecRec({ proposalId: "eff-prop-1" });
@@ -340,7 +340,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       evidenceFingerprints: [], reason: "test",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
-    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    const props = new AdaptationProposalStore(join(adaptationDir, "proposals"));
     await props.save(proposal);
 
     const rec = makeExecRec({ proposalId: "eff-prop-2" });
@@ -368,7 +368,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       evidenceFingerprints: [], reason: "test",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
-    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    const props = new AdaptationProposalStore(join(adaptationDir, "proposals"));
     await props.save(proposal);
     const saved = persist(makeReport([makeExecRec({ proposalId: "eff-prop-3" })]));
 
@@ -398,7 +398,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       evidenceFingerprints: [], reason: "test",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
-    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    const props = new AdaptationProposalStore(join(adaptationDir, "proposals"));
     await props.save(pKeep);
     await props.save(pNoData);
 

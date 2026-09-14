@@ -11,7 +11,7 @@ import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
 import { existsSync } from "node:fs";
-import { resolve, relative, sep, isAbsolute, join } from "node:path";
+import { resolve, relative, isAbsolute, join } from "node:path";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
 import { CollaborationStore } from "./collaboration-store.js";

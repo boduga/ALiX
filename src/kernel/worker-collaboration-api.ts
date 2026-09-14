@@ -11,10 +11,7 @@
 import { CollaborationStore } from "./collaboration-store.js";
 import { randomUUID } from "node:crypto";
 import { createHash } from "node:crypto";
-import type {
-  SharedFinding, SharedArtifact, CollaborationActor,
-  FindingFilter, PublishFindingInput, PublishArtifactInput,
-} from "./collaboration-types.js";
+import type { SharedFinding, CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput } from "./collaboration-types.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
 

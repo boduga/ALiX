@@ -9,7 +9,7 @@
  * sidecar issue.
  */
 import { join } from "node:path";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat, open } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import type { NormalizedMessage } from "../providers/types.js";
 import { loadMessages, loadScope, loadState } from "./persist.js";
@@ -56,12 +56,48 @@ export type ReconstructedSession = {
 
 const SESSIONS_DIR = ".alix/sessions";
 const TASKS_SIDECAR_SCHEMA_VERSION = 1 as const;
+/** Tail window used to derive session status without reading the whole log (#705). */
+const SESSION_TAIL_BYTES = 64 * 1024;
 const PLAN_STATUSES: ReadonlySet<PlanTaskStatus> = new Set([
   "pending",
   "in_progress",
   "completed",
   "skipped",
 ]);
+
+/** Read only the first line of a file (bounded). */
+async function readFirstLine(path: string): Promise<string | null> {
+  const fd = await open(path, "r");
+  try {
+    const buf = Buffer.alloc(8 * 1024);
+    const { bytesRead } = await fd.read(buf, 0, buf.length, 0);
+    if (bytesRead === 0) return null;
+    const text = buf.subarray(0, bytesRead).toString("utf-8");
+    const nl = text.indexOf("\n");
+    return nl === -1 ? text : text.slice(0, nl);
+  } finally {
+    await fd.close();
+  }
+}
+
+/** Read the last `windowBytes` of a file and return its complete lines (bounded). */
+async function readTailLines(path: string, windowBytes = SESSION_TAIL_BYTES): Promise<string[]> {
+  const st = await stat(path);
+  if (st.size === 0) return [];
+  const start = Math.max(0, st.size - windowBytes);
+  const length = st.size - start;
+  const fd = await open(path, "r");
+  try {
+    const buf = Buffer.alloc(length);
+    await fd.read(buf, 0, length, start);
+    const lines = buf.toString("utf-8").split("\n");
+    // Drop a leading partial line when we started mid-file.
+    if (start > 0) lines.shift();
+    return lines.filter(Boolean);
+  } finally {
+    await fd.close();
+  }
+}
 
 /**
  * List all sessions in a project, newest first.
@@ -127,23 +163,30 @@ export async function sessionInfo(cwd: string, sessionId: string): Promise<Sessi
       updatedAt = dirStat.mtime.toISOString();
     } catch { /* stat failed — keep defaults */ }
   } else {
-    const raw = await readFile(eventsPath, "utf-8");
-    const lines = raw.split("\n").filter(Boolean);
-    for (const line of lines) {
-      try {
-        const ev = JSON.parse(line);
-        if (ev.type === "session.started") {
-          createdAt = ev.timestamp ?? createdAt;
-        }
-        if (ev.type === "session.ended") {
-          const reason = ev.payload?.reason;
-          if (reason === "completed") status = "completed";
-          else if (reason === "rejected" || reason === "cancelled") status = "cancelled";
-          else status = "interrupted";
-        }
-        updatedAt = ev.timestamp ?? updatedAt;
-      } catch { /* skip malformed lines */ }
-    }
+    // Bounded reads (#705): first line gives session.started (createdAt),
+    // the tail gives session.ended (status) and the last timestamp. We never
+    // read the whole growing log.
+    const applyEvent = (ev: any): void => {
+      if (ev.type === "session.started") {
+        createdAt = ev.timestamp ?? createdAt;
+      }
+      if (ev.type === "session.ended") {
+        const reason = ev.payload?.reason;
+        if (reason === "completed") status = "completed";
+        else if (reason === "rejected" || reason === "cancelled") status = "cancelled";
+        else status = "interrupted";
+      }
+      updatedAt = ev.timestamp ?? updatedAt;
+    };
+    try {
+      const firstLine = await readFirstLine(eventsPath);
+      if (firstLine) {
+        try { applyEvent(JSON.parse(firstLine)); } catch { /* malformed */ }
+      }
+      for (const line of await readTailLines(eventsPath)) {
+        try { applyEvent(JSON.parse(line)); } catch { /* skip malformed lines */ }
+      }
+    } catch { /* read failed — keep defaults */ }
   }
 
   // If no session.ended event but state exists, infer from state
@@ -292,20 +335,20 @@ export async function reconstructSession(
   // Determine if session was completed from state or events
   let completed = false;
   if (stateSnapshot?.state === "stopped" && stateSnapshot.counters.iterations > 0) {
-    // Check events for completed reason
+    // Check events for completed reason (bounded tail read, #705)
     const eventsPath = join(sessionDir, "events.jsonl");
     if (existsSync(eventsPath)) {
-      const raw = await readFile(eventsPath, "utf-8");
-      const lines = raw.split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const ev = JSON.parse(line);
-          if (ev.type === "session.ended" && ev.payload?.reason === "completed") {
-            completed = true;
-            break;
-          }
-        } catch { /* skip */ }
-      }
+      try {
+        for (const line of await readTailLines(eventsPath)) {
+          try {
+            const ev = JSON.parse(line);
+            if (ev.type === "session.ended" && ev.payload?.reason === "completed") {
+              completed = true;
+              break;
+            }
+          } catch { /* skip */ }
+        }
+      } catch { /* read failed */ }
     }
   }
 

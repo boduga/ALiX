@@ -7,7 +7,7 @@
  * tick-based dispatch loop.
  */
 
-import { randomUUID } from "node:crypto";
+import "node:crypto";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
@@ -21,7 +21,7 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
-import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
+import type { CoordinationWorkerExecutor, WorkerExecutionContext } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
 import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
 import { createTriggerEvidence } from "./replan-types.js";
@@ -168,7 +168,7 @@ export class CoordinationScheduler {
         try {
           if (!worker.authorizationEvidence?.decisions?.length) return false;
           const { ApprovalStore } = await import("../approvals/approval-store.js");
-          const { computeBindingKey, computeOwnershipClaimsHash } = await import("../approvals/approval-binding.js");
+          const { computeBindingKey } = await import("../approvals/approval-binding.js");
           const store = new ApprovalStore(this.deps.cwd);
           await store.load();
 

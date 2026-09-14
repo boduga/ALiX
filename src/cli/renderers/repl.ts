@@ -69,7 +69,7 @@ export function createReplRenderer(
   // a logger and the renderer) can co-exist. We do not mutate the session
   // here — callers wire the same `events` object into `AgentSessionConfig`
   // when constructing the session.
-  const events = options?.events ?? createReplEvents();
+  options?.events ?? createReplEvents();
   let rl: readline.Interface | null = null;
 
   /** Print formatted session status. */

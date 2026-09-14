@@ -9,7 +9,7 @@ import {
   type ExecutiveBridgeResult,
 } from "../../src/executive/executive-bridge.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../..");
@@ -239,7 +239,7 @@ describe("P10.4b purity invariants (source-text greps)", () => {
 
   it("executive-bridge.ts only depends on types from adaptation-types.ts (plus its own executive types)", () => {
     const src = readBridgeSource();
-    // Allowed: adaptation-types (types only), executive-health, executive-plan-types, planning-engine, the file's own directory.
+    // Allowed: adaptation-types (types only), executive-health, executive-plan-types, execution-plan-builder, the file's own directory.
     const forbiddenImportPaths = [
       /from\s+["'][^"']*approval-gate/,
       /from\s+["'][^"']*proposal-store/,

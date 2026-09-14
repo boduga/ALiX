@@ -244,6 +244,15 @@ describe("Daemon direct protocol fast path (Task 3)", { timeout: 30000 }, () => 
 
   // ── Frame shape & ordering ──────────────────────────────────────────
 
+  it("status command reports daemon liveness (#711)", async () => {
+    const messages = await submitRequest(socketPath, { command: "status" }, ["daemon.status"]);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].type, "daemon.status");
+    assert.equal(messages[0].running, true);
+    assert.equal(typeof messages[0].queueDepth, "number");
+    assert.ok(messages[0].uptimeMs >= 0);
+  });
+
   it("arithmetic direct request emits exactly [request.received, direct.completed] in order", async () => {
     const messages = await submitRequest(
       socketPath,

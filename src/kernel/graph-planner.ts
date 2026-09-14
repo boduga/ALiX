@@ -182,9 +182,11 @@ export class GraphPlanner {
       }
     }
 
-    // Infer strategy from nodes
+    // Infer strategy from nodes (#711): only sequential/hybrid are
+    // supported, so store the inferred value instead of passing through
+    // whatever strategy label the model returned.
     const hasParallel = nodes.some(n => (n as any).strategy === "parallel" || (n as any).strategy === "map_reduce");
-    const strategy = hasParallel ? "hybrid" : nodes.length <= 1 ? "sequential" : (modelGraph.strategy as string) || "sequential";
+    const strategy: GraphStrategy = hasParallel ? "hybrid" : "sequential";
 
     const graph: TaskGraph = {
       id: graphId,
@@ -192,7 +194,7 @@ export class GraphPlanner {
       workflowId,
       rootGoal: goal,
       status: "draft",
-      strategy: modelGraph.strategy as GraphStrategy,
+      strategy,
       nodes,
       edges,
       createdAt: now,

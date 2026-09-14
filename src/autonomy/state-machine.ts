@@ -28,8 +28,6 @@ export type RunResult = {
   counters: RunCounters;
 };
 
-type TransitionGuard = (ctx: TransitionContext) => { allowed: boolean; reason?: string };
-
 type TransitionContext = {
   state: AgentState;
   counters: RunCounters;
@@ -45,7 +43,7 @@ type TransitionContext = {
 export class RunLimiter {
   constructor(private limits: RunLimits) {}
 
-  canTransition(from: AgentState, to: AgentState, ctx: TransitionContext): { allowed: boolean; reason?: string } {
+  canTransition(_from: AgentState, _to: AgentState, ctx: TransitionContext): { allowed: boolean; reason?: string } {
     if (this.limits.maxIterations > 0 && ctx.counters.iterations >= this.limits.maxIterations) {
       return { allowed: false, reason: `Max iterations reached (${this.limits.maxIterations})` };
     }

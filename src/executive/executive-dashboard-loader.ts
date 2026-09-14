@@ -19,7 +19,7 @@ import {
   type RecommendationReportMeta,
 } from "./recommendation-report-store.js";
 import { OutcomeReportStore, type OutcomeReportMeta } from "./outcome-store.js";
-import { ProposalStore } from "../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
 import {
   classifyRecommendation,
   applyEffectivenessData,
@@ -200,7 +200,7 @@ async function loadOutcomeRefs(
 async function loadProposalStatuses(
   loadedReports: RecommendationReport[],
   cwd: string,
-  loadWarnings: string[],
+  _loadWarnings: string[],
 ): Promise<Map<string, ProposalStatus | null>> {
   const allProposalIds = new Set<string>();
   for (const report of loadedReports) {
@@ -211,7 +211,7 @@ async function loadProposalStatuses(
 
   if (allProposalIds.size === 0) return new Map();
 
-  const proposalStore = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
   const statusMap = new Map<string, ProposalStatus | null>();
 
   await Promise.all(
@@ -232,7 +232,7 @@ function buildEntries(
   loadedReports: RecommendationReport[],
   proposalStatusMap: Map<string, ProposalStatus | null>,
   nowMs: number,
-  loadWarnings: string[],
+  _loadWarnings: string[],
 ): RecommendationEntry[] {
   const entries: RecommendationEntry[] = [];
 

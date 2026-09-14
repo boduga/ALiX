@@ -1,5 +1,5 @@
 import type { SessionPhase } from './state.js';
-import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
+import type { DaemonMetricsSnapshot } from './daemon-metrics-collector.js';
 import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';

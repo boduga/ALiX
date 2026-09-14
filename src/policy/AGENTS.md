@@ -6,6 +6,7 @@
 - `policy-rule.ts` — PolicyRule type, matchPolicy(), validatePolicyRule()
 - `rule-evaluator.ts` — Pure first-match-wins evaluator (decoupled from runtime subsystems)
 - `runtime-gate.ts` — Two-layer gate: CapabilityResolver + RuleEvaluator + ApprovalStore
+- `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. No second authority: the deprecated PolicyEngine was removed (#689).
 - `default-policies.ts` — 11 built-in rules (allow/ask/deny by risk level and capability)
 - `policy-loader.ts` — Load rules from `.alix/policies/*.json`, fall back to defaults
 
@@ -13,6 +14,7 @@
 - Two-layer enforcement: capability coverage first, policy second.
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
+- One pending approval per key: capability asks reuse the pending approval for their capability; coordination asks reuse by exact binding key; ask-mode tool calls always create a fresh record.
 - Default deny when no rule matches ("deny by default" closure).
 
 **Work Guidance:**

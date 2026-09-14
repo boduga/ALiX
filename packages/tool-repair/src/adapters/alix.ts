@@ -10,8 +10,8 @@ export class AlixToolRepair {
   private repair: ToolRepair;
 
   constructor(
-    private provider: string,
-    private modelName: string
+    provider: string,
+    modelName: string
   ) {
     const modelKey = normalizeModelKey(provider, modelName);
     this.repair = new ToolRepair(modelKey);

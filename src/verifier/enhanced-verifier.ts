@@ -2,7 +2,7 @@ import { discoverVerification, runVerification, type VerificationCheck, type Ver
 import { FailureDatabase } from "./embedder/failure-db.js";
 import { EmbeddingScorer } from "./embedder/scorer.js";
 import { ExemplarMatcher } from "./embedder/exemplar.js";
-import type { SimilarityResult } from "./embedder/types.js";
+import "./embedder/types.js";
 
 export interface EnhancedVerifierOptions {
   cwd: string;
@@ -103,13 +103,11 @@ export class EnhancedVerifier {
     }
 
     const results: VerificationResult[] = [];
-    let allPassed = true;
 
     for (const check of checks) {
       const result = await runVerification(this.options.cwd, check);
       results.push(result);
       if (result.status !== "passed") {
-        allPassed = false;
       }
     }
 

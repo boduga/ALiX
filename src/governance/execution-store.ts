@@ -21,7 +21,7 @@ export class ExecutionStore {
 
   constructor(
     baseDir: string,
-    private readonly storeSubdir?: string,
+    storeSubdir?: string,
   ) {
     this.dir = storeSubdir ? join(baseDir, storeSubdir) : baseDir;
   }

@@ -1,6 +1,6 @@
 import type { McpServerConfig } from "../config/schema.js";
 import type { McpTransport } from "./transport.js";
-import type { Tool } from "./types.js";
+import "./types.js";
 import type { ToolResult } from "../tools/types.js";
 import { McpClient } from "./client.js";
 import { StdioTransport } from "./transports/stdio-transport.js";

@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
-import { validatePublishFindingInput, validatePublishArtifactInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
+import { validatePublishFindingInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
 import type {
   SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,

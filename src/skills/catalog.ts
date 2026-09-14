@@ -1,7 +1,7 @@
 // src/skills/catalog.ts
 import type { SkillManifest, LoadedSkill } from "./types.js";
 import { loadSkillContent } from "./loader.js";
-import type { SkillManifestOnly } from "./loader.js";
+import "./loader.js";
 
 export interface SkillEntry {
   manifest: SkillManifest;

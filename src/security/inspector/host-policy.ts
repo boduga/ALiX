@@ -291,7 +291,6 @@ export function validateHost(
 
   // Extract host part (before port)
   let hostPart = trimmed;
-  let portPart: string | null = null;
 
   if (!trimmed.startsWith("[")) {
     const colonCount = (trimmed.match(/:/g) || []).length;
@@ -301,7 +300,6 @@ export function validateHost(
       if (/^\d+$/.test(afterColon)) {
         // Looks like host:port
         hostPart = trimmed.slice(0, colonIdx);
-        portPart = afterColon;
         const portNum = parseInt(afterColon, 10);
         if (portNum < 1 || portNum > 65535) {
           return { ok: false, error: "invalid_host", statusCode: 400 };

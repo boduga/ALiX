@@ -4,7 +4,7 @@
 
 import { resolve, relative, isAbsolute } from "node:path";
 import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest, CollaborationState } from "./collaboration-types.js";
-import type { WorkerOwnershipClaim } from "./coordination-types.js";
+import "./coordination-types.js";
 import type { ContextBudget } from "./collaboration-relevance-types.js";
 
 // ─── Constants ──────────────────────────────────────────────────────

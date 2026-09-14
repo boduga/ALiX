@@ -31,7 +31,7 @@ import type { SecureJsonResponder } from "./secure-response.js";
  * Validate a path segment extracted from a URL.
  * Rejects empty segments, path traversal attempts, and non-alphanumeric-plus-dash segments.
  */
-function validatePathSegment(segment: string | undefined, name: string): string | null {
+function validatePathSegment(segment: string | undefined, _name: string): string | null {
   if (!segment || segment.length === 0) return null;
   // Reject path traversal
   if (segment.includes("..") || segment.includes("/") || segment.includes("\\")) return null;
@@ -49,7 +49,7 @@ export function registerCoordinationRoutes(
   method: string,
   pathname: string,
   res: ServerResponse,
-  ctx?: SecurityContext | null,
+  _ctx?: SecurityContext | null,
   responder?: SecureJsonResponder,
 ): boolean {
   // Create fallback responder if none provided (backward compat for direct callers)

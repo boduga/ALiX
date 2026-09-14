@@ -32,7 +32,7 @@ export class ApprovalStoreLock {
   async acquire(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<boolean> {
     if (this.acquired) return true;
     const deadline = Date.now() + timeoutMs;
-    mkdirSync(dirname(this.lockPath), { recursive: true });
+    mkdirSync(dirname(this.lockPath), { recursive: true, mode: 0o700 });
 
     while (Date.now() < deadline) {
       try {

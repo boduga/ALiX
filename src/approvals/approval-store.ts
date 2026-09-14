@@ -5,18 +5,21 @@
  * CLI-first: no browser write actions.
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, appendFile, rm } from "node:fs/promises";
 import { rename as renameFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
-import type { ApprovalStatus, ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
+import type { ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
 import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../events/types.js";
+
+/** Compact the append-only journal once it reaches this many entries (#703). */
+const JOURNAL_COMPACT_THRESHOLD = 500;
 
 export type ApprovalRequestInput = {
   reason: string;
@@ -42,19 +45,59 @@ export type ApprovalRequestInput = {
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
   private groups: ApprovalGroup[] = [];
-  private dirty = false;
   private filePath: string;
+  /** Append-only delta log for new records (#703); folded into the snapshot
+   *  on compaction. External readers must replay it after the snapshot. */
+  private journalPath: string;
   private cwd: string;
   private auditStore?: AuditStore;
   private eventLog?: EventLog;
   /** In-flight fire-and-forget appends, for a deterministic test barrier. */
   private pendingAppends: Promise<unknown>[] = [];
 
-  constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog }) {
+  /** O(1) lookup indexes (#703), rebuilt on load and after each mutation. */
+  private byId = new Map<string, ApprovalRecord>();
+  private byBindingKey = new Map<string, ApprovalRecord[]>();
+
+  /** Retention cap for terminal (non-pending/approved) records (#703). */
+  private readonly maxTerminalRecords: number;
+
+  constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog; maxTerminalRecords?: number }) {
     this.cwd = cwd;
     this.filePath = join(cwd, ".alix", "approvals", "approvals.json");
+    this.journalPath = `${this.filePath}.journal.jsonl`;
     this.auditStore = opts?.auditStore;
     this.eventLog = opts?.eventLog;
+    this.maxTerminalRecords = opts?.maxTerminalRecords ?? 1_000;
+  }
+
+  /** Rebuild the id / binding-key indexes from the in-memory record array. */
+  private rebuildIndexes(): void {
+    this.byId.clear();
+    this.byBindingKey.clear();
+    for (const record of this.approvals) {
+      this.byId.set(record.id, record);
+      const bucket = this.byBindingKey.get(record.bindingKey);
+      if (bucket) bucket.push(record);
+      else this.byBindingKey.set(record.bindingKey, [record]);
+    }
+  }
+
+  /**
+   * Bound growth (#703): drop the oldest terminal records beyond the
+   * retention cap. Pending/approved records are never pruned (they are
+   * still actionable). Returns true when anything was removed.
+   */
+  private pruneTerminal(): boolean {
+    const isTerminal = (s: ApprovalRecord["status"]): boolean =>
+      s === "denied" || s === "consumed" || s === "expired" || s === "revoked" || s === "invalidated";
+    const terminal = this.approvals.filter((r) => isTerminal(r.status));
+    if (terminal.length <= this.maxTerminalRecords) return false;
+    // createdAt is ISO-8601, so lexicographic order is chronological.
+    terminal.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const drop = new Set(terminal.slice(0, terminal.length - this.maxTerminalRecords).map((r) => r.id));
+    this.approvals = this.approvals.filter((r) => !drop.has(r.id));
+    return true;
   }
 
   /** Load approvals from disk. */
@@ -62,34 +105,68 @@ export class ApprovalStore {
     if (!existsSync(this.filePath)) {
       this.approvals = [];
       this.groups = [];
-      this.dirty = false;
-      return;
-    }
-    try {
-      const raw = await readFile(this.filePath, "utf-8");
-      const parsed = JSON.parse(raw);
-      // Support both old format (array) and new format ({ approvals, groups })
-      if (Array.isArray(parsed)) {
-        this.approvals = (parsed as any[]).map(r =>
-          normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
-        );
+    } else {
+      try {
+        const raw = await readFile(this.filePath, "utf-8");
+        const parsed = JSON.parse(raw);
+        // Support both old format (array) and new format ({ approvals, groups })
+        if (Array.isArray(parsed)) {
+          this.approvals = (parsed as any[]).map(r =>
+            normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
+          );
+          this.groups = [];
+        } else {
+          const data = parsed as { approvals?: any[]; groups?: ApprovalGroup[] };
+          this.approvals = (data.approvals ?? []).map(r =>
+            normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
+          );
+          this.groups = data.groups ?? [];
+        }
+      } catch {
+        this.approvals = [];
         this.groups = [];
-      } else {
-        const data = parsed as { approvals?: any[]; groups?: ApprovalGroup[] };
-        this.approvals = (data.approvals ?? []).map(r =>
-          normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
-        );
-        this.groups = data.groups ?? [];
       }
-      this.dirty = false;
+    }
+    // Replay the append-only journal on top of the snapshot (#703).
+    const journal = await this.readJournal();
+    for (const record of journal) {
+      const idx = this.approvals.findIndex((a) => a.id === record.id);
+      if (idx >= 0) this.approvals[idx] = record;
+      else this.approvals.push(record);
+    }
+    this.rebuildIndexes();
+  }
+
+  /** Read + normalize journal records (append-only delta since last compact). */
+  private async readJournal(): Promise<ApprovalRecord[]> {
+    if (!existsSync(this.journalPath)) return [];
+    try {
+      const raw = await readFile(this.journalPath, "utf-8");
+      const records: ApprovalRecord[] = [];
+      for (const line of raw.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line) as { record?: unknown };
+          if (!parsed || typeof parsed !== "object" || !parsed.record) continue;
+          records.push(normalizeApprovalRecord(parsed.record, { defaultPolicyRevision: "legacy", now: new Date() }));
+        } catch { /* skip malformed journal line */ }
+      }
+      return records;
     } catch {
-      this.approvals = [];
-      this.groups = [];
-      this.dirty = false;
+      return [];
     }
   }
 
-  /** Persist to disk if dirty. */
+  /** Append new records to the journal (no snapshot rewrite). */
+  private async appendJournal(records: ApprovalRecord[]): Promise<void> {
+    if (records.length === 0) return;
+    const dir = join(this.filePath, "..");
+    if (!existsSync(dir)) await mkdir(dir, { recursive: true, mode: 0o700 });
+    const lines = records.map((record) => JSON.stringify({ op: "put", record })).join("\n") + "\n";
+    await appendFile(this.journalPath, lines, { encoding: "utf-8", mode: 0o600 });
+  }
+
+  /** Persist to disk (compacts the journal into the snapshot). */
   async save(): Promise<void> {
     await this.saveAtomic();
   }
@@ -117,24 +194,25 @@ export class ApprovalStore {
     await Promise.all(pending);
   }
 
-  /** Write to a temp file, then rename for atomic update. */
+  /** Compact: write the full snapshot atomically, then clear the journal. */
   private async saveAtomic(): Promise<void> {
-    if (!this.dirty) return;
     const dir = join(this.filePath, "..");
     if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
+      await mkdir(dir, { recursive: true, mode: 0o700 });
     }
     const token = randomUUID().slice(0, 8);
     const tmpPath = `${this.filePath}.tmp.${token}`;
     const state = { approvals: this.approvals, groups: this.groups ?? [] };
-    await writeFile(tmpPath, JSON.stringify(state, null, 2), "utf-8");
+    await writeFile(tmpPath, JSON.stringify(state, null, 2), { encoding: "utf-8", mode: 0o600, flag: "wx" });
     await renameFile(tmpPath, this.filePath);
-    this.dirty = false;
+    // Snapshot now includes every journal record — drop the delta.
+    await rm(this.journalPath, { force: true }).catch(() => {});
   }
 
   /**
-   * Acquire the per-file lock, load fresh, run a mutation, then atomically persist.
-   * Guarantees serialised access across concurrent processes.
+   * Acquire the per-file lock, load fresh, run a mutation, then persist.
+   * Pure additions append to the journal (no snapshot rewrite); updates,
+   * deletions, or retention pruning compact the snapshot (#703).
    */
   async mutate<T>(fn: (approvals: ApprovalRecord[]) => T | Promise<T>): Promise<T> {
     const lock = new ApprovalStoreLock(this.cwd);
@@ -142,12 +220,52 @@ export class ApprovalStore {
     if (!acquired) throw new Error("Could not acquire approval lock");
     try {
       await this.load();
+      const before = new Map<string, string>();
+      for (const r of this.approvals) before.set(r.id, JSON.stringify(r));
+
       const result = await fn(this.approvals);
-      this.dirty = true;
-      await this.saveAtomic();
+
+      // Classify the diff: additions vs updates/deletions.
+      const added: ApprovalRecord[] = [];
+      let mutatedExisting = false;
+      for (const r of this.approvals) {
+        const prior = before.get(r.id);
+        if (prior === undefined) added.push(r);
+        else if (prior !== JSON.stringify(r)) mutatedExisting = true;
+      }
+      const afterIds = new Set(this.approvals.map((r) => r.id));
+      for (const id of before.keys()) {
+        if (!afterIds.has(id)) { mutatedExisting = true; break; }
+      }
+
+      const pruned = this.pruneTerminal();
+      this.rebuildIndexes();
+
+      if (!mutatedExisting && !pruned && added.length > 0 && existsSync(this.filePath)) {
+        // Append-only fast path: no unrelated history rewritten. (The first
+        // write compacts so `approvals.json` exists for external readers.)
+        await this.appendJournal(added);
+        const journalLines = await this.journalLineCount();
+        if (journalLines >= JOURNAL_COMPACT_THRESHOLD) {
+          await this.saveAtomic();
+        }
+      } else {
+        await this.saveAtomic();
+      }
       return result;
     } finally {
       lock.release();
+    }
+  }
+
+  /** Count journal lines (cheap; used to trigger compaction). */
+  private async journalLineCount(): Promise<number> {
+    if (!existsSync(this.journalPath)) return 0;
+    try {
+      const raw = await readFile(this.journalPath, "utf-8");
+      return raw.split("\n").filter(Boolean).length;
+    } catch {
+      return 0;
     }
   }
 
@@ -411,9 +529,8 @@ export class ApprovalStore {
 
   /** List all approvals, newest first. */
   list(): ApprovalRecord[] {
-    return [...this.approvals].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    // createdAt is ISO-8601: lexicographic order is chronological.
+    return [...this.approvals].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   /** List pending approvals only. */
@@ -421,9 +538,9 @@ export class ApprovalStore {
     return this.list().filter(a => a.status === "pending");
   }
 
-  /** Get a single approval by ID. */
+  /** Get a single approval by ID — O(1) via index (#703). */
   get(id: string): ApprovalRecord | undefined {
-    return this.approvals.find(a => a.id === id);
+    return this.byId.get(id);
   }
 
   /**
@@ -443,14 +560,14 @@ export class ApprovalStore {
     return latest;
   }
 
-  /** Find an approval record by exact binding key. */
+  /** Find an approval record by exact binding key — O(1) via index (#703). */
   findExact(bindingKey: string): ApprovalRecord | undefined {
-    return this.approvals.find(a => a.bindingKey === bindingKey);
+    return this.byBindingKey.get(bindingKey)?.[0];
   }
 
-  /** Find a pending approval by binding key. */
+  /** Find a pending approval by binding key — O(1) bucket lookup (#703). */
   findPendingByBindingKey(bindingKey: string): ApprovalRecord | undefined {
-    return this.approvals.find(a => a.status === "pending" && a.bindingKey === bindingKey);
+    return this.byBindingKey.get(bindingKey)?.find(a => a.status === "pending");
   }
 
   /**
@@ -460,7 +577,7 @@ export class ApprovalStore {
    */
   async loadFresh(approvalId: string): Promise<ApprovalRecord | undefined> {
     await this.load();
-    return this.approvals.find(a => a.id === approvalId);
+    return this.byId.get(approvalId);
   }
 
   /**
@@ -469,7 +586,7 @@ export class ApprovalStore {
    */
   async findExactFresh(bindingKey: string): Promise<ApprovalRecord | undefined> {
     await this.load();
-    return this.approvals.find(a => a.bindingKey === bindingKey);
+    return this.byBindingKey.get(bindingKey)?.[0];
   }
 
   /**
@@ -638,7 +755,6 @@ export class ApprovalStore {
       a.groupId = group.id;
     }
 
-    this.dirty = true;
     // Store groups alongside approvals
     this.groups ??= [];
     this.groups.push(group);
@@ -713,12 +829,15 @@ export class ApprovalStore {
 
   /** Find the most recent resolved (approved/denied) approval for the same key. */
   findResolved(opts: { graphId?: string; nodeId?: string; capability?: string }): ApprovalRecord | undefined {
-    const matches = this.approvals.filter(a =>
-      a.status !== "pending"
-      && (!opts.graphId || a.graphId === opts.graphId)
-      && (!opts.nodeId || a.nodeId === opts.nodeId)
-      && (!opts.capability || a.capabilities.includes(opts.capability))
-    );
-    return matches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    let latest: ApprovalRecord | undefined;
+    for (const a of this.approvals) {
+      if (a.status === "pending") continue;
+      if (opts.graphId && a.graphId !== opts.graphId) continue;
+      if (opts.nodeId && a.nodeId !== opts.nodeId) continue;
+      if (opts.capability && !a.capabilities.includes(opts.capability)) continue;
+      // ISO-8601 strings compare chronologically — no per-element Date.
+      if (!latest || a.createdAt.localeCompare(latest.createdAt) > 0) latest = a;
+    }
+    return latest;
   }
 }

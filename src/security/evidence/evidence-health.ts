@@ -16,7 +16,6 @@ import { join } from "node:path";
 
 const EVIDENCE_DIR = join(".alix", "security");
 const STALE_WRITE_THRESHOLD_MS = 3600_000; // 1 hour without a write = stale
-const STALE_VERIFICATION_THRESHOLD_MS = 86_400_000; // 24h without verification = stale
 
 // ---------------------------------------------------------------------------
 // Types

@@ -7,7 +7,7 @@
  * @module
  */
 
-import type { ExecutionPlan, ExecutionStep, ExecutionStepAction } from "./planning-engine.js";
+import type { ExecutionPlan } from "./execution-plan-builder.js";
 
 // ---------------------------------------------------------------------------
 // Persisted plan (immutable)

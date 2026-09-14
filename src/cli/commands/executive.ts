@@ -25,8 +25,8 @@ import { ExecutionEngine } from "../../executive/execution-engine.js";
 import { StepRunner } from "../../executive/step-runner.js";
 import { PlanApprovalGate } from "../../executive/plan-approval-gate.js";
 import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
-import { buildExecutionPlan } from "../../executive/planning-engine.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
+import { buildExecutionPlan } from "../../executive/execution-plan-builder.js";
 
 // Dashboard pipeline imports for plan create
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
@@ -60,8 +60,8 @@ function createStateStore(): ExecutionStateStore {
   return new ExecutionStateStore(PLANS_DIR);
 }
 
-function createProposalStore(): ProposalStore {
-  return new ProposalStore(PROPOSALS_DIR);
+function createProposalStore(): AdaptationProposalStore {
+  return new AdaptationProposalStore(PROPOSALS_DIR);
 }
 
 /**

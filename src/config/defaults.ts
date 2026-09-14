@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
     default: "ask",
     tools: {
       "file.read": "allow",
+      "file.search": "allow",
       "file.write": "ask",
       "shell.run": "ask",
       "git.diff": "allow"
@@ -140,6 +141,7 @@ export const PERMIT_ALL_CONFIG: AlixConfig = {
     sessionMode: "bypass",
     tools: {
       "file.read": "allow",
+      "file.search": "allow",
       "file.write": "allow",
       "shell.run": "allow",
       "git.diff": "allow",

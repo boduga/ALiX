@@ -313,7 +313,7 @@ export class PipelineHealthBuilder {
     if (!input.storeAvailability.proposalStore) {
       signals.push({
         severity: "critical",
-        message: "ProposalStore unavailable — cannot observe pipeline state",
+        message: "AdaptationProposalStore unavailable — cannot observe pipeline state",
       });
     }
     if (!input.storeAvailability.evidenceStore) {

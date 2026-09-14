@@ -10,11 +10,11 @@
  */
 
 import { existsSync, mkdirSync } from "node:fs";
-import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
 import { canonicalStringify } from "../security/audit/canonical-json.js";
+import { JsonlStore } from "../storage/jsonl-store.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -30,7 +30,11 @@ const CHECKSUM_DOMAIN = "alix-execution-evidence-v1:";
 // ---------------------------------------------------------------------------
 
 export class ExecutionEvidenceStore {
-  constructor(private readonly storeDir: string) {}
+  private readonly store: JsonlStore;
+
+  constructor(private readonly storeDir: string) {
+    this.store = new JsonlStore(join(storeDir, OUTFILE), 0o755);
+  }
 
   // ---------------------------------------------------------------------------
   // Write
@@ -44,9 +48,7 @@ export class ExecutionEvidenceStore {
    */
   async append(evidence: ExecutionEvidence): Promise<void> {
     this.ensureStoreDir();
-
-    const line = JSON.stringify(evidence) + "\n";
-    await appendFile(this.filePath(), line, "utf-8");
+    await this.store.appendRecord(evidence);
   }
 
   // ---------------------------------------------------------------------------
@@ -110,35 +112,20 @@ export class ExecutionEvidenceStore {
   }
 
   private async readAll(): Promise<ExecutionEvidence[]> {
-    const raw = await readFile(this.filePath(), "utf-8");
-    const records: ExecutionEvidence[] = [];
-
-    for (const line of raw.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      let parsed: ExecutionEvidence;
-      try {
-        parsed = JSON.parse(trimmed) as ExecutionEvidence;
-      } catch {
-        console.warn(
-          `ExecutionEvidenceStore: skipping malformed line: ${trimmed.slice(0, 80)}...`,
-        );
-        continue;
-      }
-
+    const { records, malformed } = await this.store.readRecords<ExecutionEvidence>();
+    if (malformed > 0) {
+      console.warn(`ExecutionEvidenceStore: skipping ${malformed} malformed line(s)`);
+    }
+    return records.filter((parsed) => {
       // Validate persisted checksum
       if (!isValidChecksum(parsed)) {
         console.warn(
           `ExecutionEvidenceStore: skipping record with invalid checksum: ${parsed.evidenceId ?? "unknown"}`,
         );
-        continue;
+        return false;
       }
-
-      records.push(parsed);
-    }
-
-    return records;
+      return true;
+    });
   }
 }
 

@@ -37,7 +37,7 @@ export interface ClassifyInput {
   signalConfidence: number;
   recommendation: string;
   proposalId?: string;
-  /** The proposal's status from ProposalStore.load, or null if not found / corrupt. */
+  /** The proposal's status from AdaptationProposalStore.load, or null if not found / corrupt. */
   proposalStatus?: ProposalStatus | null;
   /** Days since the source report was generated (only affects unreviewed/stale). */
   ageDays: number;

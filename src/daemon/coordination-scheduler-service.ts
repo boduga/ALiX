@@ -67,7 +67,7 @@ export class CoordinationSchedulerService {
    * Called by ApprovalWatcher when approvals are resolved.
    * Returns immediately — does not wait for tick completion.
    */
-  requestTick(runId: string): void {
+  requestTick(_runId: string): void {
     // Fire-and-forget: will be picked up on next poll cycle
     // For immediate processing, we could trigger here,
     // but to maintain non-overlapping guarantees, we schedule for next poll.

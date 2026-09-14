@@ -174,7 +174,7 @@ export class RecommendationReportStore {
       );
     }
 
-    const { schemaVersion, id, contentHash, report } = parsed;
+    const { contentHash, report } = parsed;
     const expectedHash = sha256(JSON.stringify(report));
     if (contentHash !== expectedHash) {
       throw new RecommendationReportIntegrityError(

@@ -134,7 +134,7 @@ async function handleStats(root: string, _url: URL, res: ServerResponse): Promis
   const store = createStore(root);
   const stats = await store.stats();
   const verifyResult = await store.verify();
-  const allRecords = await store.query({ limit: stats.total || 1 });
+  await store.query({ limit: stats.total || 1 });
   const healthCollector = new EvidenceHealthCollector(join(root, EVIDENCE_DIR));
   const health = await healthCollector.collect();
 

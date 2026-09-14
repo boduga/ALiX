@@ -6,9 +6,11 @@
 - `daemon-manager.ts` — DaemonManager: PID/status lifecycle at `.alix/daemon.{pid,json}`. start/stop/status/isRunning.
 - `daemon-server.ts` — Unix socket listener at `.alix/alixd.sock`. Accepts JSON-line commands (run, ping, cancel, status). Runs tasks via runTask() from the main ALiX runtime, streaming events back to the client. Owns the daemon's SIGTERM shutdown: `server.close()` then `shutdownProcessTraceClient()` (from `daemon-tracing-shutdown.ts`) before `exit(0)` (Task 14; extracted for testability in Task 15).
 - `daemon-tracing-shutdown.ts` — **Task 15:** `shutdownProcessTraceClient(): Promise<void>` — fail-open bounded tracing shutdown for the daemon's SIGTERM handler. Never rejects; absorbs every failure (client shutdown reject, `getProcessTraceClient` failure) so the handler can follow with `process.exit(0)` unconditionally. Resolves the same memoized process client the run roots created via the config-free `getProcessTraceClient()` deep seam (`../tracing/client-factory.js`, dynamically imported) — Noop, zero-cost, when tracing was never enabled.
-- `task-registry.ts` — TaskRegistry: file-backed task record store at `.alix/daemon-tasks.json`. Atomic writes. create/update/get/list/findQueued with pruneCompleted(cap=100).
+- `task-registry.ts` — TaskRegistry: file-backed task record store at the global `~/.alix/daemon-tasks.json` (see `daemon-paths.ts`). Atomic writes. create/update/get/list/findQueued with pruneCompleted(cap=100).
+- `daemon-paths.ts` — Canonical daemon-task paths: `resolveDaemonTasksPath()` (global writer location), `resolveDaemonTasksReadPath(cwd)` (global with legacy `<cwd>/.alix` read fallback), `readDaemonTasks(cwd)`. All readers (CLI, RuntimeIndex, TUI, Inspector, recovery) must resolve through here, never hardcode the path.
 - `daemon-types.ts` — DaemonCommand and DaemonResponse discriminated unions defining the wire protocol.
 - CLI commands in `src/cli.ts` — `alix daemon {start|stop|status|tasks|cancel}`, `alix submit "<task>"`.
+- Socket protocol commands: run, direct, ping, cancel, status (every declared command has a server handler).
 
 **Local Contracts:**
 - Daemon binds to a Unix socket only (`.alix/alixd.sock`). No remote access.

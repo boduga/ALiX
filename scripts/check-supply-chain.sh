@@ -38,15 +38,11 @@ else
   AUDIT_COUNT="$(echo "$AUDIT_JSON" | node -p "const a=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); Object.keys(a.vulnerabilities||{}).length" 2>/dev/null || echo "0")"
 
   if [ "$AUDIT_COUNT" -gt 0 ]; then
-    echo "  ⚠  $AUDIT_COUNT npm audit advisories found — review exceptions"
-
-    # Check if exceptions file exists
-    if [ -f "$PROJECT_ROOT/security/audit-exceptions.json" ]; then
-      echo "  ℹ  Exceptions file exists — run 'alix security supply-chain exceptions check' for detailed analysis"
-    else
-      echo "  ❌ No audit-exceptions.json found"
-      PASSED=false
-    fi
+    # Fail closed (#691): the fallback cannot evaluate the exceptions file,
+    # so any advisory fails the gate. Run the primary check (built ALiX)
+    # for exception-aware analysis.
+    echo "  ❌ $AUDIT_COUNT npm audit advisories found — failing closed (run 'alix security supply-chain exceptions check' for exception-aware analysis)"
+    PASSED=false
   else
     echo "  ✅ No npm audit advisories"
   fi
@@ -87,7 +83,9 @@ if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
   if npx --prefix "$PROJECT_ROOT" alix security supply-chain verify-tarball "$TARBALL" 2>/dev/null; then
     echo "  ✅ Tarball — content verified"
   else
-    echo "  ⚠  Tarball verification requires built ALiX — skipping (run manually before publish)"
+    # Fail closed (#691): a present-but-unverifiable tarball fails the gate.
+    echo "  ❌ Tarball verification failed for $TARBALL"
+    PASSED=false
   fi
 else
   echo "  ℹ  No tarball found — run 'pnpm pack' first to verify package contents"

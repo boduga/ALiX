@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { ApprovalGate } from "../../src/adaptation/approval-gate.js";
 import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 import type { EvidenceRecord, EvidenceType } from "../../src/security/evidence/evidence-types.js";
@@ -64,14 +64,14 @@ function makePendingProposal(overrides: Partial<AdaptationProposal> = {}): Adapt
 
 describe("ApprovalGate", () => {
   let dir: string;
-  let store: ProposalStore;
+  let store: AdaptationProposalStore;
   let writer: EvidenceEventWriter;
   let events: RecordedEvent[];
   let gate: ApprovalGate;
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "approval-"));
-    store = new ProposalStore(dir);
+    store = new AdaptationProposalStore(dir);
     const fake = makeFakeWriter();
     writer = fake.writer;
     events = fake.events;

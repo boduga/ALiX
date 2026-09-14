@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
+import { AgentCardApplier } from "../../src/adaptation/appliers/agent-card-applier.js";
+import { SkillApplier } from "../../src/adaptation/appliers/skill-applier.js";
+import { RevertApplier } from "../../src/adaptation/revert-applier.js";
+import { selectApplier } from "../../src/cli/commands/adaptation.js";
+import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 
 /** Read a file's source text for structural/grep-based checks. */
 function sourceOf(relativePath: string): string {
@@ -125,29 +131,45 @@ describe("Governance Invariants — generator boundaries", () => {
 });
 
 describe("Governance Invariants — applier boundaries", () => {
-  it("each applier must guard on proposal.status === 'approved'", () => {
-    const sources: [string, string][] = [
-      ["AgentCardApplier", sourceOf("../../src/adaptation/appliers/agent-card-applier.ts")],
-      ["SkillApplier", sourceOf("../../src/adaptation/appliers/skill-applier.ts")],
-      ["RevertApplier", sourceOf("../../src/adaptation/revert-applier.ts")],
-    ];
-    for (const [name, source] of sources) {
-      expect(
-        source.includes("proposal.status"),
-        `${name} should reference proposal.status — may be in type guard`,
-      ).toBeTruthy();
+  function draftProposal(kind: string): AdaptationProposal {
+    return {
+      id: "prop-test",
+      createdAt: new Date().toISOString(),
+      status: "draft",
+      action: "create",
+      target: { kind },
+      payload: {},
+      sourceRecommendationType: "test",
+      confidence: 0.5,
+    } as unknown as AdaptationProposal;
+  }
+
+  it.each([
+    ["AgentCardApplier", (dir: string) => new AgentCardApplier(dir)],
+    ["SkillApplier", (dir: string) => new SkillApplier(dir)],
+    ["RevertApplier", (dir: string) => new RevertApplier(dir, {} as never)],
+  ])("%s refuses non-approved proposals", async (_name, make) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "applier-guard-"));
+    try {
+      const applier = make(dir);
+      await expect(applier.apply(draftProposal("agent_card"))).rejects.toThrow(/expected "approved"/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("selectApplier routes each target.kind to the correct applier", () => {
-    const source = sourceOf("../../src/cli/commands/adaptation.ts");
-    // Verify the switch has cases for agent_card, skill, and revert
-    expect(source).toContain('case "agent_card"');
-    expect(source).toContain('case "skill"');
-    expect(source).toContain('case "revert"');
-    // Verify it creates the correct applier types
-    expect(source).toContain("new AgentCardApplier");
-    expect(source).toContain("new SkillApplier");
-    expect(source).toContain("new RevertApplier");
+  it.each([
+    ["agent_card", "AgentCardApplier"],
+    ["skill", "SkillApplier"],
+    ["revert", "RevertApplier"],
+  ])("selectApplier routes %s to %s", async (kind, name) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "applier-route-"));
+    try {
+      const apply = selectApplier(dir, draftProposal(kind), {} as never);
+      // The routed applier identifies itself when refusing the draft.
+      await expect(apply(draftProposal(kind))).rejects.toThrow(new RegExp(name));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

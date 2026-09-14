@@ -128,8 +128,8 @@ describe("P8.8 release gate — propose chain", () => {
 describe("P8.8 release gate — no-mutation boundary", () => {
   it("an approved learning proposal CANNOT be applied — apply errors, status→failed", async () => {
     // Seed an approved learning proposal directly (simulating post-approval state)
-    const { ProposalStore } = await import("../../src/adaptation/proposal-store.js");
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const { AdaptationProposalStore } = await import("../../src/adaptation/adaptation-proposal-store.js");
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
 
     const learning = {
       id: "prop-gate-approved",

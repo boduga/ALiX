@@ -34,14 +34,14 @@ export function createEnrichedProposalsSource(
 ): () => Promise<ReadonlyArray<EnrichedProposal>> {
   return async () => {
     try {
-      const { ProposalStore } = await import("../../../adaptation/proposal-store.js");
+      const { AdaptationProposalStore } = await import("../../../adaptation/adaptation-proposal-store.js");
       const { EffectivenessStore } = await import("../../../adaptation/effectiveness-store.js");
       const { EvidenceStore } = await import("../../../security/evidence/evidence-store.js");
       const { ProposalLifecycleAnalyzer } = await import(
         "../../../adaptation/proposal-lifecycle-analyzer.js"
       );
       const analyzer = new ProposalLifecycleAnalyzer(
-        new ProposalStore(join(cwd, PROPOSALS_DIR)),
+        new AdaptationProposalStore(join(cwd, PROPOSALS_DIR)),
         new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR)),
         new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) }),
       );

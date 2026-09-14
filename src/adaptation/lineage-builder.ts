@@ -1,14 +1,14 @@
 /**
  * P5.7b — LineageBuilder.
  *
- * Walks ProposalStore, EvidenceStore, EffectivenessStore, and IntelligenceStore
+ * Walks AdaptationProposalStore, EvidenceStore, EffectivenessStore, and IntelligenceStore
  * to build a LineageGraph for a given root proposal. Cross-links by fingerprint
  * and sourceProposalId. No new storage needed.
  *
  * @module
  */
 
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import type { EvidenceStore } from "../security/evidence/evidence-store.js";
 import type { EffectivenessStore } from "./effectiveness-store.js";
 import type { IntelligenceStore } from "./intelligence-store.js";
@@ -19,13 +19,13 @@ import type {
   LineageWarning,
   LineageCompleteness,
 } from "./lineage-types.js";
-import type { AdaptationProposal } from "./adaptation-types.js";
+import "./adaptation-types.js";
 
 const MAX_DEPTH_DEFAULT = 10;
 
 export class LineageBuilder {
   constructor(
-    private readonly proposalStore: ProposalStore,
+    private readonly proposalStore: AdaptationProposalStore,
     private readonly evidenceStore: EvidenceStore,
     private readonly effectivenessStore: EffectivenessStore,
     private readonly intelligenceStore: IntelligenceStore,

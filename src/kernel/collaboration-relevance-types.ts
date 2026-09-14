@@ -3,8 +3,7 @@
  * compression, and explainability.
  */
 
-// CompressionMode is defined here rather than imported from a non-existent
-// collaboration-compression module. It will be migrated when that module lands.
+// CompressionMode lives here alongside the compression metadata types.
 export type CompressionMode = "none" | "truncate" | "summarize" | "semantic";
 
 export type CompressionMetadata = {

@@ -42,7 +42,7 @@ const EXECUTIVE_FILES = [
   "src/cli/commands/executive-dashboard-renderer.ts",
   "src/cli/commands/executive-dashboard-handler.ts",
   "src/cli/commands/executive.ts",
-  "src/executive/planning-engine.ts",
+  "src/executive/execution-plan-builder.ts",
   "src/executive/objective-engine.ts",
   // P10.4a files
   "src/executive/step-behavior.ts",
@@ -57,7 +57,7 @@ const EXECUTIVE_FILES = [
   // P10.4c files
   "src/executive/executive-apply-reconciler.ts",
   // P10.6 files
-  "src/executive/learning-engine.ts",
+  "src/executive/learning-trends.ts",
   // P10.5b files
   "src/executive/outcome-store.ts",
   "src/executive/outcome-report-id.ts",

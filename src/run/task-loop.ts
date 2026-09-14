@@ -11,7 +11,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
+import type { ModelAdapter, NormalizedMessage, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { EventLog } from "../events/event-log.js";
 import type { MemoryStore } from "../utils/memory/store.js";
@@ -24,7 +24,7 @@ import type { MutationSessionState, RunResult, ContextPressure } from "../run.js
 import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
-import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
+import { buildRiskReport } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "./helpers.js";
@@ -49,18 +49,14 @@ import { estimateMessageBudgetTokens, estimateBudgetTokens, ensureEncoder } from
 import type { TokenizerName } from "../config/context-limits.js";
 import type { ContextBudget, ContextCategory, TierOrderingConfig } from "../config/context-budget.js";
 import { ContextBudgetOverflowError, preflight } from "../config/context-budget.js";
-import {
-  assembleContext,
-  type CandidateContextItem,
-  type ContextItemProvenance,
-} from "../config/context-assembly.js";
+import { assembleContext, type CandidateContextItem } from "../config/context-assembly.js";
 import { MetricsStore } from "../observability/metrics-store.js";
 import { createMetricRegistry } from "../observability/metric-registry.js";
 import { StateTelemetry } from "../observability/state-telemetry.js";
 import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload, type ContextRotRiskPayload } from "../events/types.js";
 import { loadCalibration, type ContextRotThreshold } from "../config/calibration-store.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
-import type { AlixConfig, ModelsConfig } from "../config/schema.js";
+import type { ModelsConfig } from "../config/schema.js";
 import {
   DEFAULT_TOOL_EXECUTION_POLICY,
   canParallelize,
@@ -751,7 +747,6 @@ let repairCount = 0;
 const maxRepairs = 3;
 
 // Track last saved message count for incremental persistence
-let lastSavedMessages = 0;
 
 // Get the McpManager from executor (executor holds a reference)
 interface HasMcpManager {
@@ -2086,7 +2081,6 @@ if (toolCalls.length === 0) {
         stateMachine: stateMachine.toJSON(),
       }
     );
-    lastSavedMessages = messages.length;
   } catch (saveErr) {
     // Non-fatal — session state is best-effort
     await log.append({ ...session, actor: "system", type: "session.state_persist_failed", payload: { error: String(saveErr) } });

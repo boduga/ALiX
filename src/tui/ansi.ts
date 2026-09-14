@@ -33,7 +33,6 @@ export function clearToEndOfLine(): string {
 
 export function panel(content: string, opts: { width: number } = { width: 60 }): string {
   const { width } = opts;
-  const inner = " ".repeat(width - 2);
   const top = `┌${"─".repeat(width - 2)}┐`;
   const bottom = `└${"─".repeat(width - 2)}┘`;
 

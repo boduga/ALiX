@@ -8,7 +8,7 @@
  * No auto-resolution of missing outcomes.
  */
 
-import type { PolicyReviewOutcome, PolicyReviewOutcomeType } from "./policy-review-outcome-types.js";
+import type { PolicyReviewOutcome } from "./policy-review-outcome-types.js";
 import { OUTCOME_TYPES } from "./policy-review-outcome-types.js";
 
 // ---------------------------------------------------------------------------

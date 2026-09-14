@@ -11,9 +11,9 @@
  * `{ candidate, signalIds, sourceVersion }` and
  * `CapabilityEvolutionCandidate.target = { kind: "capability"; id }`).
  *
- * Schema reconciliation (verified against `ProposalStore.append()` in
- * `src/capability/governance/proposal-store.ts`):
- * - `proposalId` lives IN THE PAYLOAD — ProposalStore writes
+ * Schema reconciliation (verified against `GovernanceProposalStore.append()` in
+ * `src/capability/governance/governance-proposal-store.ts`):
+ * - `proposalId` lives IN THE PAYLOAD — GovernanceProposalStore writes
  *   `payload: { proposalId, ...payload }` (its read-back helper
  *   `toCapabilityGovernanceEvent` reads `payload.proposalId`). A top-level
  *   `proposalId` on the event is a fallback only (the A8 adapter's shape).
@@ -60,7 +60,7 @@ export class ProposalEventsAdapter implements ForecastAdapter<ProposalEventRecor
     // "proposal." prefix ("proposal.submitted" | ... | "proposal.execution_failed").
     const shortKind = event.type.replace(GOVERNANCE_NAMESPACE_PREFIX, "") as ProposalEventRecord["kind"];
     const payload = (event.payload ?? {}) as Record<string, unknown>;
-    // proposalId canonical source: THE PAYLOAD. ProposalStore writes
+    // proposalId canonical source: THE PAYLOAD. GovernanceProposalStore writes
     // `payload: { proposalId, ...payload }` (proposal-store.ts:175-180), so
     // `payload.proposalId` is the real persisted location. A top-level
     // `event.proposalId` is a fallback for any other/future writer that

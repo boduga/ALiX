@@ -21,9 +21,9 @@ import type { PlanStore } from "./plan-store.js";
 import type { ExecutionStateStore } from "./execution-state-store.js";
 import type { StepRunner } from "./step-runner.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
-import type { ProposalStore } from "../adaptation/proposal-store.js";
+import type { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "./executive-plan-types.js";
-import type { ExecutiveStepExecutionResult, StepRuntimeStatus } from "./executive-plan-types.js";
+import type { ExecutiveStepExecutionResult } from "./executive-plan-types.js";
 import { validateStateStepIds } from "./executive-plan-types.js";
 import type { OutcomeEvaluationHook } from "./automatic-outcome-hook.js";
 import { createAutomaticOutcomeEvaluator } from "./automatic-outcome-hook.js";
@@ -44,7 +44,7 @@ export class ExecutionEngine {
     private readonly stateStore: ExecutionStateStore,
     private readonly runner: StepRunner,
     private readonly writer: EvidenceEventWriter,
-    private readonly proposalStore?: ProposalStore, // P10.4b — optional backward compat
+    private readonly proposalStore?: AdaptationProposalStore, // P10.4b — optional backward compat
     private readonly outcomeHook: OutcomeEvaluationHook = createAutomaticOutcomeEvaluator(".alix/executive"),
     // P10.9.1 — plan-scoped snapshot capture. Defaults are safe so existing
     // callers do not need to construct a snapshot store/provider explicitly.
@@ -64,7 +64,7 @@ export class ExecutionEngine {
    * Start a plan: draft → approved → running. One-shot (called once).
    * Verifies consistency: state.planId === plan.id.
    */
-  startPlan(planId: string, by: string): PlanExecutionState {
+  startPlan(planId: string, _by: string): PlanExecutionState {
     const plan = this.planStore.load(planId);
     const state = this.stateStore.load(planId);
     if (!state) throw new Error(`Execution state not found: ${planId}`);

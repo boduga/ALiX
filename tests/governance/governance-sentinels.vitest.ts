@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -38,9 +38,8 @@ const FORBIDDEN_IMPORTS = [
   "GovernanceReviewStore",
   "LearningStore",
   "EvidenceChainStore",
-  "ProposalStore",
-  "ApprovalGate",
   "AdaptationProposalStore",
+  "ApprovalGate",
   "AutomaticProposalGenerator",
   "AgentCardApplier",
   "SkillApplier",
@@ -108,6 +107,15 @@ const ALL_FILES = [
 // ---------------------------------------------------------------------------
 
 function readSource(file: string): string {
+  // #717 — governance.ts is now a barrel; scan the barrel plus every module.
+  if (file === "src/cli/commands/governance.ts") {
+    const dir = join(process.cwd(), "src/cli/commands/governance");
+    const mods = readdirSync(dir)
+      .filter((f) => f.endsWith(".ts"))
+      .sort()
+      .map((f) => readFileSync(join(dir, f), "utf-8"));
+    return [readFileSync(join(process.cwd(), file), "utf-8"), ...mods].join("\n");
+  }
   return readFileSync(join(process.cwd(), file), "utf-8");
 }
 
@@ -119,7 +127,7 @@ describe("P9.0 purity sentinel", () => {
   // -- Import checks (store + CLI only) ------------------------------------
 
   const ALLOWED_IN_FILE: Record<string, string[]> = {
-    "src/governance/governance-proposal-generator.ts": ["ProposalStore", "EvidenceChainStore"],
+    "src/governance/governance-proposal-generator.ts": ["AdaptationProposalStore", "EvidenceChainStore"],
     "src/governance/governance-approval-criteria.ts": ["EvidenceChainStore"], // NEW: P9.3 read-only store
   };
 

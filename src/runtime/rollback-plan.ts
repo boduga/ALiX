@@ -7,7 +7,7 @@
  * - not rollbackable or missing before snapshot → "skip"
  */
 
-import type { ReplayDiffSet, ReplayDiffRecord } from "./replay-diff-store.js";
+import type { ReplayDiffSet } from "./replay-diff-store.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 

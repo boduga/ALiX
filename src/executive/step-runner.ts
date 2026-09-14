@@ -15,9 +15,9 @@
  * @module
  */
 
-import type { ExecutionStep } from "./planning-engine.js";
+import type { ExecutionStep } from "./execution-plan-builder.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
-import type { StepRunnerResult, GeneratedArtifactRef } from "./executive-plan-types.js";
+import type { StepRunnerResult } from "./executive-plan-types.js";
 import { behaviorFor } from "./step-behavior.js";
 
 export class StepRunner {

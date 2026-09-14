@@ -24,7 +24,7 @@ export async function handleProviderDoctor(args: string[]): Promise<void> {
   providers.push({ id: main.provider, model: main.name });
 
   if ((config as any).models) {
-    for (const [role, m] of Object.entries((config as any).models)) {
+    for (const [_role, m] of Object.entries((config as any).models)) {
       const mm = m as any;
       if (mm.provider && !providers.find(p => p.id === mm.provider)) {
         providers.push({ id: mm.provider, model: mm.name });

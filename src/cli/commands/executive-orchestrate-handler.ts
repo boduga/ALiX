@@ -15,7 +15,7 @@
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import {
   reconcileChildProposal,
@@ -35,7 +35,7 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
   const planFilter = planFilterIdx >= 0 ? args[planFilterIdx + 1] : undefined;
 
   // 1. Load all proposals
-  const store = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const store = new AdaptationProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
   const all = await store.list();
   const proposals = planFilter
     ? all.filter(p => {

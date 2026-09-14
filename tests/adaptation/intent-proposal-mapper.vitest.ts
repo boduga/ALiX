@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 
 import type { ExecutionIntent } from "../../src/adaptation/execution-intent-types.js";
 import { IntentProposalMapper } from "../../src/adaptation/intent-proposal-mapper.js";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { IntentStore } from "../../src/adaptation/intent-store.js";
 
 // ---------------------------------------------------------------------------
@@ -51,14 +51,14 @@ function makeCapturedIntent(
 describe("IntentProposalMapper", () => {
   let proposalDir: string;
   let intentDir: string;
-  let proposalStore: ProposalStore;
+  let proposalStore: AdaptationProposalStore;
   let intentStore: IntentStore;
   let mapper: IntentProposalMapper;
 
   beforeEach(() => {
     proposalDir = mkdtempSync(join(tmpdir(), "alix-test-proposal-store-"));
     intentDir = mkdtempSync(join(tmpdir(), "alix-test-intent-store-"));
-    proposalStore = new ProposalStore(proposalDir);
+    proposalStore = new AdaptationProposalStore(proposalDir);
     intentStore = new IntentStore(intentDir);
     mapper = new IntentProposalMapper(proposalStore);
   });

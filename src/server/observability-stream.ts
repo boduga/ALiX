@@ -11,12 +11,7 @@ import { ObservabilitySnapshotService } from "../observability/health-snapshot.j
 import { AlertEngine } from "../observability/alert-engine.js";
 import { MetricsStore } from "../observability/metrics-store.js";
 import { TrendAnalyzer } from "../observability/trend-analyzer.js";
-import { CostAttribution } from "../observability/cost-attribution.js";
-
-interface StreamClient {
-  id: string;
-  res: ServerResponse;
-}
+import "../observability/cost-attribution.js";
 
 let clientCounter = 0;
 

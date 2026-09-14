@@ -248,9 +248,9 @@ test.describe("ALiX Deployed Capabilities", { skip: "Feature-gap documentation â
       assert.ok(existsSync(policyDir), "Policy directory should exist");
     });
 
-    test("policy engine exists", () => {
-      const policyFile = join(rootDir, "src", "policy", "policy-engine.ts");
-      assert.ok(existsSync(policyFile), "Policy engine should exist");
+    test("policy gate exists (single policy authority)", () => {
+      const policyFile = join(rootDir, "src", "policy", "policy-gate.ts");
+      assert.ok(existsSync(policyFile), "Policy gate should exist");
     });
 
     test("shell whitelist restricts commands", () => {

@@ -33,12 +33,7 @@ import {
   resolveClientAddress,
   normalizeAddress,
 } from "../security/inspector/client-address.js";
-import {
-  createPreAuthLimiter,
-  createPostAuthLimiter,
-  normalizeClientAddress,
-  buildRateLimitKey,
-} from "../security/inspector/rate-limiter.js";
+import { createPreAuthLimiter, createPostAuthLimiter } from "../security/inspector/rate-limiter.js";
 import { ConnectionLimiter } from "../security/inspector/connection-limiter.js";
 import { createSecureSseConnection } from "./secure-sse.js";
 import { ObservabilityStreamHub } from "./observability-stream-hub.js";
@@ -153,10 +148,15 @@ export function startServer(
     filePath: join(userPaths.authStateDir, "auth-store.json"),
   });
 
-  // File-backed audit for server runtime — appends JSONL to auth state dir
+  // File-backed audit for server runtime — appends JSONL to auth state dir.
+  // Fail-closed (#685): auth mutations must not succeed without an audit
+  // record. Write failures propagate to AuthService, which converts them into
+  // `audit_write_failed` results; the counter + stderr line mark the degraded
+  // condition so operators can see it.
   type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
   type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
   const auditPath = join(userPaths.authStateDir, "audit.jsonl");
+  let authAuditWriteFailures = 0;
   const fileAudit: AuditFn = async (event) => {
     try {
       mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
@@ -166,8 +166,13 @@ export function startServer(
         ...event,
       }) + "\n";
       appendFileSync(auditPath, entry, { mode: 0o600 });
-    } catch {
-      // Server: non-fatal — auth operations succeed without audit
+    } catch (err) {
+      authAuditWriteFailures++;
+      console.error(
+        `[inspector-auth] audit append failed (${authAuditWriteFailures} total): ` +
+        (err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
     }
   };
   const noopMetrics: MetricsFn = () => {};
@@ -442,8 +447,8 @@ export function startServer(
         try {
           const { readFile } = await import("node:fs/promises");
           const { existsSync } = await import("node:fs");
-          const { join } = await import("node:path");
-          const tasksPath = join(root, ".alix", "daemon-tasks.json");
+          const { resolveDaemonTasksReadPath } = await import("../daemon/daemon-paths.js");
+          const tasksPath = resolveDaemonTasksReadPath(root);
           if (!existsSync(tasksPath)) {
             res.setHeader("content-type", "application/json");
             res.end("[]");
@@ -545,7 +550,6 @@ export function startServer(
         }
 
         // ── P4.3-Sc2: Hub-based session SSE ──────────────────────────
-        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
         const sseAddr = normalizeAddress(clientAddr.address);
 
         const conn = createSecureSseConnection(res, ctx, connectionLimiter, {
@@ -587,7 +591,6 @@ export function startServer(
       }
       // ── P4.3-Sc2: Observability SSE stream (hub-based) ─────────
       if (url.pathname === "/api/observability/stream" && req.method === "GET") {
-        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
         const sseAddr = normalizeAddress(clientAddr.address);
 
         const conn = createSecureSseConnection(res, ctx, connectionLimiter, {

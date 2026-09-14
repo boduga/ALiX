@@ -29,7 +29,6 @@ function normalizeCommand(command: unknown): string {
 
 function truncate(text: string, maxBytes: number): string {
   if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
-  let result = "";
   let byteCount = 0;
   const bytes = Buffer.from(text, "utf8");
   let cutIndex = 0;

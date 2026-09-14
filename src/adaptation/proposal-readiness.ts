@@ -7,11 +7,7 @@
  * @module
  */
 
-import type {
-  AdaptationProposal,
-  ProposalAction,
-  ProposalTarget,
-} from "./adaptation-types.js";
+import type { AdaptationProposal } from "./adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Public types

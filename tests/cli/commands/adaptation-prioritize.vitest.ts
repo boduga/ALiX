@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import { IntelligenceStore } from "../../../src/adaptation/intelligence-store.js";
 import { SCORING_VERSION } from "../../../src/adaptation/priority-types.js";
 import type { IntelligenceReport } from "../../../src/adaptation/intelligence-types.js";
@@ -45,7 +45,7 @@ function captureConsole(): { out: () => string[]; restore: () => void } {
   };
 }
 
-async function seedProposal(store: ProposalStore, id: string, overrides?: Record<string, unknown>) {
+async function seedProposal(store: AdaptationProposalStore, id: string, overrides?: Record<string, unknown>) {
   const proposal = {
     id,
     createdAt: "2026-06-15T00:00:00.000Z",
@@ -130,7 +130,7 @@ function makeIntelligenceReport(): IntelligenceReport {
 describe("adaptation prioritize CLI", () => {
   it("outputs ranked list when proposals exist with intelligence data", async () => {
     // Seed pending proposals
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-001", { sourceConfidence: 0.9 });
     await seedProposal(store, "prop-002", { sourceConfidence: 0.7 });
 
@@ -154,7 +154,7 @@ describe("adaptation prioritize CLI", () => {
   });
 
   it("outputs --json format", async () => {
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-001", { sourceConfidence: 0.9 });
 
     const intelStore = new IntelligenceStore(join(tempRoot, ".alix", "adaptation", "intelligence"));
@@ -176,7 +176,7 @@ describe("adaptation prioritize CLI", () => {
   });
 
   it("gracefully handles no IntelligenceReport", async () => {
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-001");
 
     const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
@@ -190,7 +190,7 @@ describe("adaptation prioritize CLI", () => {
   });
 
   it("--top flag limits results", async () => {
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-001");
     await seedProposal(store, "prop-002");
 
@@ -220,7 +220,7 @@ describe("adaptation prioritize CLI", () => {
   });
 
   it("report auto-saves to PriorityStore", async () => {
-    const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     await seedProposal(store, "prop-autosave");
 
     const intelStore = new IntelligenceStore(join(tempRoot, ".alix", "adaptation", "intelligence"));

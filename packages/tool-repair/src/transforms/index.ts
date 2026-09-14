@@ -13,7 +13,7 @@ const TRANSFORMS: Record<TransformName, TransformFn> = {
   parse_json_string_to_array: parseJsonArray,
   default_first_read: smartDefault,
   default_last_read: smartDefault,
-  replace_with_value: (args, paramName) => ({ args, changed: false }), // handled by repairer
+  replace_with_value: (args, _paramName) => ({ args, changed: false }), // handled by repairer
   strip_outer_quotes: stripOuterQuotes,
 };
 

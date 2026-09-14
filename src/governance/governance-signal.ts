@@ -18,10 +18,10 @@
 import { readFile, appendFile, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { LedgerAnalytics, PeriodRollup, TrendDirection } from "./ledger-analytics.js";
-import type { FailureAnalysis, FailureCluster } from "./failure-clustering.js";
+import type { FailureAnalysis } from "./failure-clustering.js";
 import { failureSeverityForType } from "./failure-clustering.js";
 import type { PolicySuggestion } from "./policy-suggestions.js";
-import type { FrictionReport, ApprovalFriction } from "./approval-friction.js";
+import type { FrictionReport } from "./approval-friction.js";
 
 // ---------------------------------------------------------------------------
 // Exported types
@@ -324,7 +324,7 @@ const TREND_DIRECTION_SEVERITY: Record<TrendDirection, "low" | "medium" | "high"
  */
 export function normalizeTrendAlerts(
   analytics: LedgerAnalytics,
-  rollups: PeriodRollup[],
+  _rollups: PeriodRollup[],
   now: string,
 ): GovernanceSignal[] {
   const signals: GovernanceSignal[] = [];

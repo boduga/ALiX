@@ -10,8 +10,8 @@
 
 import { createInterface } from "node:readline";
 import type { RecoveryFinding, RecoveryReport, RecoverySeverity } from "../../recovery/recovery-types.js";
-import { DEFAULT_REPAIR_OPTIONS } from "../../recovery/recovery-types.js";
-import { scan, reportSummary } from "../../recovery/recovery-scanner.js";
+import "../../recovery/recovery-types.js";
+import { scan } from "../../recovery/recovery-scanner.js";
 import { repair } from "../../recovery/recovery-repair.js";
 
 function severityColor(s: RecoverySeverity): string {

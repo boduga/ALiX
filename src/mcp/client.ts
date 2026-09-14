@@ -1,6 +1,6 @@
-import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification, McpServerCapabilities, Tool, CallToolResult } from "./types.js";
+import type { JsonRpcResponse, JsonRpcNotification, McpServerCapabilities, Tool, CallToolResult } from "./types.js";
 import type { McpTransport } from "./transport.js";
-import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
+import { withTimeout } from "../runtime/side-effect-timeout.js";
 import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
 import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
 import { jsonRpcError } from "./error-format.js";

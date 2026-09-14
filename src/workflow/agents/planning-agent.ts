@@ -39,7 +39,7 @@ export type ExecuteResult =
 
 export class PlanningAgent {
   private readonly branchNameFn: (issueNumber: number, title: string) => string;
-  private readonly fileExistsFn: (path: string) => boolean;
+  readonly fileExistsFn: (path: string) => boolean;
 
   constructor(opts?: {
     branchNameFn?: (issueNumber: number, title: string) => string;

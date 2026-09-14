@@ -40,6 +40,7 @@ export type DaemonResponse =
   | { type: "queue.position"; position: number }
   | { type: "error"; message: string }
   | { type: "pong"; sessionId?: string }
+  | { type: "daemon.status"; running: boolean; taskRunning: boolean; queueDepth: number; sessionId?: string; uptimeMs: number }
   | { type: "cancelled"; sessionId: string }
   | { type: "task.created"; taskId: string; task: string; position: number }
   | { type: "task.cancelled"; taskId: string; requested?: boolean }

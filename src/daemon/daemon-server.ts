@@ -18,13 +18,13 @@
  */
 
 import { createServer, type Socket } from "node:net";
-import { readFile, writeFile, appendFile, mkdir, rename, rm } from "node:fs/promises";
+import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
-import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
+import { TaskRegistry } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
 import { executeRoute, type RuntimeContext } from "../runtime/route-executor.js";
 import { executeDirectBehavior } from "../runtime/route-execution.js";
@@ -48,6 +48,7 @@ const registry = new TaskRegistry();  // global ~/.alix/ path
 
 const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket }> = [];
 let taskRunning = false;
+const serverStartTime = Date.now();
 const activeTaskControllers = new Map<string, AbortController>();
 
 async function processQueue(): Promise<void> {
@@ -210,6 +211,17 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
   }
   if (cmd.command === "ping") {
     client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId } satisfies DaemonResponse) + "\n");
+    return;
+  }
+  if (cmd.command === "status") {
+    client.write(JSON.stringify({
+      type: "daemon.status",
+      running: true,
+      taskRunning,
+      queueDepth: taskQueue.length,
+      sessionId: currentSessionId,
+      uptimeMs: Date.now() - serverStartTime,
+    } satisfies DaemonResponse) + "\n");
     return;
   }
   if (cmd.command === "cancel") {
@@ -386,7 +398,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
 
     // Agent route — runTask path
     const { loadConfig } = await import("../config/loader.js");
-    const config = await loadConfig(requestCwd);
+    await loadConfig(requestCwd);
     const { runTask } = await import("../run.js");
 
     let streamedText = false;

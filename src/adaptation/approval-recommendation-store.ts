@@ -2,7 +2,7 @@
  * P7.5p.1a — ApprovalRecommendationStore.
  *
  * Append-only JSONL persistence for ApprovalRecommendation artifacts.
- * Mirrors the pattern of OutcomeStore, ProposalStore, and the other 8
+ * Mirrors the pattern of OutcomeStore, AdaptationProposalStore, and the other 8
  * stores. Read-only relative to the governance lifecycle — never
  * creates proposals, never invokes the approval gate.
  *

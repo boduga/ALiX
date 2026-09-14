@@ -22,12 +22,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleBridgeCommand } from "../../../src/cli/commands/executive-bridge-handler.js";
 import { RecommendationReportStore } from "../../../src/executive/recommendation-report-store.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import type { RecommendationReport } from "../../../src/executive/recommendation-report-store.js";
 import type { ExecutiveRecommendation } from "../../../src/executive/recommendation-report-store.js";
 
 // ---------------------------------------------------------------------------
-// Mock ProposalStore for partial-failure test
+// Mock AdaptationProposalStore for partial-failure test
 //
 // vi.mock is hoisted above imports, so this is always active. The mock
 // conditionally throws only when mockSaveShouldThrow is true AND the
@@ -37,11 +37,11 @@ import type { ExecutiveRecommendation } from "../../../src/executive/recommendat
 let mockSaveCallCount = 0;
 let mockSaveShouldThrow = false;
 
-vi.mock("../../../src/adaptation/proposal-store.js", async () => {
-  const actual = await vi.importActual<any>("../../../src/adaptation/proposal-store.js");
+vi.mock("../../../src/adaptation/adaptation-proposal-store.js", async () => {
+  const actual = await vi.importActual<any>("../../../src/adaptation/adaptation-proposal-store.js");
   return {
     ...actual,
-    ProposalStore: class extends actual.ProposalStore {
+    AdaptationProposalStore: class extends actual.AdaptationProposalStore {
       async save(p: any) {
         mockSaveCallCount++;
         if (mockSaveShouldThrow && mockSaveCallCount === 2) throw new Error("disk full");

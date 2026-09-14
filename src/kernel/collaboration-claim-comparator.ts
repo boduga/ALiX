@@ -5,7 +5,7 @@
  * Uncertain claims do not create deterministic conflicts.
  */
 
-import type { FindingClaim, ClaimComparison, ClaimCompatibility, ConflictType } from "./collaboration-conflict-types.js";
+import type { FindingClaim, ClaimComparison } from "./collaboration-conflict-types.js";
 
 export const COMPARATOR_VERSION = "1.0.0";
 
@@ -13,7 +13,6 @@ const NUMERIC_TOLERANCE = 0.01;
 
 export class ClaimComparator {
   compare(left: FindingClaim, right: FindingClaim, leftId: string, rightId: string): ClaimComparison {
-    const reasons: string[] = [];
 
     // Different subjects or predicates are different scopes
     if (left.normalizedSubject !== right.normalizedSubject || left.normalizedPredicate !== right.normalizedPredicate) {

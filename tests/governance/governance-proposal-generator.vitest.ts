@@ -3,20 +3,20 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { GovernanceStore } from "../../src/governance/governance-store.js";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
 import { createGovernanceProposal } from "../../src/governance/governance-proposal-generator.js";
 
 describe("createGovernanceProposal", () => {
   let tempRoot: string;
   let govStore: GovernanceStore;
-  let propStore: ProposalStore;
+  let propStore: AdaptationProposalStore;
   let chainStore: EvidenceChainStore;
 
   beforeEach(() => {
     tempRoot = mkdtempSync(join(tmpdir(), "gov-proposal-"));
     govStore = new GovernanceStore(join(tempRoot, ".alix", "governance"));
-    propStore = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+    propStore = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
     chainStore = new EvidenceChainStore(join(tempRoot, ".alix", "learning"));
   });
 

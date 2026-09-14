@@ -521,7 +521,6 @@ export class StateTransitionHarness {
         for (const a of current.pendingActions) if (!afterIds.has(a.actionId)) emittedEvents.push({ type: "execution.action_completed", payload: { actionId: a.actionId } });
       }
       if ("activeCapabilities" in p && Array.isArray(p.activeCapabilities)) {
-        const beforeIds = new Set(current.activeCapabilities.map(c => c.capabilityId));
         const after = p.activeCapabilities as readonly { capabilityId: string; version: string; availability: string }[];
         for (const c of after) {
           const existed = current.activeCapabilities.find(x => x.capabilityId === c.capabilityId);
@@ -637,7 +636,7 @@ export class StateTransitionHarness {
 
 // ─── Default no-op deps for testing ────────────────────────────────
 
-export function createInMemoryStore(initial?: ExecutionState, baseDir?: string): TransitionStateStore {
+export function createInMemoryStore(initial?: ExecutionState, _baseDir?: string): TransitionStateStore {
   // Thin wrapper around ExecutionStateStore if needed, but provide minimal in-memory for tests without filesystem.
   const map = new Map<string, ExecutionState>();
   if (initial) map.set(initial.executionId, initial);

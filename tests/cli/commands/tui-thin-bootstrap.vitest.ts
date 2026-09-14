@@ -179,7 +179,7 @@ describe('runTui bootstrap (thin)', () => {
       const builder = new SnapshotBuilder(
         stubSession as never,
         stubSubsystem,
-        stubSubsystem as never, // policy slot expects a full PolicyEngine — stub is enough for snapshot.runtime
+        stubSubsystem as never, // policy slot expects a full PolicyGate — stub is enough for snapshot.runtime
         stubSubsystem,
         runtimeCollector,
         stubDaemon as never,

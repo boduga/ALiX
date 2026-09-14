@@ -20,12 +20,9 @@
 
 import { join } from "node:path";
 import { LearningStore } from "../../learning/learning-store.js";
-import type {
-  CalibrationProfile,
-  LearningSignal,
-} from "../../learning/learning-types.js";
+import type { LearningSignal } from "../../learning/learning-types.js";
 import { ProposalFactory, buildLearningProposal } from "../learning-proposal-factory.js";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import {
   runLearningRefresh,
 } from "../../learning/learning-refresh.js";
@@ -38,7 +35,6 @@ import type {
 // ---------------------------------------------------------------------------
 
 const LEARNING_DIR = join(".alix", "learning");
-const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 
 const TARGET_AREAS = ["recommendation", "risk", "governance", "routing"] as const;
@@ -250,7 +246,7 @@ async function runPropose(args: string[]): Promise<void> {
     return;
   }
 
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const proposalStore = new AdaptationProposalStore(join(cwd, PROPOSALS_DIR));
   await proposalStore.save(proposal);
 
   console.log(`Learning proposal created: ${proposal.id}`);

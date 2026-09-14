@@ -13,10 +13,7 @@
 import type { GovernanceRemediationProposal } from "./remediation-queue.js";
 import type { GovernanceExecutionPlan } from "./execution-plans.js";
 import type { GovernanceExecutionApproval } from "./execution-approval.js";
-import type {
-  GovernanceExecutionAttempt,
-  ExecutionAttemptStatus,
-} from "./execution-recorder.js";
+import type { GovernanceExecutionAttempt } from "./execution-recorder.js";
 import type {
   GovernanceExecutionReport,
   GovernanceExecutionReportItem,
@@ -238,16 +235,6 @@ function classifyQueue(
 // ---------------------------------------------------------------------------
 // Index helpers
 // ---------------------------------------------------------------------------
-
-function latestByCreatedAt<T extends { createdAt: string }>(items: T[]): T | null {
-  if (items.length === 0) return null;
-  return items.reduce((a, b) => (parseIso(a.createdAt) >= parseIso(b.createdAt) ? a : b));
-}
-
-function latestByStartedAt(items: GovernanceExecutionAttempt[]): GovernanceExecutionAttempt | null {
-  if (items.length === 0) return null;
-  return items.reduce((a, b) => (parseIso(a.startedAt) >= parseIso(b.startedAt) ? a : b));
-}
 
 // ---------------------------------------------------------------------------
 // Build queues
@@ -706,7 +693,7 @@ export function buildWorkbenchSnapshot(
     const t = parseIso(r.createdAt);
     return t >= parseIso(since) && t < parseIso(until);
   });
-  const lifecycleTraces = inWindowRemediations.map((r) =>
+  inWindowRemediations.map((r) =>
     buildLifecycleTrace(
       r.proposalId,
       input.remediations,

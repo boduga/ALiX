@@ -71,15 +71,6 @@ function anomalyPolicyArea(type: string): string {
   return map[type] ?? "governance_general_policy";
 }
 
-function workbenchPolicyArea(signalType: string): string {
-  const map: Record<string, string> = {
-    incomplete_review_metadata: "review_metadata_policy",
-    unresolved_critical_proposal: "remediation_sla_policy",
-    stale_open_proposal: "remediation_sla_policy",
-    repeatedly_dismissed_pattern: "remediation_feedback_policy",
-  };
-  return map[signalType] ?? "governance_general_policy";
-}
 
 // ---------------------------------------------------------------------------
 // Candidate ID

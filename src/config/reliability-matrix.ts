@@ -40,10 +40,8 @@ let cachedMatrix: ReliabilityMatrix | undefined;
 
 export class ReliabilityMatrix {
   private entries: Map<string, ReliabilityEntry>;
-  private data: ReliabilityMatrixData;
 
   private constructor(data: ReliabilityMatrixData) {
-    this.data = data;
     this.entries = new Map();
     for (const entry of data.entries) {
       const key = `${entry.provider}:${entry.model}`;

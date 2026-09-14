@@ -2,7 +2,7 @@
  * P10.4b — ExecutionEngine bridge dispatch integration test.
  *
  * Exercises the engine's new dispatch branch end-to-end with a fake
- * StepRunner, fake ProposalStore, and fake EvidenceEventWriter.
+ * StepRunner, fake AdaptationProposalStore, and fake EvidenceEventWriter.
  * Validates:
  *   (a) success path through runReadySteps writes one proposal + one bridge evidence
  *   (b) idempotency — second call is silent
@@ -20,14 +20,14 @@ import type { PlanStore } from "../../src/executive/plan-store.js";
 import type { ExecutionStateStore } from "../../src/executive/execution-state-store.js";
 import type { StepRunner } from "../../src/executive/step-runner.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import type { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import type {
   PersistedExecutionPlan,
   PlanExecutionState,
   PlanTransition,
   StepRuntimeState,
 } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 import type { StepRunnerResult } from "../../src/executive/executive-plan-types.js";
 
@@ -71,7 +71,7 @@ interface EngineHandle {
   stepRunner: StepRunner;
   evidenceWriter: EvidenceEventWriter;
   evidenceCalls: Array<{ method: string; payload: Record<string, unknown> }>;
-  proposalStore: ProposalStore & { _saved: AdaptationProposal[] };
+  proposalStore: AdaptationProposalStore & { _saved: AdaptationProposal[] };
 }
 
 /**
@@ -204,12 +204,12 @@ function makeEngine(opts: {
     (async (p: AdaptationProposal) => {
       saved.push(p);
     });
-  const proposalStore: ProposalStore & { _saved: AdaptationProposal[] } = {
+  const proposalStore: AdaptationProposalStore & { _saved: AdaptationProposal[] } = {
     _saved: saved,
     async save(p: AdaptationProposal) {
       await proposalSaveImpl(p);
     },
-  } as unknown as ProposalStore & { _saved: AdaptationProposal[] };
+  } as unknown as AdaptationProposalStore & { _saved: AdaptationProposal[] };
 
   const engine = new ExecutionEngine(
     planStore,

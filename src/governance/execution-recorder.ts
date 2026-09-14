@@ -13,7 +13,7 @@
 
 import { createHash } from "node:crypto";
 import type { GovernanceExecutionApproval } from "./execution-approval.js";
-import type { GovernanceExecutionPlan, GovernanceExecutionAction } from "./execution-plans.js";
+import type { GovernanceExecutionPlan } from "./execution-plans.js";
 
 // ---------------------------------------------------------------------------
 // Types

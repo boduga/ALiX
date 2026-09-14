@@ -3,7 +3,7 @@
  *
  * Append-only JSON persistence for ProposalEffectivenessReports, keyed by
  * `proposalId`. Files live under `<dir>/<proposalId>.json`. Mirrors the shape
- * of `ProposalStore` (save/load/list) but is intentionally separate so
+ * of `AdaptationProposalStore` (save/load/list) but is intentionally separate so
  * effectiveness reports and proposals can evolve independently.
  *
  * @module

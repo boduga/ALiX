@@ -15,7 +15,7 @@
 
 import { loadDashboardSnapshot } from "../../executive/executive-dashboard-loader.js";
 import { buildDashboardReport } from "../../executive/executive-dashboard.js";
-import type { ExecutiveDashboardReport } from "../../executive/executive-dashboard.js";
+import "../../executive/executive-dashboard.js";
 import { renderTerminalDashboard } from "./executive-dashboard-renderer.js";
 
 const DEFAULT_SINCE_DAYS = 30;

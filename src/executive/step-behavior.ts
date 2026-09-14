@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { ExecutionStepAction } from "./planning-engine.js";
+import type { ExecutionStepAction } from "./execution-plan-builder.js";
 
 export type StepBehavior = "read-only" | "investigation" | "mutation";
 

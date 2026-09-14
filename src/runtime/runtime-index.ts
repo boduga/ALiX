@@ -7,13 +7,19 @@
  *   - .alix/graphs/*.json
  *   - .alix/graphs/*.runs.json
  *   - .alix/sessions/&lt;id&gt;/events.jsonl (allowlisted event types)
+ *
+ * Performance (#702): each source file is parsed once and cached by
+ * (mtime, size); a repeated query with unchanged sources re-reads nothing.
+ * Large JSONL sources (audit, session events) use a bounded ring buffer so
+ * worst-case memory is O(cap), not O(file).
  */
 
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { AuditRecord } from "../audit/audit-types.js";
 import { measurePhase } from "./timing-events.js";
+import { streamJsonlLines } from "../storage/jsonl-store.js";
 
 export type RuntimeIndexEvent = {
   id: string;
@@ -44,6 +50,92 @@ export type RuntimeIndexOptions = {
   sessionId?: string;
 };
 
+/** Per-source event caps bound worst-case memory (#702). */
+export const RUNTIME_INDEX_AUDIT_CAP = 5_000;
+export const RUNTIME_INDEX_SESSION_CAP = 2_000;
+/** Global cache-entry bound so long-lived processes cannot grow unbounded. */
+const CACHE_MAX_ENTRIES = 2_000;
+
+type CacheEntry = { mtimeMs: number; size: number; events: RuntimeIndexEvent[] };
+const sourceCache = new Map<string, CacheEntry>();
+
+/** Parse a file once per (mtime, size) and reuse the result on repeat builds. */
+async function cachedSource(
+  path: string,
+  build: () => Promise<RuntimeIndexEvent[]>,
+): Promise<RuntimeIndexEvent[]> {
+  let st;
+  try {
+    st = await stat(path);
+  } catch {
+    sourceCache.delete(path);
+    return [];
+  }
+  const hit = sourceCache.get(path);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+    return hit.events;
+  }
+  const events = await build();
+  if (sourceCache.size >= CACHE_MAX_ENTRIES) {
+    const oldest = sourceCache.keys().next().value;
+    if (oldest !== undefined) sourceCache.delete(oldest);
+  }
+  sourceCache.set(path, { mtimeMs: st.mtimeMs, size: st.size, events });
+  return events;
+}
+
+/**
+ * Read a JSONL file retaining only the newest `cap` mapped records.
+ * O(cap) memory; malformed lines are skipped.
+ */
+async function readJsonlBounded<T>(
+  path: string,
+  cap: number,
+  map: (raw: any) => T | null,
+): Promise<T[]> {
+  const buffer: T[] = [];
+  let total = 0;
+  for await (const { line } of streamJsonlLines(path)) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const record = map(raw);
+    if (record === null) continue;
+    if (buffer.length < cap) {
+      buffer.push(record);
+    } else {
+      buffer[total % cap] = record;
+    }
+    total++;
+  }
+  if (total <= cap) return buffer;
+  // Ring buffer overflowed: reconstruct oldest→newest (oldest sits at total % cap).
+  const ordered: T[] = [];
+  for (let i = 0; i < cap; i++) ordered.push(buffer[(total + i) % cap]!);
+  return ordered;
+}
+
+const SESSION_EVENT_ALLOWLIST = new Set([
+  "session.started", "session.ended",
+  "graph.created", "graph.completed", "graph.status_changed",
+  "task.ready", "task.started", "task.done", "task.failed",
+  "policy.decision",
+  "approval.requested", "approval.resolved",
+  "tool.started", "tool.completed", "tool.failed",
+  "file.created",
+  "runtime.phase.started",
+  "runtime.phase.completed",
+  "agent.session.activity",
+  // Ownership events (M0.75)
+  "ownership.acquired", "ownership.released",
+  "ownership.renewed", "ownership.expired",
+  "ownership.conflict", "ownership.revoked",
+  "ownership.denied",
+]);
+
 /** Build a RuntimeIndex from all available sources. */
 export async function buildRuntimeIndex(
   cwd: string,
@@ -57,42 +149,39 @@ export async function buildRuntimeIndex(
       const events: RuntimeIndexEvent[] = [];
 
       // Source 1: audit/audit.jsonl
-  const auditPath = join(cwd, ".alix", "audit", "audit.jsonl");
-  if (existsSync(auditPath)) {
-    try {
-      const raw = await readFile(auditPath, "utf-8");
-      for (const line of raw.trim().split("\n").filter(Boolean)) {
-        try {
-          const record = JSON.parse(line) as AuditRecord;
-          events.push({
-            id: record.id,
-            timestamp: record.timestamp,
-            source: "audit",
-            action: record.action,
-            graphId: record.details.graphId,
-            nodeId: record.details.nodeId,
-            sessionId: record.details.sessionId,
-            approvalId: record.details.approvalId,
-            capability: record.details.capability,
-            summary: record.details.reason,
-            payload: record.details as any,
-          });
-        } catch { /* skip malformed audit line */ }
+      const auditPath = join(cwd, ".alix", "audit", "audit.jsonl");
+      if (existsSync(auditPath)) {
+        events.push(...(await cachedSource(auditPath, () =>
+          readJsonlBounded<RuntimeIndexEvent>(auditPath, RUNTIME_INDEX_AUDIT_CAP, (record) => {
+            const r = record as AuditRecord;
+            if (!r || typeof r.id !== "string") return null;
+            return {
+              id: r.id,
+              timestamp: r.timestamp,
+              source: "audit",
+              action: r.action,
+              graphId: r.details?.graphId,
+              nodeId: r.details?.nodeId,
+              sessionId: r.details?.sessionId,
+              approvalId: r.details?.approvalId,
+              capability: r.details?.capability,
+              summary: r.details?.reason,
+              payload: r.details as Record<string, unknown>,
+            };
+          }),
+        )));
       }
-    } catch { /* skip unreadable audit file */ }
-  }
 
-  // Source 2: approvals/approvals.json
-  const approvalsPath = join(cwd, ".alix", "approvals", "approvals.json");
-  if (existsSync(approvalsPath)) {
-    try {
-      const raw = await readFile(approvalsPath, "utf-8");
-      const records = JSON.parse(raw) as any[];
-      for (const record of records) {
+      // Source 2: approvals/approvals.json (+ append-only journal, #703).
+      // Journal records override snapshot records by id.
+      const approvalsPath = join(cwd, ".alix", "approvals", "approvals.json");
+      const approvalsJournalPath = `${approvalsPath}.journal.jsonl`;
+      const toApprovalEvent = (record: any): RuntimeIndexEvent | null => {
+        if (!record?.id) return null;
         const action = record.status === "pending" ? "approval.created"
           : record.status === "approved" ? "approval.approved"
           : "approval.denied";
-        events.push({
+        return {
           id: record.id,
           timestamp: record.createdAt,
           source: "approval",
@@ -105,170 +194,172 @@ export async function buildRuntimeIndex(
           status: record.status,
           summary: record.reason,
           payload: record,
-        });
+        };
+      };
+      const approvalById = new Map<string, RuntimeIndexEvent>();
+      if (existsSync(approvalsPath)) {
+        for (const ev of await cachedSource(approvalsPath, async () => {
+          const raw = await readFile(approvalsPath, "utf-8");
+          const data = JSON.parse(raw);
+          const list = Array.isArray(data) ? data : (data.approvals ?? []);
+          return list.map(toApprovalEvent).filter((e: RuntimeIndexEvent | null): e is RuntimeIndexEvent => e !== null);
+        })) approvalById.set(ev.id, ev);
       }
-    } catch { /* skip unreadable approvals file */ }
-  }
-
-  // Source 3: graphs/*.json
-  const graphsDir = join(cwd, ".alix", "graphs");
-  if (existsSync(graphsDir)) {
-    try {
-      const files = await readdir(graphsDir);
-      for (const f of files) {
-        if (!f.endsWith(".json") || f.endsWith(".runs.json")) continue;
-        try {
-          const raw = await readFile(join(graphsDir, f), "utf-8");
-          const graph = JSON.parse(raw);
-          const graphId = f.replace(/\.json$/, "");
-
-          // Graph-level event
-          events.push({
-            id: `graph_${graphId}`,
-            timestamp: graph.updatedAt || graph.createdAt,
-            source: "graph",
-            action: `graph.${graph.status || "created"}`,
-            graphId,
-            status: graph.status,
-            summary: graph.rootGoal,
-            payload: { nodeCount: graph.nodes?.length, strategy: graph.strategy },
-          });
-
-          // Per-node events
-          if (graph.nodes) {
-            for (const node of graph.nodes) {
-              events.push({
-                id: `node_${node.id}`,
-                timestamp: node.updatedAt || graph.updatedAt,
-                source: "graph",
-                action: `node.${node.status || "created"}`,
-                graphId,
-                nodeId: node.id,
-                status: node.status,
-                capability: node.requiredCapabilities?.join(","),
-                summary: node.title,
-                payload: node,
-              });
-            }
-          }
-        } catch { /* skip invalid graph JSON */ }
-      }
-    } catch { /* skip unreadable graphs dir */ }
-  }
-
-  // Source 4: graphs/*.runs.json
-  if (existsSync(graphsDir)) {
-    try {
-      const files = await readdir(graphsDir);
-      for (const f of files) {
-        if (!f.endsWith(".runs.json")) continue;
-        try {
-          const raw = await readFile(join(graphsDir, f), "utf-8");
-          const runs = JSON.parse(raw) as any[];
-          const graphId = f.replace(/\.runs\.json$/, "");
-          for (const run of runs) {
-            events.push({
-              id: `run_${graphId}_${run.attempt}`,
-              timestamp: run.startedAt || run.completedAt,
-              source: "graph_run",
-              action: `rerun.${run.status}`,
-              graphId,
-              nodeId: run.nodeId,
-              status: run.status,
-              summary: run.summary || run.error,
-              payload: run,
-            });
-          }
-        } catch { /* skip invalid runs JSON */ }
-      }
-    } catch { /* skip unreadable graphs dir */ }
-  }
-
-  // Source 5: sessions/*/events.jsonl (allowlisted)
-  const SESSION_EVENT_ALLOWLIST = new Set([
-    "session.started", "session.ended",
-    "graph.created", "graph.completed", "graph.status_changed",
-    "task.ready", "task.started", "task.done", "task.failed",
-    "policy.decision",
-    "approval.requested", "approval.resolved",
-    "tool.started", "tool.completed", "tool.failed",
-    "file.created",
-    "runtime.phase.started",
-    "runtime.phase.completed",
-    "agent.session.activity",
-    // Ownership events (M0.75)
-    "ownership.acquired", "ownership.released",
-    "ownership.renewed", "ownership.expired",
-    "ownership.conflict", "ownership.revoked",
-    "ownership.denied",
-  ]);
-  const sessionsDir = join(cwd, ".alix", "sessions");
-  if (existsSync(sessionsDir)) {
-    try {
-      const sessionDirs = await readdir(sessionsDir);
-      for (const sd of sessionDirs) {
-        const eventsPath = join(sessionsDir, sd, "events.jsonl");
-        if (!existsSync(eventsPath)) continue;
-        try {
-          const raw = await readFile(eventsPath, "utf-8");
-          for (const line of raw.trim().split("\n").filter(Boolean)) {
+      if (existsSync(approvalsJournalPath)) {
+        for (const ev of await cachedSource(approvalsJournalPath, async () => {
+          const raw = await readFile(approvalsJournalPath, "utf-8");
+          const out: RuntimeIndexEvent[] = [];
+          for (const line of raw.split("\n")) {
+            if (!line.trim()) continue;
             try {
-              const ev = JSON.parse(line);
-              if (!SESSION_EVENT_ALLOWLIST.has(ev.type)) continue;
-              events.push({
-                id: `sess_${sd}_${ev.seq ?? ev.id ?? Math.random().toString(36).slice(2)}`,
-                timestamp: ev.timestamp,
-                source: "session",
-                action: ev.type,
-                sessionId: ev.sessionId || sd,
-                graphId: ev.meta?.graphId || ev.payload?.graphId,
-                nodeId: ev.meta?.nodeId || ev.payload?.nodeId,
-                status: ev.payload?.status || ev.payload?.decision,
-                summary: ev.payload?.reason || ev.payload?.summary,
-                capability: ev.payload?.canonicalCapability || ev.payload?.capability,
-                payload: ev,
-              });
-            } catch { /* skip malformed line */ }
+              const entry = JSON.parse(line) as { record?: any };
+              const ev = toApprovalEvent(entry?.record);
+              if (ev) out.push(ev);
+            } catch { /* skip malformed journal line */ }
           }
-        } catch { /* skip unreadable session */ }
+          return out;
+        })) approvalById.set(ev.id, ev);
       }
-    } catch { /* skip unreadable sessions dir */ }
-  }
+      events.push(...approvalById.values());
 
-  // Source 6: daemon-tasks.json
-  const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
-  if (existsSync(tasksPath)) {
-    try {
-      const raw = await readFile(tasksPath, "utf-8");
-      const records = JSON.parse(raw) as any[];
-      for (const r of records) {
-        events.push({
-          id: r.id,
-          timestamp: r.updatedAt || r.createdAt,
-          source: "daemon_task",
-          action: `daemon.task.${r.status}`,
-          sessionId: r.sessionId,
-          status: r.status,
-          summary: r.task,
-          payload: { error: r.error },
-        });
+      // Source 3: graphs/*.json
+      const graphsDir = join(cwd, ".alix", "graphs");
+      if (existsSync(graphsDir)) {
+        try {
+          const files = await readdir(graphsDir);
+          for (const f of files) {
+            if (!f.endsWith(".json") || f.endsWith(".runs.json")) continue;
+            const graphPath = join(graphsDir, f);
+            events.push(...(await cachedSource(graphPath, async () => {
+              const out: RuntimeIndexEvent[] = [];
+              const raw = await readFile(graphPath, "utf-8");
+              const graph = JSON.parse(raw);
+              const graphId = f.replace(/\.json$/, "");
+              out.push({
+                id: `graph_${graphId}`,
+                timestamp: graph.updatedAt || graph.createdAt,
+                source: "graph",
+                action: `graph.${graph.status || "created"}`,
+                graphId,
+                status: graph.status,
+                summary: graph.rootGoal,
+                payload: { nodeCount: graph.nodes?.length, strategy: graph.strategy },
+              });
+              if (graph.nodes) {
+                for (const node of graph.nodes) {
+                  out.push({
+                    id: `node_${node.id}`,
+                    timestamp: node.updatedAt || graph.updatedAt,
+                    source: "graph",
+                    action: `node.${node.status || "created"}`,
+                    graphId,
+                    nodeId: node.id,
+                    status: node.status,
+                    capability: node.requiredCapabilities?.join(","),
+                    summary: node.title,
+                    payload: node,
+                  });
+                }
+              }
+              return out;
+            })));
+          }
+        } catch { /* skip unreadable graphs dir */ }
       }
-    } catch { /* skip unreadable */ }
-  }
 
-  // Sort by timestamp descending (newest first), fallback to id
-  events.sort((a, b) => {
-    const tA = a.timestamp || a.id;
-    const tB = b.timestamp || b.id;
-    return tB.localeCompare(tA);
-  });
+      // Source 4: graphs/*.runs.json
+      if (existsSync(graphsDir)) {
+        try {
+          const files = await readdir(graphsDir);
+          for (const f of files) {
+            if (!f.endsWith(".runs.json")) continue;
+            const runsPath = join(graphsDir, f);
+            events.push(...(await cachedSource(runsPath, async () => {
+              const raw = await readFile(runsPath, "utf-8");
+              const runs = JSON.parse(raw) as any[];
+              const graphId = f.replace(/\.runs\.json$/, "");
+              return runs.map((run): RuntimeIndexEvent => ({
+                id: `run_${graphId}_${run.attempt}`,
+                timestamp: run.startedAt || run.completedAt,
+                source: "graph_run",
+                action: `rerun.${run.status}`,
+                graphId,
+                nodeId: run.nodeId,
+                status: run.status,
+                summary: run.summary || run.error,
+                payload: run,
+              }));
+            })));
+          }
+        } catch { /* skip unreadable graphs dir */ }
+      }
 
-  const byGraph = (graphId: string) => events.filter(e => e.graphId === graphId);
-  const bySession = (sessionId: string) => events.filter(e => e.sessionId === sessionId);
-  const byApproval = (approvalId: string) => events.filter(e => e.approvalId === approvalId);
-  const byAction = (action: string) => events.filter(e => e.action === action);
+      // Source 5: sessions/*/events.jsonl (allowlisted, bounded)
+      const sessionsDir = join(cwd, ".alix", "sessions");
+      if (existsSync(sessionsDir)) {
+        try {
+          const sessionDirs = await readdir(sessionsDir);
+          for (const sd of sessionDirs) {
+            const eventsPath = join(sessionsDir, sd, "events.jsonl");
+            if (!existsSync(eventsPath)) continue;
+            events.push(...(await cachedSource(eventsPath, () =>
+              readJsonlBounded<RuntimeIndexEvent>(eventsPath, RUNTIME_INDEX_SESSION_CAP, (ev) => {
+                if (!ev || !SESSION_EVENT_ALLOWLIST.has(ev.type)) return null;
+                return {
+                  id: `sess_${sd}_${ev.seq ?? ev.id ?? Math.random().toString(36).slice(2)}`,
+                  timestamp: ev.timestamp,
+                  source: "session",
+                  action: ev.type,
+                  sessionId: ev.sessionId || sd,
+                  graphId: ev.meta?.graphId || ev.payload?.graphId,
+                  nodeId: ev.meta?.nodeId || ev.payload?.nodeId,
+                  status: ev.payload?.status || ev.payload?.decision,
+                  summary: ev.payload?.reason || ev.payload?.summary,
+                  capability: ev.payload?.canonicalCapability || ev.payload?.capability,
+                  payload: ev,
+                };
+              }),
+            )));
+          }
+        } catch { /* skip unreadable sessions dir */ }
+      }
 
-  return { events, byGraph, bySession, byApproval, byAction };
+      // Source 6: daemon-tasks.json (global registry; legacy cwd fallback)
+      try {
+        const { readDaemonTasks, resolveDaemonTasksReadPath } = await import("../daemon/daemon-paths.js");
+        const tasksPath = resolveDaemonTasksReadPath(cwd);
+        if (existsSync(tasksPath)) {
+          events.push(...(await cachedSource(tasksPath, async () => {
+            const records = await readDaemonTasks(cwd);
+            if (!records) return [];
+            return records.map((r): RuntimeIndexEvent => ({
+              id: r.id,
+              timestamp: r.updatedAt || r.createdAt,
+              source: "daemon_task",
+              action: `daemon.task.${r.status}`,
+              sessionId: r.sessionId,
+              status: r.status,
+              summary: r.task,
+              payload: { error: r.error },
+            }));
+          })));
+        }
+      } catch { /* skip unreadable */ }
+
+      // Sort by timestamp descending (newest first), fallback to id.
+      // Sorting cost is bounded by the per-source caps above.
+      events.sort((a, b) => {
+        const tA = a.timestamp || a.id;
+        const tB = b.timestamp || b.id;
+        return tB.localeCompare(tA);
+      });
+
+      const byGraph = (graphId: string) => events.filter(e => e.graphId === graphId);
+      const bySession = (sessionId: string) => events.filter(e => e.sessionId === sessionId);
+      const byApproval = (approvalId: string) => events.filter(e => e.approvalId === approvalId);
+      const byAction = (action: string) => events.filter(e => e.action === action);
+
+      return { events, byGraph, bySession, byApproval, byAction };
     },
   );
 }

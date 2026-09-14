@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { PlanStore } from "../../src/executive/plan-store.js";
-import type { ExecutionPlan } from "../../src/executive/planning-engine.js";
+import type { ExecutionPlan } from "../../src/executive/execution-plan-builder.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 

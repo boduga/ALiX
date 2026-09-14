@@ -24,6 +24,7 @@ import type {
   PlanStatus,
 } from "./planning-types.js";
 import { DEFAULT_PLANNING_CONFIG } from "./planning-config.js";
+import { sanitizeTimestamp } from "../utils/ids.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -35,13 +36,6 @@ const DEFAULT_MIN_URGENCY_SCORE = 15;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Strip non-alphanumeric characters to produce a safe timestamp for IDs.
- */
-function sanitizeTimestamp(iso: string): string {
-  return iso.replace(/[^a-zA-Z0-9]/g, "");
-}
 
 /**
  * Compute composite urgency score (0–100) for a single CausalFinding.

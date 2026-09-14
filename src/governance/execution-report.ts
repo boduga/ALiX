@@ -100,9 +100,6 @@ function maxIso(a: string, b: string): string {
   return parseIso(a) >= parseIso(b) ? a : b;
 }
 
-function maxIsoOrNull(a: string, b: string | null): string {
-  return b === null ? a : maxIso(a, b);
-}
 
 function latestByCreatedAt<T extends { createdAt: string }>(items: T[]): T | null {
   if (items.length === 0) return null;
@@ -231,7 +228,7 @@ function buildItems(
   plans: GovernanceExecutionPlan[],
   approvals: GovernanceExecutionApproval[],
   attempts: GovernanceExecutionAttempt[],
-  now: string,
+  _now: string,
   since: string,
   until: string,
 ): GovernanceExecutionReportItem[] {

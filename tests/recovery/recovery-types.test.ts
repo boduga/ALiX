@@ -21,23 +21,24 @@ import { repair } from "../../src/recovery/recovery-repair.js";
 
 test("NoopCrashInjector never throws", () => {
   const inj = new NoopCrashInjector();
-  inj.hit("before_write");
-  inj.hit("after_temp_write");
-  inj.hit("during_lock_acquire");
-  assert.ok(true);
+  assert.doesNotThrow(() => {
+    inj.hit("before_write");
+    inj.hit("after_temp_write");
+    inj.hit("during_lock_acquire");
+  });
 });
 
 test("NoopCrashInjector reset is safe", () => {
   const inj = new NoopCrashInjector();
-  inj.reset();
-  assert.ok(true);
+  inj.arm("before_write");
+  assert.doesNotThrow(() => inj.reset());
+  assert.doesNotThrow(() => inj.hit("before_write"));
 });
 
 test("NoopCrashInjector arm is no-op", () => {
   const inj = new NoopCrashInjector();
   inj.arm("before_write");
-  inj.hit("before_write");
-  assert.ok(true);
+  assert.doesNotThrow(() => inj.hit("before_write"));
 });
 
 test("ThrowingCrashInjector throws at armed point", () => {
@@ -49,8 +50,7 @@ test("ThrowingCrashInjector throws at armed point", () => {
 test("ThrowingCrashInjector does not throw at unarmed point", () => {
   const inj = new ThrowingCrashInjector();
   inj.arm("before_write");
-  inj.hit("after_temp_write");
-  assert.ok(true);
+  assert.doesNotThrow(() => inj.hit("after_temp_write"));
 });
 
 test("ThrowingCrashInjector arm with specific call count", () => {
@@ -215,18 +215,23 @@ test("scan detects expired ownership leases", async () => {
 
 test("scan detects orphaned daemon tasks", async () => {
   const dir = createWorkspace();
+  const origHome = process.env.HOME;
   try {
-    // daemon-tasks.json lives in ~/.alix, not .alix — but in tests we use the
-    // home dir override pattern. For scanner tests we use the cwd directly.
-    // Actually the scanner uses ~/.alix for daemon paths — let's check.
-    const rootDir = dir;
-    const storePath = join(dir, ".alix", "coordination", "run-test.json");
-    writeFileSync(storePath, JSON.stringify({ id: "run-test", status: "running", workers: [] }));
+    // The scanner reads daemon state from ~/.alix — isolate HOME so the
+    // test is hermetic instead of environment-dependent.
+    process.env.HOME = dir;
+    mkdirSync(join(dir, ".alix"), { recursive: true });
+    writeFileSync(
+      join(dir, ".alix", "daemon-tasks.json"),
+      JSON.stringify([{ id: "task_orphan", task: "stuck", cwd: dir, status: "running", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]),
+    );
 
-    const report = await scan(rootDir);
-    // Daemon store scanning uses homedir() — test is environment-dependent
-    assert.ok(Array.isArray(report.findings));
+    const report = await scan(dir);
+    const orphaned = report.findings.filter(f => f.kind === "orphaned_daemon_task");
+    assert.equal(orphaned.length, 1);
+    assert.equal(orphaned[0].resourceId, "task_orphan");
   } finally {
+    process.env.HOME = origHome;
     cleanupWorkspace(dir);
   }
 });
@@ -336,9 +341,7 @@ test("repair removes stale temp files", async () => {
     const report = await repair(dir, { execute: true, yes: true, json: false });
     assert.equal(report.repairAttempted, true);
     const tempFindings = report.findings.filter(f => f.kind === "stale_temp_file");
-    if (tempFindings.length > 0) {
-      // Repair should have removed at least this file
-    }
+    assert.ok(tempFindings.length > 0, "expected stale temp findings in the report");
     assert.equal(existsSync(tempPath), false, "temp file should be removed");
   } finally {
     cleanupWorkspace(dir);

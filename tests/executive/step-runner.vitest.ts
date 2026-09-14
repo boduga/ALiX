@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StepRunner } from "../../src/executive/step-runner.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 import type { StepRunnerResult } from "../../src/executive/executive-plan-types.js";
 
 function makeStep(overrides: Partial<ExecutionStep> & { id: string; action: ExecutionStep["action"] }): ExecutionStep {

@@ -40,7 +40,7 @@ import { consolidationIdentityFromCandidate } from "../adaptation/capability-evo
 import { CapabilityNotFoundError, CapabilityValidationError } from "./errors.js";
 import { CapabilityServiceNotImplementedError } from "./errors/service-not-implemented.js";
 import { CapabilityProposalStaleError } from "./errors/proposal-stale.js";
-import { ProposalStore } from "./governance/proposal-store.js";
+import { GovernanceProposalStore } from "./governance/governance-proposal-store.js";
 import {
   isGovernanceEventType,
   projectCapabilityMutationResult,
@@ -144,7 +144,7 @@ export class CapabilityService {
   private readonly measurementEngine?: CapabilityMeasurementEngine;
   /** CAP-9 ruling #19 — derive from `eventLog` so the service does not
    *  grow a separate persistence constructor dep. */
-  private readonly proposalStore: ProposalStore;
+  private readonly proposalStore: GovernanceProposalStore;
 
   constructor(opts: CapabilityServiceOptions) {
     this.catalog = opts.catalog;
@@ -153,7 +153,7 @@ export class CapabilityService {
     this.eventLog = opts.eventLog;
     this.proposalGenerator = opts.proposalGenerator;
     this.measurementEngine = opts.measurementEngine;
-    this.proposalStore = new ProposalStore({ eventLog: this.eventLog });
+    this.proposalStore = new GovernanceProposalStore({ eventLog: this.eventLog });
     Object.freeze(this); // service surface is immutable post-construction.
   }
 
@@ -679,7 +679,7 @@ export class CapabilityService {
    * merge-valid"). A failed check throws; it NEVER repairs the operator's
    * set.
    *
-   * Persistence is the same `ProposalStore` ledger route used by
+   * Persistence is the same `GovernanceProposalStore` ledger route used by
    * `propose()` (CAP-9 ruling #3) — no parallel governance path.
    */
   async proposeConsolidation(
@@ -815,7 +815,7 @@ export class CapabilityService {
    *
    * CLI seam: the operator-facing reject path. Records
    * `proposal.rejected` (long-form `capability.governance.proposal.rejected`)
-   * via the shared ProposalStore. Distinct from `apply()` which routes
+   * via the shared GovernanceProposalStore. Distinct from `apply()` which routes
    * through CAP-6's mutation executor; `reject()` is a store-level write
    * only — no executor delegation, no atomicity matrix, no rollback.
    *
@@ -929,7 +929,12 @@ function isNonEmptyPatch(patch: unknown): boolean {
  * catalog state at apply time (CAP-9 ruling #17 — stale-detection source).
  * For create intents, `sourceId` is `""` and `currentVersion` is `"0.0.0"`.
  */
-function candidateToExecutionStep(
+/**
+ * Pure sourcePatternId discriminator (exported for direct testing — the
+ * closed create/remove/update/consolidate set plus fail-closed default
+ * is a locked invariant).
+ */
+export function candidateToExecutionStep(
   candidate: CapabilityEvolutionCandidate,
   sourceId: string,
   currentVersion: string,

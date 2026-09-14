@@ -9,23 +9,16 @@
  */
 
 import { readFile, writeFile, mkdir, readdir, unlink, rename as renameFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import type {
-  ProposalRecord,
-  ProposalStatus,
-  PlanRevisionDraft,
-  ImpactAnalysis,
-} from "./replan-types.js";
+import type { ProposalRecord, ProposalStatus, ImpactAnalysis } from "./replan-types.js";
 import { computeFingerprint } from "./replan-types.js";
 
 export class ReplanProposalStore {
-  private readonly cwd: string;
   private readonly baseDir: string;
 
   constructor(cwd: string) {
-    this.cwd = cwd;
     this.baseDir = join(cwd, ".alix", "coordination", "replans");
   }
 

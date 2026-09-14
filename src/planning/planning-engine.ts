@@ -7,7 +7,7 @@
 //   load -> pure function -> save -> return
 
 import type { RootCauseAnalysis } from "../reasoning/reasoning-types.js";
-import { RootCauseAnalysisError } from "../reasoning/reasoning-types.js";
+import "../reasoning/reasoning-types.js";
 import { RootCauseStore } from "../reasoning/root-cause-store.js";
 import { StrategicPlanStore } from "./strategic-plan-store.js";
 import { buildStrategicPlan } from "./build-strategic-plan.js";

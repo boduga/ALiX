@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import { readGovernanceSource } from "../helpers/governance-source.js";
 import { buildWorkbenchSnapshot } from "../../src/governance/governance-workbench.js";
 import type {
   GovernanceWorkbenchSnapshot,
@@ -554,10 +555,7 @@ describe("buildWorkbenchSnapshot", () => {
   });
 
   it("CLI handler does not import audit emitters", () => {
-    const source = readFileSync(
-      "src/cli/commands/governance.ts",
-      "utf-8",
-    );
+    const source = readGovernanceSource();
     assert.equal(source.includes("audit-emitter"), false);
     assert.equal(source.includes("auditEmitter"), false);
     assert.equal(source.includes("emitAuditEvent"), false);

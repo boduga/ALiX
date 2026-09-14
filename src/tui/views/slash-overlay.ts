@@ -24,7 +24,7 @@ export interface RenderSlashOverlayResult {
  * Pure: no state, no I/O, no mutation of inputs.
  */
 export function renderSlashOverlay(opts: RenderSlashOverlayOpts): RenderSlashOverlayResult {
-  const { canvas, slash, panelRow, columns, maxRows = 6 } = opts;
+  const { canvas, slash, panelRow, maxRows = 6 } = opts;
   const canvasRows = canvas.height;
 
   // Hint mode: 1 row, no selection.

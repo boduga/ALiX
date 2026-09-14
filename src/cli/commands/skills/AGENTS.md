@@ -12,6 +12,7 @@ and distill mined trace candidates into candidate skills.
 | `install.ts` | Install/remove + `printSkillsHelp` (lists every subcommand) |
 | `run-skill.ts` | `alix skills run` sandboxed script execution + script-path resolution |
 | `marketplace.ts` | Marketplace registry commands |
+| `net.ts` | Skill fetching (`fetchText`/`fetchJson`, GitHub URL shaping): https-only, every host validated through the shared `tools/web-fetch` network policy, redirects re-validated per hop |
 
 ## Local Contracts
 
@@ -23,6 +24,10 @@ and distill mined trace candidates into candidate skills.
   `printSkillsHelp` line in the same change.
 - **Operator context:** distill/eval commands run nightly/operator-gated
   with write creds or local files — never in the hot loop.
+- **Network policy:** skill fetches stay https-only and reject private/
+  non-resolving destinations via the shared web_fetch validator; the
+  agent-loop `web_fetch` additionally pins each connection to the
+  validated address (DNS-rebinding protection).
 
 ## Work Guidance
 

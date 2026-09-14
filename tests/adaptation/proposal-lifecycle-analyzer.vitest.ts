@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ProposalLifecycleAnalyzer } from "../../src/adaptation/proposal-lifecycle-analyzer.js";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { EffectivenessStore } from "../../src/adaptation/effectiveness-store.js";
 import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
 import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
@@ -45,7 +45,7 @@ function makeProposal(seed: ProposalSeed): AdaptationProposal {
   };
 }
 
-function seedProposal(store: ProposalStore, seed: ProposalSeed): Promise<void> {
+function seedProposal(store: AdaptationProposalStore, seed: ProposalSeed): Promise<void> {
   return store.save(makeProposal(seed));
 }
 
@@ -89,7 +89,7 @@ describe("ProposalLifecycleAnalyzer", () => {
   let proposalDir: string;
   let effectivenessDir: string;
   let evidenceDir: string;
-  let proposalStore: ProposalStore;
+  let proposalStore: AdaptationProposalStore;
   let effectivenessStore: EffectivenessStore;
   let evidenceStore: EvidenceStore;
   let analyzer: ProposalLifecycleAnalyzer;
@@ -98,7 +98,7 @@ describe("ProposalLifecycleAnalyzer", () => {
     proposalDir = mkdtempSync(join(tmpdir(), "prop-"));
     effectivenessDir = mkdtempSync(join(tmpdir(), "eff-"));
     evidenceDir = mkdtempSync(join(tmpdir(), "ev-"));
-    proposalStore = new ProposalStore(proposalDir);
+    proposalStore = new AdaptationProposalStore(proposalDir);
     effectivenessStore = new EffectivenessStore(effectivenessDir);
     evidenceStore = new EvidenceStore({ storeDir: evidenceDir });
     analyzer = new ProposalLifecycleAnalyzer(

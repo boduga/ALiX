@@ -20,8 +20,6 @@ import { promptUser, BASE_TOOLS } from "./helpers.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js";
 import type { EventLog } from "../events/event-log.js";
-import type { VerificationCheck, VerificationResult } from "../verifier/verifier.js";
-import { buildRiskReport } from "../verifier/index.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 
 export type EventHandlerDeps = {
@@ -394,7 +392,7 @@ export async function handleToolCall(
 
   // Stream tool output to stdout if verbose mode - only for read-only tools
   if (deps.verbose && execResult.kind === "success" && resultContent) {
-    const isReadOnly = ["file.read", "dir.search", "file.exists"].includes(execName);
+    const isReadOnly = ["file.read", "dir.search", "grep.search", "glob.match", "file.exists"].includes(execName);
     const isPwd = execName === "shell.run" && (toolCall.args.command as string)?.includes("pwd");
     if (isReadOnly || isPwd) {
       const truncated = resultContent.length > 200 ? resultContent.slice(0, 200) + "\n[...truncated]" : resultContent;
@@ -415,39 +413,6 @@ export async function handleToolCall(
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
   };
-}
-
-/**
- * Handle verification results after tool calls
- */
-export async function handleVerificationResults(
-  endChecks: VerificationCheck[],
-  endResults: Array<{ check: VerificationCheck; result: VerificationResult }>,
-  deps: EventHandlerDeps
-): Promise<{
-  repairNeeded: boolean;
-  repairPrompt?: string;
-  maxRepairsReached?: boolean;
-}> {
-  const failedChecks = endResults.filter((r) => r.result.status === "failed");
-
-  if (failedChecks.length > 0) {
-    const failureText = failedChecks
-      .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
-      .join("\n\n");
-
-    const riskReport = buildRiskReport(endChecks, endResults);
-    const fullPrompt = riskReport
-      ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
-      : failureText;
-
-    return {
-      repairNeeded: true,
-      repairPrompt: `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`,
-    };
-  }
-
-  return { repairNeeded: false };
 }
 
 /**

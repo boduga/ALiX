@@ -13,7 +13,7 @@ import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
-import { readFile, searchDir } from "../tools/file-tools.js";
+import { readFile, searchDir, grepSearch, globMatch } from "../tools/file-tools.js";
 import type { ReplayStatusIndex } from "./replay-status-index.js";
 
 // -- Types ---------------------------------------------------------------
@@ -50,9 +50,6 @@ export type ReplayResult = {
 // -- Tool wrappers (dry-run / sandbox) -----------------------------------
 
 /** Determine if a tool name is a read-only file operation. */
-function isReadOnlyFileTool(toolName: string): boolean {
-  return ["file.read", "file.exists", "dir.search"].includes(toolName);
-}
 
 /** Determine if a tool is a network tool (blocked in both modes). */
 function isNetworkTool(toolName: string): boolean {
@@ -311,6 +308,36 @@ async function replayToolStep(
     }
   }
 
+  if (toolName === "grep.search") {
+    try {
+      const result = await grepSearch({
+        root: cwd,
+        pattern: String(args.pattern || ""),
+        caseSensitive: args.caseSensitive === true,
+        include: Array.isArray(args.include) ? args.include as string[] : undefined,
+        headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
+      });
+      if (result.kind === "error") return { status: "failed", error: result.message };
+      return { status: "completed", output: JSON.stringify(result.matches || []) };
+    } catch (err: any) {
+      return { status: "failed", error: err.message };
+    }
+  }
+
+  if (toolName === "glob.match") {
+    try {
+      const result = await globMatch({
+        root: cwd,
+        pattern: String(args.pattern || ""),
+        headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
+      });
+      if (result.kind === "error") return { status: "failed", error: result.message };
+      return { status: "completed", output: result.output ?? "" };
+    } catch (err: any) {
+      return { status: "failed", error: err.message };
+    }
+  }
+
   if (toolName === "file.exists") {
     const path = String(args.path || "");
     const resolvedPath = path.startsWith("/") ? path : path ? `${cwd}/${path}` : cwd;
@@ -340,7 +367,7 @@ async function replayToolStep(
 export type SideEffectLevel = "read-only" | "side-effect" | "network";
 
 export function classifySideEffect(toolName: string): SideEffectLevel {
-  if (["file.read", "file.exists", "dir.search"].includes(toolName)) return "read-only";
+  if (["file.read", "file.exists", "dir.search", "grep.search", "glob.match"].includes(toolName)) return "read-only";
   if (toolName.startsWith("mcp.")) return "network";
   if (["web_search", "web_fetch", "delegate"].includes(toolName)) return "network";
   return "side-effect";

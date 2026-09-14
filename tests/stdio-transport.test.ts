@@ -160,9 +160,7 @@ test("StdioTransport sendNotification resolves when written to stdin", async () 
   const transport = new StdioTransport("notify-send", proc);
   try {
     const notif: JsonRpcNotification = { jsonrpc: "2.0", method: "initialized", params: { version: "1.0" } };
-    await transport.sendNotification(notif);
-    // Notification was sent — verified by no error thrown
-    assert.ok(true);
+    await assert.doesNotReject(transport.sendNotification(notif));
   } finally {
     proc.kill();
     await new Promise(r => proc.on("close", r));

@@ -15,7 +15,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
+import { readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CredentialStore } from "./credential-store.js";
@@ -57,19 +57,6 @@ export interface MigrationOptions {
 // Provider → env-var mapping (same as config loader)
 // ---------------------------------------------------------------------------
 
-const PROVIDER_ENV_MAP: Record<string, string> = {
-  google: "GEMINI_API_KEY",
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  openrouter: "OPENROUTER_API_KEY",
-  groq: "GROQ_API_KEY",
-  perplexity: "PERPLEXITY_API_KEY",
-  minimax: "MINIMAX_API_KEY",
-  "minimax-token-plan": "MINIMAX_TOKEN_PLAN_KEY",
-  zhipuai: "ZHIPUAI_API_KEY",
-  grokai: "GROKAI_API_KEY",
-  deepseek: "DEEPSEEK_API_KEY",
-};
 
 // ---------------------------------------------------------------------------
 // Known credential field patterns

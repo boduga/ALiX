@@ -321,4 +321,28 @@ export class DataProcessor {
       assert.ok(typeof symbol.score === "number");
     });
   });
+
+  describe("persisted index reuse (#721)", () => {
+    it("reuses symbols for unchanged content and reindexes changed content", async () => {
+      const filePath = path.join(testDir, "reuse.ts");
+      await fs.writeFile(filePath, "export class Original {}\n");
+
+      const first = new SemanticSearchIndex(testDir);
+      await first.init();
+      await first.indexFile(filePath);
+      assert.ok((await first.search("Original")).length > 0);
+
+      // New run: loads the persisted index; unchanged content keeps symbols.
+      const second = new SemanticSearchIndex(testDir);
+      await second.init();
+      await second.indexFile(filePath, "export class Original {}\n", { persist: false });
+      assert.ok((await second.search("Original")).length > 0);
+
+      // Changed content is reindexed (new symbol, old one gone).
+      await second.indexFile(filePath, "export class Renamed {}\n", { persist: false });
+      await second.flush();
+      assert.equal((await second.search("Original")).length, 0);
+      assert.ok((await second.search("Renamed")).length > 0);
+    });
+  });
 });

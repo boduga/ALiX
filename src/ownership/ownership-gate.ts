@@ -15,7 +15,7 @@
  *   → tool execution
  */
 
-import type { OwnershipRegistry, MutationTarget } from "./ownership-registry.js";
+import type { OwnershipRegistry } from "./ownership-registry.js";
 import type { WorkspacePathResolver } from "../runtime/workspace-path.js";
 import type { ToolResult } from "../tools/types.js";
 import { extractMutationTargets } from "./mutation-targets.js";

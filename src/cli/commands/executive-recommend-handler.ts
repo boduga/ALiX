@@ -15,7 +15,7 @@
 import { join } from "node:path";
 import type { ExecutiveOutcomeEvaluationReport } from "../../executive/outcome-evaluator.js";
 import { OutcomeReportStore } from "../../executive/outcome-store.js";
-import { computeLearningTrends } from "../../executive/learning-engine.js";
+import { computeLearningTrends } from "../../executive/learning-trends.js";
 import { computeRecommendations } from "../../executive/recommendation-engine.js";
 import type { RecommendationResult } from "../../executive/recommendation-engine.js";
 import {

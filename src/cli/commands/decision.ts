@@ -18,7 +18,7 @@
  */
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import { LineageBuilder } from "../../adaptation/lineage-builder.js";
 import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
@@ -27,9 +27,9 @@ import { DecisionContextBuilder } from "../../adaptation/decision-context-builde
 import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
 import { RecommendationEngine } from "../../adaptation/recommendation-engine.js";
 import { OperatorQueue } from "../../adaptation/operator-queue.js";
-import type { QueueItem, QueueInput, RecommendationPriority } from "../../adaptation/operator-queue-types.js";
+import type { QueueInput, RecommendationPriority } from "../../adaptation/operator-queue-types.js";
 import { StrategicBriefBuilder } from "../../adaptation/strategic-brief.js";
-import type { StrategicBrief } from "../../adaptation/strategic-brief-types.js";
+import "../../adaptation/strategic-brief-types.js";
 import type { IntelligenceReport } from "../../adaptation/intelligence-types.js";
 import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
 import type { EvidenceRecord } from "../../security/evidence/evidence-types.js";
@@ -53,7 +53,7 @@ import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-a
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { buildLensObservations } from "../../learning/governance-lens-observation-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
-import type { ExecutionIntent } from "../../adaptation/execution-intent-types.js";
+import "../../adaptation/execution-intent-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -71,7 +71,7 @@ const INTENTS_DIR = join(homedir(), ".alix", "execution", "intents");
 // ---------------------------------------------------------------------------
 
 interface DecisionInfrastructure {
-  proposalStore: ProposalStore;
+  proposalStore: AdaptationProposalStore;
   evidenceStore: EvidenceStore;
   effectivenessStore: EffectivenessStore;
   intelligenceStore: IntelligenceStore;
@@ -80,7 +80,7 @@ interface DecisionInfrastructure {
 }
 
 function buildDecisionInfrastructure(cwd: string): DecisionInfrastructure {
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const proposalStore = new AdaptationProposalStore(join(cwd, PROPOSALS_DIR));
   const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
   const effectivenessStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
   const intelligenceStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
@@ -1317,7 +1317,7 @@ async function runIntentPropose(id: string): Promise<void> {
   );
 
   const proposalsDir = join(process.cwd(), ".alix", "adaptation", "proposals");
-  const proposalStore = new ProposalStore(proposalsDir);
+  const proposalStore = new AdaptationProposalStore(proposalsDir);
   const mapper = new IntentProposalMapper(proposalStore);
 
   const result = await mapper.mapToProposal(intent, intentStore);

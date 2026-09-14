@@ -5,11 +5,12 @@
  * Repair never deletes unknown files or mutates state without confirmation.
  */
 
-import { existsSync, rmSync, renameSync, readdirSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { RecoveryFinding, RecoveryReport, RepairOptions } from "./recovery-types.js";
-import { scan, reportSummary } from "./recovery-scanner.js";
+import { resolveDaemonTasksPath } from "../daemon/daemon-paths.js";
+import { scan } from "./recovery-scanner.js";
 import { DEFAULT_REPAIR_OPTIONS } from "./recovery-types.js";
 
 // =========================================================================
@@ -91,7 +92,7 @@ const REPAIR_HANDLERS: Record<string, (finding: RecoveryFinding, root: string, o
     }
   },
 
-  orphaned_ownership_lease(finding) {
+  orphaned_ownership_lease(_finding) {
     // For expired ownership leases, we can't safely repair without
     // the full OwnershipRegistry — this is a signal for manual review.
     // The finding is marked repairable but the actual repair requires
@@ -101,7 +102,7 @@ const REPAIR_HANDLERS: Record<string, (finding: RecoveryFinding, root: string, o
 
   orphaned_daemon_task(finding, root) {
     // Load tasks, mark orphaned running tasks as failed_orphaned
-    const tasksFile = join(homedir(), ".alix", "daemon-tasks.json");
+    const tasksFile = resolveDaemonTasksPath();
     if (!existsSync(tasksFile)) return false;
     try {
       const raw = readFileSync(tasksFile, "utf-8");

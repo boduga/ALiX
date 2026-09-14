@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { TrendResult, SubsystemTrend } from "./learning-engine.js";
+import type { TrendResult, SubsystemTrend } from "./learning-trends.js";
 import type { ExecutiveOutcomeEvaluationReport } from "./outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------

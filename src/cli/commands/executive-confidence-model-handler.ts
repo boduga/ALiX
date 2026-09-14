@@ -12,7 +12,7 @@
 import { join } from "node:path";
 import { StrategicPlanStore } from "../../planning/strategic-plan-store.js";
 import { ConfidenceModelStore } from "../../learning/confidence-model-store.js";
-import { LearningEngine } from "../../learning/learning-engine.js";
+import { LearningEngine } from "../../learning/confidence-learning-engine.js";
 import { DEFAULT_LEARNING_CONFIG } from "../../learning/learning-config.js";
 import type { UpdatedConfidenceModel } from "../../learning/learning-types.js";
 import { LearningEngineError } from "../../learning/learning-types.js";

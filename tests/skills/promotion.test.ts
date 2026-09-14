@@ -144,9 +144,7 @@ is_core: false
   it("eviction handles empty or nonexistent skills dir", async () => {
     const { evictIfNeeded } = await import("../../src/skills/lifecycle.js");
     const config = { maxStore: 5, maxCandidates: 10 };
-    // Should not throw when dir doesn't exist
-    await evictIfNeeded("/tmp/nonexistent-dir-12345", config);
-    // Should pass silently
-    assert.ok(true);
+    // Must not throw when dir doesn't exist.
+    assert.doesNotThrow(() => evictIfNeeded("/tmp/nonexistent-dir-12345", config));
   });
 });

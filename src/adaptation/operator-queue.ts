@@ -118,7 +118,7 @@ export class OperatorQueue {
    * Determine the recommendation rank for sorting.
    * Missing recommendation → 0 (below all known ranks).
    */
-  private recommendationRank(riskScore: QueueInput["riskScore"], recommendation: QueueInput["recommendation"]): number {
+  private recommendationRank(_riskScore: QueueInput["riskScore"], recommendation: QueueInput["recommendation"]): number {
     const priority = recommendation?.recommendation as RecommendationPriority | undefined;
     if (priority && priority in RECOMMENDATION_RANK) {
       return RECOMMENDATION_RANK[priority];
@@ -135,7 +135,7 @@ export class OperatorQueue {
     ordering: QueueItemOrdering,
     riskScore: QueueInput["riskScore"],
     recommendation: QueueInput["recommendation"],
-    governanceReview?: QueueInput["governanceReview"],
+    _governanceReview?: QueueInput["governanceReview"],
   ): string[] {
     const reasons: string[] = [];
 

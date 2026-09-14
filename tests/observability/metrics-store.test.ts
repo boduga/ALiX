@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -204,5 +204,35 @@ describe("MetricsStore query enhancements", () => {
       results.push({ name: r.name, value: r.value });
     }
     assert.ok(results.length >= 1);
+  });
+});
+
+describe("MetricsStore lazy init + stream reuse (#706)", () => {
+  it("does not touch the filesystem until first write", () => {
+    const dir = mkdtempSync(join(tmpdir(), "metrics-lazy-"));
+    try {
+      const s = new MetricsStore(dir);
+      assert.equal(existsSync(join(dir, ".alix", "observability", "metrics")), false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses one stream across appends and reads all rows back", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "metrics-reuse-"));
+    try {
+      const s = new MetricsStore(dir);
+      for (let i = 0; i < 100; i++) {
+        for await (const _ of s.append({
+          name: "m", type: "counter_delta", value: i, timestamp: new Date().toISOString(),
+        })) { /* drain */ }
+      }
+      await s.close();
+      const rows: MetricRow[] = [];
+      for await (const r of s.readAll()) rows.push(r);
+      assert.equal(rows.length, 100);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -78,15 +78,11 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       }
     }
 
-    // Daemon tasks
-    const { existsSync } = await import("node:fs");
-    const { readFile } = await import("node:fs/promises");
-    const { join } = await import("node:path");
-    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
-    if (existsSync(tasksPath)) {
-      const raw = await readFile(tasksPath, "utf-8");
-      const tasks = JSON.parse(raw);
-      for (const t of tasks) {
+    // Daemon tasks (global registry; legacy cwd fallback)
+    const { readDaemonTasks } = await import("../daemon/daemon-paths.js");
+    const daemonTasks = await readDaemonTasks(cwd);
+    if (daemonTasks) {
+      for (const t of daemonTasks) {
         const s = t.status;
         if (s === "queued") snapshot.daemonTasks.queued++;
         else if (s === "running") snapshot.daemonTasks.running++;

@@ -189,7 +189,6 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
     sessionStore,
     preAuthLimiter,
     postAuthLimiter,
-    connectionLimiter,
     remoteAccessConfig,
     trustedProxyCidrs,
   } = config;

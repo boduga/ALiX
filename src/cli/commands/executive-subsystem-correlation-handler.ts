@@ -16,7 +16,7 @@
 import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
 import { OutcomeReportStore } from "../../executive/outcome-store.js";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import type { RecommendationReport } from "../../executive/recommendation-report-store.js";
 import {
   classifyRecommendation,
@@ -30,12 +30,7 @@ import {
   computeSubsystemCorrelation,
   PSC_NO_DATA,
 } from "../../executive/subsystem-correlation.js";
-import type {
-  SubsystemCorrelationReport,
-  SubsystemCorrelation,
-  CorrelationMode,
-  OutcomeReportRef,
-} from "../../executive/subsystem-correlation.js";
+import type { SubsystemCorrelationReport, CorrelationMode, OutcomeReportRef } from "../../executive/subsystem-correlation.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -121,7 +116,7 @@ export async function handleSubsystemCorrelationCommand(args: string[]): Promise
   // Load proposal statuses (read-only) so recommendations get the real P10.8a
   // disposition (unreviewed/stale/awaiting_review/applied/rejected/failed/...)
   // instead of a two-state stub.
-  const proposalStore = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
   const proposalStatusMap = new Map<string, ProposalStatus | null>();
   await Promise.all(
     [...allProposalIds].map(async (pid) => {
@@ -311,7 +306,7 @@ function fmtPct(value: number): string {
 // Error helpers
 // ---------------------------------------------------------------------------
 
-function emitError(reason: string, useJson: boolean, message: string): void {
+function emitError(_reason: string, useJson: boolean, message: string): void {
   if (useJson) {
     console.log(JSON.stringify({ ok: false, reason: message }));
   } else {

@@ -1,5 +1,5 @@
 import type { LoadedExtension } from "./registry.js";
-import type { SkillExtension, HookExtension, McpExtension, RecipeExtension, SubagentExtension } from "./manifest.js";
+import type { SkillExtension, HookExtension } from "./manifest.js";
 import { HOOK_TRIGGERS } from "./manifest.js";
 
 export type ExtensionBundle = {

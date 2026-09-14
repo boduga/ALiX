@@ -1,0 +1,343 @@
+/**
+ * security.ts — Security diagnostics and Inspector auth management for ALiX.
+ *
+ * Provides:
+ * - `alix security doctor` — Inspector boundary state diagnostics (Sb1)
+ * - `alix inspector auth create --name <name> --role <role>` (Sb2)
+ * - `alix inspector auth list` (Sb2)
+ * - `alix inspector auth rotate <token-id> --grace <duration>` (Sb2)
+ * - `alix inspector auth revoke <token-id> [--yes]` (Sb2)
+ * - `alix inspector auth doctor` (Sb2)
+ * - `alix audit verify [--json]` — streaming audit log verification (Sd2)
+ * - `alix audit checkpoint --output <path>` — create signed checkpoint (Sd2)
+ * - `alix audit checkpoint-verify <path>` — verify checkpoint (Sd2)
+ */
+
+import { loadConfig } from "../../../config/loader.js";
+import { isLoopbackHost } from "../../../config/validator.js";
+import "../../../security/inspector/auth-store.js";
+import { AUTH_TOKEN_ROLES, type AuthTokenRole } from "../../../security/inspector/auth-service.js";
+import { getUserStatePaths } from "../../../security/platform/user-state-paths.js";
+import { join } from "node:path";
+import { existsSync } from "node:fs";
+import "node:crypto";
+import "../../../security/credentials/credential-store.js";
+import "../../../security/credentials/credential-reference.js";
+import "../../../security/credentials/credential-migration.js";
+import "node:os";
+
+// Supply-chain imports (P4.3-Sf)
+import "../../../security/supply-chain/dependency-policy.js";
+import "../../../security/supply-chain/security-exceptions.js";
+import "../../../security/supply-chain/package-verifier.js";
+import { jsonMode, setJsonMode, parseDuration, createAuthService } from "./shared.js";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Security doctor (Sb1 — existing)
+// ---------------------------------------------------------------------------
+
+export async function handleSecurityDoctor(_args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const config = await loadConfig(cwd, { requireModel: false });
+
+  console.log("ALiX Security Doctor — Inspector Boundary State\n");
+
+  const host = config.ui.host;
+  const port = config.ui.port;
+  const enabled = config.ui.enabled;
+  const sec = config.ui.security;
+
+  console.log(`Inspector:    ${enabled ? `enabled (${host}:${port})` : "disabled"}`);
+  console.log(`Loopback:     ${isLoopbackHost(host) ? "yes" : "no"}`);
+  console.log(`Binding:      ${isLoopbackHost(host) ? "safe (loopback)" : "EXTERNAL"}`);
+  console.log();
+
+  if (sec) {
+    console.log("Security configuration:");
+    console.log(`  authentication:      ${sec.authentication}`);
+    console.log(`  remoteAccess:        ${sec.remoteAccess}`);
+    console.log(`  requireTlsForRemote: ${sec.requireTlsForRemote}`);
+    console.log(`  allowedHosts:        ${sec.allowedHosts.length > 0 ? sec.allowedHosts.join(", ") : "(none)"}`);
+    console.log(`  allowedOrigins:      ${sec.allowedOrigins.length > 0 ? sec.allowedOrigins.join(", ") : "(none)"}`);
+    console.log(`  trustedProxyCidrs:  ${sec.trustedProxyCidrs.length > 0 ? sec.trustedProxyCidrs.join(", ") : "(none)"}`);
+  } else {
+    console.log("Security configuration: (none — using defaults)");
+  }
+
+  console.log();
+
+  // Summary
+  if (!isLoopbackHost(host) && host !== "0.0.0.0") {
+    console.log("⚠  WARNING: Inspector is bound to a non-loopback address.");
+    console.log("   Remote access is not yet approved until authentication lands.");
+    console.log("   Set ui.host to 127.0.0.1 for safe local development.");
+  } else if (host === "0.0.0.0") {
+    console.log("⚠  WARNING: Inspector is bound to all interfaces (0.0.0.0).");
+    console.log("   Set ui.host to 127.0.0.1 for loopback-only access.");
+    console.log("   See docs/security/inspector-security.md for details.");
+  } else {
+    console.log("✓ Inspector is bound to loopback — safe.");
+  }
+
+  // P4.3-Sb2: Show auth state info
+  const paths = getUserStatePaths();
+  console.log(`\nAuth store:   ${paths.authStateDir}`);
+  const storeFile = join(paths.authStateDir, "auth-store.json");
+  const storeExists = existsSync(storeFile);
+  console.log(`  Token store: ${storeExists ? "✓ exists" : "— not yet created"}`);
+
+  if (storeExists) {
+    try {
+      const service = await createAuthService();
+      const doctorResult = await service.doctor();
+      if (doctorResult.ok) {
+        const d = doctorResult.value;
+        console.log(`  Tokens:      ${d.totalTokens}/${d.maxTokens} (${d.activeTokens} active, ${d.revokedTokens} revoked, ${d.expiredTokens} expired)`);
+      }
+    } catch {
+      console.log("  (unable to read token store)");
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth create
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthCreate(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const nameIdx = args.indexOf("--name");
+  const roleIdx = args.indexOf("--role");
+  const name = nameIdx >= 0 ? args[nameIdx + 1] : null;
+  const role = roleIdx >= 0 ? args[roleIdx + 1] : null;
+
+  if (!name || !role) {
+    console.error("Usage: alix inspector auth create --name <name> --role <role> [--json]");
+    process.exit(1);
+  }
+
+  if (!AUTH_TOKEN_ROLES.includes(role as AuthTokenRole)) {
+    console.error(`Invalid role: ${role}. Must be one of: ${AUTH_TOKEN_ROLES.join(", ")}`);
+    process.exit(1);
+  }
+
+  const service = await createAuthService();
+  const result = await service.createToken({
+    name,
+    role: role as AuthTokenRole,
+  });
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const { id, token } = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ id, token, name, role, createdAt: result.value.createdAt }));
+  } else {
+    console.log(`Token created: ${id}`);
+    console.log();
+    console.log(token);
+    console.log();
+    console.log("⚠  IMPORTANT: Copy this token now. You will not be able to see it again.");
+    console.log("   Store it securely — it provides authenticated access to the Inspector API.");
+    console.log(`   Use it as:  Authorization: Bearer ${token}`);
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth list
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthList(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const service = await createAuthService();
+  const result = await service.listTokens();
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const tokens = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify(tokens));
+  } else {
+    if (tokens.length === 0) {
+      console.log("No tokens found.");
+    } else {
+      console.log(`${"ID".padEnd(16)} ${"Name".padEnd(22)} ${"Role".padEnd(12)} ${"Status".padEnd(12)} Created`);
+      console.log("-".repeat(90));
+      for (const t of tokens) {
+        const status = t.revoked ? "revoked" : (t.expiresAt && t.expiresAt < new Date().toISOString() ? "expired" : "active");
+        const created = t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "";
+        console.log(`${t.id.padEnd(16)} ${t.name.slice(0, 20).padEnd(22)} ${t.role.padEnd(12)} ${status.padEnd(12)} ${created}`);
+      }
+      console.log(`\n${tokens.length} token(s)`);
+    }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth rotate
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthRotate(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const tokenId = args[0];
+  if (!tokenId) {
+    console.error("Usage: alix inspector auth rotate <token-id> --grace <duration> [--json]");
+    console.error("  --grace   Grace period (e.g. 1h, 30m, 7d). Default: 1h");
+    process.exit(1);
+  }
+
+  const graceIdx = args.indexOf("--grace");
+  const graceRaw = graceIdx >= 0 ? args[graceIdx + 1] : "1h";
+  if (!graceRaw || graceRaw.startsWith("--")) {
+    console.error("Missing value for --grace. Example: --grace 1h");
+    process.exit(1);
+  }
+  const graceMs = parseDuration(graceRaw);
+
+  if (!graceMs) {
+    console.error(`Invalid grace duration: ${graceRaw}. Use format like 1h, 30m, 7d.`);
+    process.exit(1);
+  }
+
+  const service = await createAuthService();
+  const result = await service.rotateToken(tokenId, graceMs);
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const { id, token, previousId } = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ id, token, previousId, name: result.value.name, role: result.value.role, createdAt: result.value.createdAt }));
+  } else {
+    console.log(`Token rotated: ${previousId} → ${id}`);
+    console.log(`Grace period: ${graceRaw}`);
+    console.log();
+    console.log(token);
+    console.log();
+    console.log("⚠  IMPORTANT: Copy this token now. You will not be able to see it again.");
+    console.log("   The previous token will continue to work during the grace period.");
+    console.log(`   Use it as:  Authorization: Bearer ${token}`);
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth revoke
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthRevoke(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const tokenId = args[0];
+  if (!tokenId) {
+    console.error("Usage: alix inspector auth revoke <token-id> [--yes] [--json]");
+    process.exit(1);
+  }
+
+  // Confirm unless --yes
+  if (!args.includes("--yes")) {
+    const { prompt } = await import("../prompt.js");
+    const confirm = await prompt(`Revoke token ${tokenId}? This cannot be undone. [y/N]: `);
+    if (confirm.toLowerCase() !== "y") {
+      console.log("Cancelled.");
+      process.exit(0);
+    }
+  }
+
+  const service = await createAuthService();
+  const result = await service.revokeToken(tokenId, "manual_revocation");
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ id: tokenId, revoked: true }));
+  } else {
+    console.log(`Token revoked: ${tokenId}`);
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Inspector auth doctor
+// ---------------------------------------------------------------------------
+
+export async function handleInspectorAuthDoctor(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const paths = getUserStatePaths();
+  const service = await createAuthService();
+  const result = await service.doctor();
+
+  if (!result.ok) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ error: result.error }));
+    } else {
+      console.error(`Error: ${result.error}`);
+    }
+    process.exit(1);
+  }
+
+  const d = result.value;
+
+  if (jsonMode) {
+    console.log(JSON.stringify(d));
+  } else {
+    console.log("Inspector Auth Doctor\n");
+    console.log(`State dir:       ${paths.authStateDir}`);
+    console.log(`Store exists:    ${d.storeExists ? "yes" : "no"}`);
+    console.log(`Tokens:          ${d.totalTokens}/${d.maxTokens}`);
+    console.log(`  Active:        ${d.activeTokens}`);
+    console.log(`  Revoked:       ${d.revokedTokens}`);
+    console.log(`  Expired:       ${d.expiredTokens}`);
+    console.log();
+
+    if (d.totalTokens === 0) {
+      console.log("No tokens exist. Create one with:");
+      console.log("  alix inspector auth create --name <name> --role <role>");
+    } else if (d.activeTokens === 0) {
+      console.log("No active tokens. All existing tokens are revoked or expired.");
+    } else {
+      console.log("✓ Auth state is healthy.");
+    }
+  }
+}

@@ -23,17 +23,11 @@ import type {
 import type { StrategicPlan } from "../planning/planning-types.js";
 import { DEFAULT_LEARNING_CONFIG } from "./learning-config.js";
 import { LearningEngineError } from "./learning-types.js";
+import { sanitizeTimestamp } from "../utils/ids.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Strip non-alphanumeric characters to produce a safe timestamp for IDs.
- */
-function sanitizeTimestamp(iso: string): string {
-  return iso.replace(/[^a-zA-Z0-9]/g, "");
-}
 
 /**
  * Clamp a value within [min, max] bounds.

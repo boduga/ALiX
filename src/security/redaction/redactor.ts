@@ -8,15 +8,10 @@
  * @module
  */
 
-import {
-  type RedactionClassification,
-  MAX_STRING_SCAN,
-  MAX_PREVIEW_LENGTH,
-  MAX_SAFE_STRING_LENGTH,
-} from "./classifications.js";
+import { type RedactionClassification, MAX_PREVIEW_LENGTH, MAX_SAFE_STRING_LENGTH } from "./classifications.js";
 import type { RedactionPolicy } from "./redaction-policy.js";
 import { keyIsSensitive } from "./redaction-policy.js";
-import { SecretDetector, type SecretSpan } from "./secret-detector.js";
+import { SecretDetector } from "./secret-detector.js";
 
 // ---------------------------------------------------------------------------
 // Sentinel values

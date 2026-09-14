@@ -81,7 +81,7 @@ export function buildHandoffPackage(
   input: HandoffInput,
   options: { now?: string } = {},
 ): HandoffPackage {
-  const { plan, approval, assessment, simulation, decision, lifecycleTrace } =
+  const { plan, approval, assessment, simulation, decision } =
     input;
 
   // Eligibility: blocked decisions cannot produce handoff packages
@@ -108,7 +108,7 @@ export function buildHandoffPackage(
   const evidence: HandoffPackageEvidence[] = [];
 
   for (const actionProj of simulation.actionProjections) {
-    const planAction = plan.proposedActions.find(
+    plan.proposedActions.find(
       (a) => a.actionId === actionProj.actionId,
     );
     const action: HandoffPackageAction = {

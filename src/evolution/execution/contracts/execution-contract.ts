@@ -269,25 +269,7 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
-function isStringRecord(v: unknown): v is Record<string, string> {
-  if (!isRecord(v)) return false;
-  for (const val of Object.values(v)) {
-    if (typeof val !== "string") return false;
-  }
-  return true;
-}
-
-function isNumberRecord(v: unknown): v is Record<string, number> {
-  if (!isRecord(v)) return false;
-  for (const val of Object.values(v)) {
-    if (typeof val !== "number") return false;
-  }
-  return true;
-}
 
 /**
  * Validate an ExecutionStep structure.

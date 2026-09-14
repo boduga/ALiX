@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import type { AgentIntent } from "../run/intent-classifier.js";
-import type { EventLog } from "../events/event-log.js";
+import "../events/event-log.js";
 
 // ---------------------------------------------------------------------------
 // Cached package-version lookup. Walked once at module-load time so all
@@ -89,7 +89,7 @@ import { NOOP_TRACE_CLIENT } from "../tracing/noop-client.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
 import { withTraceRun } from "./run-root.js";
-import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
+import { runTaskLoop } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
@@ -108,13 +108,9 @@ import {
   type AgentActivityState,
   type ActivityTransitionOpts,
 } from "./agent-activity.js";
-import {
-  LocalRuntimeExecutor,
-  executeRoute,
-  type RuntimeContext,
-} from "../runtime/route-executor.js";
+import { LocalRuntimeExecutor, type RuntimeContext } from "../runtime/route-executor.js";
 import { executeRouteGoverned } from "../runtime/governed-route-executor.js";
-import type { TaskRoute } from "../runtime/task-router.js";
+import "../runtime/task-router.js";
 import { buildDirectPrompt, buildChatPrompt } from "../runtime/route-prompts.js";
 import {
   createWorkflowRun,
@@ -185,26 +181,6 @@ export enum SessionPhase {
 // =============================================================================
 // Types (verbatim from P1 brief)
 // =============================================================================
-
-/**
- * Typed interface for the internal context fields accessed via `(ctx as any)`
- * in this module. Replaces ad-hoc `as any` casts with a well-defined contract
- * so callers can use `(ctx as unknown as InternalCtxFields).field` instead.
- */
-interface InternalCtxFields {
-  sessionId: string;
-  config: {
-    permissions: { sessionMode: "auto" | "ask" | "bypass" };
-    model: { provider: string; name: string; streaming: boolean };
-  };
-  log: EventLog;
-  provider: ModelAdapter;
-  _planTasks?: readonly PlanTask[];
-  _resumedMessages?: readonly NormalizedMessage[];
-  _scopeSnapshot?: any;
-  _stateSnapshot?: any;
-  _planContent?: string;
-}
 
 export type Message = NormalizedMessage;
 
@@ -732,7 +708,6 @@ export class AgentSessionBuilder {
     let contextBudget: ContextBudget | undefined;
     let tokenizer: TokenizerName = "cl100k_base";
     let taskType: TaskType = "unknown";
-    let depth: "quick" | "deep" = "quick";
     let shellTask = false;
     let readOnlyTask = false;
     let cappedIterations = 25;
@@ -914,7 +889,6 @@ export class AgentSessionBuilder {
       contextBudget = p5.contextBudget;
       tokenizer = p5.tokenizer;
       taskType = p5.taskType;
-      depth = p5.depth;
       shellTask = p5.shellTask;
       readOnlyTask = p5.readOnlyTask;
       cappedIterations = p5.cappedIterations;
@@ -2639,7 +2613,7 @@ async function setupWorkflow(
  * P2: Resume from prior session.
  */
 async function setupResume(
-  ctx: AgentContext,
+  _ctx: AgentContext,
   cwd: string,
   resumeSessionId: string,
 ): Promise<{

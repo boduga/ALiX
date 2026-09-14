@@ -10,7 +10,7 @@
  */
 
 import type { PipelineHealthInput, ScopedProposalData } from "./pipeline-health-types.js";
-import type { ProposalStore } from "./proposal-store.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import type { EvidenceStore } from "../security/evidence/evidence-store.js";
 import type { EffectivenessStore } from "./effectiveness-store.js";
 import type { IntelligenceStore } from "./intelligence-store.js";
@@ -25,7 +25,7 @@ import type { StrategicBriefOptions } from "./strategic-brief-types.js";
 // ---------------------------------------------------------------------------
 
 export interface HealthCollectorInfrastructure {
-  proposalStore: ProposalStore;
+  proposalStore: AdaptationProposalStore;
   evidenceStore: EvidenceStore;
   effectivenessStore: EffectivenessStore;
   intelligenceStore: IntelligenceStore;

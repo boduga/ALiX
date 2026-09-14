@@ -2,7 +2,7 @@
  * Delegate tool handler — parent agent calls this to spawn subagents.
  * Returns findings as structured output.
  */
-import { randomUUID } from "crypto";
+import "crypto";
 import type { SubagentRole, SubagentTask, SubagentResult } from "../config/schema.js";
 import type { SubagentManager } from "./subagent-manager.js";
 import type { ToolResult } from "../tools/types.js";

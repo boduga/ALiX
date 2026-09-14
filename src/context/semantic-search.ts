@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 export type SymbolKind = "function" | "class" | "method" | "interface" | "type" | "const";
 
@@ -18,6 +19,8 @@ export type SearchResult = IndexedSymbol & {
 
 type IndexEntry = {
   symbols: IndexedSymbol[];
+  /** Hash of the indexed content; lets a run skip re-parsing unchanged files (#721). */
+  contentHash?: string;
 };
 
 export class SemanticSearchIndex {
@@ -40,12 +43,28 @@ export class SemanticSearchIndex {
     }
   }
 
-  async indexFile(filePath: string, content?: string): Promise<void> {
+  /**
+   * Index one file. When the file's content is unchanged since the persisted
+   * index was written, re-parsing is skipped (#721). Persistence is batched
+   * via `flush()` — pass `persist: false` while indexing a batch.
+   */
+  async indexFile(filePath: string, content?: string, opts?: { persist?: boolean }): Promise<void> {
     const fileContent = content ?? await fs.readFile(filePath, "utf-8");
     const relativePath = path.relative(this.baseDir, filePath);
-    const symbols = this.parseSymbols(fileContent, relativePath);
+    const contentHash = createHash("sha1").update(fileContent).digest("hex");
 
-    this.index.set(relativePath, { symbols });
+    const existing = this.index.get(relativePath);
+    if (existing?.contentHash === contentHash) {
+      return; // unchanged — reuse the persisted symbols
+    }
+
+    const symbols = this.parseSymbols(fileContent, relativePath);
+    this.index.set(relativePath, { symbols, contentHash });
+    if (opts?.persist !== false) await this.persistIndex();
+  }
+
+  /** Persist the whole index once after a batch of indexFile(..., { persist: false }). */
+  async flush(): Promise<void> {
     await this.persistIndex();
   }
 
@@ -54,7 +73,7 @@ export class SemanticSearchIndex {
     const queryWords = queryLower.split(/\s+/);
     const results: SearchResult[] = [];
 
-    for (const [filePath, entry] of this.index.entries()) {
+    for (const [_filePath, entry] of this.index.entries()) {
       for (const symbol of entry.symbols) {
         const score = this.calculateScore(symbol, queryLower, queryWords);
         if (score > 0) {
@@ -78,7 +97,6 @@ export class SemanticSearchIndex {
 
     // Track current class context for methods
     let currentClass: string | null = null;
-    let currentClassStartLine = 0;
 
     // Regex patterns for symbol detection
     const patterns = {
@@ -120,7 +138,6 @@ export class SemanticSearchIndex {
       let match = line.match(patterns.exportClass) || line.match(patterns.class);
       if (match) {
         currentClass = match[1];
-        currentClassStartLine = lineNum;
         symbols.push({
           path: filePath,
           symbolName: match[1],

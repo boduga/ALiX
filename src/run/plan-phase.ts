@@ -313,7 +313,7 @@ async function generatePlan(
  * Build the system prompt for plan generation.
  * Tells the model to plan without executing, provides context bundle.
  */
-function buildPlanSystemPrompt(task: string, bundle: ContextBundle): string {
+function buildPlanSystemPrompt(_task: string, bundle: ContextBundle): string {
   const lines: string[] = [
     "You are a software engineer planning a task. Do NOT write code or execute anything.",
     "Generate a structured plan in markdown with these sections:",

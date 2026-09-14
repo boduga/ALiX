@@ -61,7 +61,7 @@ export class TestPlanner {
       strategy?: "full" | "targeted" | "minimal";
     } = {}
   ): Promise<TestPlan> {
-    const { baseCommands = [], maxCost = Infinity, strategy = "targeted" } = options;
+    const { baseCommands = [], strategy = "targeted" } = options;
 
     const checks: VerificationCheck[] = [];
     const verifiedFiles = new Set<string>();

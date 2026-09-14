@@ -157,8 +157,8 @@ export type CorrelationContent = Omit<Correlation, "correlationId">;
  * available downstream. A9 must NOT normalize the target away.
  */
 export interface ProposalEventRecord {
-  /** proposalId, read from `payload.proposalId` (ProposalStore writes
-   *  `payload: { proposalId, ...payload }`; see proposal-store.ts:175-180). */
+  /** proposalId, read from `payload.proposalId` (GovernanceProposalStore writes
+   *  `payload: { proposalId, ...payload }`; see governance-proposal-store.ts). */
   readonly proposalId: string;
   /** capabilityId populated only for `proposal.submitted` (from
    *  payload.candidate.target.id); empty string for the other four kinds. */

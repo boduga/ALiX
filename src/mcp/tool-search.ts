@@ -65,7 +65,7 @@ export function searchTools<T extends ScoredTool>(
     const namePrefix = name.startsWith(q);
     const nameSubstring = name.includes(q);
     const descExact = desc === q;
-    const descPrefix = desc.startsWith(q);
+    desc.startsWith(q);
     const descSubstring = desc.includes(q);
 
     // Exact match

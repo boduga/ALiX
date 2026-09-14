@@ -6,7 +6,6 @@ export type NavigationKey =
   | { type: 'home' };
 
 export class Navigation {
-  private cursor = 0;
   private readonly order: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 
   interpret(rawKey: string): NavigationKey | null {

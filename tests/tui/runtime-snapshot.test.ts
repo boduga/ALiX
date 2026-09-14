@@ -1,10 +1,24 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("TuiRuntimeSnapshot", () => {
+  // Daemon tasks resolve via the global ~/.alix registry — isolate HOME so
+  // the suite is hermetic on machines with a real daemon registry.
+  let suiteHome: string;
+  let suiteOrigHome: string | undefined;
+  before(() => {
+    suiteOrigHome = process.env.HOME;
+    suiteHome = mkdtempSync(join(tmpdir(), "tui-snap-home-"));
+    process.env.HOME = suiteHome;
+  });
+  after(() => {
+    process.env.HOME = suiteOrigHome;
+    rmSync(suiteHome, { recursive: true, force: true });
+  });
+
   it("returns null when no daemon data exists", async () => {
     const { buildRuntimeSnapshot } = await import("../../src/tui/runtime-snapshot.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "tui-snap-"));
@@ -55,6 +69,27 @@ describe("TuiRuntimeSnapshot", () => {
       assert.equal(snap.daemonRunning, false); // PID 99999 doesn't exist
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads daemon tasks from the global registry when cwd != HOME", async () => {
+    const { buildRuntimeSnapshot } = await import("../../src/tui/runtime-snapshot.js");
+    const { resolveDaemonTasksPath } = await import("../../src/daemon/daemon-paths.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "tui-global-tasks-"));
+    try {
+      // Global registry only — nothing project-scoped (suite HOME is isolated)
+      mkdirSync(join(suiteHome, ".alix"), { recursive: true });
+      writeFileSync(resolveDaemonTasksPath(), JSON.stringify([
+        { id: "g1", status: "running", task: "global test" },
+      ]));
+      const snap = await buildRuntimeSnapshot(tmpDir);
+      assert.ok(snap);
+      assert.equal(snap.daemonTasks.running, 1);
+      assert.equal(snap.daemonTaskRecords.length, 1);
+      assert.equal(snap.daemonTaskRecords[0].id, "g1");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      rmSync(resolveDaemonTasksPath(), { force: true });
     }
   });
 });

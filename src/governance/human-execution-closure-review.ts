@@ -35,7 +35,7 @@ const TERMINAL_DECISIONS: HumanExecutionClosureDecision[] = ["accepted", "reject
 
 export function validateTransition(
   previousDecision: HumanExecutionClosureDecision | null,
-  newDecision: HumanExecutionClosureDecision,
+  _newDecision: HumanExecutionClosureDecision,
 ): void {
   // Terminal states cannot be reopened
   if (previousDecision !== null && TERMINAL_DECISIONS.includes(previousDecision)) {

@@ -1,7 +1,7 @@
 /**
  * P10.9.2a-T3 — Integration tests for `alix executive bridge status`.
  *
- * Tests handleBridgeStatus() through ProposalStore-backed fixture proposals
+ * Tests handleBridgeStatus() through AdaptationProposalStore-backed fixture proposals
  * in a temporary directory. Verifies summary counts, plan filtering, JSON
  * output, non-bridge exclusion, and detail section format.
  *
@@ -13,7 +13,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import { handleBridgeStatus } from "../../../src/cli/commands/executive-bridge-handler.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
 
@@ -59,11 +59,11 @@ function writeProposal(dir: string, proposal: AdaptationProposal): void {
 
 describe("handleBridgeStatus", () => {
   let tempDir: string;
-  let store: ProposalStore;
+  let store: AdaptationProposalStore;
 
   beforeEach(() => {
     tempDir = createTempDir();
-    store = new ProposalStore(tempDir);
+    store = new AdaptationProposalStore(tempDir);
   });
 
   afterEach(() => {

@@ -36,7 +36,7 @@ import {
   createPrivateKey,
   randomUUID,
 } from "node:crypto";
-import { join, dirname, basename } from "node:path";
+import { join, dirname } from "node:path";
 import { getUserStatePaths } from "../security/platform/user-state-paths.js";
 
 // ---------------------------------------------------------------------------
@@ -594,7 +594,7 @@ export class ConfigSigner {
   static async evaluateTrust(
     configDir: string,
     publicKeyPem: string | null,
-    configVersion: number,
+    _configVersion: number,
     productionMode = false,
     stampPath?: string,
   ): Promise<TrustReport> {

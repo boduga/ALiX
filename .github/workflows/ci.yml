@@ -19,10 +19,10 @@ jobs:
     steps:
       # actions/checkout v4 — pinned SHA
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      # pnpm/action-setup v2 — install pnpm before setup-node for cache:pnpm
-      - uses: pnpm/action-setup@v6
+      # pnpm/action-setup — pinned SHA, install pnpm before setup-node for cache:pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       # actions/setup-node v4 — pinned SHA
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
@@ -41,6 +41,8 @@ jobs:
           echo "Lockfile clean — OK"
       - name: Package manager policy check
         run: bash scripts/check-package-manager.sh
+      - name: Exact-pin check (verify:deps)
+        run: pnpm verify:deps
       - name: Supply-chain gate (Sf.x)
         run: bash scripts/check-supply-chain.sh
 
@@ -49,9 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -59,15 +61,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: TypeScript typecheck
         run: pnpm typecheck
+      - name: TypeScript unused check (src; #718)
+        run: pnpm typecheck:unused
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -93,9 +97,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -118,9 +122,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -129,7 +133,7 @@ jobs:
       - run: pnpm build
       - name: Integration tests
         run: pnpm test:integration
-      - name: Soak Tier 1 (corruption + store load)
+      - name: Soak Tier 1 (corruption + store load + memory + daemon resources)
         run: pnpm test:soak:quick
       - name: Doctor health check
         run: node dist/src/cli.js doctor
@@ -139,9 +143,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -159,9 +163,9 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
@@ -170,6 +174,8 @@ jobs:
       - run: pnpm build
       - name: TypeScript typecheck
         run: pnpm typecheck
+      - name: Vitest (#693 — exercise macOS filesystem/process semantics)
+        run: pnpm test:vitest
 
   # ─── Lane 6: Cross-platform — Windows (Node LTS) ──────────────────────
   unit-windows:
@@ -179,9 +185,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
@@ -193,6 +199,9 @@ jobs:
       - name: TypeScript typecheck
         shell: bash
         run: pnpm typecheck
+      - name: Vitest (#693 — exercise Windows filesystem/process semantics)
+        shell: bash
+        run: pnpm test:vitest
 
   # ─── Lane 8: Benchmark boundedness + retrieval_precision thresholds (#645) ─
   # Single tracer bullet — encodes POC boundedness properties as hard CI gates.
@@ -205,9 +214,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -226,18 +235,20 @@ jobs:
   # misses non-TS artifacts (config profiles, UI assets, SQL migrations)
   # that several suites need, causing spurious ENOENT failures.
   #
-  # Non-blocking rollout: continue-on-error reports failures without gating
-  # merges until the suite proves stable across several runs. Once stable,
-  # drop this flag and add "node-tests" to the required status checks.
+  # Blocking gate (#690): failures here fail the workflow. The one known
+  # environment-dependent flake (fresh-install-onboarding credential
+  # resolution against the operator's real ~/.config) was fixed by
+  # isolating HOME in that suite. If new flakes surface, quarantine the
+  # specific file with a linked issue rather than re-adding
+  # continue-on-error to the whole lane.
   node-tests:
     runs-on: ubuntu-latest
-    continue-on-error: true
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
         with:
-          version: latest
+          version: 11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "24"
@@ -246,3 +257,40 @@ jobs:
       - run: pnpm build
       - name: node:test suite
         run: pnpm test:node:ci
+
+  # ─── Lane 10: Coverage signal (#694) ─────────────────────────────────
+  # Runs the repaired `pnpm test:coverage` (node:test CI set + vitest
+  # scope file) and publishes the summary to the job summary + artifacts.
+  # Informational gate: fails only if measurement itself breaks (no
+  # thresholds configured yet).
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        with:
+          version: 11
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Coverage measurement
+        run: pnpm test:coverage
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Coverage summary"
+            echo '```'
+            npx c8 report --reporter=text 2>/dev/null | tail -n 8
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # actions/upload-artifact v4 — pinned SHA
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: always()
+        with:
+          name: coverage
+          path: coverage/coverage-summary.json

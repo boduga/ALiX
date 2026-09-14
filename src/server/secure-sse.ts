@@ -140,7 +140,6 @@ export function createSecureSseConnection(
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   let lifetimeTimer: ReturnType<typeof setTimeout> | undefined;
   const onCloseCallbacks: Array<() => void> = [];
-  let bpActive = false;
   let bpResolve: (() => void) | undefined;
 
   // ── SSE headers (only after reservation succeeds) ─────────────────────
@@ -185,7 +184,6 @@ export function createSecureSseConnection(
   // ── Backpressure handling ────────────────────────────────────────────
 
   const clearBackpressure = (): void => {
-    bpActive = false;
     if (bpTimer) { clearTimeout(bpTimer); bpTimer = undefined; }
     if (bpResolve) {
       const resolve = bpResolve;
@@ -196,7 +194,6 @@ export function createSecureSseConnection(
 
   const startBackpressureTimer = (): void => {
     if (bpTimer) return; // already active
-    bpActive = true;
     bpTimer = setTimeout(() => {
       closeReason = "backpressure_timeout";
       cleanup();

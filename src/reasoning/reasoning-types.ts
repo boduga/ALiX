@@ -6,11 +6,7 @@
 //   CorrelationSubsystemId, CorrelationGraph, CorrelationEdge — from correlation-types
 //   DriftItem — from baseline-types (comments only, no structural dependency)
 
-import type {
-  CorrelationSubsystemId,
-  CorrelationGraph,
-  CorrelationEdge,
-} from "../correlation/correlation-types.js";
+import type { CorrelationSubsystemId } from "../correlation/correlation-types.js";
 
 // ---------------------------------------------------------------------------
 // Causal analysis

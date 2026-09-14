@@ -8,7 +8,7 @@ import {
   type GenerateOptions,
   type GenerateResult,
 } from "../../src/adaptation/auto-proposal-generator.js";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 import type { ReflectionReport } from "../../src/reflection/reflection-types.js";
 import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
@@ -136,10 +136,10 @@ class FakeProposalStore {
   }
 }
 
-// `saved` is a test-only field; cast to the public ProposalStore type which
+// `saved` is a test-only field; cast to the public AdaptationProposalStore type which
 // doesn't declare it. The runtime methods are sufficient for the stub-phase.
-function asStore(fake: FakeProposalStore): ProposalStore {
-  return fake as unknown as ProposalStore;
+function asStore(fake: FakeProposalStore): AdaptationProposalStore {
+  return fake as unknown as AdaptationProposalStore;
 }
 
 function makeFakeWriter(): EvidenceEventWriter {
@@ -156,7 +156,7 @@ describe("AutomaticProposalGenerator — construction & surface", () => {
     expect(DEFAULT_MIN_REFLECTION_CONFIDENCE).toBe(0.7);
   });
 
-  it("can be constructed with a ProposalStore and EvidenceEventWriter", () => {
+  it("can be constructed with a AdaptationProposalStore and EvidenceEventWriter", () => {
     const store = new FakeProposalStore();
     const writer = makeFakeWriter();
     const gen = new AutomaticProposalGenerator(asStore(store), writer);
@@ -418,19 +418,19 @@ describe("AutomaticProposalGenerator — generateFromEffectiveness skip rules", 
 });
 
 describe("AutomaticProposalGenerator — generateFromEffectiveness success path", () => {
-  // We use a real on-disk ProposalStore so generateFromEffectiveness can
+  // We use a real on-disk AdaptationProposalStore so generateFromEffectiveness can
   // call store.load(report.proposalId) to read the source proposal's
   // evidenceFingerprints. We also need a real writer so we can assert
   // provenance="auto" round-trips into the emitted evidence payload.
   let tempDir: string;
-  let store: ProposalStore;
+  let store: AdaptationProposalStore;
   let evidenceStore: import("../../src/security/evidence/evidence-store.js").EvidenceStore;
   let writer: EvidenceEventWriter;
   let gen: AutomaticProposalGenerator;
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), "apg-eff-"));
-    store = new ProposalStore(join(tempDir, "proposals"));
+    store = new AdaptationProposalStore(join(tempDir, "proposals"));
     const { EvidenceStore } = await import(
       "../../src/security/evidence/evidence-store.js"
     );
@@ -585,7 +585,7 @@ describe("AutomaticProposalGenerator — manual-action regression (apply surface
   // the apply command without throwing.
   it("generated create_improvement_issue proposal has kind='issue' and action='create_improvement_issue' so manual-action apply guidance fires", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "apg-manual-"));
-    const store = new ProposalStore(join(tempDir, "proposals"));
+    const store = new AdaptationProposalStore(join(tempDir, "proposals"));
     const { EvidenceStore } = await import(
       "../../src/security/evidence/evidence-store.js"
     );

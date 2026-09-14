@@ -23,6 +23,7 @@ import { join } from "node:path";
 import {
   isValidTasksSidecar,
   reconstructSession,
+  sessionInfo,
 } from "../src/session/resume.js";
 
 const SESSIONS_DIR = ".alix/sessions";
@@ -490,5 +491,38 @@ describe("reconstructSession — error paths", () => {
     await expect(
       reconstructSession(testCwd, "ghost-session"),
     ).rejects.toThrow(/Session not found/);
+  });
+});
+
+describe("sessionInfo — bounded status reads (#705)", () => {
+  it("derives status and timestamps from first/last records in a large log", async () => {
+    await writeSession(testCwd, testSessionId, "big task");
+    const sessionDir = join(testCwd, SESSIONS_DIR, testSessionId);
+    // Large middle: >64KB of filler events so a full-read implementation
+    // would be exercised, while the bounded reader only sees head + tail.
+    const lines: string[] = [];
+    lines.push(JSON.stringify({
+      id: "1", seq: 1, version: 1, sessionId: testSessionId,
+      timestamp: "2026-07-24T00:00:00Z", type: "session.started", actor: "system", payload: {},
+    }));
+    for (let i = 2; i <= 2_000; i++) {
+      lines.push(JSON.stringify({
+        id: `e${i}`, seq: i, version: 1, sessionId: testSessionId,
+        timestamp: "2026-07-24T00:00:30Z", type: "tool.completed", actor: "system",
+        payload: { filler: "x".repeat(60) },
+      }));
+    }
+    lines.push(JSON.stringify({
+      id: "last", seq: 2_001, version: 1, sessionId: testSessionId,
+      timestamp: "2026-07-24T00:05:00Z", type: "session.ended", actor: "system",
+      payload: { reason: "completed" },
+    }));
+    await writeFile(join(sessionDir, "events.jsonl"), `${lines.join("\n")}\n`);
+
+    const info = await sessionInfo(testCwd, testSessionId);
+    expect(info).not.toBeNull();
+    expect(info!.status).toBe("completed");
+    expect(info!.createdAt).toBe("2026-07-24T00:00:00Z");
+    expect(info!.updatedAt).toBe("2026-07-24T00:05:00Z");
   });
 });

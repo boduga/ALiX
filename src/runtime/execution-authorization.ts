@@ -126,7 +126,7 @@ export class ExecutionAuthorization {
     eventLog: EventLog | undefined,
     request: ExecutionDecisionRequest,
     decision: ExecutionDecision,
-    extras: { policyDecision?: unknown; ownershipResult?: unknown },
+    _extras: { policyDecision?: unknown; ownershipResult?: unknown },
   ): Promise<void> {
     // Narrow the discriminated union for field access — no `as any` casts
     let reason: string | undefined;

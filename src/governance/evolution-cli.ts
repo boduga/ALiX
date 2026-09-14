@@ -15,7 +15,7 @@
  * @module evolution-cli
  */
 
-import type { EvolutionStateMachine, EvolutionSummary } from "../evolution/evolution-state-machine.js";
+import type { EvolutionStateMachine } from "../evolution/evolution-state-machine.js";
 import type { ExecutionEvidenceStore } from "../runtime/execution-evidence-store.js";
 import type { VerificationEvidenceLedger } from "../evolution/verification/evidence/evidence-ledger.js";
 import type { GovernanceDecisionBridge } from "../evolution/governance/governance-decision-bridge.js";

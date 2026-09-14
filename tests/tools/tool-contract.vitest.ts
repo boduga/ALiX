@@ -84,6 +84,24 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: true,
     tags: ["search", "file", "directory", "code"],
   },
+  "grep.search": {
+    capabilityId: "filesystem.search",
+    policyKey: "file.search",
+    risk: "low",
+    mutates: false,
+    domain: "filesystem",
+    alwaysInclude: true,
+    tags: ["grep", "search", "content", "regex", "code"],
+  },
+  "glob.match": {
+    capabilityId: "filesystem.search",
+    policyKey: "file.search",
+    risk: "low",
+    mutates: false,
+    domain: "filesystem",
+    alwaysInclude: true,
+    tags: ["glob", "search", "filename", "files", "code"],
+  },
   "shell.run": {
     capabilityId: "shell.exec",
     policyKey: "shell.run",
@@ -213,9 +231,9 @@ function project(cap: ToolCapability): EntryShape & { name: string } {
 }
 
 describe("canonical tool capability taxonomy contract", () => {
-  it("registers exactly 16 canonical entries", () => {
+  it("registers exactly 18 canonical entries", () => {
     const { registry } = buildDefaultToolIndex();
-    expect(registry.getAll().length).toBe(16);
+    expect(registry.getAll().length).toBe(18);
   });
 
   it("matches the canonical table exactly", () => {

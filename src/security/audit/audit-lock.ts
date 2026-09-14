@@ -9,14 +9,8 @@
  * @module
  */
 
-import {
-  writeFileSync,
-  mkdirSync,
-  rmSync,
-  existsSync,
-  readFileSync,
-} from "node:fs";
-import { join, dirname } from "node:path";
+import { writeFileSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 

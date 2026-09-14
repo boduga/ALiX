@@ -63,7 +63,7 @@ export class EditFormatSelector {
     return { format, confidence, reasoning };
   }
 
-  private canUseStructured(fileType: string | undefined, changeType: string | undefined): boolean {
+  private canUseStructured(fileType: string | undefined, _changeType: string | undefined): boolean {
     if (!fileType) return false;
     return ["ts", "tsx", "js", "jsx", "py", "go", "java"].includes(fileType);
   }

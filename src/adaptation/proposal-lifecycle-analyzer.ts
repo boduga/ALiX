@@ -12,7 +12,7 @@
 import type { EnrichedProposal, IntelligenceOptions } from "./intelligence-types.js";
 import type { AdaptationProposal } from "./adaptation-types.js";
 import type { ProposalEffectivenessReport } from "./effectiveness-types.js";
-import { ProposalStore } from "./proposal-store.js";
+import { AdaptationProposalStore } from "./adaptation-proposal-store.js";
 import { EffectivenessStore } from "./effectiveness-store.js";
 import { EvidenceStore } from "../security/evidence/evidence-store.js";
 
@@ -55,9 +55,9 @@ function hoursBetween(from: string, to: string): number {
 
 export class ProposalLifecycleAnalyzer {
   constructor(
-    private readonly proposalStore: ProposalStore,
+    private readonly proposalStore: AdaptationProposalStore,
     private readonly effectivenessStore: EffectivenessStore,
-    private readonly evidenceStore: EvidenceStore,
+    _evidenceStore: EvidenceStore,
   ) {}
 
   /**

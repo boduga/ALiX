@@ -17,6 +17,9 @@
 - Browser cookie sessions are in-memory transports for a token identity. The
   source token record must be revalidated on every request so cross-process
   revocation, expiry, and role changes apply immediately.
+- Inspector auth mutations are fail-closed on audit: token create/rotate/revoke
+  return `audit_write_failed` and persist nothing when the audit append fails;
+  the server counts such failures and alerts on stderr.
 - SSE streams require authentication in required mode and serve session events
   with `Last-Event-ID` resume support.
 - `VISIBLE_EVENTS` filter controls which event types stream to the browser.

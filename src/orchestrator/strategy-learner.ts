@@ -6,7 +6,7 @@
  * Recommends strategies based on learned patterns
  */
 
-import { appendFile, readFile, mkdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { RefineStrategyName } from "./refine-strategies.js";
 
@@ -21,27 +21,6 @@ export interface RepairOutcome {
 
 const HISTORY_DIR = join(process.env.HOME ?? "", ".config", "alix");
 const HISTORY_FILE = join(HISTORY_DIR, "repair-history.jsonl");
-
-/**
- * Record a repair outcome for learning
- */
-export async function recordRepairOutcome(
-  outcome: Omit<RepairOutcome, "timestamp">
-): Promise<void> {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    ...outcome,
-  };
-
-  // Ensure directory exists
-  try {
-    await mkdir(HISTORY_DIR, { recursive: true });
-  } catch {
-    // Directory may already exist
-  }
-
-  await appendFile(HISTORY_FILE, JSON.stringify(entry) + "\n");
-}
 
 /**
  * Classify failure type from failure output

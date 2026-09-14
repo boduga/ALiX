@@ -2,7 +2,7 @@
  * P10.8 — Recommendation Effectiveness CLI handler.
  *
  * Read-only handler that loads recommendation reports from
- * RecommendationReportStore, loads associated proposals from ProposalStore,
+ * RecommendationReportStore, loads associated proposals from AdaptationProposalStore,
  * classifies each recommendation's disposition, aggregates per-signal
  * calibration, and renders terminal tables or JSON.
  *
@@ -21,7 +21,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import type { RecommendationReport } from "../../executive/recommendation-report-store.js";
 import {
   applyEffectivenessData,
@@ -146,7 +146,7 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
   }
 
   // Load all proposals in parallel for efficiency
-  const proposalStore = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
   const proposalStatusMap = new Map<string, string | null>();
   await Promise.all(
     [...allProposalIds].map(async (pid) => {
@@ -247,7 +247,7 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
 // Error emission helper
 // ---------------------------------------------------------------------------
 
-function emitError(reason: string, useJson: boolean, message: string): void {
+function emitError(_reason: string, useJson: boolean, message: string): void {
   if (useJson) {
     console.log(JSON.stringify({ ok: false, reason: message }));
   } else {

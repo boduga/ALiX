@@ -525,4 +525,65 @@ describe("AuthService", () => {
       }
     });
   });
+
+  describe("audit failure fails closed (#685)", () => {
+    const failingAudit: AuditFn = () => { throw new Error("audit store unavailable"); };
+    function labeledMetrics(): {
+      metrics: MetricsFn;
+      calls: Array<{ name: string; status?: string }>;
+    } {
+      const calls: Array<{ name: string; status?: string }> = [];
+      return {
+        calls,
+        metrics: (name, labels) => { calls.push({ name, status: labels?.status }); },
+      };
+    }
+
+    it("create fails without persisting when audit throws", async () => {
+      const metrics = labeledMetrics();
+      const svc = new AuthService(store, failingAudit, metrics.metrics);
+      const result = await svc.createToken({ name: "unlogged", role: "readonly" });
+      assert.ok(!result.ok);
+      if (!result.ok) assert.equal(result.error, "audit_write_failed");
+      const listed = await svc.listTokens();
+      assert.ok(listed.ok && listed.value.length === 0);
+      assert.ok(metrics.calls.some(c => c.name === "token.created" && c.status === "failed"));
+    });
+
+    it("rotate fails without changing either token when audit throws", async () => {
+      const setup = new AuthService(store, noopAudit, noopMetrics);
+      const created = await setup.createToken({ name: "rotate-me", role: "operator" });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const metrics = labeledMetrics();
+      const svc = new AuthService(store, failingAudit, metrics.metrics);
+      const rotated = await svc.rotateToken(created.value.id, 3600000);
+      assert.ok(!rotated.ok);
+      if (!rotated.ok) assert.equal(rotated.error, "audit_write_failed");
+      // No new token persisted, old token still verifies
+      const listed = await svc.listTokens();
+      assert.ok(listed.ok && listed.value.length === 1);
+      const verify = await svc.verifyToken(created.value.token);
+      assert.ok(verify.ok);
+      assert.ok(metrics.calls.some(c => c.name === "token.rotated" && c.status === "failed"));
+    });
+
+    it("revoke fails without revoking when audit throws", async () => {
+      const setup = new AuthService(store, noopAudit, noopMetrics);
+      const created = await setup.createToken({ name: "keep-me", role: "readonly" });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const metrics = labeledMetrics();
+      const svc = new AuthService(store, failingAudit, metrics.metrics);
+      const revoked = await svc.revokeToken(created.value.id, "test");
+      assert.ok(!revoked.ok);
+      if (!revoked.ok) assert.equal(revoked.error, "audit_write_failed");
+      // Token still verifies — no unlogged revocation was persisted
+      const verify = await svc.verifyToken(created.value.token);
+      assert.ok(verify.ok);
+      assert.ok(metrics.calls.some(c => c.name === "token.revoked" && c.status === "failed"));
+    });
+  });
 });

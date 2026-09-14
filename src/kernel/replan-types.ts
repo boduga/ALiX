@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { PlanTriggerKind, WorkerAssignment } from "./coordination-types.js";
+import type { PlanTriggerKind } from "./coordination-types.js";
 
 // ─── Trigger ───────────────────────────────────────────────────────────
 

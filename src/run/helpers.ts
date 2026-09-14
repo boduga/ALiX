@@ -4,8 +4,8 @@ import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
-import { shouldAutoDisableStreaming, type StreamHandler } from "../agent/stream.js";
-import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
+import { type StreamHandler } from "../agent/stream.js";
+import "../agent/mutations.js";
 import {
   ExecutionCancelledError,
   raceWithCancellation,
@@ -96,7 +96,37 @@ export const BASE_TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         pattern: { type: "string", description: "Text pattern to search for" },
-        extensions: { type: "array", items: { type: "string" } }
+        extensions: { type: "array", items: { type: "string" } },
+        headLimit: { type: "integer", description: "Maximum matches to return (default 200)" },
+        path: { type: "string", description: "Optional workspace-relative subdirectory to scope the search" }
+      },
+      required: ["pattern"]
+    }
+  },
+  {
+    name: "alix_grep_search",
+    description: "Regex-search file CONTENTS across the workspace and return path:line matches. Prefer this over alix_shell_run for read-only content searches (no shell approval).",
+    input_schema: {
+      type: "object",
+      properties: {
+        pattern: { type: "string", description: "Regex (or literal) pattern to search for" },
+        caseSensitive: { type: "boolean", description: "Case-sensitive match (default false)" },
+        include: { type: "array", items: { type: "string" }, description: "Glob(s) limiting which files are searched, e.g. src/**/*.ts" },
+        headLimit: { type: "integer", description: "Maximum matches to return (default 200)" },
+        path: { type: "string", description: "Optional workspace-relative subdirectory to scope the search" }
+      },
+      required: ["pattern"]
+    }
+  },
+  {
+    name: "alix_glob_match",
+    description: "Match FILENAMES across the workspace with a glob (*, **, ?, {a,b}) and return workspace-relative paths. Prefer this over alix_shell_run for read-only filename searches (no shell approval).",
+    input_schema: {
+      type: "object",
+      properties: {
+        pattern: { type: "string", description: "Glob pattern, e.g. src/**/*.test.ts" },
+        headLimit: { type: "integer", description: "Maximum paths to return (default 500)" },
+        path: { type: "string", description: "Optional workspace-relative subdirectory to scope the search" }
       },
       required: ["pattern"]
     }
@@ -236,6 +266,8 @@ export const BASE_TOOLS: ToolDef[] = [
 export const READ_ONLY_TOOL_NAMES = new Set([
   "alix_file_read",
   "alix_dir_search",
+  "alix_grep_search",
+  "alix_glob_match",
   "alix_shell_run",
   "alix_file_exists",
   "alix_done",

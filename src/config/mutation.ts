@@ -31,7 +31,7 @@ import { createHash } from "node:crypto";
 import type { AlixConfig, PersistedAlixConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 import { withoutDerivedModelProjections } from "./persistence.js";
-import { isCredentialReference } from "../security/credentials/credential-reference.js";
+import "../security/credentials/credential-reference.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -323,13 +323,11 @@ async function writeProvenanceLog(
 // ---------------------------------------------------------------------------
 
 export class ConfigMutationService {
-  private readonly configDir: string;
   private readonly configPath: string;
   private readonly provenancePath: string;
   private lastReadHash: string | null = null;
 
   constructor(configDir: string) {
-    this.configDir = configDir;
     this.configPath = join(configDir, CONFIG_FILENAME);
     this.provenancePath = join(configDir, PROVENANCE_FILENAME);
   }

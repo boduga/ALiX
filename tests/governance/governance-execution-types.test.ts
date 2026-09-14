@@ -297,8 +297,15 @@ describe("GovernanceExecutionTypes", () => {
       verificationPassed: true,
     };
 
-    // Suppress unused variable warnings — these must compile clean at runtime
-    assert.ok(true);
+    // Runtime shape: exactly the allowed keys, no more.
+    const valid: ExecutionRef = {
+      evidenceId: "e1", intentId: "i1",
+      outcome: "SUCCESS" as const,
+      completedAt: "t1", evidenceHash: "h1",
+    };
+    assert.deepEqual(Object.keys(valid).sort(), [
+      "completedAt", "evidenceHash", "evidenceId", "intentId", "outcome",
+    ]);
   });
 
   // -------------------------------------------------------------------------
@@ -330,6 +337,10 @@ describe("GovernanceExecutionTypes", () => {
       verificationPassed: true,
     };
 
-    assert.ok(true);
+    // Runtime shape: exactly the allowed keys, no more.
+    const valid: ExecutionLineageRef = {
+      candidateId: "c1", intentId: "i1", evidenceId: "e1",
+    };
+    assert.deepEqual(Object.keys(valid).sort(), ["candidateId", "evidenceId", "intentId"]);
   });
 });

@@ -1,5 +1,5 @@
 // src/self-extend/list-extensions.ts
-import { listInProcess, type InProcessExtension } from "./registry.js";
+import { listInProcess } from "./registry.js";
 
 export type ListExtensionsResult = {
   skills: Array<{ name: string; description?: string; trigger?: string; isCore: boolean }>;

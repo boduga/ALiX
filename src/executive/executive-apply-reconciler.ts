@@ -9,7 +9,7 @@
  */
 
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
-import type { ExecutionStep } from "./planning-engine.js";
+import type { ExecutionStep } from "./execution-plan-builder.js";
 import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------

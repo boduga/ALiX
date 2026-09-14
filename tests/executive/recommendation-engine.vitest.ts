@@ -4,7 +4,7 @@ import {
   RECOMMENDATION_OK,
   RECOMMENDATION_INSUFFICIENT_DATA,
 } from "../../src/executive/recommendation-engine.js";
-import type { TrendResult } from "../../src/executive/learning-engine.js";
+import type { TrendResult } from "../../src/executive/learning-trends.js";
 
 const GENERATED_AT = "2026-01-01T00:00:00.000Z";
 

@@ -7,7 +7,7 @@
  */
 
 import type { CoordinationRun, CoordinationRunOutcome } from "./coordination-types.js";
-import type { RunResultSummary, WorkerResultSummary, AggregationIssue, FailureChain } from "./coordination-result-types.js";
+import type { RunResultSummary, WorkerResultSummary, AggregationIssue } from "./coordination-result-types.js";
 import { CoordinationResultStore, requiresResultRecord } from "./coordination-result-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 

@@ -16,7 +16,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
 import { acquire, release } from "../audit/audit-lock.js";

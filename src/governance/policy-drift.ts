@@ -74,13 +74,6 @@ export interface DetectPolicyDriftOpts {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function deterministicId(kind: string, windowStart: string, windowEnd: string, index: number): string {
-  const hash = createHash("sha256")
-    .update(["p24", kind, windowStart, windowEnd, String(index)].join("|"))
-    .digest("hex")
-    .slice(0, 16);
-  return `p24-${kind.slice(0, 2)}:${hash}`;
-}
 
 function safeDiv(n: number, d: number): number {
   return d === 0 ? 0 : n / d;

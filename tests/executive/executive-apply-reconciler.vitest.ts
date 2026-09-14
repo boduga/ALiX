@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { reconcileApplyStep } from "../../src/executive/executive-apply-reconciler.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
-import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+import type { ExecutionStep } from "../../src/executive/execution-plan-builder.js";
 import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 
 function makeStep(overrides: Partial<ExecutionStep> = {}): ExecutionStep {

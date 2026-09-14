@@ -26,13 +26,11 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readGovernanceSource } from "../helpers/governance-source.js";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
-const GOVERNANCE_CLI_PATH = resolve(
-  process.cwd(),
-  "src/cli/commands/governance.ts",
-);
+
 
 // ---------------------------------------------------------------------------
 // Module under test
@@ -502,7 +500,7 @@ describe("auditReviewStore migration invariant", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts migration sentinel", () => {
-  const source: string = readFileSync(GOVERNANCE_CLI_PATH, "utf8");
+  const source: string = readGovernanceSource();
 
   it("contains no direct signalEvaluatedEvent import", () => {
     // The string should only appear inside audit-decorators.ts imports, not direct emitter imports
@@ -544,7 +542,7 @@ describe("governance.ts migration sentinel", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts strengthened sentinels (P14.7)", () => {
-  const source: string = readFileSync(GOVERNANCE_CLI_PATH, "utf8");
+  const source: string = readGovernanceSource();
 
   it("does not import the audit-emitters module at all", () => {
     // The CLI must never touch emitters directly — only via decorators.
@@ -574,7 +572,7 @@ describe("governance.ts strengthened sentinels (P14.7)", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts migration sentinel — audited wrappers present", () => {
-  const source: string = readFileSync(GOVERNANCE_CLI_PATH, "utf8");
+  const source: string = readGovernanceSource();
 
   it("contains auditSignalStore", () => {
     assert.ok(source.includes("auditSignalStore"), "auditSignalStore not found in governance.ts");

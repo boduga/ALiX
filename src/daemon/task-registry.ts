@@ -1,14 +1,15 @@
 /**
  * task-registry.ts — File-backed daemon task registry.
  *
- * Stores task records at .alix/daemon-tasks.json with atomic writes.
+ * Stores task records at ~/.alix/daemon-tasks.json (global — one registry
+ * for all projects; see daemon-paths.ts) with atomic writes.
  * Keeps at most 100 completed/failed/cancelled tasks.
  */
 
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { homedir } from "node:os";
 import { existsSync } from "node:fs";
+import { resolveDaemonTasksPath } from "./daemon-paths.js";
 
 export type DaemonTaskStatus =
   | "queued" | "running" | "completed" | "failed"
@@ -36,7 +37,7 @@ export class TaskRegistry {
   private savePromise: Promise<void> = Promise.resolve();
 
   constructor() {
-    this.filePath = join(homedir(), ".alix", "daemon-tasks.json");
+    this.filePath = resolveDaemonTasksPath();
   }
 
   async load(): Promise<void> {

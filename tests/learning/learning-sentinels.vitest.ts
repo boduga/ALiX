@@ -71,9 +71,9 @@ describe("P8.6 — Learning Governance Sentinels", () => {
   // 1. No mutation imports in src/learning/
   // -----------------------------------------------------------------------
 
-  it("must not import ProposalStore", () => {
+  it("must not import AdaptationProposalStore", () => {
     const violations = anyImportsFrom(SRC_LEARNING, [
-      "../adaptation/proposal-store.js",
+      "../adaptation/adaptation-proposal-store.js",
       "../adaptation/proposal-store",
     ]);
     expect(violations).toEqual([]);
@@ -146,9 +146,9 @@ describe("P8.6 — Learning Governance Sentinels", () => {
     expect(violations).toEqual([]);
   });
 
-  it("must not import ProposalStore or ApprovalGate (lifecycle mutation)", () => {
+  it("must not import AdaptationProposalStore or ApprovalGate (lifecycle mutation)", () => {
     const violations = anyImportsFrom(SRC_LEARNING, [
-      "../adaptation/proposal-store.js",
+      "../adaptation/adaptation-proposal-store.js",
       "../adaptation/proposal-store",
       "../adaptation/approval-gate.js",
       "../adaptation/approval-gate",

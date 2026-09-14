@@ -115,25 +115,6 @@ const READ_ONLY_PATTERNS = [
   /\bdescribe\b/i,
 ];
 
-const WRITE_PATTERNS = [
-  /\b(?:create|add|implement|build|write|edit|update|modify|change|delete|remove|fix|refactor|rewrite|extract)\b/i,
-  /\bnew\s+(?:feature|option|setting|button|tab|page|component|module)\b/i,
-  /\bclean up\b/i,
-  /\brestructure\b/i,
-  /\bsplit\b/i,
-  /\bdecouple\b/i,
-  /\bmove\b/i,
-  /\breorganize\b/i,
-  /\bbug\b/i,
-  /\bcrash\b/i,
-  /\berror\b/i,
-  /\bexception\b/i,
-  /\bnull\b/i,
-  /\bundefined\b/i,
-  /\bfails?\b/i,
-  /\bbroken\b/i,
-  /\bnot working\b/i,
-];
 
 /**
  * Returns true if the prompt is a bare shell command (ls, cat, pwd, etc.).

@@ -58,7 +58,6 @@ function buildRecommendationId(
   return createHash("sha256").update(stable).digest("hex").slice(0, 16);
 }
 
-const SEVERITY_VALUES = ["critical", "warning", "info"] as const;
 
 export function recommendGovernanceResponsesFromAnomalies(
   anomalies: GovernanceAuditAnomaly[],

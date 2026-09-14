@@ -104,7 +104,7 @@ export async function handleEvalsRun(args: string[]): Promise<void> {
   const cwd = process.cwd();
   await loadConfig(cwd);
 
-  const start = performance.now();
+  performance.now();
   const run = await runEvalSuite(cases, { suite: "behavioral", driver });
   const file = saveRun(cwd, run);
 

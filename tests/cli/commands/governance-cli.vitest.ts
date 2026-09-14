@@ -5,7 +5,7 @@
  * subcommands: approve, reject, list, cleanup, explain.
  *
  * All tests use temp directories. Proposals are seeded directly via
- * ProposalStore or as raw JSON files on disk.
+ * AdaptationProposalStore or as raw JSON files on disk.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -54,12 +54,12 @@ function mockExit(): { spy: ReturnType<typeof vi.spyOn>; restore: () => void } {
   return { spy, restore: () => spy.mockRestore() };
 }
 
-/** Persist a proposal directly via ProposalStore (bypasses CLI). */
+/** Persist a proposal directly via AdaptationProposalStore (bypasses CLI). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function seedProposal(overrides: Record<string, any> = {}): Promise<{ id: string; action: string; status: string }> {
-  const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
   const proposalsDir = join(tempRoot, ".alix", "adaptation", "proposals");
-  const store = new ProposalStore(proposalsDir);
+  const store = new AdaptationProposalStore(proposalsDir);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const proposal: any = {
     id: "prop-test-001",
@@ -78,7 +78,7 @@ async function seedProposal(overrides: Record<string, any> = {}): Promise<{ id: 
   return proposal;
 }
 
-/** Write a raw JSON proposal file directly (bypasses ProposalStore validation).
+/** Write a raw JSON proposal file directly (bypasses AdaptationProposalStore validation).
  *  Useful for orphaned/cleaned proposals that don't conform to the strict type. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function writeRawProposal(id: string, data: Record<string, any>): void {
@@ -149,8 +149,8 @@ describe("governance CLI", () => {
       expect(joined).toContain("prop-approve-1");
 
       // Verify the proposal was actually approved (status transitioned)
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
     });
@@ -173,8 +173,8 @@ describe("governance CLI", () => {
       expect(joined).toContain("prop-reject-1");
       expect(joined).toContain("rejected");
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("rejected");
     });
@@ -202,7 +202,7 @@ describe("governance CLI", () => {
     });
 
     it("--orphaned shows orphaned proposals (but hides cleaned ones)", async () => {
-      // Raw write to include systemState that ProposalStore validation would reject
+      // Raw write to include systemState that AdaptationProposalStore validation would reject
       writeRawProposal("prop-orph-1", {
         id: "prop-orph-1",
         createdAt: "2026-06-19T00:00:00.000Z",
@@ -271,8 +271,8 @@ describe("governance CLI", () => {
       expect(joined).toContain("File retained for audit.");
 
       // Verify the proposal now has cleaned: true
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load("prop-clean-1");
       expect(reloaded!.systemState?.cleaned).toBe(true);
     });

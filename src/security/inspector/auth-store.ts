@@ -18,7 +18,7 @@
 
 import { randomUUID } from "node:crypto";
 import { writeFileSync, renameSync, unlinkSync, lstatSync, mkdirSync } from "node:fs";
-import { readFile, readdir, unlink, rmdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 
 // ---------------------------------------------------------------------------

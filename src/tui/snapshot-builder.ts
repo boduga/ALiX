@@ -1,14 +1,7 @@
 import type { AgentSession } from '../agent/session.js';
-import type { PolicyEngine } from '../policy/policy-engine.js';
+import type { PolicyGate } from '../policy/policy-gate.js';
 import type { EventLog } from '../events/event-log.js';
-import type {
-  DashboardSnapshot,
-  SessionMetadata,
-  DaemonMetricsSnapshot,
-  ApprovalSnapshot,
-  RuntimeSnapshot,
-  SopSnapshot,
-} from './snapshot.js';
+import type { DashboardSnapshot, SessionMetadata, DaemonMetricsSnapshot, ApprovalSnapshot } from './snapshot.js';
 import { SessionPhase } from './state.js';
 import type { AgentIntent } from '../run/intent-classifier.js';
 
@@ -75,7 +68,7 @@ export class SnapshotBuilder {
   constructor(
     private readonly session: AgentSession,
     private readonly approvals: ApprovalCollector,
-    private readonly policy: PolicyEngine,
+    private readonly policy: PolicyGate,
     private readonly sops: SopCollector,
     private readonly runtime: EventLog | RuntimeCollector,
     private readonly daemonMetrics: DaemonMetricsCollector,
@@ -177,7 +170,7 @@ export class SnapshotBuilder {
     return this.lastSnapshot ?? null;
   }
 
-  private async trySnapshot<R>(label: string, fn: () => Promise<R> | R): Promise<R | null> {
+  private async trySnapshot<R>(_label: string, fn: () => Promise<R> | R): Promise<R | null> {
     try {
       return await fn();
     } catch (err) {

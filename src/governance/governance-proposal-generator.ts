@@ -1,7 +1,7 @@
 /**
  * P9.2 — Advisory-to-proposal bridge.
  *
- * This is the SINGLE P9 file permitted to import ProposalStore. The
+ * This is the SINGLE P9 file permitted to import AdaptationProposalStore. The
  * sentinel allowlist (ALLOWED_IN_FILE) enforces this. Even this file
  * is forbidden from importing ApprovalGate, any applier, or calling
  * approve/apply. The bridge creates pending proposals only; approval
@@ -18,7 +18,7 @@ import { join } from "node:path";
 import type { Recommendation } from "./governance-types.js";
 import type { GovernanceChangePayload } from "./governance-types.js";
 import { GovernanceStore } from "./governance-store.js";
-import { ProposalStore } from "../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../adaptation/adaptation-proposal-store.js";
 import { EvidenceChainStore } from "../learning/evidence-chain-store.js";
 import type { ProvenanceLink } from "../learning/evidence-chain-types.js";
 
@@ -52,12 +52,12 @@ export async function createGovernanceProposal(opts: {
   recommendationId: string;
   cwd?: string;
   generatedAt?: string;
-  proposalStore?: ProposalStore;
+  proposalStore?: AdaptationProposalStore;
   chainStore?: EvidenceChainStore;
   govStore?: GovernanceStore;
 }): Promise<CreateProposalResult> {
   const effectiveGovStore = opts.govStore ?? new GovernanceStore();
-  const effectivePropStore = opts.proposalStore ?? new ProposalStore(join(opts.cwd ?? process.cwd(), ".alix", "adaptation", "proposals"));
+  const effectivePropStore = opts.proposalStore ?? new AdaptationProposalStore(join(opts.cwd ?? process.cwd(), ".alix", "adaptation", "proposals"));
   const effectiveChainStore = opts.chainStore ?? new EvidenceChainStore();
   const generatedAt = opts.generatedAt ?? new Date().toISOString();
 

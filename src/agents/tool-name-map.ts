@@ -1,9 +1,9 @@
 // Maps model tool names (alix_file_read) to executor names (file.read).
-// Mirrors the canonical 16-tool surface from buildDefaultToolIndex()
+// Mirrors the canonical tool surface from buildDefaultToolIndex()
 // (src/tools/tool-registry.ts): file.read, file.create, file.delete,
-// file.exists, dir.search, shell.run, patch.apply, done, delegate,
-// web_search, web_fetch, create_skill, list_extensions, inspect_extension,
-// create_hook, mcp.*.
+// file.exists, dir.search, grep.search, glob.match, shell.run, patch.apply,
+// done, delegate, web_search, web_fetch, create_skill, list_extensions,
+// inspect_extension, create_hook, mcp.*.
 //
 // `file.write` is deliberately ABSENT: it is only a policy key for
 // file.create/file.delete, NOT an executable tool name — so there is no
@@ -22,6 +22,8 @@ export const TOOL_NAME_MAP: ToolNameMap = {
   alix_file_delete:       "file.delete",
   alix_file_exists:       "file.exists",
   alix_dir_search:        "dir.search",
+  alix_grep_search:       "grep.search",
+  alix_glob_match:        "glob.match",
   alix_shell_run:         "shell.run",
   alix_patch_apply:       "patch.apply",
   alix_done:              "done",

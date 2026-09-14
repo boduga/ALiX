@@ -14,7 +14,7 @@
 |---------|--------|-------|
 | `npm run typecheck` | PASS | Clean exit, no warnings |
 | `npm run build` | PASS | Includes TSC build + profile/ui copy |
-| `npm run test:unit:node` | (pending) | |
+| `npm run test:ci` | (pending) | |
 | `npm run test:integration` | (pending) | |
 | `npm run test:soak:quick` | (pending) | |
 | `node dist/src/cli.js doctor` | (pending) | |
@@ -389,10 +389,9 @@ Emitters are distributed across agent loops, tool executors, coordination detect
 Steps in order:
 1. `npm run typecheck`
 2. `npm run build`
-3. `npm run test:unit:node`
-4. `npm run test:vitest`
-5. `npm run test:integration`
-6. `npm run test:soak:quick`
+3. `npm run test:ci` (node:test CI set + vitest)
+4. `npm run test:integration`
+5. `npm run test:soak:quick`
 7. `npm run test:manual:tui`
 8. `node dist/src/cli.js doctor`
 9. `npm run benchmark run --suite quick`
@@ -422,7 +421,8 @@ No `preinstall`, `postinstall`, `prepare`, or other lifecycle scripts in `packag
 |---|---|
 | `typecheck` | `tsc -p tsconfig.json --noEmit` |
 | `build` | `tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp ...` |
-| `test:unit:node` | `find dist/tests ... -print0 | xargs -0 node --test --test-timeout=30000` |
+| `test:ci` | `pnpm test:node:ci && pnpm test:vitest` |
+| `test:node:ci` | `find dist/tests ... -print0 | xargs -0 node --test --test-timeout=30000` |
 | `test:integration` | `node --test --test-concurrency=1 dist/tests/integration/*.test.js` |
 | `test:soak:quick` | `node --test --test-concurrency=1 dist/tests/soak/corruption-recovery.test.js ...` |
 | `test:vitest` | `npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts` |

@@ -152,7 +152,7 @@ export const HEALTH_RULES: AlertRule[] = [
     condition: (h: RuntimeHealthSnapshot) => h.providers.some(p => p.status === "unhealthy"),
     instanceDimensions: (h: RuntimeHealthSnapshot) =>
       h.providers.filter(p => p.status === "unhealthy").map(p => ({ providerId: p.providerId })),
-    message: (h: RuntimeHealthSnapshot, d?: Record<string, string>) =>
+    message: (_h: RuntimeHealthSnapshot, d?: Record<string, string>) =>
       d ? `Provider ${d.providerId} is unhealthy` : "One or more providers are unhealthy",
   },
 ];
@@ -169,7 +169,7 @@ export class AlertEngine {
   private resolved: AlertEvent[] = [];
   private alertCounter = 0;
   private cooldownMs: number;
-  private config: ObservabilityConfig;
+  config: ObservabilityConfig;
 
   constructor(config?: Partial<ObservabilityConfig> & AlertEngineOptions) {
     this.config = mergeObservabilityConfig(config);

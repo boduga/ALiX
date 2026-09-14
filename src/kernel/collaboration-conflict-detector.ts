@@ -96,21 +96,6 @@ function sha256Hex(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-function emptyReport(runId: string, start: number, warnings: string[] = []): ConflictDetectionReport {
-  return {
-    runId,
-    candidatesExamined: 0,
-    deterministicConflicts: 0,
-    modelAssistedConflicts: 0,
-    compatiblePairs: 0,
-    uncertainPairs: 0,
-    omittedPairs: 0,
-    createdConflictIds: [],
-    updatedConflictIds: [],
-    warnings,
-    durationMs: Date.now() - start,
-  };
-}
 
 export class ConflictDetector {
   constructor(private deps: ConflictDetectorDeps) {}
@@ -208,11 +193,9 @@ export class ConflictDetector {
     }
 
     // Loaded for the D3 observability wiring; not consumed by detection itself.
-    let dependencyResults: Awaited<ReturnType<CoordinationResultStore["loadByRun"]>>;
     try {
-      dependencyResults = (await this.deps.resultStore.loadByRun(runId)) ?? [];
+      await this.deps.resultStore.loadByRun(runId);
     } catch (err) {
-      dependencyResults = [];
       report.warnings.push(`resultStore.loadByRun failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
@@ -414,8 +397,8 @@ export class ConflictDetector {
  */
 function evidenceFor(
   activeFindings: SharedFinding[],
-  left: SharedFinding,
-  right: SharedFinding,
+  _left: SharedFinding,
+  _right: SharedFinding,
 ): { leftScore: number; rightScore: number; margin: number } {
   // The detector has not yet ranked — give the model neutral scores and let
   // its bounded reasoning decide. Margin is 0 by definition.

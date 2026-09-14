@@ -1,7 +1,7 @@
 /**
  * rule-evaluator.ts — Simple first-match-wins policy rule evaluator.
  *
- * Separate from the runtime PolicyEngine (which is wired to config,
+ * Separate from the PolicyGate (which is wired to config,
  * capability registry, shell whitelist, etc). This is a pure, testable
  * rule matching engine that evaluates PolicyRules in order.
  */

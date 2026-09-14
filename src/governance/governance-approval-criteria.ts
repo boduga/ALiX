@@ -11,7 +11,7 @@
  * and transitions status.
  *
  * Sentinel-enforced: this file may import EvidenceChainStore (read-only)
- * and the explain assembler (read-only). It must NOT import ProposalStore,
+ * and the explain assembler (read-only). It must NOT import AdaptationProposalStore,
  * ApprovalGate, any applier, or call any write/mutation method.
  *
  * @module

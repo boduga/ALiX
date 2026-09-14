@@ -142,12 +142,12 @@ describe("SecurityTelemetry", () => {
       metricsStore: brokenStore,
     });
 
-    // Should not throw
-    safeTelemetry.authAttempt("success", "bearer");
-    safeTelemetry.securityGate("fail", 100);
-    safeTelemetry.configVerification("expired");
-    // If we get here without throwing, the test passes
-    assert.ok(true);
+    // Must never throw, even with a broken store.
+    assert.doesNotThrow(() => {
+      safeTelemetry.authAttempt("success", "bearer");
+      safeTelemetry.securityGate("fail", 100);
+      safeTelemetry.configVerification("expired");
+    });
   });
 });
 

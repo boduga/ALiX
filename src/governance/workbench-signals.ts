@@ -7,13 +7,8 @@
  */
 
 import { createHash } from "node:crypto";
-import type {
-  GovernanceResponseRecommendation,
-  ResponseRecommendationSeverity,
-  ResponseRecommendationKind,
-  GovernanceResponseRecommendationOptions,
-} from "./response-recommendations.js";
-import type { GovernanceRemediationProposal, GovernanceRemediationProposalStatus } from "./remediation-queue.js";
+import type { GovernanceResponseRecommendation, ResponseRecommendationSeverity, ResponseRecommendationKind } from "./response-recommendations.js";
+import type { GovernanceRemediationProposal } from "./remediation-queue.js";
 import type { OperatorReview } from "./operator-review.js";
 import type { OperatorDecision } from "./decision-capture.js";
 import type { GovernanceActionProposal } from "./action-queue.js";

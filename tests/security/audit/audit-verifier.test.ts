@@ -386,4 +386,35 @@ describe("AuditVerifier", () => {
       rmSync(emptyDir, { recursive: true, force: true });
     }
   });
+
+  // -----------------------------------------------------------------------
+  // No integrity chain (#683)
+  // -----------------------------------------------------------------------
+
+  it("fails a legacy-only log with no_chain instead of reporting ok", async () => {
+    const auditPath = join(tmpDir, "audit.jsonl");
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(
+      auditPath,
+      [
+        { id: "l1", action: "policy.allowed", timestamp: "2025-01-01T00:00:00Z", details: {} },
+        { id: "l2", action: "approval.approved", timestamp: "2025-01-02T00:00:00Z", details: {} },
+      ].map((r) => JSON.stringify(r)).join("\n") + "\n",
+      "utf-8",
+    );
+    const result = await verifyAuditLog({ auditDir: tmpDir });
+    // A legacy log carries no hashes: "no findings" would be a lie.
+    assert.ok(!result.ok);
+    assert.equal(result.recordCount.legacy, 2);
+    assert.equal(result.recordCount.v2, 0);
+    assert.ok(result.findings.some((f) => f.type === "no_chain"));
+  });
+
+  it("fails an empty log file with no_chain", async () => {
+    mkdirSync(tmpDir, { recursive: true });
+    writeFileSync(join(tmpDir, "audit.jsonl"), "", "utf-8");
+    const result = await verifyAuditLog({ auditDir: tmpDir });
+    assert.ok(!result.ok);
+    assert.ok(result.findings.some((f) => f.type === "no_chain"));
+  });
 });

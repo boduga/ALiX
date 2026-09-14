@@ -21,7 +21,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import type { ExecutionPlan } from "./planning-engine.js";
+import type { ExecutionPlan } from "./execution-plan-builder.js";
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 

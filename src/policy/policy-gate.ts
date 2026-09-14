@@ -10,6 +10,7 @@ import type { AlixConfig, SessionMode } from "../config/schema.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { EventLog } from "../events/event-log.js";
 import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
+import type { PolicySnapshot, PolicyRuleSnapshot } from "../tui/snapshot.js";
 import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../tools/capability-map.js";
@@ -94,7 +95,7 @@ function isWithinOwned(resolvedTarget: string, ownedPaths: string[], cwd: string
   });
 }
 
-// ─── Evasion patterns (from policy-engine.ts) ────────────────────────
+// ─── Evasion patterns (single authority) ───────────────────────────────
 
 type EvasionPattern = {
   pattern: RegExp;
@@ -116,6 +117,17 @@ const EVASION_PATTERNS: EvasionPattern[] = [
   { pattern: /chmod\s+777.*\/(etc|usr|var|bin)/, severity: "deny", reason: "Permission escalation on system directories" },
   { pattern: /crontab\s+-r/, severity: "ask", reason: "Crontab manipulation detected" },
   { pattern: /authorized_keys|ssh.*key.*>>/, severity: "ask", reason: "SSH key injection detected" },
+  // Merged from the retired PolicyEngine (#689) so no prior denial is lost
+  // now that PolicyGate is the single authority:
+  { pattern: /python.*-c.*import\s+socket/s, severity: "ask", reason: "Python socket creation - manual review recommended" },
+  { pattern: /php.*exec.*socket_create/s, severity: "ask", reason: "PHP socket creation - manual review recommended" },
+  { pattern: /\.bashrc|\.bash_profile.*rm/si, severity: "ask", reason: "Shell profile modification detected" },
+  { pattern: /export\s+PATH=.*:\/\$PATH/, severity: "ask", reason: "PATH manipulation detected" },
+  { pattern: /alias\s+rm=/, severity: "ask", reason: "Alias manipulation detected" },
+  { pattern: /nohup\s+.*rm\s/si, severity: "deny", reason: "Background execution of destructive command" },
+  { pattern: /disown\s+.*rm/si, severity: "deny", reason: "Disowned destructive command" },
+  { pattern: /setsid\s+.*rm/si, severity: "deny", reason: "Setsid background destructive command" },
+  { pattern: /\&\&.*rm\s+-rf/si, severity: "deny", reason: "Chained destructive rm command" },
 ];
 
 function detectEvasion(command: string): { blocked: boolean; ask: boolean; reason?: string } {
@@ -382,20 +394,42 @@ export class PolicyGate {
       return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
     }
 
-    const capAskDecision = await this.handleAskDecision(
-      request.requestId,
-      request.capability,
-      request.sessionMode,
-      `Requires approval for capability: ${request.capability}`,
-      request.sessionId,
-      request.coordinationRunId ? {
-        coordinationRunId: request.coordinationRunId,
-        workerId: request.workerId,
-        workerAttempt: request.workerAttempt,
-        ownershipClaims: request.ownershipClaims,
-        requestFingerprint: request.requestFingerprint,
-      } : undefined,
-    );
+    // Pending-approval reuse (#687): consecutive capability asks for the same
+    // capability must share one pending approval instead of duplicating it —
+    // the same reuse the tool path gets via RuntimeGate. Scoped to
+    // non-coordination asks only: coordination asks carry an exact binding key
+    // and reuse through handleAskDecision, where a capability-wide match
+    // would wrongly merge distinct bindings.
+    let capAskDecision: PolicyGateDecision;
+    const existingPending = !request.coordinationRunId
+      ? this.deps.approvalStore?.findPending({ capability: request.capability })
+      : undefined;
+    if (existingPending) {
+      capAskDecision = {
+        requestId: request.requestId,
+        capability: request.capability,
+        decision: "ask",
+        reason: `Pending approval: ${existingPending.id}`,
+        approvalId: existingPending.id,
+        matchedRuleId: "pending-approval",
+        policyRevision,
+      };
+    } else {
+      capAskDecision = await this.handleAskDecision(
+        request.requestId,
+        request.capability,
+        request.sessionMode,
+        `Requires approval for capability: ${request.capability}`,
+        request.sessionId,
+        request.coordinationRunId ? {
+          coordinationRunId: request.coordinationRunId,
+          workerId: request.workerId,
+          workerAttempt: request.workerAttempt,
+          ownershipClaims: request.ownershipClaims,
+          requestFingerprint: request.requestFingerprint,
+        } : undefined,
+      );
+    }
 
     // Emit approval lifecycle event (created or reused)
     if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
@@ -528,5 +562,33 @@ export class PolicyGate {
     // Create new pending approval
     const approval = await store.request({ reason, capability, sessionId });
     return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+  }
+
+  /**
+   * Build a PolicySnapshot for the TUI policy section: one rule per
+   * configured tool permission plus the effective enforcement mode.
+   * No violation tracking yet — violations are deferred.
+   */
+  async snapshot(): Promise<PolicySnapshot> {
+    const rules: PolicyRuleSnapshot[] = Object.entries(
+      this.config.permissions?.tools ?? {},
+    ).map(([key]) => ({
+      id: key,
+      name: key,
+      severity: "medium" as const,
+      lastResult: "pass" as const,
+      lastEvaluatedAt: Date.now(),
+    }));
+
+    const rawMode = this.config.permissions?.sessionMode ?? "auto";
+    const enforcementMode: "strict" | "auto" | "bypass" =
+      rawMode === "ask" ? "strict" : rawMode;
+
+    return {
+      rules,
+      violations: [],
+      enforcementMode,
+      recentViolationCount: 0,
+    };
   }
 }

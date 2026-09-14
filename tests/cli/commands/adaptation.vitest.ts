@@ -2,7 +2,7 @@
  * P5.1g — adaptation CLI command tests.
  *
  * Exercises handleAdaptationCommand end-to-end against real temp directories
- * (ProposalStore, EvidenceStore, AgentCardApplier, SkillApplier). The command
+ * (AdaptationProposalStore, EvidenceStore, AgentCardApplier, SkillApplier). The command
  * handler resolves .alix paths from process.cwd(), so each test points cwd at
  * a fresh mkdtemp directory.
  *
@@ -79,12 +79,12 @@ function writeReportFile(name: string, report: ReflectionReport): string {
   return path;
 }
 
-/** Make and persist a proposal directly via ProposalStore (bypasses the CLI). */
+/** Make and persist a proposal directly via AdaptationProposalStore (bypasses the CLI). */
 async function seedProposal(
   overrides: Partial<AdaptationProposal> = {},
 ): Promise<AdaptationProposal> {
-  const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-  const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+  const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+  const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
   const proposal: AdaptationProposal = {
     id: "prop-test-001",
     createdAt: "2026-06-19T00:00:00.000Z",
@@ -270,8 +270,8 @@ describe("adaptation CLI", () => {
       c.restore();
 
       // Proposal was saved to the store directory.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const all = await store.list();
       expect(all.length).toBe(1);
       expect(all[0].status).toBe("pending");
@@ -320,8 +320,8 @@ describe("adaptation CLI", () => {
       await handleAdaptationCommand(["propose", reportPath]);
       c.restore();
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const all = await store.list();
       expect(all.length).toBe(1); // skill_revision IS mapped; only truly unknown types are skipped
     });
@@ -353,8 +353,8 @@ describe("adaptation CLI", () => {
       c.restore();
 
       // Status transitioned by the gate.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.approvedBy).toBe("alice");
@@ -392,8 +392,8 @@ describe("adaptation CLI", () => {
       c.restore();
 
       // Verify all 3 transitioned to approved by bob.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2, p3]) {
         const reloaded = await store.load(p.id);
         expect(reloaded!.status).toBe("approved");
@@ -424,8 +424,8 @@ describe("adaptation CLI", () => {
       c.restore();
 
       // Valid proposal was still approved.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(p1.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.approvedBy).toBe("carol");
@@ -447,8 +447,8 @@ describe("adaptation CLI", () => {
       await handleAdaptationCommand(["approve", p1.id, p2.id, "--by", "dave"]);
       c.restore();
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2]) {
         const reloaded = await store.load(p.id);
         expect(reloaded!.status).toBe("approved");
@@ -465,8 +465,8 @@ describe("adaptation CLI", () => {
       await handleAdaptationCommand(["approve", p1.id, p2.id]);
       c.restore();
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       for (const p of [p1, p2]) {
         const reloaded = await store.load(p.id);
         expect(reloaded!.status).toBe("approved");
@@ -487,8 +487,8 @@ describe("adaptation CLI", () => {
       await handleAdaptationCommand(["approve", p1.id]);
       c.restore();
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(p1.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.approvedBy).toBeTruthy();
@@ -525,8 +525,8 @@ describe("adaptation CLI", () => {
       await handleAdaptationCommand(["reject", proposal.id, "--reason", "not now"]);
       c.restore();
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("rejected");
 
@@ -575,8 +575,8 @@ describe("adaptation CLI", () => {
       expect(card.id).toBe("new.agent");
 
       // Status transitioned to applied by the gate.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("applied");
 
@@ -644,8 +644,8 @@ describe("adaptation CLI", () => {
       await expect(handleAdaptationCommand(["apply", proposal.id]))
         .rejects.toThrow("process.exit(1)");
 
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("failed");
       expect(reloaded!.error).toBeTruthy();
@@ -717,8 +717,8 @@ describe("adaptation CLI", () => {
       expect(existsSync(join(tempRoot, ".alix", "skills", "workflow", "code-review.json"))).toBe(false);
 
       // Proposal stays approved — the human acts out-of-band.
-      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
-      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const { AdaptationProposalStore } = await import("../../../src/adaptation/adaptation-proposal-store.js");
+      const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
       const reloaded = await store.load(proposal.id);
       expect(reloaded!.status).toBe("approved");
       expect(reloaded!.appliedAt).toBeUndefined();

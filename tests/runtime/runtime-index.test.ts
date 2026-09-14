@@ -1,9 +1,11 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildRuntimeIndex } from "../../src/runtime/runtime-index.js";
+import { TaskRegistry } from "../../src/daemon/task-registry.js";
+import { resolveDaemonTasksPath } from "../../src/daemon/daemon-paths.js";
 
 function seedDir(): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "runtime-index-test-"));
@@ -39,6 +41,21 @@ function writeSessionEvent(dir: string, sessionId: string, event: any) {
 }
 
 describe("RuntimeIndex", () => {
+  // The daemon_task source reads the global ~/.alix registry — isolate HOME
+  // so the suite is hermetic on machines with a real daemon registry.
+  // (Individual daemon tests below override HOME further and restore it.)
+  let suiteHome: string;
+  let suiteOrigHome: string | undefined;
+  before(() => {
+    suiteOrigHome = process.env.HOME;
+    suiteHome = mkdtempSync(join(tmpdir(), "runtime-index-home-"));
+    process.env.HOME = suiteHome;
+  });
+  after(() => {
+    process.env.HOME = suiteOrigHome;
+    rmSync(suiteHome, { recursive: true, force: true });
+  });
+
   it("returns empty index when no data dirs exist", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-empty-"));
     try {
@@ -178,6 +195,138 @@ describe("RuntimeIndex", () => {
       const idx = await buildRuntimeIndex(dir);
       assert.equal(idx.byAction("policy.allowed").length, 2);
       assert.equal(idx.byAction("policy.denied").length, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads daemon tasks from the global registry when cwd != HOME", async () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "runtime-proj-"));
+    const fakeHome = mkdtempSync(join(tmpdir(), "runtime-home-"));
+    const origHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      mkdirSync(join(fakeHome, ".alix"), { recursive: true });
+      // Writer resolves the global path under the isolated HOME
+      const reg = new TaskRegistry();
+      await reg.load();
+      const rec = reg.create("global task", projectDir);
+      // create() persists via fire-and-forget enqueueSave — poll for the file
+      const deadline = Date.now() + 5000;
+      while (!existsSync(resolveDaemonTasksPath()) && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 25));
+      }
+      assert.ok(existsSync(resolveDaemonTasksPath()), "writer should persist to the global registry");
+      // Reader runs from a project dir that is NOT $HOME
+      assert.notEqual(projectDir, fakeHome);
+      const idx = await buildRuntimeIndex(projectDir);
+      const daemonEvents = idx.events.filter(e => e.source === "daemon_task");
+      assert.equal(daemonEvents.length, 1);
+      assert.equal(daemonEvents[0].id, rec.id);
+      assert.equal(daemonEvents[0].action, "daemon.task.queued");
+    } finally {
+      process.env.HOME = origHome;
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to the legacy project-scoped daemon tasks file", async () => {
+    const projectDir = seedDir();
+    const fakeHome = mkdtempSync(join(tmpdir(), "runtime-home-legacy-"));
+    const origHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      // No global registry — only a legacy file under the project dir
+      assert.ok(!existsSync(resolveDaemonTasksPath()));
+      writeFileSync(
+        join(projectDir, ".alix", "daemon-tasks.json"),
+        JSON.stringify([{ id: "task_legacy", task: "legacy task", cwd: projectDir, status: "completed", createdAt: "2026-06-09T12:00:00Z", updatedAt: "2026-06-09T12:05:00Z" }]),
+      );
+      const idx = await buildRuntimeIndex(projectDir);
+      const daemonEvents = idx.events.filter(e => e.source === "daemon_task");
+      assert.equal(daemonEvents.length, 1);
+      assert.equal(daemonEvents[0].id, "task_legacy");
+    } finally {
+      process.env.HOME = origHome;
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers the global registry over the legacy file when both exist", async () => {
+    const projectDir = seedDir();
+    const fakeHome = mkdtempSync(join(tmpdir(), "runtime-home-both-"));
+    const origHome = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      mkdirSync(join(fakeHome, ".alix"), { recursive: true });
+      writeFileSync(
+        resolveDaemonTasksPath(),
+        JSON.stringify([{ id: "task_global", task: "global", cwd: projectDir, status: "queued", createdAt: "2026-06-09T12:00:00Z", updatedAt: "2026-06-09T12:00:00Z" }]),
+      );
+      writeFileSync(
+        join(projectDir, ".alix", "daemon-tasks.json"),
+        JSON.stringify([{ id: "task_legacy", task: "legacy", cwd: projectDir, status: "completed", createdAt: "2026-06-09T12:00:00Z", updatedAt: "2026-06-09T12:00:00Z" }]),
+      );
+      const idx = await buildRuntimeIndex(projectDir);
+      const daemonEvents = idx.events.filter(e => e.source === "daemon_task");
+      assert.equal(daemonEvents.length, 1);
+      assert.equal(daemonEvents[0].id, "task_global");
+    } finally {
+      process.env.HOME = origHome;
+      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  // #702: a repeated build reuses cached sources until they change.
+  it("reuses cached sources on repeat builds and invalidates on change", async () => {
+    const dir = seedDir();
+    try {
+      writeSessionEvent(dir, "sess_cache", {
+        type: "task.done", timestamp: "2026-06-09T12:00:00Z", seq: 1, sessionId: "sess_cache", payload: { summary: "first" },
+      });
+      const first = await buildRuntimeIndex(dir);
+      assert.equal(first.bySession("sess_cache").length, 1);
+
+      // Unchanged sources: identical result (served from cache).
+      const second = await buildRuntimeIndex(dir);
+      assert.deepEqual(second.events, first.events);
+
+      // Changed source: the new event is visible.
+      writeSessionEvent(dir, "sess_cache", {
+        type: "task.done", timestamp: "2026-06-09T12:01:00Z", seq: 2, sessionId: "sess_cache", payload: { summary: "second" },
+      });
+      const third = await buildRuntimeIndex(dir);
+      assert.equal(third.bySession("sess_cache").length, 2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // #702: per-source caps bound memory — only the newest N events are kept.
+  it("caps session events per source to the newest N", async () => {
+    const dir = seedDir();
+    try {
+      const sessionDir = join(dir, ".alix", "sessions", "sess_cap");
+      mkdirSync(sessionDir, { recursive: true });
+      const lines: string[] = [];
+      for (let i = 1; i <= 2_001; i++) {
+        lines.push(JSON.stringify({
+          type: "task.done", timestamp: `2026-06-09T12:00:${String(i % 60).padStart(2, "0")}Z`,
+          seq: i, sessionId: "sess_cap", payload: { n: i },
+        }));
+      }
+      writeFileSync(join(sessionDir, "events.jsonl"), lines.join("\n") + "\n");
+
+      const idx = await buildRuntimeIndex(dir);
+      const capped = idx.bySession("sess_cap");
+      assert.equal(capped.length, 2_000, "cap should retain exactly 2000");
+      // Newest retained: seq 2001 present, seq 1 evicted (id embeds seq).
+      const ids = new Set(capped.map((e) => e.id));
+      assert.ok(ids.has("sess_sess_cap_2001"));
+      assert.ok(!ids.has("sess_sess_cap_1"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

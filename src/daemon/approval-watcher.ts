@@ -85,7 +85,7 @@ export class ApprovalWatcher {
     }
   }
 
-  private emitEvent(approval: ApprovalRecord): void {
+  private emitEvent(_approval: ApprovalRecord): void {
     // Events will be wired in M0.77d.10
     // Placeholder for now
   }

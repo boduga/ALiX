@@ -55,50 +55,6 @@ export interface VerificationSuiteResult {
 // Defaults
 // ---------------------------------------------------------------------------
 
-const DEFAULT_VERIFICATION_COMMANDS: VerificationCommand[] = [
-  { label: "Build", command: "pnpm build", timeoutMs: 120_000 },
-  { label: "TypeScript typecheck", command: "pnpm typecheck", timeoutMs: 60_000 },
-  { label: "Tests", command: "pnpm test:vitest", timeoutMs: 300_000 },
-];
-
-const DEFAULT_ALLOWED_PREFIXES = [
-  "pnpm build",
-  "pnpm typecheck",
-  "pnpm test",
-  "pnpm lint",
-  "npm run build",
-  "npm run typecheck",
-  "npm test",
-  "make build",
-  "make test",
-  "cargo build",
-  "cargo test",
-  "go build",
-  "go test",
-];
-
-const DEFAULT_BLOCKED_PREFIXES = [
-  "rm -rf",
-  "rm -r",
-  "sudo",
-  "chmod",
-  "chown",
-  "git push",
-  "git commit",
-  "gh pr",
-  "npm publish",
-  "pnpm publish",
-];
-
-const DEFAULT_CONFIG: VerificationConfig = {
-  enabled: true,
-  dryRun: true,
-  commands: DEFAULT_VERIFICATION_COMMANDS,
-  allowedPrefixes: DEFAULT_ALLOWED_PREFIXES,
-  blockedPrefixes: DEFAULT_BLOCKED_PREFIXES,
-  timeoutMs: 300_000,
-};
-
 // ---------------------------------------------------------------------------
 // Command validation
 // ---------------------------------------------------------------------------

@@ -12,6 +12,8 @@
 import type { CapabilityService } from "../../capability/capability-service.js";
 import { capabilityProposalsCommand } from "./capability-proposals.js";
 import { capabilityMeasureCommand } from "./capability-measure.js";
+import { capabilityApproveCommand } from "./capability-approve.js";
+import { capabilityRejectCommand } from "./capability-reject.js";
 import {
   capabilityConsolidateCommand,
   type CapabilityDefinitionLookup,
@@ -53,10 +55,14 @@ export async function handleCapabilityCommand(
         catalog: deps.definitions,
         ...(deps.pairEvidence !== undefined ? { pairEvidence: deps.pairEvidence } : {}),
       });
+    case "approve":
+      return capabilityApproveCommand(rest, { service: deps.service });
+    case "reject":
+      return capabilityRejectCommand(rest, { service: deps.service });
     default:
       console.error(`Unknown capability subcommand: ${subcommand ?? "(none)"}`);
       console.error("Usage: alix capability <subcommand> [...]");
-      console.error("Subcommands: proposals, measure, consolidate");
+      console.error("Subcommands: proposals, measure, consolidate, approve, reject");
       return 2;
   }
 }

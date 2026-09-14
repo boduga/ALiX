@@ -59,8 +59,8 @@ vi.mock("../../../src/workflow/evidence-writer.js", () => ({
   },
 }));
 
-vi.mock("../../../src/adaptation/proposal-store.js", () => ({
-  ProposalStore: class {
+vi.mock("../../../src/adaptation/adaptation-proposal-store.js", () => ({
+  AdaptationProposalStore: class {
     list = mockList;
   },
 }));

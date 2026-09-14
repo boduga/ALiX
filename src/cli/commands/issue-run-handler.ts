@@ -12,21 +12,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { RunResult } from "../../run.js";
-import type { ExecutionContext } from "../../observability/execution-context.js";
 import { EventLog } from "../../events/event-log.js";
-
-interface ProposalSummary {
-  issueNumber: number;
-  issueTitle: string;
-  runId?: string;
-  sessionId?: string;
-  workflowId?: string;
-  proposedObjective: string;
-  proposedFiles: string[];
-  proposedVerification: string[];
-  risks: string[];
-  nextAction: string;
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -176,7 +162,6 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   const runId = `issue-run-${randomUUID().slice(0, 8)}`;
   const workflowId = `wf-issue-${issueNumber}-${Date.now().toString(36)}`;
 
-  const context: ExecutionContext = { runId, sessionId, workflowId };
   await eventLog.append({ ...eb, type: "issue.context_created" as const, payload: { runId, sessionId, workflowId } });
 
   console.log("ExecutionContext:");

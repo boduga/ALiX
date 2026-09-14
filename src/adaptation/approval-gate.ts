@@ -20,8 +20,8 @@
 
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type { GovernanceCriteriaResult } from "../governance/governance-types.js";
-import type { ProposalStore } from "./proposal-store.js";
-import type { AdaptationProposal, ProposalTarget } from "./adaptation-types.js";
+import type { AdaptationProposalStore } from "./adaptation-proposal-store.js";
+import type { AdaptationProposal } from "./adaptation-types.js";
 
 /** Async function that performs the actual mutation for a proposal. */
 export type Applier = (proposal: AdaptationProposal) => Promise<void>;
@@ -39,7 +39,7 @@ export type ApprovalBatchError = { id: string; error: string };
 
 export class ApprovalGate {
   constructor(
-    private readonly store: ProposalStore,
+    private readonly store: AdaptationProposalStore,
     private readonly writer: EvidenceEventWriter,
     private readonly governanceCriteria?: GovernanceCriteriaFn,
   ) {}
@@ -154,7 +154,7 @@ export class ApprovalGate {
    * Throws if the proposal is missing or not in `pending` state.
    */
   async reject(id: string, by: Actor, reason: string): Promise<AdaptationProposal> {
-    const existing = await this.requirePending(id);
+    await this.requirePending(id);
 
     const updated = await this.store.update(id, { status: "rejected" });
 

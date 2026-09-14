@@ -17,6 +17,7 @@ import type {
 } from "./forecasting-types.js";
 import { ForecasterError } from "./forecasting-types.js";
 import { DEFAULT_FORECASTING_CONFIG } from "./forecasting-config.js";
+import { sanitizeTimestamp } from "../utils/ids.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -28,10 +29,6 @@ const DEFAULT_MEAN_SCORE = 80;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function sanitizeTimestamp(iso: string): string {
-  return iso.replace(/[^a-zA-Z0-9]/g, "");
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

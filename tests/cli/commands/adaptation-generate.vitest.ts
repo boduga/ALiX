@@ -2,7 +2,7 @@
  * P5.2c.5 — adaptation generate CLI tests.
  *
  * Exercises `alix adaptation generate` end-to-end against real temp
- * directories (ProposalStore, EffectivenessStore, EvidenceStore). Mirrors the
+ * directories (AdaptationProposalStore, EffectivenessStore, EvidenceStore). Mirrors the
  * P5.2b CLI test style (mkdtemp + vi.spyOn(process, "cwd") + vi.spyOn(process, "exit")).
  *
  * Architectural assertions:
@@ -33,7 +33,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { readFileSync as readFileSyncRaw } from "node:fs";
 import { handleAdaptationCommand } from "../../../src/cli/commands/adaptation.js";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import { EffectivenessStore } from "../../../src/adaptation/effectiveness-store.js";
 import { EvidenceStore } from "../../../src/security/evidence/evidence-store.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
@@ -133,7 +133,7 @@ function makeEffectivenessReport(
 
 /** Seed an applied source proposal so the effectiveness path can find it. */
 async function seedAppliedSourceProposal(id: string): Promise<void> {
-  const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+  const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
   const proposal: AdaptationProposal = {
     id,
     createdAt: "2026-06-10T00:00:00.000Z",
@@ -157,7 +157,7 @@ async function writeEffectivenessReport(report: ProposalEffectivenessReport): Pr
 }
 
 function listAllProposals(): Promise<AdaptationProposal[]> {
-  const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+  const store = new AdaptationProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
   return store.list();
 }
 
@@ -187,22 +187,21 @@ describe("alix adaptation generate — architectural sentinel", () => {
       "src",
       "cli",
       "commands",
-      "adaptation.ts",
+      "adaptation",
+      "handlers.ts",
     );
     const src = readFileSyncRaw(cliPath, "utf-8");
 
     // Locate the runGenerate function body. We look for `function runGenerate`
-    // through the closing brace at the same indentation level. For
-    // resilience we extract from the marker to the next `function ` or
-    // top-level construct; we also tolerate the case where the function
-    // does not yet exist (test should still pass because there will be no
-    // --approve/--apply inside the empty marker span).
+    // through the next top-level function (#717: handlers moved out of
+    // adaptation.ts into adaptation/handlers.ts).
     const fnIdx = src.indexOf("function runGenerate");
     expect(fnIdx).toBeGreaterThan(-1);
 
-    // Take a generous slice from runGenerate declaration to end-of-file,
-    // since runGenerate is the last function added to this CLI in P5.2c.5.
-    const slice = src.slice(fnIdx);
+    // Slice from runGenerate to the next top-level function declaration so
+    // only runGenerate's body is inspected.
+    const nextFn = src.indexOf("\nasync function ", fnIdx + 1);
+    const slice = nextFn > -1 ? src.slice(fnIdx, nextFn) : src.slice(fnIdx);
 
     // Token-level grep: no `--approve` or `--apply` flag references.
     expect(slice).not.toMatch(/--approve\b/);

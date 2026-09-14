@@ -62,6 +62,8 @@ import type {
  * | `file.delete`  | Delete a file                       |
  * | `file.exists`  | Check if a file exists              |
  * | `dir.search`   | Search directory for files          |
+ * | `grep.search`  | Regex-search file contents          |
+ * | `glob.match`   | Match filenames against a glob      |
  * | `shell.run`    | Execute a shell command             |
  * | `patch.apply`  | Apply a structured patch            |
  * | `done`         | Signal task complete                |

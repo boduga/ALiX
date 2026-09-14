@@ -14,7 +14,7 @@
 
 - [ ] `npm run typecheck` passes
 - [ ] `npm run build` passes
-- [ ] `npm run test:unit:node` passes
+- [ ] `npm run test:node:ci` passes
 - [ ] `npm run test:vitest` passes
 - [ ] Manual test: `alix run "<task>"` completes a session without errors
 - [ ] For provider changes: tested with at least one live model call

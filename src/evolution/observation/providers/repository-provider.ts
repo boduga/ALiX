@@ -13,9 +13,9 @@
  * @module repository-provider
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { extname, join, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { extname, join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { buildObservationResult } from "./shared.js";

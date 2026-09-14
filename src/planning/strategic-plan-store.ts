@@ -8,18 +8,11 @@
 import { Either } from "effect";
 import { existsSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  StrategicPlan,
-  PlanStatus,
-  EffortEstimate,
-  StrategicImpact,
-  PlanningObjective,
-  StrategicPlanSummary,
-} from "./planning-types.js";
+import type { StrategicPlan, PlanStatus, EffortEstimate, StrategicImpact, StrategicPlanSummary } from "./planning-types.js";
 import { PlanningEngineError } from "./planning-types.js";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { StrategicPlanSchema } from "../contracts/plan-schemas.js";
-import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
+import { buildDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 
 // Re-export for consumer convenience.

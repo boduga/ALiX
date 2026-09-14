@@ -18,7 +18,7 @@ export class ProviderCatalogAdapter implements LLMAdapter {
 
   async complete(
     input: { system: string; user: string },
-    options?: { timeoutMs?: number },
+    _options?: { timeoutMs?: number },
   ): Promise<LLMCompletion> {
     const result = await this.adapter.complete({
       systemPrompt: input.system,

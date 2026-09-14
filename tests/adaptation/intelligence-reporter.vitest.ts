@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { EffectivenessStore } from "../../src/adaptation/effectiveness-store.js";
 import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
 import { ProposalLifecycleAnalyzer } from "../../src/adaptation/proposal-lifecycle-analyzer.js";
@@ -87,7 +87,7 @@ function makeEffectivenessReport(
 }
 interface Fixture {
   root: string;
-  proposalStore: ProposalStore;
+  proposalStore: AdaptationProposalStore;
   effectivenessStore: EffectivenessStore;
   evidenceStore: EvidenceStore;
   reporter: IntelligenceReporter;
@@ -96,7 +96,7 @@ interface Fixture {
 
 function createFixture(): Fixture {
   const root = mkdtempSync(join(tmpdir(), "intel-reporter-"));
-  const proposalStore = new ProposalStore(join(root, ".alix", "adaptation", "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(root, ".alix", "adaptation", "proposals"));
   const effectivenessStore = new EffectivenessStore(join(root, ".alix", "adaptation", "effectiveness"));
   const evidenceStore = new EvidenceStore({ storeDir: join(root, ".alix", "security") });
   const intelligenceStore = new IntelligenceStore(join(root, ".alix", "adaptation", "intelligence"));

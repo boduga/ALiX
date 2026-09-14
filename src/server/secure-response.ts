@@ -15,7 +15,7 @@ import type { ServerResponse } from "node:http";
 import { redactValue } from "../security/redaction/redactor.js";
 import { createRedactionPolicy } from "../security/redaction/redaction-policy.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
-import { DEFAULT_PROFILE } from "../security/redaction/profiles.js";
+import "../security/redaction/profiles.js";
 import { MAX_OUTPUT_BYTES } from "../security/redaction/classifications.js";
 import { API_CACHE_HEADERS } from "./security-headers.js";
 

@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskGraph, TaskNode, TaskNodeStatus } from "./task-graph.js";
-import { transitionNodeStatus, transitionGraphStatus } from "./task-graph.js";
+import "./task-graph.js";
 import type { RunResult } from "../run.js";
 import { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities } from "../registry/capability-resolver.js";

@@ -15,6 +15,22 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+// loadConfig() always merges the real user config (~/.config/alix) and
+// resolves cred:// apiKey refs against the credential backend. Isolate HOME
+// for the whole file so these tests are hermetic on machines whose user
+// config holds cred refs with an unreachable backend (#690 lane-blocking
+// flake: "Credential not found for apiKeys.deepseek" under parallel load).
+const __origHome = process.env.HOME;
+const __isoHome = join(tmpdir(), "alix-onboarding-home-" + Date.now());
+test.before(async () => {
+  await mkdirAsync(join(__isoHome, ".config", "alix"), { recursive: true });
+  process.env.HOME = __isoHome;
+});
+test.after(async () => {
+  process.env.HOME = __origHome;
+  await rmAsync(__isoHome, { recursive: true, force: true });
+});
+
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = join(tmpdir(), "alix-onboarding-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6));
   await mkdirAsync(dir, { recursive: true });

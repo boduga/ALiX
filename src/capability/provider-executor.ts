@@ -76,7 +76,7 @@ export class NativeProviderExecutor implements ProviderExecutor {
  *  toolName rides binding.config.toolName (legacy adapter places it there). */
 export class ToolProviderExecutor implements ProviderExecutor {
   constructor(private readonly tool: ToolExecutorLike) {}
-  async run(binding: CapabilityProviderBinding, capability: Capability, ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
+  async run(binding: CapabilityProviderBinding, capability: Capability, _ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
     const toolName = (binding.config?.toolName as string | undefined) ?? capability.id;
     const req: ToolCallRequest = { toolCallId: `cap_${Date.now()}`, name: toolName, args };
     const result = await this.tool.execute(req);
@@ -107,7 +107,7 @@ export interface McpToolRunner {
  *  is never a capability — only intentional operations bound here. */
 export class McpProviderExecutor implements ProviderExecutor {
   constructor(private readonly tools: McpToolRunner) {}
-  async run(binding: CapabilityProviderBinding, capability: Capability, _ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
+  async run(binding: CapabilityProviderBinding, _capability: Capability, _ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
     const toolName = (binding.config?.toolName as string | undefined) ?? binding.id;
     const result = await this.tools.callTool(toolName, args);
     if (result.kind === "error") return { error: result.message, errorKind: classifyErrorKind(result, undefined, result.retryable) };
@@ -149,7 +149,7 @@ function defaultSpawn(cmd: string, args: string[], opts: { timeoutMs?: number; s
  *  instance identity + config come from the binding. */
 export class ExternalCliProviderExecutor implements ProviderExecutor {
   constructor(private readonly spawn: SpawnLike = defaultSpawn) {}
-  async run(binding: CapabilityProviderBinding, capability: Capability, ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
+  async run(binding: CapabilityProviderBinding, _capability: Capability, ctx: CapabilityContext, args: Record<string, unknown>): Promise<ProviderRunResult> {
     const config = (binding.config ?? {}) as { executable?: string; operation?: string[]; args?: string[]; timeoutMs?: number };
     const executable = config.executable;
     if (!executable) {

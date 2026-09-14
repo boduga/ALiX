@@ -59,7 +59,7 @@ export function renderSchemaResult(result: unknown, schema?: SchemaLike): string
   return renderValue(result, schema, 0, seen);
 }
 
-function renderValue(value: unknown, schema: SchemaLike | undefined, depth: number, seen: Set<object>): string[] {
+function renderValue(value: unknown, _schema: SchemaLike | undefined, depth: number, seen: Set<object>): string[] {
   const actual = typeOf(value);
   const indent = "  ".repeat(depth);
 

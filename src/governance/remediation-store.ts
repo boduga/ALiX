@@ -92,7 +92,7 @@ export class RemediationStore {
   async updateStatus(
     proposalId: string,
     status: GovernanceRemediationProposalStatus,
-    now: string = new Date().toISOString(),
+    _now: string = new Date().toISOString(),
   ): Promise<GovernanceRemediationProposal | null> {
     const existing = await this.get(proposalId);
     if (!existing) return null;

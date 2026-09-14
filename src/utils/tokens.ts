@@ -16,6 +16,25 @@ export interface EstimationMetadata {
 // Cache: tokenizer name → loaded encoder (WASM parsed once, reused)
 const encoderCache: Map<TokenizerName, ReturnType<typeof get_encoding>> = new Map();
 
+/**
+ * Per-tokenizer token-count cache keyed by the exact text (#699). The task
+ * loop re-estimates the system prompt and the whole transcript every
+ * iteration; unchanged content is encoded once. Bounded to avoid unbounded
+ * growth over long sessions (oldest insertion evicted first).
+ */
+const TOKEN_COUNT_CACHE_MAX = 10_000;
+const tokenCountCache: Map<TokenizerName, Map<string, number>> = new Map();
+
+/** Test hook: number of cached token counts for a tokenizer. */
+export function tokenCountCacheSize(tokenizer: TokenizerName): number {
+  return tokenCountCache.get(tokenizer)?.size ?? 0;
+}
+
+/** Test hook: drop all cached token counts. */
+export function clearTokenCountCache(): void {
+  tokenCountCache.clear();
+}
+
 export async function ensureEncoder(tokenizer: TokenizerName): Promise<void> {
   if (encoderCache.has(tokenizer)) return;
   try {
@@ -27,12 +46,26 @@ export async function ensureEncoder(tokenizer: TokenizerName): Promise<void> {
 }
 
 function countTokens(text: string, tokenizer: TokenizerName): number {
+  let cache = tokenCountCache.get(tokenizer);
+  if (!cache) {
+    cache = new Map();
+    tokenCountCache.set(tokenizer, cache);
+  }
+  const hit = cache.get(text);
+  if (hit !== undefined) return hit;
+
   const enc = encoderCache.get(tokenizer);
   // Fail-soft last resort only: char/4 is never chosen as an admission
   // estimator (E1) — it is reachable only when the encoder has not been
   // loaded and tiktoken cannot be used at all.
-  if (!enc) return Math.ceil(text.length / 4);
-  return enc.encode(text).length;
+  const count = !enc ? Math.ceil(text.length / 4) : enc.encode(text).length;
+
+  if (cache.size >= TOKEN_COUNT_CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(text, count);
+  return count;
 }
 
 export function estimateTokens(text: string | unknown[], tokenizer: TokenizerName): number {

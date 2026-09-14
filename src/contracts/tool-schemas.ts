@@ -15,6 +15,8 @@ export const ToolNameSchema = Schema.Literal(
   "file.delete",
   "file.exists",
   "dir.search",
+  "grep.search",
+  "glob.match",
   "shell.run",
   "patch.apply",
   "done",

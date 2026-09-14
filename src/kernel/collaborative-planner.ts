@@ -16,16 +16,7 @@
 import { randomUUID } from "node:crypto";
 import type { CoordinationPlanner } from "./coordination-planner.js";
 import type { CoordinationStore } from "./coordination-store.js";
-import type {
-  CoordinationRun,
-  PlanningRound,
-  PlanningProposal,
-  PlanningBid,
-  WorkerAssignment,
-  PlanDiffEntry,
-  PlanRevision,
-  PlanTriggerKind,
-} from "./coordination-types.js";
+import type { CoordinationRun, PlanningRound, PlanningProposal, PlanDiffEntry, PlanRevision, PlanTriggerKind } from "./coordination-types.js";
 import { createWorkerAssignment } from "./coordination-types.js";
 
 // ─── Capability alias registry ─────────────────────────────────────────

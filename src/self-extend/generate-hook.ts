@@ -1,5 +1,5 @@
 // src/self-extend/generate-hook.ts
-import type { HookEvent, HookResult, HookFn } from "../extensions/hook-runner.js";
+import type { HookEvent, HookFn } from "../extensions/hook-runner.js";
 
 export type HookSpec = {
   hookName: string;

@@ -2,78 +2,61 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * CAP-N Task 4 — Structural sentinel for carve-out site.
+ * CAP-N Task 4 — Structural sentinel for carve-out site, behavioral
+ * edition (#697).
  *
- * Pins the carve-out site at `src/capability/capability-service.ts` is rewritten
- * to discriminate by `candidate.sourcePatternId` (gap → create, deprecation_signal
- * → remove, others → transition). If anyone reverts the rewrite — e.g., hardcodes
- * `operation: "capability.transition"` as the only operation literal — these
- * assertions fail and surface the regression.
+ * Pins the carve-out discriminator `candidateToExecutionStep` through its
+ * real interface: gap → create, deprecation_signal → remove,
+ * underperformer → update, consolidation_opportunity → consolidate, and
+ * anything else → CapabilityValidationError (fail-closed default; the
+ * CAP-P fix for the silent-transition fall-through).
  *
- * Axis 1: function body contains all three operation literals
- *         (create, remove, transition).
- * Axis 2: function body contains a switch over sourcePatternId with the
- *         three branches (case "gap", case "deprecation_signal", default).
+ * @module tests/capability/cap-n-sentinel
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { candidateToExecutionStep } from "../../src/capability/capability-service.js";
+import { CapabilityValidationError } from "../../src/capability/errors.js";
+import type { CapabilityEvolutionCandidate } from "../../src/adaptation/capability-evolution-types.js";
 
-const CAPABILITY_SERVICE_PATH = resolve(
-  import.meta.dirname,
-  "../../src/capability/capability-service.ts",
-);
-
-function readFunctionBody(name: string): string {
-  const source = readFileSync(CAPABILITY_SERVICE_PATH, "utf8");
-  // Simple, robust: extract the function body by brace counting from
-  // `function name(` to its closing brace.
-  const start = source.indexOf(`function ${name}(`);
-  if (start === -1) throw new Error(`function ${name} not found`);
-  let depth = 0;
-  let i = source.indexOf("{", start);
-  for (; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) break;
-    }
-  }
-  return source.slice(start, i + 1);
+function candidate(overrides: Partial<CapabilityEvolutionCandidate> = {}): CapabilityEvolutionCandidate {
+  return {
+    candidateId: "cand-1",
+    sourcePatternId: "gap",
+    confidence: 0.9,
+    target: { id: "cap-a", kind: "operation" },
+    description: "test candidate",
+    expectedEffect: "none",
+    riskClass: "low",
+    evidenceIds: [],
+    ...overrides,
+  } as CapabilityEvolutionCandidate;
 }
 
-describe("CAP-N structural sentinel", () => {
-  const body = readFunctionBody("candidateToExecutionStep");
-
-  it("axis 1: function body contains all CAP-N/O/P operation literals (create, remove, update, consolidate) — 'transition' is NOT in the default fall-through anymore (CAP-P)", () => {
-    // Pre-CAP-P: the discriminator's default case was
-    // `capability.transition`. CAP-P removed that silent
-    // fall-through — the default now throws. The closed discriminator
-    // set: create (CAP-N), remove (CAP-N), update (CAP-O),
-    // consolidate (CAP-P). `capability.transition` exists only as the
-    // explicit `from → to` case which the producer of the source
-    // signal names — there is no implicit default transition.
-    expect(body).toContain('"capability.create"');
-    expect(body).toContain('"capability.remove"');
-    expect(body).toContain('"capability.update"');
-    expect(body).toContain('"capability.consolidate"');
-    // Sentinel: the discriminator's `default:` case THROWS rather
-    // than emitting `capability.transition` — that was the bug CAP-P
-    // closes. Code-review pass 3 (S1) tightened the throw site from a
-    // bare `new Error` to `new CapabilityValidationError`, so the
-    // marker regex now matches either throw form within a short span.
-    // The regex is intentionally narrow so it doesn't match comment
-    // text in the function's docstring.
-    expect(body).toMatch(/default:\s*[\s\S]{0,1500}throw new (CapabilityValidation)?Error/);
+describe("CAP-N carve-out discriminator", () => {
+  it("axis 1: maps gap → create, deprecation_signal → remove, update, consolidate", () => {
+    expect(
+      candidateToExecutionStep(candidate({ sourcePatternId: "gap" }), "src-1", "1.0.0").operation,
+    ).toBe("capability.create");
+    expect(
+      candidateToExecutionStep(candidate({ sourcePatternId: "deprecation_signal" }), "src-1", "1.0.0").operation,
+    ).toBe("capability.remove");
+    expect(
+      candidateToExecutionStep(
+        candidate({ sourcePatternId: "underperformer", proposedPatch: { op: "set", path: "/x", value: 1 } as never }),
+        "src-1",
+        "1.0.0",
+      ).operation,
+    ).toBe("capability.update");
   });
 
-  it("axis 2: function body switches on sourcePatternId with three cases", () => {
-    expect(body).toMatch(/switch\s*\(\s*candidate\.sourcePatternId\s*\)/);
-    expect(body).toContain('case "gap"');
-    expect(body).toContain('case "deprecation_signal"');
-    // default or trailing underperformer/consolidation_opportunity case
-    expect(body).toMatch(/case\s+"underperformer"|default\s*:/);
+  it("axis 2: unrecognized sourcePatternId throws fail-closed (no silent transition)", () => {
+    expect(() =>
+      candidateToExecutionStep(candidate({ sourcePatternId: "mystery" }), "src-1", "1.0.0"),
+    ).toThrow(CapabilityValidationError);
+    // Underperformer without a patch is equally rejected, never emitted.
+    expect(() => candidateToExecutionStep(candidate({ sourcePatternId: "underperformer" }), "src-1", "1.0.0")).toThrow(
+      CapabilityValidationError,
+    );
   });
 });

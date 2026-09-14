@@ -1,7 +1,7 @@
 /**
  * P10.9.2b-T2 — Integration tests for `alix executive remediate`.
  *
- * Tests handleRemediateCommand() through ProposalStore-backed fixture proposals
+ * Tests handleRemediateCommand() through AdaptationProposalStore-backed fixture proposals
  * in a temporary directory. Verifies validation errors, child proposal creation,
  * dry-run behavior, and JSON output.
  *
@@ -13,7 +13,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { ProposalStore } from "../../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../../src/adaptation/adaptation-proposal-store.js";
 import { handleRemediateCommand } from "../../../src/cli/commands/executive-remediate-handler.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
 

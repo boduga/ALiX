@@ -20,9 +20,9 @@ import { ContextProjectionBuilder } from "../../tui/runtime/context-projection.j
 import { createProjectionRuntime } from "../../tui/runtime/projection-runtime.js";
 import { ProjectionIds } from "../../tui/runtime/projection-ids.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
-import { PolicyEngine } from "../../policy/policy-engine.js";
+import { PolicyGate } from "../../policy/policy-gate.js";
 import { SessionPhase } from "../../tui/state.js";
-import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
+import "../../tui/helpers/policy-commands.js";
 import { createAgentSession } from "../../agent/session.js";
 import { createTraceClient } from "../../tracing/client-factory.js";
 import type { TraceClient } from "../../tracing/client.js";
@@ -108,7 +108,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     },
   });
 
-  const policy = new PolicyEngine(config as any);
+  const policy = new PolicyGate(config as any, { approvalStore });
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
   // Phase 6 Task 3 + regression fix (Task 3.5): THREE independent projections
   // over ONE EventLog — each owns its own in-memory cursor + durable

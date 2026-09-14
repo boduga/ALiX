@@ -125,9 +125,8 @@ export function parseAuditResult(raw: string): {
     const vulns = parsed.vulnerabilities ?? {};
 
     const findings: AdvisoryFinding[] = [];
-    for (const [id, vuln] of Object.entries(vulns)) {
+    for (const [_id, vuln] of Object.entries(vulns)) {
       // Determine if it's a production or dev dependency
-      const isDirect = vuln.isDirect ?? false;
       const effects = vuln.effects ?? [];
       const hasProductionEffect = effects.length === 0 || effects.some((e) => e !== "dev");
 

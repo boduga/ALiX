@@ -104,7 +104,7 @@ export class DefaultExecutiveObservationProvider implements ExecutiveObservation
     private readonly options: DefaultExecutiveObservationProviderOptions,
   ) {}
 
-  async collect(planId: string): Promise<ExecutiveObservation> {
+  async collect(_planId: string): Promise<ExecutiveObservation> {
     // P10.4c-style read pattern: load each source in parallel, fail-soft
     // per-source. A missing trend snapshot or empty outcome list is not
     // an error — the observation just omits the corresponding id.

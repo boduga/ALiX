@@ -18,7 +18,7 @@
  * @module execution-lifecycle
  */
 
-import type { ValidationResult } from "../../contracts/evolution-contract.js";
+import "../../contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // Execution State

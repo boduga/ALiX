@@ -24,14 +24,10 @@ interface HunkApplyResult {
 export class StructuredPatchApplier {
   private parser: PatchParser;
   private strict: boolean;
-  private allowFuzz: boolean;
-  private fuzzFactor: number;
 
   constructor(options: StructuredPatchApplierOptions = {}) {
     this.parser = new PatchParser();
     this.strict = options.strict ?? true;
-    this.allowFuzz = options.allowFuzz ?? false;
-    this.fuzzFactor = options.fuzzFactor ?? 0.5;
   }
 
   apply(original: string, patch: string): ApplyResult {

@@ -608,7 +608,6 @@ function paintMetaLine(
   rightSuffix: string = "",
 ): void {
   const labelField = label.padEnd(14);
-  const valueStart = x + labelField.length;
   const valueBudget = contentW - labelField.length - (rightSuffix ? rightSuffix.length + 1 : 0);
   const valueText = truncate(value, Math.max(0, valueBudget));
   canvas.write(x, y, `${labelField}${valueText}`);
@@ -618,14 +617,6 @@ function paintMetaLine(
 }
 
 /** Format a millisecond timestamp as a short bare-duration: "18s", "2m", "1h 5m". */
-function formatShortDuration(ms: number, now: number): string {
-  const sec = Math.max(0, Math.floor((now - ms) / 1000));
-  if (sec < 60) return `${sec}s`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  return `${h}h ${m}m`;
-}
 
 /** Format an integer with thousands separators, e.g. 21,530. */
 function formatThousands(n: number): string {

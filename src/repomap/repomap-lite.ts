@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { minimatch } from "minimatch";
+import { IGNORED_DIRS, loadGitignore, isIgnoredPath } from "../tools/ignore.js";
 import { buildDependencyGraph } from "./dependency-graph.js";
 import { measurePhase } from "../runtime/timing-events.js";
 
@@ -37,7 +38,7 @@ export type RepoMapOptions = {
   sessionId?: string;
 };
 
-const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".worktrees", ".alix", "test-folder"]);
+const REPOMAP_EXTRA_IGNORED = new Set([".worktrees", "test-folder"]);
 
 export async function buildRepoMapLite(
   root: string,
@@ -48,7 +49,8 @@ export async function buildRepoMapLite(
     options?.sessionId ?? "system",
     "context.compile",
     async () => {
-      const paths = await walk(root);
+      const ignorePatterns = loadGitignore(root);
+      const paths = await walk(root, ignorePatterns);
       const files: RepoFileSummary[] = [];
       const topLevelSymbols: SymbolSummary[] = [];
 
@@ -84,18 +86,20 @@ export async function buildRepoMapLite(
   );
 }
 
-async function walk(root: string, dir = root): Promise<string[]> {
+async function walk(root: string, ignorePatterns: string[], dir = root): Promise<string[]> {
   const files: string[] = [];
   const dirs = [dir];
   while (dirs.length > 0) {
     const current = dirs.pop()!;
     const entries = await readdir(current, { withFileTypes: true });
     for (const entry of entries) {
-      if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
+      const rel = relative(root, join(current, entry.name)).split(sep).join("/");
+      if (entry.isDirectory() && (IGNORED_DIRS.has(entry.name) || REPOMAP_EXTRA_IGNORED.has(entry.name) || isIgnoredPath(rel, ignorePatterns))) continue;
       const fullPath = join(current, entry.name);
       if (entry.isDirectory()) {
         dirs.push(fullPath);
       } else if (entry.isFile()) {
+        if (isIgnoredPath(rel, ignorePatterns)) continue;
         files.push(relative(root, fullPath));
       }
     }

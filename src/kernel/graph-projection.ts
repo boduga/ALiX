@@ -92,13 +92,11 @@ export async function buildGraphProjection(
       if (!existsSync(eventsPath)) continue;
       const raw = await readFile(eventsPath, "utf-8");
       const lines = raw.trim().split("\n").filter(Boolean);
-      let foundGraph = false;
       for (const line of lines) {
         try {
           const ev = JSON.parse(line);
           const meta = ev.meta || {};
           if (meta.graphId === graphId || ev.payload?.graphId === graphId) {
-            foundGraph = true;
             sessionIds.add(sd);
 
             if (ev.type === "task.started" || ev.type === "task.ready") {

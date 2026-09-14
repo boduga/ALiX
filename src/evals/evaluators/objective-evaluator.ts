@@ -10,7 +10,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, isAbsolute, sep } from "node:path";
-import type { EvalObjective, ObjectiveEvidence, ObjectiveOutcome } from "../evals-types.js";
+import type { EvalObjective, ObjectiveOutcome } from "../evals-types.js";
 
 /** Thrown when an objective path escapes (or illegitimately targets) the cwd. */
 export class ObjectivePathEscapeError extends Error {

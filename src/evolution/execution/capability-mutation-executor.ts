@@ -40,7 +40,7 @@ import {
   validateConsolidateMerge,
 } from "../../capability/mutation-contract.js";
 import type { StepExecutor } from "./execution-runtime.js";
-import type { ExecutionStep, RollbackStep } from "./contracts/execution-contract.js";
+import type { ExecutionStep } from "./contracts/execution-contract.js";
 import { DefaultRollbackResolver, type RollbackResolver } from "./execution-planner.js";
 
 const MUTATION_PREFIX = "alix-capability-mutation-v1:";

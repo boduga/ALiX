@@ -1,11 +1,6 @@
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
-import type { CapabilityService } from './capabilities/capability-service.js';
 import type { CanvasRect } from './canvas.js';
-
-export interface PaletteControllerOpts {
-  capabilityService?: CapabilityService;
-}
 
 /** Command-palette modal — key routing while open + overlay paint. */
 export class PaletteController {
@@ -13,7 +8,7 @@ export class PaletteController {
   open = false;
   query = '';
 
-  constructor(private readonly opts: PaletteControllerOpts) {}
+  constructor() {}
 
   hasCapabilityService(): boolean {
     try { getCapabilityService(); return true; } catch { return false; }

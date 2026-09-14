@@ -89,9 +89,6 @@ export function buildIntentMetadataBlock(intent: ActionIntent): string {
  * Internal helper — every Layer 3 builder uses this so the metadata format
  * stays consistent across the routing chain.
  */
-function withIntentMetadata(intent: ActionIntent, body: string): string {
-  return `${buildIntentMetadataBlock(intent)}${body}`;
-}
 
 /**
  * Thread a canonical-intent label into an arbitrary base prompt.

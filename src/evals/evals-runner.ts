@@ -94,7 +94,7 @@ function evalCaseCwd(): string {
 /** Run a single case in an isolated cwd and produce its EvalResult. */
 export async function runEvalCase(
   evalCase: EvalCase,
-  opts: { driver?: EvalDriverKind } = {},
+  _opts: { driver?: EvalDriverKind } = {},
 ): Promise<EvalResult> {
   const cwd = evalCaseCwd();
   try {

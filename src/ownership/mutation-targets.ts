@@ -131,7 +131,7 @@ export function extractMutationTargets(
 function extractPatchPaths(
   patchText: string,
   resolver: WorkspacePathResolver,
-  root: string,
+  _root: string,
 ): MutationTarget[] {
   const targets: MutationTarget[] = [];
   // Match unified diff headers: --- a/path  and  +++ b/path

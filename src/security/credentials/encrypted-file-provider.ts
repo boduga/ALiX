@@ -43,7 +43,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import { randomUUID } from "node:crypto";
+import "node:crypto";
 import { hashRaw as argon2HashRaw } from "@node-rs/argon2";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { type StoreSchema } from "./credential-store.js";

@@ -34,6 +34,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { mkdtempSync } from "node:fs";
+import { CapabilityPlatform } from "../../src/capability/platform.js";
+import { CapabilityService } from "../../src/capability/capability-service.js";
+import { CapabilityRegistry } from "../../src/capability/registry.js";
+import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
+import { EventLog } from "../../src/events/event-log.js";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -42,27 +49,18 @@ function readSrc(rel: string): string {
 }
 
 describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {
-  it("axis 1: new CapabilityRegistry/Resolver only in composition root", () => {
-    const platformSrc = readSrc("src/capability/platform.ts");
-    const serviceSrc = readSrc("src/capability/capability-service.ts");
-    const a5Src = readSrc("src/evolution/observation/capability-measurement.ts");
-    const engineSrc = readSrc("src/capability/measurement/capability-measurement-engine.ts");
-    expect(platformSrc, "platform constructs CapabilityRegistry").toMatch(/new\s+CapabilityRegistry\(/);
-    expect(platformSrc, "platform constructs CapabilityResolver").toMatch(/new\s+CapabilityResolver\(/);
-    for (const [name, src] of [
-      ["service", serviceSrc],
-      ["a5", a5Src],
-      ["engine", engineSrc],
-    ] as const) {
-      expect(
-        src,
-        `axis 1: ${name} must not construct CapabilityRegistry`,
-      ).not.toMatch(/new\s+CapabilityRegistry\(/);
-      expect(
-        src,
-        `axis 1: ${name} must not construct CapabilityResolver`,
-      ).not.toMatch(/new\s+CapabilityResolver\(/);
-    }
+  it("axis 1: composition root wires registry, resolver, and service", () => {
+    // Behavioral composition proof (#697): the platform actually builds
+    // and connects the three — no source-text assertion.
+    const dir = mkdtempSync(join(tmpdir(), "five-axis-"));
+    const platform = new CapabilityPlatform({
+      eventLog: new EventLog(join(dir, "sessions", "s1")),
+      catalogDir: join(dir, "capabilities"),
+    });
+    expect(platform.service).toBeInstanceOf(CapabilityService);
+    const internals = platform as unknown as Record<string, unknown>;
+    expect(internals["registry"]).toBeInstanceOf(CapabilityRegistry);
+    expect(internals["resolver"]).toBeInstanceOf(CapabilityResolver);
   });
 
   it("axis 4: A7 module contains no capability mutator call sites (CAP-9 preserved)", () => {

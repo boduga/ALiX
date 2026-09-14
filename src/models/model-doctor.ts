@@ -18,7 +18,7 @@ export type DoctorReport = {
 
 export function runDoctor(
   system: SystemInfo,
-  config: Record<string, unknown>,
+  _config: Record<string, unknown>,
   profiles: ProfileData[],
   activeProfileId?: string,
 ): DoctorReport {

@@ -3,9 +3,12 @@ import { validateNetworkHost, validateNetworkUrl } from "./web-fetch.js";
 
 export type ResolveNetworkHost = (hostname: string) => Promise<string[]>;
 
-const NETWORK_CLIENT_RE = /(?:^|[;&|]\s*|\b(?:sudo|env)\s+)(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|ping)\b/i;
+const NETWORK_CLIENT_RE = /(?:^|[;&|]\s*|\b(?:sudo|env)\b[^\n;&|]*?|(?<=\/))(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|ping)\b/i;
 const URL_RE = /https?:\/\/[^\s'"`;<>()]+/gi;
 const PRIVATE_HOST_LITERAL_RE = /(?:^|[^\w.:-])(?:localhost(?:\.localhost)?|127(?:\.\d{1,3}){3}|169\.254(?:\.\d{1,3}){2}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|0\.0\.0\.0|\[?::1\]?)(?=$|[^\w.-])/i;
+// Command execution inside a network-client invocation hides the real
+// destination from static validation — fail closed.
+const COMMAND_SUBSTITUTION_RE = /\$\(|`/;
 
 function shellTokens(command: string): string[] {
   return command.match(/"(?:\\.|[^"\\])*"|'[^']*'|[^\s]+/g)?.map((token) => token.replace(/^['"]|['"]$/g, "")) ?? [];
@@ -13,7 +16,13 @@ function shellTokens(command: string): string[] {
 
 function explicitClientHost(command: string, client: string): string | undefined {
   const tokens = shellTokens(command);
-  const index = tokens.findIndex((token) => token.replace(/^.*[;&|]/, "") === client);
+  // Compare basenames so absolute/relative client paths (/usr/bin/ssh)
+  // resolve the same as bare names.
+  const index = tokens.findIndex((token) => {
+    const invocation = token.replace(/^.*[;&|]/, "");
+    const base = invocation.split("/").pop() ?? invocation;
+    return base === client;
+  });
   if (index < 0) return undefined;
   const args = tokens.slice(index + 1).filter((token) => !token.startsWith("-"));
   if (client === "nc" || client === "ncat" || client === "netcat" || client === "telnet") return args[0];
@@ -45,6 +54,10 @@ export async function validateShellNetworkCommand(
   const clientMatch = command.match(NETWORK_CLIENT_RE);
   if (!clientMatch) return;
   const client = clientMatch[1]!.toLowerCase();
+
+  if (COMMAND_SUBSTITUTION_RE.test(command)) {
+    throw new Error(`Network destination could not be validated for ${client} (command substitution is not allowed)`);
+  }
 
   if (client === "curl" || client === "wget") {
     if (urls.length === 0) throw new Error(`Network destination could not be validated for ${client}`);

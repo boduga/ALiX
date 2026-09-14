@@ -27,7 +27,7 @@ export class RevertApplier {
   private readonly store: SnapshotStore;
 
   constructor(
-    private readonly snapshotsDir: string,
+    snapshotsDir: string,
     private readonly writer: EvidenceEventWriter,
   ) {
     this.store = new SnapshotStore(snapshotsDir);

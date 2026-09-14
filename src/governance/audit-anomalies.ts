@@ -17,8 +17,8 @@
 // ---------------------------------------------------------------------------
 
 import { createHash } from "node:crypto";
-import type { GovernanceAuditEvent, RiskLevel } from "./audit-types.js";
-import { decisionRates, riskDistribution } from "./audit-metrics.js";
+import type { GovernanceAuditEvent } from "./audit-types.js";
+import { riskDistribution } from "./audit-metrics.js";
 
 // ---------------------------------------------------------------------------
 // Exported types

@@ -1,7 +1,7 @@
 // src/capability/runtime.ts
 import { randomUUID } from "node:crypto";
 import { CapabilityNotFoundError, ProviderUnavailableError } from "./errors.js";
-import { AsyncEventQueue, type CapabilityContext, type CapabilityEvent, type EventBusLike, type Invocation, type InvocationResult, type InvocationStatus, type Permission } from "./types.js";
+import { AsyncEventQueue, type CapabilityContext, type CapabilityEvent, type EventBusLike, type Invocation, type InvocationResult, type InvocationStatus } from "./types.js";
 import type { CapabilityRegistry } from "./registry.js";
 import type { HookRegistry } from "./hook-registry.js";
 import type { ProviderResolver } from "./provider-resolver.js";
@@ -201,7 +201,7 @@ export class CapabilityRuntime {
   }
 
   private makeContext(
-    capabilityId: string,
+    _capabilityId: string,
     overrides: Partial<Pick<CapabilityContext, "actor" | "cwd" | "workspace" | "sessionId" | "permissions">>,
     invocationId = `inv_${randomUUID().slice(0, 8)}`,
     signal?: AbortSignal,

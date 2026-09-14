@@ -32,9 +32,6 @@ import { CancellationToken, ExecutionCancelledError } from "./cancellation-token
 // Helpers
 // ---------------------------------------------------------------------------
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function computeBackoffMs(attempt: number, policy: RetryPolicy): number {
   const s = policy.backoffStrategy;
@@ -50,7 +47,7 @@ function computeBackoffMs(attempt: number, policy: RetryPolicy): number {
   }
 }
 
-function isRetryable(executionId: string, policy: RetryPolicy): boolean {
+function isRetryable(_executionId: string, policy: RetryPolicy): boolean {
   // If retryableFailures is empty, all failures are retryable
   if (policy.retryableFailures.length === 0) return true;
   // ExecutionId-based check — in future this will examine failure type
@@ -311,8 +308,8 @@ export class RetryController {
 
   private emitRetryEvidence(
     intent: ExecutionIntent,
-    attempt: number,
-    maxAttempts: number,
+    _attempt: number,
+    _maxAttempts: number,
     summary: string,
     eventType: ExecutionEventType = "ExecutionRetryAttempted",
   ): void {

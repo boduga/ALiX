@@ -14,7 +14,7 @@ export type AgentIntent = "research" | "mutation" | "validation";
 
 // Tool name patterns for intent classification
 const RESEARCH_TOOLS = new Set([
-  "file.read", "dir.search", "web_fetch", "web_search",
+  "file.read", "dir.search", "grep.search", "glob.match", "web_fetch", "web_search",
   "mcp_discovery", "grep", "glob", "list_files",
 ]);
 

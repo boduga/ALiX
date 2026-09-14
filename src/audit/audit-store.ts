@@ -9,11 +9,10 @@
  * memory stays O(limit), not O(file size).
  */
 
-import { appendFile, mkdir } from "node:fs/promises";
-import { existsSync, createReadStream } from "node:fs";
-import { createInterface } from "node:readline";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AuditRecord, AuditAction, AuditDetails } from "./audit-types.js";
+import { JsonlStore, streamJsonlLines } from "../storage/jsonl-store.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,14 +80,9 @@ async function streamQuery(
   let matchCount = 0;
 
   const malformedLines: number[] = [];
-  let lineNumber = 0;
 
-  // Streaming read.
-  const stream = createReadStream(filePath, { encoding: "utf-8" });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-  for await (const line of rl) {
-    lineNumber++;
+  // Streaming read (shared primitive — O(1) memory, physical line numbers).
+  for await (const { line, lineNumber } of streamJsonlLines(filePath)) {
 
     let parsed: unknown;
     try {
@@ -142,9 +136,6 @@ async function streamQuery(
     matchCount++;
   }
 
-  rl.close();
-  stream.destroy();
-
   // Collect results.
   let records: AuditRecord[];
   if (matchCount <= limit) {
@@ -180,17 +171,11 @@ async function streamQuery(
 
 export class AuditStore {
   private filePath: string;
+  private store: JsonlStore;
 
   constructor(cwd: string) {
     this.filePath = join(cwd, ".alix", "audit", "audit.jsonl");
-  }
-
-  /** Ensure the directory exists. */
-  private async ensureDir(): Promise<void> {
-    const dir = join(this.filePath, "..");
-    if (!existsSync(dir)) {
-      await mkdir(dir, { recursive: true });
-    }
+    this.store = new JsonlStore(this.filePath);
   }
 
   /** Append an audit record. Returns the created record with generated ID. */
@@ -206,8 +191,7 @@ export class AuditStore {
       actor: opts.actor,
       details: opts.details,
     };
-    await this.ensureDir();
-    await appendFile(this.filePath, JSON.stringify(record) + "\n", "utf-8");
+    await this.store.appendRecord(record);
     return record;
   }
 

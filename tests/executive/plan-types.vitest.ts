@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { behaviorFor, READ_ONLY_ACTIONS, INVESTIGATION_ACTIONS, MUTATION_ACTIONS, STEP_BEHAVIOR } from "../../src/executive/step-behavior.js";
-import type { ExecutionStepAction } from "../../src/executive/planning-engine.js";
+import type { ExecutionStepAction } from "../../src/executive/execution-plan-builder.js";
 
 import { validateStateStepIds } from "../../src/executive/executive-plan-types.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "../../src/executive/executive-plan-types.js";

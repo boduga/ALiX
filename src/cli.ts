@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import "node:os";
 import { join, resolve } from "node:path";
-import { loadConfig, DEFAULT_CONFIG, projectConfigDir } from "./config/loader.js";
+import { loadConfig, projectConfigDir } from "./config/loader.js";
 import { resolveModelConfig } from "./config/model-resolver.js";
 import { ALIX_VERSION } from "./index.js";
-import { EXIT_CODES } from "./run.js";
-import { createAgentSession, type AgentTurnResult } from "./agent/session.js";
-import { ApiError } from "./providers/base.js";
-import { PROVIDERS, listModels } from "./providers/catalog.js";
+import "./run.js";
+import "./agent/session.js";
+import "./providers/base.js";
+import { PROVIDERS } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
-import type { ModelInfo } from "./providers/catalog.js";
+import "./providers/catalog.js";
 import { prompt } from "./cli/commands/prompt.js";
-import { getApiKey, getSavedApiKey, setApiKey } from "./cli/helpers/api-keys.js";
+import { setApiKey } from "./cli/helpers/api-keys.js";
+import { resolveDaemonTasksReadPath } from "./daemon/daemon-paths.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
 
@@ -98,6 +99,10 @@ COMMAND_ROUTER["submit"] = async () => {
   const { handler } = await import("./cli/commands/submit.js");
   return { handler };
 };
+COMMAND_ROUTER["failures"] = async () => {
+  const { handleFailuresCommand } = await import("./cli/commands/failures.js");
+  return { handler: async (a) => { await handleFailuresCommand(a); return 0; } };
+};
 
 if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
@@ -137,6 +142,7 @@ Usage:
   alix audit by-action <action>  Filter by action type
   alix audit verify              Stream-verify audit log integrity
   alix audit verify --json       Structured integrity report
+  alix audit activate            Seal legacy log, start integrity chain
   alix audit checkpoint --output <path>  Create signed checkpoint
   alix audit checkpoint-verify <path>    Verify checkpoint evidence
   alix evidence list [--kind <type>] [--limit <n>] [--json]
@@ -534,7 +540,7 @@ if (command === "graph" && args[0] === "inspect") {
   const graphId = args[1];
   if (!graphId) { console.error("Usage: alix graph inspect <graphId>"); process.exit(1); }
   const cwd = process.cwd();
-  const { loadGraph, sortNodesByDependencies, normalizeNode } = await import("./kernel/graph-executor.js");
+  const { loadGraph } = await import("./kernel/graph-executor.js");
   try {
     const graph = await loadGraph(graphId, cwd);
     const nodes = graph.nodes;
@@ -1334,13 +1340,13 @@ if (command === "skill") {
 
       // --propose: map intent to proposal
       if (proposeFlag) {
-        const { homedir: getHomedir } = await import("node:os");
+        const { homedir: _getHomedir } = await import("node:os");
         const { join: pathJoin } = await import("node:path");
-        const { ProposalStore } = await import("./adaptation/proposal-store.js");
+        const { AdaptationProposalStore } = await import("./adaptation/adaptation-proposal-store.js");
         const { IntentProposalMapper } = await import("./adaptation/intent-proposal-mapper.js");
 
         const proposalsDir = pathJoin(process.cwd(), ".alix", "adaptation", "proposals");
-        const proposalStore = new ProposalStore(proposalsDir);
+        const proposalStore = new AdaptationProposalStore(proposalsDir);
         const mapper = new IntentProposalMapper(proposalStore);
 
         const result = await mapper.mapToProposal(intent as any, store);
@@ -1974,8 +1980,7 @@ if (command === "daemon") {
 
   if (args[0] === "tasks") {
     const { readFileSync, existsSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+    const tasksPath = resolveDaemonTasksReadPath(cwd);
     if (!existsSync(tasksPath)) { console.log("No daemon tasks."); process.exit(0); }
     try {
       const raw = readFileSync(tasksPath, "utf-8");
@@ -2000,7 +2005,7 @@ if (command === "daemon") {
 
   if (args[0] === "doctor") {
     const { existsSync, readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
+    const {  } = await import("node:path");
     console.log("Daemon Doctor — health check\n");
     const running = await mgr.isRunning();
     const status = await mgr.status();
@@ -2015,7 +2020,7 @@ if (command === "daemon") {
       if (status.socketPath) console.log(`Socket:  ${existsSync(status.socketPath) ? "✓ exists" : "✗ missing"} ${status.socketPath}`);
     }
     // Task summary
-    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+    const tasksPath = resolveDaemonTasksReadPath(cwd);
     if (existsSync(tasksPath)) {
       try {
         const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));
@@ -2073,6 +2078,13 @@ if (command === "audit") {
     const { handleAuditVerify } = await import("./cli/commands/security.js");
     await handleAuditVerify(args.slice(1));
     // handleAuditVerify calls process.exit
+    process.exit(0);
+  }
+
+  // Sd1.6/#683: activate the integrity chain on a legacy log
+  if (args[0] === "activate") {
+    const { handleAuditActivate } = await import("./cli/commands/security.js");
+    await handleAuditActivate(args.slice(1));
     process.exit(0);
   }
 
@@ -2352,13 +2364,13 @@ if (command === "doctor") {
   }
   const cwd = process.cwd();
   const { existsSync, readFileSync } = await import("node:fs");
-  const { join } = await import("node:path");
+  const {  } = await import("node:path");
   let failed = false;
 
   console.log("ALiX Doctor — system health check\n");
 
   try {
-    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("./registry/card-loader.js");
+    const { loadCardRegistry, defaultAgentCards } = await import("./registry/card-loader.js");
     const reg = await loadCardRegistry(cwd);
     console.log(`[${reg.listAgents().length === defaultAgentCards().length ? "✓" : "⚠"}] Cards: ${reg.listAgents().length} agents, ${reg.listTools().length} tools`);
   } catch (e: any) { console.log(`[✗] Cards: ${e.message}`); failed = true; }
@@ -2403,7 +2415,7 @@ if (command === "doctor") {
     console.log(`[✓] RuntimeIndex: ${idx.events.length} events across ${sources} sources`);
   } catch (e: any) { console.log(`[✗] RuntimeIndex: ${e.message}`); failed = true; }
 
-  const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+  const tasksPath = resolveDaemonTasksReadPath(cwd);
   if (existsSync(tasksPath)) {
     try {
       const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));

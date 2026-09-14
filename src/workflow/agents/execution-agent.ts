@@ -90,7 +90,7 @@ export class ExecutionAgent {
   private readonly runTests: (testFiles: string[], cwd: string) => Promise<TestResult>;
   private readonly gitCommit: (files: string[], message: string, cwd: string) => Promise<string>;
 
-  constructor(private readonly opts?: ExecutionAgentOptions) {
+  constructor(opts?: ExecutionAgentOptions) {
     this.writeFile = opts?.writeFile ?? defaultWriteFile;
     this.runTests = opts?.runTests ?? defaultRunTests;
     this.gitCommit = opts?.gitCommit ?? defaultGitCommit;

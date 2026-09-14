@@ -8,8 +8,8 @@
  */
 
 import type { ExecutiveTrendSnapshot } from "./trend-store.js";
-import type { EffectivenessResult, SignalCalibration, EffectivenessOutcome, ProposalStatus } from "./recommendation-effectiveness.js";
-import type { SubsystemCorrelationReport, ConfidenceBucket, SubsystemCorrelation, SignalCorrelation } from "./subsystem-correlation.js";
+import type { EffectivenessResult, EffectivenessOutcome, ProposalStatus } from "./recommendation-effectiveness.js";
+import type { SubsystemCorrelationReport, ConfidenceBucket } from "./subsystem-correlation.js";
 import type { ExecutiveOutcomeEvaluationReport } from "./outcome-evaluator.js";
 
 // ---------------------------------------------------------------------------
@@ -460,7 +460,7 @@ export function buildAlerts(
  * values — never computes them.
  */
 export function buildSummaryPanel(
-  snapshot: ExecutiveDashboardSnapshot,
+  _snapshot: ExecutiveDashboardSnapshot,
   panels: DashboardPanelData[],
   alerts: ExecutiveAlert[],
 ): DashboardPanel<ExecutiveSummaryRow> {

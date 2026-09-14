@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import { LearningStore } from "./learning-store.js";
 import { assembleProposalExplanation } from "../explain/proposal-explanation-assembler.js";
-import type { ProposalExplanation, JoinPath } from "../explain/proposal-explanation-types.js";
+import type { ProposalExplanation } from "../explain/proposal-explanation-types.js";
 import { computeDashboardIntegrityScore } from "./dashboard-integrity-score.js";
 
 // --- Types ---
@@ -90,7 +90,6 @@ export async function buildDashboardReport(opts: DashboardOptions): Promise<Dash
   const generatedAt = opts.generatedAt ?? new Date().toISOString();
   const windowDays = opts.windowDays ?? 90;
   const limit = opts.limit ?? 20;
-  const thresholds = opts.thresholds ?? { healthy: 90, degraded: 75, critical: 75 };
 
   // 1. Scan recent proposals (up to limit) via the Explain assembler.
   //    For P8.5b, we get proposals from the OutcomeStore (most recent)

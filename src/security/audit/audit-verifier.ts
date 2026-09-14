@@ -10,12 +10,12 @@
  * @module
  */
 
-import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { createInterface } from "node:readline";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "./canonical-json.js";
-import type { AuditHead, AuditRecordV2, LegacyAuditRecord } from "../../audit/audit-types.js";
+import { streamJsonlLines } from "../../storage/jsonl-store.js";
+import type { AuditHead, AuditRecordV2 } from "../../audit/audit-types.js";
 import { isAuditRecordV2, isLegacyAuditRecord } from "../../audit/audit-types.js";
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,8 @@ export interface VerificationFinding {
     | "malformed_line"
     | "truncated_tail"
     | "legacy_modified"
-    | "head_mismatch";
+    | "head_mismatch"
+    | "no_chain";
   line?: number;
   seq?: number;
   detail?: string;
@@ -93,15 +94,6 @@ function readHeadSidecar(auditDir: string): AuditHead | null {
 }
 
 // ---------------------------------------------------------------------------
-// Streaming record type
-// ---------------------------------------------------------------------------
-
-type ParsedLine =
-  | { kind: "legacy"; line: number; record: LegacyAuditRecord }
-  | { kind: "v2"; line: number; record: AuditRecordV2 }
-  | { kind: "malformed"; line: number; raw: string };
-
-// ---------------------------------------------------------------------------
 // Streaming verifier
 // ---------------------------------------------------------------------------
 
@@ -133,16 +125,12 @@ async function streamVerify(
   let lastValidSeq = 0;
   let lastValidRecordHash: string | null = null;
   const seenSeqs = new Set<number>();
-  let totalLines = 0;
   let lastLineWasMalformed = false;
   let lastMalformedLine = 0;
 
-  // Open the file as a stream.
-  const stream = createReadStream(auditPath, { encoding: "utf-8" });
-  const rl = createInterface({ input: stream, crlfDelay: Infinity });
-
-  for await (const line of rl) {
-    totalLines++;
+  // Open the file as a stream (shared primitive — O(1) memory,
+  // physical line numbers preserved for corruption accounting).
+  for await (const { line, lineNumber: totalLines } of streamJsonlLines(auditPath)) {
 
     // Parse.
     let parsed: unknown;
@@ -361,9 +349,6 @@ async function streamVerify(
     });
   }
 
-  rl.close();
-  stream.destroy();
-
   return { legacyCount, legacyBytes, v2Count };
 }
 
@@ -409,7 +394,20 @@ export async function verifyAuditLog(options: VerifyOptions): Promise<Verificati
   // 2. Stream-verify the entire log in a single pass.
   const { legacyCount, v2Count } = await streamVerify(auditPath, head, findings);
 
-  // 3. Determine overall result.
+  // 3. A log with zero chained records has no tamper-evidence at all: legacy
+  // records carry no hashes, so "no findings" would be a lie. Report the
+  // missing chain explicitly instead of OK (#683).
+  if (v2Count === 0) {
+    findings.push({
+      type: "no_chain",
+      detail:
+        "No integrity chain present: the log contains only legacy (unchained) records, " +
+        "so tampering cannot be detected. Run `alix audit activate` to seal the legacy " +
+        "segment and enable tamper-evidence for new records.",
+    });
+  }
+
+  // 4. Determine overall result.
   const ok = findings.length === 0;
 
   return {

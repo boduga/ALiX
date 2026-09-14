@@ -324,7 +324,7 @@ export class FileActionQueueStore implements ActionQueueStore {
  * Otherwise (no transitions), the effective status is "pending".
  */
 export function deriveEffectiveStatus(
-  proposal: GovernanceActionProposal,
+  _proposal: GovernanceActionProposal,
   transitions: ActionProposalStatusTransition[],
 ): ActionProposalStatus {
   if (transitions.length === 0) return "pending";

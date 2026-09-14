@@ -58,7 +58,7 @@
  */
 
 import { context as otelContext, SpanStatusCode } from "@opentelemetry/api";
-import type { SpanContext } from "@opentelemetry/api";
+import "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 import { BasicTracerProvider } from "@opentelemetry/sdk-trace-base";
 import type {

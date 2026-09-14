@@ -8,18 +8,7 @@
  * @module
  */
 
-import {
-  type ClassificationProfile,
-  type RedactionClassification,
-  MAX_DEPTH,
-  MAX_PROPERTIES,
-  MAX_ARRAY_ITEMS,
-  MAX_OUTPUT_BYTES,
-  PUBLIC_PROFILE,
-  OPERATIONAL_PROFILE,
-  ADMINISTRATIVE_PROFILE,
-  SUPPORT_BUNDLE_PROFILE,
-} from "./classifications.js";
+import { type ClassificationProfile, PUBLIC_PROFILE, OPERATIONAL_PROFILE, ADMINISTRATIVE_PROFILE, SUPPORT_BUNDLE_PROFILE } from "./classifications.js";
 
 import type { SecretDetectorOptions } from "./secret-detector.js";
 

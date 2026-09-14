@@ -82,12 +82,6 @@ export interface BeforeAfterResult {
 // ---------------------------------------------------------------------------
 
 /** Event types that carry an actionable governance decision. */
-const DECISION_EVENT_TYPES: ReadonlySet<GovernanceEventType> = new Set([
-  "action_allowed",
-  "action_denied",
-  "action_escalated",
-  "override_applied",
-]);
 
 const DECISION_EVENT_MAP: Record<GovernanceEventType, keyof DecisionRates | undefined> = {
   action_allowed: "allowed",
@@ -199,7 +193,7 @@ export function timeWindowedCounts(events: GovernanceAuditEvent[], windowMs: num
   const firstMs = epochMs(sorted[0]!.timestamp);
   if (Number.isNaN(firstMs)) return []; // Can't bucket if timestamps are unparseable
 
-  const firstBucket = Math.floor(firstMs / windowMs) * windowMs;
+  Math.floor(firstMs / windowMs) * windowMs;
 
   const buckets = new Map<number, number>();
   for (const e of sorted) {

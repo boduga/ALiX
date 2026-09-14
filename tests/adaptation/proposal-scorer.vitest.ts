@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../src/adaptation/adaptation-proposal-store.js";
 import { IntelligenceStore } from "../../src/adaptation/intelligence-store.js";
 import { PriorityStore } from "../../src/adaptation/priority-store.js";
 import { ProposalScorer, computeAgeMultiplier } from "../../src/adaptation/proposal-scorer.js";
@@ -150,7 +150,7 @@ function setupStores() {
   const intelligenceDir = mkdtempSync(join(tmpdir(), "proposal-scorer-intelligence-"));
   const priorityDir = mkdtempSync(join(tmpdir(), "proposal-scorer-priority-"));
 
-  const proposalStore = new ProposalStore(proposalDir);
+  const proposalStore = new AdaptationProposalStore(proposalDir);
   const intelligenceStore = new IntelligenceStore(intelligenceDir);
   const priorityStore = new PriorityStore(priorityDir);
 

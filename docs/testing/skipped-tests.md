@@ -14,7 +14,7 @@ The count of **4 skipped** reported by `pnpm test:node:ci` (3173 pass, 0 fail) r
 |---|---|---|
 | Node CI (`dist/tests/**/*.test.js`) | ✅ | 3173 pass / 4 skip / 0 fail |
 | Manual / TTY suites (`tests/manual/`) | ❌ excluded by path | 3 exports + 3 tests |
-| PTY tests (`tests/pty/`) | ❌ gated by `ALIX_PTY_TESTS=1` | 1 describe block |
+| PTY tests (real keystroke/signal TTY) | ❌ no automated test exists (see below) | — |
 | Soak tests (`tests/soak/`) | ❌ gated by `ALIX_SOAK_TESTS=1` | 4 test files |
 | Integration tests (model API) | ✅ gated by API key probes | 2 tests (skip when no key) |
 
@@ -25,7 +25,7 @@ The count of **4 skipped** reported by `pnpm test:node:ci` (3173 pass, 0 fail) r
 | External-tool-dependent | 2 | ✅ gated by `hasUvx()` | `uvx` on `$PATH` |
 | Network-dependent | 1 | ✅ gated by `hasNetwork()` | HuggingFace reachable |
 | Manual / TTY-only | 5 | ❌ excluded | Interactive terminal |
-| Platform-specific (PTY) | 1 | ❌ `ALIX_PTY_TESTS=1` | Real TTY device |
+| Platform-specific (PTY) | 1 | ❌ no test file (gap recorded) | Real TTY device |
 | Soak tests | 4 | ❌ `ALIX_SOAK_TESTS=1` | Long-running mode |
 | Integration (model API) | 2 | ✅ gated by API key | Real provider configured |
 
@@ -101,19 +101,17 @@ These tests require interactive terminal input or a running real model API. They
 
 These tests run only when a specific environment variable is set. They require runtime capabilities absent in headless CI.
 
-### PTY tests — 1 describe block
+### PTY tests — no automated test (gap recorded, #695)
 
 | Field | Value |
 |---|---|
 | **ID** | `pty-tests-01` |
-| **File** | `tests/pty/tui-pty.test.ts` |
-| **Line** | 52 |
-| **Gate** | `ALIX_PTY_TESTS=1` |
-| **Skip expression** | `{ skip: !ENABLED }` where `ENABLED = process.env.ALIX_PTY_TESTS === "1"` |
+| **File** | _(none — `tests/pty/tui-pty.test.ts` never existed)_ |
+| **Gate** | n/a |
 | **Classification** | Platform-specific |
-| **Run command** | `ALIX_PTY_TESTS=1 npx node --test dist/tests/pty/` |
-
-PTY tests spawn pseudo-terminals and require a real TTY device. Incompatible with headless CI.
+| **Run command** | n/a (`test:pty:tui` script removed in #695 — it targeted a missing file) |
+| **Coverage instead** | `tests/manual/run-pty.py` (plan-approval keystrokes, manual) + `test:manual:tui` smoke lane in CI |
+| **Restore condition** | A real `tests/pty/` suite driving keystrokes/signals through a pseudo-terminal, gated by `ALIX_PTY_TESTS=1`, plus a CI lane that sets it |
 
 ### Soak tests — 4 files
 
@@ -190,10 +188,11 @@ The `pnpm test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as part 
   },
   {
     "id": "pty-tests-01",
-    "file": "tests/pty/tui-pty.test.ts",
+    "file": null,
     "classification": "platform-specific",
     "milestone": "P4.1g",
-    "removalCriteria": "PTY tests run in CI via cross-platform matrix"
+    "removalCriteria": "PTY tests run in CI via cross-platform matrix",
+    "note": "No test file exists; test:pty:tui removed in #695. See manual run-pty.py + tui-smoke lane."
   },
   {
     "id": "soak-tests-01",

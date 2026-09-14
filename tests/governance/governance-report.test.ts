@@ -112,14 +112,19 @@ describe("alix governance report", () => {
     assert.ok(stdout.includes("Advisory only"));
   });
 
-  it("human output with empty stores shows No data for sections", () => {
-    const stdout = run("governance report");
-    // When there's no data, sections show "No data" in renderReport
-    // (some sections may be empty in CI)
-    const lines = stdout.split("\n").filter((l) => l.includes("No data"));
-    // At minimum, there could be No data for sections that have no records
-    // This test is zero-safe — it passes regardless of whether data exists
-    assert.ok(true);
+  it("empty stores render zero-state (no vacuous pass)", async () => {
+    // Behavioral pin of the empty rendering path through the real compute
+    // functions: empty inputs must yield explicit zero-state, never throw
+    // and never fabricate findings. (A CLI run in an empty cwd is not
+    // hermetic — startup requires repo workspace context — so the pin
+    // lives at the compute layer the renderer consumes.)
+    const { computeFailureAnalysis } = await import("../../src/governance/failure-clustering.js");
+    const { computeAnalytics } = await import("../../src/governance/ledger-analytics.js");
+    const failures = computeFailureAnalysis([]);
+    assert.equal(failures.total, 0);
+    assert.equal(failures.clusters.length, 0);
+    const analytics = computeAnalytics([], 30);
+    assert.equal(analytics.totalRuns, 0);
   });
 
   it("all individual sections work with --json", () => {

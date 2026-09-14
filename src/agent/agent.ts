@@ -12,7 +12,7 @@ import type { McpManager } from "../mcp/manager.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
-import { buildSessionDigest } from "../utils/session-digest.js";
+import "../utils/session-digest.js";
 import { MemoryStore } from "../utils/memory/store.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
@@ -87,7 +87,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   }
 
   // Create approval manager with event log
-  const approvalManager = new ApprovalManager({
+  new ApprovalManager({
     eventLog: log,
     sessionId,
   });
@@ -103,8 +103,8 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
 
   // Load memory context for injection into system prompt
   const memoryStore = new MemoryStore(join(cwd, ".alix", "memory"));
-  const memoryContext = await buildMemoryContext(memoryStore);
-  const memoryStats = await buildMemoryStats(memoryStore);
+  await buildMemoryContext(memoryStore);
+  await buildMemoryStats(memoryStore);
 
   const repoMap = config.context.repoMap ? await buildRepoMapLite(cwd) : undefined;
   await log.append({
@@ -127,7 +127,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   }
 
   const { discoverHooks } = await import("../hooks/discover.js");
-  const hooks = await discoverHooks(cwd);
+  await discoverHooks(cwd);
 
   // Load skills (manifests only at startup, bodies lazy-loaded on match).
   // Discovery unions project-local (<cwd>/.alix/skills) with the ALiX user
@@ -136,7 +136,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   const { loadDiscoveredSkillManifests, getAlixSkillsDir } = await import("../skills/discovery.js");
   const { buildSkillCatalog } = await import("../skills/catalog.js");
   const skillManifests = await loadDiscoveredSkillManifests(process.env.HOME ?? "", cwd);
-  const skillCatalog = buildSkillCatalog(skillManifests);
+  buildSkillCatalog(skillManifests);
 
   // Enforce store limits
   const { evictIfNeeded } = await import("../skills/lifecycle.js");

@@ -7,11 +7,10 @@
  * A2.5/measurements) — never a new domain store; domain identities are never
  * rewritten; no per-stage timestamps.
  */
-import type { Correlation, Forecast } from '../../../evolution/forecast/contracts/contract.js';
 import type { GovernanceRecommendationKind } from '../../../evolution/verification/contracts/recommendation-contract.js';
 import type { GovernanceDecisionKind } from '../../../evolution/governance/contracts/decision-contract.js';
 import type { LifecycleState } from '../../../adaptation/capability-evolution-types.js';
-import type { LearningFinding } from '../../../evolution/learning/contracts/learning-contract.js';
+import "../../../evolution/learning/contracts/learning-contract.js";
 
 /** Q-C3b — stage health. empty ≠ unavailable (a healthy source with zero
  *  artifacts is 'empty'; a failed source is 'unavailable', never a falsely

@@ -13,16 +13,7 @@
 
 import { createHash } from "node:crypto";
 import { canonicalStringify } from "../../security/audit/canonical-json.js";
-import type {
-  ExecutionPlan,
-  ExecutionStep,
-  ExecutionStepResult,
-  ExecutionReport,
-  ExecutionContext,
-  ExecutionCheckpoint,
-  RollbackResult,
-  RollbackStep,
-} from "./contracts/execution-contract.js";
+import type { ExecutionPlan, ExecutionStep, ExecutionStepResult, ExecutionReport, ExecutionContext, ExecutionCheckpoint, RollbackResult } from "./contracts/execution-contract.js";
 import type { ExecutionState } from "./contracts/execution-lifecycle.js";
 
 // ---------------------------------------------------------------------------
@@ -359,7 +350,7 @@ export class GovernedExecutionRuntime {
    * and outputHash from all accumulated outputs for integrity tracking.
    * Both hashes reflect post-execution state.
    */
-  private createCheckpoint(
+  createCheckpoint(
     step: ExecutionStep,
     outputs: Record<string, unknown>,
     envHash: string,

@@ -130,6 +130,8 @@ Default section order:
 - **Durable progress survives failed retries (durable).** Once a mutation tool succeeds, a later failed retry may be reported but must not erase the successful changed-file evidence or replace the final result with a bare tool error.
 - **Patch syntax is authoritative (durable).** `patch.apply` must normalize unmistakable patch syntax before selecting its parser. In particular, simplified Aider/Codex `*** Begin Patch` update hunks with bare `@@` markers are applied as exact search/replace blocks even when the model labels them `search_replace` or `unified_diff`; numbered unified diffs retain the unified parser. Never report a patch as changed when it contained no applicable hunks.
 - **Automatic verification is bounded and change-aware (durable).** Repository verification discovery may auto-run only the explicit non-interactive `typecheck`/`type-check`/`lint`, `build`/`compile`, and `test`/`test:unit`/`test:integration` package scripts. Never infer arbitrary scripts as tests or auto-run manual, eval, soak, benchmark, helper, or aggregate scripts. Pure documentation/plain-text mutations (`.adoc`, `.log`, `.markdown`, `.md`, `.rst`, `.txt`) may complete from successful mutation plus read-back evidence without launching repository-wide checks unless the current objective explicitly requires post-change verification; code, configuration, fixtures/data, assets, mixed changes, unknown extensions, and explicit verification requirements still require normal verification. A successful model-invoked verification command satisfies the explicit requirement and must not trigger a duplicate automatic run.
+- **Unused-code gate is src-scoped (durable).** `pnpm typecheck:unused` (`tsconfig.unused.json`, `noUnusedLocals`/`noUnusedParameters`, `include: src/**`) is a CI gate. Keep it at zero: no unused locals, parameters, imports, or private members under `src/`. Prefix deliberately-unused parameters with `_`. `pnpm check:dead` (`scripts/check-dead-modules.mjs`) complements it by flagging src modules with no importers; add legitimate entry points/barrels to its allowlist with a reason.
+- **Read-only search is first-class and approval-free (durable).** `grep.search` (content, regex) and `glob.match` (filenames) are model tools (aliases `alix_grep_search`/`alix_glob_match`) that must not require `shell.run` approval. They resolve to the `file.search` capability, which is allow-listed in `DEFAULT_CONFIG.permissions.tools`. All workspace walks (content, filename, RepoMap) share `src/tools/ignore.ts` (`IGNORED_DIRS` + root `.gitignore`) and `src/tools/file-tools.ts` `walkWorkspaceFiles` (workspace-rooted, never follows symlinks, bounded by `headLimit`). Search output is bounded and streams files; never read whole files into memory on a hot path.
 - Always use the `caveman` skill for user-facing communication. Keep full technical accuracy; suspend compression only when its auto-clarity exception applies.
 - Prefer subagent-driven development with two-stage review (spec compliance → code quality).
 - Keep Inspector read-only; do not add POST endpoints for execution.
@@ -145,6 +147,7 @@ Default section order:
 | `src/registry/AGENTS.md` | Agent/tool cards, CardRegistry, CapabilityResolver, card loader |
 | `src/approvals/AGENTS.md` | Approval queue, ApprovalStore |
 | `src/audit/AGENTS.md` | Audit trail — JSONL append-only store |
+| `src/storage/AGENTS.md` | Storage primitives — shared JSONL store/parser/stream, atomic JSON files |
 | `src/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
 | `src/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |
@@ -154,6 +157,9 @@ Default section order:
 | `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |
 | `src/skills/AGENTS.md` | Skill lifecycle — dispatch, factory distillation (prose + trace evidence), promotion |
 | `src/cli/commands/skills/AGENTS.md` | `alix skills` CLI surface — routing, install/run, distill-from-traces |
+| `src/cli/commands/security/AGENTS.md` | Security CLI handlers — security/inspector-auth/audit/credential/supply-chain submodules |
+| `src/cli/commands/adaptation/AGENTS.md` | Adaptation CLI handlers — shared/appliers/renderers/handlers/main submodules |
+| `src/cli/commands/governance/AGENTS.md` | Governance CLI handlers — shared/evolution/status/lifecycle/investigation/analytics/inbox/actions/execution/workbench/readiness/handoff/intelligence/audit/audit-insights/main submodules |
 | `src/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
 | `src/tui/AGENTS.md` | Interactive terminal UI — projections, Workbench transcript, views, input, layout, rendering |
 | `src/tracing/AGENTS.md` | Langfuse tracing facade — TraceClient, noop client, capture policy, adapter |

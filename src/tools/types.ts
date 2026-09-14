@@ -1,4 +1,4 @@
-export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists" | "dir.search" | "shell.run" | "patch.apply" | "done";
+export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists" | "dir.search" | "grep.search" | "glob.match" | "shell.run" | "patch.apply" | "done";
 
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 
@@ -66,7 +66,9 @@ export type FileMatch = {
 
 export type ToolArgs = {
   "file.read": { root: string; path: string };
-  "dir.search": { root: string; pattern: string; extensions: string[] };
+  "dir.search": { root: string; pattern: string; extensions: string[]; headLimit?: number; path?: string };
+  "grep.search": { root: string; pattern: string; caseSensitive?: boolean; include?: string[]; headLimit?: number; path?: string };
+  "glob.match": { root: string; pattern: string; headLimit?: number; path?: string };
   "shell.run": { command: string; cwd: string; timeoutMs?: number };
   "patch.apply": { root: string; format: string; patchText: string };
 };

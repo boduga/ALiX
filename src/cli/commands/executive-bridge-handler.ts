@@ -19,7 +19,7 @@
 import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
 import { computeExecutiveProposals } from "../../executive/executive-bridge-recommendations.js";
-import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { AdaptationProposalStore } from "../../adaptation/adaptation-proposal-store.js";
 import {
   computeProposalReadiness,
   isExecutiveBridgeProposal,
@@ -39,11 +39,11 @@ import type { RecommendationReport } from "../../executive/recommendation-report
  * to filter by executive plan ID.
  *
  * @param args - CLI arguments (--json, --plan <planId>)
- * @param proposalStore - initialised ProposalStore instance
+ * @param proposalStore - initialised AdaptationProposalStore instance
  */
 export async function handleBridgeStatus(
   args: string[],
-  proposalStore: ProposalStore,
+  proposalStore: AdaptationProposalStore,
 ): Promise<void> {
   const useJson = args.includes("--json");
   const planFilter =
@@ -158,7 +158,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
   // P10.9.2a-T3: route `bridge status` subcommand
   if (args[0] === "status") {
     const cwd = process.cwd();
-    const proposalStore = new ProposalStore(
+    const proposalStore = new AdaptationProposalStore(
       join(cwd, ".alix", "adaptation", "proposals"),
     );
     return handleBridgeStatus(args.slice(1), proposalStore);
@@ -233,7 +233,7 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
   }
 
   // Save proposals (partial-failure contract: stop on first throw, no report rewrite)
-  const proposalStore = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const proposalStore = new AdaptationProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
   const collected: { recIndex: number; proposalId: string; status: "proposed" }[] = [];
   for (const draft of result.drafts) {
     draft.proposal.id = nextProposalId();

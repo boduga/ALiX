@@ -39,7 +39,7 @@ export async function capabilityApproveCommand(
     console.error(USAGE);
     return 2;
   }
-  const jsonMode = rest.includes("--json");
+  rest.includes("--json");
 
   try {
     const result = (await service.apply({ proposalId })) as unknown as CapabilityApplyProposalResult;

@@ -184,9 +184,9 @@ describe("CardLoader", () => {
 
   it("defaultToolCards returns expected set", () => {
     const cards = defaultToolCards();
-    // 16 cards — one per canonical tool registry entry
+    // One card per canonical tool registry entry
     assert.equal(cards.length, buildDefaultToolIndex().registry.getAll().length);
-    assert.equal(cards.length, 16);
+    assert.equal(cards.length, 18);
     // ids are the canonical tool names
     assert.ok(cards.find(c => c.id === "web_search"));
     assert.ok(cards.find(c => c.id === "file.read"));

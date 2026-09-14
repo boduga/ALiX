@@ -38,15 +38,6 @@ const READINESS_ORDER: Record<ExecutionReadinessLevel, number> = {
 };
 
 /** @internal Reserved for P23.3 diff model comparisons. */
-function compareReadiness(
-  a: ExecutionReadinessLevel | null,
-  b: ExecutionReadinessLevel | null,
-): number {
-  if (a === null && b === null) return 0;
-  if (a === null) return -1;
-  if (b === null) return 1;
-  return (READINESS_ORDER[a] ?? 0) - (READINESS_ORDER[b] ?? 0);
-}
 
 function downgradeReadiness(
   level: ExecutionReadinessLevel,
@@ -66,12 +57,6 @@ function downgradeReadiness(
 // ---------------------------------------------------------------------------
 
 /** @internal Reserved for P23.2 outcome identification — currently unused, kept for forward-compat. */
-function buildOutcomeId(replayId: string, scenarioId: string, generatedAt: string): string {
-  return createHash("sha256")
-    .update(["p23.2", replayId, scenarioId, generatedAt].join("|"))
-    .digest("hex")
-    .slice(0, 16);
-}
 
 function buildLessonId(
   scenarioId: string,
@@ -233,7 +218,7 @@ function computeRiskLevel(
 function applyRiskAssumptions(
   originalRisk: string,
   evidenceLevel: string,
-  closureDecision: string | null,
+  _closureDecision: string | null,
   assumptions: NonNullable<CounterfactualScenario["readinessAssumptions"]>,
 ): string {
   let risk = originalRisk;

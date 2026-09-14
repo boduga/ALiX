@@ -17,7 +17,7 @@
  */
 
 import type { DecisionContext } from "./decision-types.js";
-import type { RiskScore, RiskItem } from "./risk-score-types.js";
+import type { RiskScore } from "./risk-score-types.js";
 import type { ApprovalRecommendation, Recommendation } from "./recommendation-types.js";
 
 // ---------------------------------------------------------------------------

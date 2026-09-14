@@ -70,13 +70,32 @@ async function sendDaemonCommand(socketPath: string, command: string): Promise<s
     });
 
     let data = "";
-    sock.on("data", (chunk) => { data += chunk.toString(); });
-    sock.on("end", () => resolve(data));
-    sock.on("error", reject);
+    let settled = false;
+    const done = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { sock.destroy(); } catch { /* ignore */ }
+      fn();
+    };
+    // Single-frame commands (ping/status) get no end-of-stream marker —
+    // resolve on the first complete JSON frame instead of waiting for it.
+    sock.on("data", (chunk) => {
+      data += chunk.toString();
+      for (const line of data.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          JSON.parse(line);
+          done(() => resolve(data));
+          return;
+        } catch { /* incomplete frame — keep buffering */ }
+      }
+    });
+    sock.on("end", () => done(() => resolve(data)));
+    sock.on("error", (err) => done(() => reject(err)));
 
-    setTimeout(() => {
-      sock.destroy();
-      reject(new Error("Daemon command timed out"));
+    const timer = setTimeout(() => {
+      done(() => reject(new Error("Daemon command timed out")));
     }, 10_000);
   });
 }
