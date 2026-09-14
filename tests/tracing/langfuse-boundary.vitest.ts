@@ -252,9 +252,11 @@ describe("Langfuse architectural boundary (Task 22)", () => {
       rel: "agent/agent-loop.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types"],
     },
-    // session: TraceClient interface + types + Noop default (Task 10)
+    // session: TraceClient interface + types + Noop default (Task 10).
+    // #717 — the implementation moved to agent/session/main.ts (the barrel
+    // `agent/session.ts` only re-exports).
     {
-      rel: "agent/session.ts",
+      rel: "agent/session/main.ts",
       facadeOnly: ["tracing/client-factory", "tracing/client", "tracing/types", "tracing/noop-client"],
     },
     // provider wrapper: factory (getProcessTraceClient) + interface + types

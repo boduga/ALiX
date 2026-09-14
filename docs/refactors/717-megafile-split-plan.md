@@ -292,6 +292,12 @@ environmental timeout reconfirmed at 145ms under isolated HOME).
 
 ### Step 5 inventory — `src/agent/session.ts` (3,186 lines)
 
+**5a (DONE) — module-scope leaf extraction.** `session.ts` is now a 16-line
+`export *` barrel over `src/agent/session/{types,helpers,setup,main}.ts`.
+`main.ts` holds the `AgentSessionBuilder` class and is still **above** the
+1,500-line threshold — the 5b decomposition is required. Child `AGENTS.md` added
++ root index updated.
+
 `AgentSessionBuilder` class spans 617–2,545. Its `build()` (657–2,545) is a
 **closure factory**, not a plain function: it declares shared `let` state and
 ~24 nested functions that close over it, then returns the `AgentSession`
@@ -313,12 +319,12 @@ Nested-function map (absolute lines):
 - chat path 2328–2545: `runSearch`, `ensureChatProvider`, `processChat`,
   `processChatBody`.
 
-Suggested approach (review as a refactor, not a move): (1) hoist the shared
-mutable state into a `SessionState` object; (2) extract `initialize`,
-`processTurnBody`, `resume`, and the chat path into module-level factory
-functions taking that state object; (3) keep the `with*` builders and the
-returned object literal in `build()`. Module-level `setup*` helpers already
-exist at 2,546–3,186 and can be reused.
+**5b (PENDING) — `build()` decomposition.** Suggested approach (review as a
+refactor, not a move): (1) hoist the shared mutable state into a `SessionState`
+object; (2) extract `initialize`, `processTurnBody`, `resume`, and the chat path
+into module-level factory functions taking that state object; (3) keep the
+`with*` builders and the returned object literal in `build()`. The module-level
+`setup*` helpers now live in `session/setup.ts` and can be reused.
 
 Do NOT attempt with a mechanical line-slice. Verify with the agent/session test
 suites (`tests/agent/*.vitest.ts`, `tests/session-resume.vitest.ts`) plus the

@@ -153,6 +153,7 @@ Default section order:
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |
 | `src/runtime/AGENTS.md` | Runtime — execution-state, state-aware context builder, unified event index |
 | `src/run/task-loop/AGENTS.md` | Task loop — session-lifecycle/predicates/context-helpers/main submodules (`runTaskLoop`) |
+| `src/agent/session/AGENTS.md` | Agent session — types/helpers/setup/main submodules (`AgentSessionBuilder`) |
 | `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |

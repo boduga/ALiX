@@ -230,9 +230,10 @@ describe("Tab 4 fix — processChat unchanged", () => {
     const { dirname, join } = await import("node:path");
     const __dirname = dirname(fileURLToPath(import.meta.url));
     // Test files are compiled to dist/tests/agent/ from tests/agent/. The
-    // session.ts source lives at src/agent/session.ts. From dist/tests/agent/
+    // session implementation lives at src/agent/session/main.ts (#717 split;
+    // src/agent/session.ts is now a re-export barrel). From dist/tests/agent/
     // we walk up three levels (→ repo root) then into src/agent/.
-    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session.ts");
+    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session", "main.ts");
     const src = readFileSync(sessionSrcPath, "utf8");
 
     // Extract the processChat body — since T10 the execution body lives in
