@@ -16,22 +16,35 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   skills/context/plan/tools/system-prompt/hooks), `resolveExplicitSkills`,
   `buildSkillsSection`, `spliceSkillsSection`, `spliceExplicitIntoFirstTurn`,
   `createAgentSession`.
-- `main.ts` — the `AgentSessionBuilder` class (incl. `build()`).
+- `state.ts` — `SessionState` (all per-session mutable state, hoisted out of the
+  former `build()` closure) + `createSessionState`.
+- `activity.ts` — turn-scoped activity/liveness/phase accessors and operator
+  cancel: `feedActivity`, `advancePhase`, `getPhase`, `getLiveness`,
+  `getActivity`, `cancellationInProgress`, `cancelActiveTurn`.
+- `init.ts` — `initialize` (first-turn setup pipeline P0–P9).
+- `turn.ts` — `processTurn` / `processTurnBody` plus
+  `createFreshSessionState` / `extractToolCallsFromMessages`.
+- `chat.ts` — lightweight chat path: `processChat` / `processChatBody` /
+  `runSearch` / `ensureChatProvider`.
+- `resume.ts` — `resumeSession` + `restoreReconstructedPlanTasks`.
+- `main.ts` — the `AgentSessionBuilder` class; `build()` is a thin coordinator
+  that creates the `SessionState` and wires the returned `AgentSession` to the
+  module-level phase factories.
 
 **Local Contracts:**
 - `../session.ts` re-exports the public surface via `export *`; do not add logic
   there.
-- **Pending (#717 5b):** `AgentSessionBuilder.build()` is a closure factory
-  (~1,900 lines, ~24 nested functions over shared `let` state, incl.
-  `processTurnBody` ~936 lines). It is not yet decomposed; `main.ts` is
-  therefore still above the 1,500-line threshold. Decomposition must hoist the
-  shared state into an explicit object and extract the nested functions into
-  factories — it is a refactor, not a verbatim move. See the step 5 inventory
-  in `docs/refactors/717-megafile-split-plan.md`.
+- **#717 5b done:** `AgentSessionBuilder.build()` is decomposed. All shared
+  mutable state lives in `SessionState` (state.ts); phases are module-level
+  factories that take that state explicitly. `main.ts` is ≤ the 1,500-line
+  orchestrator threshold. Do not reintroduce a closure-factory `build()`.
+- New phase modules are internal (not re-exported by the barrel). Public symbols
+  (`AgentSessionBuilder`, `SessionPhase`, the `setup*` helpers, etc.) stay
+  re-exported through `../session.ts`.
 - Relative imports: `../../` → `src/`, `../` → `src/agent/`.
-- Source-scan sentinels that used to read `agent/session.ts` now read
-  `agent/session/main.ts` (e.g. `tests/agent/session-skills.test.ts`,
-  `tests/tracing/langfuse-boundary.vitest.ts`).
+- Source-scan sentinels: `tests/agent/session-skills.test.ts` reads
+  `agent/session/chat.ts`; `tests/tracing/langfuse-boundary.vitest.ts` reads
+  `agent/session/state.ts`.
 
 **Verification:**
 - `tests/agent/*.vitest.ts`, `tests/agent/session-skills.test.ts`,

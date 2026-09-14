@@ -242,7 +242,7 @@ governance vitest 51/51, governance node tests 1353/1353. Full suites: vitest
 under an isolated HOME (clean config, as CI) passes in 145ms, confirming
 environmental.
 
-Remaining: step 5b (`session.ts` `build()` decomposition).
+All steps complete (1–4, 5a, 5b, 6).
 
 ### Step 4 inventory — `src/run/task-loop.ts` (2,328 lines)
 
@@ -319,16 +319,26 @@ Nested-function map (absolute lines):
 - chat path 2328–2545: `runSearch`, `ensureChatProvider`, `processChat`,
   `processChatBody`.
 
-**5b (PENDING) — `build()` decomposition.** Suggested approach (review as a
-refactor, not a move): (1) hoist the shared mutable state into a `SessionState`
-object; (2) extract `initialize`, `processTurnBody`, `resume`, and the chat path
-into module-level factory functions taking that state object; (3) keep the
-`with*` builders and the returned object literal in `build()`. The module-level
-`setup*` helpers now live in `session/setup.ts` and can be reused.
+**5b (DONE) — `build()` decomposition.** Hoisted all shared mutable state into
+`session/state.ts` (`SessionState` + `createSessionState`) and extracted the
+nested functions into module-level factories that take that state:
+`session/activity.ts` (`feedActivity`, `advancePhase`, `getPhase`/`getLiveness`/
+`getActivity`, `cancellationInProgress`, `cancelActiveTurn`), `session/init.ts`
+(`initialize`), `session/turn.ts` (`processTurn`, `processTurnBody`,
+`createFreshSessionState`, `extractToolCallsFromMessages`), `session/chat.ts`
+(`processChat`, `processChatBody`, `runSearch`, `ensureChatProvider`), and
+`session/resume.ts` (`resumeSession`, `restoreReconstructedPlanTasks`).
+`main.ts` keeps only the `with*` builders, the state construction, the small
+accessors (`getSessionId`/`getMode`/`setMode`/`getVersion`/`getState`/`save`),
+and the returned `AgentSession` literal. Behavior preserved; public surface
+unchanged (new modules are internal, not barrel-exported).
 
-Do NOT attempt with a mechanical line-slice. Verify with the agent/session test
-suites (`tests/agent/*.vitest.ts`, `tests/session-resume.vitest.ts`) plus the
-full `pnpm test:vitest` and `pnpm test:node:ci` gate.
+Result: `main.ts` 2,016 → **165** (well under the 1,500 orchestrator
+threshold); largest new module `turn.ts` 1,054; all others ≤ 713. Repointed the
+two source-scan sentinels (`session-skills.test.ts` → `chat.ts`;
+`langfuse-boundary.vitest.ts` → `state.ts`). Verified: `pnpm build`,
+`typecheck:unused`, `check:dead`, `verify:deps` clean; `pnpm test:vitest`
+6129/0; `pnpm test:node:ci` 7494 pass / 0 fail.
 
 ### Step 6 — `src/cli.ts` (2,774 lines) — DONE
 

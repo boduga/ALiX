@@ -230,21 +230,21 @@ describe("Tab 4 fix — processChat unchanged", () => {
     const { dirname, join } = await import("node:path");
     const __dirname = dirname(fileURLToPath(import.meta.url));
     // Test files are compiled to dist/tests/agent/ from tests/agent/. The
-    // session implementation lives at src/agent/session/main.ts (#717 split;
-    // src/agent/session.ts is now a re-export barrel). From dist/tests/agent/
-    // we walk up three levels (→ repo root) then into src/agent/.
-    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session", "main.ts");
+    // chat path lives at src/agent/session/chat.ts (#717 5b split;
+    // src/agent/session.ts is a re-export barrel). From dist/tests/agent/ we
+    // walk up three levels (→ repo root) then into src/agent/.
+    const sessionSrcPath = join(__dirname, "..", "..", "..", "src", "agent", "session", "chat.ts");
     const src = readFileSync(sessionSrcPath, "utf8");
 
     // Extract the processChat body — since T10 the execution body lives in
     // the `processChatBody` helper (processChat is a thin wrapper that adds
     // tracing), so pin the helper. The function signature must NOT include
     // `options?:` (chat takes a bare message string).
-    const sigMatch = src.match(/async function processChat\(message: string\):/);
-    assert.ok(sigMatch, "processChat signature is `(message: string)` — no options.skills");
+    const sigMatch = src.match(/async function processChat\(\s*state: SessionState,\s*message: string,?\s*\):/);
+    assert.ok(sigMatch, "processChat signature is `(state, message: string)` — no options.skills");
 
     // The body of the chat path should not invoke any explicit-skill helpers.
-    const bodyMatch = src.match(/async function processChatBody\([\s\S]*?\n    \}\n/);
+    const bodyMatch = src.match(/async function processChatBody\([\s\S]*?\n\}\n/);
     assert.ok(bodyMatch, "processChatBody extractable");
     const body = bodyMatch![0];
     assert.ok(
