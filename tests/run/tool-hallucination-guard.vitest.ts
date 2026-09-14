@@ -118,4 +118,28 @@ describe("handleToolCall unknown-tool guard", () => {
     }
     expect(executor.execute).toHaveBeenCalledTimes(5);
   });
+
+  it("redirects a local-looking web_search to the workspace tools", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", output: "web" }) };
+    const result = await handleToolCall(
+      { id: "w1", name: "alix_web_search", args: { query: "export async function handle Command in src/cli/commands" } },
+      makeDeps(executor),
+      [],
+      [],
+    );
+    expect(executor.execute).not.toHaveBeenCalled();
+    expect(result.message?.content).toContain("cannot access the local workspace");
+    expect(result.message?.content).toContain("alix_grep_search");
+  });
+
+  it("allows a genuine web_search query", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", output: "web" }) };
+    await handleToolCall(
+      { id: "w2", name: "alix_web_search", args: { query: "latest Node.js LTS release" } },
+      makeDeps(executor),
+      [],
+      [],
+    );
+    expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
 });

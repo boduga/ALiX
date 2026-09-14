@@ -61,6 +61,14 @@ const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match", "dir.search"]
 const SEARCH_REPEAT_LIMIT = 3;
 
 /**
+ * Markers that a `web_search` query is really a LOCAL workspace search. A model
+ * (esp. a weak/free one) that conflates "search" with the web otherwise burns a
+ * turn on `web_search` and gets nothing, because it cannot see the workspace.
+ */
+const LOCAL_CODE_HINT =
+  /(?:^|[\s"'`(])(?:\.{0,2}\/)?(?:src|tests?|packages|apps|lib|scripts)\/|\b(?:export|import|function|class|interface|const|let|var|def)\s+[A-Za-z_$]|\bworkspace\b|\brepo(?:sitory)?\b|\bcodebase\b|=>|===|\.\.\//i;
+
+/**
  * Handle MCP tool search requests
  */
 export async function handleMcpToolSearch(
@@ -317,6 +325,23 @@ export async function handleToolCall(
         content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
       },
     };
+  }
+
+  // Web-search routing guard: a query that is plainly a local workspace search
+  // is redirected to the workspace tools instead of hitting the public web.
+  if (execName === "web_search") {
+    const query = typeof (toolCall.args as { query?: unknown } | undefined)?.query === "string"
+      ? (toolCall.args as { query: string }).query
+      : "";
+    if (LOCAL_CODE_HINT.test(query)) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: web_search cannot access the local workspace — it only searches the public internet. This is a LOCAL search: you MUST call alix_grep_search (file contents/regex) or alix_glob_match (filenames) instead, right now. These tools are available and need no approval. Do not refuse and do not suggest shell commands. Example:\n<alix_grep_search><pattern>^export async function handle.*Command</pattern><path>src/cli/commands</path></alix_grep_search>\n</tool_result>`,
+        },
+      };
+    }
   }
 
   // Repeated-search guard: an identical read-only search call past the limit is

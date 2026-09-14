@@ -176,6 +176,18 @@ describe("classifyAction — workspace/action dominance", () => {
     const result = classifyAction("Search my repo for current Kubernetes vulnerabilities");
     assert.equal(result.intent, "workspace_action");
   });
+
+  it("routes a workspace-path code search to workspace_action (not external_retrieval)", () => {
+    // Regression: "Search for the regex … in src/cli/commands/" was classified
+    // external_retrieval → web-only grounded_chat, so the agent could not grep.
+    const result = classifyAction("Search for the regex ^export async function handle.*Command in src/cli/commands/");
+    assert.equal(result.intent, "workspace_action");
+  });
+
+  it("still routes a bare shell command containing a path to shell_execution", () => {
+    assert.equal(classifyActionWithConfidence("grep foo src/").intent, "shell_execution");
+    assert.equal(classifyActionWithConfidence("find . -name '*.ts'").intent, "shell_execution");
+  });
 });
 
 // ── Classification: external retrieval ───────────────────────────────

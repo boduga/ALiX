@@ -69,6 +69,7 @@ export interface ActionClassification {
 
 import type { ModelAdapter } from "../providers/types.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import { isShellTask } from "../task-classifier.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Arithmetic parser
@@ -333,6 +334,22 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
   /\bdo\s+i\s+have\s+\w[\w.-]*/i,
   /\bcheck\s+(?:if|whether)\b/i,
   /\bwhat(?:'s|\s+is)\s+running\b/i,
+];
+
+/**
+ * Workspace-path / code-search signals. A prompt that names a workspace path
+ * (`src/`, `tests/`, …) or a code-search idiom ("regex", "grep", "file
+ * contents") is a LOCAL search and must reach the agent (workspace tools), not
+ * the web-only grounded_chat. Guarded by `!isShellTask` so a bare shell command
+ * that merely contains a path ("grep foo src/") still classifies as
+ * shell_execution.
+ */
+const WORKSPACE_PATH_SIGNALS: readonly RegExp[] = [
+  /(?:^|[\s"'`(])(?:\.{0,2}\/)?(?:src|tests?|packages|apps|lib|scripts|bin)\//i,
+  /\b(?:regex|ripgrep)\b/i,
+  /\bgrep\b/i,
+  /\b(?:file|source)\s+contents?\b/i,
+  /\bin\s+(?:the\s+)?(?:code|source|repo(?:sitory)?|codebase|workspace)\b/i,
 ];
 
 /**
@@ -670,6 +687,18 @@ export function classifyAction(input: string): ActionClassification {
     return {
       intent: "workspace_action",
       reason: "prompt asks about the local machine's OS / system state",
+    };
+  }
+
+  // 2.6 Local code-search — a workspace path or code-search idiom anchors the
+  //     prompt to the repo, so it must reach the agent (workspace tools) rather
+  //     than the web-only grounded_chat. Guarded by !isShellTask so a bare shell
+  //     command that merely contains a path ("grep foo src/") still routes to
+  //     shell_execution (checked later).
+  if (!isShellTask(trimmed) && hasAny(trimmed, WORKSPACE_PATH_SIGNALS)) {
+    return {
+      intent: "workspace_action",
+      reason: "prompt references a workspace path or local code search",
     };
   }
 

@@ -167,7 +167,7 @@ export class GraphExecutor {
       const isResearch = (node as any).executionProfile === "research";
       let researchPrefix = "";
       if (isResearch && node.id !== "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: alix_web_search, alix_web_fetch, and alix_done. Do NOT read or write local project files.";
+        researchPrefix = "\n\nIMPORTANT: You are a research agent. For external information use alix_web_search and alix_web_fetch. To inspect the LOCAL workspace use alix_grep_search (file contents), alix_glob_match (filenames), and alix_file_read. Do NOT create or modify local project files.";
       } else if (node.id === "write_artifacts") {
         researchPrefix = "\n\nIMPORTANT: You may ONLY use: alix_file_create, alix_file_exists, and alix_done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
@@ -303,7 +303,7 @@ export class GraphExecutor {
       const isResearch = (node as any).executionProfile === "research";
       let researchPrefix = "";
       if (isResearch && node.id !== "write_artifacts") {
-        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: alix_web_search, alix_web_fetch, and alix_done. Do NOT read or write local project files.";
+        researchPrefix = "\n\nIMPORTANT: You are a research agent. For external information use alix_web_search and alix_web_fetch. To inspect the LOCAL workspace use alix_grep_search (file contents), alix_glob_match (filenames), and alix_file_read. Do NOT create or modify local project files.";
       } else if (node.id === "write_artifacts") {
         researchPrefix = "\n\nIMPORTANT: You may ONLY use: alix_file_create, alix_file_exists, and alix_done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
