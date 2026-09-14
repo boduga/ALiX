@@ -7,7 +7,8 @@ existing import paths are unchanged.
 
 **Ownership:**
 - `session-lifecycle.ts` — `completeSession`, `maybeEmitRotRisk`, context-budget
-  overflow classification/summaries, `getHistoricalSuggestions`, `RESEARCH_LIMITS`.
+  overflow classification/summaries, `getHistoricalSuggestions`,
+  `persistSessionState`, `RESEARCH_LIMITS`.
 - `predicates.ts` — completion/evidence predicates and pure helpers:
   `emitAgent`, `buildShedToolRetryMessage`, `explicitMutationTargets`,
   `isContinuationMessage`, `objectiveEvidenceRequirements`,
@@ -18,7 +19,11 @@ existing import paths are unchanged.
 - `context-helpers.ts` — context assembly helpers: `classifyMessageToCategory`,
   `classifyCandidateContext`, `reconstructRequest`, `sourceIndexOf`,
   `toBudgetedItems`, `evaluatePattern`.
-- `main.ts` — `TaskLoopDeps` + `runTaskLoop`.
+- `context-phase.ts` — `assembleBudgetedContext`: budget admission gate
+  (assembly + tool-schema reservation + T6 context events + preflight).
+- `verification-phase.ts` — `runIterationVerification`: end-of-iteration
+  verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
+- `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
 - `../task-loop.ts` re-exports the public surface (`runTaskLoop`, `TaskLoopDeps`,
@@ -26,10 +31,9 @@ existing import paths are unchanged.
   `isContinuationMessage`, `objectiveEvidenceRequirements`,
   `lastToolResultShowsClientError`, `latestToolFailure`,
   `durableCompletionSummary`, `claimsArtifactWritten`); do not add logic there.
-- **Pending (#717):** `runTaskLoop` itself (1,537 lines) is not yet decomposed;
-  `main.ts` is therefore still above the 1,500-line orchestrator threshold. The
-  mandatory method decomposition is a separate, behavior-preserving step.
-- Much of `runTaskLoop`'s body is written at **column 0**, so
+- All modules ≤ 1,500 lines; `main.ts` is the orchestrator and must stay ≤ 1,500
+  (extract phases rather than inlining).
+- `runTaskLoop`'s body is written at **column 0** (unindented), so
   `grep '^function|^const'` over-reports inner statements as top-level — do not
   slice this file by that grep.
 - Relative imports: `../../` → `src/`, `../` → `src/run/`.

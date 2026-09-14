@@ -23,14 +23,14 @@ import type { MutationSessionState, RunResult } from "../../run.js";
 import { recordMutationInSessionState, extractMutationPaths } from "../../run.js";
 import { buildModelUsageEventPayload } from "../../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../../skills/dispatcher.js";
-import { buildRiskReport } from "../../verifier/index.js";
+import "../../verifier/index.js";
 import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from "../../verifier/verifier.js";
 import { EnhancedVerifier } from "../../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "../helpers.js";
 import "../helpers.js";
 import { createContextPressureTracker } from "../context-pressure.js";
 import { renderToolManifest } from "../../agent/system-prompt.js";
-import { saveSessionState } from "../../session/index.js";
+import "../../session/index.js";
 import { buildRefinePrompt, selectStrategy } from "../../orchestrator/refine-strategies.js";
 import {
   handleToolCall,
@@ -44,10 +44,8 @@ import {
 import { ProgressLedger } from "../progress-ledger.js";
 import { IntentClassifier, type AgentIntent } from "../intent-classifier.js";
 import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../../agent/system-prompt.js";
-import { estimateBudgetTokens, ensureEncoder } from "../../utils/tokens.js";
 import type { TokenizerName } from "../../config/context-limits.js";
-import type { ContextBudget, ContextCategory, TierOrderingConfig } from "../../config/context-budget.js";
-import { ContextBudgetOverflowError, preflight } from "../../config/context-budget.js";
+import type { ContextBudget, TierOrderingConfig } from "../../config/context-budget.js";
 import { assembleContext } from "../../config/context-assembly.js";
 import { MetricsStore } from "../../observability/metrics-store.js";
 import { createMetricRegistry } from "../../observability/metric-registry.js";
@@ -67,9 +65,11 @@ import { createCorrelationContext } from "../../runtime/tool-correlation.js";
 import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
 import "../../agents/tool-name-map.js";
-import { classifyCandidateContext, evaluatePattern, reconstructRequest, toBudgetedItems } from "./context-helpers.js";
+import { evaluatePattern } from "./context-helpers.js";
+import { assembleBudgetedContext } from "./context-phase.js";
+import { runIterationVerification } from "./verification-phase.js";
 import { CLAIM_TOOL_NAMES, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
-import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, classifyIrreducibleKind, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk } from "./session-lifecycle.js";
+import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
   config: {
@@ -434,171 +434,32 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	// Expose rendered ledger text to the AgentSession for TUI consumption
 	if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 
-	// ── Context Budget admission gate (C0) ─────────────────────────────
-	// Replace the dead half-window truncation + digest re-injection with the
-	// authoritative budget → assembly → preflight path (T5). No oversized
-	// request ever reaches a provider.
-	await ensureEncoder(tokenizer);
-	const { candidateItems, contentMap } = await classifyCandidateContext(
-	  effectiveSystemPrompt, messages, tokenizer
-	);
-
-		// ── T7: Reserve scoped tool schemas inside the assembly budget ────
-		// Only coreTools + extendedTools (the scoped set) reach the wire.
-		// Reserving the scoped set — not all providerTools + mcpToolIndex — is
-		// the whole point: scoped-out tools are not sent, so they must not
-		// consume budget. The combined scoped array is the exact wire payload.
-
-		const scopedTools = [...coreTools, ...extendedTools];
-		if (scopedTools.length > 0) {
-		  const wireToolSchemaMeta = await estimateBudgetTokens(JSON.stringify(scopedTools), tokenizer);
-		  candidateItems.unshift({
-		    id: "tool-schema",
-		    kind: "tool_schema",
-		    category: "mandatory_system_governance" as ContextCategory,
-		    tokens: wireToolSchemaMeta.budgetEstimate,
-		    rawTokens: wireToolSchemaMeta.rawEstimate,
-		    provenance: { category: "mandatory_system_governance" as ContextCategory, kind: "tool_schema", createdAt: Date.now(), source: "runTaskLoop" },
-		  });
-		}
-
-	// ── T6: emit context.snapshot.created (once per model-facing invocation) ─
-	// Stamped on the `${sessionId}-agent` domain so the agent timeline
-	// (TimelineBuilder) admits it — context events describe the agent's
-	// model-loop behavior, matching the emitAgent routing pattern. Emitted
-	// AFTER the tool-schema reservations so candidateTokens is truthful
-	// (includes both provider and MCP structured `tools` payloads).
-	await log.append({
-	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.SNAPSHOT_CREATED,
-	  payload: {
-	    invocationId,
-	    candidateTokens: candidateItems.reduce((sum, item) => sum + item.tokens, 0),
-	  },
-	});
-
-	// ── T6: emit context.budget.computed ───────────────────────────────
-	await log.append({
-	  sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.BUDGET_COMPUTED,
-	  payload: {
-	    invocationId,
-	    contextWindowTokens: contextBudget.contextWindowTokens,
-	    availableInputTokens: contextBudget.availableInputTokens,
-	    budgetReservation: contextBudget.budgetReservation,
-	    requestedMaxOutputTokens: contextBudget.requestedMaxOutputTokens,
-	    policyReservation: contextBudget.policyReservation,
-	  },
-	});
-
-	// One deterministic assembly pass over the candidate.
-	// Throws ContextBudgetOverflowError (irreducible) when mandatory core
-	// alone exceeds available input (including MCP tool schemas if any).
-	// ── T6: catch -> emit context.irreducible -> re-throw ────────────
 	let assembled: ReturnType<typeof assembleContext>;
-	try {
-	  assembled = assembleContext(candidateItems, contextBudget, config.context?.budget?.tierOrdering);
-	  // Pure observability (spec §3): feed this iteration's assembly result
-	  // into the run-level contextPressure tracker.
-	  contextPressure.record(i, assembled);
-	} catch (err) {
-	  if (err instanceof ContextBudgetOverflowError) {
-	    await log.append({
-	      sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
-	      payload: {
-	        invocationId,
-	        overageTokens: err.overageTokens,
-	        byCategory: err.byCategory,
-	        availableInputTokens: err.availableInputTokens,
-	        mandatoryTokens: err.mandatoryTokens,
-	        contextWindowTokens: err.contextWindowTokens,
-	        kind: classifyIrreducibleKind(err.byCategory),
-	      },
-	    });
-	  }
-	  throw err;
-	}
+	let admittedSystemPrompt: string;
 
-	// ── T6: emit context.assembled with category breakdown + drop reasons ──
+	// ── Context Budget admission gate (C0) ─────────────────────────────
+	// Extracted to `assembleBudgetedContext` (#717 method decomposition).
 	{
-	  const admittedByCategory: Record<string, number> = {};
-	  for (const item of assembled.admitted) {
-	    admittedByCategory[item.category] = (admittedByCategory[item.category] ?? 0) + item.tokens;
-	  }
-	  const droppedReasons = assembled.dropped.map((d) => ({
-	    kind: d.item.kind,
-	    reason: d.reason,
-	  }));
-	  await log.append({
-	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
-	    payload: {
-	      invocationId,
-	      admittedItems: assembled.admitted.length,
-	      droppedItems: assembled.dropped.length,
-	      admittedTokens: assembled.admittedTokens,
-	      droppedTokens: assembled.droppedTokens,
-	      admittedByCategory,
-	      droppedReasons,
-	    },
+	  const assembledContext = await assembleBudgetedContext({
+	    effectiveSystemPrompt,
+	    messages,
+	    tokenizer,
+	    coreTools,
+	    extendedTools,
+	    session,
+	    log,
+	    invocationId,
+	    contextBudget,
+	    tierOrdering: config.context?.budget?.tierOrdering,
+	    contextPressure,
+	    iteration: i,
+	    stateTelemetry,
+	    executionId,
 	  });
-	  // #641 — Wire assembled context metadata to observability via StateTelemetry
-	  // (MetricsStore + TelemetryEnvelope). Emits source/selected/evicted/tokens
-	  // per tier plus admitted/dropped totals. Non-blocking, non-fatal.
-	  if (stateTelemetry) {
-	    try {
-	      stateTelemetry.recordAssembledContext(executionId, assembled, { invocationId });
-	    } catch { /* swallow telemetry errors */ }
-	  }
+	  messages = assembledContext.messages;
+	  assembled = assembledContext.assembled;
+	  admittedSystemPrompt = assembledContext.admittedSystemPrompt;
 	}
-
-	// Reconstruct the provider request from admitted items.
-	// MCP tool-schema items (not in contentMap) are silently skipped.
-	const { admittedSystemPrompt, admittedMessages } = reconstructRequest(
-	  assembled.admitted, contentMap
-	);
-
-	// ── Final safety gate (backstop only) ───────────────────────────────
-	// Tool schema tokens (both provider and MCP) were reserved as Tier-1
-	// mandatory items above. This gate catches genuine assembly bugs — it
-	// must NOT fire on reducible cases because the selector already properly
-	// reduced.
-	const pfResult = preflight(contextBudget, toBudgetedItems(assembled.admitted));
-	if (!pfResult.fits) {
-	  // ── T6: emit context.preflight.failed BEFORE throwing irreducible ─
-	  await log.append({
-	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.PREFLIGHT_FAILED,
-	    payload: {
-	      invocationId,
-	      overageTokens: pfResult.overflow.overageTokens,
-	      byCategory: pfResult.overflow.byCategory,
-	    },
-	  });
-	  // Genuinely irreducible (or an assembly bug): the mandatory core
-	  // exceeds available input.
-	  const overflowErr = new ContextBudgetOverflowError({
-	    reducible: false,
-	    overageTokens: pfResult.overflow.overageTokens,
-	    byCategory: pfResult.overflow.byCategory,
-	    availableInputTokens: contextBudget.availableInputTokens,
-	    mandatoryTokens: assembled.mandatoryTokens,
-	    contextWindowTokens: contextBudget.contextWindowTokens,
-	  });
-	  // ── T6: emit context.irreducible ──────────────────────────────
-	  await log.append({
-	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.IRREDUCIBLE,
-	    payload: {
-	      invocationId,
-	      overageTokens: overflowErr.overageTokens,
-	      byCategory: overflowErr.byCategory,
-	      availableInputTokens: overflowErr.availableInputTokens,
-	      mandatoryTokens: overflowErr.mandatoryTokens,
-	      contextWindowTokens: overflowErr.contextWindowTokens,
-	      kind: classifyIrreducibleKind(overflowErr.byCategory),
-	    },
-	  });
-	  throw overflowErr;
-	}
-
-	// Replace the loop's mutable messages with the assembled subset.
-	messages = admittedMessages;
 
 
 // Run pre_task hooks at the start of each iteration
@@ -1543,111 +1404,40 @@ if (toolCalls.length === 0) {
     );
   }
 
-  // After tool calls, run verification every iteration (if policy allows)
-  const scopeApproved = !sessionState.pendingScopeExpansion;
-  const { skipReason } = shouldRunVerification(config.permissions.sessionMode ?? "ask", scopeApproved);
-
-  if (skipReason) {
-    await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
-  } else {
-    const changedFiles = [...sessionState.created, ...sessionState.changed];
-    const explicitVerificationRequired = objectiveEvidenceRequirements(evidenceTask, evidenceTaskType).verification;
-    const explicitVerificationMissing = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence)
-      .includes(VERIFICATION_EVIDENCE_GAP);
-    if (
-      changedFiles.length > 0 &&
-      requiresRepositoryVerification(changedFiles, explicitVerificationRequired && explicitVerificationMissing) &&
-      (taskType !== "docs" || explicitVerificationRequired) &&
-      taskType !== "research" &&
-      hasMutations
-    ) {
-      // Use TestPlanner for smart verification selection
-      const { createTestPlan } = await import("../../verifier/test-planner.js");
-
-      const plan = await createTestPlan(".", changedFiles);
-
-      await log.append({ ...session, actor: "verifier", type: "verification.plan_created", payload: {
-        strategy: plan.strategy,
-        totalCost: plan.totalCost,
-        checkCount: plan.checks.length,
-        verifiedFiles: plan.verifiedFiles,
-        unverifiedFiles: plan.unverifiedFiles,
-      }});
-
-      const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
-
-      // Run checks in cost order
-      for (const endCheck of plan.checks) {
-        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
-        const verResult = await runVerification(".", endCheck);
-        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
-        endResults.push({ check: endCheck, result: verResult });
-      }
-
-      const riskReport = buildRiskReport(plan.checks, endResults);
-
-      const failedChecks = endResults.filter((r) => r.result.status === "failed");
-      if (failedChecks.length > 0) {
-        repairCount++;
-        // Emit decision for repair
-        await emitAgent(log, session, "agent.decision", {
-          kind: "repair", iteration: i,
-          description: `Entering repair loop (attempt ${repairCount}/${maxRepairs})`,
-          outcome: "executed",
-        });
-        stateMachine.recordRepair();
-        if (repairCount > maxRepairs) {
-          await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
-          const { skillFactory } = await import("../../skills/dispatcher.js");
-          void skillFactory.process({
-            sessionId,
-            sessionDir,
-            summary: "Repair limit reached",
-            filesCreated: [...sessionState.created],
-            filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-          });
-          await evaluatePattern(log, session, sessionDir, taskType);
-          return { sessionId, summary: "Repair limit reached", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
-        }
-        const failureText = failedChecks
-          .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
-          .join("\n\n");
-
-        const fullPrompt = riskReport
-          ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
-          : failureText;
-
-        // Get historical suggestions for similar failures
-        const historicalSuggestions = enhancedVerifier
-          ? await getHistoricalSuggestions(enhancedVerifier, failedChecks, sessionState, session, log)
-          : [];
-
-        let repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
-        if (historicalSuggestions.length > 0) {
-          repairPrompt += "\n\n**Similar failures that were resolved:**\n" + historicalSuggestions.join("\n");
-        }
-        messages.push({ role: "user", content: repairPrompt });
-      }
-    }
+  // After tool calls, run verification every iteration (if policy allows).
+  // Extracted to `runIterationVerification` (#717 method decomposition).
+  {
+    const vr = await runIterationVerification({
+      iteration: i,
+      sessionState,
+      config,
+      log,
+      session,
+      evidenceTask,
+      evidenceTaskType,
+      successfulToolEvidence,
+      taskType,
+      hasMutations,
+      stateMachine,
+      repairCount,
+      maxRepairs,
+      enhancedVerifier,
+      messages,
+      sessionId,
+      sessionDir,
+      streamed: model.streaming,
+      contextRotThreshold,
+      contextPressure,
+      contextBudget,
+      lastInvocationId,
+    });
+    repairCount = vr.repairCount;
+    if (vr.earlyReturn) return vr.earlyReturn;
   }
 }
 
   // Persist session state at the end of each iteration for crash resilience
-  try {
-    await saveSessionState(
-      sessionDir,
-      {
-        messages,
-        scope: scope.toJSON(),
-        stateMachine: stateMachine.toJSON(),
-      }
-    );
-  } catch (saveErr) {
-    // Non-fatal — session state is best-effort
-    await log.append({ ...session, actor: "system", type: "session.state_persist_failed", payload: { error: String(saveErr) } });
-  }
+  await persistSessionState({ sessionDir, messages, scope, stateMachine, session, log });
   }
 
   // Max iterations reached

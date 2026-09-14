@@ -242,8 +242,7 @@ governance vitest 51/51, governance node tests 1353/1353. Full suites: vitest
 under an isolated HOME (clean config, as CI) passes in 145ms, confirming
 environmental.
 
-Remaining: steps 4–6 (`task-loop.ts` incl. `runTaskLoop` decomposition,
-`session.ts` incl. `build()` decomposition, `cli.ts`).
+Remaining: steps 5–6 (`session.ts` incl. `build()` decomposition, `cli.ts`).
 
 ### Step 4 inventory — `src/run/task-loop.ts` (2,328 lines)
 
@@ -277,23 +276,19 @@ Note: much of `runTaskLoop`'s body is written at column 0 (unindented), so
 slice by that grep. Extract top-level helpers into `src/run/task-loop/*.ts`
 first; then decompose `runTaskLoop` itself (separate commit).
 
-**4b (PENDING) — `runTaskLoop` method decomposition.** `runTaskLoop` is
-`main.ts` lines 167–1703 (1,534 lines). Candidate coherent extractions (in
-`main.ts` line terms), each behavior-preserving and test-covered:
+**4b (DONE) — `runTaskLoop` method decomposition.** Extracted three coherent
+phases, body verbatim, public behavior unchanged:
+- `context-phase.ts` `assembleBudgetedContext` — budget admission gate
+  (assembly + tool-schema reservation + T6 events + preflight).
+- `verification-phase.ts` `runIterationVerification` — end-of-iteration
+  verification + repair loop (returns `earlyReturn` RunResult on repair limit).
+- `session-lifecycle.ts` `persistSessionState` — per-iteration crash-resilience
+  save.
 
-1. Setup block (197–300): `resolveModelConfig`, T7 tool scoping
-   (`coreTools`/`extendedTools`/`fallbackFull`/`scopedOutNames` + fallback event),
-   T8 shed-tool state, `contextPressure`, `stateTelemetry` init, `executionId`,
-   `hookRunEnv`, `enhancedVerifier` init → return a typed `RunInit` object.
-2. End-of-iteration verification/repair block (1546–1634): verification plan +
-   checks + `buildRiskReport` + repair loop + `messages.push` → return a
-   discriminated `{ action: "return", result } | { action: "continue",
-   repairCount }` so the `repairCount++` / early-return semantics are explicit.
-3. Terminal completion + catch/finally (1651–1703): max-iterations
-   `completeSession`, irreducible-overflow `RunResult`, `enhancedVerifier.close`.
-
-Target: `main.ts` ≤ 1,500 after extraction. Verify with the task-loop test set
-(338 tests) plus full `pnpm test:vitest` and `pnpm test:node:ci`.
+`main.ts` 1,704 → **1,493** (≤ 1,500 orchestrator threshold); `runTaskLoop`
+~1,340 lines. All task-loop modules ≤ 1,500. Verified: 338 task-loop tests,
+full `pnpm test:vitest` 6129/0, `pnpm test:node:ci` 7493/0 (known GraphExecutor
+environmental timeout reconfirmed at 145ms under isolated HOME).
 
 
 

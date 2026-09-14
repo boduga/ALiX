@@ -20,6 +20,11 @@ import "../../skills/dispatcher.js";
 import "../../verifier/index.js";
 import { EnhancedVerifier } from "../../verifier/enhanced-verifier.js";
 import { saveDecisionsToMemory } from "../helpers.js";
+import type { NormalizedMessage } from "../../providers/types.js";
+import type { ScopeTracker } from "../../autonomy/scope-tracker.js";
+import type { TaskStateMachine } from "../../autonomy/state-machine.js";
+import { saveSessionState } from "../../session/index.js";
+
 import "../context-pressure.js";
 import "../../agent/system-prompt.js";
 import "../../session/index.js";
@@ -225,3 +230,26 @@ export const RESEARCH_LIMITS = {
   quick: { maxIterations: 3, maxSearchCalls: 3 },
   deep: { maxIterations: 15, maxSearchCalls: 10 },
 } as const;
+
+/**
+ * Persist session state at the end of each iteration for crash resilience
+ * (#717 method decomposition; non-fatal — session state is best-effort).
+ */
+export async function persistSessionState(opts: {
+  sessionDir: string;
+  messages: NormalizedMessage[];
+  scope: ScopeTracker;
+  stateMachine: TaskStateMachine;
+  session: { sessionId: string; actor: "system" };
+  log: EventLog;
+}): Promise<void> {
+  try {
+    await saveSessionState(opts.sessionDir, {
+      messages: opts.messages,
+      scope: opts.scope.toJSON(),
+      stateMachine: opts.stateMachine.toJSON(),
+    });
+  } catch (saveErr) {
+    await opts.log.append({ ...opts.session, actor: "system", type: "session.state_persist_failed", payload: { error: String(saveErr) } });
+  }
+}
