@@ -247,6 +247,12 @@ Remaining: steps 4–6 (`task-loop.ts` incl. `runTaskLoop` decomposition,
 
 ### Step 4 inventory — `src/run/task-loop.ts` (2,328 lines)
 
+**4a (DONE) — module-scope leaf extraction.** `task-loop.ts` is now a 26-line
+re-export barrel over `src/run/task-loop/{session-lifecycle,predicates,context-helpers,main}.ts`
+(260/337/261/1704 lines). `main.ts` holds `TaskLoopDeps` + `runTaskLoop` and is
+still **above** the 1,500-line orchestrator threshold — the decomposition below
+is still required. Child `AGENTS.md` added + root index updated.
+
 Top-level (module-scope) surface, in order:
 - Helpers: `completeSession`, `maybeEmitRotRisk`, `isIrreducibleContextBudgetOverflow`,
   `buildContextBudgetOverflowSummary`, `classifyIrreducibleKind`, `emitAgent`,
