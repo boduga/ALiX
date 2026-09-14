@@ -290,7 +290,39 @@ phases, body verbatim, public behavior unchanged:
 full `pnpm test:vitest` 6129/0, `pnpm test:node:ci` 7493/0 (known GraphExecutor
 environmental timeout reconfirmed at 145ms under isolated HOME).
 
+### Step 5 inventory — `src/agent/session.ts` (3,186 lines)
 
+`AgentSessionBuilder` class spans 617–2,545. Its `build()` (657–2,545) is a
+**closure factory**, not a plain function: it declares shared `let` state and
+~24 nested functions that close over it, then returns the `AgentSession`
+object. This is the hardest step — a mechanical slice will not work; the shared
+state must become an explicit object threaded into extracted factories.
+
+Nested-function map (absolute lines):
+- state block 657–804: `resolvedSessionId`, `createdAt`, tracing facade,
+  `restoreReconstructedPlanTasks` (670), and the `let` state vars.
+- `initialize` 805–977 (~173), `createFreshSessionState` 978, 
+  `extractToolCallsFromMessages` 996, `feedActivity` 1018.
+- phase/liveness/activity/cancel accessors 1062–1171: `advancePhase`,
+  `getPhase`, `getLiveness`, `getActivity`, `cancellationInProgress`,
+  `cancelActiveTurn`, `getLastCancelSummary`.
+- `processTurn` 1172–1204; **`processTurnBody` 1205–2140 (~936 lines)** — the
+  core of the decomposition.
+- session accessors/persistence 2141–2327: `getSessionId`, `getMode`,
+  `setMode`, `getVersion`, `getState`, `save`, `resume`.
+- chat path 2328–2545: `runSearch`, `ensureChatProvider`, `processChat`,
+  `processChatBody`.
+
+Suggested approach (review as a refactor, not a move): (1) hoist the shared
+mutable state into a `SessionState` object; (2) extract `initialize`,
+`processTurnBody`, `resume`, and the chat path into module-level factory
+functions taking that state object; (3) keep the `with*` builders and the
+returned object literal in `build()`. Module-level `setup*` helpers already
+exist at 2,546–3,186 and can be reused.
+
+Do NOT attempt with a mechanical line-slice. Verify with the agent/session test
+suites (`tests/agent/*.vitest.ts`, `tests/session-resume.vitest.ts`) plus the
+full `pnpm test:vitest` and `pnpm test:node:ci` gate.
 
 ## Execution protocol
 
