@@ -277,6 +277,25 @@ Note: much of `runTaskLoop`'s body is written at column 0 (unindented), so
 slice by that grep. Extract top-level helpers into `src/run/task-loop/*.ts`
 first; then decompose `runTaskLoop` itself (separate commit).
 
+**4b (PENDING) — `runTaskLoop` method decomposition.** `runTaskLoop` is
+`main.ts` lines 167–1703 (1,534 lines). Candidate coherent extractions (in
+`main.ts` line terms), each behavior-preserving and test-covered:
+
+1. Setup block (197–300): `resolveModelConfig`, T7 tool scoping
+   (`coreTools`/`extendedTools`/`fallbackFull`/`scopedOutNames` + fallback event),
+   T8 shed-tool state, `contextPressure`, `stateTelemetry` init, `executionId`,
+   `hookRunEnv`, `enhancedVerifier` init → return a typed `RunInit` object.
+2. End-of-iteration verification/repair block (1546–1634): verification plan +
+   checks + `buildRiskReport` + repair loop + `messages.push` → return a
+   discriminated `{ action: "return", result } | { action: "continue",
+   repairCount }` so the `repairCount++` / early-return semantics are explicit.
+3. Terminal completion + catch/finally (1651–1703): max-iterations
+   `completeSession`, irreducible-overflow `RunResult`, `enhancedVerifier.close`.
+
+Target: `main.ts` ≤ 1,500 after extraction. Verify with the task-loop test set
+(338 tests) plus full `pnpm test:vitest` and `pnpm test:node:ci`.
+
+
 
 ## Execution protocol
 
