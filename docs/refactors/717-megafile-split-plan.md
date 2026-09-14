@@ -242,7 +242,7 @@ governance vitest 51/51, governance node tests 1353/1353. Full suites: vitest
 under an isolated HOME (clean config, as CI) passes in 145ms, confirming
 environmental.
 
-Remaining: steps 5–6 (`session.ts` incl. `build()` decomposition, `cli.ts`).
+Remaining: step 5b (`session.ts` `build()` decomposition).
 
 ### Step 4 inventory — `src/run/task-loop.ts` (2,328 lines)
 
@@ -329,6 +329,25 @@ into module-level factory functions taking that state object; (3) keep the
 Do NOT attempt with a mechanical line-slice. Verify with the agent/session test
 suites (`tests/agent/*.vitest.ts`, `tests/session-resume.vitest.ts`) plus the
 full `pnpm test:vitest` and `pnpm test:node:ci` gate.
+
+### Step 6 — `src/cli.ts` (2,774 lines) — DONE
+
+Batched extraction of the inline `if (command === ...)` blocks into
+`src/cli/commands/` modules; each block body moved verbatim and `cli.ts`
+delegates via dynamic import:
+
+- batch 1 `graph.ts` (9 handlers); 2 `config.ts` (8; also moved `selectProvider`);
+  3 `mcp-extension.ts`; 4 `skill.ts`; 5 `metrics-db-memory.ts` (also moved
+  `MEMORY_TYPES`/`MemoryType`); 6 `policy-registry-runtime.ts`;
+  7 `daemon-audit.ts`; 8 `approvals-doctor-capability.ts`;
+  9 `security-ops.ts` (13 handlers).
+
+`cli.ts` 2,774 → **642** (≤ 1,000 dispatcher threshold). The remaining inline
+blocks are thin delegations to already-extracted command modules. Repointed the
+`skill-commands` sentinel to `cli/commands/skill.ts`.
+
+Verified: full `pnpm test:vitest` 6129/0 and `pnpm test:node:ci` 7494/0.
+
 
 ## Execution protocol
 
