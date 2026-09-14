@@ -57,8 +57,37 @@ export type EventHandlerDeps = {
 
 /** Read-only search tools subject to the repeated-call guard. */
 const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match", "dir.search"]);
-/** How many identical search calls are allowed before the guard fires. */
+/** How many near-identical search calls are allowed before the guard fires. */
 const SEARCH_REPEAT_LIMIT = 3;
+/**
+ * Hard per-tool cap for a single turn. Even when a model varies the args
+ * slightly to evade the exact-signature guard (e.g. `path: "src/x"` →
+ * `"src/x/"`, or a tweaked pattern), this many calls to ONE search tool is a
+ * loop; the next call is short-circuited with a synthesize-now nudge.
+ */
+const SEARCH_TOOL_CALL_LIMIT = 8;
+
+/**
+ * Normalize a search call into a stable signature so near-identical calls
+ * collapse: path/pattern are trimmed and trailing slashes dropped, `include`
+ * and `extensions` are sorted, and the pure result-bound `headLimit` is ignored
+ * (it cannot change what is found, only how much is returned).
+ */
+function searchSignature(execName: string, args: unknown): string {
+  const a = (args ?? {}) as Record<string, unknown>;
+  const s = (v: unknown): string => (typeof v === "string" ? v.trim().replace(/\/+$/, "") : "");
+  const list = (v: unknown): string => (Array.isArray(v) ? [...v].map(String).sort().join(",") : "");
+  switch (execName) {
+    case "grep.search":
+      return `grep.search:${s(a.pattern)}:${s(a.path)}:${a.caseSensitive === true}:${list(a.include)}`;
+    case "glob.match":
+      return `glob.match:${s(a.pattern)}:${s(a.path)}`;
+    case "dir.search":
+      return `dir.search:${s(a.pattern)}:${s(a.path)}:${list(a.extensions)}`;
+    default:
+      return `${execName}:${JSON.stringify(args ?? {})}`;
+  }
+}
 
 /**
  * Markers that a `web_search` query is really a LOCAL workspace search. A model
@@ -344,19 +373,33 @@ export async function handleToolCall(
     }
   }
 
-  // Repeated-search guard: an identical read-only search call past the limit is
-  // short-circuited so a stuck model cannot burn the iteration budget. Only
+  // Repeated-search guard: a near-identical read-only search call past the
+  // limit is short-circuited so a stuck model cannot burn the iteration budget.
+  // Two tiers: an exact (normalized) signature cap, and a hard per-tool cap that
+  // catches loops where the model varies args to evade the signature. Only
   // active when the caller supplies a per-turn counter.
   if (deps.searchCallGuard && GUARDED_SEARCH_TOOLS.has(execName)) {
-    const signature = `${execName}:${JSON.stringify(toolCall.args ?? {})}`;
+    const signature = searchSignature(execName, toolCall.args);
     const count = (deps.searchCallGuard.get(signature) ?? 0) + 1;
     deps.searchCallGuard.set(signature, count);
+    const toolKey = `tool:${execName}`;
+    const toolCount = (deps.searchCallGuard.get(toolKey) ?? 0) + 1;
+    deps.searchCallGuard.set(toolKey, toolCount);
     if (count > SEARCH_REPEAT_LIMIT) {
       return {
         continue: true,
         message: {
           role: "user",
-          content: `<tool_result id="${toolCall.id}">\nError: repeated identical search call — "${execName}" with these exact arguments has already run ${count - 1} times and will return the same result. Use the previous result, change the pattern/scope (e.g. narrower \`path\`, different \`include\`), or answer with what you have.\n</tool_result>`,
+          content: `<tool_result id="${toolCall.id}">\nError: repeated search call — "${execName}" with these (or equivalent) arguments has already run ${count - 1} times and will return the same result. Use the previous result, change the pattern/scope (e.g. narrower \`path\`, different \`include\`), or answer with what you have.\n</tool_result>`,
+        },
+      };
+    }
+    if (toolCount > SEARCH_TOOL_CALL_LIMIT) {
+      return {
+        continue: true,
+        message: {
+          role: "user",
+          content: `<tool_result id="${toolCall.id}">\nError: you have called "${execName}" ${toolCount - 1} times this turn — that is a search loop, not progress. Stop searching and answer now with the results you already have. If they are insufficient, state exactly what is missing.\n</tool_result>`,
         },
       };
     }

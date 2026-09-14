@@ -106,8 +106,30 @@ describe("handleToolCall unknown-tool guard", () => {
 
     // Only the first three executed; the fourth is short-circuited with a hint.
     expect(executor.execute).toHaveBeenCalledTimes(3);
-    expect(fourth.message?.content).toContain("repeated identical search call");
+    expect(fourth.message?.content).toContain("repeated search call");
     expect(fourth.continue).toBe(true);
+  });
+
+  it("collapses near-identical search calls (path trailing slash)", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", matches: [] }) };
+    const deps = { ...makeDeps(executor), searchCallGuard: new Map<string, number>() };
+    for (const path of ["src/x", "src/x/", "src/x//"]) {
+      await handleToolCall({ id: `n${path}`, name: "alix_grep_search", args: { pattern: "needle", path } }, deps, [], []);
+    }
+    const fourth = await handleToolCall({ id: "n4", name: "alix_grep_search", args: { pattern: "needle", path: "src/x" } }, deps, [], []);
+    expect(executor.execute).toHaveBeenCalledTimes(3);
+    expect(fourth.message?.content).toContain("repeated search call");
+  });
+
+  it("caps a per-tool search loop even when the pattern varies", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", matches: [] }) };
+    const deps = { ...makeDeps(executor), searchCallGuard: new Map<string, number>() };
+    for (let i = 0; i < 8; i++) {
+      await handleToolCall({ id: `v${i}`, name: "alix_grep_search", args: { pattern: `needle-${i}` } }, deps, [], []);
+    }
+    const ninth = await handleToolCall({ id: "v8", name: "alix_grep_search", args: { pattern: "needle-8" } }, deps, [], []);
+    expect(executor.execute).toHaveBeenCalledTimes(8);
+    expect(ninth.message?.content).toContain("search loop, not progress");
   });
 
   it("does not guard a different search pattern", async () => {
