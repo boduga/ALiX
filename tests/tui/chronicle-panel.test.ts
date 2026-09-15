@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { importedBindings } from "../helpers/import-graph.js";
 import { formatChroniclePanel, chronicleEntryToPanelEntry } from "../../src/tui/chronicle-panel.js";
 import type { ChroniclePanelData, ChroniclePanelEntry } from "../../src/tui/chronicle-panel.js";
 
@@ -67,9 +67,9 @@ describe("chronicle-panel", () => {
   });
 
   it("does NOT import ToolExecutor, PolicyGate, or ApprovalStore", () => {
-    const source = readFileSync("src/tui/chronicle-panel.ts", "utf-8");
-    assert.ok(!source.includes("ToolExecutor"));
-    assert.ok(!source.includes("PolicyGate"));
-    assert.ok(!source.includes("ApprovalStore"));
+    const bindings = importedBindings("src/tui/chronicle-panel.ts");
+    for (const forbidden of ["ToolExecutor", "PolicyGate", "ApprovalStore"]) {
+      assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
+    }
   });
 });
