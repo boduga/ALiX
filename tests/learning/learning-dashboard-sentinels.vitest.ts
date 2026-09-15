@@ -9,14 +9,16 @@
  *   2. No mutation method calls (.appendSignal(, .appendProfile(, …)
  *   3. No node:fs write APIs (appendFileSync, writeFileSync, createWriteStream)
  *
- * The aggregator (learning-dashboard.ts) legitimately imports LearningStore
- * and EvidenceChainStore for read-only consumption — these are NOT in the
- * forbidden-import list.
+ * Dependency claims use the real import graph (#697); call-site scans run on
+ * comment-stripped code. The aggregator (learning-dashboard.ts) legitimately
+ * imports LearningStore and EvidenceChainStore for read-only consumption —
+ * these are NOT in the forbidden-import list.
  */
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { importedBindings, importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 
 const FORBIDDEN_IMPORTS = [
   "ProposalStore",
@@ -65,37 +67,33 @@ function resolvePath(relativePath: string): string {
 describe("P8.5b.4 — Dashboard module purity sentinel", () => {
   for (const file of DASHBOARD_FILES) {
     const absPath = resolvePath(file);
-    const src = readFileSync(absPath, "utf-8");
-    const lines = src.split("\n");
 
     describe(`${file}`, () => {
       // --- Assertion 1: No forbidden imports ---
       it("has no forbidden imports", () => {
-        const importLines = lines.filter(
-          (l) => l.trimStart().startsWith("import ") || l.includes("require(")
-        );
+        const bindings = importedBindings(absPath);
+        const specifiers = [...importedSpecifiers(absPath)];
         for (const forbidden of FORBIDDEN_IMPORTS) {
-          for (const il of importLines) {
-            expect(il).not.toContain(forbidden);
-          }
+          expect(
+            bindings.has(forbidden) || specifiers.some((s) => s.includes(forbidden)),
+            `imports ${forbidden}`,
+          ).toBe(false);
         }
       });
 
       // --- Assertion 2: No mutation method calls ---
       it("has no mutation method calls", () => {
+        const code = codeOnly(readFileSync(absPath, "utf-8"));
         for (const forbidden of FORBIDDEN_WRITE_CALLS) {
-          for (const line of lines) {
-            expect(line).not.toContain(forbidden);
-          }
+          expect(code.includes(forbidden), `calls ${forbidden}`).toBe(false);
         }
       });
 
       // --- Assertion 3: No node:fs write APIs ---
       it("has no node:fs write APIs", () => {
+        const code = codeOnly(readFileSync(absPath, "utf-8"));
         for (const forbidden of FORBIDDEN_FS_WRITES) {
-          for (const line of lines) {
-            expect(line).not.toContain(forbidden);
-          }
+          expect(code.includes(forbidden), `uses ${forbidden}`).toBe(false);
         }
       });
     });

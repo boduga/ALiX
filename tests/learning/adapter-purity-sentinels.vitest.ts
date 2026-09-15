@@ -5,13 +5,12 @@
  * NOT import any mutation surface. A single rogue import anywhere in any
  * adapter file fails the suite loudly.
  *
- * Mirrors the P8.5a.0 Evidence Chain import sentinel. The structural
- * check is the primary defense; per-test inline checks in each adapter's
- * vitest file are secondary.
+ * Dependency claims are checked against the real import graph (#697), so a
+ * comment or unrelated mention can no longer satisfy them.
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { importedBindings, importedSpecifiers } from "../helpers/import-graph.js";
 
 const REPO_ROOT = process.cwd();
 
@@ -35,23 +34,22 @@ const FORBIDDEN_IMPORTS = [
 describe("adapter purity invariant (P8.5a.2d)", () => {
   for (const rel of ADAPTER_FILES) {
     describe(rel, () => {
-      const src = readFileSync(`${REPO_ROOT}/${rel}`, "utf-8");
-      const importLines = src
-        .split("\n")
-        .filter((l) => l.trim().startsWith("import"));
+      const abs = `${REPO_ROOT}/${rel}`;
+      const bindings = importedBindings(abs);
+      const specifiers = [...importedSpecifiers(abs)];
 
       it("file is readable and has at least one import", () => {
-        expect(importLines.length).toBeGreaterThan(0);
+        expect(specifiers.length).toBeGreaterThan(0);
       });
 
       for (const forbidden of FORBIDDEN_IMPORTS) {
         it(`does not import ${forbidden}`, () => {
-          for (const line of importLines) {
-            expect(
-              line,
-              `${rel} must not import ${forbidden} (mutates Learning=Mutation invariant)`,
-            ).not.toContain(forbidden);
-          }
+          const importedByName = bindings.has(forbidden);
+          const importedByPath = specifiers.some((s) => s.includes(forbidden));
+          expect(
+            importedByName || importedByPath,
+            `${rel} must not import ${forbidden} (mutates Learning=Mutation invariant)`,
+          ).toBe(false);
         });
       }
     });
