@@ -30,6 +30,15 @@ export function codeOnly(src: string): string {
   return stripComments(src);
 }
 
+/**
+ * Normalize a filesystem path to POSIX separators. Sentinels compare paths
+ * against `/`-joined literals; on Windows `readdir`/`glob` return `\` paths,
+ * so comparisons must be separator-agnostic.
+ */
+export function toPosix(p: string): string {
+  return p.split("\\").join("/");
+}
+
 /** Parse the bindings from an import/export clause (the part before `from`). */
 function parseBindings(clause: string): string[] {
   const out: string[] = [];

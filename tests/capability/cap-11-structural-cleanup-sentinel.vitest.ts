@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
+import { importedSpecifiers, codeOnly, toPosix } from "../helpers/import-graph.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
 
@@ -52,7 +52,7 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
   it("axis 4: only CapabilityPlatform constructs CapabilityRegistry (no second CLI registry construction)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
-      if (f.endsWith("src/capability/platform.ts")) continue;
+      if (toPosix(f).endsWith("src/capability/platform.ts")) continue;
       expect(codeOnly(fs.readFileSync(f, "utf-8")), path.relative(REPO_ROOT, f)).not.toMatch(
         /new\s+CapabilityRegistry\s*\(/,
       );
@@ -62,11 +62,11 @@ describe("CAP-11 Structural Cleanup Sentinel (ruling #3, #4, #8)", () => {
   it("axis 5: CapabilityPlatform.service is the sole public capability surface (no platform.registry / platform.catalog in non-test code)", () => {
     const srcFiles = collectFiles(path.join(REPO_ROOT, "src"));
     for (const f of srcFiles) {
-      if (f.endsWith("src/capability/platform.ts")) continue;
+      if (toPosix(f).endsWith("src/capability/platform.ts")) continue;
       // TUI consumer still uses platform.registry / platform.native until
       // the TUI migration lands (out of scope for CAP-11; tsc reports the
       // 3 expected privacy errors for this file).
-      if (f.endsWith("src/tui/capabilities/capability-service.ts")) continue;
+      if (toPosix(f).endsWith("src/tui/capabilities/capability-service.ts")) continue;
       const code = codeOnly(fs.readFileSync(f, "utf-8"));
       expect(code, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.registry/);
       expect(code, path.relative(REPO_ROOT, f)).not.toMatch(/platform\.catalog/);

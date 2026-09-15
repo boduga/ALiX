@@ -57,7 +57,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { globSync } from "glob";
-import { extractImports, codeOnly } from "../helpers/import-graph.js";
+import { extractImports, codeOnly, toPosix } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // Scope + allowlist
@@ -79,7 +79,10 @@ const ALLOWED_DYNAMIC_FACTORY = "tracing/client-factory.ts";
 const SRC_FILES = globSync("**/*.{ts,tsx}", {
   cwd: SRC,
   ignore: ["**/node_modules/**"],
-}).filter((f) => !f.endsWith(".d.ts"));
+})
+  .filter((f) => !f.endsWith(".d.ts"))
+  // POSIX-normalized so allowlist/`startsWith` comparisons work on Windows.
+  .map(toPosix);
 
 // ---------------------------------------------------------------------------
 // Specifier matchers

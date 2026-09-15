@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { toPosix } from "../helpers/import-graph.js";
 
 /** AC#12 — structural composition check. The ONLY place a CapabilityRegistry
  *  is constructed is the platform composition root. This scans source (not
@@ -22,8 +23,8 @@ describe("exactly one canonical CapabilityRegistry per runtime universe", () => 
   it("no `new CapabilityRegistry(` outside the platform composition root", () => {
     const offenders: string[] = [];
     for (const file of walk(ROOT)) {
-      // relative to src/ so the excluded set (capability/*) matches
-      const rel = file.replace(ROOT + "/", "");
+      // relative to src/ (POSIX-normalized) so the excluded set matches on Windows
+      const rel = toPosix(relative(ROOT, file));
       if (EXCLUDED.has(rel)) continue;
       const src = readFileSync(file, "utf-8");
       // imports of the class are fine; construction is not

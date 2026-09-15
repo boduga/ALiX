@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractImports } from "./import-graph.js";
+import { extractImports, toPosix } from "./import-graph.js";
 
 describe("extractImports", () => {
   it("extracts static named/default/namespace bindings + specifier", () => {
@@ -39,5 +39,13 @@ describe("extractImports", () => {
     `;
     const specs = extractImports(src).map((r) => r.specifier);
     expect(specs).toEqual(["./good.js"]);
+  });
+});
+
+describe("toPosix", () => {
+  it("converts Windows separators and leaves POSIX paths unchanged", () => {
+    expect(toPosix("capability\\platform.ts")).toBe("capability/platform.ts");
+    expect(toPosix("tracing\\langfuse-client.ts")).toBe("tracing/langfuse-client.ts");
+    expect(toPosix("capability/platform.ts")).toBe("capability/platform.ts");
   });
 });
