@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { buildChildEnv } from "../runtime/child-env.js";
 import type { ToolResult } from "./types.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
@@ -129,7 +129,14 @@ function spawnCommand(
 function killProcessTree(pid: number | undefined): void {
   if (!pid) return;
   if (process.platform === "win32") {
-    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], () => {});
+    // Synchronous: `cancel()` is fire-and-forget and the caller returns the
+    // timeout/abort result immediately, so the kill MUST complete before we
+    // return — otherwise the child (and any grandchild) outlives the call,
+    // leaving the test's temp dir locked (EBUSY) and the "child was killed"
+    // assertions racing. `taskkill /T /F` is fast.
+    try {
+      execFileSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", timeout: 5_000 });
+    } catch { /* already exited / taskkill unavailable */ }
     return;
   }
   try { process.kill(-pid, "SIGKILL"); } catch {
