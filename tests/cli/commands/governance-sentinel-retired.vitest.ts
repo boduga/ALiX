@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execSync } from "node:child_process";
 import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
+import { codeOnly } from "../../helpers/import-graph.js";
 
 /**
  * Repo root resolved from this test file's location (tests/cli/commands/).
@@ -208,7 +209,7 @@ describe("P8.5a.2c — lens_scores_not_persisted sentinel retired", () => {
 
     let hits = 0;
     for (const f of srcFiles) {
-      const txt = readFileRecursive(f, "utf-8");
+      const txt = codeOnly(readFileRecursive(f, "utf-8"));
       if (txt.includes("lens_scores_not_persisted")) {
         hits += 1;
       }
@@ -224,7 +225,7 @@ describe("P8.5a.2c — lens_scores_not_persisted sentinel retired", () => {
 
     let hits = 0;
     for (const f of testFiles) {
-      const txt = readFileRecursive(f, "utf-8");
+      const txt = codeOnly(readFileRecursive(f, "utf-8"));
       if (txt.includes("lens_scores_not_persisted")) {
         hits += 1;
       }
