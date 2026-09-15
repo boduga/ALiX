@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+import { importedBindings } from "../helpers/import-graph.js";
 import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
 import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
 import { RecommendationCalibrationAdapter } from "../../src/learning/recommendation-calibration-adapter.js";
@@ -155,16 +156,10 @@ describe("RecommendationCalibrationAdapter", () => {
     expect(result.diagnostics.fidelity).toBe("high");
   });
 
-  it("is pure: the adapter file does not import LearningStore", async () => {
-    // Read the adapter source as text and assert no forbidden import.
-    const { readFileSync: rfs } = await import("node:fs");
-    const src = rfs(
+  it("is pure: the adapter file does not import LearningStore", () => {
+    const bindings = importedBindings(
       `${REPO_ROOT}/src/learning/recommendation-calibration-adapter.ts`,
-      "utf-8",
     );
-    const importLines = src.split("\n").filter((l) => l.trim().startsWith("import"));
-    for (const line of importLines) {
-      expect(line).not.toContain("LearningStore");
-    }
+    expect(bindings.has("LearningStore")).toBe(false);
   });
 });
