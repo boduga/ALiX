@@ -401,7 +401,10 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     // real HOME, set process.env.HOME to a temp dir for this test.
     const tmpHome = makeTempDir('alix-rot-home-');
     const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
     process.env.HOME = tmpHome;
+    // #732 — Windows resolves os.homedir() from USERPROFILE, not HOME.
+    process.env.USERPROFILE = tmpHome;
     try {
       const { saveCalibration } = await import('../../src/config/calibration-store.js');
       // Use `remainingTokensPct` so we don't depend on tier drops: any pressure below
@@ -453,6 +456,8 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
     } finally {
       if (originalHome === undefined) delete process.env.HOME;
       else process.env.HOME = originalHome;
+      if (originalUserProfile === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = originalUserProfile;
     }
   });
 });
