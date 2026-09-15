@@ -5,6 +5,7 @@
 import type { DaemonResponse } from "../daemon/daemon-types.js";
 import type { TaskRoute } from "../runtime/task-router.js";
 import { readVersionCached } from "../agent/session.js";
+import { resolveDaemonSocketAddress, isNamedPipe } from "../daemon/daemon-paths.js";
 
 export interface DaemonClientOptions {
   cwd: string;
@@ -36,9 +37,9 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
   const { connect } = await import("node:net");
   const { existsSync } = await import("node:fs");
 
-  const socketPath = join(homedir(), ".alix", "alixd.sock");
+  const socketPath = resolveDaemonSocketAddress(join(homedir(), ".alix"));
 
-  if (!existsSync(socketPath)) {
+  if (!isNamedPipe(socketPath) && !existsSync(socketPath)) {
     opts.onError("Daemon is not running (no socket at ~/.alix/alixd.sock). Start it with: alix daemon start");
     return;
   }
@@ -200,9 +201,9 @@ export class DaemonAgentSession implements AgentSession {
     const { connect } = await import("node:net");
     const { existsSync } = await import("node:fs");
 
-    const socketPath = this.socketPath ?? join(homedir(), ".alix", "alixd.sock");
+    const socketPath = this.socketPath ?? resolveDaemonSocketAddress(join(homedir(), ".alix"));
 
-    if (!existsSync(socketPath)) {
+    if (!isNamedPipe(socketPath) && !existsSync(socketPath)) {
       return {
         summary: `[daemon] Daemon is not running. Start it with: alix daemon start`,
         sessionId: this.id,
