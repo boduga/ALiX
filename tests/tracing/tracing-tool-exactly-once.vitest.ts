@@ -45,7 +45,8 @@
  *   docs/superpowers/plans/2026-09-06-langfuse-tracing-implementation-plan.md
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { removeTempDir } from "../helpers/temp.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -219,7 +220,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await Promise.all(cleanup.splice(0).map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all(cleanup.splice(0).map((d) => removeTempDir(d)));
 });
 
 afterAll(async () => {

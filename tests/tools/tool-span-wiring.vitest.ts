@@ -27,7 +27,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { removeTempDirSync } from "../helpers/temp.js";
 import { tmpdir } from "node:os";
 import { ToolExecutor, type ExecuteResult } from "../../src/tools/executor.js";
 import type { EventLog } from "../../src/events/event-log.js";
@@ -201,7 +202,7 @@ function toolCall(overrides?: Partial<{
 }
 
 afterEach(() => {
-  for (const s of setups) rmSync(s.dir, { recursive: true, force: true });
+  for (const s of setups) removeTempDirSync(s.dir);
   setups.length = 0;
   vi.restoreAllMocks();
 });
