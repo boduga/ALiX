@@ -12,7 +12,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { markerThenSleepCommand } from "../helpers/shell.js";
-import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, existsSync } from "node:fs";
+import { removeTempDirSync } from "../helpers/temp.js";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ModelAdapter } from "../../src/providers/types.js";
@@ -127,7 +128,7 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
     systemPrompt: "You are a test assistant.",
   };
   return {
-    cleanup: () => rmSync(tmpRoot, { recursive: true, force: true }),
+    cleanup: () => removeTempDirSync(tmpRoot),
     deps,
     startedCalls: () => started,
     completedCalls: () => completed,
@@ -318,7 +319,7 @@ async function buildToolHarness(): Promise<{
     };
   };
 
-  return { cleanup: () => rmSync(tmpRoot, { recursive: true, force: true }), buildDeps, root: tmpRoot, sessionDir, eventLog };
+  return { cleanup: () => removeTempDirSync(tmpRoot), buildDeps, root: tmpRoot, sessionDir, eventLog };
 }
 
 function toolProvider(responses: ToolProviderResponse[], calls?: () => void): ModelAdapter {
