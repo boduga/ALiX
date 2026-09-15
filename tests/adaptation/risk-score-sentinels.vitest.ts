@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-/** Read a file's source text for structural/grep-based checks. */
-function sourceOf(relativePath: string): string {
-  const resolved = path.resolve(__dirname, relativePath);
-  return fs.readFileSync(resolved, "utf-8");
-}
+const TARGET = resolve(__dirname, "../../src/adaptation/risk-score-builder.ts");
 
 describe("P6 Governance Invariants — RiskScore must not recommend", () => {
   const FORBIDDEN_IMPORTS = [
@@ -28,6 +25,8 @@ describe("P6 Governance Invariants — RiskScore must not recommend", () => {
     "CapabilityEvolutionProposalGenerator",
   ];
 
+  const STORE_TYPES = ["ProposalStore", "EvidenceStore", "LineageBuilder", "IntelligenceStore", "EffectivenessStore"];
+
   const RECOMMENDATION_PATTERNS: RegExp[] = [
     /\bapprove\b/,  // avoids matching "approved" (legitimate status value)
     /\breject\b/,   // avoids matching "rejected" (legitimate status value)
@@ -37,42 +36,38 @@ describe("P6 Governance Invariants — RiskScore must not recommend", () => {
   ];
 
   it("must not import governance/mutation modules", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder.ts");
+    const specifiers = [...importedSpecifiers(TARGET)];
     for (const mod of FORBIDDEN_IMPORTS) {
-      expect(source).not.toContain(mod);
+      expect(specifiers.some((s) => s.includes(mod)), `imports ${mod}`).toBe(false);
     }
   });
 
-  it("must not reference governance types", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder.ts");
+  it("must not import governance types", () => {
+    const bindings = importedBindings(TARGET);
     for (const type of FORBIDDEN_TYPES) {
-      expect(source).not.toContain(type);
+      expect(bindings.has(type), `imports ${type}`).toBe(false);
     }
   });
 
   it("must not contain recommendation language", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder.ts");
+    const code = codeOnly(readFileSync(TARGET, "utf-8"));
     for (const pattern of RECOMMENDATION_PATTERNS) {
-      expect(source).not.toMatch(pattern);
+      expect(code).not.toMatch(pattern);
     }
   });
 
-  it("must not contain write/approve/apply calls", () => {
-    const source = sourceOf("../../src/adaptation/risk-score-builder.ts");
+  it("must not call write/approve/apply methods", () => {
+    const code = codeOnly(readFileSync(TARGET, "utf-8"));
     const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject("];
     for (const method of forbidden) {
-      expect(source).not.toContain(method);
+      expect(code.includes(method), `calls ${method}`).toBe(false);
     }
   });
 
   it("constructor must not accept stores", () => {
-    // Architectural sentinel: RiskScoreBuilder should only receive a DecisionContext,
-    // not stores. If its constructor signature changes to accept stores, this fails.
-    const source = sourceOf("../../src/adaptation/risk-score-builder.ts");
-    // Check the class doesn't reference ProposalStore, EvidenceStore, etc. in constructor
-    const storePatterns = ["ProposalStore", "EvidenceStore", "LineageBuilder", "IntelligenceStore", "EffectivenessStore"];
-    for (const store of storePatterns) {
-      expect(source).not.toContain(store);
+    const bindings = importedBindings(TARGET);
+    for (const store of STORE_TYPES) {
+      expect(bindings.has(store), `imports store ${store}`).toBe(false);
     }
   });
 });

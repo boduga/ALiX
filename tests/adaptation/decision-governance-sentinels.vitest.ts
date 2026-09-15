@@ -1,12 +1,9 @@
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-/** Read a file's source text for structural/grep-based checks. */
-function sourceOf(relativePath: string): string {
-  const resolved = path.resolve(__dirname, relativePath);
-  return fs.readFileSync(resolved, "utf-8");
-}
+const TARGET = resolve(__dirname, "../../src/adaptation/decision-context-builder.ts");
 
 describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
   const FORBIDDEN_IMPORTS = [
@@ -29,27 +26,21 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
   ];
 
   it("DecisionContextBuilder must not import governance/mutation modules", () => {
-    const source = sourceOf(
-      "../../src/adaptation/decision-context-builder.ts",
-    );
+    const specifiers = [...importedSpecifiers(TARGET)];
     for (const mod of FORBIDDEN_IMPORTS) {
-      expect(source).not.toContain(mod);
+      expect(specifiers.some((s) => s.includes(mod)), `imports ${mod}`).toBe(false);
     }
   });
 
-  it("DecisionContextBuilder must not reference governance types", () => {
-    const source = sourceOf(
-      "../../src/adaptation/decision-context-builder.ts",
-    );
+  it("DecisionContextBuilder must not import governance types", () => {
+    const bindings = importedBindings(TARGET);
     for (const type of FORBIDDEN_TYPES) {
-      expect(source).not.toContain(type);
+      expect(bindings.has(type), `imports ${type}`).toBe(false);
     }
   });
 
-  it("DecisionContextBuilder must not contain save/update/approve/apply or proposal-generation calls", () => {
-    const source = sourceOf(
-      "../../src/adaptation/decision-context-builder.ts",
-    );
+  it("DecisionContextBuilder must not call save/update/approve/apply or proposal-generation methods", () => {
+    const code = codeOnly(readFileSync(TARGET, "utf-8"));
     const forbiddenMethods = [
       ".save(",
       ".update(",
@@ -63,7 +54,7 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
       "generateFromCapabilityEvolution(",
     ];
     for (const method of forbiddenMethods) {
-      expect(source).not.toContain(method);
+      expect(code.includes(method), `calls ${method}`).toBe(false);
     }
   });
 });

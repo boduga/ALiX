@@ -7,6 +7,7 @@ import { SkillApplier } from "../../src/adaptation/appliers/skill-applier.js";
 import { RevertApplier } from "../../src/adaptation/revert-applier.js";
 import { selectApplier } from "../../src/cli/commands/adaptation.js";
 import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
+import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 
 /** Read a file's source text for structural/grep-based checks. */
 function sourceOf(relativePath: string): string {
@@ -50,7 +51,7 @@ describe("Governance Invariants — no auto-approve", () => {
 
     for (const file of tsFiles) {
       if (isWhitelisted(file)) continue;
-      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const content = codeOnly(fs.readFileSync(path.join(dir, file), "utf-8"));
       if (hasStatusAssignment(content, "approved")) {
         expect.fail(
           `${file} assigns status "approved" outside allowed files (approval-gate.ts, tests, types only)`,
@@ -70,7 +71,7 @@ describe("Governance Invariants — no auto-apply", () => {
 
     for (const file of tsFiles) {
       if (isWhitelisted(file)) continue;
-      const content = fs.readFileSync(path.join(dir, file), "utf-8");
+      const content = codeOnly(fs.readFileSync(path.join(dir, file), "utf-8"));
       if (hasStatusAssignment(content, "applied")) {
         expect.fail(
           `${file} assigns status "applied" outside allowed files (approval-gate.ts, tests, types only)`,
@@ -82,7 +83,7 @@ describe("Governance Invariants — no auto-apply", () => {
 
 describe("Governance Invariants — no auto-revert", () => {
   it("AutomaticProposalGenerator must not produce revert_proposal actions", async () => {
-    const source = sourceOf("../../src/adaptation/auto-proposal-generator.ts");
+    const source = codeOnly(sourceOf("../../src/adaptation/auto-proposal-generator.ts"));
     // The string "revert_proposal" should not appear in the generator source
     // (it's allowed in types/imports but not in any action-producing code path)
     const occurrences = source.match(/"revert_proposal"/g);
@@ -94,40 +95,31 @@ describe("Governance Invariants — no auto-revert", () => {
   });
 
   it("CapabilityEvolutionProposalGenerator must not produce revert_proposal actions", async () => {
-    const source = sourceOf("../../src/adaptation/capability-evolution-proposal-generator.ts");
+    const source = codeOnly(sourceOf("../../src/adaptation/capability-evolution-proposal-generator.ts"));
     const actionAssignments = source.match(/action:\s*"revert_proposal"/g);
     expect(actionAssignments).toBeNull();
   });
 });
 
 describe("Governance Invariants — generator boundaries", () => {
-  it("AutomaticProposalGenerator must not import ApprovalGate or appliers", () => {
-    const source = sourceOf("../../src/adaptation/auto-proposal-generator.ts");
-    const forbidden = [
-      "approval-gate",
-      "agent-card-applier",
-      "skill-applier",
-      "revert-applier",
-    ];
-    for (const mod of forbidden) {
-      expect(source).not.toContain(mod);
-    }
-  });
+  const FORBIDDEN_GENERATOR_IMPORTS = [
+    "approval-gate",
+    "agent-card-applier",
+    "skill-applier",
+    "revert-applier",
+  ];
 
-  it("CapabilityEvolutionProposalGenerator must not import ApprovalGate or appliers", () => {
-    const source = sourceOf(
-      "../../src/adaptation/capability-evolution-proposal-generator.ts",
-    );
-    const forbidden = [
-      "approval-gate",
-      "agent-card-applier",
-      "skill-applier",
-      "revert-applier",
-    ];
-    for (const mod of forbidden) {
-      expect(source).not.toContain(mod);
-    }
-  });
+  for (const target of [
+    "../../src/adaptation/auto-proposal-generator.ts",
+    "../../src/adaptation/capability-evolution-proposal-generator.ts",
+  ]) {
+    it(`${target.split("/").pop()} must not import ApprovalGate or appliers`, () => {
+      const specifiers = [...importedSpecifiers(path.resolve(__dirname, target))];
+      for (const mod of FORBIDDEN_GENERATOR_IMPORTS) {
+        expect(specifiers.some((s) => s.includes(mod)), `imports ${mod}`).toBe(false);
+      }
+    });
+  }
 });
 
 describe("Governance Invariants — applier boundaries", () => {
