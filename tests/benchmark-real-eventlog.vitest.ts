@@ -54,7 +54,9 @@ describe("benchmark real EventLog/StepExecutor integration — issue #639", () =
     env.cleanup();
   });
 
-  it("C vs D still horizon-invariant and bounded with real store (10→500), not just FakeModel", async () => {
+  // #732 — real file-backed store across horizons 10→500 takes ~11s on the
+  // Windows CI runner (slower fs), exceeding the 10s default. Give it headroom.
+  it("C vs D still horizon-invariant and bounded with real store (10→500), not just FakeModel", { timeout: 60_000 }, async () => {
     // Use real harness for horizons — each horizon gets its own tmp EventLog+Store
     const reportReal = await runHorizonsReal({ seed: 42, horizons: [10, 50, 100, 500] });
     // And compare to fake harness invariants (should match shape)
