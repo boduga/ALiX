@@ -44,10 +44,9 @@ export async function handleAuditVerify(args: string[]): Promise<void> {
   setJsonMode(args.includes("--json"));
 
   const cwd = process.cwd();
-  const auditDir = join(cwd, ".alix", "audit");
-  const { verifyAuditLog } = await import("../../../security/audit/audit-verifier.js");
+  const { AuditStore } = await import("../../../audit/audit-store.js");
 
-  const result = await verifyAuditLog({ auditDir });
+  const result = await new AuditStore(cwd).verifyIntegrity();
 
   if (jsonMode) {
     console.log(JSON.stringify(result));
@@ -114,9 +113,9 @@ export async function loadHead(headPath: string): Promise<{ seq: number; recordH
  * Returns true when a usable head sidecar exists afterwards.
  */
 export async function activateAuditChain(auditDir: string): Promise<boolean> {
-  const { AuditChainWriter } = await import("../../../security/audit/audit-chain-writer.js");
+  const { AuditStore } = await import("../../../audit/audit-store.js");
   try {
-    await new AuditChainWriter({ auditDir }).activateLegacy();
+    await new AuditStore(process.cwd(), { auditDir }).activateIntegrity();
   } catch (err) {
     console.error(`Activation failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
@@ -141,12 +140,12 @@ export async function handleAuditActivate(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  const { AuditChainWriter } = await import("../../../security/audit/audit-chain-writer.js");
+  const { AuditStore } = await import("../../../audit/audit-store.js");
   type ActivationResult = import("../../../audit/audit-types.js").ActivationResult;
-  const writer = new AuditChainWriter({ auditDir });
+  const store = new AuditStore(cwd);
   let result: ActivationResult;
   try {
-    result = await writer.activateLegacy();
+    result = await store.activateIntegrity();
   } catch (err) {
     if (jsonMode) {
       console.log(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));

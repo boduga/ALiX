@@ -13,7 +13,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { AuditStore, type AuditAppendInput } from "../../src/audit/audit-store.js";
-import type { AuditRecord } from "../../src/audit/audit-types.js";
+import { isAuditRecordV2 } from "../../src/audit/audit-types.js";
+import type { AuditRecord, AuditRecordV2 } from "../../src/audit/audit-types.js";
 import type { AuditEventStore } from "../../src/audit/audit-contract.js";
 import { FileAuditStore } from "../../src/governance/audit-store.js";
 import type {
@@ -51,9 +52,11 @@ describe("AuditEventStore conformance (#713 step 1)", () => {
   it("runtime AuditStore implements the contract and round-trips", async () => {
     const dir = mkdtempSync(join(tmpdir(), "audit-contract-"));
     try {
-      const store: AuditEventStore<AuditAppendInput, AuditRecord> = new AuditStore(dir);
+      const store: AuditEventStore<AuditAppendInput, AuditRecord | AuditRecordV2, AuditRecord> =
+        new AuditStore(dir);
       const rec = await store.append({ action: "policy.allowed", details: {} });
       assert.equal(rec.action, "policy.allowed");
+      assert.ok(!isAuditRecordV2(rec));
       const all = await store.list();
       assert.equal(all.length, 1);
       assert.equal(all[0]!.id, rec.id);

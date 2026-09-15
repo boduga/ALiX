@@ -11,9 +11,19 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { AuditRecord, AuditAction, AuditDetails } from "./audit-types.js";
+import type {
+  AuditRecord,
+  AuditAction,
+  AuditDetails,
+  AuditHead,
+  AuditRecordV2,
+  ActivationResult,
+} from "./audit-types.js";
+import { isAuditRecordV2 } from "./audit-types.js";
 import type { AuditEventStore } from "./audit-contract.js";
 import { JsonlStore, streamJsonlLines } from "../storage/jsonl-store.js";
+import { AuditChainWriter } from "../security/audit/audit-chain-writer.js";
+import { verifyAuditLog, type VerificationResult } from "../security/audit/audit-verifier.js";
 
 /** Input accepted by `AuditStore.append`. */
 export interface AuditAppendInput {
@@ -103,30 +113,34 @@ async function streamQuery(
       continue;
     }
 
-    // Validate shape — must have id, action, timestamp.
-    const rec = parsed as Record<string, unknown>;
-    if (typeof rec.id !== "string" || typeof rec.action !== "string" || typeof rec.timestamp !== "string") {
-      if (malformedLines.length < 5) {
-        malformedLines.push(lineNumber);
+    // Normalize v1 (legacy) and v2 (hash-chained) records into the query shape.
+    let record: AuditRecord;
+    if (isAuditRecordV2(parsed)) {
+      record = {
+        id: `audit_v2_${parsed.seq}`,
+        action: parsed.action as AuditAction,
+        timestamp: new Date(parsed.timestamp).toISOString(),
+        actor: parsed.actor,
+        details: (parsed.details ?? {}) as AuditDetails,
+      };
+    } else {
+      // Validate shape — must have id, action, timestamp.
+      const rec = parsed as Record<string, unknown>;
+      if (typeof rec.id !== "string" || typeof rec.action !== "string" || typeof rec.timestamp !== "string") {
+        if (malformedLines.length < 5) {
+          malformedLines.push(lineNumber);
+        }
+        continue;
       }
-      continue;
+      record = parsed as AuditRecord;
     }
 
     // Apply filters.
     if (hasFilter) {
-      if (actionFilter !== undefined && rec.action !== actionFilter) continue;
-      if (graphFilter !== undefined) {
-        const details = rec.details as Record<string, unknown> | undefined;
-        if (!details || details.graphId !== graphFilter) continue;
-      }
-      if (approvalFilter !== undefined) {
-        const details = rec.details as Record<string, unknown> | undefined;
-        if (!details || details.approvalId !== approvalFilter) continue;
-      }
+      if (actionFilter !== undefined && record.action !== actionFilter) continue;
+      if (graphFilter !== undefined && record.details?.graphId !== graphFilter) continue;
+      if (approvalFilter !== undefined && record.details?.approvalId !== approvalFilter) continue;
     }
-
-    // Insert into ring buffer.
-    const record = parsed as AuditRecord;
 
     if (hasFilter && matchCount >= limit) {
       // For filtered queries, we could stop early. But we need newest-first,
@@ -177,17 +191,52 @@ async function streamQuery(
 // AuditStore
 // ---------------------------------------------------------------------------
 
-export class AuditStore implements AuditEventStore<AuditAppendInput, AuditRecord> {
-  private filePath: string;
-  private store: JsonlStore;
+export interface AuditStoreOptions {
+  /** Override the audit directory (defaults to `<cwd>/.alix/audit`). */
+  auditDir?: string;
+}
 
-  constructor(cwd: string) {
-    this.filePath = join(cwd, ".alix", "audit", "audit.jsonl");
+export class AuditStore
+  implements AuditEventStore<AuditAppendInput, AuditRecord | AuditRecordV2, AuditRecord> {
+  private filePath: string;
+  private auditDir: string;
+  private store: JsonlStore;
+  private chainWriter: AuditChainWriter | null = null;
+
+  constructor(cwd: string, options: AuditStoreOptions = {}) {
+    this.auditDir = options.auditDir ?? join(cwd, ".alix", "audit");
+    this.filePath = join(this.auditDir, "audit.jsonl");
     this.store = new JsonlStore(this.filePath);
   }
 
-  /** Append an audit record. Returns the created record with generated ID. */
-  async append(opts: AuditAppendInput): Promise<AuditRecord> {
+  /** True once the v2 integrity chain has been activated (head sidecar present). */
+  private integrityActive(): boolean {
+    return existsSync(join(this.auditDir, "head.json"));
+  }
+
+  private chain(): AuditChainWriter {
+    this.chainWriter ??= new AuditChainWriter({ auditDir: this.auditDir });
+    return this.chainWriter;
+  }
+
+  /**
+   * Append an audit record.
+   *
+   * Integrity mode (#713 step 2): once the chain is activated, the canonical
+   * store appends through the hash chain (redacted, seq/prevHash/recordHash)
+   * — one entry point owns both persistence and integrity. Before activation,
+   * legacy v1 records are written.
+   */
+  async append(opts: AuditAppendInput): Promise<AuditRecord | AuditRecordV2> {
+    if (this.integrityActive()) {
+      return this.chain().append({
+        action: opts.action,
+        timestamp: Date.now(),
+        actor: opts.actor,
+        details: opts.details,
+      });
+    }
+
     const record: AuditRecord = {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       action: opts.action,
@@ -197,6 +246,24 @@ export class AuditStore implements AuditEventStore<AuditAppendInput, AuditRecord
     };
     await this.store.appendRecord(record);
     return record;
+  }
+
+  /** Read the integrity head sidecar (null when the chain is not active). */
+  integrityHead(): AuditHead | null {
+    return this.chain().readHead();
+  }
+
+  /** Seal the legacy segment and start the v2 hash chain (idempotent). */
+  async activateIntegrity(): Promise<ActivationResult> {
+    return this.chain().activateLegacy();
+  }
+
+  /**
+   * Verify the audit log's hash chain. Honest by default: a legacy-only log
+   * fails with `no_chain` rather than reporting a false OK.
+   */
+  async verifyIntegrity(): Promise<VerificationResult> {
+    return verifyAuditLog({ auditDir: this.auditDir });
   }
 
   /** Read all audit records (newest first) — streaming implementation. */

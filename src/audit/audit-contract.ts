@@ -13,10 +13,10 @@
  * #713 — consolidation seam.
  */
 
-export interface AuditEventStore<TInput, TEvent> {
+export interface AuditEventStore<TInput, TEvent, TRead = TEvent> {
   /** Append one event. Returns the fully-formed persisted event. */
   append(input: TInput): Promise<TEvent>;
 
   /** Read all events (adapter-defined order; runtime store is newest-first). */
-  list(): Promise<TEvent[]>;
+  list(): Promise<TRead[]>;
 }
