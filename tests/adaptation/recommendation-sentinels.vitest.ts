@@ -1,22 +1,21 @@
 /**
  * P6.1 — Governance sentinels for RecommendationEngine.
  *
- * Enforces the Recommend ≠ Decide invariant at the source-code level.
- * RecommendationEngine must not import governance/mutation modules,
- * reference governance types, contain recommendation-as-action language,
- * or call write/approve/apply methods.
+ * Enforces the Recommend ≠ Decide invariant structurally: RecommendationEngine
+ * must not import governance/mutation modules, import governance/store types,
+ * or call write/approve/apply/reject methods. Dependency claims are checked
+ * against the real import graph (#697), not a whole-file substring scan, so a
+ * comment or unrelated mention no longer satisfies them.
  */
 
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-function sourceOf(relativePath: string): string {
-  const resolved = path.resolve(__dirname, relativePath);
-  return fs.readFileSync(resolved, "utf-8");
-}
+const ENGINE = path.resolve(__dirname, "../../src/adaptation/recommendation-engine.ts");
 
-const FORBIDDEN_IMPORTS = [
+const FORBIDDEN_MODULE_FRAGMENTS = [
   "approval-gate",
   "agent-card-applier",
   "skill-applier",
@@ -43,45 +42,39 @@ const FORBIDDEN_STORES = [
   "EffectivenessStore",
 ];
 
-it("must not import governance/mutation modules", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine.ts");
-  for (const mod of FORBIDDEN_IMPORTS) {
-    expect(source).not.toContain(mod);
-  }
-});
+describe("RecommendationEngine governance sentinels", () => {
+  it("does not import governance/mutation modules", () => {
+    const specifiers = [...importedSpecifiers(ENGINE)];
+    for (const frag of FORBIDDEN_MODULE_FRAGMENTS) {
+      expect(specifiers.some((s) => s.includes(frag)), `imports ${frag}`).toBe(false);
+    }
+  });
 
-it("must not reference governance types", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine.ts");
-  for (const type of FORBIDDEN_TYPES) {
-    expect(source).not.toContain(type);
-  }
-});
+  it("does not import governance types", () => {
+    const bindings = importedBindings(ENGINE);
+    for (const type of FORBIDDEN_TYPES) {
+      expect(bindings.has(type), `imports type ${type}`).toBe(false);
+    }
+  });
 
-it("must not reference store types in source", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine.ts");
-  for (const store of FORBIDDEN_STORES) {
-    expect(source).not.toContain(store);
-  }
-});
+  it("does not import store types", () => {
+    const bindings = importedBindings(ENGINE);
+    for (const store of FORBIDDEN_STORES) {
+      expect(bindings.has(store), `imports store ${store}`).toBe(false);
+    }
+  });
 
-it("must not contain write/approve/apply/reject calls", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine.ts");
-  const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject(", ".queue("];
-  for (const method of forbidden) {
-    expect(source).not.toContain(method);
-  }
-});
+  it("does not call write/approve/apply/reject methods", () => {
+    const code = codeOnly(fs.readFileSync(ENGINE, "utf-8"));
+    const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject(", ".queue("];
+    for (const method of forbidden) {
+      expect(code.includes(method), `calls ${method}`).toBe(false);
+    }
+  });
 
-// No vocabulary grep needed — recommendation/approve/reject/defer/investigate are
-// legitimate domain model values in the recommendation engine. Only imperative
-// calls (.apply(), .save(), etc.) and governance imports are forbidden.
-
-it("constructor must not accept stores", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine.ts");
-  // The constructor should only accept no arguments
-  const constructorMatch = source.match(/constructor\([^)]*\)/);
-  if (constructorMatch) {
-    const params = constructorMatch[0];
-    expect(params).toBe("constructor()");
-  }
+  it("constructor accepts no arguments (no store injection)", () => {
+    const code = codeOnly(fs.readFileSync(ENGINE, "utf-8"));
+    const match = code.match(/constructor\([^)]*\)/);
+    if (match) expect(match[0]).toBe("constructor()");
+  });
 });
