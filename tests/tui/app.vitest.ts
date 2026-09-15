@@ -388,8 +388,11 @@ describe('TuiApp -- chat-input dispatch', () => {
     internal.getStateForTest().activeTab = 'agent';
 
     for (const c of 'first') internal.handleRaw(Buffer.from(c));
+    // Arm the watch before Enter so we deterministically wait for the
+    // agent.message log write (a fixed setTimeout(0) is racy under CI load).
+    const flushedFirst = flushedEvent(log, 'agent.message', 'first');
     internal.handleRaw(Buffer.from([0x0d]));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushedFirst;
     expect(processTurn).toHaveBeenCalledTimes(1);
 
     internal.getStateForTest().activeTab = 'chat';
