@@ -1,11 +1,26 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { McpManager } from "../src/mcp/manager.js";
-import { loadConfig } from "../src/config/loader.js";
+import { loadConfig, _setHomedirOverride } from "../src/config/loader.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
+// Isolate the config loader from the operator's real ~/.config/alix. Otherwise
+// `loadConfig()` resolves credential references from the real user config
+// (e.g. `cred://deepseek/apiKey`) and throws when the credential is absent,
+// making this suite environment-dependent.
+const ISOLATED_HOME = mkdtempSync(join(tmpdir(), "cli-discover-home-"));
+_setHomedirOverride(ISOLATED_HOME);
+
+after(() => {
+  _setHomedirOverride(undefined);
+  rmSync(ISOLATED_HOME, { recursive: true, force: true });
+});
 
 function hasUvx(): boolean {
   try {

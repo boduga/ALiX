@@ -1,8 +1,26 @@
-import { describe, it } from "node:test";
+import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
 import { sortNodesByDependencies, normalizeNode, loadGraph, GraphExecutor } from "../../src/kernel/graph-executor.js";
 import type { TaskNode, TaskGraph } from "../../src/kernel/task-graph.js";
 import { CardRegistry } from "../../src/registry/card-registry.js";
+import { _setHomedirOverride } from "../../src/config/loader.js";
+
+// #726 — isolate the config loader from the operator's real ~/.config/alix.
+// The project config written below pins the mock provider, but `loadConfig()`
+// merges the user config on top; on a machine with a real provider configured
+// the no-enforcement test's `runTask()` then makes a real LLM call and can
+// exceed node:test's 30s timeout under load. Overriding homedir to an empty
+// temp dir removes the user config so the deterministic mock provider is used.
+const ISOLATED_HOME = mkdtempSync(joinPath(tmpdir(), "graph-executor-home-"));
+_setHomedirOverride(ISOLATED_HOME);
+
+after(() => {
+  _setHomedirOverride(undefined);
+  rmSync(ISOLATED_HOME, { recursive: true, force: true });
+});
 
 /**
  * Write a project-level .alix/config.json that pins the mock provider.
