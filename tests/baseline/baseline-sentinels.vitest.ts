@@ -12,9 +12,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { globSync } from "glob";
+import { importedSpecifiers } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -44,33 +44,28 @@ const ALLOWED_EXECUTIVE: string[] = [
 
 const baselineFiles = globSync("**/*.ts", { cwd: BASELINE_SRC, ignore: ["**/node_modules/**"] });
 
+/** Matches a relative specifier that resolves into `src/<name>/…` from anywhere under src/baseline/. */
+function intoModule(name: string): RegExp {
+  return new RegExp(`^\\.\\./(?:\\.\\./)*${name}(?:/|$)`);
+}
+
+const FS_SPECIFIERS = new Set(["node:fs", "fs", "node:path"]);
+
 describe("P10.10 baseline purity boundary", () => {
   it.each(baselineFiles)("%s must not import from executive (except allowed)", (file) => {
     if (ALLOWED_EXECUTIVE.some((a) => file.endsWith(a))) return;
-    const content = readFileSync(join(BASELINE_SRC, file), "utf-8");
-    const lines = content.split("\n");
-    const executiveImports = lines.filter(
-      (l) => l.includes('from "../executive') || l.includes("from '../../executive") || l.includes("from '../../../executive"),
-    );
-    expect(executiveImports).toHaveLength(0);
+    const specifiers = [...importedSpecifiers(join(BASELINE_SRC, file))];
+    expect(specifiers.filter((s) => intoModule("executive").test(s))).toEqual([]);
   });
 
   it.each(baselineFiles)("%s must not import from adaptation", (file) => {
-    const content = readFileSync(join(BASELINE_SRC, file), "utf-8");
-    const lines = content.split("\n");
-    const adaptationImports = lines.filter(
-      (l) => l.includes('from "../adaptation') || l.includes("from '../../adaptation") || l.includes("from '../../../adaptation"),
-    );
-    expect(adaptationImports).toHaveLength(0);
+    const specifiers = [...importedSpecifiers(join(BASELINE_SRC, file))];
+    expect(specifiers.filter((s) => intoModule("adaptation").test(s))).toEqual([]);
   });
 
   it.each(baselineFiles)("%s must not import node:fs for I/O (except allowed)", (file) => {
     if (ALLOWED_FS.some((a) => file.endsWith(a))) return;
-    const content = readFileSync(join(BASELINE_SRC, file), "utf-8");
-    const lines = content.split("\n");
-    const fsImports = lines.filter(
-      (l) => l.includes('from "node:fs"') || l.includes('from "fs"') || l.includes('from "node:path"'),
-    );
-    expect(fsImports).toHaveLength(0);
+    const specifiers = [...importedSpecifiers(join(BASELINE_SRC, file))];
+    expect(specifiers.filter((s) => FS_SPECIFIERS.has(s))).toEqual([]);
   });
 });
