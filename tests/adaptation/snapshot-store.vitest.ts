@@ -117,6 +117,18 @@ describe("SnapshotStore", () => {
     const snapshot = makeSnapshot();
     const targetPath = join(dir, `${snapshot.proposalId}.json`);
 
+    if (process.platform === "win32") {
+      // POSIX chmod read-only directories do not hold on Windows (the
+      // read-only attribute is ignored for directory writes), so point the
+      // store at an existing FILE and force ENOTDIR instead.
+      const blocker = join(dir, "blocker");
+      writeFileSync(blocker, "x", "utf-8");
+      const badStore = new SnapshotStore(blocker);
+      await expect(badStore.save(snapshot)).rejects.toThrow();
+      expect(existsSync(join(blocker, `${snapshot.proposalId}.json`))).toBe(false);
+      return;
+    }
+
     // Make the directory read-only to force a write failure
     const stat = statSync(dir);
     const origMode = stat.mode;
