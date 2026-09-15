@@ -13,6 +13,7 @@
 
 import { join } from "node:path";
 import { canonicalHash } from "../security/audit/canonical-json.js";
+import type { AuditEventStore } from "../audit/audit-contract.js";
 import { JsonlStore, parseJsonl } from "../storage/jsonl-store.js";
 import {
   validateAuditEventInput,
@@ -82,7 +83,8 @@ export function computeEventHash(body: Record<string, unknown>): string {
 // FileAuditStore
 // ---------------------------------------------------------------------------
 
-export class FileAuditStore implements AuditStore {
+export class FileAuditStore
+  implements AuditStore, AuditEventStore<GovernanceAuditEventInput, GovernanceAuditEvent> {
   private readonly dir: string;
   private readonly store: JsonlStore;
 

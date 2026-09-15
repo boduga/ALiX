@@ -12,7 +12,15 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { AuditRecord, AuditAction, AuditDetails } from "./audit-types.js";
+import type { AuditEventStore } from "./audit-contract.js";
 import { JsonlStore, streamJsonlLines } from "../storage/jsonl-store.js";
+
+/** Input accepted by `AuditStore.append`. */
+export interface AuditAppendInput {
+  action: AuditAction;
+  actor?: string;
+  details: AuditDetails;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -169,7 +177,7 @@ async function streamQuery(
 // AuditStore
 // ---------------------------------------------------------------------------
 
-export class AuditStore {
+export class AuditStore implements AuditEventStore<AuditAppendInput, AuditRecord> {
   private filePath: string;
   private store: JsonlStore;
 
@@ -179,11 +187,7 @@ export class AuditStore {
   }
 
   /** Append an audit record. Returns the created record with generated ID. */
-  async append(opts: {
-    action: AuditAction;
-    actor?: string;
-    details: AuditDetails;
-  }): Promise<AuditRecord> {
+  async append(opts: AuditAppendInput): Promise<AuditRecord> {
     const record: AuditRecord = {
       id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       action: opts.action,
