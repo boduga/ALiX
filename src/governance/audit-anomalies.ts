@@ -69,23 +69,23 @@ export interface AnomalyOptions {
 // ---------------------------------------------------------------------------
 
 const VOLUME_MONITORED_TYPES = [
-  "action_denied",
-  "action_escalated",
-  "override_applied",
-  "human_approval_requested",
+  "runtime.blocked",
+  "runtime.requires_approval",
+  "override.applied",
+  "approval.created",
 ] as const;
 
-const SUPERVISORY_TYPES = new Set(["human_approval_requested"]);
+const SUPERVISORY_TYPES = new Set(["approval.created"]);
 
 /**
- * Event types that a terminal event (action_denied, override_applied) would
+ * Event types that a terminal event (runtime.blocked, override.applied) would
  * contradict if followed on the same trace+subjectId.
  */
 const CONTRADICTORY_TYPES = new Set([
-  "action_allowed",
-  "action_escalated",
-  "override_applied",
-  "action_denied",
+  "runtime.allowed",
+  "runtime.requires_approval",
+  "override.applied",
+  "runtime.blocked",
 ]);
 
 /**
@@ -93,10 +93,10 @@ const CONTRADICTORY_TYPES = new Set([
  * (Same set used by audit-metrics decisionRates.)
  */
 const DECISION_BEARING_TYPES = new Set([
-  "action_allowed",
-  "action_denied",
-  "action_escalated",
-  "override_applied",
+  "runtime.allowed",
+  "runtime.blocked",
+  "runtime.requires_approval",
+  "override.applied",
 ]);
 
 const SEVERITY_ORDER: Record<AnomalySeverity, number> = { critical: 0, warning: 1, info: 2 };
@@ -324,11 +324,11 @@ function detectSequenceAnomalies(
   for (const [traceId, trace] of byTrace) {
     // ---- Approval without request ----
     for (const e of trace) {
-      if (e.eventType !== "action_allowed") continue;
+      if (e.eventType !== "runtime.allowed") continue;
       // Only flag if event metadata suggests human approval was required
       if (!eventRequiresHumanApproval(e)) continue;
       const hasRequest = trace.some(
-        (o) => o.eventType === "human_approval_requested" && o.eventId !== e.eventId,
+        (o) => o.eventType === "approval.created" && o.eventId !== e.eventId,
       );
       if (!hasRequest) {
         anomalies.push({
@@ -338,7 +338,7 @@ function detectSequenceAnomalies(
           windowStart: e.timestamp,
           windowEnd: e.timestamp,
           evidenceEventIds: [e.eventId],
-          reason: `action_allowed ${e.eventId} on trace ${traceId} has no preceding human_approval_requested event`,
+          reason: `runtime.allowed ${e.eventId} on trace ${traceId} has no preceding approval.created event`,
           metadata: { traceId },
         });
       }
@@ -346,10 +346,10 @@ function detectSequenceAnomalies(
 
     // ---- Escalation without review ----
     for (const e of trace) {
-      if (e.eventType !== "action_escalated") continue;
+      if (e.eventType !== "runtime.requires_approval") continue;
       const hasContext = trace.some(
         (o) =>
-          (o.eventType === "human_approval_requested" || o.eventType === "policy_evaluated") &&
+          (o.eventType === "approval.created" || o.eventType === "policy.evaluated") &&
           o.eventId !== e.eventId,
       );
       if (!hasContext) {
@@ -360,7 +360,7 @@ function detectSequenceAnomalies(
           windowStart: e.timestamp,
           windowEnd: e.timestamp,
           evidenceEventIds: [e.eventId],
-          reason: `action_escalated ${e.eventId} on trace ${traceId} has no human_approval_requested or policy_evaluated context`,
+          reason: `runtime.requires_approval ${e.eventId} on trace ${traceId} has no approval.created or policy.evaluated context`,
           metadata: { traceId },
         });
       }
@@ -372,7 +372,7 @@ function detectSequenceAnomalies(
     );
     for (let i = 0; i < chronoTrace.length; i++) {
       const cur = chronoTrace[i]!;
-      if (cur.eventType !== "action_denied" && cur.eventType !== "override_applied") continue;
+      if (cur.eventType !== "runtime.blocked" && cur.eventType !== "override.applied") continue;
       for (let j = i + 1; j < chronoTrace.length; j++) {
         const later = chronoTrace[j]!;
         if (later.subjectId !== cur.subjectId) continue;
@@ -412,9 +412,9 @@ function detectSequenceAnomalies(
   return anomalies;
 }
 
-/** Check whether an action_allowed event required prior human approval. */
+/** Check whether a runtime.allowed event required prior human approval. */
 function eventRequiresHumanApproval(event: GovernanceAuditEvent): boolean {
-  // Most existing governance action_allowed events carry metadata indicating
+  // Most existing governance runtime.allowed events carry metadata indicating
   // whether human approval was required. Check for flags in metadata.
   if (typeof event.metadata === "object" && event.metadata !== null) {
     // An event that explicitly says no human approval was required is not flagged
@@ -450,8 +450,8 @@ function groupBySubjectId(events: GovernanceAuditEvent[]): Map<string, Governanc
 
 /** Count allow/deny alternations in a chronological event list. */
 function countAlternations(events: GovernanceAuditEvent[]): number {
-  const ALLOW_TYPES = new Set(["action_allowed", "action_escalated", "human_approval_granted"]);
-  const DENY_TYPES = new Set(["action_denied", "human_approval_denied"]);
+  const ALLOW_TYPES = new Set(["runtime.allowed", "runtime.requires_approval", "approval.approved"]);
+  const DENY_TYPES = new Set(["runtime.blocked", "approval.denied"]);
   let alternations = 0;
   let prevIsAllow: boolean | null = null;
 

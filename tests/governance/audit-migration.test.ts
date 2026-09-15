@@ -123,7 +123,7 @@ function createMockAuditStore(): AuditStore {
     append: mock.fn(async (_input: GovernanceAuditEventInput) => ({
       eventId: "aud-test",
       timestamp: NOW,
-      eventType: "policy_evaluated" as const,
+      eventType: "policy.evaluated" as const,
       actorType: "system" as const,
       actorId: "test",
       subjectType: "signal" as const,
@@ -599,7 +599,7 @@ describe("governance.ts migration sentinel — audited wrappers present", () => 
 // ---------------------------------------------------------------------------
 
 describe("refreshProposals via audited action queue store", () => {
-  it("emits exactly one action_escalated event per created proposal", async () => {
+  it("emits exactly one runtime.requires_approval event per created proposal", async () => {
     const dir = makeTempDir("gov-p147-refresh-");
     try {
       const signalStore = new FileSignalStore(dir);
@@ -618,7 +618,7 @@ describe("refreshProposals via audited action queue store", () => {
 
       assert.equal(created.length, 1);
       assert.equal(events.length, 1);
-      assert.equal(events[0]!.eventType, "action_escalated");
+      assert.equal(events[0]!.eventType, "runtime.requires_approval");
       assert.equal(events[0]!.subjectId, created[0]!.proposalId);
     } finally {
       cleanupTempDir(dir);
@@ -643,8 +643,8 @@ describe("refreshProposals via audited action queue store", () => {
 
       assert.equal(created.length, 2);
       assert.equal(events.length, 2);
-      assert.equal(events[0]!.eventType, "action_escalated");
-      assert.equal(events[1]!.eventType, "action_escalated");
+      assert.equal(events[0]!.eventType, "runtime.requires_approval");
+      assert.equal(events[1]!.eventType, "runtime.requires_approval");
     } finally {
       cleanupTempDir(dir);
     }
@@ -701,74 +701,74 @@ describe("refreshProposals via audited action queue store", () => {
 // ---------------------------------------------------------------------------
 
 describe("full-matrix single audit emission (correct eventType)", () => {
-  it("signal append emits exactly one policy_evaluated event", async () => {
+  it("signal append emits exactly one policy.evaluated event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditSignalStore(createMockSignalStore(), audit);
 
     await store.append(makeSignal());
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "policy_evaluated");
+    assert.equal(events[0]!.eventType, "policy.evaluated");
   });
 
-  it("review append emits exactly one human_approval_requested event", async () => {
+  it("review append emits exactly one approval.created event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditReviewStore(createMockReviewStore(), audit);
 
     await store.append(makeReview());
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "human_approval_requested");
+    assert.equal(events[0]!.eventType, "approval.created");
   });
 
-  it("decide accept emits exactly one action_allowed event", async () => {
+  it("decide accept emits exactly one runtime.allowed event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditDecisionStore(createMockDecisionStore(), audit);
 
     await store.append(makeDecision("accept"));
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "action_allowed");
+    assert.equal(events[0]!.eventType, "runtime.allowed");
   });
 
-  it("decide dismiss emits exactly one action_denied event", async () => {
+  it("decide dismiss emits exactly one runtime.blocked event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditDecisionStore(createMockDecisionStore(), audit);
 
     await store.append(makeDecision("dismiss"));
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "action_denied");
+    assert.equal(events[0]!.eventType, "runtime.blocked");
   });
 
-  it("decide escalate emits exactly one action_escalated event", async () => {
+  it("decide escalate emits exactly one runtime.requires_approval event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditDecisionStore(createMockDecisionStore(), audit);
 
     await store.append(makeDecision("escalate"));
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "action_escalated");
+    assert.equal(events[0]!.eventType, "runtime.requires_approval");
   });
 
-  it("actions mark-executed emits exactly one override_applied event", async () => {
+  it("actions mark-executed emits exactly one override.applied event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditActionQueueStore(createMockActionQueueStore(), audit);
 
     await store.appendStatusTransition(makeTransition("marked_executed_elsewhere"));
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "override_applied");
+    assert.equal(events[0]!.eventType, "override.applied");
   });
 
-  it("actions dismiss transition emits exactly one override_applied event", async () => {
+  it("actions dismiss transition emits exactly one override.applied event", async () => {
     const { store: audit, events } = createSpyAuditStore();
     const store = auditActionQueueStore(createMockActionQueueStore(), audit);
 
     await store.appendStatusTransition(makeTransition("dismissed"));
 
     assert.equal(events.length, 1);
-    assert.equal(events[0]!.eventType, "override_applied");
+    assert.equal(events[0]!.eventType, "override.applied");
   });
 });
 

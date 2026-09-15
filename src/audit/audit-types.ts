@@ -33,7 +33,14 @@ export type AuditAction =
   | "conflict.dismissed"
   | "conflict.candidate_generation"
   | "replan.failed"
-  | "replan.error";
+  | "replan.error"
+  // Governance concepts unified into the canonical vocabulary (#713 step 3).
+  | "override.applied"
+  | "tool.permission_checked"
+  | "agent.permission_checked"
+  | "memory.access_checked"
+  | "model.routing_decision"
+  | "security.boundary_checked";
 
 /** v1+ action type — any action string allowed (v1 or v2). */
 export type AnyAuditAction = AuditAction | SecurityAction;

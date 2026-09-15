@@ -13,7 +13,7 @@ function makeAnomaly(overrides: Partial<GovernanceAuditAnomaly> = {}): Governanc
     windowStart: "2026-07-07T13:00:00.000Z",
     windowEnd: "2026-07-07T14:00:00.000Z",
     evidenceEventIds: ["evt-1", "evt-2"],
-    reason: "Spike in action_denied: 10 events (baseline 2, ×5.0)",
+    reason: "Spike in runtime.blocked: 10 events (baseline 2, ×5.0)",
     metadata: {},
     ...overrides,
   };

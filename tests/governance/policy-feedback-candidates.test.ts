@@ -73,7 +73,7 @@ function makeEvent(overrides: Partial<GovernanceAuditEvent> = {}): GovernanceAud
   return {
     eventId: `evt-${Math.random().toString(36).slice(2, 4)}`,
     timestamp: "2026-06-15T00:00:00.000Z",
-    eventType: "action_allowed",
+    eventType: "runtime.allowed",
     actorType: "system", actorId: "gov",
     subjectType: "signal", subjectId: "s1",
     action: "allow", decision: "allowed",
@@ -127,10 +127,10 @@ describe("detectPolicyFeedbackCandidates", () => {
 
   it("repeated override >= reversalThreshold → terminal_decision_policy", () => {
     const evts = [
-      makeEvent({ traceId: "t1", eventType: "action_denied", timestamp: "2026-06-15T00:00:00.000Z" }),
-      makeEvent({ traceId: "t1", eventType: "override_applied", timestamp: "2026-06-15T01:00:00.000Z" }),
-      makeEvent({ traceId: "t2", eventType: "action_allowed", timestamp: "2026-06-15T02:00:00.000Z" }),
-      makeEvent({ traceId: "t2", eventType: "override_applied", timestamp: "2026-06-15T03:00:00.000Z" }),
+      makeEvent({ traceId: "t1", eventType: "runtime.blocked", timestamp: "2026-06-15T00:00:00.000Z" }),
+      makeEvent({ traceId: "t1", eventType: "override.applied", timestamp: "2026-06-15T01:00:00.000Z" }),
+      makeEvent({ traceId: "t2", eventType: "runtime.allowed", timestamp: "2026-06-15T02:00:00.000Z" }),
+      makeEvent({ traceId: "t2", eventType: "override.applied", timestamp: "2026-06-15T03:00:00.000Z" }),
     ];
     const r = detectPolicyFeedbackCandidates({ ...empty(), auditEvents: evts }, { now: NOW, windowStart: WS, windowEnd: WE, reversalThreshold: 2 });
     assert.equal(r.length, 1);

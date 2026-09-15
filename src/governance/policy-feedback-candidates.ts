@@ -159,9 +159,9 @@ export function detectPolicyFeedbackCandidates(
     const chrono = [...trace].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
     for (let i = 0; i < chrono.length; i++) {
       const e = chrono[i]!;
-      if (e.eventType !== "action_denied" && e.eventType !== "action_allowed") continue;
-      // Look for override_applied later on same traceId
-      const override = chrono.slice(i + 1).find((x) => x.eventType === "override_applied");
+      if (e.eventType !== "runtime.blocked" && e.eventType !== "runtime.allowed") continue;
+      // Look for override.applied later on same traceId
+      const override = chrono.slice(i + 1).find((x) => x.eventType === "override.applied");
       if (override) {
         reversalIds.push(override.eventId);
       }

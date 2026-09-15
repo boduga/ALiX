@@ -77,7 +77,7 @@ describe("formatTimelineLine", () => {
   function makeEvent(overrides: Partial<Parameters<typeof formatTimelineLine>[0]> = {}) {
     return {
       timestamp: "2026-07-07T14:00:00.000Z",
-      eventType: "policy_evaluated",
+      eventType: "policy.evaluated",
       actorType: "system",
       actorId: "governance",
       subjectType: "signal",
@@ -94,8 +94,8 @@ describe("formatTimelineLine", () => {
   });
 
   it("includes eventType", () => {
-    const line = formatTimelineLine(makeEvent({ eventType: "action_escalated" }));
-    assert.ok(line.includes("action_escalated"));
+    const line = formatTimelineLine(makeEvent({ eventType: "runtime.requires_approval" }));
+    assert.ok(line.includes("runtime.requires_approval"));
   });
 
   it("includes actor type and id", () => {
@@ -244,7 +244,7 @@ describe("audit list filter integration", () => {
     const event = {
       eventId: "aud-test-001",
       timestamp: "2026-07-07T14:00:00.000Z",
-      eventType: "action_escalated",
+      eventType: "runtime.requires_approval",
       actorType: "system",
       actorId: "governance",
       subjectType: "proposal",
@@ -292,9 +292,9 @@ describe("audit list filter integration", () => {
       const { FileAuditStore } = await import("../../src/governance/audit-store.js");
       const store = new FileAuditStore(dir);
       const events = await store.list();
-      const filtered = events.filter((e) => e.eventType === "action_escalated");
+      const filtered = events.filter((e) => e.eventType === "runtime.requires_approval");
       assert.equal(filtered.length, 1);
-      assert.equal(filtered.filter((e) => e.eventType === "policy_evaluated").length, 0);
+      assert.equal(filtered.filter((e) => e.eventType === "policy.evaluated").length, 0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -346,7 +346,7 @@ describe("show --related integration", () => {
       {
         eventId: "evt-older",
         timestamp: "2026-07-07T13:00:00.000Z",
-        eventType: "policy_evaluated",
+        eventType: "policy.evaluated",
         actorType: "system",
         actorId: "governance",
         subjectType: "signal",
@@ -365,7 +365,7 @@ describe("show --related integration", () => {
       {
         eventId: focalId,
         timestamp: "2026-07-07T14:00:00.000Z",
-        eventType: "action_escalated",
+        eventType: "runtime.requires_approval",
         actorType: "system",
         actorId: "governance",
         subjectType: "proposal",
@@ -384,7 +384,7 @@ describe("show --related integration", () => {
       {
         eventId: "evt-newer",
         timestamp: "2026-07-07T15:00:00.000Z",
-        eventType: "override_applied",
+        eventType: "override.applied",
         actorType: "human",
         actorId: "operator",
         subjectType: "proposal",

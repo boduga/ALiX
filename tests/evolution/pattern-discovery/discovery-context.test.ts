@@ -101,7 +101,7 @@ describe("DiscoveryContext", () => {
         {
           eventId: "gov-001",
           timestamp: "2026-07-11T10:00:00.000Z",
-          eventType: "policy_evaluated",
+          eventType: "policy.evaluated",
           actorType: "system",
           actorId: "policy-engine-1",
           subjectType: "policy",
@@ -129,7 +129,7 @@ describe("DiscoveryContext", () => {
     context.governanceEvents.push({
       eventId: "gov-002",
       timestamp: "2026-07-11T11:00:00.000Z",
-      eventType: "action_allowed",
+      eventType: "runtime.allowed",
       actorType: "system",
       actorId: "policy-engine-1",
       subjectType: "action",

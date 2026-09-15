@@ -6,10 +6,10 @@
  * unit-testable with inline fixture data.
  *
  * Decision-bearing event types (for decisionRates):
- *   action_allowed   → allowed
- *   action_denied    → denied
- *   action_escalated → escalated
- *   override_applied → overridden
+ *   runtime.allowed   → allowed
+ *   runtime.blocked    → denied
+ *   runtime.requires_approval → escalated
+ *   override.applied → overridden
  *
  * @module
  */
@@ -84,19 +84,19 @@ export interface BeforeAfterResult {
 /** Event types that carry an actionable governance decision. */
 
 const DECISION_EVENT_MAP: Record<GovernanceEventType, keyof DecisionRates | undefined> = {
-  action_allowed: "allowed",
-  action_denied: "denied",
-  action_escalated: "escalated",
-  override_applied: "overridden",
-  policy_evaluated: undefined,
-  human_approval_requested: undefined,
-  human_approval_granted: undefined,
-  human_approval_denied: undefined,
-  tool_permission_checked: undefined,
-  agent_permission_checked: undefined,
-  memory_access_checked: undefined,
-  model_routing_decision: undefined,
-  security_boundary_checked: undefined,
+  "runtime.allowed": "allowed",
+  "runtime.blocked": "denied",
+  "runtime.requires_approval": "escalated",
+  "override.applied": "overridden",
+  "policy.evaluated": undefined,
+  "approval.created": undefined,
+  "approval.approved": undefined,
+  "approval.denied": undefined,
+  "tool.permission_checked": undefined,
+  "agent.permission_checked": undefined,
+  "memory.access_checked": undefined,
+  "model.routing_decision": undefined,
+  "security.boundary_checked": undefined,
 };
 
 const ZERO_RATES: DecisionRates = { allowed: 0, denied: 0, escalated: 0, overridden: 0 };
@@ -131,9 +131,9 @@ export function eventTypeDistribution(events: GovernanceAuditEvent[]): Record<st
 /**
  * Proportion of each decision among decision-bearing events.
  *
- * Decision-bearing event types: action_allowed → allowed,
- * action_denied → denied, action_escalated → escalated,
- * override_applied → overridden.
+ * Decision-bearing event types: runtime.allowed → allowed,
+ * runtime.blocked → denied, runtime.requires_approval → escalated,
+ * override.applied → overridden.
  *
  * Return proportions (0–1). Return all zeros when no decision-bearing events exist.
  */

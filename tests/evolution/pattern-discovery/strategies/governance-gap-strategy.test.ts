@@ -25,7 +25,7 @@ function makeGovernanceEvent(
   eventCounter++;
   return {
     eventId: `gov-${String(eventCounter).padStart(3, "0")}`,
-    eventType: "action_escalated",
+    eventType: "runtime.requires_approval",
     actorType: "agent",
     actorId: "alix-agent",
     subjectType: "action",
@@ -118,13 +118,13 @@ describe("GovernanceGapStrategy", () => {
       makeGovernanceEvent({
         timestamp: tsResolution,
         subjectId: "action-002",
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         decision: "allowed",
       }),
       makeGovernanceEvent({
         timestamp: tsResolution,
         subjectId: "action-003",
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         decision: "allowed",
       }),
     ];
@@ -145,7 +145,7 @@ describe("GovernanceGapStrategy", () => {
     const governanceEvents: GovernanceAuditEvent[] = [
       makeGovernanceEvent({
         timestamp: daysAgo(1),
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         decision: "allowed",
         subjectId: "action-001",
       }),
@@ -236,24 +236,24 @@ describe("GovernanceGapStrategy", () => {
   });
 
   it("handles eventType-base escalations (not just decision-based)", async () => {
-    // Use decision: "denied" but eventType: "action_escalated" should still count
+    // Use decision: "denied" but eventType: "runtime.requires_approval" should still count
     const governanceEvents: GovernanceAuditEvent[] = [
       makeGovernanceEvent({
         timestamp: daysAgo(3),
         subjectId: "action-001",
-        eventType: "action_escalated",
+        eventType: "runtime.requires_approval",
         decision: "denied",
       }),
       makeGovernanceEvent({
         timestamp: daysAgo(2),
         subjectId: "action-002",
-        eventType: "action_escalated",
+        eventType: "runtime.requires_approval",
         decision: "denied",
       }),
       makeGovernanceEvent({
         timestamp: daysAgo(1),
         subjectId: "action-003",
-        eventType: "action_escalated",
+        eventType: "runtime.requires_approval",
         decision: "denied",
       }),
     ];
@@ -266,7 +266,7 @@ describe("GovernanceGapStrategy", () => {
     const context: DiscoveryContext = { evidence: [], governanceEvents };
     const patterns = await strategy.run(context);
 
-    assert.strictEqual(patterns.length, 1, "should detect action_escalated type events");
+    assert.strictEqual(patterns.length, 1, "should detect runtime.requires_approval type events");
   });
 
   it("override events counted when treatOverrideAsUnresolved=true", async () => {
@@ -274,19 +274,19 @@ describe("GovernanceGapStrategy", () => {
       makeGovernanceEvent({
         timestamp: daysAgo(3),
         subjectId: "action-001",
-        eventType: "override_applied",
+        eventType: "override.applied",
         decision: "overridden",
       }),
       makeGovernanceEvent({
         timestamp: daysAgo(2),
         subjectId: "action-002",
-        eventType: "override_applied",
+        eventType: "override.applied",
         decision: "overridden",
       }),
       makeGovernanceEvent({
         timestamp: daysAgo(1),
         subjectId: "action-003",
-        eventType: "override_applied",
+        eventType: "override.applied",
         decision: "overridden",
       }),
     ];
@@ -308,7 +308,7 @@ describe("GovernanceGapStrategy", () => {
       makeGovernanceEvent({
         timestamp: daysAgo(3),
         subjectId: "action-001",
-        eventType: "override_applied",
+        eventType: "override.applied",
         decision: "overridden",
       }),
     ];

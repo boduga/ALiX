@@ -50,13 +50,13 @@ export const DEFAULT_APPROVAL_FRICTION_CONFIG: ApprovalFrictionConfig = {
 // ---------------------------------------------------------------------------
 
 const DENIED_EVENT_TYPES = new Set<string>([
-  "action_denied",
-  "human_approval_denied",
+  "runtime.blocked",
+  "approval.denied",
 ]);
 
 const APPROVED_EVENT_TYPES = new Set<string>([
-  "action_allowed",
-  "human_approval_granted",
+  "runtime.allowed",
+  "approval.approved",
 ]);
 
 function isDeniedEvent(event: GovernanceAuditEvent): boolean {

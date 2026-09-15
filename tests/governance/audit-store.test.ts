@@ -12,7 +12,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import {
   validateAuditEvent,
   validateAuditEventInput,
+  normalizeGovernanceEventType,
   type GovernanceAuditEvent,
   type GovernanceAuditEventInput,
   type GovernanceEventType,
@@ -67,7 +68,7 @@ function validEventInput(
   return {
     eventId: "aud-ev-001",
     timestamp: NOW,
-    eventType: "policy_evaluated",
+    eventType: "policy.evaluated",
     actorType: "policy_engine",
     actorId: "engine-v1",
     subjectType: "policy",
@@ -502,6 +503,48 @@ describe("FileAuditStore", () => {
         cleanupTempDir(dir);
       }
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Legacy vocabulary normalization (#713 step 3)
+// ---------------------------------------------------------------------------
+
+describe("legacy governance vocabulary normalization", () => {
+  it("normalizeGovernanceEventType maps legacy underscored names to canonical dotted", () => {
+    assert.equal(normalizeGovernanceEventType("policy_evaluated"), "policy.evaluated");
+    assert.equal(normalizeGovernanceEventType("action_allowed"), "runtime.allowed");
+    assert.equal(normalizeGovernanceEventType("human_approval_denied"), "approval.denied");
+    assert.equal(normalizeGovernanceEventType("policy.evaluated"), "policy.evaluated");
+    assert.equal(normalizeGovernanceEventType("not_a_type"), null);
+  });
+
+  it("list() maps a legacy stored eventType to canonical; listChronological() stays raw", async () => {
+    const dir = makeTempDir();
+    try {
+      const store = new FileAuditStore(dir);
+      await store.append(validEventInput({ eventId: "dotted" }));
+
+      // Simulate a pre-#713 record written with the underscored name.
+      const storePath = join(dir, ".alix", "governance", "governance-audit-events.jsonl");
+      const legacy = {
+        ...validEventInput({ eventId: "legacy" }),
+        eventType: "policy_evaluated" as unknown as GovernanceAuditEvent["eventType"],
+      };
+      appendFileSync(storePath, JSON.stringify(legacy) + "\n", "utf8");
+
+      const listed = await store.list();
+      assert.equal(listed.find((e) => e.eventId === "legacy")?.eventType, "policy.evaluated");
+
+      // Raw chronological order is preserved for chain verification.
+      const chrono = await store.listChronological();
+      assert.equal(
+        String(chrono.find((e) => e.eventId === "legacy")?.eventType),
+        "policy_evaluated",
+      );
+    } finally {
+      cleanupTempDir(dir);
+    }
   });
 });
 

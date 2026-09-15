@@ -17,6 +17,7 @@ import type { AuditEventStore } from "../audit/audit-contract.js";
 import { JsonlStore, parseJsonl } from "../storage/jsonl-store.js";
 import {
   validateAuditEventInput,
+  normalizeGovernanceEventType,
   type GovernanceAuditEvent,
   type GovernanceAuditEventInput,
 } from "./audit-types.js";
@@ -27,6 +28,13 @@ import {
 
 const STORE_DIR = join(".alix", "governance");
 const STORE_FILE = "governance-audit-events.jsonl";
+
+/** Map a stored event's legacy underscored eventType to the canonical vocabulary. */
+function normalizeStoredEvent(event: GovernanceAuditEvent): GovernanceAuditEvent {
+  const normalized = normalizeGovernanceEventType(String(event.eventType));
+  if (normalized === null || normalized === event.eventType) return event;
+  return { ...event, eventType: normalized };
+}
 
 // ---------------------------------------------------------------------------
 // AuditStore interface
@@ -160,7 +168,9 @@ export class FileAuditStore
 
   async list(): Promise<GovernanceAuditEvent[]> {
     const events = await this.listChronological();
-    return events.reverse();
+    // Normalize legacy underscored event names to the canonical vocabulary on
+    // read (#713 step 3). Hash verification uses listChronological (raw).
+    return events.reverse().map(normalizeStoredEvent);
   }
 
   async listChronological(): Promise<GovernanceAuditEvent[]> {
@@ -171,7 +181,8 @@ export class FileAuditStore
 
   async getById(eventId: string): Promise<GovernanceAuditEvent | null> {
     const events = await this.listChronological();
-    return events.find((e) => e.eventId === eventId) ?? null;
+    const found = events.find((e) => e.eventId === eventId) ?? null;
+    return found === null ? null : normalizeStoredEvent(found);
   }
 
   async size(): Promise<number> {

@@ -112,7 +112,7 @@ function makeTransition(
 describe("signalEvaluatedEvent", () => {
   it("produces POLICY_EVALUATED event type", () => {
     const event = signalEvaluatedEvent(makeSignal());
-    assert.equal(event.eventType, "policy_evaluated");
+    assert.equal(event.eventType, "policy.evaluated");
   });
 
   it("preserves signal ID in subjectId", () => {
@@ -161,33 +161,33 @@ describe("signalEvaluatedEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("decisionRecordedEvent", () => {
-  it("maps accept → action_allowed", () => {
+  it("maps accept → runtime.allowed", () => {
     const event = decisionRecordedEvent(makeDecision("accept"));
-    assert.equal(event.eventType, "action_allowed");
+    assert.equal(event.eventType, "runtime.allowed");
     assert.equal(event.decision, "allowed");
   });
 
-  it("maps dismiss → action_denied", () => {
+  it("maps dismiss → runtime.blocked", () => {
     const event = decisionRecordedEvent(makeDecision("dismiss"));
-    assert.equal(event.eventType, "action_denied");
+    assert.equal(event.eventType, "runtime.blocked");
     assert.equal(event.decision, "denied");
   });
 
-  it("maps escalate → action_escalated", () => {
+  it("maps escalate → runtime.requires_approval", () => {
     const event = decisionRecordedEvent(makeDecision("escalate"));
-    assert.equal(event.eventType, "action_escalated");
+    assert.equal(event.eventType, "runtime.requires_approval");
     assert.equal(event.decision, "escalated");
   });
 
-  it("maps convert_to_issue → action_escalated", () => {
+  it("maps convert_to_issue → runtime.requires_approval", () => {
     const event = decisionRecordedEvent(makeDecision("convert_to_issue"));
-    assert.equal(event.eventType, "action_escalated");
+    assert.equal(event.eventType, "runtime.requires_approval");
     assert.equal(event.decision, "escalated");
   });
 
-  it("maps defer → action_allowed with decision deferred", () => {
+  it("maps defer → runtime.allowed with decision deferred", () => {
     const event = decisionRecordedEvent(makeDecision("defer"));
-    assert.equal(event.eventType, "action_allowed");
+    assert.equal(event.eventType, "runtime.allowed");
     assert.equal(event.decision, "deferred");
   });
 
@@ -227,14 +227,14 @@ describe("actionOverriddenEvent", () => {
   it("produces OVERRIDE_APPLIED for mark-executed", () => {
     const transition = makeTransition("marked_executed_elsewhere");
     const event = actionOverriddenEvent(transition);
-    assert.equal(event.eventType, "override_applied");
+    assert.equal(event.eventType, "override.applied");
     assert.equal(event.decision, "overridden");
   });
 
   it("produces OVERRIDE_APPLIED for dismiss", () => {
     const transition = makeTransition("dismissed", { reason: "Not needed" });
     const event = actionOverriddenEvent(transition);
-    assert.equal(event.eventType, "override_applied");
+    assert.equal(event.eventType, "override.applied");
     assert.equal(event.decision, "overridden");
   });
 

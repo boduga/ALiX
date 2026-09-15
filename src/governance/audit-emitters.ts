@@ -26,11 +26,11 @@ import type { OperatorReview } from "./operator-review.js";
 // ---------------------------------------------------------------------------
 
 const DECISION_EVENT_MAP: Record<DecisionKind, GovernanceEventType> = {
-  accept: "action_allowed",
-  dismiss: "action_denied",
-  defer: "action_allowed",
-  escalate: "action_escalated",
-  convert_to_issue: "action_escalated",
+  accept: "runtime.allowed",
+  dismiss: "runtime.blocked",
+  defer: "runtime.allowed",
+  escalate: "runtime.requires_approval",
+  convert_to_issue: "runtime.requires_approval",
 };
 
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ export function signalEvaluatedEvent(
   return {
     eventId: `aud-${signal.signalId}`,
     timestamp: signal.createdAt,
-    eventType: "policy_evaluated",
+    eventType: "policy.evaluated",
     actorType: "system",
     actorId: signal.sourcePhase ?? "governance",
     subjectType: "signal",
@@ -87,11 +87,11 @@ export function signalEvaluatedEvent(
  * Create an audit event for an operator decision recorded on a signal.
  *
  * Maps DecisionKind to event type:
- *   accept           → action_allowed
- *   dismiss          → action_denied
- *   defer            → action_allowed (with deferred reason)
- *   escalate         → action_escalated
- *   convert_to_issue → action_escalated
+ *   accept           → runtime.allowed
+ *   dismiss          → runtime.blocked
+ *   defer            → runtime.allowed (with deferred reason)
+ *   escalate         → runtime.requires_approval
+ *   convert_to_issue → runtime.requires_approval
  */
 export function decisionRecordedEvent(
   decision: OperatorDecision,
@@ -109,8 +109,8 @@ export function decisionRecordedEvent(
     subjectType: "signal",
     subjectId: decision.signalId,
     action: `operator_${decision.decision}`,
-    decision: eventType === "action_denied" ? "denied"
-      : eventType === "action_escalated" ? "escalated"
+    decision: eventType === "runtime.blocked" ? "denied"
+      : eventType === "runtime.requires_approval" ? "escalated"
       : decision.decision === "defer" ? "deferred"
       : "allowed",
     policyId: null,
@@ -151,7 +151,7 @@ export function actionOverriddenEvent(
   return {
     eventId: `aud-${transition.transitionId}`,
     timestamp: transition.createdAt,
-    eventType: "override_applied",
+    eventType: "override.applied",
     actorType: "human",
     actorId: "operator",
     subjectType: "proposal",
@@ -206,7 +206,7 @@ export function actionProposedEvent(
   return {
     eventId: `aud-${proposal.proposalId}`,
     timestamp: proposal.createdAt,
-    eventType: "action_escalated",
+    eventType: "runtime.requires_approval",
     actorType: "system",
     actorId: "governance",
     subjectType: "proposal",
@@ -249,7 +249,7 @@ export function reviewSubmittedEvent(
   return {
     eventId: `aud-${review.reviewId}`,
     timestamp: review.createdAt,
-    eventType: "human_approval_requested",
+    eventType: "approval.created",
     actorType: "human",
     actorId: review.reviewer,
     subjectType: "signal",

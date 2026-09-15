@@ -55,7 +55,7 @@ describe("governance evolution discover", () => {
       await auditStore.append({
         eventId: "audit-1",
         timestamp: new Date().toISOString(),
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         actorType: "agent",
         actorId: "alix-agent",
         subjectType: "action",

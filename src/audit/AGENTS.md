@@ -3,7 +3,7 @@
 **Purpose:** Durable append-only audit trail for policy decisions, approval lifecycle, and runtime outcomes.
 
 **Ownership:**
-- `audit-types.ts` — AuditAction and AuditRecord type definitions (12 action types)
+- `audit-types.ts` — canonical dotted `AuditAction` vocabulary (runtime, approval, conflict, governance-only) and `AuditRecord` / v2 types
 - `audit-contract.ts` — canonical `AuditEventStore<TInput, TEvent, TRead>` persistence contract (append + list). #713 consolidation seam.
 - `audit-store.ts` — Authoritative append-only JSONL store at `.alix/audit/audit.jsonl`, implements `AuditEventStore`. Methods: append, list, findByAction, findByGraph, findByApproval, integrityHead, activateIntegrity, verifyIntegrity. Owns both persistence and integrity (#713 step 2).
 - `../security/audit/` — v2 hash chain, now an internal collaborator of `AuditStore` (not a parallel store): `AuditChainWriter` (redacted chained append + head sidecar + legacy activation), `audit-verifier`, `audit-checkpoint`, `audit-lock`, `canonical-json`. The CLI reaches it only through `AuditStore`.
@@ -17,7 +17,7 @@
 - Audit failures must never affect gate decisions (`.catch(() => {})`).
 - Audit events emitted from RuntimeGate (8 points), ApprovalStore (request/resolve), graph continue, and policy eval.
 - Persistence consolidation (#712/#713): all async JSONL persistence goes through `../storage/jsonl-store.ts` (AuditStore, governance FileAuditStore, execution evidence). The v2 hash chain is an integrity mode of `AuditStore`: after `alix audit activate` (head sidecar present), `AuditStore.append` writes redacted, hash-chained v2 records through the internal `AuditChainWriter`; before activation it writes legacy v1. `list`/`query` normalize both record versions, so queries survive activation. The chain writer's sync+fsync I/O stays bespoke for durability.
-- Two audit vocabularies, deliberately separate (#713, cf. #716 proposal lifecycles): dotted runtime actions (`policy.allowed`) in AuditStore vs underscored governance decisions (`action_denied`) in FileAuditStore. No boundary converts between them; unifying would mean migrating the governance analytics stack + stored data for cosmetic unity.
+- Single audit vocabulary (#713 step 3): `AuditAction` (dotted) in `audit-types.ts` is the one canonical vocabulary. `GovernanceEventType` is a compile-time `Extract` subset of it (plus governance-only dotted additions such as `override.applied`, `tool.permission_checked`, `security.boundary_checked`). Legacy underscored governance names are mapped on read by `normalizeGovernanceEventType`; new writes are dotted. No stored-data rewrite.
 
 **Work Guidance:**
 - Adding a new audit action type means updating `audit-types.ts` and adding `.append()` calls at the relevant injection points.

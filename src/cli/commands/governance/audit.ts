@@ -39,14 +39,14 @@ import { BOLD, CYAN, DIM, GREEN, MAGENTA, RED, RESET, YELLOW } from "./shared.js
 // P22-INTELLIGENCE-END
 
 export const EVENT_TYPE_COLORS: Record<string, string> = {
-  policy_evaluated: CYAN,
-  action_allowed: GREEN,
-  action_denied: RED,
-  action_escalated: YELLOW,
-  human_approval_requested: CYAN,
-  human_approval_granted: GREEN,
-  human_approval_denied: RED,
-  override_applied: MAGENTA,
+  "policy.evaluated": CYAN,
+  "runtime.allowed": GREEN,
+  "runtime.blocked": RED,
+  "runtime.requires_approval": YELLOW,
+  "approval.created": CYAN,
+  "approval.approved": GREEN,
+  "approval.denied": RED,
+  "override.applied": MAGENTA,
 };
 
 
@@ -134,7 +134,7 @@ export function printAuditHelp(): void {
   console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
   console.log("");
   console.log(DIM + "Examples:" + RESET);
-  console.log("  alix governance audit list --limit 20 --event-type action_escalated");
+  console.log("  alix governance audit list --limit 20 --event-type runtime.requires_approval");
   console.log("  alix governance audit timeline --trace req-123");
   console.log("  alix governance audit show aud-abc123 --related");
 }

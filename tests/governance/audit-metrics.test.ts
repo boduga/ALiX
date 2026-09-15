@@ -47,7 +47,7 @@ function makeEvent(overrides: Partial<GovernanceAuditEvent> = {}): GovernanceAud
   return {
     eventId: "aud-test",
     timestamp: T,
-    eventType: "policy_evaluated",
+    eventType: "policy.evaluated",
     actorType: "system",
     actorId: "governance",
     subjectType: "signal",
@@ -74,18 +74,18 @@ function makeEvent(overrides: Partial<GovernanceAuditEvent> = {}): GovernanceAud
 
 function fixture(): GovernanceAuditEvent[] {
   return [
-    makeEvent({ eventId: "evt-1", timestamp: T, eventType: "policy_evaluated", actorId: "governance", subjectId: "sig-001", riskLevel: "medium", traceId: "trace-1" }),
-    makeEvent({ eventId: "evt-2", timestamp: T_PLUS_1, eventType: "action_allowed", actorId: "alice", subjectId: "sig-001", riskLevel: "low", policyId: "policy-x", traceId: "trace-1" }),
-    makeEvent({ eventId: "evt-3", timestamp: T_PLUS_2, eventType: "action_denied", actorId: "alice", subjectId: "sig-002", riskLevel: "high", policyId: "policy-y", traceId: "trace-2" }),
-    makeEvent({ eventId: "evt-4", timestamp: T_PLUS_2, eventType: "action_escalated", actorId: "bob", subjectId: "sig-003", riskLevel: "critical", traceId: "trace-2" }),
-    makeEvent({ eventId: "evt-5", timestamp: T_PLUS_3, eventType: "override_applied", actorId: "carol", subjectId: "prop-001", riskLevel: "medium", policyId: "policy-x", traceId: null }),
-    makeEvent({ eventId: "evt-6", timestamp: T, eventType: "human_approval_requested", actorId: "alice", subjectId: "sig-001", riskLevel: "low", traceId: "trace-1" }),
-    makeEvent({ eventId: "evt-7", timestamp: T_PLUS_1, eventType: "action_allowed", actorId: "governance", subjectId: "sig-004", riskLevel: "medium", traceId: "trace-3" }),
-    makeEvent({ eventId: "evt-8", timestamp: T_PLUS_2, eventType: "action_denied", actorId: "dave", subjectId: "sig-005", riskLevel: "high", traceId: null }),
-    makeEvent({ eventId: "evt-9", timestamp: T_PLUS_3, eventType: "policy_evaluated", actorId: "governance", subjectId: "sig-006", riskLevel: "critical", traceId: "trace-3" }),
-    makeEvent({ eventId: "evt-10", timestamp: T_PLUS_3, eventType: "override_applied", actorId: "bob", subjectId: "prop-002", riskLevel: "medium", policyId: "policy-z", traceId: null }),
-    makeEvent({ eventId: "evt-11", timestamp: T, eventType: "action_escalated", actorId: "bob", subjectId: "sig-007", riskLevel: "high", traceId: "trace-4" }),
-    makeEvent({ eventId: "evt-12", timestamp: T_PLUS_1, eventType: "action_allowed", actorId: "alice", subjectId: "sig-001", riskLevel: "low", traceId: "trace-1" }),
+    makeEvent({ eventId: "evt-1", timestamp: T, eventType: "policy.evaluated", actorId: "governance", subjectId: "sig-001", riskLevel: "medium", traceId: "trace-1" }),
+    makeEvent({ eventId: "evt-2", timestamp: T_PLUS_1, eventType: "runtime.allowed", actorId: "alice", subjectId: "sig-001", riskLevel: "low", policyId: "policy-x", traceId: "trace-1" }),
+    makeEvent({ eventId: "evt-3", timestamp: T_PLUS_2, eventType: "runtime.blocked", actorId: "alice", subjectId: "sig-002", riskLevel: "high", policyId: "policy-y", traceId: "trace-2" }),
+    makeEvent({ eventId: "evt-4", timestamp: T_PLUS_2, eventType: "runtime.requires_approval", actorId: "bob", subjectId: "sig-003", riskLevel: "critical", traceId: "trace-2" }),
+    makeEvent({ eventId: "evt-5", timestamp: T_PLUS_3, eventType: "override.applied", actorId: "carol", subjectId: "prop-001", riskLevel: "medium", policyId: "policy-x", traceId: null }),
+    makeEvent({ eventId: "evt-6", timestamp: T, eventType: "approval.created", actorId: "alice", subjectId: "sig-001", riskLevel: "low", traceId: "trace-1" }),
+    makeEvent({ eventId: "evt-7", timestamp: T_PLUS_1, eventType: "runtime.allowed", actorId: "governance", subjectId: "sig-004", riskLevel: "medium", traceId: "trace-3" }),
+    makeEvent({ eventId: "evt-8", timestamp: T_PLUS_2, eventType: "runtime.blocked", actorId: "dave", subjectId: "sig-005", riskLevel: "high", traceId: null }),
+    makeEvent({ eventId: "evt-9", timestamp: T_PLUS_3, eventType: "policy.evaluated", actorId: "governance", subjectId: "sig-006", riskLevel: "critical", traceId: "trace-3" }),
+    makeEvent({ eventId: "evt-10", timestamp: T_PLUS_3, eventType: "override.applied", actorId: "bob", subjectId: "prop-002", riskLevel: "medium", policyId: "policy-z", traceId: null }),
+    makeEvent({ eventId: "evt-11", timestamp: T, eventType: "runtime.requires_approval", actorId: "bob", subjectId: "sig-007", riskLevel: "high", traceId: "trace-4" }),
+    makeEvent({ eventId: "evt-12", timestamp: T_PLUS_1, eventType: "runtime.allowed", actorId: "alice", subjectId: "sig-001", riskLevel: "low", traceId: "trace-1" }),
   ];
 }
 
@@ -114,12 +114,12 @@ describe("eventTypeDistribution", () => {
 
   it("counts each eventType correctly", () => {
     const dist = eventTypeDistribution(fixture());
-    assert.equal(dist["policy_evaluated"], 2);
-    assert.equal(dist["action_allowed"], 3);
-    assert.equal(dist["action_denied"], 2);
-    assert.equal(dist["action_escalated"], 2);
-    assert.equal(dist["override_applied"], 2);
-    assert.equal(dist["human_approval_requested"], 1);
+    assert.equal(dist["policy.evaluated"], 2);
+    assert.equal(dist["runtime.allowed"], 3);
+    assert.equal(dist["runtime.blocked"], 2);
+    assert.equal(dist["runtime.requires_approval"], 2);
+    assert.equal(dist["override.applied"], 2);
+    assert.equal(dist["approval.created"], 1);
     assert.equal(Object.keys(dist).length, 6);
   });
 });
@@ -135,8 +135,8 @@ describe("decisionRates", () => {
 
   it("returns all zeros for non-decision-bearing events only", () => {
     const events = [
-      makeEvent({ eventType: "policy_evaluated" }),
-      makeEvent({ eventType: "human_approval_requested" }),
+      makeEvent({ eventType: "policy.evaluated" }),
+      makeEvent({ eventType: "approval.created" }),
     ];
     assert.deepEqual(decisionRates(events), { allowed: 0, denied: 0, escalated: 0, overridden: 0 });
   });

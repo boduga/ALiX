@@ -94,12 +94,12 @@ describe("Pattern discovery integration pipeline", () => {
       },
     ];
 
-    // 1 action_denied event → ApprovalFrictionStrategy produces 1 pattern with low threshold
+    // 1 runtime.blocked event → ApprovalFrictionStrategy produces 1 pattern with low threshold
     const governanceEvents: GovernanceAuditEvent[] = [
       {
         eventId: "audit-1",
         timestamp: day(0),
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         actorType: "agent",
         actorId: "alix-agent",
         subjectType: "action",

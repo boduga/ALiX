@@ -112,7 +112,7 @@ function createMockAuditStore(): AuditStore {
     append: mock.fn(async (_input: GovernanceAuditEventInput) => ({
       eventId: "aud-test",
       timestamp: NOW,
-      eventType: "policy_evaluated" as const,
+      eventType: "policy.evaluated" as const,
       actorType: "system" as const,
       actorId: "test",
       subjectType: "signal" as const,
@@ -254,7 +254,7 @@ describe("AuditedSignalStore", () => {
 
     assert.equal(mockMeta(audit.append).mock.callCount(), 1);
     const auditInput = mockMeta(audit.append).mock.calls[0]!.arguments[0];
-    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "policy_evaluated");
+    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "policy.evaluated");
     assert.equal((auditInput as GovernanceAuditEventInput).subjectId, signal.signalId);
   });
 
@@ -336,7 +336,7 @@ describe("AuditedDecisionStore", () => {
 
     assert.equal(mockMeta(audit.append).mock.callCount(), 1);
     const auditInput = mockMeta(audit.append).mock.calls[0]!.arguments[0];
-    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "action_escalated");
+    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "runtime.requires_approval");
     assert.equal((auditInput as GovernanceAuditEventInput).actorId, decision.decider);
   });
 
@@ -406,7 +406,7 @@ describe("AuditedActionQueueStore", () => {
 
     assert.equal(mockMeta(audit.append).mock.callCount(), 1);
     const auditInput = mockMeta(audit.append).mock.calls[0]!.arguments[0];
-    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "action_escalated");
+    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "runtime.requires_approval");
     assert.equal((auditInput as GovernanceAuditEventInput).subjectId, proposal.proposalId);
   });
 
@@ -445,7 +445,7 @@ describe("AuditedActionQueueStore", () => {
     assert.equal(mockMeta(inner.appendStatusTransition).mock.callCount(), 1);
     assert.equal(mockMeta(audit.append).mock.callCount(), 1);
     const auditInput = mockMeta(audit.append).mock.calls[0]!.arguments[0];
-    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "override_applied");
+    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "override.applied");
   });
 
   it("passes through read methods", async () => {
@@ -490,7 +490,7 @@ describe("AuditedReviewStore", () => {
 
     assert.equal(mockMeta(audit.append).mock.callCount(), 1);
     const auditInput = mockMeta(audit.append).mock.calls[0]!.arguments[0];
-    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "human_approval_requested");
+    assert.equal((auditInput as GovernanceAuditEventInput).eventType, "approval.created");
     assert.equal((auditInput as GovernanceAuditEventInput).actorId, "alice");
   });
 
@@ -597,7 +597,7 @@ describe("factory functions", () => {
 describe("actionProposedEvent", () => {
   it("produces ACTION_ESCALATED event type", () => {
     const event = actionProposedEvent(makeProposal());
-    assert.equal(event.eventType, "action_escalated");
+    assert.equal(event.eventType, "runtime.requires_approval");
     assert.equal(event.decision, "escalated");
   });
 
@@ -654,7 +654,7 @@ describe("actionProposedEvent", () => {
 describe("reviewSubmittedEvent", () => {
   it("produces HUMAN_APPROVAL_REQUESTED event type", () => {
     const event = reviewSubmittedEvent(makeReview());
-    assert.equal(event.eventType, "human_approval_requested");
+    assert.equal(event.eventType, "approval.created");
   });
 
   it("sets actorType to human and actorId to reviewer", () => {

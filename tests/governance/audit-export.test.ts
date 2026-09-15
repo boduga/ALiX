@@ -35,7 +35,7 @@ function makeEvent(overrides: Partial<GovernanceAuditEvent> = {}): GovernanceAud
   return {
     eventId: "test-ev-001",
     timestamp: "2026-07-06T14:00:00.000Z",
-    eventType: "policy_evaluated" as GovernanceEventType,
+    eventType: "policy.evaluated" as GovernanceEventType,
     actorType: "policy_engine",
     actorId: "engine-v1",
     subjectType: "policy",

@@ -74,7 +74,7 @@ function makeEvent(overrides: Partial<GovernanceAuditEvent> = {}): GovernanceAud
   return {
     eventId: "evt-test",
     timestamp: T,
-    eventType: "action_allowed",
+    eventType: "runtime.allowed",
     actorType: "system",
     actorId: "gov",
     subjectType: "signal",
@@ -109,22 +109,22 @@ describe("decision stability", () => {
     assert.equal(r.decisionStability.reversalRate, 0);
   });
 
-  it("accept followed by action_denied → reversalRate > 0", () => {
-    const events = [makeEvent({ eventType: "action_denied", timestamp: LATER })];
+  it("accept followed by runtime.blocked → reversalRate > 0", () => {
+    const events = [makeEvent({ eventType: "runtime.blocked", timestamp: LATER })];
     const r = computeEffectiveness(events, [makeDecision()], [], [], []);
     assert.equal(r.decisionStability.reversed, 1);
     assert.equal(r.decisionStability.reversalRate, 1);
   });
 
-  it("deny followed by action_allowed → reversal", () => {
+  it("deny followed by runtime.allowed → reversal", () => {
     const d = makeDecision({ decision: "dismiss" });
-    const events = [makeEvent({ eventType: "action_allowed", timestamp: LATER })];
+    const events = [makeEvent({ eventType: "runtime.allowed", timestamp: LATER })];
     const r = computeEffectiveness(events, [d], [], [], []);
     assert.equal(r.decisionStability.reversed, 1);
   });
 
   it("contradiction before decision → not a reversal", () => {
-    const events = [makeEvent({ eventType: "action_denied", timestamp: "2026-07-07T13:00:00.000Z" })];
+    const events = [makeEvent({ eventType: "runtime.blocked", timestamp: "2026-07-07T13:00:00.000Z" })];
     const r = computeEffectiveness(events, [makeDecision()], [], [], []);
     assert.equal(r.decisionStability.reversed, 0);
   });
@@ -196,7 +196,7 @@ describe("stale decisions", () => {
 
   it("defer with later terminal event → not stale", () => {
     const d = makeDecision({ decisionId: "dec-resolved", signalId: "sig-test", decision: "defer", createdAt: "2026-06-01T00:00:00.000Z" });
-    const events = [makeEvent({ eventType: "action_allowed", timestamp: "2026-06-05T00:00:00.000Z" })];
+    const events = [makeEvent({ eventType: "runtime.allowed", timestamp: "2026-06-05T00:00:00.000Z" })];
     const r = computeEffectiveness(events, [d], [], [], [], { staleThresholdDays: 7, now: "2026-07-07T00:00:00.000Z" });
     assert.equal(r.staleDecisions.staleCount, 0);
   });

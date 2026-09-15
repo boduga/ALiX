@@ -4,43 +4,92 @@
  * Defines the GovernanceAuditEvent model with 13 event types, actor/subject
  * classifications, hash-chain fields, and structural validation.
  *
+ * #713 step 3 — the governance event vocabulary is a subset of the single
+ * canonical dotted audit vocabulary (`src/audit/audit-types.ts`). Legacy
+ * underscored names written before the unification are mapped on read via
+ * `normalizeGovernanceEventType` (no stored-data rewrite).
+ *
  * @module
  */
+
+import type { AuditAction } from "../audit/audit-types.js";
 
 // ---------------------------------------------------------------------------
 // Exported enums / union types
 // ---------------------------------------------------------------------------
 
-export type GovernanceEventType =
-  | "policy_evaluated"
-  | "action_allowed"
-  | "action_denied"
-  | "action_escalated"
-  | "human_approval_requested"
-  | "human_approval_granted"
-  | "human_approval_denied"
-  | "override_applied"
-  | "tool_permission_checked"
-  | "agent_permission_checked"
-  | "memory_access_checked"
-  | "model_routing_decision"
-  | "security_boundary_checked";
+/**
+ * Governance audit event types — a compile-time subset of the canonical
+ * `AuditAction` vocabulary. `Extract` guarantees a governance name can never
+ * drift outside the canonical set.
+ */
+export type GovernanceEventType = Extract<
+  AuditAction,
+  | "policy.evaluated"
+  | "runtime.allowed"
+  | "runtime.blocked"
+  | "runtime.requires_approval"
+  | "approval.created"
+  | "approval.approved"
+  | "approval.denied"
+  | "override.applied"
+  | "tool.permission_checked"
+  | "agent.permission_checked"
+  | "memory.access_checked"
+  | "model.routing_decision"
+  | "security.boundary_checked"
+>;
 
 export const VALID_EVENT_TYPES: GovernanceEventType[] = [
-  "policy_evaluated",
-  "action_allowed",
-  "action_denied",
-  "action_escalated",
-  "human_approval_requested",
-  "human_approval_granted",
-  "human_approval_denied",
-  "override_applied",
-  "tool_permission_checked",
-  "agent_permission_checked",
-  "memory_access_checked",
-  "model_routing_decision",
-  "security_boundary_checked",
+  "policy.evaluated",
+  "runtime.allowed",
+  "runtime.blocked",
+  "runtime.requires_approval",
+  "approval.created",
+  "approval.approved",
+  "approval.denied",
+  "override.applied",
+  "tool.permission_checked",
+  "agent.permission_checked",
+  "memory.access_checked",
+  "model.routing_decision",
+  "security.boundary_checked",
 ];
+
+/**
+ * Legacy (pre-#713) underscored governance event names → canonical dotted
+ * names. Applied to stored records on read so existing
+ * `.alix/governance/governance-audit-events.jsonl` keeps working.
+ */
+export const LEGACY_EVENT_TYPE_MAP: Readonly<Record<string, GovernanceEventType>> = {
+  policy_evaluated: "policy.evaluated",
+  action_allowed: "runtime.allowed",
+  action_denied: "runtime.blocked",
+  action_escalated: "runtime.requires_approval",
+  human_approval_requested: "approval.created",
+  human_approval_granted: "approval.approved",
+  human_approval_denied: "approval.denied",
+  override_applied: "override.applied",
+  tool_permission_checked: "tool.permission_checked",
+  agent_permission_checked: "agent.permission_checked",
+  memory_access_checked: "memory.access_checked",
+  model_routing_decision: "model.routing_decision",
+  security_boundary_checked: "security.boundary_checked",
+};
+
+/**
+ * Normalize a stored eventType to the canonical vocabulary.
+ * Accepts canonical dotted names and legacy underscored names; returns null
+ * for anything else.
+ */
+export function normalizeGovernanceEventType(
+  eventType: string,
+): GovernanceEventType | null {
+  if ((VALID_EVENT_TYPES as readonly string[]).includes(eventType)) {
+    return eventType as GovernanceEventType;
+  }
+  return LEGACY_EVENT_TYPE_MAP[eventType] ?? null;
+}
 
 export type ActorType = "human" | "agent" | "system" | "policy_engine";
 

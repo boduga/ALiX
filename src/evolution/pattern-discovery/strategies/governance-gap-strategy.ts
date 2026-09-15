@@ -51,12 +51,12 @@ export const DEFAULT_GOVERNANCE_GAP_CONFIG: GovernanceGapConfig = {
 // ---------------------------------------------------------------------------
 
 const ESCALATION_EVENT_TYPES = new Set<string>([
-  "action_escalated",
+  "runtime.requires_approval",
 ]);
 
 const RESOLUTION_EVENT_TYPES = new Set<string>([
-  "action_allowed",
-  "action_denied",
+  "runtime.allowed",
+  "runtime.blocked",
 ]);
 
 /**
@@ -107,7 +107,7 @@ function correlationKeyFallback(event: GovernanceAuditEvent): string {
  *
  * Algorithm:
  * 1. Filter events within the lookback window
- * 2. Identify escalation events (action_escalated or decision === "escalated")
+ * 2. Identify escalation events (runtime.requires_approval or decision === "escalated")
  * 3. For each escalation, check if a corresponding resolution (allowed/denied)
  *    exists with a later timestamp
  * 4. Optionally treat overrides as unresolved (configurable)
@@ -196,7 +196,7 @@ export class GovernanceGapStrategy implements DetectionStrategy {
     // (Overrides bypass normal governance — they indicate a gap in policy coverage)
     if (this.config.treatOverrideAsUnresolved) {
       for (const event of windowedEvents) {
-        if (event.eventType === "override_applied") {
+        if (event.eventType === "override.applied") {
           // Only count if not already counted as an escalation
           if (!escalations.includes(event)) {
             unresolvedEscalations.push(event);

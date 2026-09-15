@@ -94,9 +94,9 @@ function daysBetween(a: string, b: string): number {
 }
 
 /** Events that contradict an accept decision. */
-const ACCEPT_CONTRADICT = new Set(["action_denied", "override_applied"]);
+const ACCEPT_CONTRADICT = new Set(["runtime.blocked", "override.applied"]);
 /** Events that contradict a dismiss decision. */
-const DENY_CONTRADICT = new Set(["action_allowed", "override_applied"]);
+const DENY_CONTRADICT = new Set(["runtime.allowed", "override.applied"]);
 
 // ---------------------------------------------------------------------------
 // Main
@@ -261,7 +261,7 @@ function computeStaleDecisions(
       (e) =>
         e.timestamp > d.createdAt &&
         (e.subjectId === d.signalId) &&
-        (e.eventType === "action_allowed" || e.eventType === "action_denied"),
+        (e.eventType === "runtime.allowed" || e.eventType === "runtime.blocked"),
     );
 
     if (hasTerminal) continue;

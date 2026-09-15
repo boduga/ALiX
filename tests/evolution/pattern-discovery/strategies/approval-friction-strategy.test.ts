@@ -73,7 +73,7 @@ test("high denial rate emits pattern (15 denied/20 total with threshold 0.5)", a
   for (let i = 0; i < 15; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "denied",
       }),
@@ -83,7 +83,7 @@ test("high denial rate emits pattern (15 denied/20 total with threshold 0.5)", a
   for (let i = 0; i < 5; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "allowed",
       }),
@@ -112,7 +112,7 @@ test("below threshold returns empty (3 denied/13 total with threshold 0.8)", asy
   for (let i = 0; i < 3; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "denied",
       }),
@@ -122,7 +122,7 @@ test("below threshold returns empty (3 denied/13 total with threshold 0.8)", asy
   for (let i = 0; i < 10; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "allowed",
       }),
@@ -143,16 +143,16 @@ test("insufficient events returns empty (3 events with minimumEvents=10)", async
 
   const events = [
     makeGovernanceEvent({
-      eventType: "action_denied",
+      eventType: "runtime.blocked",
       timestamp: new Date(now - 1000).toISOString(),
     }),
     makeGovernanceEvent({
-      eventType: "action_allowed",
+      eventType: "runtime.allowed",
       timestamp: new Date(now - 2000).toISOString(),
       decision: "allowed",
     }),
     makeGovernanceEvent({
-      eventType: "human_approval_denied",
+      eventType: "approval.denied",
       timestamp: new Date(now - 3000).toISOString(),
     }),
   ];
@@ -170,7 +170,7 @@ test("no governance events returns empty", async () => {
   assert.equal(patterns.length, 0);
 });
 
-test("denominator uses approved + denied only (policy_evaluated events ignored)", async () => {
+test("denominator uses approved + denied only (policy.evaluated events ignored)", async () => {
   const strategy = new ApprovalFrictionStrategy({
     denialRateThreshold: 0.5,
     minimumEvents: 5,
@@ -183,7 +183,7 @@ test("denominator uses approved + denied only (policy_evaluated events ignored)"
   for (let i = 0; i < 5; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "denied",
       }),
@@ -193,17 +193,17 @@ test("denominator uses approved + denied only (policy_evaluated events ignored)"
   for (let i = 0; i < 5; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "allowed",
       }),
     );
   }
-  // 100 policy_evaluated events (must be ignored in denominator)
+  // 100 policy.evaluated events (must be ignored in denominator)
   for (let i = 0; i < 100; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "policy_evaluated",
+        eventType: "policy.evaluated",
         timestamp: new Date(now - i * 1000).toISOString(),
         decision: "allowed",
         policyId: `policy-${i}`,
@@ -232,7 +232,7 @@ test("confidence is always in [0, 1] range", async () => {
   for (let i = 0; i < 15; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_denied",
+        eventType: "runtime.blocked",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "denied",
       }),
@@ -242,7 +242,7 @@ test("confidence is always in [0, 1] range", async () => {
   for (let i = 0; i < 5; i++) {
     events.push(
       makeGovernanceEvent({
-        eventType: "action_allowed",
+        eventType: "runtime.allowed",
         timestamp: new Date(now - i * 3600_000).toISOString(),
         decision: "allowed",
       }),
