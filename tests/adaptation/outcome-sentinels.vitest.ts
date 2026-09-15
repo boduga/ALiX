@@ -5,74 +5,59 @@
  * tracking layer. OutcomeStore must be append-only and must not mutate
  * recommendations, governance reviews, or trigger actions.
  *
+ * Dependency claims use the real import graph (#697); code scans run on
+ * comment-stripped source.
+ *
  * @module
  */
 
 import { describe, it, expect } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 
-/** Read a file's source text for structural/grep-based checks. */
-function sourceOf(relativePath: string): string {
-  const resolved = path.resolve(__dirname, relativePath);
-  return fs.readFileSync(resolved, "utf-8");
-}
-
-// ---------------------------------------------------------------------------
-// Sentinel 1: P7 cannot mutate recommendations
-// ---------------------------------------------------------------------------
+const STORE = resolve(__dirname, "../../src/adaptation/outcome-store.ts");
+const TYPES = resolve(__dirname, "../../src/adaptation/outcome-types.ts");
+const DECISION_MAIN = resolve(__dirname, "../../src/cli/commands/decision/main.ts");
 
 describe("P7 — no recommendation mutation", () => {
   it("outcome-store.ts does not import ProposalStore", () => {
-    const source = sourceOf("../../src/adaptation/outcome-store.ts");
-    expect(source).not.toContain("proposal-store");
-    expect(source).not.toContain("ProposalStore");
+    const specifiers = [...importedSpecifiers(STORE)];
+    expect(specifiers.some((s) => s.includes("proposal-store"))).toBe(false);
+    expect(importedBindings(STORE).has("ProposalStore")).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Sentinel 2: P7 cannot mutate governance reviews
-// ---------------------------------------------------------------------------
 
 describe("P7 — no governance review mutation", () => {
   it("outcome-store.ts does not import governance-review", () => {
-    const source = sourceOf("../../src/adaptation/outcome-store.ts");
-    expect(source).not.toContain("governance-review");
+    expect([...importedSpecifiers(STORE)].some((s) => s.includes("governance-review"))).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Sentinel 3: P7 cannot trigger actions
-// ---------------------------------------------------------------------------
 
 describe("P7 — no action triggers", () => {
   it("outcome files do not import appliers or approval gate", () => {
-    const source1 = sourceOf("../../src/adaptation/outcome-store.ts");
-    const source2 = sourceOf("../../src/adaptation/outcome-types.ts");
-    const combined = source1 + source2;
-    expect(combined).not.toContain("applier");
-    expect(combined).not.toContain("ApprovalGate");
-    expect(combined).not.toContain("executor");
+    for (const file of [STORE, TYPES]) {
+      const specifiers = [...importedSpecifiers(file)];
+      const bindings = importedBindings(file);
+      expect(specifiers.some((s) => s.includes("applier")), `applier in ${file}`).toBe(false);
+      expect(bindings.has("ApprovalGate"), `ApprovalGate in ${file}`).toBe(false);
+      expect(specifiers.some((s) => s.includes("executor")), `executor in ${file}`).toBe(false);
+    }
   });
 });
 
-// ---------------------------------------------------------------------------
-// Sentinel 4: Outcome records are append-only
-// ---------------------------------------------------------------------------
-
 describe("P7 — outcome records are append-only", () => {
   it("outcome-store.ts has no update or delete method", () => {
-    const source = sourceOf("../../src/adaptation/outcome-store.ts");
-    // Should have append but not update or delete
-    expect(source).toContain("async append");
-    expect(source).not.toContain("async update");
-    expect(source).not.toContain("async delete");
+    const code = codeOnly(readFileSync(STORE, "utf-8"));
+    expect(code).toContain("async append");
+    expect(code).not.toContain("async update");
+    expect(code).not.toContain("async delete");
   });
 
   it("CLI outcome subcommand has no delete", () => {
-    const source = sourceOf("../../src/cli/commands/decision.ts");
-    // CLI for outcome should not have a delete subcommand
-    const outcomeSection = source.match(/case "outcome":[\s\S]*?(?=case |default:)/);
+    // #717 — the decision dispatcher now lives in decision/main.ts.
+    const code = codeOnly(readFileSync(DECISION_MAIN, "utf-8"));
+    const outcomeSection = code.match(/case "outcome":[\s\S]*?(?=case |default:)/);
     if (outcomeSection) {
       expect(outcomeSection[0]).not.toContain("delete");
     }
