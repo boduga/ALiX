@@ -22,6 +22,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { globSync } from "glob";
+import { codeOnly } from "../helpers/import-graph.js";
 import { ProposalSignalChannel } from "../../src/capability/evolution/proposal-signal-channel.js";
 import {
   CAPABILITY_MEASUREMENT_EVENT_TYPES,
@@ -84,10 +85,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
     const files = globSync("**/*.ts", { cwd: SRC, ignore: ["**/node_modules/**"] });
     const sites: string[] = [];
     for (const rel of files) {
-      const raw = readFileSync(resolve(SRC, rel), "utf8");
-      const code = raw
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/(^|[^:])\/\/.*$/gm, "$1");
+      const code = codeOnly(readFileSync(resolve(SRC, rel), "utf8"));
       const found = code.match(/new\s+ProposalSignalChannel\s*\(/g) ?? [];
       for (const _ of found) sites.push(rel);
     }
