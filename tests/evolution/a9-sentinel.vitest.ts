@@ -18,7 +18,8 @@
 
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve as pathResolve } from "node:path";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 // Runtime re-pins for identity determinism (Phase 28).
 import { forecastIdFor, correlationIdFor } from "../../src/evolution/forecast/identity.js";
 import type { ForecastContent, CorrelationContent } from "../../src/evolution/forecast/contracts/contract.js";
@@ -27,6 +28,16 @@ import { FORECAST_VERSION, GENERATOR_VERSION, CORRELATION_VERSION } from "../../
 const A9_ROOT = join(process.cwd(), "src", "evolution", "forecast");
 const A9_DETECTORS_ROOT = join(A9_ROOT, "detectors");
 const SRC_ROOT = join(process.cwd(), "src");
+const A8_LEARNING_ROOT = join(SRC_ROOT, "evolution", "learning");
+
+/** True when `file` has a relative import whose resolved path lands under `dir`. */
+function importsUnder(file: string, dir: string): boolean {
+  for (const spec of importedSpecifiers(file)) {
+    if (!spec.startsWith(".")) continue;
+    if (pathResolve(dirname(file), spec).startsWith(dir)) return true;
+  }
+  return false;
+}
 
 /** Recursively walk a directory returning all *.ts files (skipping *.d.ts). */
 function walkTsFiles(root: string): string[] {
@@ -41,20 +52,16 @@ function walkTsFiles(root: string): string[] {
 }
 
 describe("A9 sentinel — A9 does not consume A8's normalized layer (raw evidence preserved)", () => {
-  const FORBIDDEN_IMPORT_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
-    { pattern: /from\s+['"].*evolution\/learning/, reason: "A8 normalized aggregation layer (src/evolution/learning)" },
-    { pattern: /evolution\/learning\/adapters/, reason: "A8 adapter layer" },
-  ];
-
   it("no A9 source file imports src/evolution/learning (A9 is its own module)", () => {
     const files = walkTsFiles(A9_ROOT);
     expect(files.length, "A9 source tree must contain .ts files").toBeGreaterThan(0);
 
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, "utf-8");
-      for (const { pattern, reason } of FORBIDDEN_IMPORT_PATTERNS) {
-        if (pattern.test(src)) offenders.push(`${file}  [${reason}]`);
+      // Resolve the real import graph: any relative specifier whose target
+      // lands under src/evolution/learning is A8's normalized layer.
+      if (importsUnder(file, A8_LEARNING_ROOT)) {
+        offenders.push(`${file}  [A8 normalized aggregation layer (src/evolution/learning)]`);
       }
     }
     expect(
@@ -71,8 +78,12 @@ describe("A9 sentinel — forecast detectors do NOT consume measurement events (
 
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, "utf-8");
-      if (src.includes("measurement-events-adapter") || src.includes("CapabilityMeasurementRecord")) {
+      const specs = importedSpecifiers(file);
+      const binds = importedBindings(file);
+      if (
+        [...specs].some((s) => s.includes("measurement-events-adapter")) ||
+        binds.has("CapabilityMeasurementRecord")
+      ) {
         offenders.push(file);
       }
     }
@@ -120,7 +131,7 @@ describe("A9 sentinel — identity is a deterministic canonical hash (Phase 28)"
   });
 
   it("identity.ts derives ids via SHA-256 of canonical content (not JSONL position)", () => {
-    const identitySrc = readFileSync(join(A9_ROOT, "identity.ts"), "utf-8");
+    const identitySrc = codeOnly(readFileSync(join(A9_ROOT, "identity.ts"), "utf-8"));
     expect(identitySrc).toContain("sha256");
     expect(identitySrc).toContain("canonicalStringify");
   });
@@ -130,7 +141,7 @@ describe("A9 sentinel — persistence stays A9-owned (forecasts.jsonl / correlat
   it("only src/evolution/forecast defines the two A9-owned store files", () => {
     const offenders: string[] = [];
     for (const file of walkTsFiles(SRC_ROOT)) {
-      const src = readFileSync(file, "utf-8");
+      const src = codeOnly(readFileSync(file, "utf-8"));
       if (src.includes('"forecasts.jsonl"') || src.includes('"correlations.jsonl"')) {
         if (!file.startsWith(A9_ROOT)) offenders.push(file);
       }
@@ -144,9 +155,8 @@ describe("A9 sentinel — persistence stays A9-owned (forecasts.jsonl / correlat
 
 describe("A9 sentinel — foreign IDs are references; measurement namespace carries no proposal linkage", () => {
   it("CapabilityMeasurementPayload (measurement-event-types.ts) does NOT gain proposalId / sourceProposalIds / forecastId / correlationId", () => {
-    const payloadSrc = readFileSync(
-      join(SRC_ROOT, "capability", "measurement", "measurement-event-types.ts"),
-      "utf-8",
+    const payloadSrc = codeOnly(
+      readFileSync(join(SRC_ROOT, "capability", "measurement", "measurement-event-types.ts"), "utf-8"),
     );
     for (const forbidden of ["proposalId", "sourceProposalIds", "forecastId", "correlationId"]) {
       expect(
@@ -157,7 +167,7 @@ describe("A9 sentinel — foreign IDs are references; measurement namespace carr
   });
 
   it("A9's CapabilityMeasurementRecord contract exposes no proposal linkage (foreign ids are references only)", () => {
-    const contractSrc = readFileSync(join(A9_ROOT, "contracts", "contract.ts"), "utf-8");
+    const contractSrc = codeOnly(readFileSync(join(A9_ROOT, "contracts", "contract.ts"), "utf-8"));
     for (const forbidden of ["proposalId", "sourceProposalIds", "forecastId", "correlationId"]) {
       // The A9 measurement record region must not declare these fields.
       const recordRegion = contractSrc.slice(
@@ -244,9 +254,9 @@ describe("A9 sentinel — A2.5 / A3 taxonomy frozen", () => {
 
   it("A9 does NOT import A8's enriched-proposal-aggregator / normalization layer", () => {
     for (const file of walkTsFiles(A9_ROOT)) {
-      const src = readFileSync(file, "utf-8");
+      const specs = [...importedSpecifiers(file)];
       expect(
-        src.includes("enriched-proposal-aggregator"),
+        specs.some((s) => s.includes("enriched-proposal-aggregator")),
         `${file} must not import A8's enriched-proposal-aggregator`,
       ).toBe(false);
     }
@@ -258,11 +268,11 @@ describe("A9 sentinel — correlation bridge uses the canonical two-hop anchors"
     // The bridge anchor is read by ONE shared typed accessor (Std #4), used by
     // both the proposal adapter and the correlation engine. Pin it here so the
     // `candidate.target.id` read never drifts back into per-site hand-rolling.
-    const bridgeSrc = readFileSync(join(A9_ROOT, "bridge-target.ts"), "utf-8");
+    const bridgeSrc = codeOnly(readFileSync(join(A9_ROOT, "bridge-target.ts"), "utf-8"));
     expect(bridgeSrc).toContain("candidate");
     expect(bridgeSrc).toContain("target");
     expect(bridgeSrc).toContain("ProposalSubmittedPayload");
-    const engineSrc = readFileSync(join(A9_ROOT, "correlation-engine.ts"), "utf-8");
+    const engineSrc = codeOnly(readFileSync(join(A9_ROOT, "correlation-engine.ts"), "utf-8"));
     // The engine delegates to the shared accessor (does not hand-roll the read).
     expect(engineSrc).toContain("readCandidateTargetId");
     // Execution requirement: proposal.executed gates correlation.
