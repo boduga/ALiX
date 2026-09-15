@@ -1,14 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..", "..", "..");
 const cliPath = join(repoRoot, "dist", "src", "cli.js");
-const sourcePath = join(repoRoot, "src", "cli.ts");
 
 const ROOT_COMMAND_ORDER = [
   "run",
@@ -37,13 +35,6 @@ const ROOT_COMMAND_ORDER = [
 
 function rootHelp(): string {
   return execFileSync(process.execPath, [cliPath, "--help"], { encoding: "utf8" });
-}
-
-function routedCommands(): string[] {
-  const source = readFileSync(sourcePath, "utf8");
-  const matches = source.matchAll(/if \(command === "([^"]+)"/g);
-  const commands = [...matches].map((match) => match[1]).filter((command) => !command.startsWith("-"));
-  return [...new Set(commands)];
 }
 
 function commandPosition(help: string, command: string): number {
