@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { importedBindings } from "../helpers/import-graph.js";
 import { formatCoordinationPanel } from "../../src/tui/coordination-panel.js";
 import type { CoordinationPanelData, CoordinationPanelViewMode } from "../../src/tui/coordination-panel.js";
 import type { CoordinationRunView, CoordinationConflictView } from "../../src/kernel/coordination-view.js";
@@ -85,8 +85,9 @@ describe("coordination conflict panel", () => {
   });
 
   it("does NOT import ConflictRepository or CollaborationStore", () => {
-    const source = readFileSync("src/tui/coordination-panel.ts", "utf-8");
-    assert.ok(!source.includes("ConflictRepository"));
-    assert.ok(!source.includes("CollaborationStore"));
+    const bindings = importedBindings("src/tui/coordination-panel.ts");
+    for (const forbidden of ["ConflictRepository", "CollaborationStore"]) {
+      assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
+    }
   });
 });
