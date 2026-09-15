@@ -7,10 +7,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { importedBindings } from "../helpers/import-graph.js";
 
 /** Repo root resolved from test file location (before cwd mock). */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -270,14 +271,9 @@ describe("RiskCalibrationAdapter", () => {
 
     // Static assertion: adapter file imports do NOT mention forbidden
     // mutation surfaces or recommendation substrate.
-    const src = readFileSync(
+    const bindings = importedBindings(
       `${REPO_ROOT}/src/learning/risk-calibration-adapter.ts`,
-      "utf-8",
     );
-    const importLines = src
-      .split("\n")
-      .filter((l) => l.trim().startsWith("import"));
-
     const forbidden = [
       "LearningStore",
       "ProposalStore",
@@ -287,9 +283,7 @@ describe("RiskCalibrationAdapter", () => {
       "ApprovalRecommendationStore",
     ];
     for (const term of forbidden) {
-      for (const line of importLines) {
-        expect(line, `adapter must not import ${term}`).not.toContain(term);
-      }
+      expect(bindings.has(term), `adapter must not import ${term}`).toBe(false);
     }
   });
 
