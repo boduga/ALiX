@@ -27,6 +27,7 @@
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import type { AlixEvent } from "../../events/types.js";
 import type { EventLog } from "../../events/event-log.js";
 import { ExecutionStateStore } from "../execution-state/execution-state-store.js";
@@ -171,7 +172,7 @@ export class ContextRetrieval {
     const all = this.readAllSync();
     // Production layout: .alix/sessions/<executionId>/events.jsonl is the executionId index (file-scoped).
     // If the bound EventLog's sessionDir matches the queried id, the file itself is the index — return all.
-    const sessionIdFromPath = this.eventLog.sessionDir.split("/").pop();
+    const sessionIdFromPath = basename(this.eventLog.sessionDir);
     if (sessionIdFromPath === executionId) return [...all];
     const filtered = all.filter(ev => {
       const p = isRecord(ev.payload) ? (ev.payload as Record<string, unknown>).executionId : undefined;
@@ -183,7 +184,7 @@ export class ContextRetrieval {
   async getEventsByExecutionId(executionId: string): Promise<AlixEvent[]> {
     if (!executionId) return [];
     const all = await this.readAll();
-    const sessionIdFromPath = this.eventLog.sessionDir.split("/").pop();
+    const sessionIdFromPath = basename(this.eventLog.sessionDir);
     if (sessionIdFromPath === executionId) return [...all];
     const filtered = all.filter(ev => {
       const p = isRecord(ev.payload) ? (ev.payload as Record<string, unknown>).executionId : undefined;

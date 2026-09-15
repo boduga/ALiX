@@ -12,7 +12,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, appendFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { RiskScore } from "./risk-score-types.js";
 
 const STORE_DIR = join(".alix", "risk-scores");
@@ -30,7 +30,7 @@ export class RiskScoreStore {
   }
 
   private filePath(): string {
-    return join(this.storeDir, STORE_FILE.split("/").pop()!);
+    return join(this.storeDir, basename(STORE_FILE));
   }
 
   /**
