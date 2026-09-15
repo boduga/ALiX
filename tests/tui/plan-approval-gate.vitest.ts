@@ -290,17 +290,13 @@ describe("runPlanPhase gate integration", () => {
     const planPath = path.join(SCRATCH, "provided.md");
     await writeFile(planPath, "# Original\n\n- original step\n", "utf8");
 
-    const editorScript = path.join(SCRATCH, "fake-editor.sh");
-    // Script: synchronously overwrite the plan file with the edited body.
-    const scriptBody = `#!/bin/sh\ncat > "$1" <<'EOF'
-# Edited
-
-- new step
-EOF
-`;
-    await writeFile(editorScript, scriptBody, { mode: 0o755 });
+    const editorScript = path.join(SCRATCH, "fake-editor.mjs");
+    // #732 — a Node editor is portable (a `.sh` can't run on Windows); EDITOR
+    // now supports a command with args, so `node <script>` works everywhere.
+    const scriptBody = `import { writeFileSync } from "node:fs";\nwriteFileSync(process.argv[2], "# Edited\\n\\n- new step\\n");\n`;
+    await writeFile(editorScript, scriptBody, "utf8");
     const origEditor = process.env.EDITOR;
-    process.env.EDITOR = editorScript;
+    process.env.EDITOR = `${process.execPath} ${editorScript}`;
 
     const { TuiPlanApprovalGate } = await loadGate();
     const { runPlanPhase } = await import("../../src/run/plan-phase.js");
