@@ -45,8 +45,20 @@ function makeEvidence(
 function withTempDir(fn: (dir: string, store: ExecutionEvidenceStore) => Promise<void>): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), "exec-persist-test-"));
   const store = new ExecutionEvidenceStore(dir);
-  return fn(dir, store).finally(() => {
-    rmSync(dir, { recursive: true, force: true });
+  return fn(dir, store).finally(async () => {
+    // #739 — emitter.append is fire-and-forget, so a write can still be
+    // landing while teardown runs; let it settle, then tolerate a late write
+    // racing the removal (ENOTEMPTY/EBUSY) with a bounded retry.
+    await new Promise((r) => setTimeout(r, 25));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        return;
+      } catch (err) {
+        if (attempt >= 4) throw err;
+        await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
+      }
+    }
   });
 }
 
