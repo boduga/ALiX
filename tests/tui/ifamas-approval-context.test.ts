@@ -7,7 +7,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { importedBindings } from "../helpers/import-graph.js";
 import type { PanelApprovalRecord } from "../../src/tui/store.js";
 import type { IfamasApprovalContext } from "../../src/tui/ifamas-panel.js";
 
@@ -152,10 +152,9 @@ describe("IFÁ-MAS approval context", () => {
     assert.equal(typeof ctx.chronicleRefCount, "number");
 
     // Verify the source file has no import of ToolExecutor/PolicyGate/ApprovalStore
-    const src = readFileSync("src/tui/ifamas-panel.ts", "utf-8");
-    const importLines = src.split("\n").filter(l => l.startsWith("import "));
-    assert.ok(importLines.every(l => !l.includes("ToolExecutor")), "ToolExecutor must not be imported");
-    assert.ok(importLines.every(l => !l.includes("PolicyGate")), "PolicyGate must not be imported");
-    assert.ok(importLines.every(l => !l.includes("ApprovalStore")), "ApprovalStore must not be imported");
+    const bindings = importedBindings("src/tui/ifamas-panel.ts");
+    for (const forbidden of ["ToolExecutor", "PolicyGate", "ApprovalStore"]) {
+      assert.ok(!bindings.has(forbidden), `${forbidden} must not be imported`);
+    }
   });
 });
