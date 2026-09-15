@@ -7,6 +7,19 @@ import type { AlixEvent, NewEvent } from "./types.js";
 type EventListener = (event: AlixEvent) => void;
 const appendQueues = new Map<string, Promise<void>>();
 
+/**
+ * Wall-clock primitives captured at module load. The append-lock retry,
+ * deadline, staleness checks, and heartbeat must use the REAL clock: under
+ * fake timers (vitest `vi.useFakeTimers()`), a lock contender awaiting a
+ * faked `setTimeout` with a frozen `Date` hangs forever once the test stops
+ * advancing time, and a fake-time deadline misfires. In production there are
+ * no fake timers, so these are identical to the globals.
+ */
+const RealDate: DateConstructor = Date;
+const realSetTimeout: typeof setTimeout = globalThis.setTimeout.bind(globalThis);
+const realSetInterval: typeof setInterval = globalThis.setInterval.bind(globalThis);
+const realClearInterval: typeof clearInterval = globalThis.clearInterval.bind(globalThis);
+
 /** Tail window used to recover the max seq without a full-file read. */
 const RESYNC_TAIL_BYTES = 64 * 1024;
 
@@ -58,7 +71,7 @@ async function shouldBreakLock(lockPath: string): Promise<boolean> {
   }
   if (!content || typeof content.pid !== "number" || typeof content.token !== "string" || typeof content.heartbeat !== "string") {
     try {
-      return Date.now() - (await stat(lockPath)).mtimeMs > STALE_LOCK_MS;
+      return RealDate.now() - (await stat(lockPath)).mtimeMs > STALE_LOCK_MS;
     } catch {
       return false;
     }
@@ -69,7 +82,7 @@ async function shouldBreakLock(lockPath: string): Promise<boolean> {
     // holder is live — never steal from ourselves.
     return false;
   }
-  const heartbeatAge = Date.now() - new Date(content.heartbeat).getTime();
+  const heartbeatAge = RealDate.now() - new RealDate(content.heartbeat).getTime();
   if (!(heartbeatAge > STALE_LOCK_MS)) return false;
   return isPidDead(content.pid);
 }
@@ -316,11 +329,11 @@ export class EventLog {
     let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
     const stopHeartbeat = (): void => {
       if (heartbeatTimer !== undefined) {
-        clearInterval(heartbeatTimer);
+        realClearInterval(heartbeatTimer);
         heartbeatTimer = undefined;
       }
     };
-    const deadline = Date.now() + 5_000;
+    const deadline = RealDate.now() + 5_000;
     let fullEvent: AlixEvent<TType, TPayload>;
     try {
       while (!lock) {
@@ -329,9 +342,9 @@ export class EventLog {
           // Record ownership so a contender can tell a live holder from a
           // dead one instead of blindly stealing by mtime.
           lockToken = randomUUID();
-          const beat = (): string => new Date().toISOString();
+          const beat = (): string => new RealDate().toISOString();
           await lock.writeFile(JSON.stringify({ pid: process.pid, token: lockToken, heartbeat: beat() }));
-          heartbeatTimer = setInterval(() => {
+          heartbeatTimer = realSetInterval(() => {
             writeFile(lockPath, JSON.stringify({ pid: process.pid, token: lockToken, heartbeat: beat() })).catch(() => {});
           }, LOCK_HEARTBEAT_MS);
           heartbeatTimer.unref?.();
@@ -346,8 +359,8 @@ export class EventLog {
             }
           } catch { /* another writer released it */ }
           if (removedStaleLock) continue;
-          if (Date.now() >= deadline) throw new Error(`Timed out acquiring EventLog append lock: ${lockPath}`);
-          await new Promise((resolve) => setTimeout(resolve, 5));
+          if (RealDate.now() >= deadline) throw new Error(`Timed out acquiring EventLog append lock: ${lockPath}`);
+          await new Promise((resolve) => realSetTimeout(resolve, 5));
         }
       }
       await this.resyncFromDisk();
