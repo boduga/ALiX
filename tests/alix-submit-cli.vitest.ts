@@ -25,7 +25,8 @@ import { join } from "node:path";
 function runAlix(args: string[], home: string): SpawnSyncReturns<string> {
   const cliPath = join(import.meta.dirname, "..", "dist", "src", "cli.js");
   return spawnSync(process.execPath, [cliPath, ...args], {
-    env: { ...process.env, HOME: home },
+    // #732 — Windows resolves os.homedir() from USERPROFILE, not HOME.
+    env: { ...process.env, HOME: home, USERPROFILE: home },
     encoding: "utf8",
     timeout: 40_000,
   });
@@ -45,9 +46,16 @@ function runAlix(args: string[], home: string): SpawnSyncReturns<string> {
 const FAKE_DAEMON_SOURCE = `
 import { createServer } from "node:net";
 import { writeFileSync, mkdirSync } from "node:fs";
-const SOCK = process.env.HOME + "/.alix/alixd.sock";
-mkdirSync(process.env.HOME + "/.alix", { recursive: true });
-writeFileSync(process.env.HOME + "/.alix/daemon.json", JSON.stringify({
+import { createHash } from "node:crypto";
+import { join } from "node:path";
+// #732 — Windows uses USERPROFILE (os.homedir ignores HOME) and a named pipe.
+const HOME = process.env.USERPROFILE || process.env.HOME;
+const ALIX_DIR = join(HOME, ".alix");
+const SOCK = process.platform === "win32"
+  ? "\\\\\\\\.\\\\pipe\\\\alixd-" + createHash("sha256").update(ALIX_DIR).digest("hex").slice(0, 16)
+  : join(ALIX_DIR, "alixd.sock");
+mkdirSync(ALIX_DIR, { recursive: true });
+writeFileSync(join(ALIX_DIR, "daemon.json"), JSON.stringify({
   pid: process.pid,
   startedAt: new Date().toISOString(),
   socketPath: SOCK,
@@ -81,6 +89,7 @@ function startFakeDaemon(frames: object[]): { home: string; stop: () => void } {
     env: {
       ...process.env,
       HOME: home,
+      USERPROFILE: home,
       FAKE_DAEMON_FRAMES: frames.map((f) => JSON.stringify(f)).join("\n"),
     },
     stdio: ["ignore", "pipe", "pipe"],

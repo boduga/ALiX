@@ -23,6 +23,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
+import { isNamedPipe } from "./daemon-paths.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
@@ -467,8 +468,9 @@ process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtExcep
 process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); process.exit(1); });
 
 // Remove stale socket file before binding, otherwise `listen()` can fail
-// with EADDRINUSE after a crash or unclean shutdown.
-if (existsSync(socketPath)) {
+// with EADDRINUSE after a crash or unclean shutdown. A Windows named pipe
+// (#732) has no backing file, so skip the filesystem stale-rm there.
+if (!isNamedPipe(socketPath) && existsSync(socketPath)) {
   await rm(socketPath, { force: true }).catch(() => {});
 }
 
