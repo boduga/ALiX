@@ -29,47 +29,42 @@
  * `tests/capability/five-axis-sentinel.vitest.ts` and
  * `tests/capability/cap-11-structural-cleanup-sentinel.vitest.ts`.
  *
+ * Axes 1-2 scan comment-stripped source (`codeOnly`) so a commented-out
+ * construction or symbol never satisfies the guard.
+ *
  * @module capability/cap-12-sentinel
  */
 
 import { describe, it, expect } from "vitest";
-import { execSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { extname, join, resolve } from "node:path";
+import { codeOnly } from "../helpers/import-graph.js";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
+const SRC = resolve(ROOT, "src");
+const COMPOSITION_ROOT = resolve(SRC, "capability", "platform.ts");
 
-/**
- * Grep `src/ tests/` for a pattern using `grep -rEn`. Returns the raw
- * stdout (matching lines including file:line:content). Empty string means
- * zero matches.
- */
-function grepSources(pattern: string, scope: "src" | "tests" = "src"): string {
-  try {
-    return execSync(
-      `grep -rEn "${pattern}" ${ROOT}/${scope}/ 2>/dev/null || true`,
-      { encoding: "utf8" },
-    );
-  } catch (e) {
-    // `grep -rEn` exits 1 on no matches even with `|| true`; treat that
-    // as empty output so the caller's assertion can decide.
-    return "";
+function walkTs(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walkTs(full, out);
+    else if (extname(full) === ".ts") out.push(full);
   }
+  return out;
 }
 
 describe("CAP-12 — Structural sentinel (4 axes)", () => {
   it("axis 1: no `new CapabilityRegistry(` outside src/capability/platform.ts (CAP-1 invariant)", () => {
-    const matches = grepSources("new\\s+CapabilityRegistry\\(");
-    // Filter out the composition root's own construction line; any other
-    // hit is a regression.
-    const offenders = matches
-      .split("\n")
-      .filter((line) => line.trim().length > 0)
-      .filter((line) => !line.includes("src/capability/platform.ts:"));
+    const offenders: string[] = [];
+    for (const file of walkTs(SRC)) {
+      if (file === COMPOSITION_ROOT) continue;
+      const matches = codeOnly(readFileSync(file, "utf8")).match(/new\s+CapabilityRegistry\s*\(/g) ?? [];
+      if (matches.length > 0) offenders.push(`${file} (${matches.length})`);
+    }
     expect(
       offenders,
-      `new CapabilityRegistry( must only appear in src/capability/platform.ts; offenders:\\n${offenders.join(
-        "\\n",
+      `new CapabilityRegistry( must only appear in src/capability/platform.ts; offenders:\n${offenders.join(
+        "\n",
       )}`,
     ).toEqual([]);
   });
@@ -83,18 +78,16 @@ describe("CAP-12 — Structural sentinel (4 axes)", () => {
       "APPROVED_PENDING_APPLICATION",
     ];
     const offenders: string[] = [];
-    for (const m of markers) {
-      const out = grepSources(m);
-      const lines = out
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-      offenders.push(...lines.map((l) => `[${m}] ${l}`));
+    for (const file of walkTs(SRC)) {
+      const src = codeOnly(readFileSync(file, "utf8"));
+      for (const marker of markers) {
+        if (src.includes(marker)) offenders.push(`[${marker}] ${file}`);
+      }
     }
     expect(
       offenders,
-      `Legacy lifecycle machinery must not reappear in src/; offenders:\\n${offenders.join(
-        "\\n",
+      `Legacy lifecycle machinery must not reappear in src/; offenders:\n${offenders.join(
+        "\n",
       )}`,
     ).toEqual([]);
   });
@@ -144,8 +137,8 @@ describe("CAP-12 — Structural sentinel (4 axes)", () => {
     }
     expect(
       offenders,
-      `docs/architecture/README.md must not present A7.0/A7.1 as active architecture; offending lines:\\n${offenders.join(
-        "\\n",
+      `docs/architecture/README.md must not present A7.0/A7.1 as active architecture; offending lines:\n${offenders.join(
+        "\n",
       )}`,
     ).toEqual([]);
   });
