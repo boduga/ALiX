@@ -41,11 +41,13 @@ import { CapabilityService } from "../../src/capability/capability-service.js";
 import { CapabilityRegistry } from "../../src/capability/registry.js";
 import { CapabilityResolver } from "../../src/capability/provider-resolver.js";
 import { EventLog } from "../../src/events/event-log.js";
+import { codeOnly } from "../helpers/import-graph.js";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
 function readSrc(rel: string): string {
-  return readFileSync(join(ROOT, rel), "utf8");
+  // Comment-stripped so JSDoc explaining a rule cannot satisfy or trip it (#697).
+  return codeOnly(readFileSync(join(ROOT, rel), "utf8"));
 }
 
 describe("Five-axis sentinel (CAP-8/9 axes 1-4 + CAP-10 axis 5 NEW)", () => {

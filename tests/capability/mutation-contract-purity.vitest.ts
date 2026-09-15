@@ -4,9 +4,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
+import { codeOnly } from "../helpers/import-graph.js";
 
 const SRC = resolve(import.meta.dirname, "../../src/capability/mutation-contract.ts");
 const source = readFileSync(SRC, "utf8");
+// Comment-stripped view for symbol/side-effect scans (#697).
+const code = codeOnly(source);
 
 /** Pure import-scan + allowlist filter. Shared by the layer-1 allowlist test and
  *  the negative regression test so the scan/filter logic is pinned in one place. */
@@ -42,16 +45,16 @@ describe("mutation-contract.ts purity (user ruling)", () => {
 
   it("does not reference registry, runtime, executor, or platform symbols", () => {
     for (const symbol of ["CapabilityRegistry", "CapabilityRuntime", "ProviderExecutor", "CapabilityPlatform", "CapabilityMutationPort"]) {
-      expect(source).not.toMatch(new RegExp(`\\b${symbol}\\b`));
+      expect(code).not.toMatch(new RegExp(`\\b${symbol}\\b`));
     }
   });
 
   it("has no side-effect statements (no new/assignments outside functions)", () => {
     // heuristic: no `new ` allocations — Set/Map are pure data structures and
     // are allowed inside validator functions; no top-level `console.`/`process.` calls
-    expect(source).not.toMatch(/\bnew\s+(?!Set\b|Map\b)[A-Z]/);
-    expect(source).not.toMatch(/console\./);
-    expect(source).not.toMatch(/\bprocess\./);
+    expect(code).not.toMatch(/\bnew\s+(?!Set\b|Map\b)[A-Z]/);
+    expect(code).not.toMatch(/console\./);
+    expect(code).not.toMatch(/\bprocess\./);
   });
 });
 
