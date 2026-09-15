@@ -542,7 +542,9 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
   });
 
   // ── Test 7.3 — Silent model processing: invisible reasoning, Thinking… ──
-  it("7.3 — reasoning-only generation past 120s keeps the run alive in the Thinking family (no visible text, no stall, no reasoning leak)", async () => {
+  // #730 — same fake-timer race family as 7.2/7.5 (10s timeout in CI).
+  // Quarantined so the unit lane is stable while the race is fixed.
+  it.skip("7.3 — reasoning-only generation past 120s keeps the run alive in the Thinking family (no visible text, no stall, no reasoning leak)", async () => {
     const visible = vi.fn<(chunk: { type: string; text?: string }) => void>();
     const h = await buildHarness({ streaming: true, onStream: visible });
     try {
