@@ -387,10 +387,7 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
   });
 
   // ── Test 7.2 — Long streaming generation over >120s ─────────────────────
-  // #730 — this case hangs intermittently under CI (fake-timer/async-I/O race;
-  // a 60s timeout is still exceeded). Quarantined so the unit lane is stable
-  // while the race is fixed; re-enable with the fix in #730.
-  it.skip("7.2 — streaming chunks across >120s keep the run alive, advance lastProgressAt, and hold STREAMING", async () => {
+  it("7.2 — streaming chunks across >120s keep the run alive, advance lastProgressAt, and hold STREAMING", async () => {
     const h = await buildHarness({ streaming: true, onStream: vi.fn() });
     try {
       const session = await h.createSession();
@@ -542,9 +539,7 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
   });
 
   // ── Test 7.3 — Silent model processing: invisible reasoning, Thinking… ──
-  // #730 — same fake-timer race family as 7.2/7.5 (10s timeout in CI).
-  // Quarantined so the unit lane is stable while the race is fixed.
-  it.skip("7.3 — reasoning-only generation past 120s keeps the run alive in the Thinking family (no visible text, no stall, no reasoning leak)", async () => {
+  it("7.3 — reasoning-only generation past 120s keeps the run alive in the Thinking family (no visible text, no stall, no reasoning leak)", async () => {
     const visible = vi.fn<(chunk: { type: string; text?: string }) => void>();
     const h = await buildHarness({ streaming: true, onStream: visible });
     try {
@@ -608,10 +603,7 @@ describe("long-running agent turns across the old 120s deadline (Tests 7.1-7.9)"
   });
 
   // ── Test 7.5 — Recovery from stall: resumed progress → STREAMING ─────────
-  // #730 — this case hangs under CI (fake-timer stall-recovery race, 60s
-  // timeout) while passing locally in ~0.2s. Quarantined so the unit lane is
-  // green while the race is investigated; re-enable with the fix in #730.
-  it.skip("7.5 — resuming provider progress recovers POSSIBLY_STALLED → STREAMING and the run completes", async () => {
+  it("7.5 — resuming provider progress recovers POSSIBLY_STALLED → STREAMING and the run completes", async () => {
     const h = await buildHarness({ streaming: true, onStream: vi.fn() });
     try {
       const session = await h.createSession();
