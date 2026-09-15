@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractImports, codeOnly } from '../helpers/import-graph.js';
 
 const REPO_SRC = fileURLToPath(new URL('../../src/', import.meta.url));
 const COMPOSITION_ROOT = fileURLToPath(new URL('../../src/capability/platform.ts', import.meta.url));
@@ -13,8 +14,8 @@ const MIGRATED_CLI_FILES = new Set<string>([
   fileURLToPath(new URL('../../src/cli/commands/capability.ts', import.meta.url)),
 ]);
 
-const CAPABILITY_REGISTRY_RE = /new\s+CapabilityRegistry\s*\(/g;
-const CAPABILITY_RESOLVER_RE = /new\s+CapabilityResolver\s*\(/g;
+const CAPABILITY_REGISTRY_RE = /new\s+CapabilityRegistry\s*\(/;
+const CAPABILITY_RESOLVER_RE = /new\s+CapabilityResolver\s*\(/;
 
 /**
  * CAP-11 debt exclusion list — these files pre-date CAP-8 and import
@@ -46,15 +47,12 @@ function walk(dir: string, out: string[] = []): string[] {
 describe('Axis 1 — composition-root construction (locked ruling #2)', () => {
   it('new CapabilityRegistry() / new CapabilityResolver() exist ONLY in the composition root', () => {
     const files = walk(REPO_SRC);
-    const violations: { file: string; line: number; match: string }[] = [];
+    const violations: { file: string; match: string }[] = [];
     for (const f of files) {
       if (f === COMPOSITION_ROOT) continue;
-      const text = readFileSync(f, 'utf8');
-      const lines = text.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const m = lines[i]!.match(CAPABILITY_REGISTRY_RE) ?? lines[i]!.match(CAPABILITY_RESOLVER_RE);
-        if (m) violations.push({ file: f, line: i + 1, match: m[0] });
-      }
+      const src = codeOnly(readFileSync(f, 'utf8'));
+      const match = src.match(CAPABILITY_REGISTRY_RE) ?? src.match(CAPABILITY_RESOLVER_RE);
+      if (match) violations.push({ file: f, match: match[0] });
     }
     expect(violations, `axis 1: registry/resolver construction outside composition root — ${JSON.stringify(violations)}`).toEqual([]);
   });
@@ -68,16 +66,20 @@ describe('Axis 2 — import boundary (locked ruling #2)', () => {
       if (f.startsWith(CAPABILITY_DIR)) continue;
       if (MIGRATED_CLI_FILES.has(f)) continue;
       if (CAP11_DEBT_FILES.has(f)) continue;
-      const text = readFileSync(f, 'utf8');
+      const records = extractImports(readFileSync(f, 'utf8'));
       // Match imports of the PLATFORM CapabilityRegistry / CapabilityResolver by name
       // from the canonical platform modules only. This MUST NOT match the
       // unrelated policy-side `CapabilityRegistry` class in
       // `src/policy/capability-registry.ts` (which is a different module with
       // the same class name — pre-CAP-2, narrow scope).
-      const importRegistry = /import\s+(?:type\s+)?\{[^}]*\bCapabilityRegistry\b[^}]*\}\s*from\s*["'][^"']*capability\/(?:registry|provider-resolver)\.js["']/;
-      const importResolver = /import\s+(?:type\s+)?\{[^}]*\bCapabilityResolver\b[^}]*\}\s*from\s*["'][^"']*capability\/provider-resolver\.js["']/;
-      if (importRegistry.test(text)) violations.push(`axis 2: registry imported — ${f}`);
-      if (importResolver.test(text)) violations.push(`axis 2: resolver imported — ${f}`);
+      const importsRegistry = records.some(
+        (r) => /capability\/(?:registry|provider-resolver)\.js$/.test(r.specifier) && r.bindings.includes('CapabilityRegistry'),
+      );
+      const importsResolver = records.some(
+        (r) => /capability\/provider-resolver\.js$/.test(r.specifier) && r.bindings.includes('CapabilityResolver'),
+      );
+      if (importsRegistry) violations.push(`axis 2: registry imported — ${f}`);
+      if (importsResolver) violations.push(`axis 2: resolver imported — ${f}`);
     }
     expect(violations, `axis 2: outside-capability imports of registry/resolver — ${violations.join('; ')}`).toEqual([]);
   });
@@ -87,11 +89,11 @@ describe('Axis 3 — migrated CLI call sites use CapabilityService (locked rulin
   it('migrated CLI commands import and use CapabilityService; no direct registry/resolver access', () => {
     const violations: string[] = [];
     for (const f of MIGRATED_CLI_FILES) {
-      const text = readFileSync(f, 'utf8');
-      if (!/CapabilityService/.test(text)) violations.push(`axis 3: capabilities CLI does not import CapabilityService — ${f}`);
-      if (/new\s+CapabilityRegistry\s*\(/.test(text)) violations.push(`axis 3: capabilities CLI constructs CapabilityRegistry directly — ${f}`);
-      if (/new\s+CapabilityResolver\s*\(/.test(text)) violations.push(`axis 3: capabilities CLI constructs CapabilityResolver directly — ${f}`);
-      if (/registry\.query|catalog\.register|registry\.setLifecycleState|catalog\.remove/.test(text)) violations.push(`axis 3: capabilities CLI reaches past CapabilityService — ${f}`);
+      const src = codeOnly(readFileSync(f, 'utf8'));
+      if (!/CapabilityService/.test(src)) violations.push(`axis 3: capabilities CLI does not import CapabilityService — ${f}`);
+      if (CAPABILITY_REGISTRY_RE.test(src)) violations.push(`axis 3: capabilities CLI constructs CapabilityRegistry directly — ${f}`);
+      if (CAPABILITY_RESOLVER_RE.test(src)) violations.push(`axis 3: capabilities CLI constructs CapabilityResolver directly — ${f}`);
+      if (/registry\.query|catalog\.register|registry\.setLifecycleState|catalog\.remove/.test(src)) violations.push(`axis 3: capabilities CLI reaches past CapabilityService — ${f}`);
     }
     expect(violations, `axis 3: migrated CLI commands bypass CapabilityService — ${violations.join('; ')}`).toEqual([]);
   });
