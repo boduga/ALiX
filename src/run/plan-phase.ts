@@ -262,7 +262,12 @@ async function resolvePlanDecisionViaGate(
  */
 export async function openPlanInEditor(planPath: string): Promise<string | null> {
   const editor = process.env.VISUAL ?? process.env.EDITOR ?? "vim";
-  const result = spawnSync(editor, [planPath], { stdio: "inherit" });
+  // Support an editor command WITH arguments (`EDITOR="code --wait"`,
+  // `EDITOR="node ./editor.mjs"`) — the common convention. Without this the
+  // whole string was treated as one executable name and never launched.
+  const [cmd, ...cmdArgs] = editor.split(/\s+/).filter(Boolean);
+  if (!cmd) return null;
+  const result = spawnSync(cmd, [...cmdArgs, planPath], { stdio: "inherit" });
   if (result.error) return null;
   if (!existsSync(planPath)) return null;
   return await readFile(planPath, "utf8");
