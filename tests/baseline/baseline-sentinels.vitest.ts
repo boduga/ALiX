@@ -14,7 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { join, resolve } from "node:path";
 import { globSync } from "glob";
-import { importedSpecifiers } from "../helpers/import-graph.js";
+import { importedSpecifiers, toPosix } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -53,7 +53,7 @@ const FS_SPECIFIERS = new Set(["node:fs", "fs", "node:path"]);
 
 describe("P10.10 baseline purity boundary", () => {
   it.each(baselineFiles)("%s must not import from executive (except allowed)", (file) => {
-    if (ALLOWED_EXECUTIVE.some((a) => file.endsWith(a))) return;
+    if (ALLOWED_EXECUTIVE.some((a) => toPosix(file).endsWith(a))) return;
     const specifiers = [...importedSpecifiers(join(BASELINE_SRC, file))];
     expect(specifiers.filter((s) => intoModule("executive").test(s))).toEqual([]);
   });
@@ -64,7 +64,7 @@ describe("P10.10 baseline purity boundary", () => {
   });
 
   it.each(baselineFiles)("%s must not import node:fs for I/O (except allowed)", (file) => {
-    if (ALLOWED_FS.some((a) => file.endsWith(a))) return;
+    if (ALLOWED_FS.some((a) => toPosix(file).endsWith(a))) return;
     const specifiers = [...importedSpecifiers(join(BASELINE_SRC, file))];
     expect(specifiers.filter((s) => FS_SPECIFIERS.has(s))).toEqual([]);
   });

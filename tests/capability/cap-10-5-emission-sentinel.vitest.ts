@@ -22,7 +22,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { globSync } from "glob";
-import { codeOnly } from "../helpers/import-graph.js";
+import { codeOnly, toPosix } from "../helpers/import-graph.js";
 import { ProposalSignalChannel } from "../../src/capability/evolution/proposal-signal-channel.js";
 import {
   CAPABILITY_MEASUREMENT_EVENT_TYPES,
@@ -87,7 +87,7 @@ describe("CAP-10.5 emission-sentinel (6-axis)", () => {
     for (const rel of files) {
       const code = codeOnly(readFileSync(resolve(SRC, rel), "utf8"));
       const found = code.match(/new\s+ProposalSignalChannel\s*\(/g) ?? [];
-      for (const _ of found) sites.push(rel);
+      for (const _ of found) sites.push(toPosix(rel));
     }
     expect(sites).toEqual(["capability/platform.ts"]);
   });
