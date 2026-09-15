@@ -11,7 +11,7 @@
  * (Recommend!=Decide, no approval authority in review). They are NOT related to
  * Claude Code's system. All prompts and comments reference ALiX concepts.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { LensScore } from "../../src/adaptation/governance-review-types.js";
@@ -218,13 +218,23 @@ describe("P6.5b — LensScore has optional provider/model", () => {
 });
 
 describe("P6.5b — CLI validates --lens before provider setup", () => {
-  it("runReview validates --lens argument before any provider call", () => {
-    const source = sourceOf("../../src/cli/commands/decision.ts");
-    const hasLensValidation = source.includes("LensName") && source.includes("exit(1)");
-    expect(hasLensValidation).toBe(true);
-    expect(source).toContain("red_team");
-    expect(source).toContain("historian");
-    expect(source).toContain("policy_auditor");
-    expect(source).toContain("confidence_critic");
+  it("runReview rejects an invalid --lens before any provider call", async () => {
+    const { runReview } = await import("../../src/cli/commands/decision/review.js");
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("process.exit");
+    }) as never);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(runReview(["some-id", "--lens", "bogus"])).rejects.toThrow("process.exit");
+      const out = errSpy.mock.calls.flat().join(" ");
+      expect(out).toContain("invalid lens name");
+      expect(out).toContain("red_team");
+      expect(out).toContain("historian");
+      expect(out).toContain("policy_auditor");
+      expect(out).toContain("confidence_critic");
+    } finally {
+      exitSpy.mockRestore();
+      errSpy.mockRestore();
+    }
   });
 });
