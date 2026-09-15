@@ -37,6 +37,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 import type { LearningProposal } from "../../src/evolution/learning/contracts/learning-contract.js";
 import type { GovernanceRecommendation } from "../../src/evolution/verification/contracts/recommendation-contract.js";
 import { buildGovernanceRecommendation } from "../../src/evolution/learning/governance-bridge.js";
@@ -136,15 +137,18 @@ describe("A8 sentinel — A8 source files are read-only (no mutation/executor im
   // Brief's literal pattern list referenced module names that do not all
   // exist; this list is anchored to the concrete files a future change
   // would have to import to give A8 mutation hooks.
-  const FORBIDDEN_IMPORT_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
+  const FORBIDDEN_MODULE_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
     { pattern: /capability-mutation-executor/, reason: "capability mutation executor (evolution/execution)" },
     { pattern: /capability\/executors/, reason: "capability executors barrel" },
     { pattern: /capability\/mutation-port/, reason: "capability mutation port" },
     { pattern: /capability\/mutation-contract/, reason: "capability mutation contract" },
     { pattern: /capability\/provider-executor/, reason: "capability provider executor" },
     { pattern: /capability\/platform/, reason: "capability composition root (CAP-1 invariant)" },
-    { pattern: /applyLifecycleTransition/, reason: "retired lifecycle machinery (CAP-11)" },
-    { pattern: /registerLifecycleApplier/, reason: "retired lifecycle machinery (CAP-11)" },
+  ];
+
+  const FORBIDDEN_SYMBOLS: ReadonlyArray<{ symbol: string; reason: string }> = [
+    { symbol: "applyLifecycleTransition", reason: "retired lifecycle machinery (CAP-11)" },
+    { symbol: "registerLifecycleApplier", reason: "retired lifecycle machinery (CAP-11)" },
   ];
 
   it("no A8 source file imports capability mutation / executor machinery", () => {
@@ -153,9 +157,15 @@ describe("A8 sentinel — A8 source files are read-only (no mutation/executor im
 
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, "utf-8");
-      for (const { pattern, reason } of FORBIDDEN_IMPORT_PATTERNS) {
-        if (pattern.test(src)) {
+      const specifiers = [...importedSpecifiers(file)];
+      for (const { pattern, reason } of FORBIDDEN_MODULE_PATTERNS) {
+        if (specifiers.some((s) => pattern.test(s))) {
+          offenders.push(`${file}  [${reason}]`);
+        }
+      }
+      const src = codeOnly(readFileSync(file, "utf-8"));
+      for (const { symbol, reason } of FORBIDDEN_SYMBOLS) {
+        if (src.includes(symbol)) {
           offenders.push(`${file}  [${reason}]`);
         }
       }
