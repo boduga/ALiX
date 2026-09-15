@@ -21,6 +21,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { extractImports, codeOnly } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // Forbidden surfaces
@@ -32,6 +33,7 @@ import { join } from "node:path";
  * ability to self-modify governance.
  */
 const FORBIDDEN_IMPORTS = [
+  // P8 mutation surfaces — P9 must never import these.
   "OutcomeStore",
   "ApprovalRecommendationStore",
   "RiskScoreStore",
@@ -45,11 +47,12 @@ const FORBIDDEN_IMPORTS = [
   "SkillApplier",
   "RevertApplier",
   "runLearningRefresh",
-  "GovernanceRecommendation",
-  "GovernanceProposal",
-  "governance_change",
-  "createGovernanceProposal",
 ];
+// NOTE (#697): the P9-domain names (GovernanceRecommendation, GovernanceProposal,
+// governance_change, createGovernanceProposal) are NOT external mutation surfaces
+// and are legitimately imported/defined within P9 — the previous line-scan only
+// missed them because their imports are multi-line. The import graph now checks
+// the real external surfaces above without that blind spot.
 
 /**
  * Write/append/mutation method calls that P9 must never invoke.
@@ -137,18 +140,18 @@ describe("P9.0 purity sentinel", () => {
       if (GOVERNANCE_BUILDERS.includes(file)) return;
 
       const allowed = ALLOWED_IN_FILE[file] ?? [];
-      const importLines = source
-        .split("\n")
-        .filter((l) => l.trim().startsWith("import"));
+      const recs = extractImports(source);
+      const bindings = new Set(recs.flatMap((r) => r.bindings));
+      const specifiers = recs.map((r) => r.specifier);
 
-      for (const line of importLines) {
-        for (const forbidden of FORBIDDEN_IMPORTS) {
-          if (allowed.includes(forbidden)) continue;
-          expect(
-            line,
-            `${file} imports forbidden symbol: ${forbidden}`,
-          ).not.toContain(forbidden);
-        }
+      for (const forbidden of FORBIDDEN_IMPORTS) {
+        if (allowed.includes(forbidden)) continue;
+        const imported =
+          bindings.has(forbidden) || specifiers.some((sp) => sp.includes(forbidden));
+        expect(
+          imported,
+          `${file} imports forbidden symbol: ${forbidden}`,
+        ).toBe(false);
       }
     });
   }
@@ -161,7 +164,7 @@ describe("P9.0 purity sentinel", () => {
 
   for (const file of ALL_FILES) {
     it(`${file} never calls P8 mutation methods`, () => {
-      const source = readSource(file);
+      const source = codeOnly(readSource(file));
       const allowed = ALLOWED_WRITE_CALLS_IN_FILE[file] ?? [];
 
       for (const call of FORBIDDEN_WRITE_CALLS) {
@@ -177,7 +180,7 @@ describe("P9.0 purity sentinel", () => {
   // -- governance-store.ts path isolation -----------------------------------
 
   it("governance-store.ts must not reference any P8 store directory names", () => {
-    const source = readSource("src/governance/governance-store.ts");
+    const source = codeOnly(readSource("src/governance/governance-store.ts"));
 
     const FORBIDDEN_PATHS = [
       "outcomes",
