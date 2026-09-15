@@ -44,6 +44,28 @@ describe("validateShellNetworkCommand", () => {
     );
   });
 
+  it("handles Windows-style client paths and executable extensions", async () => {
+    // A backslash path with an extension must still be recognized as a client —
+    // otherwise validation is skipped entirely (bypass).
+    await assert.rejects(
+      validateShellNetworkCommand("C:\\Windows\\System32\\ssh.exe user@evil.test", [], PRIVATE_RESOLVE),
+      /Private network/,
+      "Windows-path ssh.exe must be destination-validated",
+    );
+    await assert.rejects(
+      validateShellNetworkCommand("C:\\Tools\\nc.exe evil.test 80", [], PRIVATE_RESOLVE),
+      /Private network/,
+      "Windows-path nc.exe must be destination-validated",
+    );
+    await assert.rejects(
+      validateShellNetworkCommand("C:\\Windows\\System32\\curl.exe http://127.0.0.1/admin", [], PUBLIC_RESOLVE),
+      /Private network/,
+    );
+    // Legitimate Windows-path clients to public destinations are allowed.
+    await validateShellNetworkCommand("C:\\Windows\\System32\\curl.exe https://example.com/article", [], PUBLIC_RESOLVE);
+    await validateShellNetworkCommand("C:\\Windows\\System32\\ping.exe example.com", [], PUBLIC_RESOLVE);
+  });
+
   it("blocks bare clients to private destinations", async () => {
     await assert.rejects(
       validateShellNetworkCommand("curl http://169.254.169.254/latest/meta-data/", [], PUBLIC_RESOLVE),

@@ -3,7 +3,10 @@ import { validateNetworkHost, validateNetworkUrl } from "./web-fetch.js";
 
 export type ResolveNetworkHost = (hostname: string) => Promise<string[]>;
 
-const NETWORK_CLIENT_RE = /(?:^|[;&|]\s*|\b(?:sudo|env)\b[^\n;&|]*?|(?<=\/))(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|ping)\b/i;
+// Client detection must accept POSIX and Windows invocation paths
+// (`/usr/bin/ssh`, `C:\Windows\System32\ssh.exe`) and executable extensions;
+// a Windows-path invocation that fails to match would skip validation entirely.
+const NETWORK_CLIENT_RE = /(?:^|[;&|]\s*|\b(?:sudo|env)\b[^\n;&|]*?|[\\/])(curl|wget|nc|ncat|netcat|telnet|ssh|scp|sftp|ping)(?:\.(?:exe|cmd|bat))?\b/i;
 const URL_RE = /https?:\/\/[^\s'"`;<>()]+/gi;
 const PRIVATE_HOST_LITERAL_RE = /(?:^|[^\w.:-])(?:localhost(?:\.localhost)?|127(?:\.\d{1,3}){3}|169\.254(?:\.\d{1,3}){2}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|0\.0\.0\.0|\[?::1\]?)(?=$|[^\w.-])/i;
 // Command execution inside a network-client invocation hides the real
@@ -20,8 +23,10 @@ function explicitClientHost(command: string, client: string): string | undefined
   // resolve the same as bare names.
   const index = tokens.findIndex((token) => {
     const invocation = token.replace(/^.*[;&|]/, "");
-    const base = invocation.split("/").pop() ?? invocation;
-    return base === client;
+    // Split on both separators so Windows-style paths resolve on any host, and
+    // strip a trailing executable extension before comparing to the client name.
+    const base = (invocation.split(/[\\/]/).pop() ?? invocation).replace(/\.(?:exe|cmd|bat)$/i, "");
+    return base.toLowerCase() === client;
   });
   if (index < 0) return undefined;
   const args = tokens.slice(index + 1).filter((token) => !token.startsWith("-"));
