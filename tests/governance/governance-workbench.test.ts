@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { readGovernanceSource } from "../helpers/governance-source.js";
+import { importedSpecifiers, importedBindings, codeOnly } from "../helpers/import-graph.js";
 import { buildWorkbenchSnapshot } from "../../src/governance/governance-workbench.js";
 import type {
   GovernanceWorkbenchSnapshot,
@@ -531,34 +532,30 @@ describe("buildWorkbenchSnapshot", () => {
   });
 
   it("no audit emitter imports in module", () => {
-    // Compile-time check: the module should not reference audit emitters
-    const source = readFileSync(
-      "src/governance/governance-workbench.ts",
-      "utf-8",
-    );
-    assert.equal(source.includes("audit-emitter"), false);
-    assert.equal(source.includes("auditEmitter"), false);
-    assert.equal(source.includes("emitAuditEvent"), false);
-    assert.equal(source.includes("emitAudit"), false);
+    const file = "src/governance/governance-workbench.ts";
+    const specs = [...importedSpecifiers(file)];
+    assert.equal(specs.some((sp) => sp.includes("audit-emitter")), false);
+    const code = codeOnly(readFileSync(file, "utf-8"));
+    assert.equal(code.includes("auditEmitter"), false);
+    assert.equal(code.includes("emitAuditEvent"), false);
+    assert.equal(code.includes("emitAudit"), false);
   });
 
   it("no store write references in module", () => {
-    const source = readFileSync(
-      "src/governance/governance-workbench.ts",
-      "utf-8",
-    );
-    // The module should not reference append/write/transition methods
-    assert.equal(source.includes(".append("), false);
-    assert.equal(source.includes(".write("), false);
-    assert.equal(source.includes(".transition("), false);
-    assert.equal(source.includes("ExecutionStore"), false);
+    const file = "src/governance/governance-workbench.ts";
+    const code = codeOnly(readFileSync(file, "utf-8"));
+    assert.equal(code.includes(".append("), false);
+    assert.equal(code.includes(".write("), false);
+    assert.equal(code.includes(".transition("), false);
+    assert.equal(importedBindings(file).has("ExecutionStore"), false);
   });
 
   it("CLI handler does not import audit emitters", () => {
     const source = readGovernanceSource();
     assert.equal(source.includes("audit-emitter"), false);
-    assert.equal(source.includes("auditEmitter"), false);
-    assert.equal(source.includes("emitAuditEvent"), false);
+    const code = codeOnly(source);
+    assert.equal(code.includes("auditEmitter"), false);
+    assert.equal(code.includes("emitAuditEvent"), false);
   });
 
   it("workbench queue --json produces valid object", () => {
