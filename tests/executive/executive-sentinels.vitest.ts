@@ -24,6 +24,7 @@
 import { describe, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { codeOnly } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // The 21 P10 executive files (P10.0 + P10.4a)
@@ -163,7 +164,9 @@ describe("P10 executive purity sentinel", () => {
         return;
       }
 
-      const source = readSource(file);
+      // Strip comments so a commented-out mutation symbol never trips (or
+      // satisfies) the guard.
+      const source = codeOnly(readSource(file));
       const lines = source.split("\n");
 
       // 2. For each line, check if it `.includes(forbidden)`.
