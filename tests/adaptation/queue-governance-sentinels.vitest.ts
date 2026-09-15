@@ -6,26 +6,19 @@
  * 2. No mutation — OperatorQueue must not call lifecycle transitions
  * 3. Intelligence Law — OperatorQueue must not import evaluation modules
  *
- * Pattern: module-level grep on the source file. These are compile-time
- * architectural guards, not runtime tests.
+ * Dependency claims are checked against the real import graph (#697), not a
+ * whole-file substring scan; code-language checks run on comment-stripped text.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { importedSpecifiers, importedBindings, codeOnly as stripComments } from "../helpers/import-graph.js";
 
 const QUEUE_SRC = resolve(__dirname, "../../src/adaptation/operator-queue.ts");
 const source = readFileSync(QUEUE_SRC, "utf-8");
-
-/** Strip comments from source so sentinel patterns don't false-positive on
- *  JSDoc that explains the rule itself (e.g., "No 'approve because'..."). */
-function stripComments(src: string): string {
-  // Remove //-style comments and block comments (including JSDoc)
-  return src
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
-}
-
 const codeOnly = stripComments(source);
+const specifiers = [...importedSpecifiers(QUEUE_SRC)];
+const bindings = importedBindings(QUEUE_SRC);
 
 describe("P6.2 — OperatorQueue purity sentinel", () => {
   const FORBIDDEN_STORE_IMPORTS = [
@@ -44,13 +37,13 @@ describe("P6.2 — OperatorQueue purity sentinel", () => {
 
   for (const forbidden of FORBIDDEN_STORE_IMPORTS) {
     it(`must not import ${forbidden}`, () => {
-      expect(codeOnly).not.toContain(forbidden);
+      expect(specifiers.some((s) => s.includes(forbidden))).toBe(false);
     });
   }
 
   for (const forbidden of FORBIDDEN_BUILDER_IMPORTS) {
     it(`must not import ${forbidden}`, () => {
-      expect(codeOnly).not.toContain(forbidden);
+      expect(bindings.has(forbidden)).toBe(false);
     });
   }
 
@@ -74,24 +67,22 @@ describe("P6.2 — Intelligence Law sentinel", () => {
 
   for (const forbidden of FORBIDDEN_EVALUATION_IMPORTS) {
     it(`must not import evaluation module: ${forbidden}`, () => {
-      // Allow imports from types files and the operator-queue-types file itself.
-      // Check comment-free source to avoid false positives from JSDoc.
-      const lines = codeOnly.split("\n").filter((l) => l.includes(forbidden) && !l.includes("operator-queue-types") && !l.includes("types"));
-      expect(lines.length).toBe(0);
+      // Specifier-anchored: allow type-only modules (operator-queue-types).
+      const offending = specifiers.filter(
+        (s) => s.includes(forbidden) && !s.includes("operator-queue-types") && !s.includes("types"),
+      );
+      expect(offending).toEqual([]);
     });
   }
 
   for (const pattern of FORBIDDEN_EVALUATION_PATTERNS) {
     it(`must not contain evaluation language: ${pattern}`, () => {
-      // Check comment-free source so JSDoc that explains the rule itself
-      // (e.g., "No 'approve because'...") doesn't cause a false positive.
       expect(codeOnly).not.toMatch(pattern);
     });
   }
 
   it("must not compute confidence", () => {
     // Queue may forward confidence from recommendation, but must not compute it.
-    // Forbidden patterns: explicit confidence calculation
     const FORBIDDEN_CONFIDENCE_PATTERNS = [
       "Math.",
       "calculateConfidence",
@@ -99,7 +90,6 @@ describe("P6.2 — Intelligence Law sentinel", () => {
       "confidenceScore",
     ];
     for (const pattern of FORBIDDEN_CONFIDENCE_PATTERNS) {
-      // Check comment-free source to avoid false positives from JSDoc.
       expect(codeOnly).not.toContain(pattern);
     }
   });
@@ -107,10 +97,9 @@ describe("P6.2 — Intelligence Law sentinel", () => {
 
 describe("P6.2 — orchestration lives in CLI, not queue class", () => {
   it("must not import DecisionContextBuilder, ProposalStore, EvidenceStore by name", () => {
-    // The queue class may import types, but must not import builders or stores
     const forbidden = ["DecisionContextBuilder", "ProposalStore", "EvidenceStore"];
     for (const name of forbidden) {
-      expect(codeOnly).not.toContain(name);
+      expect(bindings.has(name), `imports ${name}`).toBe(false);
     }
   });
 });
