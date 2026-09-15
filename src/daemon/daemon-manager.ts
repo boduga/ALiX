@@ -8,6 +8,7 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { resolveDaemonSocketAddress } from "./daemon-paths.js";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -40,7 +41,7 @@ export class DaemonManager {
   }
 
   socketPath(): string {
-    return join(this.globalDir(), "alixd.sock");
+    return resolveDaemonSocketAddress(this.globalDir());
   }
 
   private ensureDir(): Promise<void> {

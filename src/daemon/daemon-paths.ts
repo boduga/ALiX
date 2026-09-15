@@ -14,6 +14,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type { DaemonTaskRecord } from "./task-registry.js";
@@ -21,6 +22,31 @@ import type { DaemonTaskRecord } from "./task-registry.js";
 /** Canonical global location of the daemon task registry (writer + readers). */
 export function resolveDaemonTasksPath(): string {
   return join(homedir(), ".alix", "daemon-tasks.json");
+}
+
+/** True for a Windows named-pipe address (`\\.\pipe\...`). */
+export function isNamedPipe(address: string): boolean {
+  return address.startsWith("\\\\.\\pipe\\") || address.startsWith("//./pipe/");
+}
+
+/**
+ * Canonical daemon socket address for the given alix dir (#732).
+ *
+ * POSIX: a Unix-domain-socket file at `<dir>/alixd.sock`.
+ * Windows: a named pipe `\\.\pipe\alixd-<hash>` — Windows AF_UNIX file paths
+ * are fragile (EACCES on bind, parent-dir/path-form issues) and the client's
+ * `existsSync` pre-check cannot see a pipe. Hashing the absolute dir keeps
+ * per-user/per-dir daemons distinct.
+ */
+export function resolveDaemonSocketAddress(
+  dir: string,
+  platform: string = process.platform,
+): string {
+  if (platform === "win32") {
+    const hash = createHash("sha256").update(dir).digest("hex").slice(0, 16);
+    return `\\\\.\\pipe\\alixd-${hash}`;
+  }
+  return join(dir, "alixd.sock");
 }
 
 /** Legacy project-scoped location (pre-unification writers). Read fallback only. */
