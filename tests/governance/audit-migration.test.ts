@@ -25,8 +25,9 @@
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, rmSync } from "node:fs";
-import { readGovernanceSource } from "../helpers/governance-source.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { governanceSourcePaths, readGovernanceSource } from "../helpers/governance-source.js";
+import { extractImports, importedBindings, codeOnly } from "../helpers/import-graph.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -500,16 +501,16 @@ describe("auditReviewStore migration invariant", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts migration sentinel", () => {
-  const source: string = readGovernanceSource();
+  const records = governanceSourcePaths().flatMap((f) => extractImports(f));
+  const source: string = codeOnly(readGovernanceSource());
 
   it("contains no direct signalEvaluatedEvent import", () => {
-    // The string should only appear inside audit-decorators.ts imports, not direct emitter imports
-    const emitterLines = source
-      .split("\n")
-      .filter((l) => l.includes("signalEvaluatedEvent"));
-    // Allow only if it appears as part of audit-decorators import (not direct audit-emitters import)
-    const directImports = emitterLines.filter((l) => l.includes("audit-emitters"));
-    assert.equal(directImports.length, 0, `Found direct signalEvaluatedEvent import: ${directImports.join(", ")}`);
+    // The binding may only arrive via audit-decorators, never a direct
+    // audit-emitters import.
+    const directImports = records.filter(
+      (r) => r.specifier.includes("audit-emitters") && r.bindings.includes("signalEvaluatedEvent"),
+    );
+    assert.equal(directImports.length, 0, `Found direct signalEvaluatedEvent import: ${directImports.map((r) => r.specifier).join(", ")}`);
   });
 
   it("contains no direct decisionRecordedEvent import or call", () => {
@@ -542,13 +543,16 @@ describe("governance.ts migration sentinel", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts strengthened sentinels (P14.7)", () => {
-  const source: string = readGovernanceSource();
+  const records = governanceSourcePaths().flatMap((f) => extractImports(f));
+  const source: string = codeOnly(readGovernanceSource());
 
   it("does not import the audit-emitters module at all", () => {
     // The CLI must never touch emitters directly — only via decorators.
     // Stronger than per-symbol checks: bans the whole module.
-    assert.ok(
-      !source.includes("audit-emitters"),
+    const offenders = records.filter((r) => r.specifier.includes("audit-emitters"));
+    assert.equal(
+      offenders.length,
+      0,
       "governance.ts must not import audit-emitters; audit emission must flow through audited store decorators",
     );
   });
@@ -572,23 +576,22 @@ describe("governance.ts strengthened sentinels (P14.7)", () => {
 // ---------------------------------------------------------------------------
 
 describe("governance.ts migration sentinel — audited wrappers present", () => {
-  const source: string = readGovernanceSource();
+  const bindings = governanceSourcePaths().flatMap((f) => [...importedBindings(f)]);
+  const source: string = codeOnly(readGovernanceSource());
 
-  it("contains auditSignalStore", () => {
-    assert.ok(source.includes("auditSignalStore"), "auditSignalStore not found in governance.ts");
-  });
-
-  it("contains auditReviewStore", () => {
-    assert.ok(source.includes("auditReviewStore"), "auditReviewStore not found in governance.ts");
-  });
-
-  it("contains auditDecisionStore", () => {
-    assert.ok(source.includes("auditDecisionStore"), "auditDecisionStore not found in governance.ts");
-  });
-
-  it("contains auditActionQueueStore", () => {
-    assert.ok(source.includes("auditActionQueueStore"), "auditActionQueueStore not found in governance.ts");
-  });
+  for (const factory of [
+    "auditSignalStore",
+    "auditReviewStore",
+    "auditDecisionStore",
+    "auditActionQueueStore",
+  ]) {
+    it(`contains ${factory}`, () => {
+      assert.ok(
+        bindings.includes(factory) || source.includes(factory),
+        `${factory} not found in governance.ts`,
+      );
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
