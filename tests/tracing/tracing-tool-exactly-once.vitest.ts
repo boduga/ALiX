@@ -47,6 +47,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { removeTempDir } from "../helpers/temp.js";
+import { longRunningCommand } from "../helpers/shell.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -361,7 +362,8 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     });
     const h = await makeHarness();
 
-    const req = toolCallReq({ runId, name: "shell.run", args: { command: "sleep 5", timeoutMs: 150 } });
+    const CMD = longRunningCommand(5000);
+    const req = toolCallReq({ runId, name: "shell.run", args: { command: CMD, timeoutMs: 150 } });
     const traced = await h.executor.execute(req);
     const plain = await h.executor.execute(untraced(req));
 
@@ -384,7 +386,7 @@ describe("T18 tool exactly-once at the shared recorder surface", () => {
     const span = spans[0]!;
     expect(span.name).toBe("shell.run");
     const spanInput = attrOf(span, "input") as Record<string, unknown>;
-    expect(spanInput).toEqual({ command: "sleep 5", timeoutMs: 150 });
+    expect(spanInput).toEqual({ command: CMD, timeoutMs: 150 });
 
     expect(alixOf(span).status).toBe("error");
     expect(attrOf(span, "level")).toBe("ERROR");

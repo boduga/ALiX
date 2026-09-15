@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { markerThenSleepCommand } from "../helpers/shell.js";
 import { mkdtempSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -356,7 +357,7 @@ describe("operator cancel reaches an in-flight tool (Task 6.1 current-tool propa
       const provider = toolProvider([
         {
           text: "Running the command",
-          toolCalls: [{ id: "tool_1", name: "alix_shell_run", args: { command: `touch ${marker}; sleep 30` } }],
+          toolCalls: [{ id: "tool_1", name: "alix_shell_run", args: { command: markerThenSleepCommand(marker, 30_000) } }],
           usage: { inputTokens: 100, outputTokens: 50 },
           finishReason: "tool_use",
         },
