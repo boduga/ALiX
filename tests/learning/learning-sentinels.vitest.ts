@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
+import { importedSpecifiers, codeOnly } from "../helpers/import-graph.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,12 +35,12 @@ function learningSourceFiles(): string[] {
 }
 
 /** Check if any learning file imports from a forbidden path. */
-function anyImportsFrom(srcDir: string, forbidden: string[]): string[] {
+function anyImportsFrom(_srcDir: string, forbidden: string[]): string[] {
   const violations: string[] = [];
   for (const file of learningSourceFiles()) {
-    const content = readFileSync(file, "utf-8");
+    const specifiers = [...importedSpecifiers(file)];
     for (const path of forbidden) {
-      if (content.includes(`from "${path}`) || content.includes(`from '${path}`)) {
+      if (specifiers.some((s) => s.includes(path))) {
         violations.push(`${file} imports from ${path}`);
       }
     }
@@ -51,7 +52,7 @@ function anyImportsFrom(srcDir: string, forbidden: string[]): string[] {
 function anyMatches(pattern: RegExp): string[] {
   const matches: string[] = [];
   for (const file of learningSourceFiles()) {
-    const content = readFileSync(file, "utf-8");
+    const content = codeOnly(readFileSync(file, "utf-8"));
     const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
       if (pattern.test(lines[i])) {
