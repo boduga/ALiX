@@ -1,6 +1,6 @@
 import { statfs } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, totalmem } from 'node:os';
 import { join } from 'node:path';
 
 export interface ClientSnapshot {
@@ -201,9 +201,9 @@ export class DaemonMetricsCollectorImpl implements DaemonMetricsCollector {
   }
 }
 
-// System RAM from /proc/meminfo. MemTotal is reported in kB. Returns 0
-// on non-Linux platforms — the UI shows MEM 0% in that case which is
-// honest (we genuinely don't know).
+// System RAM from /proc/meminfo (MemTotal, reported in kB). Falls back to
+// `os.totalmem()` (cross-platform, bytes) on macOS/Windows where /proc is
+// absent, so the panel shows a real total rather than 0.
 function readSystemMemory(): { total: number } {
   try {
     const meminfo = readFileSync("/proc/meminfo", "utf8");
@@ -211,6 +211,12 @@ function readSystemMemory(): { total: number } {
     if (m) return { total: parseInt(m[1]!, 10) * 1024 };
   } catch {
     /* not on Linux */
+  }
+  try {
+    const total = totalmem();
+    if (total > 0) return { total };
+  } catch {
+    /* ignore */
   }
   return { total: 0 };
 }
