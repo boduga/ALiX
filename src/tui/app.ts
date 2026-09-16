@@ -146,6 +146,8 @@ export class TuiApp {
   private readonly paletteController: PaletteController;
   /** Resolve an approval (approve/deny) via the wired ApprovalManager. */
   private readonly approvalResolver: ApprovalResolver;
+  /** Workbench decisions awaiting authoritative projection confirmation. */
+  private readonly pendingApprovalDecisions = new Set<string>();
   /** Owns the full-frame render — view, card, palette, header, tabs, status, cursor. */
   private readonly framePainter: FramePainter;
 
@@ -394,8 +396,14 @@ export class TuiApp {
   private syncPendingApprovals(): void {
     const snap = this.state.lastSnapshot;
     if (!snap) return;
-    const pending = snap.approvals?.pending ?? [];
+    // A null approval snapshot means the collector could not provide a view;
+    // it is not evidence that every pending request disappeared.
+    if (!snap.approvals) return;
+    const pending = snap.approvals.pending;
     const pendingIds = new Set(pending.map((p) => p.id));
+    for (const approvalId of this.pendingApprovalDecisions) {
+      if (!pendingIds.has(approvalId)) this.pendingApprovalDecisions.delete(approvalId);
+    }
     for (const t of this.SYNC_TABS) {
       const perTab = this.state.views[t];
       if (!perTab) continue;
@@ -775,9 +783,15 @@ export class TuiApp {
       case 'approval.resolve': {
         const target = perTab.pendingApprovals[0];
         if (!target) return false;
+        if (this.pendingApprovalDecisions.has(target.id)) return true;
+        this.pendingApprovalDecisions.add(target.id);
         // Workbench deliberately leaves the pending projection untouched.
         // The card disappears only after approval.resolved is sampled.
-        void this.approvalResolver.resolve(target.id, intent.decision, { recordLocally: false });
+        void this.approvalResolver.resolve(target.id, intent.decision, { recordLocally: false })
+          .then((handled) => {
+            if (!handled) this.pendingApprovalDecisions.delete(target.id);
+            this.paintFullFrame();
+          });
         this.paintFullFrame();
         return true;
       }

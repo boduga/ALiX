@@ -8,7 +8,11 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function makeWorkbench(processTurn: (text: string) => Promise<any>, cancelActiveTurn = vi.fn(() => false)) {
+function makeWorkbench(
+  processTurn: (text: string) => Promise<any>,
+  cancelActiveTurn = vi.fn(() => false),
+  approvalManager?: { tryHandleCommand(command: string): Promise<{ handled: boolean; message: string }> },
+) {
   const snapshot = {
     generatedAt: 1,
     session: { mode: 'auto' as const, phase: 'Idle', version: 'test', startedAt: 1, turns: 0 },
@@ -18,6 +22,7 @@ function makeWorkbench(processTurn: (text: string) => Promise<any>, cancelActive
     builder: { build: async () => snapshot, buildSync: () => snapshot },
     daemonMetrics: { start: () => {}, stop: async () => {} },
     agentSession: { processTurn, cancelActiveTurn },
+    approvalManager,
     input: new MockInput(),
     output: new MockOutput(),
     workbenchEnabled: true,
@@ -26,6 +31,7 @@ function makeWorkbench(processTurn: (text: string) => Promise<any>, cancelActive
     handleRaw(buffer: Buffer): void;
     getStateForTest(): any;
     getWorkbenchStateForTest(): any;
+    syncPendingApprovals(): void;
   };
   internal.getStateForTest().lastSnapshot = snapshot;
   return { app, internal, cancelActiveTurn };
@@ -36,6 +42,65 @@ function type(internal: { handleRaw(buffer: Buffer): void }, text: string): void
 }
 
 describe('Workbench work surface integration', () => {
+  it('preserves pending approvals while the approval snapshot is unavailable', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const pending = { id: 'ap-persist', toolName: 'shell.run', target: 'npm test', requestedAt: 1 };
+    internal.getStateForTest().views.agent.pendingApprovals = [pending];
+    internal.getStateForTest().lastSnapshot.approvals = null;
+
+    internal.syncPendingApprovals();
+
+    expect(internal.getStateForTest().views.agent.pendingApprovals).toEqual([pending]);
+  });
+
+  it('suppresses duplicate approval decisions until projection confirmation', async () => {
+    const decision = deferred<{ handled: boolean; message: string }>();
+    const tryHandleCommand = vi.fn(() => decision.promise);
+    const { internal } = makeWorkbench(
+      async () => ({ summary: 'unused' }),
+      vi.fn(() => false),
+      { tryHandleCommand },
+    );
+    internal.getStateForTest().views.agent.pendingApprovals = [
+      { id: 'ap-once', toolName: 'shell.run', target: 'npm test', requestedAt: 1 },
+    ];
+
+    internal.handleRaw(Buffer.from('a'));
+    internal.handleRaw(Buffer.from('a'));
+    expect(tryHandleCommand).toHaveBeenCalledTimes(1);
+
+    decision.resolve({ handled: true, message: 'approved' });
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledTimes(1));
+    internal.getStateForTest().lastSnapshot.approvals = {
+      pending: [],
+      recentlyResolved: [{ id: 'ap-once', toolName: 'shell.run', target: 'npm test', requestedAt: 1, status: 'approved', resolvedAt: 2 }],
+      totalPending: 0,
+      totalResolved: 1,
+    };
+    internal.syncPendingApprovals();
+    expect(internal.getStateForTest().views.agent.pendingApprovals).toEqual([]);
+  });
+
+  it('allows an approval decision retry when the resolver does not handle it', async () => {
+    const tryHandleCommand = vi.fn()
+      .mockResolvedValueOnce({ handled: false, message: 'not handled' })
+      .mockResolvedValueOnce({ handled: true, message: 'approved' });
+    const { internal } = makeWorkbench(
+      async () => ({ summary: 'unused' }),
+      vi.fn(() => false),
+      { tryHandleCommand },
+    );
+    internal.getStateForTest().views.agent.pendingApprovals = [
+      { id: 'ap-retry', toolName: 'shell.run', target: 'npm test', requestedAt: 1 },
+    ];
+
+    internal.handleRaw(Buffer.from('a'));
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect((internal as any).pendingApprovalDecisions.size).toBe(0));
+    internal.handleRaw(Buffer.from('a'));
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledTimes(2));
+  });
+
   it('keeps the pending approval card visible above a review overlay', () => {
     const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     type(internal, '/review');

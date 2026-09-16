@@ -15,7 +15,7 @@ export interface ApprovalResolverDeps {
  *  over the constructed deps, so it is a factory (per CONTRIBUTING "no
  *  classes where functions suffice") rather than a class. */
 export interface ApprovalResolver {
-  resolve(approvalId: string, status: 'approved' | 'denied', options?: { recordLocally?: boolean }): Promise<void>;
+  resolve(approvalId: string, status: 'approved' | 'denied', options?: { recordLocally?: boolean }): Promise<boolean>;
 }
 
 export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalResolver {
@@ -23,8 +23,8 @@ export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalReso
     approvalId: string,
     status: 'approved' | 'denied',
     options: { recordLocally?: boolean } = {},
-  ): Promise<void> => {
-    if (!approvalId) return;
+  ): Promise<boolean> => {
+    if (!approvalId) return false;
     let originalTool = 'unknown';
     let originalTarget = '';
     let requestedAt = Date.now();
@@ -41,7 +41,7 @@ export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalReso
     if (!mgr) {
       deps.emit(deps.activeTab(), `[approval] no ApprovalManager wired for ${status} ${approvalId}`);
       await deps.refresh();
-      return;
+      return false;
     }
     try {
       const result = await mgr.tryHandleCommand(status === 'approved' ? `/approve ${approvalId}` : `/deny ${approvalId}`);
@@ -55,8 +55,10 @@ export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalReso
           if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
         }
       }
+      return result.handled;
     } catch (err) {
       deps.emit(deps.activeTab(), `[approval:${status}] error: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
     } finally {
       await deps.refresh();
     }
