@@ -30,6 +30,7 @@
 - Workbench approval cards remain visible until the approval projection observes an authoritative terminal event; never remove or label them from key intent alone.
 - A temporarily unavailable approval snapshot preserves the last authoritative pending cards. While a decision is awaiting projection confirmation, duplicate decisions for that approval are suppressed.
 - Below 120 columns, agent and task drawers overlay the work surface. From 120 columns they render beside it; at 160 columns and above the agent roster is persistent by default.
+- Workbench transcript wrapping, composer rows, scroll anchors, and terminal cursor placement derive from the same responsive surface geometry.
 - Workbench frames are row-diffed against the previous frame, and composer cursor math uses grapheme display width rather than UTF-16 length.
 - Runtime collectors coalesce EventLog watch notifications into serialized 20 ms projection samples; the one-second interval remains a recovery/clock fallback.
 - `/diff`, `/review`, and `/help` are built-in Workbench overlays. Their read models are projection-backed and their painters remain side-effect free.

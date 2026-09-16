@@ -7,6 +7,7 @@ import type { ViewRenderContext } from './types.js';
 import type { TimelineEntry } from '../runtime/timeline-builder.js';
 import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
 import { layoutComposer } from '../workbench/views/composer-view.js';
+import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
  *  and scroll-math all compute panelRow/scrollbackTop/textWidth
@@ -796,10 +797,17 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
  *  Convenience wrapper used by the views' render branch and by app.ts on
  *  End/clear/tab-switch. */
 export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat'): number {
+  const dimensions = kind === 'agent' && ctx.workbenchEnabled
+    ? resolveWorkbenchSurfaceGeometry(
+        ctx.dimensions.columns,
+        ctx.dimensions.rows,
+        ctx.workbenchUiState?.drawer ?? 'closed',
+      ).dimensions
+    : ctx.dimensions;
   const composerRows = kind === 'agent' && ctx.workbenchEnabled
-    ? layoutComposer(ctx.perTab.inputBuffer, ctx.dimensions.columns).rows.length
+    ? layoutComposer(ctx.perTab.inputBuffer, dimensions.columns).rows.length
     : 1;
-  const vp = computeViewport(ctx.dimensions, kind, composerRows);
+  const vp = computeViewport(dimensions, kind, composerRows);
   const allLines = kind === 'agent'
     ? (ctx.workbenchEnabled
       ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
