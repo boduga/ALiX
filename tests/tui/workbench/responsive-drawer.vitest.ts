@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { resolveWorkbenchLayout } from '../../../src/tui/workbench/layout/responsive-layout.js';
+import { resolveWorkbenchLayout, resolveWorkbenchSurfaceGeometry } from '../../../src/tui/workbench/layout/responsive-layout.js';
 import { paintRosterDrawer } from '../../../src/tui/workbench/views/roster-drawer.js';
 
 describe('Workbench responsive drawer', () => {
+  it.each([
+    [60, 'agents', 60],
+    [80, 'tasks', 80],
+    [120, 'agents', 83],
+    [180, 'closed', 135],
+  ] as const)('shares the expected content width at %i columns', (columns, drawer, contentColumns) => {
+    expect(resolveWorkbenchSurfaceGeometry(columns, 24, drawer).dimensions.columns).toBe(contentColumns);
+  });
   it('uses overlays below 120 columns and a side drawer above it', () => {
     expect(resolveWorkbenchLayout(79, 'agents')).toMatchObject({ breakpoint: 'narrow', drawerMode: 'overlay', drawerWidth: 79 });
     expect(resolveWorkbenchLayout(100, 'tasks')).toMatchObject({ breakpoint: 'medium', drawerMode: 'overlay', drawerWidth: 100 });

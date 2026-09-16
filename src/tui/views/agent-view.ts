@@ -8,7 +8,7 @@ import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
 import { layoutComposer } from '../workbench/views/composer-view.js';
-import { resolveWorkbenchLayout } from '../workbench/layout/responsive-layout.js';
+import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 
 /** Coarse human-friendly elapsed time — "42s", "2m 01s", "1h 05m". */
@@ -52,12 +52,11 @@ export class AgentView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    const responsive = ctx.workbenchEnabled
-      ? resolveWorkbenchLayout(ctx.dimensions.columns, ctx.workbenchUiState?.drawer ?? 'closed')
+    const geometry = ctx.workbenchEnabled
+      ? resolveWorkbenchSurfaceGeometry(ctx.dimensions.columns, ctx.dimensions.rows, ctx.workbenchUiState?.drawer ?? 'closed')
       : null;
-    const surfaceDimensions = responsive?.drawerMode === 'side'
-      ? { columns: responsive.contentColumns, rows: ctx.dimensions.rows }
-      : ctx.dimensions;
+    const responsive = geometry?.layout ?? null;
+    const surfaceDimensions = geometry?.dimensions ?? ctx.dimensions;
     const composer = ctx.workbenchEnabled
       ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns)
       : null;

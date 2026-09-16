@@ -11,6 +11,7 @@ import type { PaletteController } from './palette-controller.js';
 import { projectOperatorShell } from './workbench/model/operator-shell.js';
 import { paintOperatorShell } from './workbench/views/operator-shell.js';
 import { layoutComposer } from './workbench/views/composer-view.js';
+import { resolveWorkbenchSurfaceGeometry } from './workbench/layout/responsive-layout.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { paintWorkbenchApprovalDialog } from './workbench/views/approval-dialog.js';
 import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
@@ -350,8 +351,13 @@ export class FramePainter {
       // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (13)
       // mirrors `PROMPT_COL` in AgentView.render.
       if (this.deps.opts.workbenchEnabled) {
-        const composer = layoutComposer(s.views.agent.inputBuffer, dims.columns);
-        const vp = computeViewport(dims, 'agent', composer.rows.length);
+        const surface = resolveWorkbenchSurfaceGeometry(
+          dims.columns,
+          dims.rows,
+          this.deps.workbenchState?.().drawer ?? 'closed',
+        ).dimensions;
+        const composer = layoutComposer(s.views.agent.inputBuffer, surface.columns);
+        const vp = computeViewport(surface, 'agent', composer.rows.length);
         const firstRow = vp.panelRow - composer.rows.length + 1;
         this.deps.output.write(`\x1b[${firstRow + composer.cursorRow + 1};${3 + composer.cursorColumn + 1}H`);
       } else {
