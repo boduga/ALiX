@@ -151,6 +151,8 @@ export class FramePainter {
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const workbench = this.deps.workbenchState?.();
       paintWorkbenchDiagnosticOverlay(rect, workbench?.overlayStack[workbench.overlayStack.length - 1], s.lastSnapshot.runtime?.diffs);
+    }
+    if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
       paintWorkbenchApprovalDialog(
         rect,
         s.lastSnapshot.approvals?.pending[0],

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { paintWorkbenchApprovalDialog } from '../../../src/tui/workbench/views/approval-dialog.js';
+import {
+  buildWorkbenchApprovalCardLines,
+  paintWorkbenchApprovalDialog,
+} from '../../../src/tui/workbench/views/approval-dialog.js';
 
 describe('Workbench approval dialog', () => {
   it('renders an exact pending operation and authoritative-resolution hint', () => {
@@ -51,5 +54,24 @@ describe('Workbench approval dialog', () => {
     const canvas = new TerminalCanvas(80, 24);
     paintWorkbenchApprovalDialog({ canvas, width: 80, height: 24, headerH: 3, footerH: 5 }, undefined, 0);
     expect(canvas.renderFrame()).not.toContain('APPROVAL REQUIRED');
+  });
+
+  it('shares the exact bounded card rows with inline transcript rendering', () => {
+    const approval = {
+      id: 'approval-shared', toolName: 'shell.run', target: 'pnpm vitest run tests/tui',
+      args: {}, requestedAt: 1, requestedBy: 'system',
+    };
+    const canvas = new TerminalCanvas(80, 24);
+    paintWorkbenchApprovalDialog(
+      { canvas, width: 80, height: 24, headerH: 3, footerH: 5 },
+      approval,
+      1,
+      5_001,
+    );
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    const lines = buildWorkbenchApprovalCardLines(approval, 1, 76, 5_001);
+
+    expect(lines).toHaveLength(6);
+    for (const line of lines) expect(frame).toContain(line);
   });
 });

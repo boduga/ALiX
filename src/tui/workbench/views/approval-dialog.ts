@@ -8,6 +8,29 @@ function fit(text: string, width: number): string {
   return text.length <= width ? text : width === 1 ? '…' : `${text.slice(0, width - 1)}…`;
 }
 
+/** Build the shared, bounded representation of an authoritative approval. */
+export function buildWorkbenchApprovalCardLines(
+  approval: Pick<ApprovalRecordSnapshot, 'id' | 'toolName' | 'target' | 'requestedAt'>,
+  totalPending: number,
+  width: number,
+  now = Date.now(),
+): string[] {
+  if (width < 12) return [];
+  const cardWidth = Math.min(width, 76);
+  const inner = cardWidth - 2;
+  const position = totalPending > 1 ? ` · 1 OF ${totalPending}` : '';
+  const title = ` ${fit(`APPROVAL REQUIRED · ${approval.toolName}${position}`, inner - 2)} `;
+  const pendingFor = formatActivityElapsed(now - approval.requestedAt);
+  return [
+    `╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮`,
+    `│${fit(approval.target || 'No target details provided', inner).padEnd(inner)}│`,
+    `│${fit(`pending ${pendingFor} · id ${approval.id}`, inner).padEnd(inner)}│`,
+    `│${fit('a approve · d deny', inner).padEnd(inner)}│`,
+    `│${fit('Ctrl+O details · remains pending until runtime confirms', inner).padEnd(inner)}│`,
+    `╰${'─'.repeat(inner)}╯`,
+  ];
+}
+
 /** Paint the oldest authoritative pending approval without mutating it. */
 export function paintWorkbenchApprovalDialog(
   rect: CanvasRect,
@@ -19,18 +42,7 @@ export function paintWorkbenchApprovalDialog(
   const width = Math.min(rect.width - 4, 76);
   const left = Math.max(2, Math.floor((rect.width - width) / 2));
   const top = rect.headerH + 2;
-  const inner = width - 2;
-  const position = totalPending > 1 ? ` · 1 OF ${totalPending}` : '';
-  const title = ` ${fit(`APPROVAL REQUIRED · ${approval.toolName}${position}`, inner - 2)} `;
-  const pendingFor = formatActivityElapsed(now - approval.requestedAt);
-  const lines = [
-    `╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮`,
-    `│${fit(approval.target || 'No target details provided', inner).padEnd(inner)}│`,
-    `│${fit(`pending ${pendingFor} · id ${approval.id}`, inner).padEnd(inner)}│`,
-    `│${fit('a approve · d deny', inner).padEnd(inner)}│`,
-    `│${fit('Ctrl+O details · remains pending until runtime confirms', inner).padEnd(inner)}│`,
-    `╰${'─'.repeat(inner)}╯`,
-  ];
+  const lines = buildWorkbenchApprovalCardLines(approval, totalPending, width, now);
   for (let offset = 0; offset < lines.length; offset++) {
     rect.canvas.write(left, top + offset, `\x1b[33m${lines[offset]}${RESET}`);
   }

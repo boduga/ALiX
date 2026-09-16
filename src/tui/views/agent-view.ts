@@ -113,6 +113,7 @@ export class AgentView implements TuiView {
     const kindStyles: KindStyleMap = {
       plan:     (l, rowY) => this.renderPlanLine(l, rowY, c, gutter),
       approval: (l, rowY) => this.renderApprovalLine(l, rowY, c, gutter),
+      approvalCard: (l, rowY) => this.renderApprovalLine(l, rowY, c, gutter),
       toolCall: (l, rowY) => this.renderToolCallLine(l, rowY, c, gutter),
       user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c, gutter),
       agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),

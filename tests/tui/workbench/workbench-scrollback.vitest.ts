@@ -154,7 +154,32 @@ describe('Workbench scrollback', () => {
     const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
 
     expect(text).toContain('shell.run · approval required');
+    expect(text).toContain('APPROVAL REQUIRED · shell.run');
+    expect(text).toContain('for b in llama-cli; do command -v "$b"; done');
+    expect(text).toContain('pending');
+    expect(text).toContain('id approval-1');
+    expect(text).toContain('a approve · d deny');
+    expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
+    expect(text.indexOf('shell.run · approval required')).toBeLessThan(text.indexOf('APPROVAL REQUIRED · shell.run'));
     expect(text).not.toContain('shell.run · 0ms');
     expect(text).not.toContain('full raw shell command');
+    expect(buildWorkbenchScrollbackLines(renderContext, 90).some((line) => (
+      line.kind === 'approvalCard' && line.gutter === 'APPROVAL'
+    ))).toBe(true);
+  });
+
+  it('falls back to one inline card while the semantic approval event catches up', () => {
+    const renderContext = context('compact', [], []);
+    (renderContext.perTab as PerTabState).pendingApprovals = [{
+      id: 'approval-lag', toolName: 'file.write', target: 'src/tui/app.ts', requestedAt: 2,
+    }];
+
+    const lines = buildWorkbenchScrollbackLines(renderContext, 64);
+    const text = lines.map((line) => line.text).join('\n');
+
+    expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
+    expect(text).toContain('file.write');
+    expect(text).toContain('src/tui/app.ts');
+    expect(lines.filter((line) => line.kind === 'approvalCard')).toHaveLength(6);
   });
 });

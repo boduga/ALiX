@@ -101,14 +101,13 @@ describe('Workbench work surface integration', () => {
     await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledTimes(2));
   });
 
-  it('keeps the pending approval card visible above a review overlay', () => {
+  it('renders a pending approval inline on the agent work surface', () => {
     const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
-    type(internal, '/review');
-    internal.handleRaw(Buffer.from('\r'));
     internal.getStateForTest().lastSnapshot.approvals = {
       pending: [{ id: 'ap-visible', toolName: 'shell.run', target: 'npm test', requestedAt: 1, requestedBy: 'test' }],
       recentlyResolved: [], totalPending: 1, totalResolved: 0,
     };
+    internal.syncPendingApprovals();
     const output = (app as any).output as MockOutput;
     output.writes.length = 0;
     (app as any).paintFullFrame();

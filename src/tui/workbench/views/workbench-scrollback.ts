@@ -6,6 +6,7 @@ import { getTheme } from '../../blocks/theme.js';
 import type { ViewRenderContext } from '../../views/types.js';
 import { ConversationProjection } from '../projections/conversation-projection.js';
 import type { ToolItem, TranscriptMode } from '../model/transcript-item.js';
+import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
 
 function appendRendered(
   out: ScrollbackLine[],
@@ -54,7 +55,10 @@ export function buildWorkbenchScrollbackLines(
 ): ScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const mode: TranscriptMode = ctx.perTab.transcriptMode ?? 'compact';
-  const pendingApprovalTool = ctx.perTab.pendingApprovals?.[0]?.toolName;
+  const pendingApprovals = ctx.perTab.pendingApprovals ?? [];
+  const pendingApproval = pendingApprovals[0];
+  const pendingApprovalTool = pendingApproval?.toolName;
+  let inlineApprovalRendered = false;
   const conversation = new ConversationProjection().project({
     timeline: ctx.runtime?.agent?.timeline ?? [],
     trace: ctx.snap.runtime?.trace ?? [],
@@ -83,10 +87,25 @@ export function buildWorkbenchScrollbackLines(
         }
         break;
       case 'approval':
-        // The authoritative pending card owns the actionable approval state.
-        // Keep the historical event in detailed mode, but do not repeat its
-        // prompt in the compact conversation while that card is present.
-        if (pendingApprovalTool && mode === 'compact') break;
+        // Replace the semantic request row with the authoritative pending
+        // record at the same transcript position. Resolution is projection-
+        // driven, so key intent alone never removes this card.
+        if (pendingApproval && !inlineApprovalRendered) {
+          buildWorkbenchApprovalCardLines(
+            pendingApproval,
+            pendingApprovals.length,
+            textWidth,
+          ).forEach((text, index) => {
+            out.push({
+              kind: 'approvalCard',
+              text,
+              isFirst: index === 0,
+              ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
+            });
+          });
+          inlineApprovalRendered = true;
+          break;
+        }
         wrapText(`⏸ ${item.text}`, textWidth).forEach((text, index) => {
           out.push({ kind: 'approval', text, isFirst: index === 0 });
         });
@@ -113,6 +132,25 @@ export function buildWorkbenchScrollbackLines(
         break;
       }
     }
+  }
+
+  // Runtime projection and timeline sampling can arrive in adjacent frames.
+  // Preserve the authoritative pending action even before its semantic event
+  // becomes visible; once present, the branch above places it in exact order.
+  if (pendingApproval && !inlineApprovalRendered) {
+    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    buildWorkbenchApprovalCardLines(
+      pendingApproval,
+      pendingApprovals.length,
+      textWidth,
+    ).forEach((text, index) => {
+      out.push({
+        kind: 'approvalCard',
+        text,
+        isFirst: index === 0,
+        ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
+      });
+    });
   }
 
   const streaming = ctx.perTab.streamingText;
