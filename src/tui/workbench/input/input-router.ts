@@ -10,6 +10,7 @@ export interface WorkbenchInputContext {
 export type WorkbenchInputIntent =
   | { readonly type: 'composer.insert'; readonly text: string }
   | { readonly type: 'composer.backspace' }
+  | { readonly type: 'composer.delete' }
   | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' }
   | { readonly type: 'turn.submit' }
   | { readonly type: 'turn.queue' }
@@ -35,6 +36,7 @@ export function routeWorkbenchInput(
   }
   if (key === 'Shift+Enter') return { type: 'composer.insert', text: '\n' };
   if (key === 'Backspace') return { type: 'composer.backspace' };
+  if (key === 'Delete') return { type: 'composer.delete' };
   if (key === 'ArrowLeft') return { type: 'composer.move', direction: 'left' };
   if (key === 'ArrowRight') return { type: 'composer.move', direction: 'right' };
   if (key === 'Home') return { type: 'composer.move', direction: 'start' };

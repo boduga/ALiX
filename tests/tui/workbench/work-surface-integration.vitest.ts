@@ -180,6 +180,19 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().composer.cursor).toBe(0);
   });
 
+  it('deletes the complete grapheme after the cursor', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    internal.handleRaw(Buffer.from('A'));
+    internal.handleRaw(Buffer.from(emoji));
+    internal.handleRaw(Buffer.from('B'));
+    internal.handleRaw(Buffer.from('\x1b[H'));
+    internal.handleRaw(Buffer.from('\x1b[C'));
+    internal.handleRaw(Buffer.from('\x1b[3~'));
+    expect(internal.getWorkbenchStateForTest().composer).toEqual({ text: 'AB', cursor: 1 });
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('AB');
+  });
+
   it('inserts normalized bracketed paste at the Workbench cursor', () => {
     const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     const emoji = `\u{1f469}\u200d\u{1f4bb}`;

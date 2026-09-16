@@ -42,6 +42,20 @@ describe('WorkbenchStore', () => {
     expect(store.snapshot().composer.cursor).toBe(`Ax${emoji}B`.length);
   });
 
+  it('deletes one complete grapheme after the cursor', () => {
+    const store = new WorkbenchStore();
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    store.dispatch({ type: 'composer.insert', text: `A${emoji}B` });
+    store.dispatch({ type: 'composer.move', direction: 'start' });
+    store.dispatch({ type: 'composer.move', direction: 'right' });
+    store.dispatch({ type: 'composer.delete' });
+    expect(store.snapshot().composer).toEqual({ text: 'AB', cursor: 1 });
+    store.dispatch({ type: 'composer.delete' });
+    expect(store.snapshot().composer).toEqual({ text: 'A', cursor: 1 });
+    const atEnd = store.snapshot();
+    expect(store.dispatch({ type: 'composer.delete' })).toBe(atEnd);
+  });
+
   it('queues messages FIFO and toggles one drawer at a time', () => {
     const store = new WorkbenchStore();
     store.dispatch({ type: 'queue.add', message: { id: 'q1', text: 'one', createdAt: 1 } });

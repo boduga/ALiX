@@ -12,7 +12,7 @@ const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> =
 });
 
 describe('routeWorkbenchInput', () => {
-  it.each(['Shift+Enter', 'Backspace', 'Ctrl+o', 'Ctrl+a', 'Ctrl+t', 'Shift+Tab', 'Enter', 'Tab'])('blocks %s behind diagnostic overlays', (key) => {
+  it.each(['Shift+Enter', 'Backspace', 'Delete', 'Ctrl+o', 'Ctrl+a', 'Ctrl+t', 'Shift+Tab', 'Enter', 'Tab'])('blocks %s behind diagnostic overlays', (key) => {
     expect(routeWorkbenchInput(key, context({ overlayOpen: true }))).toEqual({ type: 'unhandled' });
   });
 
@@ -27,6 +27,10 @@ describe('routeWorkbenchInput', () => {
 
   it('reserves Shift+Enter for a composer newline', () => {
     expect(routeWorkbenchInput('Shift+Enter', context())).toEqual({ type: 'composer.insert', text: '\n' });
+  });
+
+  it('routes Delete to forward composer deletion', () => {
+    expect(routeWorkbenchInput('Delete', context())).toEqual({ type: 'composer.delete' });
   });
 
   it.each([

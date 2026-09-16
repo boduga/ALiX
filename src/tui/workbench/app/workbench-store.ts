@@ -31,6 +31,15 @@ export function reduceWorkbenchUiState(
         composer: { text: before + after, cursor: nextCursor },
       };
     }
+    case 'composer.delete': {
+      const { text, cursor } = state.composer;
+      const next = graphemes(text.slice(cursor))[0];
+      if (!next) return state;
+      return {
+        ...state,
+        composer: { text: text.slice(0, cursor) + text.slice(cursor + next.length), cursor },
+      };
+    }
     case 'composer.move': {
       const { text, cursor } = state.composer;
       let nextCursor = cursor;

@@ -739,6 +739,11 @@ export class TuiApp {
         this.syncWorkbenchComposer();
         this.paintFullFrame();
         return true;
+      case 'composer.delete':
+        this.workbenchStore.dispatch({ type: 'composer.delete' });
+        this.syncWorkbenchComposer();
+        this.paintFullFrame();
+        return true;
       case 'composer.move':
         this.workbenchStore.dispatch({ type: 'composer.move', direction: intent.direction });
         this.paintFullFrame();
@@ -1531,6 +1536,7 @@ function parseKey(buf: Buffer): string | null {
     if (buf[2] === 0x5a) return 'Shift+Tab';
   }
   if (s === '\x1b[1~') return 'Home';
+  if (s === '\x1b[3~') return 'Delete';
   if (s === '\x1b[4~') return 'End';
   if (s.length === 1 || isPrintableGrapheme(s)) return s;
   return null;
