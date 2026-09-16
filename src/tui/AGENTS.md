@@ -32,7 +32,7 @@
 - Below 120 columns, agent and task drawers overlay the work surface. From 120 columns they render beside it; at 160 columns and above the agent roster is persistent by default.
 - Workbench transcript wrapping, composer rows, scroll anchors, and terminal cursor placement derive from the same responsive surface geometry.
 - Workbench frames are row-diffed against the previous frame, and composer cursor math uses grapheme display width rather than UTF-16 length.
-- Workbench composer insertion, movement, and backspace operate on complete Unicode graphemes; its cursor remains a JavaScript string offset positioned at a grapheme boundary. Left/Right move by grapheme, and Home/End move to document boundaries.
+- Workbench composer insertion, movement, Backspace, and Delete operate on complete Unicode graphemes; its cursor remains a JavaScript string offset positioned at a grapheme boundary. Left/Right move by grapheme, and Home/End move to document boundaries.
 - Bracketed paste inserts one normalized text block at the authoritative Workbench cursor; it never rebuilds composer state from the legacy input-buffer adapter.
 - Runtime collectors coalesce EventLog watch notifications into serialized 20 ms projection samples; the one-second interval remains a recovery/clock fallback.
 - `/diff`, `/review`, and `/help` are built-in Workbench overlays. Their read models are projection-backed and their painters remain side-effect free.
