@@ -10,6 +10,7 @@ export interface WorkbenchInputContext {
 export type WorkbenchInputIntent =
   | { readonly type: 'composer.insert'; readonly text: string }
   | { readonly type: 'composer.backspace' }
+  | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' }
   | { readonly type: 'turn.submit' }
   | { readonly type: 'turn.queue' }
   | { readonly type: 'slash.submit' }
@@ -34,6 +35,10 @@ export function routeWorkbenchInput(
   }
   if (key === 'Shift+Enter') return { type: 'composer.insert', text: '\n' };
   if (key === 'Backspace') return { type: 'composer.backspace' };
+  if (key === 'ArrowLeft') return { type: 'composer.move', direction: 'left' };
+  if (key === 'ArrowRight') return { type: 'composer.move', direction: 'right' };
+  if (key === 'Home') return { type: 'composer.move', direction: 'start' };
+  if (key === 'End') return { type: 'composer.move', direction: 'end' };
   if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
   if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
   if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };

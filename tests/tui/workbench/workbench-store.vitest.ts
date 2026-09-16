@@ -25,6 +25,23 @@ describe('WorkbenchStore', () => {
     expect(withoutEmoji.composer).toEqual({ text: 'A', cursor: 1 });
   });
 
+  it('moves and edits at Unicode grapheme boundaries', () => {
+    const store = new WorkbenchStore();
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    store.dispatch({ type: 'composer.insert', text: `A${emoji}B` });
+    store.dispatch({ type: 'composer.move', direction: 'left' });
+    store.dispatch({ type: 'composer.move', direction: 'left' });
+    expect(store.snapshot().composer.cursor).toBe(1);
+    store.dispatch({ type: 'composer.insert', text: 'x' });
+    expect(store.snapshot().composer).toEqual({ text: `Ax${emoji}B`, cursor: 2 });
+    store.dispatch({ type: 'composer.move', direction: 'right' });
+    expect(store.snapshot().composer.cursor).toBe(2 + emoji.length);
+    store.dispatch({ type: 'composer.move', direction: 'start' });
+    expect(store.snapshot().composer.cursor).toBe(0);
+    store.dispatch({ type: 'composer.move', direction: 'end' });
+    expect(store.snapshot().composer.cursor).toBe(`Ax${emoji}B`.length);
+  });
+
   it('queues messages FIFO and toggles one drawer at a time', () => {
     const store = new WorkbenchStore();
     store.dispatch({ type: 'queue.add', message: { id: 'q1', text: 'one', createdAt: 1 } });

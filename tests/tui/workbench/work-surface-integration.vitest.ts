@@ -163,6 +163,23 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
   });
 
+  it('moves the cursor by grapheme and inserts within the composer', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    internal.handleRaw(Buffer.from('A'));
+    internal.handleRaw(Buffer.from(emoji));
+    internal.handleRaw(Buffer.from('B'));
+    internal.handleRaw(Buffer.from('\x1b[D'));
+    internal.handleRaw(Buffer.from('\x1b[D'));
+    internal.handleRaw(Buffer.from('x'));
+    expect(internal.getWorkbenchStateForTest().composer).toEqual({ text: `Ax${emoji}B`, cursor: 2 });
+    expect(internal.getStateForTest().activeTab).toBe('agent');
+    internal.handleRaw(Buffer.from('\x1b[F'));
+    expect(internal.getWorkbenchStateForTest().composer.cursor).toBe(`Ax${emoji}B`.length);
+    internal.handleRaw(Buffer.from('\x1b[H'));
+    expect(internal.getWorkbenchStateForTest().composer.cursor).toBe(0);
+  });
+
   it('queues active-turn follow-ups and drains them FIFO after settlement', async () => {
     const first = deferred<any>();
     const processTurn = vi.fn()

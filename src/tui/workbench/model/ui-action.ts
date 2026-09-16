@@ -3,6 +3,7 @@ import type { QueuedMessage, WorkbenchDrawer, WorkbenchFocus, WorkbenchOverlay, 
 export type WorkbenchUiAction =
   | { readonly type: 'composer.insert'; readonly text: string }
   | { readonly type: 'composer.backspace' }
+  | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' }
   | { readonly type: 'composer.clear' }
   | { readonly type: 'composer.replace'; readonly text: string }
   | { readonly type: 'queue.add'; readonly message: QueuedMessage }

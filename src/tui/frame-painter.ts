@@ -356,7 +356,12 @@ export class FramePainter {
           dims.rows,
           this.deps.workbenchState?.().drawer ?? 'closed',
         ).dimensions;
-        const composer = layoutComposer(s.views.agent.inputBuffer, surface.columns);
+        const composer = layoutComposer(
+          s.views.agent.inputBuffer,
+          surface.columns,
+          5,
+          this.deps.workbenchState?.().composer.cursor,
+        );
         const vp = computeViewport(surface, 'agent', composer.rows.length);
         const firstRow = vp.panelRow - composer.rows.length + 1;
         this.deps.output.write(`\x1b[${firstRow + composer.cursorRow + 1};${3 + composer.cursorColumn + 1}H`);

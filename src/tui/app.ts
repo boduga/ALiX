@@ -521,6 +521,12 @@ export class TuiApp {
         return;
       }
     }
+    // Composer navigation owns these keys on the Workbench agent surface.
+    // Route them before global Left/Right tab navigation and End scroll pinning.
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
+        && (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Home' || key === 'End')) {
+      if (this.handleWorkbenchAgentInput(key)) return;
+    }
     if (this.tryHandleGlobal(key)) return;
     // 2b. Pluggable key dispatcher — registered keybindings get first
     //     chance to consume the key before the built-in dispatch.
@@ -731,6 +737,10 @@ export class TuiApp {
       case 'composer.backspace':
         this.workbenchStore.dispatch({ type: 'composer.backspace' });
         this.syncWorkbenchComposer();
+        this.paintFullFrame();
+        return true;
+      case 'composer.move':
+        this.workbenchStore.dispatch({ type: 'composer.move', direction: intent.direction });
         this.paintFullFrame();
         return true;
       case 'slash.submit':
@@ -1513,9 +1523,12 @@ function parseKey(buf: Buffer): string | null {
     if (buf[2] === 0x42) return 'ArrowDown';
     if (buf[2] === 0x43) return 'ArrowRight';
     if (buf[2] === 0x44) return 'ArrowLeft';
+    if (buf[2] === 0x48) return 'Home';
     if (buf[2] === 0x46) return 'End';
     if (buf[2] === 0x5a) return 'Shift+Tab';
   }
+  if (s === '\x1b[1~') return 'Home';
+  if (s === '\x1b[4~') return 'End';
   if (s.length === 1 || isPrintableGrapheme(s)) return s;
   return null;
 }
