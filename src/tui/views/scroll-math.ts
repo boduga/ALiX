@@ -6,16 +6,16 @@ import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 import type { TimelineEntry } from '../runtime/timeline-builder.js';
 import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
+import { layoutComposer } from '../workbench/views/composer-view.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
  *  and scroll-math all compute panelRow/scrollbackTop/textWidth
  *  (plus topBorderRow/bottomBorderRow for the chrome frame)
  *  from these.
  *  FOOTER_H = 5 (tab row + top border + prompt row + bottom border +
- *  status row). BELOW_PROMPT_ROWS decouples the prompt's row position
- *  from the footer height so future footer additions don't drift the
- *  prompt outside the footer. PANEL_H is the future multi-line
- *  input-panel knob (0 today — single-line prompt). */
+ *  status row). BELOW_PROMPT_ROWS decouples the prompt's bottom row from
+ *  the footer height. Workbench passes its current composer row count to
+ *  `computeViewport`; legacy views retain a single-row prompt. */
 export const HEADER_H = 3;
 export const FOOTER_H = 5;
 export const BELOW_PROMPT_ROWS = 3;
@@ -54,8 +54,10 @@ export interface Viewport {
 export function computeViewport(
   dims: { columns: number; rows: number },
   kind: 'agent' | 'chat',
+  composerRows = 1,
 ): Viewport {
-  const topBorderRow = dims.rows - FOOTER_H + 1;
+  const safeComposerRows = Math.max(1, composerRows);
+  const topBorderRow = dims.rows - FOOTER_H + 1 - (safeComposerRows - 1);
   const bottomBorderRow = dims.rows - BELOW_PROMPT_ROWS + 1;
   const panelRow = dims.rows - BELOW_PROMPT_ROWS;
   const scrollbackTop = kind === 'agent' ? SCROLLBACK_TOP_AGENT : SCROLLBACK_TOP_CHAT;
@@ -68,8 +70,8 @@ export function computeViewport(
   const gutter = kind === 'agent' ? GUTTER_WIDTH : 0;
   return {
     headerRows: HEADER_H,
-    footerRows: FOOTER_H,
-    panelRows: PANEL_H,
+    footerRows: FOOTER_H + safeComposerRows - 1,
+    panelRows: safeComposerRows,
     panelRow,
     topBorderRow,
     bottomBorderRow,
@@ -794,7 +796,10 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
  *  Convenience wrapper used by the views' render branch and by app.ts on
  *  End/clear/tab-switch. */
 export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat'): number {
-  const vp = computeViewport(ctx.dimensions, kind);
+  const composerRows = kind === 'agent' && ctx.workbenchEnabled
+    ? layoutComposer(ctx.perTab.inputBuffer, ctx.dimensions.columns).rows.length
+    : 1;
+  const vp = computeViewport(ctx.dimensions, kind, composerRows);
   const allLines = kind === 'agent'
     ? (ctx.workbenchEnabled
       ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)

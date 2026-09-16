@@ -10,6 +10,8 @@ export type { SubagentTask, SubagentResult };
 
 export type SubagentManagerOptions = {
   sessionId: string;
+  /** Logical parent identity for Workbench hierarchy. Defaults to the session root. */
+  parentAgentId?: string;
   config?: AlixConfig;
   /** Override the spawned command for testing. Defaults to the alix CLI. */
   spawnOverride?: { command: string; args?: string[] };
@@ -22,6 +24,7 @@ type RunningSubagent = {
   process: ChildProcess;
   resolve: (result: SubagentResult) => void;
   reject: (err: Error) => void;
+  cancelled: boolean;
 };
 
 export type SubagentResultCallback = (result: SubagentResult) => void;
@@ -56,16 +59,40 @@ export class SubagentManager {
       }
 
       try {
+        // Resolve the model before publishing the spawn so the roster never
+        // shows a fabricated or guessed model identity.
+        const { provider, name } = this.getRoleModel(task.role);
+        const parentAgentId = this.options.parentAgentId ?? `session:${this.options.sessionId}`;
+        const lifecycleBase = {
+          agentId: task.id,
+          parentAgentId,
+          taskId: task.id,
+          role: task.role,
+          model: `${provider}/${name}`,
+        };
         // Emit subagent.started event
         this.options.eventLog?.append({
           sessionId: this.options.sessionId,
           actor: "system",
           type: "subagent.started",
-          payload: { role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200) },
+          payload: { role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? [] },
         });
+        this.emitLifecycle("agent.spawned", {
+          ...lifecycleBase,
+          state: "starting",
+          operation: task.prompt.slice(0, 200),
+          ownedPaths: task.ownedPaths ?? [],
+        });
+        this.emitLifecycle("agent.task_assigned", {
+          ...lifecycleBase,
+          title: task.prompt.slice(0, 200),
+          prompt: task.prompt.slice(0, 200),
+          ownedPaths: task.ownedPaths ?? [],
+        });
+        if (task.ownedPaths?.length) {
+          this.emitLifecycle("agent.ownership_changed", { ...lifecycleBase, ownedPaths: task.ownedPaths });
+        }
 
-        // model selection via getRoleModel (resolves style → provider+model)
-        const { provider, name } = this.getRoleModel(task.role);
         // Build CLI args array
         const cliArgs = [
           "run", "--subagent", task.role,
@@ -102,7 +129,9 @@ export class SubagentManager {
           }),
         }) as ChildProcess;
 
-        this.running.set(task.id, { task, process: child, resolve: resolvePromise, reject });
+        const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };
+        this.running.set(task.id, running);
+        this.emitLifecycle("agent.state_changed", { ...lifecycleBase, state: "thinking", operation: "Subagent running" });
 
         let stdoutData = "";
         if (child.stdout) {
@@ -151,6 +180,17 @@ export class SubagentManager {
             type: "subagent.result",
             payload: { role: task.role, taskId: task.id, status: result.status, findings: result.findings },
           });
+          if (!running.cancelled) {
+            const terminalType = result.status === "failed" || result.status === "rejected"
+              ? "agent.failed"
+              : "agent.completed";
+            this.emitLifecycle(terminalType, {
+              ...lifecycleBase,
+              state: result.status === "success" ? "completed" : result.status,
+              status: result.status,
+              ...(result.error ? { error: result.error } : {}),
+            });
+          }
 
           // Resolve whenever we have a structured result (even a failed one, so the
           // parent keeps findings) or the child exited cleanly. Reject only on a
@@ -165,6 +205,14 @@ export class SubagentManager {
         child.on("error", (err: Error) => {
           this.running.delete(task.id);
           this.releaseOwnership(task);
+          if (!running.cancelled) {
+            this.emitLifecycle("agent.failed", {
+              ...lifecycleBase,
+              state: "failed",
+              status: "failed",
+              error: err.message,
+            });
+          }
           reject(err);
         });
       } catch (err) {
@@ -177,7 +225,17 @@ export class SubagentManager {
   }
 
   shutdown(): void {
-    for (const [, running] of this.running) {
+    for (const [agentId, running] of this.running) {
+      running.cancelled = true;
+      this.emitLifecycle("agent.cancelled", {
+        agentId,
+        parentAgentId: this.options.parentAgentId ?? `session:${this.options.sessionId}`,
+        taskId: running.task.id,
+        role: running.task.role,
+        state: "cancelled",
+        status: "cancelled",
+        operation: "Manager shutdown",
+      });
       running.process.kill();
     }
     this.running.clear();
@@ -190,6 +248,15 @@ export class SubagentManager {
         this.ownershipRegistry.delete(path);
       }
     }
+  }
+
+  private emitLifecycle(type: string, payload: Record<string, unknown>): void {
+    void this.options.eventLog?.append({
+      sessionId: this.options.sessionId,
+      actor: "system",
+      type,
+      payload,
+    });
   }
 
   getRoleConfig(role: SubagentRole): SubagentRoleConfig | undefined {

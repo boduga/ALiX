@@ -14,6 +14,8 @@ function toRecord(e: import('./approval-projection.js').ApprovalProjectionEntry)
     args: {},
     requestedAt: e.requestedAt,
     requestedBy: 'system',
+    ...(e.status !== 'pending' && e.status !== 'resumed' ? { status: e.status } : {}),
+    ...(e.completedAt !== undefined ? { resolvedAt: e.completedAt } : {}),
   };
 }
 

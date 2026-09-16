@@ -30,6 +30,8 @@ import type { CapabilityProjectionSnapshot } from './runtime/capability-projecti
 import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
 import type { ContextProjectionSnapshot } from './runtime/context-projection.js';
 import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
+import type { AgentRosterSnapshot } from './workbench/model/agent-roster.js';
+import type { TaskRosterSnapshot } from './workbench/model/task-roster.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -81,6 +83,9 @@ export interface RuntimeCollectorOptions {
 export class RuntimeCollectorImpl implements RuntimeCollector {
   private cache: RuntimeSnapshot;
   private timer?: ReturnType<typeof setInterval>;
+  private eventSampleTimer?: ReturnType<typeof setTimeout>;
+  private stopWatching?: () => void;
+  private sampleQueue: Promise<void> = Promise.resolve();
   private readonly eventLog: EventLog;
   private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly sessionId: string;
@@ -114,6 +119,9 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       capabilities: null,
       metrics: null,
       context: null,
+      agents: null,
+      tasks: null,
+      diffs: null,
     };
   }
 
@@ -123,7 +131,8 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   async start(): Promise<void> {
     await this.initializeCheckpoint();
     await this.sample();
-    this.timer = setInterval(() => void this.sample(), 1_000);
+    this.stopWatching = this.eventLog.watch?.(() => this.scheduleEventSample());
+    this.timer = setInterval(() => this.enqueueSample(), 1_000);
   }
 
   /** Restore the durable checkpoint, falling back to beginningCursor when the
@@ -185,6 +194,23 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.eventSampleTimer) clearTimeout(this.eventSampleTimer);
+    this.stopWatching?.();
+    this.stopWatching = undefined;
+  }
+
+  /** Coalesce event bursts (including streaming/tool lifecycle batches) into
+   * one projection pass while preserving a serialized checkpoint boundary. */
+  private scheduleEventSample(): void {
+    if (this.eventSampleTimer) return;
+    this.eventSampleTimer = setTimeout(() => {
+      this.eventSampleTimer = undefined;
+      this.enqueueSample();
+    }, 20);
+  }
+
+  private enqueueSample(): void {
+    this.sampleQueue = this.sampleQueue.then(() => this.sample(), () => this.sample());
   }
 
   async snapshot(): Promise<RuntimeSnapshot | null> {
@@ -266,6 +292,9 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         capabilities: this.projectionRuntime.snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null,
         metrics: this.projectionRuntime.snapshotOf<MetricsProjectionSnapshot>(ProjectionIds.metrics) ?? null,
         context: this.projectionRuntime.snapshotOf<ContextProjectionSnapshot>(ProjectionIds.context) ?? null,
+        agents: this.projectionRuntime.snapshotOf<AgentRosterSnapshot>(ProjectionIds.agents) ?? null,
+        tasks: this.projectionRuntime.snapshotOf<TaskRosterSnapshot>(ProjectionIds.tasks) ?? null,
+        diffs: this.projectionRuntime.snapshotOf<import('./workbench/model/diff-summary.js').WorkbenchDiffSnapshot>(ProjectionIds.diffs) ?? null,
         evolution: (await this.projectionRuntime.snapshotOfAsync<EvolutionProjectionSnapshot>(ProjectionIds.evolution)) ?? null,
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,

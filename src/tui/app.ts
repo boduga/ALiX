@@ -28,6 +28,9 @@ import { SlashController } from './slash-controller.js';
 import { PaletteController } from './palette-controller.js';
 import { createApprovalResolver, type ApprovalResolver } from './approval-resolver.js';
 import { FramePainter } from './frame-painter.js';
+import { WorkbenchStore } from './workbench/app/workbench-store.js';
+import { routeWorkbenchInput } from './workbench/input/input-router.js';
+import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -94,6 +97,11 @@ export class TuiApp {
   private detached = false;
   /** One AgentSession is shared by chat and agent tabs; never run two turns concurrently. */
   private sessionDispatchActive = false;
+  /** Presentation-only Workbench state. Runtime truth remains in AgentSession/EventLog. */
+  private readonly workbenchStore = new WorkbenchStore();
+  private workbenchQueueSequence = 0;
+  /** First Ctrl+C cancels foreground work; a second press keeps the legacy exit path. */
+  private workbenchCancelArmed = false;
   /**
    * Cached sub-session runtime snapshots (Phase 6, D6/D9). Sampled from
    * `opts.runtimeCollectors` on start() and every refresh(); injected into the
@@ -138,10 +146,13 @@ export class TuiApp {
   private readonly paletteController: PaletteController;
   /** Resolve an approval (approve/deny) via the wired ApprovalManager. */
   private readonly approvalResolver: ApprovalResolver;
+  /** Workbench decisions awaiting authoritative projection confirmation. */
+  private readonly pendingApprovalDecisions = new Set<string>();
   /** Owns the full-frame render — view, card, palette, header, tabs, status, cursor. */
   private readonly framePainter: FramePainter;
 
   constructor(private readonly opts: TuiAppOptions) {
+    if (opts.workbenchEnabled) this.state.activeTab = 'agent';
     this.input = opts.input ?? new StdioInput(process.stdin);
     this.output = opts.output ?? new StdioOutput();
     this.keyDispatcher = opts.keyDispatcher ?? new KeyDispatcher();
@@ -187,6 +198,7 @@ export class TuiApp {
       planApprovalGate: this.planApprovalGate,
       output: this.output,
       palette: this.paletteController,
+      workbenchState: () => this.workbenchStore.snapshot(),
     });
 
     // Bind the capability service's presenter so every invocation emits its
@@ -265,6 +277,11 @@ export class TuiApp {
   /** Test seam: expose internal state for assertions. */
   getStateForTest(): TuiAppState {
     return this.state;
+  }
+
+  /** Test seam for the pure Workbench presentation store. */
+  getWorkbenchStateForTest(): WorkbenchUiState {
+    return this.workbenchStore.snapshot();
   }
 
   /**
@@ -379,8 +396,14 @@ export class TuiApp {
   private syncPendingApprovals(): void {
     const snap = this.state.lastSnapshot;
     if (!snap) return;
-    const pending = snap.approvals?.pending ?? [];
+    // A null approval snapshot means the collector could not provide a view;
+    // it is not evidence that every pending request disappeared.
+    if (!snap.approvals) return;
+    const pending = snap.approvals.pending;
     const pendingIds = new Set(pending.map((p) => p.id));
+    for (const approvalId of this.pendingApprovalDecisions) {
+      if (!pendingIds.has(approvalId)) this.pendingApprovalDecisions.delete(approvalId);
+    }
     for (const t of this.SYNC_TABS) {
       const perTab = this.state.views[t];
       if (!perTab) continue;
@@ -388,21 +411,19 @@ export class TuiApp {
       // the last snapshot. These are "resolved" (approved/denied/expired)
       // by the approval store; move them to the historical log with their
       // current tool/target so the approvals tab can show the full history.
-      const stillPending = perTab.pendingApprovals.filter((a) => pendingIds.has(a.id));
       const missing = perTab.pendingApprovals.filter((a) => !pendingIds.has(a.id));
       if (missing.length > 0) {
-        // We don't know the resolved status from the snapshot alone — the
-        // approval store would, but for the log view we mark them as
-        // resolved (the precise status would require an extra round-trip).
-        // The operator can run `/approvals --all` for full details.
         for (const a of missing) {
+          const authoritative = snap.approvals?.recentlyResolved.find((resolved) => resolved.id === a.id);
+          if (!authoritative?.status) continue;
+          if (perTab.resolvedApprovals.some((resolved) => resolved.id === a.id && resolved.status === authoritative.status)) continue;
           perTab.resolvedApprovals.unshift({
             id: a.id,
             toolName: a.toolName,
             target: a.target,
-            status: 'approved', // optimistic; precise status from store on demand
+            status: authoritative.status,
             requestedAt: a.requestedAt,
-            resolvedAt: Date.now(),
+            resolvedAt: authoritative.resolvedAt ?? snap.generatedAt,
           });
           // Cap the log at 200 entries to avoid unbounded growth.
           if (perTab.resolvedApprovals.length > 200) {
@@ -417,9 +438,6 @@ export class TuiApp {
         target: p.target,
         requestedAt: p.requestedAt,
       }));
-      // Keep 'stillPending' reference so the linter doesn't complain — it
-      // documents the intent of the filter above.
-      void stillPending;
     }
     // Sync progress ledger from snapshot to every tab's perTab state
     if (snap.progressLedger) {
@@ -453,6 +471,20 @@ export class TuiApp {
       this.paletteController.handleKey(key);
       return;
     }
+    // Diagnostic overlays own keys before completion and global navigation.
+    // Approvals remain actionable above them; Ctrl+C retains cancellation/exit.
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
+        && this.workbenchStore.snapshot().overlayStack.length > 0 && key !== '\x03') {
+      const pendingPlan = this.planApprovalGate.getPending();
+      const decision = pendingPlan ? mapKeyToPlanDecision(key) : null;
+      if (pendingPlan && decision) {
+        this.planApprovalGate.resolve(pendingPlan.planId, decision);
+        this.paintFullFrame();
+      } else {
+        this.handleWorkbenchAgentInput(key);
+      }
+      return;
+    }
     // Slash-command completion mode: Tab completes the buffer to the
     // selected skill's primary slash name (preserving any rest);
     // Shift+Tab cycles the selection backward. Tab is intentionally
@@ -475,6 +507,15 @@ export class TuiApp {
     // claimed it when the modal is open).
     if (key === '\x1b' || key === 'Escape') {
       if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
+        this.paintFullFrame();
+        return;
+      }
+      // An idle agent surface stays in place; Escape is not a tab switch.
+      if (this.state.activeTab === 'agent') return;
+    }
+    if (this.opts.workbenchEnabled && key === '\x03' && this.sessionDispatchActive && !this.workbenchCancelArmed) {
+      if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Ctrl+C')) {
+        this.workbenchCancelArmed = true;
         this.paintFullFrame();
         return;
       }
@@ -563,14 +604,14 @@ export class TuiApp {
       // (auto → ask → bypass → auto). Other tabs use Shift+Tab for
       // tab cycling via tryHandleGlobal — overriding it only here
       // keeps the navigation gesture intact everywhere else.
-      if (key === 'Shift+Tab') {
+      if (!this.opts.workbenchEnabled && key === 'Shift+Tab') {
         this.cyclePermissionMode();
         // Force an immediate snapshot so the header reflects the new
         // mode on the next paint instead of waiting up to 1s.
         void this.refresh();
         return;
       }
-      if (key === 'Enter') {
+      if (!this.opts.workbenchEnabled && key === 'Enter') {
         if (this.sessionDispatchActive) {
           this.paintFullFrame();
           return;
@@ -593,7 +634,7 @@ export class TuiApp {
         this.paintFullFrame();
         return;
       }
-      if (key === 'Backspace') {
+      if (!this.opts.workbenchEnabled && key === 'Backspace') {
         if (perTab.inputBuffer.length > 0) {
           perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
         } else {
@@ -602,6 +643,7 @@ export class TuiApp {
         this.paintFullFrame();
         return;
       }
+      if (this.opts.workbenchEnabled && this.handleWorkbenchAgentInput(key)) return;
       // Inline approval resolution — when there are pending approvals and
       // the user presses `a`/`d`, resolve the OLDEST pending one and
       // surface the result inline. This avoids the "I have to switch to
@@ -630,7 +672,7 @@ export class TuiApp {
         return;
       }
       // Printable characters only (ASCII 32+).
-      if (key.length === 1 && key.charCodeAt(0) >= 32) {
+      if (!this.opts.workbenchEnabled && key.length === 1 && key.charCodeAt(0) >= 32) {
         perTab.inputBuffer += key;
         this.paintFullFrame();
         return;
@@ -660,6 +702,128 @@ export class TuiApp {
     };
     const action = view.handleKey?.(key, viewCtx);
     if (action) this.dispatch(action);
+  }
+
+  /**
+   * Route the conversation-first Agent surface through the pure Workbench
+   * input contract. The legacy per-tab buffer is a temporary rendering
+   * adapter; WorkbenchStore is authoritative while the feature flag is on.
+   */
+  private handleWorkbenchAgentInput(key: string): boolean {
+    const perTab = this.state.views.agent;
+    const state = this.workbenchStore.snapshot();
+    const intent = routeWorkbenchInput(key, {
+      turnActive: this.sessionDispatchActive,
+      composerText: state.composer.text,
+      slashActive: this.slash.active(),
+      approvalPending: perTab.pendingApprovals.length > 0,
+      overlayOpen: state.overlayStack.length > 0,
+      transcriptMode: state.transcriptMode,
+    });
+
+    switch (intent.type) {
+      case 'composer.insert':
+        this.workbenchStore.dispatch({ type: 'composer.insert', text: intent.text });
+        this.syncWorkbenchComposer();
+        this.paintFullFrame();
+        return true;
+      case 'composer.backspace':
+        this.workbenchStore.dispatch({ type: 'composer.backspace' });
+        this.syncWorkbenchComposer();
+        this.paintFullFrame();
+        return true;
+      case 'slash.submit':
+        if (this.openWorkbenchSlashOverlay(state.composer.text)) {
+          this.workbenchStore.dispatch({ type: 'composer.clear' });
+          this.syncWorkbenchComposer();
+          this.slash.hint = null;
+          this.paintFullFrame();
+          return true;
+        }
+        this.workbenchStore.dispatch({ type: 'composer.clear' });
+        void this.submitSlashCommand();
+        this.paintFullFrame();
+        return true;
+      case 'turn.submit': {
+        const text = state.composer.text;
+        this.workbenchStore.dispatch({ type: 'composer.clear' });
+        this.syncWorkbenchComposer();
+        this.workbenchCancelArmed = false;
+        perTab.pinnedBottom = true;
+        this.resetScrollOffsetToBottom('agent');
+        this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId);
+        void this.submitAgentInput(text);
+        this.paintFullFrame();
+        return true;
+      }
+      case 'turn.queue': {
+        const text = state.composer.text;
+        this.workbenchStore.dispatch({
+          type: 'queue.add',
+          message: { id: `queued-${++this.workbenchQueueSequence}`, text, createdAt: Date.now() },
+        });
+        this.workbenchStore.dispatch({ type: 'composer.clear' });
+        this.syncWorkbenchComposer();
+        this.paintFullFrame();
+        return true;
+      }
+      case 'transcript.toggle': {
+        const next = state.transcriptMode === 'compact' ? 'detailed' : 'compact';
+        this.workbenchStore.dispatch({ type: 'transcript.mode', mode: next });
+        perTab.transcriptMode = next;
+        perTab.pinnedBottom = true;
+        this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        return true;
+      }
+      case 'drawer.toggle':
+        this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
+        this.paintFullFrame();
+        return true;
+      case 'approval.resolve': {
+        const target = perTab.pendingApprovals[0];
+        if (!target) return false;
+        if (this.pendingApprovalDecisions.has(target.id)) return true;
+        this.pendingApprovalDecisions.add(target.id);
+        // Workbench deliberately leaves the pending projection untouched.
+        // The card disappears only after approval.resolved is sampled.
+        void this.approvalResolver.resolve(target.id, intent.decision, { recordLocally: false })
+          .then((handled) => {
+            if (!handled) this.pendingApprovalDecisions.delete(target.id);
+            this.paintFullFrame();
+          });
+        this.paintFullFrame();
+        return true;
+      }
+      case 'permission.cycle':
+        this.cyclePermissionMode();
+        void this.refresh();
+        return true;
+      case 'overlay.close':
+        this.workbenchStore.dispatch({ type: 'overlay.close' });
+        this.paintFullFrame();
+        return true;
+      case 'turn.cancel':
+        if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
+          this.paintFullFrame();
+          return true;
+        }
+        return false;
+      case 'unhandled':
+        return false;
+    }
+  }
+
+  private syncWorkbenchComposer(): void {
+    this.state.views.agent.inputBuffer = this.workbenchStore.snapshot().composer.text;
+  }
+
+  private openWorkbenchSlashOverlay(text: string): boolean {
+    const command = text.trim().toLowerCase();
+    const overlay = command === '/diff' ? 'diff' : command === '/review' ? 'review' : command === '/help' || command === '/?' ? 'help' : null;
+    if (!overlay) return false;
+    this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay });
+    return true;
   }
 
   /**
@@ -890,7 +1054,24 @@ export class TuiApp {
     this.paintFullFrame();
     } finally {
       this.sessionDispatchActive = false;
+      this.workbenchCancelArmed = false;
+      if (kind === 'agent' && this.opts.workbenchEnabled && !this.detached) {
+        void this.drainWorkbenchQueue();
+      }
     }
+  }
+
+  /** Start the oldest queued follow-up after the foreground turn settles. */
+  private async drainWorkbenchQueue(): Promise<void> {
+    if (this.sessionDispatchActive) return;
+    const next = this.workbenchStore.snapshot().queuedMessages[0];
+    if (!next) return;
+    this.workbenchStore.dispatch({ type: 'queue.shift' });
+    const perTab = this.state.views.agent;
+    perTab.pinnedBottom = true;
+    this.resetScrollOffsetToBottom('agent');
+    this.timelineEmitter.emitTimelineLog('user', next.text, this.opts.agentSessionId);
+    await this.submitAgentInput(next.text);
   }
 
   /**
@@ -1246,8 +1427,13 @@ export class TuiApp {
     this.pasteState = 'idle';
     this.pasteChunks = [];
     if (!text) return;
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
+        && this.workbenchStore.snapshot().overlayStack.length > 0) return;
     const perTab = this.state.views[this.state.activeTab];
     perTab.inputBuffer += text;
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
+      this.workbenchStore.dispatch({ type: 'composer.replace', text: perTab.inputBuffer });
+    }
     this.paintFullFrame();
   }
 
@@ -1292,10 +1478,16 @@ function parseKey(buf: Buffer): string | null {
   if (buf.length === 0) return null;
   const s = buf.toString('utf8');
   if (s === '\r' || s === '\n') return 'Enter';
+  if (s === '\x1b') return 'Escape';
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
   if (s === '\x0f') return 'Ctrl+o';   // Ctrl+O — transcript detail toggle
+  if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
+  if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
+  // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
+  // Shift+Enter. A plain Enter remains submission.
+  if (s === '\x1b[13;2u' || s === '\x1b[27;2;13~') return 'Shift+Enter';
   if (s === '\x7f' || s === '\b') return 'Backspace';
   // Ctrl+digit: terminals reliably encode these as ESC + digit (the
   // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab

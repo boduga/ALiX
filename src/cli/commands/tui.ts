@@ -37,6 +37,9 @@ import { createEnrichedProposalsSource } from "../../evolution/forecast/adapters
 import { RecommendationStore } from "../../evolution/verification/recommendation/recommendation-store.js";
 import { isLifecycleEligible } from "../../capability/lifecycle-eligibility.js";
 import type { GovernanceRecommendation } from "../../evolution/verification/contracts/recommendation-contract.js";
+import { AgentRosterProjection } from "../../tui/workbench/projections/agent-roster-projection.js";
+import { TaskProjection } from "../../tui/workbench/projections/task-projection.js";
+import { DiffProjection } from "../../tui/workbench/projections/diff-projection.js";
 export type { PolicyConfig } from "../../tui/helpers/policy-commands.js";
 export { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 
@@ -206,6 +209,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     [ProjectionIds.metrics, new MetricsProjection()],
     [ProjectionIds.context, new ContextProjectionBuilder()],
     [ProjectionIds.evolution, evolutionProjection],
+    [ProjectionIds.agents, new AgentRosterProjection()],
+    [ProjectionIds.tasks, new TaskProjection()],
+    [ProjectionIds.diffs, new DiffProjection()],
   ]);
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,

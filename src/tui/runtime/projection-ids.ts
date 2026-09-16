@@ -8,4 +8,7 @@ export const ProjectionIds = {
   metrics: 'metrics',
   context: 'context',
   evolution: 'evolution',
+  agents: 'agents',
+  tasks: 'tasks',
+  diffs: 'diffs',
 } as const;

@@ -284,6 +284,36 @@ export const SUBAGENT_EVENT_TYPES = {
   RESULT: "subagent.result",
 } as const;
 
+/** Version-1 multi-agent lifecycle vocabulary consumed by Workbench drawers. */
+export type AgentLifecyclePayload = {
+  agentId: string;
+  parentAgentId?: string;
+  taskId?: string;
+  role?: string;
+  model?: string;
+  state?: string;
+  operation?: string;
+  ownedPaths?: string[];
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  status?: string;
+  error?: string;
+};
+
+export const AGENT_LIFECYCLE_EVENT_TYPES = {
+  SPAWNED: "agent.spawned",
+  STATE_CHANGED: "agent.state_changed",
+  PROGRESS: "agent.progress",
+  MESSAGE: "agent.message",
+  TASK_ASSIGNED: "agent.task_assigned",
+  OWNERSHIP_CHANGED: "agent.ownership_changed",
+  USAGE: "agent.usage",
+  COMPLETED: "agent.completed",
+  FAILED: "agent.failed",
+  CANCELLED: "agent.cancelled",
+} as const;
+
 export type VerificationEventPayload =
   | { command: string; reason: string }
   | { command: string; status: "passed" | "failed"; output?: string }

@@ -33,6 +33,8 @@ describe('ApprovalProjectionCollector', () => {
     expect(snap!.pending[0]!.toolName).toBe('unknown'); // adapter fallback
     expect(snap!.recentlyResolved).toHaveLength(1);
     expect(snap!.recentlyResolved[0]!.id).toBe('a1');
+    expect(snap!.recentlyResolved[0]!.status).toBe('approved');
+    expect(snap!.recentlyResolved[0]!.resolvedAt).toBe(2000);
     expect(snap!.totalPending).toBe(1);
     expect(snap!.totalResolved).toBe(1);
   });
@@ -56,9 +58,7 @@ describe('ApprovalProjectionCollector', () => {
     const snap2 = await collector2.snapshot();
     expect(snap2!.pending).toHaveLength(0);
     expect(snap2!.recentlyResolved).toHaveLength(1);
-    // ApprovalRecordSnapshot has no status field (UI contract); the distinction
-    // is expressed by list membership. The projection's own snapshot carries it:
-    expect(runtime2.snapshotOf<import('../../../src/tui/runtime/approval-projection.js').ApprovalProjectionSnapshot>(ProjectionIds.approval)!.completed[0]!.status).toBe('expired');
+    expect(snap2!.recentlyResolved[0]!.status).toBe('expired');
   });
 
   it('target is derived from prompt via extractTarget; falls back to raw prompt', async () => {
@@ -141,6 +141,7 @@ describe('ApprovalProjectionCollector', () => {
     expect(resolved.requestedAt).toBe(Date.parse(a1.createdAt)); // payload.timestamp = record.createdAt
     expect(resolved.args).toEqual({});
     expect(resolved.requestedBy).toBe('system');
+    expect(resolved.status).toBe('approved');
     // intentional divergence (adapter now supplies real resolved history):
     expect(storeSnap.recentlyResolved).toEqual([]);
     expect(projSnap!.totalResolved).toBe(1);

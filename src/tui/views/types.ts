@@ -59,6 +59,8 @@ export interface ViewRenderContext {
   readonly runtime?: PerTabRuntime;
   /** Slash-command completion strip, present only while slash mode is active. */
   readonly slash?: SlashStrip;
+  /** Feature-gated Workbench presentation state; never runtime authority. */
+  readonly workbenchUiState?: import('../workbench/model/ui-state.js').WorkbenchUiState;
 }
 
 export interface ViewInputContext {
