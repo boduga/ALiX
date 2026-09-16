@@ -1440,11 +1440,14 @@ export class TuiApp {
     if (!text) return;
     if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
         && this.workbenchStore.snapshot().overlayStack.length > 0) return;
+    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
+      this.workbenchStore.dispatch({ type: 'composer.insert', text });
+      this.syncWorkbenchComposer();
+      this.paintFullFrame();
+      return;
+    }
     const perTab = this.state.views[this.state.activeTab];
     perTab.inputBuffer += text;
-    if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
-      this.workbenchStore.dispatch({ type: 'composer.replace', text: perTab.inputBuffer });
-    }
     this.paintFullFrame();
   }
 
