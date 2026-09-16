@@ -57,8 +57,8 @@ describe('Agent Workbench operator shell', () => {
     const frame = visible(canvas.renderFrame());
 
     expect(frame).toContain('agent · ask · compact');
-    expect(frame).toContain('approval');
-    expect(frame).toContain('patch.apply');
+    expect(frame).toContain('1 approval · patch.apply · a approve · d deny');
+    expect(frame).not.toContain('src/tui/app.ts');
     expect(frame).not.toContain('tokens 3,918');
   });
 

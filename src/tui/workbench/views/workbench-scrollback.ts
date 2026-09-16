@@ -17,7 +17,12 @@ function appendRendered(
   const theme = themeName ? getTheme(themeName) : undefined;
   const rows = renderResponse(text, width, theme);
   rows.forEach((row: any, index: number) => {
-    out.push({ kind, text: row.text, isFirst: index === 0 });
+    out.push({
+      kind,
+      text: row.text,
+      isFirst: index === 0,
+      ...(index === 0 ? { gutter: kind === 'user' ? 'YOU' : 'ALiX' } : {}),
+    });
   });
 }
 
@@ -30,7 +35,8 @@ function toolMarker(tool: ToolItem): string {
   }
 }
 
-function toolSummary(tool: ToolItem): string {
+function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
+  if (pendingApprovalTool === tool.name) return `→ ${tool.name} · approval required`;
   const duration = tool.durationMs === undefined ? '' : ` · ${tool.durationMs}ms`;
   return `${toolMarker(tool)} ${tool.name}${duration}`;
 }
@@ -48,6 +54,7 @@ export function buildWorkbenchScrollbackLines(
 ): ScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const mode: TranscriptMode = ctx.perTab.transcriptMode ?? 'compact';
+  const pendingApprovalTool = ctx.perTab.pendingApprovals?.[0]?.toolName;
   const conversation = new ConversationProjection().project({
     timeline: ctx.runtime?.agent?.timeline ?? [],
     trace: ctx.snap.runtime?.trace ?? [],
@@ -66,7 +73,7 @@ export function buildWorkbenchScrollbackLines(
         break;
       case 'tool-group':
         for (const tool of item.tools) {
-          const lines = wrapText(toolSummary(tool), textWidth);
+          const lines = wrapText(toolSummary(tool, pendingApprovalTool), textWidth);
           lines.forEach((text, index) => out.push({ kind: 'toolCall', text, isFirst: index === 0 }));
           if ((mode === 'detailed' || tool.status === 'failed') && tool.detail) {
             wrapText(`  ${tool.detail}`, textWidth).forEach((text) => {
@@ -76,6 +83,10 @@ export function buildWorkbenchScrollbackLines(
         }
         break;
       case 'approval':
+        // The authoritative pending card owns the actionable approval state.
+        // Keep the historical event in detailed mode, but do not repeat its
+        // prompt in the compact conversation while that card is present.
+        if (pendingApprovalTool && mode === 'compact') break;
         wrapText(`⏸ ${item.text}`, textWidth).forEach((text, index) => {
           out.push({ kind: 'approval', text, isFirst: index === 0 });
         });
@@ -113,6 +124,7 @@ export function buildWorkbenchScrollbackLines(
       text,
       isFirst: index === 0,
       isLast: index === lines.length - 1,
+      ...(index === 0 ? { gutter: 'ALiX' } : {}),
     }));
   } else {
     const activity = ctx.snap.session?.activity;
@@ -120,7 +132,7 @@ export function buildWorkbenchScrollbackLines(
     if (activityText) {
       if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
       wrapText(activityText, textWidth).forEach((text, index) => {
-        out.push({ kind: 'activity', text, isFirst: index === 0 });
+        out.push({ kind: 'activity', text, isFirst: index === 0, ...(index === 0 ? { gutter: 'ALiX' } : {}) });
       });
     }
   }
