@@ -149,6 +149,20 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
   });
 
+  it('accepts and erases complete Unicode graphemes', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    const accent = `e\u0301`;
+
+    internal.handleRaw(Buffer.from(emoji));
+    internal.handleRaw(Buffer.from(accent));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe(emoji + accent);
+    internal.handleRaw(Buffer.from('\x7f'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe(emoji);
+    internal.handleRaw(Buffer.from('\x7f'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
+  });
+
   it('queues active-turn follow-ups and drains them FIFO after settlement', async () => {
     const first = deferred<any>();
     const processTurn = vi.fn()

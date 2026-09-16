@@ -29,6 +29,10 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('Shift+Enter', context())).toEqual({ type: 'composer.insert', text: '\n' });
   });
 
+  it.each(['\u{1f469}\u200d\u{1f4bb}', `e\u0301`])('routes printable grapheme %s to the composer', (grapheme) => {
+    expect(routeWorkbenchInput(grapheme, context())).toEqual({ type: 'composer.insert', text: grapheme });
+  });
+
   it('routes slash submission and Workbench drawer shortcuts by context', () => {
     expect(routeWorkbenchInput('Enter', context({ slashActive: true }))).toEqual({ type: 'slash.submit' });
     expect(routeWorkbenchInput('Ctrl+a', context())).toEqual({ type: 'drawer.toggle', drawer: 'agents' });

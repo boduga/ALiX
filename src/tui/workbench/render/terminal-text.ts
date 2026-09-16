@@ -6,6 +6,14 @@ export function graphemes(text: string): readonly string[] {
   return Array.from(text);
 }
 
+export function isPrintableGrapheme(value: string): boolean {
+  if (value.length === 0 || value.includes('\ufffd') || graphemes(value).length !== 1) return false;
+  return Array.from(value).every((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint >= 0x20 && !(codePoint >= 0x7f && codePoint < 0xa0);
+  });
+}
+
 function isWide(codePoint: number): boolean {
   return codePoint >= 0x1100 && (
     codePoint <= 0x115f || codePoint === 0x2329 || codePoint === 0x232a ||
