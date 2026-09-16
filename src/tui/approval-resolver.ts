@@ -15,11 +15,15 @@ export interface ApprovalResolverDeps {
  *  over the constructed deps, so it is a factory (per CONTRIBUTING "no
  *  classes where functions suffice") rather than a class. */
 export interface ApprovalResolver {
-  resolve(approvalId: string, status: 'approved' | 'denied'): Promise<void>;
+  resolve(approvalId: string, status: 'approved' | 'denied', options?: { recordLocally?: boolean }): Promise<void>;
 }
 
 export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalResolver {
-  const resolve = async (approvalId: string, status: 'approved' | 'denied'): Promise<void> => {
+  const resolve = async (
+    approvalId: string,
+    status: 'approved' | 'denied',
+    options: { recordLocally?: boolean } = {},
+  ): Promise<void> => {
     if (!approvalId) return;
     let originalTool = 'unknown';
     let originalTarget = '';
@@ -43,11 +47,13 @@ export function createApprovalResolver(deps: ApprovalResolverDeps): ApprovalReso
       const result = await mgr.tryHandleCommand(status === 'approved' ? `/approve ${approvalId}` : `/deny ${approvalId}`);
       const summary = result.handled ? result.message : `${status} ${approvalId} (no handler)`;
       deps.emit(deps.activeTab(), `[approval:${status}] ${summary}`);
-      for (const t of deps.syncTabs) {
-        const tab = deps.views()[t];
-        if (!tab) continue;
-        tab.resolvedApprovals.unshift({ id: approvalId, toolName: originalTool, target: originalTarget, status, requestedAt, resolvedAt: Date.now() });
-        if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
+      if (options.recordLocally !== false) {
+        for (const t of deps.syncTabs) {
+          const tab = deps.views()[t];
+          if (!tab) continue;
+          tab.resolvedApprovals.unshift({ id: approvalId, toolName: originalTool, target: originalTarget, status, requestedAt, resolvedAt: Date.now() });
+          if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
+        }
       }
     } catch (err) {
       deps.emit(deps.activeTab(), `[approval:${status}] error: ${err instanceof Error ? err.message : String(err)}`);

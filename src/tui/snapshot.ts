@@ -105,6 +105,9 @@ export interface ApprovalRecordSnapshot {
   readonly args: Record<string, unknown>;
   readonly requestedAt: number;
   readonly requestedBy: string;
+  /** Present only for authoritative completed projection entries. */
+  readonly status?: 'approved' | 'denied' | 'edited' | 'expired' | 'revoked' | 'consumed' | 'invalidated';
+  readonly resolvedAt?: number;
 }
 
 /**
@@ -142,6 +145,10 @@ export interface RuntimeSnapshot {
    * when the projection isn't registered (e.g. older collectors).
    */
   readonly context: ContextProjectionSnapshot | null;
+  /** Workbench multi-agent read models; absent/null on collectors that do not host them. */
+  readonly agents?: import('./workbench/model/agent-roster.js').AgentRosterSnapshot | null;
+  readonly tasks?: import('./workbench/model/task-roster.js').TaskRosterSnapshot | null;
+  readonly diffs?: import('./workbench/model/diff-summary.js').WorkbenchDiffSnapshot | null;
   /**
    * Evolution-loop projection (A7 lifecycle → A8 learning → A9 forecasts /
    * correlations → A2.5/A3 projected decisions → measurements). Null when the

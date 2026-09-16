@@ -52,6 +52,9 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const counters = `tokens ${model.tokensUsed.toLocaleString('en-US')} · files ${model.filesTouched.toLocaleString('en-US')} · events ${model.eventCount.toLocaleString('en-US')}`;
   const counterStart = Math.max(1, width - counters.length - 1);
   let operator = model.running ? 'Esc cancel' : '↑↓ scroll';
+  if (model.queuedMessages > 0) {
+    operator += ` · ${model.queuedMessages} queued`;
+  }
   if (model.approval) {
     const prefix = model.approval.count > 1 ? `${model.approval.count} approvals` : '1 approval';
     operator = `⏸ ${prefix} · a/d ${model.approval.label}`;

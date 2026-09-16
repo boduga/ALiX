@@ -7,6 +7,9 @@ import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scro
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
+import { layoutComposer } from '../workbench/views/composer-view.js';
+import { resolveWorkbenchLayout } from '../workbench/layout/responsive-layout.js';
+import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 
 /** Coarse human-friendly elapsed time — "42s", "2m 01s", "1h 05m". */
 function formatElapsed(ms: number): string {
@@ -49,7 +52,16 @@ export class AgentView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    const vp = computeViewport(ctx.dimensions, 'agent');
+    const responsive = ctx.workbenchEnabled
+      ? resolveWorkbenchLayout(ctx.dimensions.columns, ctx.workbenchUiState?.drawer ?? 'closed')
+      : null;
+    const surfaceDimensions = responsive?.drawerMode === 'side'
+      ? { columns: responsive.contentColumns, rows: ctx.dimensions.rows }
+      : ctx.dimensions;
+    const composer = ctx.workbenchEnabled
+      ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns)
+      : null;
+    const vp = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
     const STATUS_ROW = 4;              // status line + intent badge row
     // Stage-gutter left column: blank under slice #2; stage labels in slice #3.
     // Marker sits at column `gutter`, content text starts at `gutter + 2`. The
@@ -97,7 +109,7 @@ export class AgentView implements TuiView {
     if (ctx.workbenchEnabled) {
       const mode = ctx.perTab.transcriptMode ?? 'compact';
       const label = mode === 'compact' ? 'compact' : 'details';
-      c.write(Math.max(0, ctx.dimensions.columns - label.length - 12), STATUS_ROW, `\x1b[90m${label} · Ctrl+O${RESET}`);
+      c.write(Math.max(0, surfaceDimensions.columns - label.length - 12), STATUS_ROW, `\x1b[90m${label} · Ctrl+O${RESET}`);
     }
 
     // Branch on pinnedBottom: pinned recomputes bottomAnchor fresh,
@@ -135,22 +147,45 @@ export class AgentView implements TuiView {
 
     // Input panel at panelRow.
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
-    c.write(vp.promptCol, vp.panelRow, buf);
-    c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
+    if (composer) {
+      const firstRow = vp.panelRow - composer.rows.length + 1;
+      for (let index = 0; index < composer.rows.length; index++) {
+        const prefix = index === 0
+          ? (composer.hiddenRows > 0 ? ' … ' : ' › ')
+          : '   ';
+        c.write(0, firstRow + index, `\x1b[33m${prefix}${RESET}${composer.rows[index] ?? ''}`);
+      }
+      c.write(3 + composer.cursorColumn, firstRow + composer.cursorRow, `\x1b[7m ${RESET}`);
+    } else {
+      c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
+      c.write(vp.promptCol, vp.panelRow, buf);
+      c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
+    }
 
     // Frame the input panel: full-width dim-grey horizontal rules above
     // and below the prompt (Claude-Code style chrome). Drawn AFTER the
     // prompt so the rules read as part of the panel; on a tall terminal
     // the slash strip overlays the bottom rule's first row — acceptable
     // because the strip is intentionally visually loud.
-    const border = `\x1b[90m${'─'.repeat(ctx.dimensions.columns)}\x1b[0m`;
+    const border = `\x1b[90m${'─'.repeat(surfaceDimensions.columns)}\x1b[0m`;
     c.write(0, vp.topBorderRow, border);
     c.write(0, vp.bottomBorderRow, border);
 
     // Slash strip directly BELOW the panel.
     if (ctx.slash) {
-      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow: vp.panelRow, columns: ctx.dimensions.columns });
+      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow: vp.panelRow, columns: surfaceDimensions.columns });
+    }
+
+    if (responsive) {
+      paintRosterDrawer({
+        canvas: c,
+        terminalColumns: ctx.dimensions.columns,
+        top: 3,
+        bottom: vp.topBorderRow - 1,
+        layout: responsive,
+        agents: ctx.snap.runtime?.agents ?? null,
+        tasks: ctx.snap.runtime?.tasks ?? null,
+      });
     }
 
     return { rows: [] };

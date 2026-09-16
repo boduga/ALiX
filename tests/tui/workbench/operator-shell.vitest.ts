@@ -78,6 +78,21 @@ describe('Agent Workbench operator shell', () => {
     expect(visible(canvas.renderFrame())).toContain('Esc cancel');
   });
 
+  it('keeps queued follow-ups visible beside cancellation', () => {
+    const snap = snapshot();
+    const running = { ...snap, session: { ...snap.session!, phase: SessionPhase.Executing } };
+    const canvas = new TerminalCanvas(100, 24);
+
+    paintOperatorShell({
+      canvas,
+      width: 100,
+      height: 24,
+      model: projectOperatorShell(running, createInitialPerTabState(), undefined, 2),
+    });
+
+    expect(visible(canvas.renderFrame())).toContain('Esc cancel · 2 queued');
+  });
+
   it('replaces legacy chrome only on the feature-gated agent surface', () => {
     const render = (workbenchEnabled: boolean): string => {
       const output = new MockOutput();

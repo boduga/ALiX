@@ -42,7 +42,7 @@ export interface ResolvedApproval {
   id: string;
   toolName: string;
   target: string;
-  status: 'approved' | 'denied' | 'expired';
+  status: 'approved' | 'denied' | 'edited' | 'expired' | 'revoked' | 'consumed' | 'invalidated';
   requestedAt: number;
   resolvedAt: number;
 }

@@ -147,3 +147,37 @@ test("manager preserves child-reported partial status on exit 0", async () => {
   });
   assert.equal(result.status, "partial");
 });
+
+test("manager emits partial once without rewriting it as completed state", async () => {
+  const emitted: Array<{ type: string; payload: Record<string, unknown> }> = [];
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `console.log(JSON.stringify({ id: "w", role: "worker", status: "partial", findings: [], events: [], error: "incomplete" }));`],
+    },
+  });
+
+  await manager.spawn(makeTask({ id: "w", role: "worker", mode: "write" }));
+  const terminal = emitted.filter((entry) => entry.type === "agent.completed" || entry.type === "agent.failed" || entry.type === "agent.cancelled");
+  assert.deepEqual(terminal.map((entry) => [entry.type, entry.payload.state]), [["agent.completed", "partial"]]);
+});
+
+test("manager shutdown emits cancellation without a later failed terminal", async () => {
+  const emitted: Array<{ type: string }> = [];
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
+    spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
+  });
+
+  const result = manager.spawn(makeTask({ id: "cancelled" }));
+  manager.shutdown();
+  await assert.rejects(result);
+  await new Promise((resolve) => setImmediate(resolve));
+  const terminal = emitted.filter((entry) => entry.type === "agent.completed" || entry.type === "agent.failed" || entry.type === "agent.cancelled");
+  assert.deepEqual(terminal.map((entry) => entry.type), ["agent.cancelled"]);
+});

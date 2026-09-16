@@ -15,6 +15,7 @@ export interface OperatorShellSnapshot {
   readonly tokensUsed: number;
   readonly filesTouched: number;
   readonly eventCount: number;
+  readonly queuedMessages: number;
   readonly approval?: OperatorShellApproval;
 }
 
@@ -27,6 +28,7 @@ export function projectOperatorShell(
   snap: DashboardSnapshot,
   agentState: PerTabState,
   liveMode?: 'auto' | 'ask' | 'bypass',
+  queuedMessages = 0,
 ): OperatorShellSnapshot {
   const pending = agentState.pendingApprovals ?? [];
   const oldest = pending[0];
@@ -47,6 +49,7 @@ export function projectOperatorShell(
     tokensUsed: snap.runtime?.metrics?.tokensUsed ?? 0,
     filesTouched: snap.session?.filesTouched ?? 0,
     eventCount: snap.runtime?.totalEventCount ?? 0,
+    queuedMessages,
     ...(approval ? { approval } : {}),
   };
 }

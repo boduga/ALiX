@@ -10,6 +10,11 @@ import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PaletteController } from './palette-controller.js';
 import { projectOperatorShell } from './workbench/model/operator-shell.js';
 import { paintOperatorShell } from './workbench/views/operator-shell.js';
+import { layoutComposer } from './workbench/views/composer-view.js';
+import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import { paintWorkbenchApprovalDialog } from './workbench/views/approval-dialog.js';
+import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
+import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
  *  reaches into the god class. */
@@ -27,12 +32,15 @@ export interface FramePainterDeps {
   planApprovalGate: TuiPlanApprovalGate;
   output: IOutput;
   palette: PaletteController;
+  workbenchState?: () => WorkbenchUiState;
 }
 
 /** Owns the full-frame render — active view, plan-approval card, palette
  *  overlay, header, tabs, status row, and cursor placement. Read-only over
  *  the state/views/runtimes supplied through deps. */
 export class FramePainter {
+  private previousWorkbenchFrame: string | null = null;
+
   constructor(private readonly deps: FramePainterDeps) {}
 
   /**
@@ -47,6 +55,7 @@ export class FramePainter {
       perTab: this.deps.state().views[tab]!,
       themeName: this.deps.opts.themeName,
       workbenchEnabled: this.deps.opts.workbenchEnabled,
+      workbenchUiState: this.deps.workbenchState?.(),
       runtime: { chat: this.deps.chatRuntime(), agent: this.deps.agentRuntime() },
     };
   }
@@ -123,6 +132,7 @@ export class FramePainter {
       canvas: viewCanvas,
       themeName: this.deps.opts.themeName,
       workbenchEnabled: this.deps.opts.workbenchEnabled,
+      workbenchUiState: this.deps.workbenchState?.(),
       // Phase 6 (D6/D9): the chat/agent sub-session runtime snapshots, sampled
       // from the runtime collectors. ChatView/AgentView read their own tab's
       // `runtime.<tab>.timeline` projection.
@@ -137,6 +147,11 @@ export class FramePainter {
     // scrollback area (the card sits inside the expanded 5-row footer
     // region — the card wins because it paints last).
     const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      const workbench = this.deps.workbenchState?.();
+      paintWorkbenchDiagnosticOverlay(rect, workbench?.overlayStack[workbench.overlayStack.length - 1], s.lastSnapshot.runtime?.diffs);
+      paintWorkbenchApprovalDialog(rect, s.lastSnapshot.approvals?.pending[0], s.lastSnapshot.approvals?.totalPending ?? 0);
+    }
     this.paintPlanApprovalCard(rect);
     this.deps.palette.paint(rect);
 
@@ -296,12 +311,24 @@ export class FramePainter {
         canvas: c,
         width: dims.columns,
         height: dims.rows,
-        model: projectOperatorShell(snap, s.views.agent, liveMode),
+        model: projectOperatorShell(
+          snap,
+          s.views.agent,
+          liveMode,
+          this.deps.workbenchState?.().queuedMessages.length ?? 0,
+        ),
       });
     }
 
-    // Write the complete frame — cursor home + canvas render.
-    this.deps.output.write('\x1b[H' + c.renderFrame());
+    const renderedFrame = c.renderFrame();
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      const patches = diffFrameRows(this.previousWorkbenchFrame, renderedFrame);
+      if (patches.length > 0) this.deps.output.write(renderFramePatches(patches));
+      this.previousWorkbenchFrame = renderedFrame;
+    } else {
+      this.previousWorkbenchFrame = null;
+      this.deps.output.write('\x1b[H' + renderedFrame);
+    }
 
     // Place the terminal cursor at the active tab's input prompt position.
     // Without this the cursor sits at the bottom of the screen (blinking
@@ -322,9 +349,16 @@ export class FramePainter {
       // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
       // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (13)
       // mirrors `PROMPT_COL` in AgentView.render.
-      const bufLen = s.views.agent.inputBuffer.length;
-      const vp = computeViewport(dims, 'agent');
-      this.deps.output.write(`\x1b[${vp.panelRow + 1};${vp.promptCol + bufLen + 1}H`);
+      if (this.deps.opts.workbenchEnabled) {
+        const composer = layoutComposer(s.views.agent.inputBuffer, dims.columns);
+        const vp = computeViewport(dims, 'agent', composer.rows.length);
+        const firstRow = vp.panelRow - composer.rows.length + 1;
+        this.deps.output.write(`\x1b[${firstRow + composer.cursorRow + 1};${3 + composer.cursorColumn + 1}H`);
+      } else {
+        const bufLen = s.views.agent.inputBuffer.length;
+        const vp = computeViewport(dims, 'agent');
+        this.deps.output.write(`\x1b[${vp.panelRow + 1};${vp.promptCol + bufLen + 1}H`);
+      }
     } else {
       // Non-input tabs (dashboard, daemon, approvals, runtime, sops,
       // policy): move cursor to a safe column (row 4, col 1) so it
