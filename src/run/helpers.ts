@@ -284,7 +284,8 @@ export async function promptUser(question: string): Promise<string> {
  */
 export async function saveDecisionsToMemory(
   sessionEvents: Awaited<ReturnType<import("../events/event-log.js").EventLog["readAll"]>>,
-  memoryStore: MemoryStore
+  memoryStore: MemoryStore,
+  opts?: { confirm?: boolean },
 ): Promise<void> {
   const decisions = extractDecisions(sessionEvents);
   if (decisions.length === 0) {
@@ -292,7 +293,15 @@ export async function saveDecisionsToMemory(
     return;
   }
 
-  const confirmedDecisions = await promptDecisionConfirmation(decisions);
+  // Automatic completion paths (`completeSession` per turn end) must never
+  // block on stdin: prompting fires after `session.ended` but before the
+  // summary prints and the process exits, so a TTY run hangs forever waiting
+  // for [y/n/q]. Only an explicit user action (REPL `save()`) may request
+  // interactive confirmation. The auto path matches the established
+  // non-interactive outcome (confidence 0.6, zero confirmations).
+  const confirmedDecisions = opts?.confirm === true
+    ? await promptDecisionConfirmation(decisions)
+    : decisions.map((d) => ({ ...d, confidence: 0.6 }));
   if (confirmedDecisions.length === 0) {
     console.log("[Memory] No decisions saved.");
     return;
