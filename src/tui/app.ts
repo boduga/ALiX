@@ -31,6 +31,7 @@ import { FramePainter } from './frame-painter.js';
 import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -1515,7 +1516,7 @@ function parseKey(buf: Buffer): string | null {
     if (buf[2] === 0x46) return 'End';
     if (buf[2] === 0x5a) return 'Shift+Tab';
   }
-  if (s.length === 1) return s;
+  if (s.length === 1 || isPrintableGrapheme(s)) return s;
   return null;
 }
 

@@ -46,8 +46,9 @@ export function routeWorkbenchInput(
     if (context.composerText.trim().length === 0) return { type: 'unhandled' };
     return context.turnActive ? { type: 'turn.queue' } : { type: 'turn.submit' };
   }
-  if (key.length === 1 && key.charCodeAt(0) >= 32) {
+  if (isPrintableGrapheme(key)) {
     return { type: 'composer.insert', text: key };
   }
   return { type: 'unhandled' };
 }
+import { isPrintableGrapheme } from '../render/terminal-text.js';

@@ -13,6 +13,18 @@ describe('WorkbenchStore', () => {
     expect(erased.composer).toEqual({ text: 'first\nsecon', cursor: 11 });
   });
 
+  it('backspaces one complete grapheme at a time', () => {
+    const initial = createInitialWorkbenchUiState();
+    const text = `A\u{1f469}\u200d\u{1f4bb}e\u0301`;
+    const typed = reduceWorkbenchUiState(initial, { type: 'composer.insert', text });
+    const withoutAccent = reduceWorkbenchUiState(typed, { type: 'composer.backspace' });
+    const withoutEmoji = reduceWorkbenchUiState(withoutAccent, { type: 'composer.backspace' });
+
+    expect(typed.composer).toEqual({ text, cursor: text.length });
+    expect(withoutAccent.composer).toEqual({ text: `A\u{1f469}\u200d\u{1f4bb}`, cursor: `A\u{1f469}\u200d\u{1f4bb}`.length });
+    expect(withoutEmoji.composer).toEqual({ text: 'A', cursor: 1 });
+  });
+
   it('queues messages FIFO and toggles one drawer at a time', () => {
     const store = new WorkbenchStore();
     store.dispatch({ type: 'queue.add', message: { id: 'q1', text: 'one', createdAt: 1 } });

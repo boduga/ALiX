@@ -1,5 +1,6 @@
 import type { WorkbenchUiAction } from '../model/ui-action.js';
 import { createInitialWorkbenchUiState, type WorkbenchUiState } from '../model/ui-state.js';
+import { graphemes } from '../render/terminal-text.js';
 
 export function reduceWorkbenchUiState(
   state: WorkbenchUiState,
@@ -19,11 +20,15 @@ export function reduceWorkbenchUiState(
     }
     case 'composer.backspace': {
       if (state.composer.cursor === 0) return state;
-      const before = state.composer.text.slice(0, state.composer.cursor - 1);
+      const beforeCursor = state.composer.text.slice(0, state.composer.cursor);
+      const previous = graphemes(beforeCursor).at(-1);
+      if (!previous) return state;
+      const nextCursor = state.composer.cursor - previous.length;
+      const before = state.composer.text.slice(0, nextCursor);
       const after = state.composer.text.slice(state.composer.cursor);
       return {
         ...state,
-        composer: { text: before + after, cursor: state.composer.cursor - 1 },
+        composer: { text: before + after, cursor: nextCursor },
       };
     }
     case 'composer.clear':
