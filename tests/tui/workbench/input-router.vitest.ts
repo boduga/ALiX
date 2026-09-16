@@ -29,6 +29,15 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('Shift+Enter', context())).toEqual({ type: 'composer.insert', text: '\n' });
   });
 
+  it.each([
+    ['ArrowLeft', 'left'],
+    ['ArrowRight', 'right'],
+    ['Home', 'start'],
+    ['End', 'end'],
+  ] as const)('routes %s to composer movement', (key, direction) => {
+    expect(routeWorkbenchInput(key, context())).toEqual({ type: 'composer.move', direction });
+  });
+
   it.each(['\u{1f469}\u200d\u{1f4bb}', `e\u0301`])('routes printable grapheme %s to the composer', (grapheme) => {
     expect(routeWorkbenchInput(grapheme, context())).toEqual({ type: 'composer.insert', text: grapheme });
   });

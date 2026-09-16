@@ -58,7 +58,7 @@ export class AgentView implements TuiView {
     const responsive = geometry?.layout ?? null;
     const surfaceDimensions = geometry?.dimensions ?? ctx.dimensions;
     const composer = ctx.workbenchEnabled
-      ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns)
+      ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns, 5, ctx.workbenchUiState?.composer.cursor)
       : null;
     const vp = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
     const STATUS_ROW = 4;              // status line + intent badge row

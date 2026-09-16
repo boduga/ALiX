@@ -31,6 +31,22 @@ export function reduceWorkbenchUiState(
         composer: { text: before + after, cursor: nextCursor },
       };
     }
+    case 'composer.move': {
+      const { text, cursor } = state.composer;
+      let nextCursor = cursor;
+      if (action.direction === 'start') nextCursor = 0;
+      else if (action.direction === 'end') nextCursor = text.length;
+      else if (action.direction === 'left') {
+        const previous = graphemes(text.slice(0, cursor)).at(-1);
+        if (previous) nextCursor -= previous.length;
+      } else {
+        const next = graphemes(text.slice(cursor))[0];
+        if (next) nextCursor += next.length;
+      }
+      return nextCursor === cursor
+        ? state
+        : { ...state, composer: { text, cursor: nextCursor } };
+    }
     case 'composer.clear':
       return { ...state, composer: { text: '', cursor: 0 } };
     case 'composer.replace':
