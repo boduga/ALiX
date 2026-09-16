@@ -180,6 +180,23 @@ describe('Workbench work surface integration', () => {
     expect(internal.getWorkbenchStateForTest().composer.cursor).toBe(0);
   });
 
+  it('inserts normalized bracketed paste at the Workbench cursor', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const emoji = `\u{1f469}\u200d\u{1f4bb}`;
+    internal.handleRaw(Buffer.from('A'));
+    internal.handleRaw(Buffer.from(emoji));
+    internal.handleRaw(Buffer.from('B'));
+    internal.handleRaw(Buffer.from('\x1b[D'));
+    internal.handleRaw(Buffer.from('\x1b[200~first\r\nsecond\x1b[201~'));
+
+    const pasted = 'first\nsecond';
+    expect(internal.getWorkbenchStateForTest().composer).toEqual({
+      text: `A${emoji}${pasted}B`,
+      cursor: `A${emoji}${pasted}`.length,
+    });
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe(`A${emoji}${pasted}B`);
+  });
+
   it('queues active-turn follow-ups and drains them FIFO after settlement', async () => {
     const first = deferred<any>();
     const processTurn = vi.fn()
