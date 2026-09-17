@@ -113,6 +113,8 @@ export type LoadConfigOptions = {
   credentialStore?: CredentialStore;
   /** Enable config trust evaluation (signature verification + anti-rollback). */
   trustEvaluation?: boolean | LoadConfigTrustOptions;
+  /** Suppress warning emission at presentation-owned composition roots (for example, the TUI). */
+  suppressWarnings?: boolean;
 };
 
 export type LoadConfigTrustOptions = {
@@ -146,6 +148,7 @@ export function projectConfigDir(cwd: string): string {
 }
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
+  const warn = options.suppressWarnings ? (_message: string): void => {} : (message: string): void => console.warn(message);
   const userConfigPath = join(homedir(), ".config", "alix", "config.json");
   const projectConfigDirResolved = projectConfigDir(cwd);
   const projectConfigPath = join(projectConfigDirResolved, "config.json");
@@ -180,7 +183,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
         const backend = await chooseBackend();
         credentialStore = await loadCredentialStoreWithKeychainFallback(
           backend,
-          (msg) => console.warn(`During config load: ${msg}`),
+          (msg) => warn(`During config load: ${msg}`),
         );
       } catch (err) {
         throw new Error(
@@ -253,6 +256,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   result.tracing = await resolveTracingCredentials(
     result.tracing,
     options.credentialStore,
+    warn,
   );
 
   // Streaming default/override lands on `models.default` (authoritative, §2.8.3)
@@ -295,7 +299,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   if (validation.issues.length > 0) {
     for (const issue of validation.issues) {
       const prefix = issue.level === "error" ? "ERROR" : "WARN";
-      console.warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
+      warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
     }
   }
 
@@ -338,7 +342,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     // Emit issues
     for (const issue of trustReport.issues) {
       const prefix = issue.severity === "error" ? "ERROR" : "WARN";
-      console.warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
+      warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
     }
 
     // Fail closed in production mode
@@ -395,10 +399,10 @@ async function resolveTracingCredentials(
       const backend = await chooseBackend();
       store = await loadCredentialStoreWithKeychainFallback(
         backend,
-        (msg) => console.warn(`During config load: ${msg}`),
+        (msg) => warn(`During config load: ${msg}`),
       );
     } catch (err) {
-      console.warn(
+      warn(
         `[Config WARN] tracing.langfuse: credential store unavailable; tracing ` +
         `credentials left unresolved (tracing will fail open). ` +
         `Details: ${err instanceof Error ? err.message : String(err)}`,
@@ -411,7 +415,7 @@ async function resolveTracingCredentials(
   for (const { key, ref } of refs) {
     const resolved = resolveCredential(ref, store);
     if (resolved === null) {
-      console.warn(
+      warn(
         `[Config WARN] tracing.langfuse.${key}: credential not found for ${ref}. ` +
         `Store it with: alix credential set langfuse ${key} <value>`,
       );
