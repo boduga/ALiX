@@ -98,6 +98,8 @@ describe("RuntimeGate", () => {
     });
     assert.equal(result.status, "blocked");
     assert.equal(result.policyDecision, "deny");
+    assert.equal(result.policyRuleId, "deny-search");
+    assert.notEqual(result.policyRuleId, "headless-read-allow");
   });
 
   it("returns needs_approval when policy asks and approvalStore exists", async () => {
