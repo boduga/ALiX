@@ -211,6 +211,30 @@ describe("PolicyGate", () => {
     }
   });
 
+  it("explicit web deny wins over headless read fallback", async () => {
+    const config = makeConfig({
+      permissions: {
+        tools: {
+          "web.search": "deny",
+          "web.fetch": "deny",
+        },
+      } as any,
+    });
+    const gate = new PolicyGate(config);
+
+    for (const capability of ["web.search", "web.fetch"]) {
+      const result = await gate.evaluateCapability({
+        requestId: `deny-${capability}`,
+        capability,
+        sessionMode: "ask",
+        source: "graph",
+      });
+
+      assert.equal(result.decision, "deny");
+      assert.notEqual(result.matchedRuleId, "headless-read-allow");
+    }
+  });
+
   it("creates approval when approval store provided and decision is ask", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-ask-"));
     try {
