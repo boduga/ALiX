@@ -37,7 +37,7 @@ function toolMarker(tool: ToolItem): string {
 }
 
 function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
-  if (pendingApprovalTool === tool.name) return `→ ${tool.name} · approval required`;
+  if (pendingApprovalTool === tool.name && tool.status === 'running') return `→ ${tool.name} · approval required`;
   const duration = tool.durationMs === undefined ? '' : ` · ${tool.durationMs}ms`;
   return `${toolMarker(tool)} ${tool.name}${duration}`;
 }
