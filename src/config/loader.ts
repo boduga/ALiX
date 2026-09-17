@@ -380,7 +380,6 @@ async function readJson(path: string): Promise<PartialConfig> {
 async function resolveTracingCredentials(
   tracing: AlixConfig["tracing"],
   credentialStoreOption: CredentialStore | undefined,
-  warn: (message: string) => void = (message) => console.warn(message),
 ): Promise<AlixConfig["tracing"]> {
   if (!tracing || tracing.enabled !== true) return tracing;
 
@@ -400,10 +399,10 @@ async function resolveTracingCredentials(
       const backend = await chooseBackend();
       store = await loadCredentialStoreWithKeychainFallback(
         backend,
-        (msg) => warn(`During config load: ${msg}`),
+        (msg) => console.warn(`During config load: ${msg}`),
       );
     } catch (err) {
-      warn(
+      console.warn(
         `[Config WARN] tracing.langfuse: credential store unavailable; tracing ` +
         `credentials left unresolved (tracing will fail open). ` +
         `Details: ${err instanceof Error ? err.message : String(err)}`,
@@ -416,7 +415,7 @@ async function resolveTracingCredentials(
   for (const { key, ref } of refs) {
     const resolved = resolveCredential(ref, store);
     if (resolved === null) {
-      warn(
+      console.warn(
         `[Config WARN] tracing.langfuse.${key}: credential not found for ${ref}. ` +
         `Store it with: alix credential set langfuse ${key} <value>`,
       );
