@@ -28,6 +28,8 @@
 - Workbench `Enter` submits while idle and queues a follow-up while a foreground turn is active; queued messages drain FIFO only after the prior turn settles. `Shift+Enter` inserts a newline. First-press `Ctrl+C` cancels active foreground work before the legacy exit path may run.
 - Agent lifecycle state, model identity, ownership, and task assignment come from canonical `agent.*` events. Legacy `subagent.*` events remain projection-compatible during migration.
 - Workbench approval cards remain visible until the approval projection observes an authoritative terminal event; never remove or label them from key intent alone.
+- On the agent surface, an authoritative approval card replaces its semantic `approval.requested` row in the response stream and remains there until projection observes resolution. Non-agent tabs may use the shared dialog overlay. Compact transcript and footer rendering summarize the operation without repeating its raw target; the card owns the bounded target preview, while detailed mode remains the route to fuller diagnostics.
+- Workbench conversation rows identify operator and assistant prose explicitly as `YOU` and `ALiX`. While approval is pending, its elapsed wait replaces generic running liveness in the top status line and is repeated in the authoritative card for decision context.
 - A temporarily unavailable approval snapshot preserves the last authoritative pending cards. While a decision is awaiting projection confirmation, duplicate decisions for that approval are suppressed.
 - Below 120 columns, agent and task drawers overlay the work surface. From 120 columns they render beside it; at 160 columns and above the agent roster is persistent by default.
 - Workbench transcript wrapping, composer rows, scroll anchors, and terminal cursor placement derive from the same responsive surface geometry.
@@ -39,6 +41,7 @@
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
 - Keep the custom ANSI canvas; do not introduce a second terminal UI framework without a separately approved architecture change.
+- While the TUI owns stdin in raw mode, runtime cleanup, persistence, and model-stream helpers must not write directly to stdout/stderr or open readline prompts; surface output through projections/token callbacks and keep routine no-op outcomes silent. The TUI composition root sets `loadConfig(..., { suppressWarnings: true })`, `AgentSessionConfig.suppressConfigWarnings`, and `verbose: false`; both direct-route and task-loop calls must pass that ownership into `streamToResponse(writeToStdout: false)`.
 
 ## Work Guidance
 

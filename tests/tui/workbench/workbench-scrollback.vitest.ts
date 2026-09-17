@@ -48,13 +48,17 @@ function runtime(trace: readonly ExecutionTraceEntry[]): RuntimeSnapshot {
   };
 }
 
-function context(mode: 'compact' | 'detailed', timeline: readonly TimelineEntry[] = fixture.timeline): ViewRenderContext {
+function context(
+  mode: 'compact' | 'detailed',
+  timeline: readonly TimelineEntry[] = fixture.timeline,
+  trace: readonly ExecutionTraceEntry[] = fixture.trace,
+): ViewRenderContext {
   const snap: DashboardSnapshot = {
     generatedAt: 1,
     session: { mode: 'ask', phase: SessionPhase.Idle, version: 'test', startedAt: 1, turns: 2 },
     daemon: null,
     approvals: null,
-    runtime: runtime(fixture.trace),
+    runtime: runtime(trace),
     sops: null,
     policy: null,
     cwd: '/workspace/test',
@@ -84,6 +88,8 @@ describe('Workbench scrollback', () => {
     expect(text).not.toContain('context assembled');
     expect(text).not.toContain('context snapshot created');
     expect(text).not.toContain('done');
+    expect(lines.some((line) => line.kind === 'user' && line.gutter === 'YOU')).toBe(true);
+    expect(lines.some((line) => line.kind === 'agent' && line.gutter === 'ALiX')).toBe(true);
   });
 
   it('reveals diagnostic plumbing in detailed mode', () => {
@@ -127,5 +133,71 @@ describe('Workbench scrollback', () => {
     expect(text).toContain('[x] 1. Inspect');
     expect(text).toContain('[ ] 2. Edit');
     expect(text.indexOf('Plan accepted.')).toBeLessThan(text.indexOf('Finished.'));
+  });
+
+  it('lets the authoritative approval card own compact pending state', () => {
+    const timeline: TimelineEntry[] = [{
+      id: 'approval-event', kind: 'approval.requested', actor: 'system', sessionId: 's',
+      startedAt: 2, text: 'Approval required: run the full raw shell command',
+      sourceEvents: { firstSequence: 2 },
+    }];
+    const trace: ExecutionTraceEntry[] = [{
+      id: 'tool-1', kind: 'tool', status: 'running', title: 'tool.shell.run',
+      startedAt: 1,
+      sourceEvents: { firstSequence: 1, lastSequence: 1 },
+    }];
+    const renderContext = context('compact', timeline, trace);
+    (renderContext.perTab as PerTabState).pendingApprovals = [{
+      id: 'approval-1', toolName: 'shell.run', target: 'for b in llama-cli; do command -v "$b"; done', requestedAt: 2,
+    }];
+
+    const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+
+    expect(text).toContain('shell.run · approval required');
+    expect(text).toContain('APPROVAL REQUIRED · shell.run');
+    expect(text).toContain('for b in llama-cli; do command -v "$b"; done');
+    expect(text).toContain('pending');
+    expect(text).toContain('id approval-1');
+    expect(text).toContain('a approve · d deny');
+    expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
+    expect(text.indexOf('shell.run · approval required')).toBeLessThan(text.indexOf('APPROVAL REQUIRED · shell.run'));
+    expect(text).not.toContain('✓ shell.run');
+    expect(text).not.toContain('full raw shell command');
+    expect(buildWorkbenchScrollbackLines(renderContext, 90).some((line) => (
+      line.kind === 'approvalCard' && line.gutter === 'APPROVAL'
+    ))).toBe(true);
+  });
+
+  it('does not relabel completed tools when a newer approval uses the same tool name', () => {
+    const trace: ExecutionTraceEntry[] = [{
+      id: 'tool-old', kind: 'tool', status: 'completed', title: 'tool.shell.run',
+      startedAt: 1, completedAt: 2, durationMs: 1,
+      sourceEvents: { firstSequence: 1, lastSequence: 2 },
+    }];
+    const renderContext = context('compact', [], trace);
+    (renderContext.perTab as PerTabState).pendingApprovals = [{
+      id: 'approval-new', toolName: 'shell.run', target: 'docker info', requestedAt: 3,
+    }];
+
+    const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+
+    expect(text).toContain('✓ shell.run · 1ms');
+    expect(text.match(/shell\.run · approval required/gu)).toBeNull();
+    expect(text).toContain('APPROVAL REQUIRED · shell.run');
+  });
+
+  it('falls back to one inline card while the semantic approval event catches up', () => {
+    const renderContext = context('compact', [], []);
+    (renderContext.perTab as PerTabState).pendingApprovals = [{
+      id: 'approval-lag', toolName: 'file.write', target: 'src/tui/app.ts', requestedAt: 2,
+    }];
+
+    const lines = buildWorkbenchScrollbackLines(renderContext, 64);
+    const text = lines.map((line) => line.text).join('\n');
+
+    expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
+    expect(text).toContain('file.write');
+    expect(text).toContain('src/tui/app.ts');
+    expect(lines.filter((line) => line.kind === 'approvalCard')).toHaveLength(6);
   });
 });

@@ -113,6 +113,8 @@ export type LoadConfigOptions = {
   credentialStore?: CredentialStore;
   /** Enable config trust evaluation (signature verification + anti-rollback). */
   trustEvaluation?: boolean | LoadConfigTrustOptions;
+  /** Suppress warning emission at presentation-owned composition roots (for example, the TUI). */
+  suppressWarnings?: boolean;
 };
 
 export type LoadConfigTrustOptions = {
@@ -146,6 +148,7 @@ export function projectConfigDir(cwd: string): string {
 }
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
+  const warn = options.suppressWarnings ? (_message: string): void => {} : (message: string): void => console.warn(message);
   const userConfigPath = join(homedir(), ".config", "alix", "config.json");
   const projectConfigDirResolved = projectConfigDir(cwd);
   const projectConfigPath = join(projectConfigDirResolved, "config.json");
@@ -180,7 +183,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
         const backend = await chooseBackend();
         credentialStore = await loadCredentialStoreWithKeychainFallback(
           backend,
-          (msg) => console.warn(`During config load: ${msg}`),
+          (msg) => warn(`During config load: ${msg}`),
         );
       } catch (err) {
         throw new Error(
@@ -295,7 +298,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   if (validation.issues.length > 0) {
     for (const issue of validation.issues) {
       const prefix = issue.level === "error" ? "ERROR" : "WARN";
-      console.warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
+      warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
     }
   }
 
@@ -338,7 +341,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     // Emit issues
     for (const issue of trustReport.issues) {
       const prefix = issue.severity === "error" ? "ERROR" : "WARN";
-      console.warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
+      warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
     }
 
     // Fail closed in production mode

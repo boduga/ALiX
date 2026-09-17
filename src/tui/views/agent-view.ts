@@ -10,18 +10,7 @@ import { SessionPhase } from '../../agent/session.js';
 import { layoutComposer } from '../workbench/views/composer-view.js';
 import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
-
-/** Coarse human-friendly elapsed time — "42s", "2m 01s", "1h 05m". */
-function formatElapsed(ms: number): string {
-  if (ms < 1_000) return '0s';
-  const totalSeconds = Math.floor(ms / 1_000);
-  if (totalSeconds < 60) return `${totalSeconds}s`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
-}
+import { formatActivityElapsed } from '../../agent/agent-activity.js';
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -88,9 +77,13 @@ export class AgentView implements TuiView {
     // escalating to a warning when the run appears stalled. Never a kill.
     const ses = ctx.snap.session;
     const liveness = ses?.liveness;
-    if (liveness && ses?.phase !== SessionPhase.Idle) {
+    const pendingApproval = ctx.perTab.pendingApprovals?.[0];
+    if (pendingApproval) {
+      const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
+      c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
+    } else if (liveness && ses?.phase !== SessionPhase.Idle) {
       const idle = Date.now() - liveness.lastProgressAt;
-      let lifeLine = `\x1b[36mRUNNING ${formatElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatElapsed(idle)} ago`;
+      let lifeLine = `\x1b[36mRUNNING ${formatActivityElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatActivityElapsed(idle)} ago`;
       if (liveness.state !== 'healthy') {
         const kind = liveness.lastProgressKind ?? 'no activity';
         const desc = liveness.lastProgressDescription ?? '';
@@ -120,6 +113,7 @@ export class AgentView implements TuiView {
     const kindStyles: KindStyleMap = {
       plan:     (l, rowY) => this.renderPlanLine(l, rowY, c, gutter),
       approval: (l, rowY) => this.renderApprovalLine(l, rowY, c, gutter),
+      approvalCard: (l, rowY) => this.renderApprovalLine(l, rowY, c, gutter),
       toolCall: (l, rowY) => this.renderToolCallLine(l, rowY, c, gutter),
       user:     (l, rowY) => this.renderTurnLine('user', l, rowY, c, gutter),
       agent:    (l, rowY) => this.renderTurnLine('agent', l, rowY, c, gutter),

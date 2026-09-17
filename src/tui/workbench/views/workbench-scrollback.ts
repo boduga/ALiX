@@ -6,6 +6,7 @@ import { getTheme } from '../../blocks/theme.js';
 import type { ViewRenderContext } from '../../views/types.js';
 import { ConversationProjection } from '../projections/conversation-projection.js';
 import type { ToolItem, TranscriptMode } from '../model/transcript-item.js';
+import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
 
 function appendRendered(
   out: ScrollbackLine[],
@@ -17,7 +18,12 @@ function appendRendered(
   const theme = themeName ? getTheme(themeName) : undefined;
   const rows = renderResponse(text, width, theme);
   rows.forEach((row: any, index: number) => {
-    out.push({ kind, text: row.text, isFirst: index === 0 });
+    out.push({
+      kind,
+      text: row.text,
+      isFirst: index === 0,
+      ...(index === 0 ? { gutter: kind === 'user' ? 'YOU' : 'ALiX' } : {}),
+    });
   });
 }
 
@@ -30,7 +36,8 @@ function toolMarker(tool: ToolItem): string {
   }
 }
 
-function toolSummary(tool: ToolItem): string {
+function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
+  if (pendingApprovalTool === tool.name && tool.status === 'running') return `→ ${tool.name} · approval required`;
   const duration = tool.durationMs === undefined ? '' : ` · ${tool.durationMs}ms`;
   return `${toolMarker(tool)} ${tool.name}${duration}`;
 }
@@ -48,6 +55,10 @@ export function buildWorkbenchScrollbackLines(
 ): ScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const mode: TranscriptMode = ctx.perTab.transcriptMode ?? 'compact';
+  const pendingApprovals = ctx.perTab.pendingApprovals ?? [];
+  const pendingApproval = pendingApprovals[0];
+  const pendingApprovalTool = pendingApproval?.toolName;
+  let inlineApprovalRendered = false;
   const conversation = new ConversationProjection().project({
     timeline: ctx.runtime?.agent?.timeline ?? [],
     trace: ctx.snap.runtime?.trace ?? [],
@@ -66,7 +77,7 @@ export function buildWorkbenchScrollbackLines(
         break;
       case 'tool-group':
         for (const tool of item.tools) {
-          const lines = wrapText(toolSummary(tool), textWidth);
+          const lines = wrapText(toolSummary(tool, pendingApprovalTool), textWidth);
           lines.forEach((text, index) => out.push({ kind: 'toolCall', text, isFirst: index === 0 }));
           if ((mode === 'detailed' || tool.status === 'failed') && tool.detail) {
             wrapText(`  ${tool.detail}`, textWidth).forEach((text) => {
@@ -76,6 +87,25 @@ export function buildWorkbenchScrollbackLines(
         }
         break;
       case 'approval':
+        // Replace the semantic request row with the authoritative pending
+        // record at the same transcript position. Resolution is projection-
+        // driven, so key intent alone never removes this card.
+        if (pendingApproval && !inlineApprovalRendered) {
+          buildWorkbenchApprovalCardLines(
+            pendingApproval,
+            pendingApprovals.length,
+            textWidth,
+          ).forEach((text, index) => {
+            out.push({
+              kind: 'approvalCard',
+              text,
+              isFirst: index === 0,
+              ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
+            });
+          });
+          inlineApprovalRendered = true;
+          break;
+        }
         wrapText(`⏸ ${item.text}`, textWidth).forEach((text, index) => {
           out.push({ kind: 'approval', text, isFirst: index === 0 });
         });
@@ -104,6 +134,25 @@ export function buildWorkbenchScrollbackLines(
     }
   }
 
+  // Runtime projection and timeline sampling can arrive in adjacent frames.
+  // Preserve the authoritative pending action even before its semantic event
+  // becomes visible; once present, the branch above places it in exact order.
+  if (pendingApproval && !inlineApprovalRendered) {
+    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    buildWorkbenchApprovalCardLines(
+      pendingApproval,
+      pendingApprovals.length,
+      textWidth,
+    ).forEach((text, index) => {
+      out.push({
+        kind: 'approvalCard',
+        text,
+        isFirst: index === 0,
+        ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
+      });
+    });
+  }
+
   const streaming = ctx.perTab.streamingText;
   if (streaming) {
     if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
@@ -113,6 +162,7 @@ export function buildWorkbenchScrollbackLines(
       text,
       isFirst: index === 0,
       isLast: index === lines.length - 1,
+      ...(index === 0 ? { gutter: 'ALiX' } : {}),
     }));
   } else {
     const activity = ctx.snap.session?.activity;
@@ -120,7 +170,7 @@ export function buildWorkbenchScrollbackLines(
     if (activityText) {
       if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
       wrapText(activityText, textWidth).forEach((text, index) => {
-        out.push({ kind: 'activity', text, isFirst: index === 0 });
+        out.push({ kind: 'activity', text, isFirst: index === 0, ...(index === 0 ? { gutter: 'ALiX' } : {}) });
       });
     }
   }

@@ -57,7 +57,7 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   }
   if (model.approval) {
     const prefix = model.approval.count > 1 ? `${model.approval.count} approvals` : '1 approval';
-    operator = `⏸ ${prefix} · a/d ${model.approval.label}`;
+    operator = `⏸ ${prefix} · ${model.approval.toolName} · a approve · d deny`;
   }
   const canShareFooter = operator.length + counters.length + 4 <= width;
   const operatorBudget = Math.max(0, canShareFooter ? counterStart - 3 : width - 2);

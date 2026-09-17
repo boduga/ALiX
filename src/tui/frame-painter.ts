@@ -151,7 +151,14 @@ export class FramePainter {
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const workbench = this.deps.workbenchState?.();
       paintWorkbenchDiagnosticOverlay(rect, workbench?.overlayStack[workbench.overlayStack.length - 1], s.lastSnapshot.runtime?.diffs);
-      paintWorkbenchApprovalDialog(rect, s.lastSnapshot.approvals?.pending[0], s.lastSnapshot.approvals?.totalPending ?? 0);
+    }
+    if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
+      paintWorkbenchApprovalDialog(
+        rect,
+        s.lastSnapshot.approvals?.pending[0],
+        s.lastSnapshot.approvals?.totalPending ?? 0,
+        s.lastSnapshot.generatedAt,
+      );
     }
     this.paintPlanApprovalCard(rect);
     this.deps.palette.paint(rect);

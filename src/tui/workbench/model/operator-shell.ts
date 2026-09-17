@@ -4,7 +4,7 @@ import { SessionPhase } from '../../../agent/session.js';
 
 export interface OperatorShellApproval {
   readonly count: number;
-  readonly label: string;
+  readonly toolName: string;
 }
 
 export interface OperatorShellSnapshot {
@@ -35,9 +35,7 @@ export function projectOperatorShell(
   const approval = oldest
     ? {
         count: pending.length,
-        label: oldest.toolName && oldest.target
-          ? `${oldest.toolName} ${oldest.target}`
-          : oldest.toolName || oldest.target || oldest.id,
+        toolName: oldest.toolName || 'operation',
       }
     : undefined;
 

@@ -42,6 +42,8 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   (`AgentSessionBuilder`, `SessionPhase`, the `setup*` helpers, etc.) stay
   re-exported through `../session.ts`.
 - Relative imports: `../../` → `src/`, `../` → `src/agent/`.
+- `AgentSessionConfig.suppressConfigWarnings` is a composition-root presentation policy. It passes through `initialize`/`setupSession` to `initAgent` and defaults off; the TUI enables it because the frame painter owns terminal output.
+- `AgentSessionConfig.verbose` owns raw stdout for both tool results and model streaming. The direct route and full task loop pass it to `streamToResponse.writeToStdout`; TUI `verbose: false` must still forward tokens through `events.onToken` without writing raw terminal bytes.
 - Source-scan sentinels: `tests/agent/session-skills.test.ts` reads
   `agent/session/chat.ts`; `tests/tracing/langfuse-boundary.vitest.ts` reads
   `agent/session/state.ts`.

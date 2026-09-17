@@ -53,6 +53,8 @@ export type InitAgentOpts = {
   };
   sessionMode?: "auto" | "ask" | "bypass";
   approvalStore?: ApprovalStore;
+  /** Suppress config warnings when a presentation layer owns the terminal. */
+  suppressConfigWarnings?: boolean;
 };
 
 export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<AgentContext> {
@@ -73,7 +75,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     await log.init();
   }
 
-  const config = await loadConfig(cwd);
+  const config = await loadConfig(cwd, { suppressWarnings: opts.suppressConfigWarnings });
   // CLI flag overrides config for session mode
   if (opts.sessionMode) {
     config.permissions.sessionMode = opts.sessionMode;

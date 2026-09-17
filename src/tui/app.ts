@@ -402,43 +402,46 @@ export class TuiApp {
     if (!snap.approvals) return;
     const pending = snap.approvals.pending;
     const pendingIds = new Set(pending.map((p) => p.id));
+    const resolvedById = new Map(snap.approvals.recentlyResolved.map((approval) => [approval.id, approval]));
     for (const approvalId of this.pendingApprovalDecisions) {
-      if (!pendingIds.has(approvalId)) this.pendingApprovalDecisions.delete(approvalId);
+      if (resolvedById.has(approvalId)) this.pendingApprovalDecisions.delete(approvalId);
     }
     for (const t of this.SYNC_TABS) {
       const perTab = this.state.views[t];
       if (!perTab) continue;
-      // Detect approvals that have disappeared from the pending list since
-      // the last snapshot. These are "resolved" (approved/denied/expired)
-      // by the approval store; move them to the historical log with their
-      // current tool/target so the approvals tab can show the full history.
+      // A request disappearing from one pending sample is not sufficient
+      // evidence that it resolved. Keep it visible (and keep a/d routed to
+      // approval handling) until the authoritative resolved projection names
+      // the same id.
       const missing = perTab.pendingApprovals.filter((a) => !pendingIds.has(a.id));
-      if (missing.length > 0) {
-        for (const a of missing) {
-          const authoritative = snap.approvals?.recentlyResolved.find((resolved) => resolved.id === a.id);
-          if (!authoritative?.status) continue;
-          if (perTab.resolvedApprovals.some((resolved) => resolved.id === a.id && resolved.status === authoritative.status)) continue;
-          perTab.resolvedApprovals.unshift({
-            id: a.id,
-            toolName: a.toolName,
-            target: a.target,
-            status: authoritative.status,
-            requestedAt: a.requestedAt,
-            resolvedAt: authoritative.resolvedAt ?? snap.generatedAt,
-          });
-          // Cap the log at 200 entries to avoid unbounded growth.
-          if (perTab.resolvedApprovals.length > 200) {
-            perTab.resolvedApprovals.length = 200;
-          }
+      const unresolvedMissing = missing.filter((a) => !resolvedById.has(a.id));
+      for (const a of missing) {
+        const authoritative = resolvedById.get(a.id);
+        if (!authoritative?.status) continue;
+        if (perTab.resolvedApprovals.some((resolved) => resolved.id === a.id && resolved.status === authoritative.status)) continue;
+        perTab.resolvedApprovals.unshift({
+          id: a.id,
+          toolName: a.toolName,
+          target: a.target,
+          status: authoritative.status,
+          requestedAt: a.requestedAt,
+          resolvedAt: authoritative.resolvedAt ?? snap.generatedAt,
+        });
+        // Cap the log at 200 entries to avoid unbounded growth.
+        if (perTab.resolvedApprovals.length > 200) {
+          perTab.resolvedApprovals.length = 200;
         }
       }
-      // Update pendingApprovals to match the snapshot exactly.
-      perTab.pendingApprovals = pending.map((p) => ({
+      const sampledPending = pending.map((p) => ({
         id: p.id,
         toolName: p.toolName,
         target: p.target,
         requestedAt: p.requestedAt,
       }));
+      perTab.pendingApprovals = [
+        ...sampledPending,
+        ...unresolvedMissing.filter((approval) => !pendingIds.has(approval.id)),
+      ];
     }
     // Sync progress ledger from snapshot to every tab's perTab state
     if (snap.progressLedger) {

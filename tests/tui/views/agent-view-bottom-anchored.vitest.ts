@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AgentView } from '../../../src/tui/views/agent-view.js';
 import { GUTTER_WIDTH } from '../../../src/tui/views/scroll-math.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
@@ -149,5 +149,50 @@ describe('AgentView bottom-anchored render', () => {
     const writes = (c.canvas as unknown as MockCanvas).writes;
     const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
     expect(scrollbackWrites.some((w) => w.text.includes('▍'))).toBe(false);
+  });
+
+  it('replaces running liveness with approval-aware elapsed status', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(60_000);
+    const base = ctx({ rows: 30 });
+    (base.perTab as ReturnType<typeof createInitialPerTabState>).pendingApprovals = [{
+      id: 'approval-1', toolName: 'shell.run', target: 'docker --version', requestedAt: 7_000,
+    }];
+    const c: ViewRenderContext = {
+      ...base,
+      workbenchEnabled: true,
+      snap: {
+        session: {
+          phase: 'Executing',
+          liveness: { startedAt: 0, lastProgressAt: 59_000, state: 'healthy' },
+        },
+        runtime: null,
+      } as never,
+    };
+
+    view.render(c);
+
+    const status = (c.canvas as unknown as MockCanvas).writes.filter((write) => write.y === 3).map((write) => write.text).join(' ');
+    expect(status).toContain('WAITING FOR APPROVAL · 53s');
+    expect(status).not.toContain('RUNNING');
+    vi.restoreAllMocks();
+  });
+
+  it('renders explicit YOU and ALiX identities in Workbench conversation rows', () => {
+    const timeline = [
+      { id: 'u', kind: 'agent.message', actor: 'user', sessionId: 's', startedAt: 1, text: 'Hello', sourceEvents: { firstSequence: 1 } },
+      { id: 'a', kind: 'agent.response', actor: 'agent', sessionId: 's', startedAt: 2, text: 'Hi', sourceEvents: { firstSequence: 2 } },
+    ];
+    const base = ctx({ rows: 30, timeline });
+    const c: ViewRenderContext = {
+      ...base,
+      workbenchEnabled: true,
+      snap: { session: null, runtime: { trace: [], totalEventCount: 2 } } as never,
+    };
+
+    view.render(c);
+
+    const labels = (c.canvas as unknown as MockCanvas).writes.filter((write) => write.x === 0).map((write) => write.text);
+    expect(labels.some((label) => label.includes('YOU'))).toBe(true);
+    expect(labels.some((label) => label.includes('ALiX'))).toBe(true);
   });
 });

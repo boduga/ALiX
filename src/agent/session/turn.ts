@@ -240,6 +240,7 @@ export async function processTurnBody(
           maxOutputTokens: genMaxOutputTokens,
           context: turnContext,
         }, {
+          writeToStdout: state.config.verbose ?? true,
           onStream: (chunk) => {
             if (chunk.type === "text" && typeof chunk.text === "string") {
               state.config.events?.onToken?.(chunk.text);

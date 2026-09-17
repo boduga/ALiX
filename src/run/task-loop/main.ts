@@ -514,7 +514,9 @@ const runModelTurn = async (
       tools: wireTools,
       maxOutputTokens: contextBudget.requestedMaxOutputTokens,
       context: deps.context,
-    }, deps.cancelSignal ? { onStream, signal: deps.cancelSignal } : { onStream });
+    }, deps.cancelSignal
+      ? { onStream, signal: deps.cancelSignal, writeToStdout: deps.verbose ?? true }
+      : { onStream, writeToStdout: deps.verbose ?? true });
     segment = {
       text: result.text,
       reasoning: result.reasoning ?? "",

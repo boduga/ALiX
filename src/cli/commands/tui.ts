@@ -74,7 +74,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // configured (e.g. CI, fresh install); fall back to defaults.
   let config: Record<string, any>;
   try {
-    config = await loadConfig(cwd);
+    config = await loadConfig(cwd, { suppressWarnings: true });
   } catch {
     config = { permissions: { sessionMode: 'auto' } };
   }
@@ -340,6 +340,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         sessionId,
         sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
         verbose: false,                            // suppress tool stdout from agent loop
+        suppressConfigWarnings: true,               // frame painter owns terminal output
         approvalStore,
         planApprovalMode: "deferred",              // TUI handles plan display/approval
         traceClient: tuiTraceClient,
