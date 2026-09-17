@@ -1,4 +1,4 @@
-import { getSavedApiKey } from "../cli/helpers/api-keys.js";
+import { getSavedApiKey, getSearchConfig } from "../cli/helpers/api-keys.js";
 
 export type WebSearchArgs = {
   query: string;
@@ -26,37 +26,76 @@ export function webSearchTool() {
       required: ["query"],
     },
     async execute(args: WebSearchArgs): Promise<WebSearchResult> {
-      const apiKey = await getSavedApiKey("brave");
-      if (!apiKey) {
-        return { ok: false, error: "Brave API key not configured. Store it with: alix credential set brave apiKey <value> (get a free key at https://api.search.brave.com/app/dashboard)" };
-      }
-
       const count = Math.min(Math.max(args.count ?? 5, 1), 10);
-      const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(args.query)}&count=${count}`;
-
-      try {
-        const res = await fetch(url, {
-          headers: {
-            "X-Subscription-Token": apiKey,
-            "Accept": "application/json",
-          },
-        });
-
-        if (!res.ok) {
-          return { ok: false, error: `Brave API error ${res.status}: ${await res.text().catch(() => "unknown")}` };
-        }
-
-        const data = await res.json() as any;
-        const results = (data.web?.results ?? []).map((r: any) => ({
-          title: r.title,
-          url: r.url,
-          snippet: r.description,
-        }));
-
-        return { ok: true, data: { results } };
-      } catch (e: any) {
-        return { ok: false, error: `Network error: ${e.message}` };
+      const searchConfig = await getSearchConfig();
+      if (searchConfig.provider === "searxng") {
+        return searchSearxng(args.query, count, searchConfig.searxngBaseUrl);
       }
+      return searchBrave(args.query, count);
     },
   };
+}
+
+async function searchBrave(query: string, count: number): Promise<WebSearchResult> {
+  const apiKey = await getSavedApiKey("brave");
+  if (!apiKey) {
+    return { ok: false, error: "Brave API key not configured. Store it with: alix credential set brave apiKey <value> (get a free key at https://api.search.brave.com/app/dashboard)" };
+  }
+
+  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${count}`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "X-Subscription-Token": apiKey,
+        "Accept": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      return { ok: false, error: `Brave API error ${res.status}: ${await res.text().catch(() => "unknown")}` };
+    }
+
+    const data = await res.json() as any;
+    const results = (data.web?.results ?? []).map((r: any) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.description,
+    }));
+
+    return { ok: true, data: { results } };
+  } catch (e: any) {
+    return { ok: false, error: `Network error: ${e.message}` };
+  }
+}
+
+/**
+ * Self-hosted SearXNG backend (JSON API: GET {base}/search?q=..&format=json).
+ * Needs `format: [html, json]` enabled in the instance's settings.yml.
+ * Uses plain fetch (no SSRF domain guard) so LAN/private instances work.
+ */
+async function searchSearxng(query: string, count: number, baseUrl: string | undefined): Promise<WebSearchResult> {
+  if (!baseUrl) {
+    return { ok: false, error: 'SearXNG base URL not configured. Add "search": { "provider": "searxng", "searxngBaseUrl": "http://<host>:<port>" } to ~/.config/alix/config.json' };
+  }
+
+  const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      const hint = res.status === 403
+        ? " (enable `format: [html, json]` under `search.formats` in the instance settings.yml, then restart)"
+        : "";
+      return { ok: false, error: `SearXNG error ${res.status}: ${await res.text().catch(() => "unknown")}${hint}` };
+    }
+    const data = await res.json() as any;
+    const results = (Array.isArray(data.results) ? data.results : []).slice(0, count).map((r: any) => ({
+      title: String(r.title ?? ""),
+      url: String(r.url ?? ""),
+      snippet: String(r.content ?? ""),
+    }));
+    return { ok: true, data: { results } };
+  } catch (e: any) {
+    return { ok: false, error: `Network error: ${e.message}` };
+  }
 }
