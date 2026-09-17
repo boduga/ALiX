@@ -336,7 +336,7 @@ export type StreamToResponseResult = {
 
 /**
  * Stream a request to the provider and collect the response.
- * Handles stdout writing and stream callbacks.
+ * Handles optional stdout writing and stream callbacks.
  *
  * When `options.signal` is present (operator cancellation, Task 6.1), each
  * chunk wait races the abort signal so a cancel releases the run the instant
@@ -348,7 +348,7 @@ export type StreamToResponseResult = {
 export async function streamToResponse(
   provider: ModelAdapter,
   request: NormalizedRequest,
-  options?: { onStream?: StreamHandler; signal?: AbortSignal }
+  options?: { onStream?: StreamHandler; signal?: AbortSignal; writeToStdout?: boolean }
 ): Promise<StreamToResponseResult> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   const signal = options?.signal;
@@ -367,8 +367,10 @@ export async function streamToResponse(
   const accumulate = async (chunk: StreamChunk): Promise<void> => {
     if (chunk.type === "text_delta") {
       text += chunk.text;
-      if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-        await new Promise(resolve => process.stdout.once("drain", resolve));
+      if (options?.writeToStdout !== false) {
+        if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+          await new Promise(resolve => process.stdout.once("drain", resolve));
+        }
       }
       options?.onStream?.({ type: "text", text: chunk.text });
     }
