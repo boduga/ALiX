@@ -281,10 +281,9 @@ export async function promptUser(question: string): Promise<string> {
 /**
  * Extract decisions from session events and save confirmed ones to memory.
  *
- * Decision confirmation owns readline, so it is only safe on a cooked,
- * interactive terminal. TUI raw mode and non-interactive runtimes (daemon/CI)
- * must stay silent rather than writing outside their presentation boundary or
- * opening a prompt that cannot be answered.
+ * Decision confirmation owns readline, so it must not run while another
+ * presentation layer owns a raw terminal. Non-interactive runtimes retain the
+ * extractor's existing auto-confirm behavior.
  *
  * Wraps memoryStore.save() in try/catch to prevent crashes during cleanup.
  */
@@ -295,11 +294,10 @@ export async function saveDecisionsToMemory(
   const decisions = extractDecisions(sessionEvents);
   if (decisions.length === 0) return;
 
-  const canPrompt =
-    process.stdin.isTTY === true &&
-    process.stdout.isTTY === true &&
-    process.stdin.isRaw !== true;
-  if (!canPrompt) return;
+  // The TUI owns stdout while stdin is in raw mode. Writing or opening a
+  // readline prompt here corrupts its frame. Cooked TTY and non-TTY behavior
+  // remain unchanged.
+  if (process.stdin.isTTY === true && process.stdin.isRaw === true) return;
 
   const confirmedDecisions = await promptDecisionConfirmation(decisions);
   if (confirmedDecisions.length === 0) return;
