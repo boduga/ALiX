@@ -119,9 +119,10 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
 
       if (!approvalStore) {
         // Headless mirror of the policy-gate carve-out: graph nodes needing
-        // only read-only public-web capabilities stay runnable without a
+        // only headless-safe capabilities (read-only public web, plus the
+        // zero-side-effect task.complete signal) stay runnable without a
         // store; anything else still fails closed.
-        if (caps.length > 0 && caps.every((c) => c === "web.search" || c === "web.fetch")) {
+        if (caps.length > 0 && caps.every((c) => c === "web.search" || c === "web.fetch" || c === "task.complete")) {
           auditStore?.append({ action: "policy.allowed", actor: "policy", details: {
             graphId: node.graphId, nodeId: node.id,
             capability: caps.join(","),

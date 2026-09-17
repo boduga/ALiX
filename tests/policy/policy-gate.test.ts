@@ -211,6 +211,17 @@ describe("PolicyGate", () => {
     }
   });
 
+  it("allows task.complete with no approval store (subagent must finish)", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const result = await gate.evaluateToolCall({
+      requestId: "h2-done", toolName: "done", args: {},
+      cwd: "/tmp", sessionMode: "ask", source: "tool",
+    });
+    assert.equal(result.decision, "allow");
+    assert.equal(result.matchedRuleId, "headless-read-allow");
+  });
+
   it("explicit web deny wins over headless read fallback", async () => {
     const config = makeConfig({
       permissions: {
