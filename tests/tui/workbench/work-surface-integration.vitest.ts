@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../../src/tui/app.js';
 import { MockInput, MockOutput } from '../../../src/tui/io.js';
+import { buildWorkbenchApprovalCardLines } from '../../../src/tui/workbench/views/approval-dialog.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -99,6 +100,16 @@ describe('Workbench work surface integration', () => {
     await vi.waitFor(() => expect((internal as any).pendingApprovalDecisions.size).toBe(0));
     internal.handleRaw(Buffer.from('a'));
     await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps a pending approval card stable across timer refreshes', () => {
+    const approval = { id: 'ap-stable', toolName: 'shell.run', target: 'npm test', requestedAt: 1 };
+
+    const first = buildWorkbenchApprovalCardLines(approval, 1, 76, 1_001);
+    const later = buildWorkbenchApprovalCardLines(approval, 1, 76, 61_001);
+
+    expect(later).toEqual(first);
+    expect(first.join('\n')).toContain('pending · id ap-stable');
   });
 
   it('renders a pending approval inline on the agent work surface', () => {
