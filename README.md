@@ -364,7 +364,7 @@ Point `web_search` at a local SearXNG instance instead of Brave
 ```jsonc
 // ~/.config/alix/config.json
 {
-  "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.15:8888" }
+  "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.160:8080" }
 }
 ```
 
