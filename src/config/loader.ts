@@ -256,7 +256,6 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   result.tracing = await resolveTracingCredentials(
     result.tracing,
     options.credentialStore,
-    warn,
   );
 
   // Streaming default/override lands on `models.default` (authoritative, §2.8.3)
