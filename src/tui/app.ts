@@ -13,7 +13,7 @@ import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import type { AgentSession } from '../agent/session.js';
 import { isCancellationError } from '../agent/session.js';
 import { Navigation } from './navigation.js';
-import { createTerminalControl, type TerminalControl } from './terminal-control.js';
+import { createTerminalControl, type TerminalControl, captureStderr, releaseStderr } from './terminal-control.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PlanDecision } from '../run/plan-approval-gate.js';
@@ -225,6 +225,9 @@ export class TuiApp {
   }
 
   async start(): Promise<void> {
+    // Capture stderr before taking the screen so config warnings and
+    // diagnostics can't paint over the frame; replayed on cleanupSync().
+    captureStderr();
     this.terminal.enableTerminalModes();
     this.resizeCleanup = this.terminal.onResize(() => this.paintFullFrame());
 
@@ -722,11 +725,23 @@ export class TuiApp {
   private handleWorkbenchAgentInput(key: string): boolean {
     const perTab = this.state.views.agent;
     const state = this.workbenchStore.snapshot();
+    // Key decisions must read the same pending-approval source the dialog
+    // paints from. `perTab.pendingApprovals` mirrors the snapshot on every
+    // refresh, but a null approval snapshot skips the mirror (sync is a
+    // no-op, not a clear) — so fall back to the live snapshot rather than
+    // letting `a`/`d` drop into the composer while the card is visible.
+    const snapshotPending = this.state.lastSnapshot?.approvals?.pending ?? [];
+    const fallbackTarget = snapshotPending.length > 0 && perTab.pendingApprovals.length === 0
+      ? (() => {
+        const oldest = snapshotPending[0]!;
+        return { id: oldest.id, toolName: oldest.toolName, target: oldest.target, requestedAt: oldest.requestedAt };
+      })()
+      : undefined;
     const intent = routeWorkbenchInput(key, {
       turnActive: this.sessionDispatchActive,
       composerText: state.composer.text,
       slashActive: this.slash.active(),
-      approvalPending: perTab.pendingApprovals.length > 0,
+      approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
       overlayOpen: state.overlayStack.length > 0,
       transcriptMode: state.transcriptMode,
     });
@@ -800,7 +815,7 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'approval.resolve': {
-        const target = perTab.pendingApprovals[0];
+        const target = perTab.pendingApprovals[0] ?? fallbackTarget;
         if (!target) return false;
         if (this.pendingApprovalDecisions.has(target.id)) return true;
         this.pendingApprovalDecisions.add(target.id);
@@ -1491,6 +1506,9 @@ export class TuiApp {
 
   private async cleanupSync(): Promise<void> {
     this.terminal.disableTerminalModes();
+    // Replay after the alt buffer exits so buffered diagnostics land in the
+    // scrollback instead of the (now gone) frame.
+    releaseStderr();
     this.inputCleanup?.();
     this.resizeCleanup?.();
   }
@@ -1499,7 +1517,10 @@ export class TuiApp {
 function parseKey(buf: Buffer): string | null {
   if (buf.length === 0) return null;
   const s = buf.toString('utf8');
-  if (s === '\r' || s === '\n') return 'Enter';
+  // A terminal/multiplexer may deliver CR+LF coalesced in a single read;
+  // without this it falls through to isPrintableGrapheme (false for control
+  // chars) and a submitted Enter is silently dropped with the composer intact.
+  if (s === '\r' || s === '\n' || s === '\r\n') return 'Enter';
   if (s === '\x1b') return 'Escape';
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';

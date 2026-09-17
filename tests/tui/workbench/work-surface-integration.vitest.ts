@@ -279,6 +279,19 @@ describe('Workbench work surface integration', () => {
     first.resolve({ summary: 'cancelled' });
   });
 
+  it('submits when Enter arrives coalesced as CRLF in a single read', async () => {
+    // Terminals/multiplexers may deliver CR+LF in one chunk; parseKey must
+    // still recognise it as Enter. Previously the keystroke was dropped with
+    // the composer left populated and no turn dispatched.
+    const processTurn = vi.fn(async (_text: string) => ({ summary: 'ok' }));
+    const { internal } = makeWorkbench(processTurn);
+    type(internal, 'Is docker installed');
+    internal.handleRaw(Buffer.from('\r\n'));
+    await vi.waitFor(() => expect(processTurn).toHaveBeenCalledTimes(1));
+    expect(processTurn.mock.calls.map((call) => call[0])).toEqual(['Is docker installed']);
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
+  });
+
   it('opens built-in diff review without dispatching an agent turn', () => {
     const processTurn = vi.fn(async () => ({ summary: 'unused' }));
     const { internal } = makeWorkbench(processTurn);

@@ -13,6 +13,62 @@ export interface TerminalControl {
 let resizeCb: (() => void) | null = null;
 const cleanupFns: Array<() => void> = [];
 
+/**
+ * Stderr capture while the TUI owns the screen. Raw stderr writes (config
+ * warnings, diagnostics) would otherwise paint over the alt-buffer frame.
+ * Buffered output is replayed to the real stderr on releaseStderr(). Capture
+ * is bounded to avoid unbounded memory growth during long sessions; overflow
+ * retains the most recent diagnostics and emits an explicit omission marker.
+ *
+ * Only active when stderr is a TTY: piped stderr cannot collide with the
+ * screen, and skipping the hook keeps unit tests hermetic. In-process writes
+ * only — child processes inheriting fd 2 bypass interception.
+ */
+const STDERR_CAPTURE_CAP = 32 * 1024;
+let capturedStderr: string | null = null;
+let capturedStderrOmitted = 0;
+let capturedStderrOriginal: typeof process.stderr.write | null = null;
+
+export function captureStderr(): void {
+  if (capturedStderr !== null) return;
+  if (process.stderr.isTTY !== true) return;
+  capturedStderr = '';
+  capturedStderrOmitted = 0;
+  capturedStderrOriginal = process.stderr.write.bind(process.stderr);
+  const write = function (chunk: any, encoding?: any, callback?: any): boolean {
+    const text = typeof chunk === 'string' ? chunk : String(chunk);
+    if (capturedStderr !== null) {
+      const combined = capturedStderr + text;
+      if (combined.length > STDERR_CAPTURE_CAP) {
+        capturedStderrOmitted += combined.length - STDERR_CAPTURE_CAP;
+        capturedStderr = combined.slice(-STDERR_CAPTURE_CAP);
+      } else {
+        capturedStderr = combined;
+      }
+    }
+    const cb = typeof encoding === 'function' ? encoding : callback;
+    if (typeof cb === 'function') queueMicrotask(() => (cb as () => void).call(undefined));
+    return true;
+  };
+  process.stderr.write = write as typeof process.stderr.write;
+}
+
+export function releaseStderr(): void {
+  if (capturedStderr === null) return;
+  const omitted = capturedStderrOmitted;
+  const buffered = omitted > 0
+    ? `[alix-tui] stderr truncated: ${omitted} characters omitted; showing the most recent ${STDERR_CAPTURE_CAP}.\n${capturedStderr}`
+    : capturedStderr;
+  const original = capturedStderrOriginal;
+  capturedStderr = null;
+  capturedStderrOmitted = 0;
+  capturedStderrOriginal = null;
+  if (original) {
+    process.stderr.write = original;
+    if (buffered.length > 0) process.stderr.write(buffered);
+  }
+}
+
 export function createTerminalControl(): TerminalControl {
   return {
     enterRawMode() {

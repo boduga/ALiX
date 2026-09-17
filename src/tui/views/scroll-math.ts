@@ -62,7 +62,10 @@ export function computeViewport(
   const bottomBorderRow = dims.rows - BELOW_PROMPT_ROWS + 1;
   const panelRow = dims.rows - BELOW_PROMPT_ROWS;
   const scrollbackTop = kind === 'agent' ? SCROLLBACK_TOP_AGENT : SCROLLBACK_TOP_CHAT;
-  const scrollbackBottom = topBorderRow - 1;
+  // One breathing row between the last scrollback line and the input
+  // panel's top rule: bottom-anchored content otherwise sits directly on
+  // the border (text touches the rule). Costs one scrollback row.
+  const scrollbackBottom = topBorderRow - 2;
   // Wrap width = terminal width − existing side margin (4) − reserved gutter
   // (GUTTER_WIDTH, agent only). GUTTER_WIDTH is the single source of truth;
   // the agent view's content column is offset by the same amount. Chat view
