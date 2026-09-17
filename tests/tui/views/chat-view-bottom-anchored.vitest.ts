@@ -54,9 +54,10 @@ function ctx(opts: {
 }
 
 // scrollbackRows for a 30-row canvas: topBorderRow = 30 - 5 + 1 = 26, so
-// scrollbackBottom = topBorderRow - 1 = 25, scrollbackRows = 25 - 5 + 1 = 21.
+// scrollbackBottom = topBorderRow - 2 = 24 (one breathing row below the
+// content), scrollbackRows = 24 - 5 + 1 = 20.
 // Tests assert against this constant.
-const SCROLLBACK_ROWS = 21;
+const SCROLLBACK_ROWS = 20;
 
 describe('ChatView bottom-anchored render', () => {
   const view = new ChatView();
@@ -96,12 +97,12 @@ describe('ChatView bottom-anchored render', () => {
 
       // pinnedBottom=true → bottom anchor = max(0, allLines.length - scrollbackRows).
       // scrollbackRows = scrollbackBottom - scrollbackTop + 1
-      // scrollbackBottom = topBorderRow - 1
-      //                  = (rows - FOOTER_H + 1) - 1
-      //                  = rows - FOOTER_H   (FOOTER_H = 5)
+      // scrollbackBottom = topBorderRow - 2
+      //                  = (rows - FOOTER_H + 1) - 2
+      //                  = rows - FOOTER_H - 1   (FOOTER_H = 5)
       // scrollbackTop   = SCROLLBACK_TOP_CHAT = 5
-      // For rows=30:    scrollbackRows = (30 - 5) - 5 + 1 = 21
-      // (Equivalently:  rows - FOOTER_H - SCROLLBACK_TOP_CHAT + 1 = 30 - 5 - 5 + 1 = 21)
+      // For rows=30:    scrollbackRows = (30 - 5 - 1) - 5 + 1 = 20
+      // (Equivalently:  rows - FOOTER_H - SCROLLBACK_TOP_CHAT = 30 - 5 - 5 = 20)
       expect(offset).toBe(Math.max(0, allLines.length - SCROLLBACK_ROWS));
 
       // Selected slice spans [offset, offset+SCROLLBACK_ROWS). The last visible

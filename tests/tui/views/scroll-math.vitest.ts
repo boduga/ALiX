@@ -144,9 +144,10 @@ describe('buildAgentScrollbackLines — live streaming line', () => {
 
   it('includes the streaming line in computeBottomAnchor when content overflows', () => {
     // 100 turns × 1 line + 99 separators = 199; streaming adds 1 more = 200.
+    // scrollbackRows is 19 (one breathing row below the content).
     const timeline = Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const }));
     const withStream = { ...ctx(timeline), perTab: { ...createInitialPerTabState(), streamingText: 'x' } };
-    expect(computeBottomAnchor(withStream, 'agent')).toBe(180);
+    expect(computeBottomAnchor(withStream, 'agent')).toBe(181);
   });
 });
 
@@ -333,10 +334,11 @@ describe('computeBottomAnchor', () => {
     const ctx30 = ctx(Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const })));
     // 100 turns × 1 line each + 99 blank-line separators (agent-view adds a
     // separator before every turn after the first) = 199 allLines. With rows=30,
-    // scrollbackTop=6, FOOTER_H=5 → topBorderRow=26, scrollbackBottom=25,
-    // scrollbackRows=25-6+1=20 → bottomAnchor=199-20=179.
+    // scrollbackTop=6, FOOTER_H=5 → topBorderRow=26, scrollbackBottom=24
+    // (one breathing row below the content), scrollbackRows=24-6+1=19 →
+    // bottomAnchor=199-19=180.
     // (Brief expected 80, but that ignored the blank-line separator rule.)
-    expect(computeBottomAnchor(ctx30, 'agent')).toBe(179);
+    expect(computeBottomAnchor(ctx30, 'agent')).toBe(180);
   });
 
   it('returns 0 when content fits in scrollbackRows', () => {

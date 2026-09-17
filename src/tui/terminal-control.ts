@@ -13,6 +13,49 @@ export interface TerminalControl {
 let resizeCb: (() => void) | null = null;
 const cleanupFns: Array<() => void> = [];
 
+/**
+ * Stderr capture while the TUI owns the screen. Raw stderr writes (config
+ * warnings, diagnostics) would otherwise paint over the alt-buffer frame.
+ * Buffered output is replayed to the real stderr on releaseStderr(), so no
+ * diagnostic is lost — it just lands in the scrollback after the TUI exits.
+ *
+ * Only active when stderr is a TTY: piped stderr cannot collide with the
+ * screen, and skipping the hook keeps unit tests hermetic. In-process writes
+ * only — child processes inheriting fd 2 bypass interception.
+ */
+const STDERR_CAPTURE_CAP = 32 * 1024;
+let capturedStderr: string | null = null;
+let capturedStderrOriginal: typeof process.stderr.write | null = null;
+
+export function captureStderr(): void {
+  if (capturedStderr !== null) return;
+  if (process.stderr.isTTY !== true) return;
+  capturedStderr = '';
+  capturedStderrOriginal = process.stderr.write.bind(process.stderr);
+  const write = function (chunk: any, encoding?: any, callback?: any): boolean {
+    const text = typeof chunk === 'string' ? chunk : String(chunk);
+    if (capturedStderr !== null && capturedStderr.length < STDERR_CAPTURE_CAP) {
+      capturedStderr += text.slice(0, STDERR_CAPTURE_CAP - capturedStderr.length);
+    }
+    const cb = typeof encoding === 'function' ? encoding : callback;
+    if (typeof cb === 'function') queueMicrotask(() => (cb as () => void).call(undefined));
+    return true;
+  };
+  process.stderr.write = write as typeof process.stderr.write;
+}
+
+export function releaseStderr(): void {
+  if (capturedStderr === null) return;
+  const buffered = capturedStderr;
+  const original = capturedStderrOriginal;
+  capturedStderr = null;
+  capturedStderrOriginal = null;
+  if (original) {
+    process.stderr.write = original;
+    if (buffered.length > 0) process.stderr.write(buffered);
+  }
+}
+
 export function createTerminalControl(): TerminalControl {
   return {
     enterRawMode() {

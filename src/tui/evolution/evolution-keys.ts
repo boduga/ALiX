@@ -30,7 +30,7 @@ export function evolutionKeyAction(key: string, perTab: Readonly<ViewInputContex
   switch (key) {
     case 'ArrowUp': case 'k': case 'K': return { action: 'navigate', direction: -1 };
     case 'ArrowDown': case 'j': case 'J': return { action: 'navigate', direction: 1 };
-    case 'Enter': case 'enter': case '\r': case '\n':
+    case 'Enter': case 'enter': case '\r': case '\n': case '\r\n':
     case 'ArrowRight': case '→':
       // Enter while a stage is expanded selects the artifact under the cursor
       // (Q-L3 inspector); otherwise it expands the CURRENTLY SELECTED stage.
