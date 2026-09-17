@@ -289,7 +289,8 @@ export async function promptUser(question: string): Promise<string> {
  */
 export async function saveDecisionsToMemory(
   sessionEvents: Awaited<ReturnType<import("../events/event-log.js").EventLog["readAll"]>>,
-  memoryStore: MemoryStore
+  memoryStore: MemoryStore,
+  options: { terminalOwned?: boolean } = {},
 ): Promise<void> {
   const decisions = extractDecisions(sessionEvents);
   if (decisions.length === 0) return;
@@ -297,7 +298,9 @@ export async function saveDecisionsToMemory(
   // The TUI owns stdout while stdin is in raw mode. Writing or opening a
   // readline prompt here corrupts its frame. Cooked TTY and non-TTY behavior
   // remain unchanged.
-  if (process.stdin.isTTY === true && process.stdin.isRaw === true) return;
+  const terminalOwned = options.terminalOwned ??
+    (process.stdin.isTTY === true && process.stdin.isRaw === true);
+  if (terminalOwned) return;
 
   const confirmedDecisions = await promptDecisionConfirmation(decisions);
   if (confirmedDecisions.length === 0) return;
