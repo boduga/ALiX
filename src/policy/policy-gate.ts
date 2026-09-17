@@ -477,8 +477,11 @@ export class PolicyGate {
       // read-only public-web capabilities the default rules explicitly
       // allow (allow-web-search / allow-web-fetch). Keep those usable
       // headless; everything else still fails closed.
-      if (capability === "web.search" || capability === "web.fetch") {
-        return { requestId, capability, decision: "allow", reason: "Auto-allowed: read-only web capability with no approval store", matchedRuleId: "headless-read-allow", policyRevision };
+      // `task.complete` (alix_done) is a zero-side-effect status signal:
+      // denying it headless means a subagent can never finish early and
+      // always burns its full iteration budget.
+      if (capability === "web.search" || capability === "web.fetch" || capability === "task.complete") {
+        return { requestId, capability, decision: "allow", reason: "Auto-allowed: read-only/headless-safe capability with no approval store", matchedRuleId: "headless-read-allow", policyRevision };
       }
       return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing", policyRevision };
     }
