@@ -203,6 +203,16 @@ describe("classifyAction — external retrieval", () => {
     assert.equal(result.intent, "external_retrieval");
   });
 
+  it("routes bare 'research <topic>' to external_retrieval (#766)", () => {
+    const result = classifyAction("research AI adoption in Lagos");
+    assert.equal(result.intent, "external_retrieval");
+  });
+
+  it("keeps workspace-anchored research local (#766)", () => {
+    assert.equal(classifyAction("research the codebase").intent, "workspace_action");
+    assert.equal(classifyAction("research this repo for auth patterns").intent, "workspace_action");
+  });
+
   it("does not let a bare 'current' in a spec header misroute a generation task", () => {
     // REGRESSION (#645): /tmp/stress-test.txt had a `- Current State` FSM
     // section header. Bare /\bcurrent\b/ fired RETRIEVAL_SIGNALS before

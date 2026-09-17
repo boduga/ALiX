@@ -29,7 +29,7 @@ export function webSearchTool() {
       const count = Math.min(Math.max(args.count ?? 5, 1), 10);
       const searchConfig = await getSearchConfig();
       if (searchConfig.provider === "searxng") {
-        return searchSearxng(args.query, count, searchConfig.searxngBaseUrl);
+        return searchSearxng(args.query, count, searchConfig.searxngBaseUrl, searchConfig.searxngEngines);
       }
       return searchBrave(args.query, count);
     },
@@ -74,12 +74,15 @@ async function searchBrave(query: string, count: number): Promise<WebSearchResul
  * Needs `format: [html, json]` enabled in the instance's settings.yml.
  * Uses plain fetch (no SSRF domain guard) so LAN/private instances work.
  */
-async function searchSearxng(query: string, count: number, baseUrl: string | undefined): Promise<WebSearchResult> {
+async function searchSearxng(query: string, count: number, baseUrl: string | undefined, engines?: string): Promise<WebSearchResult> {
   if (!baseUrl) {
     return { ok: false, error: 'SearXNG base URL not configured. Add "search": { "provider": "searxng", "searxngBaseUrl": "http://<host>:<port>" } to ~/.config/alix/config.json' };
   }
 
-  const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json`;
+  // Optional engine pin (e.g. "bing,wikipedia") for instances whose other
+  // upstreams are throttled. Omit to use the instance defaults.
+  const engineParam = engines ? `&engines=${encodeURIComponent(engines)}` : "";
+  const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json${engineParam}`;
   try {
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     if (!res.ok) {

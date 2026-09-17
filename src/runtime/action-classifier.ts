@@ -546,6 +546,11 @@ const PLANNING_ANCHORS: readonly RegExp[] = [
 const RETRIEVAL_SIGNALS: readonly RegExp[] = [
   /\bsearch\b/i,
   /\blook\s+up\b/i,
+  // Bare research requests ("research AI adoption in Lagos") are explicit
+  // asks to gather information, not memory answers (#766). Workspace
+  // anchors (steps 2–2.6 above) already fired, so "research the codebase"
+  // stays local — this only catches anchorless research.
+  /\bresearch\b/i,
   /\bweb\b/i,
   /\bonline\b/i,
   /\bthe\s+internet\b/i,

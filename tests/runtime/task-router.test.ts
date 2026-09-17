@@ -126,7 +126,8 @@ describe("taskRouter", async () => {
     }
   });
 
-  // ── Chat routes (research/docs — no freshness signal) ──
+  // ── Chat routes (docs — no freshness signal; bare research now goes
+  // grounded_chat per #766, so chat keeps only non-research knowledge Q&A) ──
   it("routes 'what is a closure' to chat", async () => {
     const r = await taskRouter("what is a closure");
     assert.equal(r.kind, "chat");
@@ -150,9 +151,14 @@ describe("taskRouter", async () => {
     }
   });
 
-  it("routes 'research quantum computing' to chat", async () => {
+  it("routes 'research quantum computing' to grounded_chat (#766)", async () => {
+    // Bare research with no workspace anchor is an explicit ask to gather
+    // information — memory-only chat answers would be stale/hallucinated.
     const r = await taskRouter("research quantum computing");
-    assert.equal(r.kind, "chat");
+    assert.equal(r.kind, "grounded_chat");
+    if (r.kind === "grounded_chat") {
+      assert.deepEqual(r.allowedTools, ["web_search", "web_fetch"]);
+    }
   });
 
   it("routes 'tell me a joke' to agent (not chat — no research/docs pattern)", async () => {

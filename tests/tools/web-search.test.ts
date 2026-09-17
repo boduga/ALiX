@@ -138,8 +138,7 @@ describe("webSearchTool", () => {
     assert.equal((result.data as any).results[0].snippet, "First snippet");
   });
 
-  it("strips trailing slashes from searxngBaseUrl", async () => {
-    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888///" });
+  it("strips trailing slashes from searxngBaseUrl", async () => {    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888///" });
     let capturedUrl = "";
     globalThis.fetch = (async (url) => {
       capturedUrl = String(url);
@@ -149,6 +148,32 @@ describe("webSearchTool", () => {
     const tool = webSearchTool();
     await tool.execute({ query: "hello" });
     assert.ok(capturedUrl.startsWith("http://10.1.1.15:8888/search?"));
+  });
+
+  it("pins SearXNG engines when searxngEngines set", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888", searxngEngines: "bing,wikipedia" });
+    let capturedUrl = "";
+    globalThis.fetch = (async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    await tool.execute({ query: "hello" });
+    assert.ok(capturedUrl.includes("engines=bing%2Cwikipedia"));
+  });
+
+  it("omits engines param when searxngEngines unset", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    let capturedUrl = "";
+    globalThis.fetch = (async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    await tool.execute({ query: "hello" });
+    assert.ok(!capturedUrl.includes("engines="));
   });
 
   it("errors clearly when searxngBaseUrl missing", async () => {
