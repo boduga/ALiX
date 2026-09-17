@@ -50,6 +50,7 @@ export async function initialize(state: SessionState): Promise<void> {
     sessionId: state.resolvedSessionId,
     sessionMode: state.config.sessionMode,
     approvalStore: state.config.approvalStore,
+    suppressConfigWarnings: state.config.suppressConfigWarnings,
   });
   state.ctx = p0.ctx;
   state.metrics = p0.metrics;
