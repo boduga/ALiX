@@ -355,6 +355,21 @@ export BRAVE_API_KEY="BSA..."
 
 Free key at [api.search.brave.com/app/dashboard](https://api.search.brave.com/app/dashboard)
 
+### Self-hosted search (SearXNG)
+
+Point `web_search` at a local SearXNG instance instead of Brave
+(no API key needed). The instance must allow JSON output
+(`search.formats` includes `json` in `settings.yml`):
+
+```jsonc
+// ~/.config/alix/config.json
+{
+  "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.15:8888" }
+}
+```
+
+Omit `search` (or set `provider: "brave"`) to keep Brave as default.
+
 ---
 
 ## Local Inference
