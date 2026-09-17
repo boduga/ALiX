@@ -244,6 +244,44 @@ describe("route executor parity — local vs daemon", () => {
     assert.equal(names.length, 2, "only the allowlisted web tools may be offered");
   });
 
+  it("grounded_chat serializes parallel tool calls instead of erroring (#760)", async () => {
+    // A typo'd entity can make the model fan out parallel calls (typo
+    // variant + corrected spelling). The grounded flow executes the first
+    // allowlisted call and ignores extras — never a governor error string.
+    let calls = 0;
+    const provider = {
+      complete: async () => {
+        calls++;
+        if (calls === 1) {
+          return {
+            text: "",
+            toolCalls: [
+              { id: "t1", name: "web_search", args: { query: "Bukina Faso president" } },
+              { id: "t2", name: "web_search", args: { query: "Burkina Faso president" } },
+            ],
+          };
+        }
+        return { text: "Ibrahim Traoré", toolCalls: [] };
+      },
+    } as any;
+
+    const grounded = {
+      kind: "grounded_chat",
+      prompt: "who is the president of Bukina Faso",
+      allowedTools: ["web_search", "web_fetch"],
+      diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
+    } as any;
+
+    const out = await executeGroundedChatBehavior(grounded, config, {
+      eventLog: makeEventLog(),
+      cwd: tmpDir,
+      providerFactory: async () => provider,
+    });
+
+    assert.equal(out, "Ibrahim Traoré");
+    assert.ok(!out.includes("only one tool call"));
+  });
+
   it("config is loaded exactly once for a daemon request", async () => {
     const { executor } = makeDaemon();
     const c1 = await executor.getConfig();

@@ -280,9 +280,10 @@ export async function executeGroundedChatBehavior(
   }, { signal: deps.signal });
 
   if (response.toolCalls.length > 0) {
-    if (response.toolCalls.length > 1) {
-      return "Grounded chat supports only one tool call at a time.";
-    }
+    // #760: models sometimes fan out parallel calls (e.g. a typo variant +
+    // a corrected spelling of the same query). The grounded flow stays a
+    // single tool round — execute the first allowlisted call, ignore extras —
+    // instead of surfacing a governor error to natural-language users.
     const tc = response.toolCalls[0];
 
     // Enforce allowedTools allowlist
