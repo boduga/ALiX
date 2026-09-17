@@ -42,6 +42,7 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   (`AgentSessionBuilder`, `SessionPhase`, the `setup*` helpers, etc.) stay
   re-exported through `../session.ts`.
 - Relative imports: `../../` → `src/`, `../` → `src/agent/`.
+- `AgentSessionConfig.suppressConfigWarnings` is a composition-root presentation policy. It passes through `initialize`/`setupSession` to `initAgent` and defaults off; the TUI enables it because the frame painter owns terminal output.
 - Source-scan sentinels: `tests/agent/session-skills.test.ts` reads
   `agent/session/chat.ts`; `tests/tracing/langfuse-boundary.vitest.ts` reads
   `agent/session/state.ts`.
