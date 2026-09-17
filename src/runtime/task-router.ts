@@ -456,6 +456,20 @@ export async function taskRouter(
     };
   }
 
+  // 6c. Explicit delegation — a prompt that names a subagent ("delegate to
+  // a subagent", "spawn a subagent to …") must reach the agent loop, the
+  // only route whose manifest includes the delegate tool. Without this,
+  // retrieval verbs inside the delegated task ("look up", "research")
+  // route grounded_chat, whose web-only manifest makes delegation
+  // impossible and the model reports "no delegation tool available".
+  if (/\bsubagents?\b/i.test(task)) {
+    return {
+      kind: "agent",
+      task,
+      diagnostic: toDiagnostic(classification, "agent"),
+    };
+  }
+
   // 7. High-confidence deterministic results — no model call needed.
   if (classification.confidence >= CONFIDENCE_THRESHOLD) {
     if (classification.intent === "external_retrieval") {

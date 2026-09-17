@@ -98,7 +98,7 @@ async function loadCredentialStore(): Promise<CredentialStore> {
  * Read from the `search` section of the user config
  * (`~/.config/alix/config.json`), e.g.:
  *
- *   { "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.15:8888" } }
+  *   { "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.160:8080" } }
  *
  * Defaults to `{ provider: "brave" }` (current behavior). Unknown provider
  * values fall back to Brave so a typo never breaks search entirely.

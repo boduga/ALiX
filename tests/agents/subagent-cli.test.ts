@@ -1,7 +1,7 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
-import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -362,4 +362,28 @@ test("buildResult: progress + incomplete objective yields partial with untouched
   const result = buildResult("t", "worker", "write", "done", [], progress, ["foo.ts", "bar.ts"]);
   assert.equal(result.status, "partial");
   assert.ok(result.error?.includes("Untouched: bar.ts"));
+});
+
+test("buildResult: tool ledger leads findings when tools ran (#769)", () => {
+  const progress = P([], []);
+  const ledger = new Map([
+    ["web_search", { completed: 3, failed: 0 }],
+    ["shell.run", { completed: 0, failed: 5 }],
+  ]);
+  const result = buildResult("t", "researcher", "read_only", "some text", [], progress, [], ledger);
+  assert.equal(result.findings[0]?.content, "Subagent tool ledger — ran inside the subagent, not the parent: web_search 3 completed; shell.run 5 denied.");
+});
+
+test("buildResult: empty ledger adds no ledger finding", () => {
+  const progress = P([], []);
+  const result = buildResult("t", "researcher", "read_only", "", [], progress, []);
+  assert.ok(result.findings.every((f) => !f.content.startsWith("Subagent tool ledger")));
+});
+
+test("formatToolLedger: skips zero-count sides", () => {
+  assert.equal(formatToolLedger(new Map()), "");
+  assert.equal(
+    formatToolLedger(new Map([["web_search", { completed: 1, failed: 0 }]])),
+    "web_search 1 completed",
+  );
 });

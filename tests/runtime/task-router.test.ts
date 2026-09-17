@@ -151,9 +151,19 @@ describe("taskRouter", async () => {
     }
   });
 
-  it("routes 'research quantum computing' to grounded_chat (#766)", async () => {
-    // Bare research with no workspace anchor is an explicit ask to gather
+  it("routes explicit subagent delegation to agent even with retrieval verbs", async () => {
+    // "look up"/"research" would otherwise route grounded_chat, whose
+    // web-only manifest has no delegate tool.
+    for (const prompt of [
+      "delegate to a subagent to look up who leads Burkina Faso",
+      "spawn a subagent to research AI adoption in Lagos",
+    ]) {
+      const r = await taskRouter(prompt);
+      assert.equal(r.kind, "agent", prompt);
+    }
+  });    // Bare research with no workspace anchor is an explicit ask to gather
     // information — memory-only chat answers would be stale/hallucinated.
+  it("routes 'research quantum computing' to grounded_chat (#766)", async () => {
     const r = await taskRouter("research quantum computing");
     assert.equal(r.kind, "grounded_chat");
     if (r.kind === "grounded_chat") {

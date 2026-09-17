@@ -229,9 +229,24 @@ export function subagentToolError(result: { kind: string; message?: string; reas
   return result.message ?? "Tool call failed";
 }
 
+export type SubagentToolLedger = Map<string, { completed: number; failed: number }>;
+
+/** Render a machine-checkable per-tool outcome ledger, e.g. "web_search 3 completed; shell.run 5 denied". */
+export function formatToolLedger(ledger: SubagentToolLedger): string {
+  const parts: string[] = [];
+  for (const [name, counts] of ledger) {
+    const bits: string[] = [];
+    if (counts.completed > 0) bits.push(`${counts.completed} completed`);
+    if (counts.failed > 0) bits.push(`${counts.failed} denied`);
+    if (bits.length) parts.push(`${name} ${bits.join(", ")}`);
+  }
+  return parts.join("; ");
+}
+
 export function buildResult(
   taskId: string, role: SubagentRole, _mode: "read_only" | "write",
   text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
+  toolLedger: SubagentToolLedger = new Map(),
 ): SubagentResult {
   const status = computeSubagentStatus(progress, ownedPaths, process.cwd());
   const { successfulPaths, fatalWriteFailures } = progress;
@@ -245,9 +260,22 @@ export function buildResult(
       : status === "partial"
         ? partialDetail(successfulPaths, ownedPaths, fatalWriteFailures, process.cwd())
         : undefined;
+  const findings = buildSubagentFindings(text || "Task completed.", toolOutputs);
+  const ledger = formatToolLedger(toolLedger);
+  // Provenance-first: the parent synthesizes from these findings, so the
+  // checkable record of what the SUBAGENT itself ran (vs what the parent
+  // ran afterward) leads. Empty ledger (zero tool calls) keeps the legacy
+  // "(no findings)" behavior untouched.
+  if (ledger) {
+    findings.unshift({
+      type: "summary",
+      content: `Subagent tool ledger — ran inside the subagent, not the parent: ${ledger}.`,
+      confidence: "high",
+    });
+  }
   return {
     id: taskId, role, status,
-    findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
+    findings,
     events: [],
     error,
   };
@@ -440,6 +468,13 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
       const progress: WriteProgress = { successfulPaths: new Set(), fatalWriteFailures: [] };
+      const toolLedger: SubagentToolLedger = new Map();
+      const recordLedger = (name: string, ok: boolean): void => {
+        const entry = toolLedger.get(name) ?? { completed: 0, failed: 0 };
+        if (ok) entry.completed++;
+        else entry.failed++;
+        toolLedger.set(name, entry);
+      };
       let iterations = 0;
       let text = "";
       const toolOutputs: string[] = [];
@@ -474,9 +509,11 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             const query = (toolCall.args.query as string) ?? "";
             if (mcpDiscovery) {
               const result = await mcpDiscovery.search(query);
+              recordLedger(execName, result.kind === "success");
               const output = result.kind === "success" ? (result.output ?? "") : result.message;
               messages.push({ role: "user", content: `[Tool Result]\n${output}` });
             } else {
+              recordLedger(execName, false);
               messages.push({ role: "user", content: `[Tool Result]\nMCP tools not available.` });
             }
             continue;
@@ -506,6 +543,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
               : `Error: ${subagentToolError(execResult)}`;
 
           recordWriteOutcome(progress, execName, execResult);
+          recordLedger(execName, execResult.kind === "success");
           if (execResult.kind === "success" && resultContent.trim()) {
             toolOutputs.push(resultContent);
           }
@@ -518,8 +556,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
-            const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
+            console.error(`[ledger] tools=${formatToolLedger(toolLedger) || "(none)"} successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
+            const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger);
             console.log(formatSubagentResult(result, outputFormat));
             process.exitCode = result.status === "success" ? 0 : 1;
             return;
@@ -537,8 +575,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      console.error(`[ledger] successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
-      const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths);
+      console.error(`[ledger] tools=${formatToolLedger(toolLedger) || "(none)"} successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
+      const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger);
       console.log(formatSubagentResult(result, outputFormat));
       process.exitCode = result.status === "success" ? 0 : 1;
       return;
