@@ -29,6 +29,7 @@ Purpose: the M2 memory subsystem — persistence of agent memory entries (Markdo
 - `extractDecisions` appears in **two** unrelated implementations: `consolidate.ts` (raw log lines) and `decision-extractor.ts` (`AlixEvent[]`). Do not cross-use them.
 - The frontmatter parser is copy-pasted in `store.ts`, `recall.ts`, `consolidate.ts` (recall's returns `content: ""`). Prefer consolidating into one if you touch it.
 - Memory is persisted during `completeSession` via `saveDecisionsToMemory` (`src/run/helpers.ts`), try/catch-wrapped — memory failures must never break a session.
+- Legacy decision confirmation remains active on cooked CLI terminals and retains non-TTY auto-confirm behavior. While the TUI owns a raw terminal it is skipped silently: memory cleanup must not write outside the frame painter or open readline over raw input. Routine “no decisions” / “none confirmed” outcomes are silent everywhere.
 
 ## Verification
 
