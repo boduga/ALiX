@@ -290,7 +290,6 @@ export async function promptUser(question: string): Promise<string> {
 export async function saveDecisionsToMemory(
   sessionEvents: Awaited<ReturnType<import("../events/event-log.js").EventLog["readAll"]>>,
   memoryStore: MemoryStore,
-<<<<<<< HEAD
   options: { terminalOwned?: boolean; confirm?: boolean } = {},
 ): Promise<void> {
   const decisions = extractDecisions(sessionEvents);
