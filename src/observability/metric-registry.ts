@@ -388,6 +388,7 @@ export const PRODUCTION_METRIC_DEFINITIONS: MetricDefinition[] = [
         "thinking",
         "streaming",
         "tool_running",
+        "awaiting_approval",
         "waiting_for_provider",
         "verifying",
         "summarizing",

@@ -98,6 +98,8 @@ describe("RuntimeGate", () => {
     });
     assert.equal(result.status, "blocked");
     assert.equal(result.policyDecision, "deny");
+    assert.equal(result.policyRuleId, "deny-search");
+    assert.notEqual(result.policyRuleId, "headless-read-allow");
   });
 
   it("returns needs_approval when policy asks and approvalStore exists", async () => {
@@ -179,6 +181,21 @@ describe("RuntimeGate", () => {
     assert.equal(result.status, "blocked");
     assert.equal(result.policyDecision, "ask");
     assert.ok(result.reason.includes("no approval store configured"));
+  });
+
+  it("web-only ask without approvalStore returns ready (headless read allow)", async () => {
+    const registry = makeRegistry();
+    const policyGate = makePolicyGate({
+      id: "ask-search", description: "Ask search",
+      match: { capability: "web.search" }, decision: "ask", enabled: true,
+    });
+    const result = await evaluateRuntimeGate({
+      node: makeNode({ requiredCapabilities: ["web.search"] }),
+      registry, policyGate, config: mockConfig,
+      // no approvalStore
+    });
+    assert.equal(result.status, "ready");
+    assert.equal(result.policyRuleId, "headless-read-allow");
   });
 
   it("reuses existing pending approval instead of duplicating", async () => {

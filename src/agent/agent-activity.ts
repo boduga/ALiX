@@ -12,13 +12,19 @@
 // orthogonal concerns that share timestamp fields but must not be merged.
 //
 // IDLE is represented as `undefined` / `null` activity rather than a state
-// member. The union below intentionally has ELEVEN states: the ten-state set
-// named by the plan (Task 1.1 / design §7 — thinking … cancelled) plus one
-// extra transient member, `cancelling`, that the plan's OWN later contracts
-// require: Task 6.2 and design §12 render "Cancelling…" live while an
+// member. The union below intentionally has TWELVE states: the ten-state set
+// named by the plan (Task 1.1 / design §7 — thinking … cancelled) plus two
+// extra transient members. `cancelling` is required by the plan's OWN later
+// contracts: Task 6.2 and design §12 render "Cancelling…" live while an
 // operator cancel unwinds, and Test 7.7 asserts the transition
-// "Cancelling → Cancelled". `cancelling` is the LIVE in-progress phase (the
-// operator pressed cancel and the turn is unwinding — rendered "Cancelling…");
+// "Cancelling → Cancelled". `awaiting_approval` covers the tool-approval
+// wait: the executor denies with a pending approval id and the task loop
+// blocks in `waitForApproval` until the operator resolves it — during that
+// window the tool is NOT running, so `tool_running` ("Running …") mislabels
+// the stall and the watchdog (which never relabels a live tool) stays
+// silent. `awaiting_approval` renders "Awaiting approval…" instead.
+// `cancelling` is the LIVE in-progress phase (the operator pressed cancel
+// and the turn is unwinding — rendered "Cancelling…");
 // `cancelled` is the terminal outcome (the existing completion line takes
 // over). The ten terminal/diagnostic plan states are unchanged.
 
@@ -28,6 +34,7 @@ export type AgentActivityState =
   | "thinking"
   | "streaming"
   | "tool_running"
+  | "awaiting_approval"
   | "waiting_for_provider"
   | "verifying"
   | "summarizing"
@@ -42,6 +49,7 @@ export const AGENT_ACTIVITY_STATES: readonly AgentActivityState[] = [
   "thinking",
   "streaming",
   "tool_running",
+  "awaiting_approval",
   "waiting_for_provider",
   "verifying",
   "summarizing",
@@ -64,11 +72,17 @@ export type AgentActivity = Readonly<{
    * Timestamp (ms) when the current tool began executing — the zero point of
    * the tool elapsed timer (`now - toolStartedAt`). Set on the
    * thinking→tool_running transition, so a running tool reports its own
-   * duration rather than the whole invocation's. Unset until the first tool
-   * starts; renderers fall back to `startedAt` when absent. Carried through
-   * transitions; each new tool_running restamps it.
+   *  duration rather than the whole invocation's. Unset until the first tool
+   *  starts; renderers fall back to `startedAt` when absent. Carried through
+   *  transitions; each new tool_running restamps it.
    */
   toolStartedAt?: number;
+  /**
+   * Timestamp (ms) when the current approval wait began — the zero point of
+   * the "Awaiting approval…" elapsed timer. Set on the transition into
+   * `awaiting_approval`; renderers fall back to `startedAt` when absent.
+   */
+  awaitingStartedAt?: number;
   /** Timestamp (ms) when this activity record was created. */
   startedAt: number;
   /** Timestamp (ms) of the last progress mark. */
@@ -91,6 +105,7 @@ export type ActivityTransitionOpts = Readonly<{
   operation?: string;
   toolName?: string;
   toolStartedAt?: number;
+  awaitingStartedAt?: number;
   provider?: string;
   model?: string;
 }>;
@@ -109,6 +124,7 @@ function applyTransitionOpts(opts?: ActivityTransitionOpts): Partial<ActivityTra
     ...(opts?.operation !== undefined && { operation: opts.operation }),
     ...(opts?.toolName !== undefined && { toolName: opts.toolName }),
     ...(opts?.toolStartedAt !== undefined && { toolStartedAt: opts.toolStartedAt }),
+    ...(opts?.awaitingStartedAt !== undefined && { awaitingStartedAt: opts.awaitingStartedAt }),
     ...(opts?.provider !== undefined && { provider: opts.provider }),
     ...(opts?.model !== undefined && { model: opts.model }),
   };
@@ -192,6 +208,7 @@ export function assertExhaustiveState(state: AgentActivityState): undefined {
     case "thinking":
     case "streaming":
     case "tool_running":
+    case "awaiting_approval":
     case "waiting_for_provider":
     case "verifying":
     case "summarizing":

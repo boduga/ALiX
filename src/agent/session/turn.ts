@@ -605,10 +605,14 @@ export async function processTurnBody(
     // tool's own timeoutMs/commandTimeoutMs is its safety bound. Only the
     // liveness tracker's own warning/stalled states are watchdog-side;
     // the ACTIVITY state stays tool_running while the tool is live.
+    // An approval wait is likewise operator think-time, not a stall: the
+    // wait re-marks liveness every poll, and the 5-minute approval timeout
+    // bounds it — so awaiting_approval is exempt from relabelling too.
     if (
       snap.state !== "healthy" &&
       state.activeActivity &&
       state.activeActivity.state !== "tool_running" &&
+      state.activeActivity.state !== "awaiting_approval" &&
       !cancellationInProgress(state)
     ) {
       if (state.activeActivity.state !== "possibly_stalled") {
@@ -732,6 +736,16 @@ export async function processTurnBody(
           // returns to THINKING while the model silently resumes.
           activityStreaming = false;
           feedActivity(state, "tool_running", { toolName: description, toolStartedAt: Date.now() });
+        } else if (kind === "approval_pending" && state.activeActivity) {
+          // The tool was denied pending operator approval and the loop is
+          // now blocked in waitForApproval: the tool is NOT running, so
+          // leaving tool_running would mislabel the whole think-time as
+          // "Running …". Transition exactly once (the wait re-marks every
+          // 500ms poll to keep liveness fresh — those must not spam the
+          // activity event log).
+          if (state.activeActivity.state !== "awaiting_approval") {
+            feedActivity(state, "awaiting_approval", { toolName: description, awaitingStartedAt: Date.now() });
+          }
         } else if (kind === "tool_completed" && state.activeActivity) {
           // Tool finished → back to THINKING unless the model is already
           // streaming (subsequent model text takes over the indicator).

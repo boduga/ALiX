@@ -70,7 +70,13 @@ export const SYSTEM_PROMPT_BASE =
   "Proactively save important context about the codebase, the user's preferences, " +
   "and task decisions as you learn them. Do NOT wait until the task is complete to save memories — " +
   "save mid-task when you discover something worth remembering. " +
-  "Erring on the side of saving too early is better than losing context.";
+  "Erring on the side of saving too early is better than losing context.\n\n" +
+
+  "### Response Style\n" +
+  "Match the length of your answer to the question. A one-line factual question " +
+  "(is X installed, what version is Y, where is Z) gets a one-line answer — no " +
+  "tables, no headers, no recap of the steps you took. Reserve structure (tables, " +
+  "sections, action summaries) for genuinely complex results.";
 
 export const RESEARCH_SUPPLEMENT =
 `## Research Phase

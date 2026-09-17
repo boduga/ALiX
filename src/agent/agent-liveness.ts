@@ -20,6 +20,7 @@ export type AgentProgressKind =
   | "tool_started"
   | "tool_output"
   | "tool_completed"
+  | "approval_pending"
   | "verification"
   | "state_changed";
 

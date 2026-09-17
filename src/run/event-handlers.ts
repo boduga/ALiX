@@ -21,6 +21,7 @@ import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js";
 import type { EventLog } from "../events/event-log.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
+import type { AgentProgressKind } from "../agent/agent-liveness.js";
 
 export type EventHandlerDeps = {
   executor: ToolExecutor;
@@ -44,6 +45,14 @@ export type EventHandlerDeps = {
   cancelSignal?: AbortSignal;
   /** Exact operator-requested mutation targets for strict single-file tasks. */
   allowedMutationPaths?: readonly string[];
+  /**
+   * Turn-level progress sink (liveness marks + activity transitions), owned
+   * by the session layer. Used here ONLY for the approval wait: entering
+   * `waitForApproval` would otherwise leave the activity indicator stuck on
+   * `tool_running` ("Running …") with no marks until the operator decides.
+   * Optional; omitted by callers without a live turn (tests, replay).
+   */
+  onProgress?: (kind: AgentProgressKind, description?: string) => void;
   /** Authoritative run id for the enclosing execution (Task 12 tool spans). */
   runId?: string;
   /**
@@ -431,8 +440,17 @@ export async function handleToolCall(
       execResult.approvalId ??
       execResult.reason.match(/^Approval required \(([^)]+)\):/)?.[1];
     if (approvalId) {
+      // Signal the approval wait BEFORE blocking: without this mark the
+      // activity indicator keeps showing "Running <tool>…" for the whole
+      // operator think-time (and the stall watchdog stays silent, since a
+      // live tool is never relabelled). The session maps this to the
+      // `awaiting_approval` activity state.
+      deps.onProgress?.("approval_pending", execName);
       const outcome = await waitForApproval(approvalId, deps);
       if (outcome === "approved") {
+        // The re-execution below is a fresh tool run — restamp the activity
+        // timer so it doesn't keep counting the approval wait.
+        deps.onProgress?.("tool_started", execName);
         execResult = await deps.executor.execute({
           toolCallId: toolCall.id,
           name: execName,
@@ -542,6 +560,11 @@ async function waitForApproval(
     if (status === "approved") return "approved";
     if (status === "denied" || status === "rejected") return "denied";
     if (status === "expired") return "expired";
+    // Re-mark every poll tick: operator think-time is not execution
+    // progress, but it is also not a stall — without a fresh mark the
+    // liveness watchdog would flag warning/stalled on a slow decision.
+    // The session layer transitions activity exactly once (first mark).
+    deps.onProgress?.("approval_pending");
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
   return "expired";

@@ -198,6 +198,43 @@ describe("PolicyGate", () => {
     assert.ok(result.reason.includes("no approval store"));
   });
 
+  it("allows read-only web tools with no approval store (headless subagent)", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    for (const toolName of ["web_search", "web_fetch"]) {
+      const result = await gate.evaluateToolCall({
+        requestId: `h1-${toolName}`, toolName, args: toolName === "web_search" ? { query: "x" } : { url: "https://example.com" },
+        cwd: "/tmp", sessionMode: "ask", source: "tool",
+      });
+      assert.equal(result.decision, "allow", `${toolName} must stay usable headless`);
+      assert.equal(result.matchedRuleId, "headless-read-allow");
+    }
+  });
+
+  it("explicit web deny wins over headless read fallback", async () => {
+    const config = makeConfig({
+      permissions: {
+        tools: {
+          "web.search": "deny",
+          "web.fetch": "deny",
+        },
+      } as any,
+    });
+    const gate = new PolicyGate(config);
+
+    for (const capability of ["web.search", "web.fetch"]) {
+      const result = await gate.evaluateCapability({
+        requestId: `deny-${capability}`,
+        capability,
+        sessionMode: "ask",
+        source: "graph",
+      });
+
+      assert.equal(result.decision, "deny");
+      assert.notEqual(result.matchedRuleId, "headless-read-allow");
+    }
+  });
+
   it("creates approval when approval store provided and decision is ask", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-ask-"));
     try {

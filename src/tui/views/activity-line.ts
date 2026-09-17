@@ -9,7 +9,9 @@
 // from the wall clock at render time. They never emit runtime events, never
 // touch token accounting, and carry no mutable state of their own — the
 // spinner frame is derived deterministically from elapsed seconds, so the
-// ~1s tick of the existing render cadence animates it for free.
+// ~1s tick of the existing render cadence animates it for free. The one
+// exception is `awaiting_approval`, which renders a fixed ⏸ glyph: the turn
+// is parked on the operator, not working, so a working spinner would lie.
 //
 // See spec "2026-09-06-alix-live-response-activity" Unit D (Tasks 3.1-3.5)
 // and Test 7.10 (spinner isolation).
@@ -30,6 +32,8 @@ export const ACTIVITY_SPINNER_FRAMES = ['◐', '◓', '◑', '◒'] as const;
  *
  * `tool_running` keeps the bare label ('Running'); the running line inserts
  * the tool name (and trailing ellipsis) between the label and its elapsed.
+ * `awaiting_approval` renders a fixed ⏸ glyph with its own label (never the
+ * spinner — nothing is executing while the operator decides).
  * The remaining transient labels already end in '…' and are rendered
  * verbatim after the spinner glyph.
  */
@@ -37,6 +41,7 @@ const ACTIVITY_STATE_LABELS: Readonly<Record<AgentActivityState, string | null>>
   thinking: 'Thinking…',
   streaming: null,
   tool_running: 'Running',
+  awaiting_approval: 'Awaiting approval…',
   waiting_for_provider: 'Thinking…',
   verifying: 'Verifying…',
   summarizing: 'Summarizing…',
@@ -78,6 +83,7 @@ export function isTransientActivityState(state: AgentActivityState): boolean {
  * record + wall clock, e.g.:
  *   `◐ Thinking… 18s`
  *   `⚙ Running shell.run… 3s`
+ *   `⏸ Awaiting approval… 41s`   ← approval wait, fixed glyph (not spinning)
  *   `◓ Still working… 2m 14s`   ← possibly_stalled, non-alarming language
  *
  * Returns `undefined` for non-transient states (streaming / terminal) so the
@@ -117,6 +123,14 @@ export function formatActivityLine(
       const toolStart = activity.toolStartedAt ?? activity.startedAt;
       const toolElapsed = formatActivityElapsed(Math.max(0, now - toolStart));
       return `⚙ Running ${activity.toolName ?? 'tool'}… ${toolElapsed}`;
+    }
+    case 'awaiting_approval': {
+      // The turn is parked on the operator: fixed ⏸ glyph (a spinner would
+      // imply work is happening) and elapsed anchored at the wait start so
+      // the operator sees how long the decision has been pending.
+      const waitStart = activity.awaitingStartedAt ?? activity.startedAt;
+      const waitElapsed = formatActivityElapsed(Math.max(0, now - waitStart));
+      return `⏸ Awaiting approval… ${waitElapsed}`;
     }
     case 'possibly_stalled': {
       // The elapsed shown while a stall is suspected anchors on lastEventAt —
