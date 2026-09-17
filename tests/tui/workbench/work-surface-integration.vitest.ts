@@ -54,6 +54,30 @@ describe('Workbench work surface integration', () => {
     expect(internal.getStateForTest().views.agent.pendingApprovals).toEqual([pending]);
   });
 
+  it('retains approval routing through a transient empty pending sample', async () => {
+    const tryHandleCommand = vi.fn(async () => ({ handled: true, message: 'approved' }));
+    const { internal } = makeWorkbench(
+      async () => ({ summary: 'unused' }),
+      vi.fn(() => false),
+      { tryHandleCommand },
+    );
+    const pending = { id: 'ap-gap', toolName: 'shell.run', target: 'npm test', requestedAt: 1 };
+    internal.getStateForTest().views.agent.pendingApprovals = [pending];
+    internal.getStateForTest().lastSnapshot.approvals = {
+      pending: [],
+      recentlyResolved: [],
+      totalPending: 0,
+      totalResolved: 0,
+    };
+
+    internal.syncPendingApprovals();
+    expect(internal.getStateForTest().views.agent.pendingApprovals).toEqual([pending]);
+
+    internal.handleRaw(Buffer.from('a'));
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledWith('approve ap-gap'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
+  });
+
   it('suppresses duplicate approval decisions until projection confirmation', async () => {
     const decision = deferred<{ handled: boolean; message: string }>();
     const tryHandleCommand = vi.fn(() => decision.promise);
