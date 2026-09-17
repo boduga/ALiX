@@ -71,6 +71,26 @@ describe('TerminalControl — stderr capture', () => {
     expect(seen.join('')).toBe('[Config WARN] something\n');
   });
 
+  it('bounds captured stderr, retains the newest diagnostics, and reports omitted characters', () => {
+    (process.stderr as unknown as { isTTY?: unknown }).isTTY = true;
+    const seen: string[] = [];
+    process.stderr.write = ((chunk: unknown) => {
+      seen.push(String(chunk));
+      return true;
+    }) as unknown as typeof process.stderr.write;
+
+    captureStderr();
+    process.stderr.write('a'.repeat(40 * 1024));
+    process.stderr.write('latest diagnostic\n');
+    releaseStderr();
+
+    const replayed = seen.join('');
+    expect(replayed).toMatch(/^\[alix-tui\] stderr truncated: \d+ characters omitted;/);
+    expect(replayed).toContain('showing the most recent 32768.');
+    expect(replayed).toEndWith('latest diagnostic\n');
+    expect(replayed.length).toBeLessThan(34 * 1024);
+  });
+
   it('is a no-op when stderr is not a TTY', () => {
     (process.stderr as unknown as { isTTY?: unknown }).isTTY = false;
     const seen: string[] = [];
