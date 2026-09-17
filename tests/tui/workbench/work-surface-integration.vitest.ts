@@ -74,7 +74,7 @@ describe('Workbench work surface integration', () => {
     expect(internal.getStateForTest().views.agent.pendingApprovals).toEqual([pending]);
 
     internal.handleRaw(Buffer.from('a'));
-    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledWith('approve ap-gap'));
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledWith('/approve ap-gap'));
     expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
   });
 
