@@ -93,6 +93,43 @@ async function loadCredentialStore(): Promise<CredentialStore> {
 }
 
 /**
+ * Web-search provider selection (user-local infra).
+ *
+ * Read from the `search` section of the user config
+ * (`~/.config/alix/config.json`), e.g.:
+ *
+ *   { "search": { "provider": "searxng", "searxngBaseUrl": "http://10.1.1.15:8888" } }
+ *
+ * Defaults to `{ provider: "brave" }` (current behavior). Unknown provider
+ * values fall back to Brave so a typo never breaks search entirely.
+ * Never throws — missing files / malformed JSON resolve to the default.
+ */
+export type SearchProvider = "brave" | "searxng";
+
+export type SearchConfig = {
+  provider: SearchProvider;
+  searxngBaseUrl?: string;
+};
+
+export async function getSearchConfig(): Promise<SearchConfig> {
+  const path = resolveUserConfigPath();
+  if (!existsSync(path)) return { provider: "brave" };
+  try {
+    const raw = await readFile(path, "utf8");
+    const parsed = JSON.parse(raw) as { search?: Partial<SearchConfig> };
+    const provider = parsed.search?.provider;
+    return {
+      provider: provider === "searxng" ? "searxng" : "brave",
+      ...(typeof parsed.search?.searxngBaseUrl === "string" && parsed.search.searxngBaseUrl.length > 0
+        ? { searxngBaseUrl: parsed.search.searxngBaseUrl.replace(/\/+$/, "") }
+        : {}),
+    };
+  } catch {
+    return { provider: "brave" };
+  }
+}
+
+/**
  * Write `apiKeys[providerId] = key` to the user config, creating the
  * directory + file as needed and preserving any other keys / fields.
  */

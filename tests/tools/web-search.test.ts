@@ -30,6 +30,12 @@ describe("webSearchTool", () => {
     _setUserConfigPathOverride(path);
   }
 
+  function setSearchConfig(search: unknown) {
+    const path = join(tmpDir, "config.json");
+    writeFileSync(path, JSON.stringify({ search }));
+    _setUserConfigPathOverride(path);
+  }
+
   it("returns a tool definition", () => {
     const tool = webSearchTool();
     assert.equal(tool.name, "web_search");
@@ -106,5 +112,78 @@ describe("webSearchTool", () => {
     const tool = webSearchTool();
     await tool.execute({ query: "hello world & special chars?" });
     assert.ok(capturedUrl.includes("hello%20world"));
+  });
+
+  it("uses SearXNG when provider is searxng", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888/" });
+    let capturedUrl = "";
+    globalThis.fetch = (async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({
+        query: "hello",
+        results: [
+          { title: "First", url: "https://example.com/1", content: "First snippet" },
+          { title: "Second", url: "https://example.com/2", content: "Second snippet" },
+          { title: "Third", url: "https://example.com/3", content: "Third snippet" },
+        ],
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    const result = await tool.execute({ query: "hello", count: 2 });
+    assert.ok(capturedUrl.startsWith("http://10.1.1.15:8888/search?"));
+    assert.ok(capturedUrl.includes("format=json"));
+    assert.equal(result.ok, true);
+    assert.equal((result.data as any).results.length, 2);
+    assert.equal((result.data as any).results[0].snippet, "First snippet");
+  });
+
+  it("strips trailing slashes from searxngBaseUrl", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888///" });
+    let capturedUrl = "";
+    globalThis.fetch = (async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    await tool.execute({ query: "hello" });
+    assert.ok(capturedUrl.startsWith("http://10.1.1.15:8888/search?"));
+  });
+
+  it("errors clearly when searxngBaseUrl missing", async () => {
+    setSearchConfig({ provider: "searxng" });
+    const tool = webSearchTool();
+    const result = await tool.execute({ query: "hello" });
+    assert.equal(result.ok, false);
+    assert.ok(result.error?.includes("searxngBaseUrl"));
+  });
+
+  it("hints at JSON format setting on SearXNG 403", async () => {
+    setSearchConfig({ provider: "searxng", searxngBaseUrl: "http://10.1.1.15:8888" });
+    globalThis.fetch = (async () => {
+      return new Response("Forbidden", { status: 403 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    const result = await tool.execute({ query: "hello" });
+    assert.equal(result.ok, false);
+    assert.ok(result.error?.includes("403"));
+    assert.ok(result.error?.includes("settings.yml"));
+  });
+
+  it("falls back to Brave on unknown provider", async () => {
+    const path = join(tmpDir, "config.json");
+    writeFileSync(path, JSON.stringify({ search: { provider: "google" }, apiKeys: { brave: "test-key" } }));
+    _setUserConfigPathOverride(path);
+    let capturedUrl = "";
+    globalThis.fetch = (async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 });
+    }) as typeof fetch;
+
+    const tool = webSearchTool();
+    await tool.execute({ query: "hello" });
+    assert.ok(capturedUrl.includes("api.search.brave.com"));
   });
 });
