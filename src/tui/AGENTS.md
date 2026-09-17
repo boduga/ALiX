@@ -41,6 +41,7 @@
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
 - Keep the custom ANSI canvas; do not introduce a second terminal UI framework without a separately approved architecture change.
+- While the TUI owns stdin in raw mode, runtime cleanup and persistence helpers must not write directly to stdout/stderr or open readline prompts; surface meaningful diagnostics through projections and keep routine no-op outcomes silent.
 
 ## Work Guidance
 
