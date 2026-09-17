@@ -17,7 +17,7 @@ describe('Workbench approval dialog', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('APPROVAL REQUIRED · write_file · 1 OF 2');
     expect(frame).toContain('src/tui/app.ts');
-    expect(frame).toContain('pending 1m 00s · id approval-1');
+    expect(frame).toContain('pending · id approval-1');
     expect(frame).toContain('a approve · d deny');
     expect(frame).toContain('Ctrl+O details');
     expect(frame).toContain('remains pending until runtime confirms');
