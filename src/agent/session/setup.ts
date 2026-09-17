@@ -77,6 +77,7 @@ export async function setupSession(
     sessionId?: string;
     sessionMode?: "auto" | "ask" | "bypass";
     approvalStore?: import("../../approvals/approval-store.js").ApprovalStore;
+    suppressConfigWarnings?: boolean;
   },
 ): Promise<{ ctx: AgentContext; metrics: MinimalMetrics }> {
   const metrics = new MinimalMetrics();
@@ -87,6 +88,7 @@ export async function setupSession(
     sessionId: opts?.sessionId,
     sessionMode: opts?.sessionMode,
     approvalStore: opts?.approvalStore,
+    suppressConfigWarnings: opts?.suppressConfigWarnings,
   });
   return { ctx, metrics };
 }
