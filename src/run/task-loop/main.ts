@@ -1002,6 +1002,9 @@ if (toolCalls.length === 0) {
     allowedMutationPaths,
     runId: deps.context?.runId,
     searchCallGuard,
+    // Thread the turn's progress sink so the approval wait in
+    // handleToolCall can mark approval_pending (activity + liveness).
+    ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
   };
 
   // Track accumulated state across all tool calls so one tool's result

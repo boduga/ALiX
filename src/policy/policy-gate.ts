@@ -472,6 +472,14 @@ export class PolicyGate {
     const policyRevision = computePolicyRevision(this.config);
 
     if (!store) {
+      // Headless contexts (delegate subagent child CLI) configure no
+      // approval store, so every ask would fail closed here — including
+      // read-only public-web capabilities the default rules explicitly
+      // allow (allow-web-search / allow-web-fetch). Keep those usable
+      // headless; everything else still fails closed.
+      if (capability === "web.search" || capability === "web.fetch") {
+        return { requestId, capability, decision: "allow", reason: "Auto-allowed: read-only web capability with no approval store", matchedRuleId: "headless-read-allow", policyRevision };
+      }
       return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing", policyRevision };
     }
 

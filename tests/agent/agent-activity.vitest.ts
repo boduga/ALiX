@@ -12,8 +12,8 @@ import {
 describe("AgentActivity contract", () => {
   // ─── State union ────────────────────────────────────────────────
 
-  it("has exactly 11 states", () => {
-    expect(AGENT_ACTIVITY_STATES).toHaveLength(11);
+  it("has exactly 12 states", () => {
+    expect(AGENT_ACTIVITY_STATES).toHaveLength(12);
   });
 
   it("includes all expected state values", () => {
@@ -21,6 +21,7 @@ describe("AgentActivity contract", () => {
       "thinking",
       "streaming",
       "tool_running",
+      "awaiting_approval",
       "waiting_for_provider",
       "verifying",
       "summarizing",
@@ -200,6 +201,8 @@ describe("AgentActivity contract", () => {
           return "Streaming…";
         case "tool_running":
           return "Running tool…";
+        case "awaiting_approval":
+          return "Awaiting approval…";
         case "waiting_for_provider":
           return "Waiting…";
         case "verifying":
@@ -227,6 +230,7 @@ describe("AgentActivity contract", () => {
     expect(handler("thinking")).toBe("Thinking…");
     expect(handler("streaming")).toBe("Streaming…");
     expect(handler("tool_running")).toBe("Running tool…");
+    expect(handler("awaiting_approval")).toBe("Awaiting approval…");
     expect(handler("waiting_for_provider")).toBe("Waiting…");
     expect(handler("verifying")).toBe("Verifying…");
     expect(handler("summarizing")).toBe("Summarizing…");

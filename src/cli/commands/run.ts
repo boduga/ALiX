@@ -71,6 +71,22 @@ export async function handler(args: string[]): Promise<number> {
     const { createReplRenderer, createReplEvents } = await import("../renderers/repl.js");
     const { JsonlSessionStore } = await import("../../agent/session-store-jsonl.js");
     runTraceClient = await createTraceClient(tracingConfig);
+    // Headless runs need a real approval queue: without a store every
+    // ask-mode tool call fails closed with "Approval required but no
+    // approval store configured". Mirror the TUI composition root
+    // (tui.ts) — create + load the file-backed store, then pass it into
+    // the session so PolicyGate mints resolvable pending approvals
+    // instead of the infra deny. Fail-open to undefined (legacy deny)
+    // so a broken approvals dir never kills the run before it starts.
+    const { ApprovalStore } = await import("../../approvals/approval-store.js");
+    let approvalStore: InstanceType<typeof ApprovalStore> | undefined;
+    try {
+      approvalStore = new ApprovalStore(process.cwd());
+      await approvalStore.load();
+    } catch {
+      console.warn("[run] approval store unavailable, tool approvals will be denied");
+      approvalStore = undefined;
+    }
     if (chat) {
       // Wire a streaming events subscription into both the session and the
       // renderer (spec 13) so the REPL renders tokens/tool calls as they
@@ -78,17 +94,37 @@ export async function handler(args: string[]): Promise<number> {
       const events = createReplEvents();
       const sessionsRoot = join(process.cwd(), ".alix", "sessions");
       const store = new JsonlSessionStore(sessionsRoot);
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store, ...chatModelOpt, traceClient: runTraceClient });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store, ...(approvalStore ? { approvalStore } : {}), ...chatModelOpt, traceClient: runTraceClient });
       const renderer = createReplRenderer(session, { events, store });
       await renderer.start();
     } else {
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, ...chatModelOpt, traceClient: runTraceClient });
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, ...(approvalStore ? { approvalStore } : {}), ...chatModelOpt, traceClient: runTraceClient });
       result = await session.processTurn(task);
       if (!result.streamed) {
         console.log(result.summary);
       }
       if (result.sessionId) {
         console.log(`Session: ${result.sessionId}`);
+      }
+      // Headless ask-mode UX: pending approvals have no TUI panel here,
+      // so surface them with the CLI resolution path instead of leaving
+      // the operator to discover .alix/approvals/approvals.json.
+      if (approvalStore && result.sessionId) {
+        const doneSessionId = result.sessionId;
+        try {
+          const pending = approvalStore.listPending().filter((r) => !r.sessionId || r.sessionId === doneSessionId);
+          if (pending.length > 0) {
+            console.log(`\nPending approvals (${pending.length}):`);
+            for (const p of pending.slice(0, 10)) {
+              const what = p.capabilities?.join(",") ?? p.toolId ?? "unknown";
+              console.log(`  ${p.id} [${what}] ${p.reason ?? ""}`);
+            }
+            console.log(`Approve: alix approvals approve <id> --reason "reviewed"`);
+            console.log(`Then resume: alix run --resume ${result.sessionId} "<task>"`);
+          }
+        } catch {
+          // Hint is best-effort; never fail the run on it.
+        }
       }
     }
 

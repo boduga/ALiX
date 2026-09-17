@@ -181,3 +181,47 @@ test("manager shutdown emits cancellation without a later failed terminal", asyn
   const terminal = emitted.filter((entry) => entry.type === "agent.completed" || entry.type === "agent.failed" || entry.type === "agent.cancelled");
   assert.deepEqual(terminal.map((entry) => entry.type), ["agent.cancelled"]);
 });
+
+test("spawned subagent inherits the secret-service bus address but not ambient secrets", async () => {
+  // Regression: delegate children re-run loadConfig, which resolves cred://
+  // through the OS keychain (libsecret on Linux). The scrubbed child env
+  // dropped DBUS_SESSION_BUS_ADDRESS/XDG_RUNTIME_DIR, so every delegate call
+  // died with "Credential not found" even though the parent resolved fine.
+  const saved: NodeJS.ProcessEnv = {};
+  for (const k of ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "ALIX_TEST_SENTINEL_SECRET"]) {
+    if (k in process.env) saved[k] = process.env[k];
+  }
+  process.env.DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/1000/bus";
+  process.env.XDG_RUNTIME_DIR = "/run/user/1000";
+  process.env.ALIX_TEST_SENTINEL_SECRET = "s3cret-must-not-propagate";
+  try {
+    const manager = new SubagentManager({
+      sessionId: "s1",
+      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      spawnOverride: {
+        command: process.execPath,
+        args: ["-e", `console.log(JSON.stringify({ id: "env-probe", role: "explorer", status: "success", findings: ["DBUS=" + (process.env.DBUS_SESSION_BUS_ADDRESS ?? "<absent>"), "XDG=" + (process.env.XDG_RUNTIME_DIR ?? "<absent>"), "SECRET=" + ("ALIX_TEST_SENTINEL_SECRET" in process.env ? process.env.ALIX_TEST_SENTINEL_SECRET : "<absent>")], events: [] }));`],
+      },
+    });
+    const result = await manager.spawn(makeTask({ id: "env-probe" }));
+    assert.equal(result.status, "success");
+    const findings = result.findings as unknown as string[];
+    assert.ok(
+      findings.some((f) => f === "DBUS=unix:path=/run/user/1000/bus"),
+      "bus address must reach the child: " + JSON.stringify(findings),
+    );
+    assert.ok(
+      findings.some((f) => f === "XDG=/run/user/1000"),
+      "runtime dir must reach the child: " + JSON.stringify(findings),
+    );
+    assert.ok(
+      findings.every((f) => !f.includes("s3cret")),
+      "ambient secret values must not propagate: " + JSON.stringify(findings),
+    );
+  } finally {
+    for (const k of ["DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "ALIX_TEST_SENTINEL_SECRET"]) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  }
+});

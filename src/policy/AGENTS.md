@@ -16,6 +16,9 @@
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
 - One pending approval per key: capability asks reuse the pending approval for their capability; coordination asks reuse by exact binding key; ask-mode tool calls always create a fresh record.
 - Default deny when no rule matches ("deny by default" closure).
+- Headless exception: with no approval store (delegate subagent child),
+  read-only `web.search`/`web.fetch` auto-allow (`headless-read-allow`,
+  mirroring the default allow-web-search/fetch rules); all else fails closed.
 
 **Work Guidance:**
 - RuleEvaluator is pure logic — no side effects, no I/O. Keep it testable.

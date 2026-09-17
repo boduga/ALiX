@@ -129,6 +129,17 @@ describe('formatActivityLine — tool presentation (Task 3.4)', () => {
   it('falls back to a generic label when the running tool has no name', () => {
     expect(formatActivityLine(activity('tool_running', 0), 1_000)).toBe('⚙ Running tool… 1s');
   });
+
+  it('renders an approval wait as "⏸ Awaiting approval… Ns" with a fixed glyph (never the working spinner)', () => {
+    // Tool ran 0→10_000, then blocked on the operator; at 51_000 the wait
+    // itself is 41s old — the line must show the wait, not the tool age.
+    const a = activity('awaiting_approval', 0, { toolName: 'shell.run', awaitingStartedAt: 10_000 });
+    expect(formatActivityLine(a, 51_000)).toBe('⏸ Awaiting approval… 41s');
+    // An explicit caller frame must not override the parked glyph.
+    expect(formatActivityLine(a, 51_000, '◐')).toBe('⏸ Awaiting approval… 41s');
+    // Legacy records without awaitingStartedAt fall back to the invocation start.
+    expect(formatActivityLine(activity('awaiting_approval', 5_000), 11_000)).toBe('⏸ Awaiting approval… 6s');
+  });
 });
 
 // ─── Task 3.5 — completion cleanup ────────────────────────────────────────
@@ -144,7 +155,7 @@ describe('formatActivityLine — completion cleanup (Task 3.5)', () => {
   });
 
   it('isTransientActivityState admits exactly the live transient states', () => {
-    for (const s of ['thinking', 'waiting_for_provider', 'tool_running', 'verifying', 'summarizing', 'possibly_stalled', 'cancelling'] as const) {
+    for (const s of ['thinking', 'waiting_for_provider', 'tool_running', 'awaiting_approval', 'verifying', 'summarizing', 'possibly_stalled', 'cancelling'] as const) {
       expect(isTransientActivityState(s)).toBe(true);
     }
     for (const s of ['streaming', 'completed', 'failed', 'cancelled'] as const) {

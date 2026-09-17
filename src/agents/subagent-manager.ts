@@ -125,6 +125,18 @@ export class SubagentManager {
           stdio: ["pipe", "pipe", "pipe"] as const,
           env: buildChildEnv(this.options.config?.runtime?.envAllowlist, {
             ALIX_NO_BANNER: "1",
+            // Secret-service IPC so the child can resolve cred:// references
+            // through loadConfig exactly like the parent. Without the bus
+            // address, libsecret lookups fail with "Credential not found" and
+            // every delegate call dies. No secret VALUES cross this boundary —
+            // only the address of the user's own keyring bus (plus the runtime
+            // dir that normally holds its socket).
+            ...(process.env.DBUS_SESSION_BUS_ADDRESS
+              ? { DBUS_SESSION_BUS_ADDRESS: process.env.DBUS_SESSION_BUS_ADDRESS }
+              : {}),
+            ...(process.env.XDG_RUNTIME_DIR
+              ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR }
+              : {}),
             ...(task.scriptedScenarioJson ? { ALIX_EVAL_SCENARIO: task.scriptedScenarioJson } : {}),
           }),
         }) as ChildProcess;

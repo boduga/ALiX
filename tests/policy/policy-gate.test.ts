@@ -198,6 +198,19 @@ describe("PolicyGate", () => {
     assert.ok(result.reason.includes("no approval store"));
   });
 
+  it("allows read-only web tools with no approval store (headless subagent)", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    for (const toolName of ["web_search", "web_fetch"]) {
+      const result = await gate.evaluateToolCall({
+        requestId: `h1-${toolName}`, toolName, args: toolName === "web_search" ? { query: "x" } : { url: "https://example.com" },
+        cwd: "/tmp", sessionMode: "ask", source: "tool",
+      });
+      assert.equal(result.decision, "allow", `${toolName} must stay usable headless`);
+      assert.equal(result.matchedRuleId, "headless-read-allow");
+    }
+  });
+
   it("creates approval when approval store provided and decision is ask", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-ask-"));
     try {
