@@ -18,6 +18,7 @@ Purpose: the M2 memory subsystem — persistence of agent memory entries (Markdo
 - **Types (canonical):** `MemoryType = "user" | "project" | "feedback" | "reference"`. `MemoryEntry { name, description, type, content, createdAt, modifiedAt, confidence (0–1), confirmations, source? }`. `MemoryConfig` and `DEFAULT_MEMORY_CONFIG` (decayDays 30, maxEntriesPerType 50, consolidateSchedule daily, indexMaxLines 100).
 - **Persistence:** one `.md` file per entry with YAML frontmatter, under `<basePath>/<type>/<sanitized-name>.md`; plus `<basePath>/memory.md` index and `<basePath>/logs/YYYY-MM-DD.md` session logs. Runtime base path is `<cwd>/.alix/memory/` (project-scoped — there is **no** global/user store despite the `"user"` MemoryType).
 - **Identity / overwrite:** `save()` overwrites by `name+type` filename collision — no duplicate creation, but it is a plain overwrite, not a confirmed upsert.
+- **No prompting on the turn path:** `completeSession` auto-persists extracted decisions (confidence 0.6) and never calls `promptDecisionConfirmation`; interactive `[y/n/q]` confirmation happens only via the explicit REPL `save()` path. A TTY stdin must never block turn completion.
 - **Recall:** retrieval is substring match + confidence-descending sort, then level sizing (`brief`/`standard`/`detailed`). No semantic ranking.
 - Config is **constructor-injected**; `.alix/memory/config.json` is written by `init()` but never read back.
 

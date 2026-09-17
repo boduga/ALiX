@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { extractDecisions, DECISION_PATTERNS, promptDecisionConfirmation } from "../../../src/utils/memory/decision-extractor.js";
+import { saveDecisionsToMemory } from "../../../src/run/helpers.js";
 import type { AlixEvent } from "../../../src/events/types.js";
 import type { MemoryEntry } from "../../../src/utils/memory/types.js";
+import type { MemoryStore } from "../../../src/utils/memory/store.js";
 
 function makeEvent(type: string, payload: Record<string, unknown>, sessionId = "test-session"): AlixEvent {
   return {
@@ -208,4 +210,31 @@ test("promptDecisionConfirmation() sets confidence to 0.6 on auto-confirmed entr
   const confirmed = await promptDecisionConfirmation(decisions);
   assert.equal(confirmed[0].confidence, 0.6, "Confidence should be set to 0.6 in non-TTY");
   assert.equal(confirmed[0].confirmations, 0, "Confirmations should stay 0 in non-TTY");
+});
+test("saveDecisionsToMemory() never prompts on the automatic path, even with a TTY stdin", async () => {
+  // Regression: turn completion (completeSession) blocked on stdin [y/n/q]
+  // after session.ended but before the summary printed, so a TTY `alix run`
+  // never exited. The automatic path must resolve without touching stdin.
+  const stdin = process.stdin as { isTTY?: unknown };
+  const origIsTTY = stdin.isTTY;
+  stdin.isTTY = true;
+  try {
+    const saved: Array<{ confidence: number }> = [];
+    const store = {
+      save: async (e: { confidence: number }) => { saved.push(e); return e; },
+    } as unknown as MemoryStore;
+    const events: AlixEvent[] = [
+      makeEvent("user.message", { text: "We chose TypeScript because it has better type safety" }),
+    ];
+    await Promise.race([
+      saveDecisionsToMemory(events, store),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("saveDecisionsToMemory hung waiting for stdin")), 5_000),
+      ),
+    ]);
+    assert.equal(saved.length, 1, "Should auto-persist without prompting");
+    assert.equal(saved[0].confidence, 0.6, "Auto-persisted entry keeps 0.6 confidence");
+  } finally {
+    stdin.isTTY = origIsTTY;
+  }
 });

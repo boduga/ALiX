@@ -66,6 +66,11 @@ export async function completeSession(
     contextBudget: ContextBudget;
     lastInvocationId: string;
   },
+  opts?: {
+    /** Request interactive memory-decision confirmation. Defaults to false:
+     *  turn completion must never block on stdin (see saveDecisionsToMemory). */
+    confirmDecisions?: boolean;
+  },
 ): Promise<RunResult> {
   // Task 9 (§6): Evaluate `context.rot_risk` advisory BEFORE the terminal
   // `session.ended` event so a single readAll() sees both. UNSET threshold →
@@ -77,7 +82,9 @@ export async function completeSession(
   }
   await log.append({ ...session, actor: "system", type: eventType, payload: { reason, summary, ...(contextPressure ? { contextPressure } : {}) } });
   const sessionEvents = await log.readAll();
-  await saveDecisionsToMemory(sessionEvents, memoryStore);
+  await saveDecisionsToMemory(sessionEvents, memoryStore, {
+    confirm: opts?.confirmDecisions === true,
+  });
   await evaluatePattern(log, session, sessionDir, taskType);
   return {
     sessionId, summary, streamed,
