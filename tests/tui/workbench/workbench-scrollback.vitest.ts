@@ -142,8 +142,8 @@ describe('Workbench scrollback', () => {
       sourceEvents: { firstSequence: 2 },
     }];
     const trace: ExecutionTraceEntry[] = [{
-      id: 'tool-1', kind: 'tool', status: 'completed', title: 'tool.shell.run',
-      startedAt: 1, completedAt: 1, durationMs: 0,
+      id: 'tool-1', kind: 'tool', status: 'running', title: 'tool.shell.run',
+      startedAt: 1,
       sourceEvents: { firstSequence: 1, lastSequence: 1 },
     }];
     const renderContext = context('compact', timeline, trace);
@@ -161,11 +161,29 @@ describe('Workbench scrollback', () => {
     expect(text).toContain('a approve · d deny');
     expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
     expect(text.indexOf('shell.run · approval required')).toBeLessThan(text.indexOf('APPROVAL REQUIRED · shell.run'));
-    expect(text).not.toContain('shell.run · 0ms');
+    expect(text).not.toContain('✓ shell.run');
     expect(text).not.toContain('full raw shell command');
     expect(buildWorkbenchScrollbackLines(renderContext, 90).some((line) => (
       line.kind === 'approvalCard' && line.gutter === 'APPROVAL'
     ))).toBe(true);
+  });
+
+  it('does not relabel completed tools when a newer approval uses the same tool name', () => {
+    const trace: ExecutionTraceEntry[] = [{
+      id: 'tool-old', kind: 'tool', status: 'completed', title: 'tool.shell.run',
+      startedAt: 1, completedAt: 2, durationMs: 1,
+      sourceEvents: { firstSequence: 1, lastSequence: 2 },
+    }];
+    const renderContext = context('compact', [], trace);
+    (renderContext.perTab as PerTabState).pendingApprovals = [{
+      id: 'approval-new', toolName: 'shell.run', target: 'docker info', requestedAt: 3,
+    }];
+
+    const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+
+    expect(text).toContain('✓ shell.run · 1ms');
+    expect(text.match(/shell\.run · approval required/gu)).toBeNull();
+    expect(text).toContain('APPROVAL REQUIRED · shell.run');
   });
 
   it('falls back to one inline card while the semantic approval event catches up', () => {
