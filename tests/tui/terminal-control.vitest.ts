@@ -87,7 +87,7 @@ describe('TerminalControl — stderr capture', () => {
     const replayed = seen.join('');
     expect(replayed).toMatch(/^\[alix-tui\] stderr truncated: \d+ characters omitted;/);
     expect(replayed).toContain('showing the most recent 32768.');
-    expect(replayed).toEndWith('latest diagnostic\n');
+    expect(replayed.endsWith('latest diagnostic\n')).toBe(true);
     expect(replayed.length).toBeLessThan(34 * 1024);
   });
 
