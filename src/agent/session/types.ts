@@ -164,6 +164,8 @@ export interface AgentSessionConfig {
   sessionMode?: "auto" | "ask" | "bypass";
   /** Read-only mode restricts tools to read/search only. */
   readOnly?: boolean;
+  /** Suppress config warnings when the caller owns an interactive presentation surface. */
+  suppressConfigWarnings?: boolean;
   /** Enable streaming output. */
   streaming?: boolean;
   /** Skip plan phase (default: plan phase runs unless read-only). */
