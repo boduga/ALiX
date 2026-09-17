@@ -16,8 +16,9 @@ const cleanupFns: Array<() => void> = [];
 /**
  * Stderr capture while the TUI owns the screen. Raw stderr writes (config
  * warnings, diagnostics) would otherwise paint over the alt-buffer frame.
- * Buffered output is replayed to the real stderr on releaseStderr(), so no
- * diagnostic is lost — it just lands in the scrollback after the TUI exits.
+ * Buffered output is replayed to the real stderr on releaseStderr(). Capture
+ * is bounded to avoid unbounded memory growth during long sessions; overflow
+ * retains the most recent diagnostics and emits an explicit omission marker.
  *
  * Only active when stderr is a TTY: piped stderr cannot collide with the
  * screen, and skipping the hook keeps unit tests hermetic. In-process writes
