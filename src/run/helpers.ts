@@ -280,6 +280,12 @@ export async function promptUser(question: string): Promise<string> {
 
 /**
  * Extract decisions from session events and save confirmed ones to memory.
+ *
+ * Decision confirmation owns readline, so it is only safe on a cooked,
+ * interactive terminal. TUI raw mode and non-interactive runtimes (daemon/CI)
+ * must stay silent rather than writing outside their presentation boundary or
+ * opening a prompt that cannot be answered.
+ *
  * Wraps memoryStore.save() in try/catch to prevent crashes during cleanup.
  */
 export async function saveDecisionsToMemory(
@@ -287,16 +293,16 @@ export async function saveDecisionsToMemory(
   memoryStore: MemoryStore
 ): Promise<void> {
   const decisions = extractDecisions(sessionEvents);
-  if (decisions.length === 0) {
-    console.log("[Memory] No decisions found to save.");
-    return;
-  }
+  if (decisions.length === 0) return;
+
+  const canPrompt =
+    process.stdin.isTTY === true &&
+    process.stdout.isTTY === true &&
+    process.stdin.isRaw !== true;
+  if (!canPrompt) return;
 
   const confirmedDecisions = await promptDecisionConfirmation(decisions);
-  if (confirmedDecisions.length === 0) {
-    console.log("[Memory] No decisions saved.");
-    return;
-  }
+  if (confirmedDecisions.length === 0) return;
 
   console.log(`[Memory] Saving ${confirmedDecisions.length} decision(s) to memory:`);
   for (const decision of confirmedDecisions) {
