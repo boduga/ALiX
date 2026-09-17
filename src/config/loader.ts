@@ -380,6 +380,7 @@ async function readJson(path: string): Promise<PartialConfig> {
 async function resolveTracingCredentials(
   tracing: AlixConfig["tracing"],
   credentialStoreOption: CredentialStore | undefined,
+  warn: (message: string) => void = (message) => console.warn(message),
 ): Promise<AlixConfig["tracing"]> {
   if (!tracing || tracing.enabled !== true) return tracing;
 
