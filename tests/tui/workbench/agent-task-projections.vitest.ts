@@ -73,12 +73,19 @@ describe('Workbench agent and task projections', () => {
       running: 1,
       tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running' }],
     });
+    expect(agents.snapshot().totals).toEqual({
+      agents: 1, running: 0, waitingApproval: 0, stalled: 0,
+      knownTokens: 30, tokenCoverage: 1, knownCostUsd: 0.01, costCoverage: 1,
+    });
   });
 
   it('keeps unknown usage unavailable and preserves explicit zero values', () => {
     const agents = new AgentRosterProjection();
     agents.update([event(1, 'agent.spawned', { agentId: 'agent-1', state: 'thinking' })]);
     expect(agents.snapshot().agents[0]?.usage).toEqual({});
+    expect(agents.snapshot().totals).toMatchObject({ tokenCoverage: 0, costCoverage: 0 });
+    expect(agents.snapshot().totals.knownTokens).toBeUndefined();
+    expect(agents.snapshot().totals.knownCostUsd).toBeUndefined();
 
     agents.update([event(2, 'agent.usage', {
       agentId: 'agent-1', provider: 'openai', resolvedModel: 'gpt-test',
@@ -88,6 +95,7 @@ describe('Workbench agent and task projections', () => {
       model: 'gpt-test',
       usage: { provider: 'openai', inputTokens: 0, outputTokens: 5, totalTokens: 5, contextWindowTokens: 100, costUsd: 0 },
     });
+    expect(agents.snapshot().totals).toMatchObject({ knownTokens: 5, tokenCoverage: 1, knownCostUsd: 0, costCoverage: 1 });
   });
 
   it('deduplicates replayed events by stable event identity rather than sequence', () => {

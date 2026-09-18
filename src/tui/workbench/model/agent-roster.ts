@@ -46,4 +46,14 @@ export interface AgentSummary {
 export interface AgentRosterSnapshot {
   readonly agents: readonly AgentSummary[];
   readonly active: number;
+  readonly totals: {
+    readonly agents: number;
+    readonly running: number;
+    readonly waitingApproval: number;
+    readonly stalled: number;
+    readonly knownTokens?: number;
+    readonly tokenCoverage: number;
+    readonly knownCostUsd?: number;
+    readonly costCoverage: number;
+  };
 }

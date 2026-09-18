@@ -4,6 +4,7 @@ import type { ProjectionBuilder } from '../../runtime/projection-builder.js';
 import type { AgentRosterSnapshot, AgentSummary, WorkbenchAgentState } from '../model/agent-roster.js';
 
 const terminalStates = new Set<WorkbenchAgentState>(['completed', 'partial', 'failed', 'cancelled']);
+const runningStates = new Set<WorkbenchAgentState>(['starting', 'thinking', 'tool_running', 'verifying', 'cancelling']);
 const stallExemptStates = new Set<WorkbenchAgentState>(['tool_running', 'waiting', 'waiting_approval', 'waiting_dependency']);
 const progressEvents = new Set([
   'agent.spawned', 'subagent.started', 'agent.state_changed', 'agent.task_assigned', 'agent.plan',
@@ -143,7 +144,30 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
         return { ...agent, liveness: { state, idleMs } };
       })
       .sort((a, b) => a.startedAt - b.startedAt || a.agentId.localeCompare(b.agentId));
-    return { agents, active: agents.filter((agent) => !terminalStates.has(agent.state)).length };
+    const tokenValues = agents.flatMap((agent) => {
+      const value = agent.usage.totalTokens ?? (
+        agent.usage.inputTokens !== undefined && agent.usage.outputTokens !== undefined
+          ? agent.usage.inputTokens + agent.usage.outputTokens
+          : undefined
+      );
+      return value === undefined ? [] : [value];
+    });
+    const costValues = agents.flatMap((agent) => agent.usage.costUsd === undefined ? [] : [agent.usage.costUsd]);
+    const active = agents.filter((agent) => !terminalStates.has(agent.state)).length;
+    return {
+      agents,
+      active,
+      totals: {
+        agents: agents.length,
+        running: agents.filter((agent) => runningStates.has(agent.state)).length,
+        waitingApproval: agents.filter((agent) => agent.state === 'waiting_approval').length,
+        stalled: agents.filter((agent) => agent.liveness?.state === 'stalled').length,
+        ...(tokenValues.length > 0 ? { knownTokens: tokenValues.reduce((sum, value) => sum + value, 0) } : {}),
+        tokenCoverage: tokenValues.length,
+        ...(costValues.length > 0 ? { knownCostUsd: costValues.reduce((sum, value) => sum + value, 0) } : {}),
+        costCoverage: costValues.length,
+      },
+    };
   }
 
   reset(): void {
