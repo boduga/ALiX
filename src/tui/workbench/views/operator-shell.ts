@@ -49,7 +49,21 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   canvas.write(stateStart, 1, `\x1b[90magent · ${modeColor}${model.mode}${RESET}\x1b[90m · ${model.transcriptMode}${RESET}`);
   canvas.write(0, 2, `\x1b[90m${'─'.repeat(width)}${RESET}`);
 
-  const counters = `tokens ${model.tokensUsed.toLocaleString('en-US')} · files ${model.filesTouched.toLocaleString('en-US')} · events ${model.eventCount.toLocaleString('en-US')}`;
+  const counterParts = [
+    `tokens ${model.tokensUsed.toLocaleString('en-US')}`,
+    `files ${model.filesTouched.toLocaleString('en-US')}`,
+    `events ${model.eventCount.toLocaleString('en-US')}`,
+  ];
+  if (model.agents) {
+    counterParts.push(`agents ${model.agents.active}/${model.agents.total}`);
+    if (model.agents.waitingApproval > 0) counterParts.push(`wait ${model.agents.waitingApproval}`);
+    if (model.agents.stalled > 0) counterParts.push(`stalled ${model.agents.stalled}`);
+    if (model.agents.knownCostUsd !== undefined) {
+      const partial = model.agents.costCoverage < model.agents.total ? '+' : '';
+      counterParts.push(`cost $${model.agents.knownCostUsd.toFixed(4)}${partial}`);
+    }
+  }
+  const counters = counterParts.join(' · ');
   const counterStart = Math.max(1, width - counters.length - 1);
   let operator = model.running ? 'Esc cancel' : '↑↓ scroll';
   if (model.queuedMessages > 0) {

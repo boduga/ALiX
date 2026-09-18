@@ -61,11 +61,21 @@ describe('WorkbenchStore', () => {
     store.dispatch({ type: 'queue.add', message: { id: 'q1', text: 'one', createdAt: 1 } });
     store.dispatch({ type: 'queue.add', message: { id: 'q2', text: 'two', createdAt: 2 } });
     store.dispatch({ type: 'drawer.toggle', drawer: 'agents' });
+    expect(store.snapshot().focus).toBe('drawer');
+    store.dispatch({ type: 'agent.select', agentId: 'agent-2', scrollOffset: 1 });
     store.dispatch({ type: 'drawer.toggle', drawer: 'tasks' });
 
     expect(store.snapshot().queuedMessages.map((message) => message.id)).toEqual(['q1', 'q2']);
     expect(store.snapshot().drawer).toBe('tasks');
+    expect(store.snapshot()).toMatchObject({ selectedAgentId: 'agent-2', drawerScrollOffset: 0, focus: 'drawer' });
     store.dispatch({ type: 'queue.shift' });
     expect(store.snapshot().queuedMessages.map((message) => message.id)).toEqual(['q2']);
+  });
+
+  it('returns focus to the composer when the drawer closes', () => {
+    const store = new WorkbenchStore();
+    store.dispatch({ type: 'drawer.toggle', drawer: 'agents' });
+    store.dispatch({ type: 'drawer.close' });
+    expect(store.snapshot()).toMatchObject({ drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 });
   });
 });

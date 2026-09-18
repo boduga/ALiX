@@ -29,6 +29,7 @@ export interface ExecutionTraceEntry {
   readonly status: ExecutionTraceStatus;
   /** One-line title — "tool.search", "Policy: Allow", "core.session.list". */
   readonly title: string;
+  readonly agentId?: string;
   readonly detail?: string;
   readonly startedAt: number;
   readonly completedAt?: number;

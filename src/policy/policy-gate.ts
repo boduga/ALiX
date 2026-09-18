@@ -37,6 +37,7 @@ export type ToolPolicyRequest = {
   cwd: string;
   sessionMode: SessionMode;
   sessionId?: string;
+  agentId?: string;
   source: "tool" | "graph" | "daemon" | "tui" | "replay";
   // Coordination context
   coordinationRunId?: string;
@@ -56,6 +57,7 @@ export type CapabilityPolicyRequest = {
   nodeId?: string;
   graphId?: string;
   sessionId?: string;
+  agentId?: string;
   source: "tool" | "graph" | "daemon" | "tui" | "replay";
   metadata?: Record<string, unknown>;
   // Coordination context
@@ -334,6 +336,7 @@ export class PolicyGate {
       request.sessionMode,
       askReason,
       request.sessionId,
+      request.agentId,
       request.coordinationRunId ? {
         coordinationRunId: request.coordinationRunId,
         workerId: request.workerId,
@@ -354,6 +357,7 @@ export class PolicyGate {
           approvalId: askDecision.approvalId,
           requestId: request.requestId,
           sessionId: request.sessionId,
+          agentId: request.agentId,
           capability,
           toolName: (request as ToolPolicyRequest).toolName,
           status: isReused ? ("reused" as const) : ("pending" as const),
@@ -421,6 +425,7 @@ export class PolicyGate {
         request.sessionMode,
         `Requires approval for capability: ${request.capability}`,
         request.sessionId,
+        request.agentId,
         request.coordinationRunId ? {
           coordinationRunId: request.coordinationRunId,
           workerId: request.workerId,
@@ -442,6 +447,7 @@ export class PolicyGate {
           approvalId: capAskDecision.approvalId,
           requestId: request.requestId,
           sessionId: request.sessionId,
+          agentId: request.agentId,
           capability: request.capability,
           status: isReused ? ("reused" as const) : ("pending" as const),
           reason: capAskDecision.reason,
@@ -460,6 +466,7 @@ export class PolicyGate {
     sessionMode: string,
     reason: string,
     sessionId?: string,
+    agentId?: string,
     coordinationContext?: {
       coordinationRunId?: string;
       workerId?: string;
@@ -516,7 +523,7 @@ export class PolicyGate {
       }
 
       // Create new pending with binding key
-      const approval = await store.request({ reason, capability, sessionId });
+      const approval = await store.request({ reason, capability, sessionId, agentId });
       // Update the approval with binding key via store's internal state
       approval.bindingKey = bindingKey;
       approval.policyRevision = policyRevision;
@@ -551,7 +558,7 @@ export class PolicyGate {
         }
       }
       // Create new pending approval
-      const approval = await store.request({ reason, capability, sessionId, requestId });
+      const approval = await store.request({ reason, capability, sessionId, agentId, requestId });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 
@@ -571,7 +578,7 @@ export class PolicyGate {
     }
 
     // Create new pending approval
-    const approval = await store.request({ reason, capability, sessionId });
+    const approval = await store.request({ reason, capability, sessionId, agentId });
     return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
   }
 

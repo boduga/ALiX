@@ -8,6 +8,8 @@ const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> =
   approvalPending: false,
   overlayOpen: false,
   transcriptMode: 'compact' as const,
+  drawer: 'closed' as const,
+  focus: 'composer' as const,
   ...overrides,
 });
 
@@ -50,6 +52,14 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('Enter', context({ slashActive: true }))).toEqual({ type: 'slash.submit' });
     expect(routeWorkbenchInput('Ctrl+a', context())).toEqual({ type: 'drawer.toggle', drawer: 'agents' });
     expect(routeWorkbenchInput('Ctrl+t', context())).toEqual({ type: 'drawer.toggle', drawer: 'tasks' });
+  });
+
+  it('gives an open focused drawer ownership of navigation and Escape', () => {
+    const drawer = context({ drawer: 'agents', focus: 'drawer' });
+    expect(routeWorkbenchInput('ArrowUp', drawer)).toEqual({ type: 'drawer.move', direction: -1 });
+    expect(routeWorkbenchInput('j', drawer)).toEqual({ type: 'drawer.move', direction: 1 });
+    expect(routeWorkbenchInput('Escape', drawer)).toEqual({ type: 'drawer.close' });
+    expect(routeWorkbenchInput('j', context({ drawer: 'tasks', focus: 'drawer' }))).toEqual({ type: 'unhandled' });
   });
 
   it('does not submit an empty composer', () => {

@@ -331,6 +331,7 @@ export class ToolExecutor {
   private async dispatch(request: ToolCallRequest): Promise<ExecuteResult> {
     const startedAt = Date.now();
     const { toolCallId, name } = request;
+    const agentPayload = request.agentId ? { agentId: request.agentId } : {};
     let args = request.args;
     const capability = inferCapability(name);
     const canonicalCapability = canonicalCapabilityOf(name);
@@ -364,6 +365,7 @@ export class ToolExecutor {
       argsPreview: sanitizeArgs(args),
       executionId: correlation.executionId,
       invocationId: correlation.invocationId,
+      ...agentPayload,
       ...(request.replayId ? { replayId: request.replayId } : {}),
     });
 
@@ -382,6 +384,7 @@ export class ToolExecutor {
           argumentHash,
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
+          ...agentPayload,
           ...(request.replayId ? { replayId: request.replayId } : {}),
         });
         return { kind: "error", message, retryable: false };
@@ -399,6 +402,7 @@ export class ToolExecutor {
         argumentHash,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       return await this.toolAwareRouter.downstream.execute(request);
@@ -418,6 +422,7 @@ export class ToolExecutor {
           argumentHash,
           executionId: correlation.executionId,
           invocationId: correlation.invocationId,
+          ...agentPayload,
           ...(request.replayId ? { replayId: request.replayId } : {}),
         });
         return await this.toolAwareRouter.downstream.execute(request);
@@ -461,6 +466,7 @@ export class ToolExecutor {
         argumentHash,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       return { kind: "denied", reason: decision.reason };
@@ -500,6 +506,7 @@ export class ToolExecutor {
         argumentHash,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       return {
@@ -518,6 +525,7 @@ export class ToolExecutor {
         argumentHash,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
@@ -528,6 +536,7 @@ export class ToolExecutor {
         outputSize: 14,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, {
@@ -539,6 +548,7 @@ export class ToolExecutor {
         argumentHash,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       return result;
@@ -567,6 +577,7 @@ export class ToolExecutor {
       argumentHash,
       executionId: correlation.executionId,
       invocationId: correlation.invocationId,
+      ...agentPayload,
       ...(request.replayId ? { replayId: request.replayId } : {}),
     });
     // Emit observability metric for tool call
@@ -635,6 +646,7 @@ export class ToolExecutor {
         outputSize,
         executionId: correlation.executionId,
         invocationId: correlation.invocationId,
+        ...agentPayload,
       };
       await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, {
         ...outputPayload,
@@ -681,6 +693,7 @@ export class ToolExecutor {
       };
       await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, {
         ...completedPayload,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
     } else {
@@ -696,6 +709,7 @@ export class ToolExecutor {
       };
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, {
         ...failedPayload,
+        ...agentPayload,
         ...(request.replayId ? { replayId: request.replayId } : {}),
       });
       // Emit observability metric for tool failure

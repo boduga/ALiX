@@ -28,9 +28,18 @@ describe('buildExecutionTrace', () => {
     expect(e.kind).toBe('tool');
     expect(e.status).toBe('completed');
     expect(e.title).toBe('tool.search');
+    expect(e.agentId).toBeUndefined();
     expect(e.durationMs).toBe(183);
     expect(e.sourceEvents.firstSequence).toBe(1);
     expect(e.sourceEvents.lastSequence).toBe(3);
+  });
+
+  it('preserves agent identity across a tool lifecycle', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search', agentId: 'agent-1' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', agentId: 'agent-1', durationMs: 10 }),
+    ]);
+    expect(entries).toMatchObject([{ kind: 'tool', status: 'completed', agentId: 'agent-1' }]);
   });
 
   it('marks a tool with no terminal event as running (open lifecycle) with NO lastSequence', () => {

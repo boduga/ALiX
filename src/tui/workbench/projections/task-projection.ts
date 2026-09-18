@@ -23,12 +23,12 @@ function terminal(value: unknown): WorkbenchTaskState {
 
 export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
   private readonly byId = new Map<string, TaskSummary>();
-  private readonly seen = new Set<number>();
+  private readonly seen = new Set<string>();
 
   update(events: readonly AlixEvent[]): void {
     for (const event of events) {
-      if (this.seen.has(event.seq)) continue;
-      this.seen.add(event.seq);
+      if (this.seen.has(event.id)) continue;
+      this.seen.add(event.id);
       const id = taskId(event);
       if (!id) continue;
       const p = payload(event);
@@ -52,7 +52,25 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
           : p.state === 'completed' || p.state === 'partial' || p.state === 'failed' || p.state === 'cancelled'
             ? terminal(p.state)
             : 'running';
-        this.byId.set(id, { ...previous, state, updatedAt: at });
+        this.byId.set(id, {
+          ...previous,
+          state,
+          currentOperation: typeof p.operation === 'string' ? p.operation : previous.currentOperation,
+          updatedAt: at,
+        });
+      } else if (event.type === 'agent.progress') {
+        this.byId.set(id, {
+          ...previous,
+          state: previous.state === 'assigned' || previous.state === 'queued' ? 'running' : previous.state,
+          currentOperation: typeof p.operation === 'string' ? p.operation : previous.currentOperation,
+          updatedAt: at,
+        });
+      } else if (event.type === 'agent.ownership_changed') {
+        this.byId.set(id, {
+          ...previous,
+          ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((value): value is string => typeof value === 'string') : previous.ownedPaths,
+          updatedAt: at,
+        });
       } else if (event.type === 'subagent.result') {
         this.byId.set(id, { ...previous, state: terminal(p.status), updatedAt: at });
       } else if (event.type === 'agent.completed' || event.type === 'subagent.completed') {

@@ -5,6 +5,8 @@ export interface WorkbenchInputContext {
   readonly approvalPending?: boolean;
   readonly overlayOpen?: boolean;
   readonly transcriptMode: 'compact' | 'detailed' | 'raw';
+  readonly drawer: 'closed' | 'agents' | 'tasks';
+  readonly focus: 'composer' | 'transcript' | 'drawer' | 'modal';
 }
 
 export type WorkbenchInputIntent =
@@ -21,6 +23,8 @@ export type WorkbenchInputIntent =
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.toggle' }
   | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' }
+  | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
+  | { readonly type: 'drawer.close' }
   | { readonly type: 'unhandled' };
 
 /** Pure context-sensitive key router for the Workbench work surface. */
@@ -34,6 +38,14 @@ export function routeWorkbenchInput(
   if (context.overlayOpen) {
     return key === 'Escape' ? { type: 'overlay.close' } : { type: 'unhandled' };
   }
+  if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
+  if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
+  if (context.focus === 'drawer' && context.drawer !== 'closed') {
+    if (key === 'Escape') return { type: 'drawer.close' };
+    if (context.drawer === 'agents' && (key === 'ArrowUp' || key === 'k')) return { type: 'drawer.move', direction: -1 };
+    if (context.drawer === 'agents' && (key === 'ArrowDown' || key === 'j')) return { type: 'drawer.move', direction: 1 };
+    return { type: 'unhandled' };
+  }
   if (key === 'Shift+Enter') return { type: 'composer.insert', text: '\n' };
   if (key === 'Backspace') return { type: 'composer.backspace' };
   if (key === 'Delete') return { type: 'composer.delete' };
@@ -42,8 +54,6 @@ export function routeWorkbenchInput(
   if (key === 'Home') return { type: 'composer.move', direction: 'start' };
   if (key === 'End') return { type: 'composer.move', direction: 'end' };
   if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
-  if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
-  if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
   if (key === 'Shift+Tab') return { type: 'permission.cycle' };
   if (key === 'Escape') {
     return context.turnActive ? { type: 'turn.cancel' } : { type: 'unhandled' };

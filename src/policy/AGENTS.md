@@ -15,6 +15,7 @@
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
 - One pending approval per key: capability asks reuse the pending approval for their capability; coordination asks reuse by exact binding key; ask-mode tool calls always create a fresh record.
+- Policy evaluation forwards the execution request's optional canonical `agentId` into durable approval records and lifecycle events without changing the allow/ask/deny decision.
 - Default deny when no rule matches ("deny by default" closure).
 - Headless exception: with no approval store (delegate subagent child),
   `web.search`/`web.fetch` and the zero-side-effect `task.complete`

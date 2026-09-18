@@ -15,6 +15,7 @@ export interface ConversationProjectionInput {
   readonly timeline: readonly TimelineEntry[];
   readonly trace: readonly ExecutionTraceEntry[];
   readonly mode: TranscriptMode;
+  readonly focusAgentId?: string;
 }
 
 type Candidate = TranscriptItem & { readonly order: number };
@@ -56,6 +57,7 @@ function cloneTool(entry: ExecutionTraceEntry): ToolItem {
     status: entry.status,
     ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
     ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
+    ...(entry.agentId !== undefined ? { agentId: entry.agentId } : {}),
     sourceEvents: sourceRange(entry.sourceEvents),
   };
 }
@@ -85,6 +87,7 @@ export class ConversationProjection {
         startedAt: entry.startedAt,
         sourceEvents: range,
         order: range.firstSequence,
+        ...(entry.agentId !== undefined ? { agentId: entry.agentId } : {}),
       } as const;
 
       if (entry.kind === 'agent.message' && entry.actor === 'user') {
@@ -155,13 +158,17 @@ export class ConversationProjection {
         startedAt: entry.startedAt,
         sourceEvents: range,
         order: range.firstSequence,
+        ...(entry.agentId !== undefined ? { agentId: entry.agentId } : {}),
       });
     }
 
     candidates.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    const visibleCandidates = input.focusAgentId
+      ? candidates.filter((candidate) => candidate.agentId === undefined || candidate.agentId === input.focusAgentId)
+      : candidates;
 
     const items: TranscriptItem[] = [];
-    for (const candidate of candidates) {
+    for (const candidate of visibleCandidates) {
       const previous = items[items.length - 1];
 
       // The runtime may emit the same final prose as agent.message followed by
@@ -185,7 +192,7 @@ export class ConversationProjection {
 
       // Consecutive tool lifecycles form one compact operation group. A user,
       // assistant, approval, phase, or diagnostic item is a hard group break.
-      if (candidate.kind === 'tool-group' && previous?.kind === 'tool-group') {
+      if (candidate.kind === 'tool-group' && previous?.kind === 'tool-group' && candidate.agentId === previous.agentId) {
         const merged: ToolGroupItem = {
           ...previous,
           tools: [...previous.tools, ...candidate.tools],

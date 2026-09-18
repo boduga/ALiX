@@ -16,4 +16,15 @@ describe('Workbench diagnostic overlays', () => {
     expect(frame).toContain('src/app.ts');
     expect(frame).toContain('Review is read-only');
   });
+
+  it('lists drawer slash commands in help', () => {
+    const canvas = new TerminalCanvas(100, 30);
+    paintWorkbenchDiagnosticOverlay(
+      { canvas, width: 100, height: 30, headerH: 3, footerH: 5 },
+      'help',
+      null,
+    );
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('/agents · /tasks · /diff · /review · /help');
+  });
 });

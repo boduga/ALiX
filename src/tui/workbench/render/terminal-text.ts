@@ -43,6 +43,22 @@ export function displayWidth(text: string): number {
   return graphemes(text).reduce((total, grapheme) => total + graphemeWidth(grapheme), 0);
 }
 
+export function truncateDisplayText(text: string, columns: number): string {
+  if (columns <= 0) return '';
+  if (displayWidth(text) <= columns) return text;
+  if (columns === 1) return '…';
+  let result = '';
+  let used = 0;
+  const budget = columns - 1;
+  for (const grapheme of graphemes(text)) {
+    const width = graphemeWidth(grapheme);
+    if (used + width > budget) break;
+    result += grapheme;
+    used += width;
+  }
+  return `${result}…`;
+}
+
 export function wrapDisplayText(text: string, columns: number): readonly string[] {
   const width = Math.max(1, columns);
   const rows: string[] = [];
