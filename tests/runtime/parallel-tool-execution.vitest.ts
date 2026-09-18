@@ -635,10 +635,21 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
       // Overlap proof still holds even with mixed success/failure (parallel dispatch)
       const started = evs.filter((e) => e.type === "tool.started");
       expect(started).toHaveLength(2);
-      const sA = new Date(started.find((e) => (e.payload as any).toolCallId === "call_A")!.timestamp).getTime();
-      const sB = new Date(started.find((e) => (e.payload as any).toolCallId === "call_B")!.timestamp).getTime();
-      // Both started within same tick (parallel) — difference < 20ms
-      expect(Math.abs(sA - sB)).toBeLessThan(25);
+      // Deterministic interleaving proof, not wall-clock proximity: both
+      // started events precede the first terminal event, so the two calls
+      // were dispatched in parallel. (A ms-gap assert here flaked on loaded
+      // macOS runners — #772 — because timestamped appends serialize
+      // through file I/O even under Promise.all dispatch.)
+      const idx = (type: string, id: string): number =>
+        evs.findIndex((e) => e.type === type && (e.payload as any).toolCallId === id);
+      const firstTerminal = Math.min(
+        ...evs
+          .map((e, i) => ({ e, i }))
+          .filter(({ e }) => e.type === "tool.completed" || e.type === "tool.failed")
+          .map(({ i }) => i),
+      );
+      expect(idx("tool.started", "call_A")).toBeLessThan(firstTerminal);
+      expect(idx("tool.started", "call_B")).toBeLessThan(firstTerminal);
 
       // End-to-end via runTaskLoop: prove the loop returns both results to next turn without collapsing
       // Use a real ToolExecutor with two files, where one read fails
