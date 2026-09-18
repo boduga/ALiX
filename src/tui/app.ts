@@ -30,6 +30,7 @@ import { createApprovalResolver, type ApprovalResolver } from './approval-resolv
 import { FramePainter } from './frame-painter.js';
 import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
+import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
@@ -769,7 +770,7 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'slash.submit':
-        if (this.openWorkbenchSlashOverlay(state.composer.text)) {
+        if (this.openWorkbenchBuiltinSurface(state.composer.text)) {
           this.workbenchStore.dispatch({ type: 'composer.clear' });
           this.syncWorkbenchComposer();
           this.slash.hint = null;
@@ -875,11 +876,22 @@ export class TuiApp {
     this.state.views.agent.inputBuffer = this.workbenchStore.snapshot().composer.text;
   }
 
-  private openWorkbenchSlashOverlay(text: string): boolean {
-    const command = text.trim().toLowerCase();
-    const overlay = command === '/diff' ? 'diff' : command === '/review' ? 'review' : command === '/help' || command === '/?' ? 'help' : null;
-    if (!overlay) return false;
-    this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay });
+  private openWorkbenchBuiltinSurface(text: string): boolean {
+    const command = parseWorkbenchBuiltinCommand(text);
+    if (!command) return false;
+    if (command.type === 'overlay.open') {
+      this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: command.overlay });
+      return true;
+    }
+    const state = this.workbenchStore.snapshot();
+    if (state.drawer !== command.drawer) {
+      this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: command.drawer });
+    }
+    if (command.drawer === 'agents') {
+      const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
+      const selected = agents.find((agent) => agent.agentId === state.selectedAgentId) ?? agents[0];
+      if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: 0 });
+    }
     return true;
   }
 
