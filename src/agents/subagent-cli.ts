@@ -533,6 +533,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             toolCallId: toolCall.id,
             name: execName,
             args: toolCall.args,
+            agentId: taskId,
             executionId,
             invocationId,
           });

@@ -63,6 +63,9 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
       }
       if (!previous) continue;
       let state = previous.state;
+      let activeTool = previous.activeTool;
+      const toolCallId = typeof p.toolCallId === 'string' && p.toolCallId.length > 0 ? p.toolCallId : undefined;
+      const toolName = typeof p.toolName === 'string' && p.toolName.length > 0 ? p.toolName : undefined;
       if ((event.type === 'approval.requested' || event.type === 'approval.created') && approvalId) {
         if (!pending) {
           this.pendingApprovals.set(approvalId, { agentId: id, previousState: previous.state });
@@ -71,11 +74,20 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
       } else if (event.type === 'approval.resolved' && pending) {
         state = pending.previousState;
         this.pendingApprovals.delete(approvalId!);
+      } else if (event.type === 'tool.started' && toolCallId && toolName) {
+        state = 'tool_running';
+        activeTool = { toolCallId, toolName, startedAt: at, lastProgressAt: at, elapsedMs: 0 };
+      } else if (event.type === 'tool.output' && activeTool && toolCallId === activeTool.toolCallId) {
+        activeTool = { ...activeTool, lastProgressAt: at, elapsedMs: Math.max(0, at - activeTool.startedAt) };
+      } else if (['tool.completed', 'tool.failed', 'tool.cancelled'].includes(event.type) && toolCallId === activeTool?.toolCallId) {
+        activeTool = undefined;
+        if (!terminalStates.has(state) && state !== 'waiting_approval') state = 'thinking';
       } else if (event.type === 'subagent.result') state = stateOf(p.status, 'failed');
       else if (event.type === 'agent.completed' || event.type === 'subagent.completed') state = stateOf(p.state ?? p.status, 'completed');
       else if (event.type === 'agent.failed' || event.type === 'subagent.failed') state = 'failed';
       else if (event.type === 'agent.cancelled') state = 'cancelled';
       else if (event.type === 'agent.state_changed') state = stateOf(p.state, previous.state);
+      if (terminalStates.has(state)) activeTool = undefined;
       const ownedPaths = event.type === 'agent.ownership_changed' && Array.isArray(p.ownedPaths)
         ? p.ownedPaths.filter((v): v is string => typeof v === 'string')
         : previous.ownedPaths;
@@ -86,9 +98,12 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
             costUsd: typeof p.costUsd === 'number' ? p.costUsd : previous.usage.costUsd,
           }
         : previous.usage;
+      const { activeTool: priorActiveTool, ...previousWithoutActiveTool } = previous;
+      void priorActiveTool;
       this.byId.set(id, {
-        ...previous,
+        ...previousWithoutActiveTool,
         state,
+        ...(activeTool ? { activeTool } : {}),
         ownedPaths,
         usage,
         lastProgressAt: at,

@@ -42,6 +42,10 @@ export function paintRosterDrawer(input: {
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
       canvas.write(left + 2, row++, fit(`${active} ${agent.role} · ${agent.state}`, inner));
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(agent.currentOperation ?? agent.currentTaskId ?? agent.agentId, inner)}${RESET}`);
+      if (row <= bottom - 1 && agent.activeTool) {
+        const elapsed = agent.activeTool.elapsedMs >= 1000 ? ` · ${(agent.activeTool.elapsedMs / 1000).toFixed(1)}s` : '';
+        canvas.write(left + 2, row++, `\x1b[90m${fit(`tool ${agent.activeTool.toolName}${elapsed}`, inner)}${RESET}`);
+      }
       if (row <= bottom - 1 && agent.ownedPaths.length > 0) canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${agent.ownedPaths.join(', ')}`, inner)}${RESET}`);
       row++;
     }

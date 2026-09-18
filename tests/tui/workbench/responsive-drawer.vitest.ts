@@ -29,6 +29,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 140, top: 3, bottom: 18, layout,
       agents: { active: 1, agents: [{
         agentId: 'a1', role: 'worker', state: 'tool_running', currentOperation: 'Editing composer',
+        activeTool: { toolCallId: 'tc1', toolName: 'patch.apply', startedAt: 1, lastProgressAt: 2501, elapsedMs: 2500 },
         ownedPaths: ['src/tui'], startedAt: 1, lastProgressAt: 2,
         usage: { inputTokens: 1, outputTokens: 2, costUsd: 0 },
       }] },
@@ -38,6 +39,7 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('AGENTS  1 active');
     expect(frame).toContain('worker · tool_running');
     expect(frame).toContain('Editing composer');
+    expect(frame).toContain('tool patch.apply · 2.5s');
     expect(frame).toContain('owns src/tui');
   });
 });

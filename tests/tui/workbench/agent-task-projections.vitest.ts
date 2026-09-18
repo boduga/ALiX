@@ -111,4 +111,23 @@ describe('Workbench agent and task projections', () => {
       agents: [{ agentId: 'agent-1', state: 'tool_running' }],
     });
   });
+
+  it('correlates live tool activity by agent and tool call identity', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([
+      event(1, 'agent.spawned', { agentId: 'agent-1', taskId: 'task-1', state: 'thinking' }),
+      event(2, 'tool.started', { agentId: 'agent-1', toolCallId: 'tool-1', toolName: 'grep.search' }),
+      event(4, 'tool.output', { agentId: 'agent-1', toolCallId: 'tool-1', outputPreview: 'match' }),
+      event(5, 'tool.completed', { agentId: 'agent-1', toolCallId: 'other-tool', toolName: 'file.read', durationMs: 1 }),
+    ]);
+
+    expect(agents.snapshot().agents[0]).toMatchObject({
+      state: 'tool_running',
+      activeTool: { toolCallId: 'tool-1', toolName: 'grep.search', elapsedMs: 2000 },
+    });
+
+    agents.update([event(6, 'tool.completed', { agentId: 'agent-1', toolCallId: 'tool-1', toolName: 'grep.search', durationMs: 4000 })]);
+    expect(agents.snapshot().agents[0]).toMatchObject({ state: 'thinking' });
+    expect(agents.snapshot().agents[0]?.activeTool).toBeUndefined();
+  });
 });
