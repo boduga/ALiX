@@ -16,6 +16,17 @@ export interface ActiveToolSummary {
   readonly elapsedMs: number;
 }
 
+export interface AgentUsageSummary {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly cacheTokens?: number;
+  readonly totalTokens?: number;
+  readonly contextWindowTokens?: number;
+  readonly costUsd?: number;
+  readonly provider?: string;
+  readonly costSource?: string;
+}
+
 export interface AgentSummary {
   readonly agentId: string;
   readonly parentAgentId?: string;
@@ -29,7 +40,7 @@ export interface AgentSummary {
   readonly startedAt: number;
   readonly lastProgressAt: number;
   readonly liveness?: AgentRosterLiveness;
-  readonly usage: { readonly inputTokens: number; readonly outputTokens: number; readonly costUsd: number };
+  readonly usage: AgentUsageSummary;
 }
 
 export interface AgentRosterSnapshot {

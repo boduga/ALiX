@@ -75,6 +75,21 @@ describe('Workbench agent and task projections', () => {
     });
   });
 
+  it('keeps unknown usage unavailable and preserves explicit zero values', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([event(1, 'agent.spawned', { agentId: 'agent-1', state: 'thinking' })]);
+    expect(agents.snapshot().agents[0]?.usage).toEqual({});
+
+    agents.update([event(2, 'agent.usage', {
+      agentId: 'agent-1', provider: 'openai', resolvedModel: 'gpt-test',
+      inputTokens: 0, outputTokens: 5, totalTokens: 5, contextWindowTokens: 100, costUsd: 0,
+    })]);
+    expect(agents.snapshot().agents[0]).toMatchObject({
+      model: 'gpt-test',
+      usage: { provider: 'openai', inputTokens: 0, outputTokens: 5, totalTokens: 5, contextWindowTokens: 100, costUsd: 0 },
+    });
+  });
+
   it('deduplicates replayed events by stable event identity rather than sequence', () => {
     const agents = new AgentRosterProjection();
     const tasks = new TaskProjection();

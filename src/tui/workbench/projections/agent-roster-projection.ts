@@ -15,6 +15,10 @@ function payload(event: AlixEvent): Record<string, unknown> {
   return event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : {};
 }
 
+function finiteNonNegative(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 function agentId(event: AlixEvent): string | undefined {
   const p = payload(event);
   const value = p.agentId ?? p.subagentId ?? p.taskId;
@@ -64,7 +68,7 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
           ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((v): v is string => typeof v === 'string') : previous?.ownedPaths ?? [],
           startedAt: previous?.startedAt ?? at,
           lastProgressAt: at,
-          usage: previous?.usage ?? { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+          usage: previous?.usage ?? {},
         });
         continue;
       }
@@ -100,9 +104,15 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
         : previous.ownedPaths;
       const usage = event.type === 'agent.usage'
         ? {
-            inputTokens: typeof p.inputTokens === 'number' ? p.inputTokens : previous.usage.inputTokens,
-            outputTokens: typeof p.outputTokens === 'number' ? p.outputTokens : previous.usage.outputTokens,
-            costUsd: typeof p.costUsd === 'number' ? p.costUsd : previous.usage.costUsd,
+            ...previous.usage,
+            ...(finiteNonNegative(p.inputTokens) !== undefined ? { inputTokens: finiteNonNegative(p.inputTokens) } : {}),
+            ...(finiteNonNegative(p.outputTokens) !== undefined ? { outputTokens: finiteNonNegative(p.outputTokens) } : {}),
+            ...(finiteNonNegative(p.cacheTokens) !== undefined ? { cacheTokens: finiteNonNegative(p.cacheTokens) } : {}),
+            ...(finiteNonNegative(p.totalTokens) !== undefined ? { totalTokens: finiteNonNegative(p.totalTokens) } : {}),
+            ...(finiteNonNegative(p.contextWindowTokens) !== undefined ? { contextWindowTokens: finiteNonNegative(p.contextWindowTokens) } : {}),
+            ...(finiteNonNegative(p.costUsd) !== undefined ? { costUsd: finiteNonNegative(p.costUsd) } : {}),
+            ...(typeof p.provider === 'string' && p.provider.length > 0 ? { provider: p.provider } : {}),
+            ...(typeof p.costSource === 'string' && p.costSource.length > 0 ? { costSource: p.costSource } : {}),
           }
         : previous.usage;
       const { activeTool: priorActiveTool, ...previousWithoutActiveTool } = previous;
@@ -113,6 +123,9 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
         ...(activeTool ? { activeTool } : {}),
         ownedPaths,
         usage,
+        ...((event.type === 'agent.usage' && typeof (p.resolvedModel ?? p.model) === 'string')
+          ? { model: String(p.resolvedModel ?? p.model) }
+          : {}),
         lastProgressAt: progressEvents.has(event.type) ? at : previous.lastProgressAt,
         ...(typeof p.operation === 'string' ? { currentOperation: p.operation } : {}),
       });

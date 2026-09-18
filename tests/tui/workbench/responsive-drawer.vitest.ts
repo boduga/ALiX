@@ -30,8 +30,9 @@ describe('Workbench responsive drawer', () => {
       agents: { active: 1, agents: [{
         agentId: 'a1', role: 'worker', state: 'tool_running', currentOperation: 'Editing composer',
         activeTool: { toolCallId: 'tc1', toolName: 'patch.apply', startedAt: 1, lastProgressAt: 2501, elapsedMs: 2500 },
+        model: 'qwen-test',
         ownedPaths: ['src/tui'], startedAt: 1, lastProgressAt: 2,
-        usage: { inputTokens: 1, outputTokens: 2, costUsd: 0 },
+        usage: { inputTokens: 400, outputTokens: 100, contextWindowTokens: 1000, costUsd: 0 },
       }] },
       tasks: null,
       selectedAgentId: 'a1',
@@ -42,6 +43,9 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('›● worker · tool_running');
     expect(frame).toContain('Editing composer');
     expect(frame).toContain('tool patch.apply · 2.5s');
+    expect(frame).toContain('model qwen-test');
+    expect(frame).toContain('tokens 500 / 1,000 (50%)');
+    expect(frame).toContain('cost $0.0000');
     expect(frame).toContain('owns src/tui');
   });
 
@@ -54,7 +58,7 @@ describe('Workbench responsive drawer', () => {
         agentId: 'a1', role: 'researcher', state: 'thinking',
         liveness: { state: 'stalled', idleMs: 600_000 },
         ownedPaths: [], startedAt: 1, lastProgressAt: 2,
-        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+        usage: {},
       }] },
       tasks: null,
     });
@@ -68,7 +72,7 @@ describe('Workbench responsive drawer', () => {
     const layout = resolveWorkbenchLayout(140, 'agents');
     const agent = (agentId: string, role: string) => ({
       agentId, role, state: 'thinking' as const, ownedPaths: [], startedAt: 1, lastProgressAt: 2,
-      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      usage: {},
     });
     paintRosterDrawer({
       canvas, terminalColumns: 140, top: 3, bottom: 18, layout,

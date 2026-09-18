@@ -50,11 +50,23 @@ export function paintRosterDrawer(input: {
         canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
       }
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(agent.currentOperation ?? agent.currentTaskId ?? agent.agentId, inner)}${RESET}`);
+      if (row <= bottom - 1 && agent.model) canvas.write(left + 2, row++, `\x1b[90m${fit(`model ${agent.model}`, inner)}${RESET}`);
       if (row <= bottom - 1 && agent.activeTool) {
         const elapsed = agent.activeTool.elapsedMs >= 1000 ? ` · ${(agent.activeTool.elapsedMs / 1000).toFixed(1)}s` : '';
         canvas.write(left + 2, row++, `\x1b[90m${fit(`tool ${agent.activeTool.toolName}${elapsed}`, inner)}${RESET}`);
       }
       if (row <= bottom - 1 && agent.ownedPaths.length > 0) canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${agent.ownedPaths.join(', ')}`, inner)}${RESET}`);
+      const inputTokens = agent.usage.inputTokens;
+      const outputTokens = agent.usage.outputTokens;
+      const totalTokens = agent.usage.totalTokens ?? (inputTokens !== undefined && outputTokens !== undefined ? inputTokens + outputTokens : undefined);
+      if (row <= bottom - 1 && totalTokens !== undefined) {
+        const context = agent.usage.contextWindowTokens;
+        const utilization = context !== undefined && context > 0 ? ` / ${context.toLocaleString('en-US')} (${Math.round(totalTokens / context * 100)}%)` : '';
+        canvas.write(left + 2, row++, `\x1b[90m${fit(`tokens ${totalTokens.toLocaleString('en-US')}${utilization}`, inner)}${RESET}`);
+      }
+      if (row <= bottom - 1 && agent.usage.costUsd !== undefined) {
+        canvas.write(left + 2, row++, `\x1b[90m${fit(`cost $${agent.usage.costUsd.toFixed(4)}`, inner)}${RESET}`);
+      }
       row++;
     }
   } else {
