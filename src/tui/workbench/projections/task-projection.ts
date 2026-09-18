@@ -52,7 +52,25 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
           : p.state === 'completed' || p.state === 'partial' || p.state === 'failed' || p.state === 'cancelled'
             ? terminal(p.state)
             : 'running';
-        this.byId.set(id, { ...previous, state, updatedAt: at });
+        this.byId.set(id, {
+          ...previous,
+          state,
+          currentOperation: typeof p.operation === 'string' ? p.operation : previous.currentOperation,
+          updatedAt: at,
+        });
+      } else if (event.type === 'agent.progress') {
+        this.byId.set(id, {
+          ...previous,
+          state: previous.state === 'assigned' || previous.state === 'queued' ? 'running' : previous.state,
+          currentOperation: typeof p.operation === 'string' ? p.operation : previous.currentOperation,
+          updatedAt: at,
+        });
+      } else if (event.type === 'agent.ownership_changed') {
+        this.byId.set(id, {
+          ...previous,
+          ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((value): value is string => typeof value === 'string') : previous.ownedPaths,
+          updatedAt: at,
+        });
       } else if (event.type === 'subagent.result') {
         this.byId.set(id, { ...previous, state: terminal(p.status), updatedAt: at });
       } else if (event.type === 'agent.completed' || event.type === 'subagent.completed') {

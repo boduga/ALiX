@@ -71,11 +71,29 @@ describe('Workbench agent and task projections', () => {
     });
     expect(tasks.snapshot()).toMatchObject({
       running: 1,
-      tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running' }],
+      tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running', currentOperation: 'Run tests', ownedPaths: ['src/tui/app.ts'] }],
     });
     expect(agents.snapshot().totals).toEqual({
       agents: 1, running: 0, waitingApproval: 0, stalled: 0,
       knownTokens: 30, tokenCoverage: 1, knownCostUsd: 0.01, costCoverage: 1,
+    });
+  });
+
+  it('projects task progress and ownership updates from structured events', () => {
+    const tasks = new TaskProjection();
+    tasks.update([
+      event(1, 'agent.task_assigned', { agentId: 'agent-1', taskId: 'task-1', title: 'Build drawer' }),
+      event(2, 'agent.progress', { agentId: 'agent-1', taskId: 'task-1', operation: 'Rendering task cards' }),
+      event(3, 'agent.ownership_changed', { agentId: 'agent-1', taskId: 'task-1', ownedPaths: ['src/tui', 'tests/tui'] }),
+    ]);
+
+    expect(tasks.snapshot()).toMatchObject({
+      queued: 0,
+      running: 1,
+      tasks: [{
+        taskId: 'task-1', state: 'running', currentOperation: 'Rendering task cards',
+        ownedPaths: ['src/tui', 'tests/tui'],
+      }],
     });
   });
 

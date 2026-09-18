@@ -68,6 +68,44 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('⚠ possibly stalled');
   });
 
+  it('renders structured task ownership and progress', () => {
+    const canvas = new TerminalCanvas(100, 24);
+    paintRosterDrawer({
+      canvas, terminalColumns: 100, top: 3, bottom: 18, layout: resolveWorkbenchLayout(100, 'tasks'),
+      agents: null,
+      tasks: {
+        queued: 1, running: 1,
+        tasks: [{
+          taskId: 'task-1', agentId: 'agent-1', title: 'Finish Workbench', state: 'running',
+          currentOperation: 'Rendering task cards', ownedPaths: ['src/tui'], createdAt: 1, updatedAt: 2,
+        }],
+      },
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('TASKS  1 running · 1 queued');
+    expect(frame).toContain('● Finish Workbench');
+    expect(frame).toContain('running · agent agent-1');
+    expect(frame).toContain('Rendering task cards');
+    expect(frame).toContain('owns src/tui');
+  });
+
+  it('truncates Unicode roster content by terminal display width', () => {
+    const canvas = new TerminalCanvas(20, 16);
+    paintRosterDrawer({
+      canvas, terminalColumns: 20, top: 3, bottom: 12, layout: resolveWorkbenchLayout(20, 'tasks'),
+      agents: null,
+      tasks: {
+        queued: 0, running: 1,
+        tasks: [{
+          taskId: 'task-1', title: '調査調査調査調査調査', state: 'running',
+          ownedPaths: [], createdAt: 1, updatedAt: 2,
+        }],
+      },
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('● 調査調査調査調…');
+  });
+
   it('starts agent rendering at the presentation scroll offset', () => {
     const canvas = new TerminalCanvas(140, 24);
     const layout = resolveWorkbenchLayout(140, 'agents');

@@ -3,10 +3,19 @@ import { RESET } from '../../ansi-constants.js';
 import type { AgentRosterSnapshot } from '../model/agent-roster.js';
 import type { TaskRosterSnapshot } from '../model/task-roster.js';
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
+import { truncateDisplayText } from '../render/terminal-text.js';
 
 function fit(text: string, width: number): string {
-  if (width <= 0) return '';
-  return text.length <= width ? text : width === 1 ? '…' : `${text.slice(0, width - 1)}…`;
+  return truncateDisplayText(text, width);
+}
+
+function taskStateGlyph(state: TaskRosterSnapshot['tasks'][number]['state']): string {
+  if (state === 'running') return '●';
+  if (state === 'queued' || state === 'assigned') return '◌';
+  if (state === 'completed') return '✓';
+  if (state === 'partial') return '◐';
+  if (state === 'failed') return '✗';
+  return '○';
 }
 
 export function paintRosterDrawer(input: {
@@ -31,7 +40,7 @@ export function paintRosterDrawer(input: {
   }
   const title = layout.drawer === 'agents'
     ? `AGENTS  ${input.agents?.active ?? 0} active`
-    : `TASKS  ${input.tasks?.running ?? 0} running`;
+    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued`;
   canvas.write(left + 2, top, `\x1b[1m${fit(title, inner)}${RESET}`);
   canvas.write(left + 2, top + 1, `\x1b[90m${'─'.repeat(inner)}${RESET}`);
 
@@ -74,8 +83,15 @@ export function paintRosterDrawer(input: {
     if (tasks.length === 0) canvas.write(left + 2, row, `\x1b[90mNo delegated tasks${RESET}`);
     for (const task of tasks) {
       if (row > bottom - 1) break;
-      canvas.write(left + 2, row++, fit(`• ${task.state} · ${task.title}`, inner));
-      if (row <= bottom - 1 && task.agentId) canvas.write(left + 2, row++, `\x1b[90m${fit(`agent ${task.agentId}`, inner)}${RESET}`);
+      canvas.write(left + 2, row++, fit(`${taskStateGlyph(task.state)} ${task.title}`, inner));
+      const owner = task.agentId ? ` · agent ${task.agentId}` : '';
+      if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
+      if (row <= bottom - 1 && task.currentOperation && task.currentOperation !== task.title) {
+        canvas.write(left + 2, row++, `\x1b[90m${fit(task.currentOperation, inner)}${RESET}`);
+      }
+      if (row <= bottom - 1 && task.ownedPaths.length > 0) {
+        canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${task.ownedPaths.join(', ')}`, inner)}${RESET}`);
+      }
       row++;
     }
   }
