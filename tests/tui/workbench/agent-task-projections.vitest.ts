@@ -93,7 +93,8 @@ describe('Workbench agent and task projections', () => {
     agents.update([
       event(1, 'agent.spawned', { agentId: 'agent-1', taskId: 'task-1', state: 'starting' }),
       event(2, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'tool_running' }),
-      event(3, 'approval.requested', { approvalId: 'approval-1', agentId: 'agent-1', taskId: 'task-1' }),
+      event(3, 'approval.created', { approvalId: 'approval-1', agentId: 'agent-1', taskId: 'task-1' }),
+      event(4, 'approval.created', { approvalId: 'approval-1', agentId: 'agent-1', taskId: 'task-1' }),
     ]);
 
     expect(agents.snapshot()).toMatchObject({
@@ -102,7 +103,7 @@ describe('Workbench agent and task projections', () => {
     });
 
     agents.update([
-      event(4, 'approval.resolved', { approvalId: 'approval-1', decision: 'approved' }),
+      event(5, 'approval.resolved', { approvalId: 'approval-1', decision: 'approved' }),
     ]);
 
     expect(agents.snapshot()).toMatchObject({

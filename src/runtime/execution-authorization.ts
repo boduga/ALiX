@@ -53,6 +53,7 @@ export class ExecutionAuthorization {
           sessionMode: request.sessionMode,
           ownedPaths: request.ownedPaths,
           sessionId: request.sessionId,
+          agentId: request.agentId,
           source: request.source === "agent" ? "tool" : request.source,
         })
       : await policyGate.evaluateCapability({
@@ -62,6 +63,7 @@ export class ExecutionAuthorization {
           nodeId: request.nodeId,
           graphId: request.graphId,
           sessionId: request.sessionId,
+          agentId: request.agentId,
           source: request.source === "agent" ? "tool" : request.source,
         });
 

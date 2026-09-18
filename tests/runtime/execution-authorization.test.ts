@@ -23,6 +23,7 @@ type FakePolicyConfig = {
 class FakePolicyGate {
   private config: FakePolicyConfig;
   lastToolRequest?: any;
+  lastCapabilityRequest?: any;
   constructor(config: FakePolicyConfig = {}) {
     this.config = config;
   }
@@ -37,6 +38,7 @@ class FakePolicyGate {
     };
   }
   async evaluateCapability(req: any) {
+    this.lastCapabilityRequest = req;
     return {
       requestId: req.requestId,
       capability: req.capability,
@@ -139,6 +141,14 @@ describe("ExecutionAuthorization", () => {
     assert.deepEqual(fake.lastToolRequest.ownedPaths, ["src"]);
   });
 
+  it("forwards the authoritative agent identity to tool policy evaluation", async () => {
+    const fake = new FakePolicyGate({ toolResult: { decision: "allow" } }) as any;
+    deps.policyGate = fake;
+    const auth = new ExecutionAuthorization(deps);
+    await auth.evaluate(makeRequest({ agentId: "agent-7" }));
+    assert.equal(fake.lastToolRequest.agentId, "agent-7");
+  });
+
   it("denies when PolicyGate returns deny", async () => {
     deps.policyGate = new FakePolicyGate({ toolResult: { decision: "deny", reason: "blocked" } }) as any;
     const auth = new ExecutionAuthorization(deps);
@@ -175,7 +185,8 @@ describe("ExecutionAuthorization", () => {
   });
 
   it("handles graph-source requests (no toolName)", async () => {
-    deps.policyGate = new FakePolicyGate({ capResult: { decision: "allow" } }) as any;
+    const fake = new FakePolicyGate({ capResult: { decision: "allow" } }) as any;
+    deps.policyGate = fake;
     const auth = new ExecutionAuthorization(deps);
     const result = await auth.evaluate(makeRequest({
       toolName: undefined,
@@ -184,5 +195,6 @@ describe("ExecutionAuthorization", () => {
       graphId: "graph-1",
     }));
     assert.equal(result.status, "allowed");
+    assert.equal(fake.lastCapabilityRequest.agentId, "alix");
   });
 });

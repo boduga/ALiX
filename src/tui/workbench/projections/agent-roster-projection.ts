@@ -63,8 +63,10 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
       }
       if (!previous) continue;
       let state = previous.state;
-      if (event.type === 'approval.requested' && approvalId) {
-        this.pendingApprovals.set(approvalId, { agentId: id, previousState: previous.state });
+      if ((event.type === 'approval.requested' || event.type === 'approval.created') && approvalId) {
+        if (!pending) {
+          this.pendingApprovals.set(approvalId, { agentId: id, previousState: previous.state });
+        }
         state = 'waiting_approval';
       } else if (event.type === 'approval.resolved' && pending) {
         state = pending.previousState;

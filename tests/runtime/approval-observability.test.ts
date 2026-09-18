@@ -97,6 +97,7 @@ describe("Approval observability", () => {
         cwd: "/tmp",
         sessionMode: "ask",
         sessionId: "sess_test",
+        agentId: "agent-obs",
         source: "tool",
       });
 
@@ -105,6 +106,7 @@ describe("Approval observability", () => {
       assert.ok(createdEvent, "Expected approval.created event");
       assert.equal(createdEvent.payload.capability, "shell.run");
       assert.equal(createdEvent.payload.toolName, "shell.run");
+      assert.equal(createdEvent.payload.agentId, "agent-obs");
       assert.equal(createdEvent.payload.status, "pending");
     } finally {
       rmSync(pgTmpDir, { recursive: true, force: true });

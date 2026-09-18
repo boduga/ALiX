@@ -22,6 +22,7 @@
 
 **Local Contracts:**
 - No new storage — all data read from existing backends at query time.
+- `ExecutionAuthorization` preserves an execution request's canonical `agentId` when delegating tool or capability decisions to `PolicyGate`; approval correlation must not substitute `workerId`.
 - Sorted newest-first by default; `order=asc` reverses.
 - Session events use an allowlist to filter out noisy event types.
 - Silent failure on unreadable/missing backends (never crashes).

@@ -38,10 +38,16 @@ describe('ApprovalStore event completeness', () => {
       toolId: 'fs',
       requestId: 'req-1',
       sessionId: 's1',
+      agentId: 'agent-1',
     });
     const events = await flushAndRead(store, eventLog);
     const ce = createdEvent(events, (events[0]!.payload as { approvalId: string }).approvalId)!;
-    expect(ce.payload).toMatchObject({ reason: 'Modify config', toolId: 'fs', requestId: 'req-1', sessionId: 's1' });
+    expect(ce.payload).toMatchObject({ reason: 'Modify config', toolId: 'fs', requestId: 'req-1', sessionId: 's1', agentId: 'agent-1' });
+
+    const record = store.list()[0]!;
+    await store.resolve(record.id, 'approved');
+    const resolved = (await flushAndRead(store, eventLog)).find(e => e.type === 'approval.resolved');
+    expect(resolved?.payload).toMatchObject({ approvalId: record.id, agentId: 'agent-1', status: 'approved' });
   });
 
   it('expireDue emits approval.expired exactly once per newly-expired record', async () => {
