@@ -1,7 +1,12 @@
 export type WorkbenchAgentState =
   | 'queued' | 'starting' | 'thinking' | 'tool_running'
-  | 'waiting' | 'waiting_approval' | 'verifying' | 'completed' | 'partial'
+  | 'waiting' | 'waiting_approval' | 'waiting_dependency' | 'verifying' | 'completed' | 'partial'
   | 'failed' | 'cancelling' | 'cancelled';
+
+export interface AgentRosterLiveness {
+  readonly state: 'healthy' | 'warning' | 'stalled';
+  readonly idleMs: number;
+}
 
 export interface ActiveToolSummary {
   readonly toolCallId: string;
@@ -23,6 +28,7 @@ export interface AgentSummary {
   readonly ownedPaths: readonly string[];
   readonly startedAt: number;
   readonly lastProgressAt: number;
+  readonly liveness?: AgentRosterLiveness;
   readonly usage: { readonly inputTokens: number; readonly outputTokens: number; readonly costUsd: number };
 }
 

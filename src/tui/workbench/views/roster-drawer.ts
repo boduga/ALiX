@@ -41,6 +41,10 @@ export function paintRosterDrawer(input: {
       if (row > bottom - 1) break;
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
       canvas.write(left + 2, row++, fit(`${active} ${agent.role} · ${agent.state}`, inner));
+      if (row <= bottom - 1 && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
+        const label = agent.liveness.state === 'stalled' ? 'possibly stalled' : 'slow progress';
+        canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
+      }
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(agent.currentOperation ?? agent.currentTaskId ?? agent.agentId, inner)}${RESET}`);
       if (row <= bottom - 1 && agent.activeTool) {
         const elapsed = agent.activeTool.elapsedMs >= 1000 ? ` · ${(agent.activeTool.elapsedMs / 1000).toFixed(1)}s` : '';

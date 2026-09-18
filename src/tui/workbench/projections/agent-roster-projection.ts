@@ -1,8 +1,15 @@
 import type { AlixEvent } from '../../../events/types.js';
+import { DEFAULT_LIVENESS_THRESHOLDS, type AgentLivenessThresholds } from '../../../agent/agent-liveness.js';
 import type { ProjectionBuilder } from '../../runtime/projection-builder.js';
 import type { AgentRosterSnapshot, AgentSummary, WorkbenchAgentState } from '../model/agent-roster.js';
 
 const terminalStates = new Set<WorkbenchAgentState>(['completed', 'partial', 'failed', 'cancelled']);
+const stallExemptStates = new Set<WorkbenchAgentState>(['tool_running', 'waiting', 'waiting_approval', 'waiting_dependency']);
+const progressEvents = new Set([
+  'agent.spawned', 'subagent.started', 'agent.state_changed', 'agent.task_assigned', 'agent.plan',
+  'agent.response.delta', 'agent.usage', 'approval.requested', 'approval.created', 'approval.resolved',
+  'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed', 'tool.cancelled',
+]);
 
 function payload(event: AlixEvent): Record<string, unknown> {
   return event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : {};
@@ -22,7 +29,7 @@ function stateOf(value: unknown, fallback: WorkbenchAgentState): WorkbenchAgentS
   };
   const candidate = aliases[normalized] ?? normalized;
   return [
-    'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'waiting_approval', 'verifying',
+    'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'waiting_approval', 'waiting_dependency', 'verifying',
     'completed', 'partial', 'failed', 'cancelling', 'cancelled',
   ].includes(candidate) ? candidate as WorkbenchAgentState : fallback;
 }
@@ -106,14 +113,23 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
         ...(activeTool ? { activeTool } : {}),
         ownedPaths,
         usage,
-        lastProgressAt: at,
+        lastProgressAt: progressEvents.has(event.type) ? at : previous.lastProgressAt,
         ...(typeof p.operation === 'string' ? { currentOperation: p.operation } : {}),
       });
     }
   }
 
-  snapshot(): AgentRosterSnapshot {
-    const agents = [...this.byId.values()].sort((a, b) => a.startedAt - b.startedAt || a.agentId.localeCompare(b.agentId));
+  snapshot(now = Date.now(), thresholds: AgentLivenessThresholds = DEFAULT_LIVENESS_THRESHOLDS): AgentRosterSnapshot {
+    const agents = [...this.byId.values()]
+      .map((agent): AgentSummary => {
+        if (terminalStates.has(agent.state) || stallExemptStates.has(agent.state)) return agent;
+        const idleMs = Math.max(0, now - agent.lastProgressAt);
+        const state = idleMs >= thresholds.stalledAfterMs
+          ? 'stalled'
+          : idleMs >= thresholds.warningAfterMs ? 'warning' : 'healthy';
+        return { ...agent, liveness: { state, idleMs } };
+      })
+      .sort((a, b) => a.startedAt - b.startedAt || a.agentId.localeCompare(b.agentId));
     return { agents, active: agents.filter((agent) => !terminalStates.has(agent.state)).length };
   }
 

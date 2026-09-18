@@ -130,4 +130,36 @@ describe('Workbench agent and task projections', () => {
     expect(agents.snapshot().agents[0]).toMatchObject({ state: 'thinking' });
     expect(agents.snapshot().agents[0]?.activeTool).toBeUndefined();
   });
+
+  it('derives liveness without mutating lifecycle or flagging blocked and terminal agents', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([
+      event(1, 'agent.spawned', { agentId: 'thinking', state: 'thinking' }),
+      event(2, 'agent.spawned', { agentId: 'approval', state: 'thinking' }),
+      event(3, 'approval.created', { approvalId: 'approval-1', agentId: 'approval' }),
+      event(4, 'agent.spawned', { agentId: 'dependency', state: 'waiting_dependency' }),
+      event(5, 'agent.spawned', { agentId: 'done', state: 'thinking' }),
+      event(6, 'agent.completed', { agentId: 'done' }),
+      event(7, 'agent.spawned', { agentId: 'tool-agent', state: 'thinking' }),
+      event(8, 'tool.started', { agentId: 'tool-agent', toolCallId: 'tool-1', toolName: 'shell.run' }),
+    ]);
+
+    const snapshot = agents.snapshot(700_000, { warningAfterMs: 100_000, stalledAfterMs: 200_000 });
+    expect(snapshot.agents.find((agent) => agent.agentId === 'thinking')).toMatchObject({
+      state: 'thinking', liveness: { state: 'stalled', idleMs: 699_000 },
+    });
+    expect(snapshot.agents.find((agent) => agent.agentId === 'approval')?.liveness).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.agentId === 'dependency')?.liveness).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.agentId === 'done')?.liveness).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.agentId === 'tool-agent')?.liveness).toBeUndefined();
+  });
+
+  it('clears a derived stall when authoritative progress arrives', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([event(1, 'agent.spawned', { agentId: 'agent-1', state: 'thinking' })]);
+    expect(agents.snapshot(250_000, { warningAfterMs: 100_000, stalledAfterMs: 200_000 }).agents[0]?.liveness?.state).toBe('stalled');
+
+    agents.update([event(240, 'agent.state_changed', { agentId: 'agent-1', state: 'thinking', operation: 'Still working' })]);
+    expect(agents.snapshot(250_000, { warningAfterMs: 100_000, stalledAfterMs: 200_000 }).agents[0]?.liveness?.state).toBe('healthy');
+  });
 });

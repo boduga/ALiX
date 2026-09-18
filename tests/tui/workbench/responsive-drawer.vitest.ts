@@ -42,4 +42,22 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('tool patch.apply · 2.5s');
     expect(frame).toContain('owns src/tui');
   });
+
+  it('renders a non-terminal stall diagnostic separately from agent state', () => {
+    const canvas = new TerminalCanvas(140, 24);
+    const layout = resolveWorkbenchLayout(140, 'agents');
+    paintRosterDrawer({
+      canvas, terminalColumns: 140, top: 3, bottom: 18, layout,
+      agents: { active: 1, agents: [{
+        agentId: 'a1', role: 'researcher', state: 'thinking',
+        liveness: { state: 'stalled', idleMs: 600_000 },
+        ownedPaths: [], startedAt: 1, lastProgressAt: 2,
+        usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      }] },
+      tasks: null,
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('researcher · thinking');
+    expect(frame).toContain('⚠ possibly stalled');
+  });
 });
