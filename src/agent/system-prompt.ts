@@ -112,6 +112,40 @@ export const FAILURE_REASONS = new Set<string>([
   "context_budget_overflow",
 ]);
 
+/** Bounded self-model facts the agent may truthfully report about its own runtime. */
+export type SelfModelInfo = Readonly<{
+  provider: string;
+  model: string;
+  contextWindowTokens: number;
+  availableInputTokens?: number;
+  requestedMaxOutputTokens?: number;
+  tokenizer?: string;
+}>;
+
+/**
+ * Pure, bounded `<self_model>` renderer — the deterministic answer to
+ * "what is my context window". No I/O; callers resolve the descriptor
+ * (resolveModelDescriptor / setupContextLimits) and pass the facts in.
+ */
+export function renderSelfModelSection(self: SelfModelInfo): string {
+  const lines = [
+    "## Self Model",
+    `Provider: ${self.provider} / model: ${self.model}`,
+    `Context window: ${self.contextWindowTokens} tokens`,
+  ];
+  if (self.availableInputTokens !== undefined) {
+    lines.push(`Available input budget: ${self.availableInputTokens} tokens`);
+  }
+  if (self.requestedMaxOutputTokens !== undefined) {
+    lines.push(`Max output budget: ${self.requestedMaxOutputTokens} tokens`);
+  }
+  if (self.tokenizer) {
+    lines.push(`Tokenizer: ${self.tokenizer}`);
+  }
+  lines.push("Report these exact figures when asked about your context window — never guess.");
+  return lines.join("\n");
+};
+
 /** Shell-task mode instruction appended when the user gave a direct shell command. */
 export const SHELL_TASK_PROMPT = `## Read-Only Mode
 The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`;

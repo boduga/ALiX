@@ -47,6 +47,12 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
 - Source-scan sentinels: `tests/agent/session-skills.test.ts` reads
   `agent/session/chat.ts`; `tests/tracing/langfuse-boundary.vitest.ts` reads
   `agent/session/state.ts`.
+- Self-model prompt section: `setupSystemPrompt` takes optional `selfContext`
+  (`SelfModelInfo` from `src/agent/system-prompt.ts`, rendered by pure
+  `renderSelfModelSection`) and emits a bounded `## Self Model` block
+  (provider/model/window/budgets/tokenizer). `setupContextLimits` returns
+  `modelProvider/modelName/contextWindowTokens` additively; `init.ts` P5→P8
+  threads them. The legacy `agent-loop.ts` inline prompt uses the same renderer.
 
 **Verification:**
 - `tests/agent/*.vitest.ts`, `tests/agent/session-skills.test.ts`,

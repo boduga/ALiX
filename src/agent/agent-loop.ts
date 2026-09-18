@@ -31,7 +31,7 @@ import { createTraceClient } from "../tracing/client-factory.js";
 import type { TraceClient } from "../tracing/client.js";
 import type { RunOutcome, TraceRun } from "../tracing/types.js";
 import { isCancellationError } from "../runtime/cancellation-token.js";
-import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
+import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT, renderSelfModelSection } from "./system-prompt.js";
 import { CancellationToken } from "../runtime/cancellation-token.js";
 
 /** Shared mutable handle between the run root wrapper and its impl. The impl
@@ -394,6 +394,14 @@ async function runTaskCoreImpl(
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
+    renderSelfModelSection({
+      provider: resolved.provider,
+      model: resolved.name,
+      contextWindowTokens: contextBudget.contextWindowTokens,
+      availableInputTokens: contextBudget.availableInputTokens,
+      requestedMaxOutputTokens: contextBudget.requestedMaxOutputTokens,
+      tokenizer,
+    }),
   ];
 
   // For shell tasks (bare commands like ls, cat), inject a mode instruction
