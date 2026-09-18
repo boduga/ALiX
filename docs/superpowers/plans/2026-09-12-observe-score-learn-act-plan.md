@@ -102,8 +102,10 @@ Write one quality record per run, keyed by `traceId`:
   never silent overwrite — proven live: re-create returned version 2).
 - P4 design resolutions (as built): judge defaults to the candidate's own
   provider (self-judge limitation — pass `--judge-model` when it matters);
-  judge scores take the last 0..1-looking number (verdicts land at the
-  end); taskless incidents evaluate against an error-derived task flagged
+  the judge works from an anchored rubric (full-range scoring, 1.0 reserved
+  for span-naming causal fixes) and scores take the last 0..1-looking number
+  (verdicts land at the end); taskless incidents evaluate against an
+  error-derived task flagged
   `degraded` rather than skipping, so the write path never produces rows
   the read path cannot use.
 
