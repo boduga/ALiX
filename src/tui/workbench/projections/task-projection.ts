@@ -23,12 +23,12 @@ function terminal(value: unknown): WorkbenchTaskState {
 
 export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
   private readonly byId = new Map<string, TaskSummary>();
-  private readonly seen = new Set<number>();
+  private readonly seen = new Set<string>();
 
   update(events: readonly AlixEvent[]): void {
     for (const event of events) {
-      if (this.seen.has(event.seq)) continue;
-      this.seen.add(event.seq);
+      if (this.seen.has(event.id)) continue;
+      this.seen.add(event.id);
       const id = taskId(event);
       if (!id) continue;
       const p = payload(event);

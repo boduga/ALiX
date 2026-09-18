@@ -22,22 +22,25 @@ function stateOf(value: unknown, fallback: WorkbenchAgentState): WorkbenchAgentS
   };
   const candidate = aliases[normalized] ?? normalized;
   return [
-    'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'verifying',
+    'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'waiting_approval', 'verifying',
     'completed', 'partial', 'failed', 'cancelling', 'cancelled',
   ].includes(candidate) ? candidate as WorkbenchAgentState : fallback;
 }
 
 export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnapshot> {
   private readonly byId = new Map<string, AgentSummary>();
-  private readonly seen = new Set<number>();
+  private readonly seen = new Set<string>();
+  private readonly pendingApprovals = new Map<string, { agentId: string; previousState: WorkbenchAgentState }>();
 
   update(events: readonly AlixEvent[]): void {
     for (const event of events) {
-      if (this.seen.has(event.seq)) continue;
-      this.seen.add(event.seq);
-      const id = agentId(event);
-      if (!id) continue;
+      if (this.seen.has(event.id)) continue;
+      this.seen.add(event.id);
       const p = payload(event);
+      const approvalId = typeof p.approvalId === 'string' && p.approvalId.length > 0 ? p.approvalId : undefined;
+      const pending = approvalId ? this.pendingApprovals.get(approvalId) : undefined;
+      const id = agentId(event) ?? pending?.agentId;
+      if (!id) continue;
       const at = Date.parse(event.timestamp) || 0;
       const previous = this.byId.get(id);
       if (event.type === 'subagent.started' || event.type === 'agent.spawned') {
@@ -60,7 +63,13 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
       }
       if (!previous) continue;
       let state = previous.state;
-      if (event.type === 'subagent.result') state = stateOf(p.status, 'failed');
+      if (event.type === 'approval.requested' && approvalId) {
+        this.pendingApprovals.set(approvalId, { agentId: id, previousState: previous.state });
+        state = 'waiting_approval';
+      } else if (event.type === 'approval.resolved' && pending) {
+        state = pending.previousState;
+        this.pendingApprovals.delete(approvalId!);
+      } else if (event.type === 'subagent.result') state = stateOf(p.status, 'failed');
       else if (event.type === 'agent.completed' || event.type === 'subagent.completed') state = stateOf(p.state ?? p.status, 'completed');
       else if (event.type === 'agent.failed' || event.type === 'subagent.failed') state = 'failed';
       else if (event.type === 'agent.cancelled') state = 'cancelled';
@@ -94,5 +103,6 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
   reset(): void {
     this.byId.clear();
     this.seen.clear();
+    this.pendingApprovals.clear();
   }
 }

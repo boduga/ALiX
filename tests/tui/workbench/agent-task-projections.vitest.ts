@@ -74,4 +74,40 @@ describe('Workbench agent and task projections', () => {
       tasks: [{ taskId: 'task-1', agentId: 'agent-1', state: 'running' }],
     });
   });
+
+  it('deduplicates replayed events by stable event identity rather than sequence', () => {
+    const agents = new AgentRosterProjection();
+    const tasks = new TaskProjection();
+    const spawned = event(1, 'agent.spawned', { agentId: 'agent-1', taskId: 'task-1', state: 'starting' });
+    const assigned = event(2, 'agent.task_assigned', { agentId: 'agent-1', taskId: 'task-1', title: 'Work' });
+
+    agents.update([spawned, { ...spawned, seq: 99 }]);
+    tasks.update([assigned, { ...assigned, seq: 100 }]);
+
+    expect(agents.snapshot().agents).toHaveLength(1);
+    expect(tasks.snapshot().tasks).toHaveLength(1);
+  });
+
+  it('projects an authoritative approval wait as non-terminal and restores the prior state', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([
+      event(1, 'agent.spawned', { agentId: 'agent-1', taskId: 'task-1', state: 'starting' }),
+      event(2, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'tool_running' }),
+      event(3, 'approval.requested', { approvalId: 'approval-1', agentId: 'agent-1', taskId: 'task-1' }),
+    ]);
+
+    expect(agents.snapshot()).toMatchObject({
+      active: 1,
+      agents: [{ agentId: 'agent-1', state: 'waiting_approval' }],
+    });
+
+    agents.update([
+      event(4, 'approval.resolved', { approvalId: 'approval-1', decision: 'approved' }),
+    ]);
+
+    expect(agents.snapshot()).toMatchObject({
+      active: 1,
+      agents: [{ agentId: 'agent-1', state: 'tool_running' }],
+    });
+  });
 });

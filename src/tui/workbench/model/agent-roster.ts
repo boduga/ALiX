@@ -1,6 +1,6 @@
 export type WorkbenchAgentState =
   | 'queued' | 'starting' | 'thinking' | 'tool_running'
-  | 'waiting' | 'verifying' | 'completed' | 'partial'
+  | 'waiting' | 'waiting_approval' | 'verifying' | 'completed' | 'partial'
   | 'failed' | 'cancelling' | 'cancelled';
 
 export interface AgentSummary {
