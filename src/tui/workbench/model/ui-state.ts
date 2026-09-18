@@ -21,6 +21,7 @@ export interface WorkbenchUiState {
   readonly selectedItemId?: string;
   readonly selectedAgentId?: string;
   readonly drawer: WorkbenchDrawer;
+  readonly drawerScrollOffset: number;
   readonly followTail: boolean;
   readonly composer: ComposerState;
   readonly queuedMessages: readonly QueuedMessage[];
@@ -35,6 +36,7 @@ export function createInitialWorkbenchUiState(
     overlayStack: [],
     transcriptMode: 'compact',
     drawer: 'closed',
+    drawerScrollOffset: 0,
     followTail: true,
     composer: { text: '', cursor: 0 },
     queuedMessages: [],

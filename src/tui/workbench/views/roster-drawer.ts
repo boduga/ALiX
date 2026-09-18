@@ -17,6 +17,8 @@ export function paintRosterDrawer(input: {
   readonly layout: WorkbenchResponsiveLayout;
   readonly agents: AgentRosterSnapshot | null;
   readonly tasks: TaskRosterSnapshot | null;
+  readonly selectedAgentId?: string;
+  readonly agentScrollOffset?: number;
 }): void {
   const { canvas, terminalColumns, top, bottom, layout } = input;
   if (layout.drawerMode === 'hidden' || layout.drawer === 'closed' || bottom < top) return;
@@ -36,11 +38,13 @@ export function paintRosterDrawer(input: {
   let row = top + 3;
   if (layout.drawer === 'agents') {
     const agents = input.agents?.agents ?? [];
+    const visibleAgents = agents.slice(Math.max(0, input.agentScrollOffset ?? 0));
     if (agents.length === 0) canvas.write(left + 2, row, `\x1b[90mNo subagents${RESET}`);
-    for (const agent of agents) {
+    for (const agent of visibleAgents) {
       if (row > bottom - 1) break;
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
-      canvas.write(left + 2, row++, fit(`${active} ${agent.role} · ${agent.state}`, inner));
+      const selected = agent.agentId === input.selectedAgentId ? '›' : ' ';
+      canvas.write(left + 2, row++, fit(`${selected}${active} ${agent.role} · ${agent.state}`, inner));
       if (row <= bottom - 1 && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
         const label = agent.liveness.state === 'stalled' ? 'possibly stalled' : 'slow progress';
         canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);

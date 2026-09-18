@@ -744,6 +744,8 @@ export class TuiApp {
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
       overlayOpen: state.overlayStack.length > 0,
       transcriptMode: state.transcriptMode,
+      drawer: state.drawer,
+      focus: state.focus,
     });
 
     switch (intent.type) {
@@ -812,8 +814,29 @@ export class TuiApp {
       }
       case 'drawer.toggle':
         this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
+        if (intent.drawer === 'agents' && this.workbenchStore.snapshot().drawer === 'agents') {
+          const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
+          const selected = agents.find((agent) => agent.agentId === state.selectedAgentId) ?? agents[0];
+          if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: 0 });
+        }
         this.paintFullFrame();
         return true;
+      case 'drawer.close':
+        this.workbenchStore.dispatch({ type: 'drawer.close' });
+        this.paintFullFrame();
+        return true;
+      case 'drawer.move': {
+        if (state.drawer !== 'agents') return true;
+        const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
+        if (agents.length === 0) return true;
+        const selectedIndex = agents.findIndex((agent) => agent.agentId === state.selectedAgentId);
+        const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
+        const target = Math.max(0, Math.min(agents.length - 1, current + intent.direction));
+        const selected = agents[target]!;
+        this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
+        this.paintFullFrame();
+        return true;
+      }
       case 'approval.resolve': {
         const target = perTab.pendingApprovals[0] ?? fallbackTarget;
         if (!target) return false;

@@ -69,7 +69,15 @@ export function reduceWorkbenchUiState(
     case 'focus.set':
       return { ...state, focus: action.focus };
     case 'drawer.toggle':
-      return { ...state, drawer: state.drawer === action.drawer ? 'closed' : action.drawer };
+      return state.drawer === action.drawer
+        ? { ...state, drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 }
+        : { ...state, drawer: action.drawer, focus: 'drawer', drawerScrollOffset: 0 };
+    case 'drawer.close':
+      return state.drawer === 'closed'
+        ? state
+        : { ...state, drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 };
+    case 'agent.select':
+      return { ...state, selectedAgentId: action.agentId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
     case 'overlay.toggle': {
       const current = state.overlayStack[state.overlayStack.length - 1];
       return { ...state, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };

@@ -34,10 +34,12 @@ describe('Workbench responsive drawer', () => {
         usage: { inputTokens: 1, outputTokens: 2, costUsd: 0 },
       }] },
       tasks: null,
+      selectedAgentId: 'a1',
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('AGENTS  1 active');
     expect(frame).toContain('worker · tool_running');
+    expect(frame).toContain('›● worker · tool_running');
     expect(frame).toContain('Editing composer');
     expect(frame).toContain('tool patch.apply · 2.5s');
     expect(frame).toContain('owns src/tui');
@@ -59,5 +61,22 @@ describe('Workbench responsive drawer', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('researcher · thinking');
     expect(frame).toContain('⚠ possibly stalled');
+  });
+
+  it('starts agent rendering at the presentation scroll offset', () => {
+    const canvas = new TerminalCanvas(140, 24);
+    const layout = resolveWorkbenchLayout(140, 'agents');
+    const agent = (agentId: string, role: string) => ({
+      agentId, role, state: 'thinking' as const, ownedPaths: [], startedAt: 1, lastProgressAt: 2,
+      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+    });
+    paintRosterDrawer({
+      canvas, terminalColumns: 140, top: 3, bottom: 18, layout,
+      agents: { active: 2, agents: [agent('a1', 'first'), agent('a2', 'second')] },
+      tasks: null, selectedAgentId: 'a2', agentScrollOffset: 1,
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).not.toContain('first · thinking');
+    expect(frame).toContain('›● second · thinking');
   });
 });
