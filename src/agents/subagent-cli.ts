@@ -248,15 +248,32 @@ export function buildResult(
   text: string, toolOutputs: string[], progress: WriteProgress, ownedPaths: string[],
   toolLedger: SubagentToolLedger = new Map(),
 ): SubagentResult {
-  const status = computeSubagentStatus(progress, ownedPaths, process.cwd());
+  let status = computeSubagentStatus(progress, ownedPaths, process.cwd());
   const { successfulPaths, fatalWriteFailures } = progress;
+  // A subagent that ran tools but completed none of them must not report
+  // success: the parent would otherwise treat denied attempts as delivered
+  // work and misattribute its own recovery as the subagent's output.
+  let ledgerFailure: string | undefined;
+  {
+    let completed = 0;
+    let failed = 0;
+    for (const counts of toolLedger.values()) {
+      completed += counts.completed;
+      failed += counts.failed;
+    }
+    if (completed === 0 && failed > 0) {
+      status = "failed";
+      ledgerFailure = `All ${failed} subagent tool call(s) failed (${formatToolLedger(toolLedger)})`;
+    }
+  }
   const error =
     status === "failed"
-      ? fatalWriteFailures.length
-        ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
-        : successfulPaths.size === 0 && ownedPaths.length > 0
-          ? `No write attempts against owned paths: ${ownedPaths.join(", ")}`
-          : "Subagent failed"
+      ? (ledgerFailure ??
+        (fatalWriteFailures.length
+          ? `Non-retryable write failures: ${fatalWriteFailures.join(", ")}`
+          : successfulPaths.size === 0 && ownedPaths.length > 0
+            ? `No write attempts against owned paths: ${ownedPaths.join(", ")}`
+            : "Subagent failed"))
       : status === "partial"
         ? partialDetail(successfulPaths, ownedPaths, fatalWriteFailures, process.cwd())
         : undefined;
