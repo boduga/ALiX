@@ -380,6 +380,14 @@ test("buildResult: empty ledger adds no ledger finding", () => {
   assert.ok(result.findings.every((f) => !f.content.startsWith("Subagent tool ledger")));
 });
 
+test("buildResult: all tools failed yields failed, never success", () => {
+  const progress = P([], []);
+  const ledger = new Map([["shell.run", { completed: 0, failed: 6 }]]);
+  const result = buildResult("t", "researcher", "read_only", "some text", [], progress, [], ledger);
+  assert.equal(result.status, "failed");
+  assert.ok(result.error?.includes("All 6 subagent tool call(s) failed"));
+});
+
 test("formatToolLedger: skips zero-count sides", () => {
   assert.equal(formatToolLedger(new Map()), "");
   assert.equal(
