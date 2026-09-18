@@ -47,6 +47,7 @@ export interface TimelineEntry {
   readonly id: string;                  // `tl-${firstSequence}` — runtime-local deterministic
   readonly kind: TimelineKind;
   readonly actor?: string;              // 'user' = operator input, 'agent' = agent narration (D7); lets the agent view render direction
+  readonly agentId?: string;            // authoritative event correlation when present; never inferred
   readonly sessionId: string;           // stamped origin (D1/D3)
   readonly startedAt: number;
   readonly text?: string;
@@ -59,6 +60,7 @@ function cloneEntry(e: TimelineEntry): TimelineEntry {
   return {
     id: e.id, kind: e.kind, sessionId: e.sessionId, startedAt: e.startedAt,
     ...(e.actor !== undefined ? { actor: e.actor } : {}),
+    ...(e.agentId !== undefined ? { agentId: e.agentId } : {}),
     ...(e.text !== undefined ? { text: e.text } : {}),
     ...(e.planTasks !== undefined ? { planTasks: e.planTasks.map((task) => ({ ...task })) } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
@@ -232,10 +234,12 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       detail = p.outputPreview;
     }
     const ts = Date.parse(e.timestamp) || 0;
+    const correlationAgentId = (p as TimelinePayload & { agentId?: unknown }).agentId;
     return {
       id: `tl-${e.seq ?? 0}-${kind}`,
       kind, sessionId: e.sessionId, startedAt: ts,
       ...(e.actor !== undefined ? { actor: e.actor } : {}),
+      ...(typeof correlationAgentId === 'string' && correlationAgentId.length > 0 ? { agentId: correlationAgentId } : {}),
       ...(text !== undefined ? { text } : {}),
       ...(kind === 'agent.plan' && isPlanTaskArray(p.planTasks)
         ? { planTasks: p.planTasks.map((task) => ({ ...task })) }

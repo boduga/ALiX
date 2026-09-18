@@ -8,6 +8,7 @@ import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-tra
 import type { ViewInputContext, ViewRenderContext } from '../../../src/tui/views/types.js';
 import { AgentView } from '../../../src/tui/views/agent-view.js';
 import { buildWorkbenchScrollbackLines } from '../../../src/tui/workbench/views/workbench-scrollback.js';
+import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
 
 const fixturePath = fileURLToPath(new URL('../../fixtures/tui/workbench-third-trace.json', import.meta.url));
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
@@ -98,6 +99,27 @@ describe('Workbench scrollback', () => {
 
     expect(text).toContain('context assembled');
     expect(text).toContain('context snapshot created');
+  });
+
+  it('applies selected-agent focus only while the agent drawer is open', () => {
+    const trace: ExecutionTraceEntry[] = [
+      { id: 'tool-a', kind: 'tool', status: 'completed', title: 'tool.file.read', agentId: 'agent-1', startedAt: 1, sourceEvents: { firstSequence: 1 } },
+      { id: 'tool-b', kind: 'tool', status: 'completed', title: 'tool.shell.run', agentId: 'agent-2', startedAt: 2, sourceEvents: { firstSequence: 2 } },
+    ];
+    const renderContext = context('compact', [], trace);
+    (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
+      ...createInitialWorkbenchUiState(), drawer: 'agents', focus: 'drawer', selectedAgentId: 'agent-1',
+    };
+    const focused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+    expect(focused).toContain('focused agent: agent-1');
+    expect(focused).toContain('file.read');
+    expect(focused).not.toContain('shell.run');
+
+    (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
+      ...createInitialWorkbenchUiState(), selectedAgentId: 'agent-1',
+    };
+    const unfocused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+    expect(unfocused).toContain('shell.run');
   });
 
   it('maps Ctrl+O to the transcript density transition', () => {

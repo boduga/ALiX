@@ -12,6 +12,7 @@ interface TranscriptItemBase {
   readonly id: string;
   readonly startedAt: number;
   readonly sourceEvents: TranscriptSourceRange;
+  readonly agentId?: string;
 }
 
 export interface UserTurnItem extends TranscriptItemBase {
@@ -31,6 +32,7 @@ export interface ToolItem {
   readonly detail?: string;
   readonly durationMs?: number;
   readonly sourceEvents: TranscriptSourceRange;
+  readonly agentId?: string;
 }
 
 export interface ToolGroupItem extends TranscriptItemBase {
