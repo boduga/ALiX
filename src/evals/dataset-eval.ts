@@ -42,9 +42,17 @@ export type DatasetEvalResult = {
 
 const JUDGE_SYSTEM_PROMPT = [
   "You are an eval judge. Grade whether the candidate response addresses",
-  "the incident described below. Output ONLY a single decimal number",
-  "between 0 and 1 (1 = fully addresses the errors, 0 = ignores them).",
-  "No explanations, no preamble — just the number.",
+  "the incident described below, using the FULL 0..1 range — most real",
+  "responses land between 0.3 and 0.8. Never default to 1.0.",
+  "Rubric:",
+  "1.0 = names the failing span(s), explains the error cause, proposes a concrete fix.",
+  "0.7-0.9 = addresses the errors but vague on cause or fix.",
+  "0.4-0.6 = on-topic but generic; no span names, no actionable fix.",
+  "0.1-0.3 = barely related or mostly filler.",
+  "0.0 = refusal, empty, or irrelevant.",
+  "Reason briefly, then output the final decimal number ALONE on its own",
+  "last line (the score is read from that line: 1 = fully addresses the",
+  "errors, 0 = ignores them). No text after the number.",
 ].join(" ");
 
 /**
