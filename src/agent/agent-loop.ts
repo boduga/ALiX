@@ -359,6 +359,8 @@ async function runTaskCoreImpl(
   //   default:      all tools
   const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
   readOnlyToolFilter.add("alix_delegate");
+  readOnlyToolFilter.add("alix_coordination_status");
+  readOnlyToolFilter.add("alix_coordination_results");
   const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
   const providerTools = toolFilter
     ? baseTools.filter((t) => toolFilter.has(t.name))

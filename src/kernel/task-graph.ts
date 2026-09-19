@@ -24,6 +24,8 @@ export interface TaskNode {
   status: TaskNodeStatus;
   dependencies: string[];
   assignedAgent?: string;
+  /** Subagent role hint from the planner (explorer|worker|...). Optional. */
+  role?: string;
   requiredCapabilities: string[];
   forbiddenCapabilities?: string[];
   riskLevel: RiskLevel;

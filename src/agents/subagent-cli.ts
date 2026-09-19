@@ -310,6 +310,7 @@ export class SubagentCLI {
         provider: { type: "string" },
         mode: { type: "string" },
         "session-id": { type: "string" },
+        "session-mode": { type: "string" },
         "owned-paths": { type: "string" },
         output: { type: "string" },
       },
@@ -321,6 +322,7 @@ export class SubagentCLI {
     const prompt = args.values.prompt ?? "";
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
+    const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
@@ -335,6 +337,11 @@ export class SubagentCLI {
     const projectRoot = process.cwd();
     const loadConfig = (await import("../config/loader.js")).loadConfig;
     const config = await loadConfig(projectRoot) as AlixConfig;
+    // Propagate parent sessionMode so bypass/auto parents don't strand
+    // headless children in ask with no approval store (shell.run fail-closed).
+    if (sessionMode === "auto" || sessionMode === "ask" || sessionMode === "bypass") {
+      config.permissions.sessionMode = sessionMode;
+    }
 
     // §10.3: resolve the effective model with precedence —
     //   explicit provider/model override > models.<tier> > models.default.
@@ -433,7 +440,15 @@ export class SubagentCLI {
     });
     const providerTools = buildToolsForProvider(provider);
     const toolPolicy = getToolPolicy(role);
-    const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);
+    // No nested coordination runs: subagents cannot spawn scheduler runs
+    // (single-level delegation keeps ownership and lifecycle tractable).
+    const nestedRunBlocklist = new Set([
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_coordination_results",
+    ]);
+    const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
+      .filter(t => !nestedRunBlocklist.has(t.name));
 
     const executor = new ToolExecutor(
       config,

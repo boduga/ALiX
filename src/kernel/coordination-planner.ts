@@ -5,7 +5,7 @@
 
 import { randomUUID } from "node:crypto";
 import { relative } from "node:path";
-import { GraphPlanner, persistGraph } from "./graph-planner.js";
+import { GraphPlanner, persistGraph, normalizeNodeCapabilities } from "./graph-planner.js";
 import { validateGraphDag } from "./graph-validator.js";
 import { classifyCapabilities } from "./mutation-classifier.js";
 import { compileOwnershipClaims } from "./ownership-claim-compiler.js";
@@ -143,6 +143,22 @@ export class CoordinationPlanner {
     const planOrderByNode = new Map<string, number>(
       dagResult.topologicalOrder.map((nodeId, index) => [nodeId, index]),
     );
+
+    // Layer 2 (deterministic, registry-sourced): guarantee every node
+    // carries non-empty, known capabilities before workers are derived.
+    // The planner prompt asks for them, but flash-tier models omit or
+    // invent names — normalization filters to the live registry catalog
+    // and falls back to read-only role/domain defaults. `authorizeWorker`
+    // stays fail-closed; this only ensures well-formed input reaches it.
+    const catalog = new Set(
+      this.toolRegistry.getAll().flatMap(t => [t.name, t.capabilityId]),
+    );
+    for (const node of planResult.graph.nodes) {
+      node.requiredCapabilities = normalizeNodeCapabilities(
+        { requiredCapabilities: node.requiredCapabilities, role: node.role, domain: node.domain },
+        catalog,
+      );
+    }
 
     const absoluteGraphPath = await persistGraph(planResult.graph, this.cwd);
     const taskGraphRef = relative(this.cwd, absoluteGraphPath).replaceAll("\\", "/");

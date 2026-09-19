@@ -495,3 +495,15 @@ test("DelegateToolRouter.execute handles handler errors gracefully", async () =>
   assert.strictEqual(result.kind, "error");
   assert.strictEqual(result.message, "Handler crashed");
 });
+
+test("DelegateToolRouter routes record entries by tool name", async () => {
+  const router = new DelegateToolRouter({
+    delegate: async () => ({ kind: "success", output: "d" }) as ToolResult,
+    "coordination.status": async () => ({ kind: "success", output: "s" }) as ToolResult,
+  });
+  assert.strictEqual(router.canHandle("coordination.status"), true);
+  assert.strictEqual(router.canHandle("coordination.run"), false);
+  const result = await router.execute({ toolCallId: "1", name: "coordination.status", args: {} });
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.output, "s");
+});

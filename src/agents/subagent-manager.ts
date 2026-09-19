@@ -94,6 +94,10 @@ export class SubagentManager {
         }
 
         // Build CLI args array
+        const parentMode = this.options.config?.permissions?.sessionMode;
+        const sessionMode = parentMode === "bypass" || parentMode === "auto" || parentMode === "ask"
+          ? parentMode
+          : "ask";
         const cliArgs = [
           "run", "--subagent", task.role,
           "--task-id", task.id,
@@ -102,6 +106,7 @@ export class SubagentManager {
           "--session-id", task.contextBundle ?? `sub-${Date.now()}`,
           "--provider", provider,
           "--model", name,
+          "--session-mode", sessionMode,
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
         ];
 

@@ -351,7 +351,7 @@ if (command === "agent" && agentRole) {
 
 // --- alix run --subagent <role> --- subagent process entry point (called by parent) ---
 // Contract: args[0]=--subagent, args[1]=role, args[2..]=remaining flag-style args
-// (--task-id, --prompt, --mode, --session-id, --provider, --model, --owned-paths...).
+// (--task-id, --prompt, --mode, --session-id, --provider, --model, --session-mode, --owned-paths...).
 // These are passed through verbatim to SubagentCLI.main, which parses them with
 // node parseArgs (flag-style). The parent (SubagentManager.spawn) emits them in
 // flag style, so no positional reshuffling is performed here.

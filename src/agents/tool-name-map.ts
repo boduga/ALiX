@@ -2,7 +2,8 @@
 // Mirrors the canonical tool surface from buildDefaultToolIndex()
 // (src/tools/tool-registry.ts): file.read, file.create, file.delete,
 // file.exists, dir.search, grep.search, glob.match, shell.run, patch.apply,
-// done, delegate, web_search, web_fetch, create_skill, list_extensions,
+// done, delegate, coordination.run, coordination.status, coordination.results,
+// web_search, web_fetch, create_skill, list_extensions,
 // inspect_extension, create_hook, mcp.*.
 //
 // `file.write` is deliberately ABSENT: it is only a policy key for
@@ -28,6 +29,9 @@ export const TOOL_NAME_MAP: ToolNameMap = {
   alix_patch_apply:       "patch.apply",
   alix_done:              "done",
   alix_delegate:          "delegate",
+  alix_coordination_run:    "coordination.run",
+  alix_coordination_status: "coordination.status",
+  alix_coordination_results: "coordination.results",
   alix_web_search:        "web_search",
   alix_web_fetch:         "web_fetch",
   alix_create_skill:      "create_skill",

@@ -571,11 +571,12 @@ export class DelegateToolRouter implements ToolRouter {
   constructor(private handlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>) {}
 
   canHandle(name: string): boolean {
-    return name === "delegate";
+    if (name === "delegate") return true;
+    return this.handlers?.[name] !== undefined;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
-    const handler = this.handlers?.delegate;
+    const handler = this.handlers?.[request.name] ?? (request.name === "delegate" ? this.handlers?.delegate : undefined);
     if (!handler) {
       return { kind: "error", message: "Delegate handler not initialized", retryable: false };
     }

@@ -183,7 +183,19 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     hookRunner.register(hook.name, hook.fn);
   }
 
-  const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager, opts.approvalStore);
+  // Coordination chat tools (chat-initiated parallel runs). Always
+  // available — policy-gated like every other tool (ask in ask mode,
+  // allow in bypass). The ToolExecutor's own approval store governs the
+  // tool call itself; opts.approvalStore flows into worker authorization.
+  const { createCoordinationHandlers } = await import("../kernel/coordination-tools.js");
+  const coordinationHandlers = createCoordinationHandlers({
+    cwd, config, approvalStore: opts.approvalStore, eventLog: log,
+  });
+
+  const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, {
+    ...(delegateHandler ? { delegate: delegateHandler } : {}),
+    ...coordinationHandlers,
+  }, checkpointManager, opts.approvalStore);
 
   // Scope tracking: derive initial scope from task string
   const initialScope = extractInitialScope(opts.task);

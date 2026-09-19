@@ -219,6 +219,51 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
+    name: "alix_coordination_run",
+    description: "Start a multi-worker coordination run for parallel work. Plans the goal into workers with disjoint ownership and dispatches them via the coordination scheduler (up to maxConcurrency in parallel), waiting until idle. Use for independent parallel tasks instead of sequential delegate calls. Returns the run id, final status, and per-worker outcomes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        goal: {
+          type: "string",
+          description: "The goal to execute (workers are planned from this; name concrete deliverables and owned paths)"
+        },
+        maxConcurrency: {
+          type: "number",
+          description: "Max workers to dispatch in parallel (default 2, max 8)"
+        },
+        sessionMode: {
+          type: "string",
+          enum: ["auto", "ask", "bypass"],
+          description: "Approval mode for worker capabilities (defaults to the session mode; write goals need bypass/auto when no approval store is attached)"
+        }
+      },
+      required: ["goal"]
+    }
+  },
+  {
+    name: "alix_coordination_status",
+    description: "Show the state of a coordination run: status, workers by status, block reasons, and failed-worker errors.",
+    input_schema: {
+      type: "object",
+      properties: {
+        runId: { type: "string", description: "Coordination run id (e.g. coord_<uuid>)" }
+      },
+      required: ["runId"]
+    }
+  },
+  {
+    name: "alix_coordination_results",
+    description: "Show the aggregate results of a coordination run (per-worker outcomes and result summary).",
+    input_schema: {
+      type: "object",
+      properties: {
+        runId: { type: "string", description: "Coordination run id (e.g. coord_<uuid>)" }
+      },
+      required: ["runId"]
+    }
+  },
+  {
     name: "alix_web_search",
     description: "Search the public WEB for current information (news, recent data, facts beyond the model's cutoff). This does NOT search the local workspace — for local code/text use alix_grep_search, for local filenames use alix_glob_match. Requires a configured Brave API key.",
     input_schema: {

@@ -221,4 +221,20 @@ describe("CoordinationPlanner", () => {
     assert.equal(result.valid, false);
     assert.equal(result.run!.status, "blocked");
   });
+
+  it("normalizes caps-less model nodes to non-empty read-only caps", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { requiredCapabilities: [] }),
+      makeNode("b", [], { requiredCapabilities: ["not.a.real.cap"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.equal(result.valid, true);
+    for (const worker of result.run!.workers) {
+      assert.ok(worker.requiredCapabilities.length > 0, `worker ${worker.id} has empty caps`);
+    }
+    // Node "a" is coding domain with no role: domain default (read-only).
+    const capsA = result.run!.workers.find(w => w.sourceNodeId === "a")!.requiredCapabilities;
+    assert.deepEqual(capsA, ["filesystem.read"]);
+  });
 });
