@@ -93,7 +93,11 @@ async function handleCoordinationRun(
 
   let planResult;
   try {
-    planResult = await planner.plan(goal, "alix", `coord_tool_${Date.now()}`);
+    planResult = await planner.plan(goal, "alix", `coord_tool_${Date.now()}`, {
+      hostKind: "cli",
+      sessionMode,
+      maxConcurrency,
+    });
   } catch (err) {
     return {
       kind: "error",

@@ -14,6 +14,7 @@
  */
 
 import { loadConfig } from "../../config/loader.js";
+import { parseSessionMode } from "../../config/schema.js";
 import { CoordinationStore } from "../../kernel/coordination-store.js";
 import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
@@ -116,7 +117,11 @@ async function handleRun(args: string[]): Promise<void> {
   const toolRegistry = buildDefaultToolIndex().registry;
 
   const planner = new CoordinationPlanner(cwd, agentPool ? { agentPool } : {}, { toolRegistry });
-  const planResult = await planner.plan(goal, "alix", `coord_${Date.now()}`);
+  const planResult = await planner.plan(goal, "alix", `coord_${Date.now()}`, {
+    hostKind: daemonMode ? "daemon" : "cli",
+    sessionMode: parseSessionMode(config.permissions.sessionMode),
+    maxConcurrency: maxConcurrency ?? 2,
+  });
 
   if (!planResult.valid) {
     console.error(`Coordination plan failed: ${planResult.errors.join("; ")}`);
@@ -129,7 +134,16 @@ async function handleRun(args: string[]): Promise<void> {
   console.log(`  Workers: ${planResult.run!.workers.length}`);
 
   if (daemonMode) {
-    console.log("  Mode: daemon (ticking handled by daemon process)");
+    // The daemon owns ticking; a run with no daemon would sit pending
+    // forever. Warn (do not fail) so the operator can start the daemon.
+    const { DaemonManager } = await import("../../daemon/daemon-manager.js");
+    const running = await new DaemonManager(cwd).isRunning().catch(() => false);
+    if (running) {
+      console.log("  Mode: daemon (ticking handled by the running daemon)");
+    } else {
+      console.log("  Mode: daemon (NO daemon running — start it with `alix daemon start`)");
+      console.log(`  Run ${planResult.run!.id} stays pending until a daemon ticks it.`);
+    }
     return;
   }
 

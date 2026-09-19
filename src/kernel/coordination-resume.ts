@@ -50,15 +50,17 @@ export async function reclaimDeadOwnerWorkers(
 const ACTIVE_RUN_STATUSES = new Set(["planning", "running", "blocked"]);
 
 /**
- * Find runs this host should resume: active, hosted by the given kind, and
- * not already held by a live owner. Pure read — no mutation.
+ * Find runs a host should resume: active, with one of the given host
+ * kinds, and not already held by a live owner. Pure read — no mutation.
+ * An empty `hostKinds` matches every host.
  */
 export async function findResumableRuns(
   store: CoordinationStore,
-  hostKind: string,
+  hostKinds: readonly string[],
 ): Promise<string[]> {
   const runs = await store.list();
   return runs
-    .filter(run => run.hostKind === hostKind && ACTIVE_RUN_STATUSES.has(run.status))
+    .filter(run => ACTIVE_RUN_STATUSES.has(run.status))
+    .filter(run => hostKinds.length === 0 || (run.hostKind !== undefined && hostKinds.includes(run.hostKind)))
     .map(run => run.id);
 }

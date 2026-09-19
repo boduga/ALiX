@@ -154,6 +154,14 @@ Default section order:
   the existing content is byte-identical (success), and still errors on
   differing content — so a resumed retry that finds its output already
   written succeeds instead of failing a non-idempotent create.
+- **Coordination hosts partition by `hostKind` (durable).** `web`/`inspector`
+  runs are hosted by the Inspector server (startup reclaim of dead-owner
+  workers, resume under the run's persisted `sessionMode`/`maxConcurrency`,
+  and an in-process re-tick loop that resumes a run once its approval
+  resolves). `daemon` runs are ticked by the daemon's
+  `CoordinationSchedulerService` + `ApprovalWatcher`. `cli` runs are owned by
+  their launching process and reclaimed by the Inspector if that process is
+  gone. A host never ticks another host's live run.
 - CLI-first for all approval and audit actions.
 - Commit early, push often; tag baseline milestones.
 

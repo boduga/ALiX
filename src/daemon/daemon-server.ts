@@ -44,6 +44,57 @@ if (!socketPath || !defaultCwd) {
 
 const globalDir = join(homedir(), ".alix");
 let currentSessionId: string | undefined;
+let coordinationService: import("./coordination-scheduler-service.js").CoordinationSchedulerService | undefined;
+let approvalWatcher: import("./approval-watcher.js").ApprovalWatcher | undefined;
+
+/**
+ * Host coordination runs in the daemon: tick `daemon`-hosted runs and
+ * resume blocked runs when their approvals resolve. Runs hosted by the
+ * Inspector (`hostKind: "inspector"`) are left to the Inspector so the
+ * two hosts never double-dispatch the same run.
+ */
+async function startCoordinationService(): Promise<void> {
+  const { loadConfig } = await import("../config/loader.js");
+  const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+  const { CoordinationStore } = await import("../kernel/coordination-store.js");
+  const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
+  const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
+  const { PolicyGate } = await import("../policy/policy-gate.js");
+  const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
+  const { CoordinationSchedulerService } = await import("./coordination-scheduler-service.js");
+  const { ApprovalWatcher } = await import("./approval-watcher.js");
+
+  const config = await loadConfig(defaultCwd);
+  const store = new CoordinationStore(defaultCwd);
+  const toolRegistry = buildDefaultToolIndex().registry;
+
+  let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
+  if (config.subagents?.enabled) {
+    const { SubagentWorkerExecutor } = await import("../kernel/subagent-worker-executor.js");
+    executor = new SubagentWorkerExecutor({ sessionId: `coord-daemon-${Date.now()}`, config });
+  } else {
+    const { DefaultWorkerExecutor } = await import("../kernel/worker-executor.js");
+    executor = new DefaultWorkerExecutor();
+  }
+
+  const scheduler = new CoordinationScheduler({
+    cwd: defaultCwd,
+    daemonInstanceId: `daemon-${process.pid}`,
+    configProvider: async () => config,
+    store,
+    authorization: new ExecutionAuthorization({
+      policyGate: new PolicyGate(config, {}),
+      toolRegistry,
+    }),
+    ownershipRegistry: new OwnershipRegistry(defaultCwd),
+    executor,
+  });
+
+  coordinationService = new CoordinationSchedulerService(scheduler, store, { hostKind: "daemon" });
+  coordinationService.start();
+  approvalWatcher = new ApprovalWatcher(defaultCwd, coordinationService);
+  approvalWatcher.start();
+}
 
 const registry = new TaskRegistry();  // global ~/.alix/ path
 
@@ -503,6 +554,9 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 
 server.listen(socketPath, () => {
   init().catch(() => {});
+  startCoordinationService().catch((err: unknown) => {
+    console.error("[daemon] coordination service failed to start:", err instanceof Error ? err.message : String(err));
+  });
   startHeartbeat();
   const statusPath = join(globalDir, "daemon.json");
   if (existsSync(statusPath)) {
@@ -518,10 +572,14 @@ server.listen(socketPath, () => {
 });
 
 process.on("SIGTERM", () => {
-  server.close(() => {
-    // T14 bounded shutdown — the daemon's single existing "app closing down"
-    // choke point, extracted to daemon-tracing-shutdown.ts (Task 15) for test
-    // coverage. Fail-open: tracing can never block or fail daemon exit.
-    void shutdownProcessTraceClient().then(() => process.exit(0));
+  approvalWatcher?.stop();
+  const stopCoordination = coordinationService?.shutdown() ?? Promise.resolve();
+  void stopCoordination.catch(() => {}).then(() => {
+    server.close(() => {
+      // T14 bounded shutdown — the daemon's single existing "app closing down"
+      // choke point, extracted to daemon-tracing-shutdown.ts (Task 15) for test
+      // coverage. Fail-open: tracing can never block or fail daemon exit.
+      void shutdownProcessTraceClient().then(() => process.exit(0));
+    });
   });
 });

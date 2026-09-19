@@ -15,7 +15,7 @@ describe("owner liveness", () => {
     assert.equal(parseOwnerPid("web-1234"), 1234);
     assert.equal(parseOwnerPid("tool-42"), 42);
     assert.equal(parseOwnerPid("cli-7"), 7);
-    assert.equal(parseOwnerPid("daemon-1"), null);
+    assert.equal(parseOwnerPid("daemon-9"), 9);
     assert.equal(parseOwnerPid("other-daemon"), null);
     assert.equal(parseOwnerPid(undefined), null);
     assert.equal(parseOwnerPid("web-0"), null);
@@ -29,7 +29,7 @@ describe("owner liveness", () => {
   it("treats unknown owners as alive (never steal)", () => {
     assert.equal(isOwnerAlive(undefined), true);
     assert.equal(isOwnerAlive("other-daemon"), true);
-    assert.equal(isOwnerAlive("daemon-1"), true);
+    assert.equal(isOwnerAlive("named-daemon"), true);
     assert.equal(isOwnerAlive(`web-${process.pid}`), true);
     assert.equal(isOwnerAlive(`web-${DEAD_PID}`), false);
   });
@@ -92,18 +92,24 @@ describe("coordination resume", () => {
     assert.ok(loaded!.workers.every(w => w.status === "running"));
   });
 
-  it("finds only active runs for the given host kind", async () => {
+  it("finds only active runs for the given host kinds", async () => {
     const inspector = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
     inspector.hostKind = "inspector";
     const cli = createCoordinationRun({ sessionId: "s2", rootGoal: "g", coordinatorAgentId: "alix" });
     cli.hostKind = "cli";
+    const daemon = createCoordinationRun({ sessionId: "s4", rootGoal: "g", coordinatorAgentId: "alix" });
+    daemon.hostKind = "daemon";
     const done = createCoordinationRun({ sessionId: "s3", rootGoal: "g", coordinatorAgentId: "alix" });
     done.hostKind = "inspector";
     done.status = "completed";
     await store.save(inspector);
     await store.save(cli);
+    await store.save(daemon);
     await store.save(done);
 
-    assert.deepEqual(await findResumableRuns(store, "inspector"), [inspector.id]);
+    const found = await findResumableRuns(store, ["inspector", "cli"]);
+    assert.deepEqual(found.sort(), [inspector.id, cli.id].sort());
+    // Empty list matches every host.
+    assert.equal((await findResumableRuns(store, [])).length, 3);
   });
 });
