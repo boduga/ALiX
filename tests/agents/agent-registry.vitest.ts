@@ -6,6 +6,7 @@ import {
   getAgentDefinition,
   getPolicyBucket,
   defaultRoleConfigs,
+  UNTRUSTED_CONTENT_INSTRUCTION,
 } from "../../src/agents/agent-registry.js";
 
 describe("canonical agent registry", () => {
@@ -67,5 +68,11 @@ describe("canonical agent registry", () => {
     );
 
     expect(getAgentDefinition("auto")).toBeUndefined();
+  });
+
+  it("treats retrieved content as untrusted data for every retrieval-capable role", () => {
+    for (const role of ["explorer", "docs_researcher", "worker", "researcher"] as const) {
+      expect(getAgentDefinition(role)?.instructions).toContain(UNTRUSTED_CONTENT_INSTRUCTION);
+    }
   });
 });
