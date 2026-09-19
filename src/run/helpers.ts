@@ -236,6 +236,11 @@ export const BASE_TOOLS: ToolDef[] = [
           type: "string",
           enum: ["auto", "ask", "bypass"],
           description: "Approval mode for worker capabilities (defaults to the session mode; write goals need bypass/auto when no approval store is attached)"
+        },
+        agentPool: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional worker owner labels, round-robined across workers (e.g. [\"team-a\", \"team-b\"]). Cosmetic attribution only; defaults to the coordinator id."
         }
       },
       required: ["goal"]

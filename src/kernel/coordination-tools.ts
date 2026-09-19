@@ -85,7 +85,12 @@ async function handleCoordinationRun(
 
   const store = deps.store ?? new CoordinationStore(deps.cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
-  const planner = deps.planner ?? new CoordinationPlanner(deps.cwd, {}, { toolRegistry });
+  const agentPool = Array.isArray(args.agentPool)
+    ? (args.agentPool as unknown[]).filter((a): a is string => typeof a === "string" && a.length > 0)
+    : undefined;
+  const planner = deps.planner ?? new CoordinationPlanner(
+    deps.cwd, agentPool?.length ? { agentPool } : {}, { toolRegistry },
+  );
 
   let planResult;
   try {

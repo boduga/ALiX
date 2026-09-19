@@ -96,9 +96,11 @@ async function handleRun(args: string[]): Promise<void> {
   const maxConcurrencyArg = args.find(a => a.startsWith("--max-concurrency="));
   const maxConcurrency = maxConcurrencyArg ? parseInt(maxConcurrencyArg.split("=")[1], 10) : undefined;
   const sessionModeArg = readFlag(args, "--session-mode") ?? readFlag(args, "--mode");
+  const agentPoolArg = readFlag(args, "--agent-pool");
+  const agentPool = agentPoolArg ? agentPoolArg.split(",").map(s => s.trim()).filter(Boolean) : undefined;
 
   if (!goal) {
-    console.error("Usage: alix coordination run \"<goal>\" [--daemon] [--max-concurrency=N] [--session-mode=bypass|auto|ask]");
+    console.error("Usage: alix coordination run \"<goal>\" [--daemon] [--max-concurrency=N] [--session-mode=bypass|auto|ask] [--agent-pool=a,b]");
     process.exit(1);
   }
 
@@ -113,7 +115,7 @@ async function handleRun(args: string[]): Promise<void> {
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
 
-  const planner = new CoordinationPlanner(cwd, {}, { toolRegistry });
+  const planner = new CoordinationPlanner(cwd, agentPool ? { agentPool } : {}, { toolRegistry });
   const planResult = await planner.plan(goal, "alix", `coord_${Date.now()}`);
 
   if (!planResult.valid) {

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CoordinationPlanner, DOMAIN_SCOPE_MAP } from "../../src/kernel/coordination-planner.js";
+import { CoordinationPlanner, DOMAIN_SCOPE_MAP, extractGoalPaths, inferOwnershipScopes } from "../../src/kernel/coordination-planner.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import type { TaskGraphPlanner } from "../../src/kernel/coordination-planner.js";
@@ -236,5 +236,44 @@ describe("CoordinationPlanner", () => {
     // Node "a" is coding domain with no role: domain default (read-only).
     const capsA = result.run!.workers.find(w => w.sourceNodeId === "a")!.requiredCapabilities;
     assert.deepEqual(capsA, ["filesystem.read"]);
+  });
+
+  it("extractGoalPaths finds quoted file paths, skips prose", () => {
+    assert.deepEqual(
+      extractGoalPaths("Create `.tmp/a.txt` containing 'B done' owning `.tmp/a.txt`"),
+      [".tmp/a.txt"],
+    );
+    assert.deepEqual(extractGoalPaths("Search sources and analyze findings"), []);
+    assert.deepEqual(extractGoalPaths("Fetch https://example.com/x.json soon"), []);
+  });
+
+  it("extractGoalPaths finds bare unquoted paths", () => {
+    assert.deepEqual(
+      extractGoalPaths("Create .tmp/pool-e.txt containing exactly E done owning .tmp/pool-e.txt"),
+      [".tmp/pool-e.txt"],
+    );
+    assert.deepEqual(
+      extractGoalPaths("Implement validation in src/auth/login.ts and cover it"),
+      ["src/auth/login.ts"],
+    );
+  });
+
+  it("prefers goal paths over domain scopes for writers", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], {
+        goal: "Create `.tmp/a.txt`",
+        requiredCapabilities: ["filesystem.write"],
+      }),
+      makeNode("b", [], {
+        goal: "Create `.tmp/b.txt`",
+        requiredCapabilities: ["filesystem.write"],
+      }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.equal(result.valid, true);
+    const scopes = result.run!.workers.map(w => w.ownershipScopes);
+    assert.deepEqual(scopes[0], [".tmp/a.txt"]);
+    assert.deepEqual(scopes[1], [".tmp/b.txt"]);
   });
 });

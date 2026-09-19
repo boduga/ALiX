@@ -45,9 +45,39 @@ export const DOMAIN_SCOPE_MAP: Record<string, string[]> = {
   business: ["docs/**", "README.md"],
 };
 
+/**
+ * Extract workspace-relative file paths mentioned in a node goal.
+ * Matches quoted segments (`path`, "path", 'path') plus bare tokens
+ * containing a slash (./x, .tmp/f.txt, src/a/b.ts) — the planner prompt
+ * tells the model to name concrete deliverables, which usually arrive
+ * unquoted. Skips URLs, flags, and tokens with spaces. Sorted, deduped,
+ * without leading ./ or /.
+ */
+export function extractGoalPaths(goal: string): string[] {
+  const found = new Set<string>();
+  const accept = (inner: string): void => {
+    const clean = inner.trim().replace(/^\.\//, "").replace(/^\//, "").replace(/[.,;:)\"'`]+$/, "");
+    if (!clean || /\s/.test(clean)) return;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(clean)) return;
+    if (clean.startsWith("-")) return;
+    if (!clean.includes("/") && !/\.[a-z0-9]{1,5}$/i.test(clean)) return;
+    found.add(clean);
+  };
+  const quoted = goal.match(/[`"']([^`"'${}]+)[`"']/g) ?? [];
+  for (const m of quoted) accept(m.slice(1, -1));
+  const bare = goal.match(/(?:^|[\s(])(\.\.?\/[\w.\-+/$]+|[\w.+\-]+(?:\/[\w.+\-]+)+)(?=$|[\s).,;:!?])/g) ?? [];
+  for (const m of bare) accept(m.trim().replace(/^[([]/, ""));
+  return [...found].sort();
+}
+
 export function inferOwnershipScopes(node: TaskNode, mutationClass: MutationClass): string[] {
   if (mutationClass === "no-write") return [];
   if (mutationClass === "unknown-write") return ["**"];
+  // Prefer concrete goal-mentioned paths: two workers writing different
+  // files get disjoint scopes instead of colliding on the domain default
+  // (e.g. both claiming src/** blocks the second worker forever).
+  const goalPaths = extractGoalPaths(node.goal ?? "");
+  if (goalPaths.length > 0) return goalPaths;
   const domain = (node.domain ?? "").toLowerCase();
   if (domain && DOMAIN_SCOPE_MAP[domain]) return [...DOMAIN_SCOPE_MAP[domain]];
   return ["**"];
