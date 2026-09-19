@@ -60,32 +60,36 @@ describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
       expect(p.permissions.shellExecution).toBe(false);
     });
 
-    it("shell_execution — defensive fallback (routes to tool in practice)", () => {
+    it("shell_execution — misrouted to neutral fallback with warning", () => {
       const p = buildDirectPrompt("shell_execution");
       expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildDirectPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
       expect(p.toolManifest).toEqual([]);
       expect(p.permissions.workspaceWrite).toBe(false);
     });
 
-    it("external_retrieval — defensive fallback (routes to grounded_chat in practice)", () => {
+    it("external_retrieval — misrouted to neutral fallback with warning", () => {
       const p = buildDirectPrompt("external_retrieval");
       expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildDirectPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
       expect(p.toolManifest).toEqual([]);
       expect(p.permissions.workspaceWrite).toBe(false);
     });
 
-    it("workspace_action — defensive fallback (legacy conflated, routes to agent)", () => {
+    it("workspace_action — misrouted to neutral fallback (legacy conflated, routes to agent)", () => {
       const p = buildDirectPrompt("workspace_action");
       expect(p.systemPrompt).toContain("ALiX");
-      expect(p.permissions.workspaceWrite).toBe(true);
-      expect(p.permissions.shellExecution).toBe(true);
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildDirectPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
+      expect(p.permissions.workspaceWrite).toBe(false);
+      expect(p.permissions.shellExecution).toBe(false);
     });
 
-    it("workspace_mutation — defensive fallback (routes to agent in practice)", () => {
+    it("workspace_mutation — misrouted to neutral fallback (routes to agent in practice)", () => {
       const p = buildDirectPrompt("workspace_mutation");
       expect(p.systemPrompt).toContain("ALiX");
-      expect(p.permissions.workspaceWrite).toBe(true);
-      expect(p.permissions.shellExecution).toBe(true);
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildDirectPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
+      expect(p.permissions.workspaceWrite).toBe(false);
+      expect(p.permissions.shellExecution).toBe(false);
     });
 
     it("ambiguous — neutral fallback, read-only", () => {
@@ -187,16 +191,18 @@ describe("buildChatPrompt — Layer 3 chat prompt construction (T17 #394)", () =
       expect(p.toolManifest).toEqual([]);
     });
 
-    it("workspace_action — defensive, mutation scope", () => {
+    it("workspace_action — misrouted to neutral fallback", () => {
       const p = buildChatPrompt("workspace_action");
       expect(p.systemPrompt).toContain("ALiX");
-      expect(p.permissions.workspaceWrite).toBe(true);
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildChatPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
+      expect(p.permissions.workspaceWrite).toBe(false);
     });
 
-    it("workspace_mutation — defensive, mutation scope", () => {
+    it("workspace_mutation — misrouted to neutral fallback", () => {
       const p = buildChatPrompt("workspace_mutation");
       expect(p.systemPrompt).toContain("ALiX");
-      expect(p.permissions.workspaceWrite).toBe(true);
+      expect(p.systemPrompt.split("\n").slice(2).join("\n")).toBe(buildChatPrompt("ambiguous").systemPrompt.split("\n").slice(2).join("\n"));
+      expect(p.permissions.workspaceWrite).toBe(false);
     });
 
     it("ambiguous — neutral fallback, no tools, read-only", () => {
