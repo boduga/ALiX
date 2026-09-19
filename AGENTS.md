@@ -141,8 +141,9 @@ Default section order:
   permission (authenticated routes), pass through on loopback development
   per the global auth posture, and execute detached (client polls the
   existing GET routes). Server close aborts in-flight runs and their worker
-  children; a run started before a restart has no live handle and can only be
-  marked cancelled. No other HTTP route may execute agent actions.
+  children; Inspector-hosted runs are reclaimed and resumed on restart
+  (dead `executionOwnerId` workers reset to pending under the run's original
+  approval mode). No other HTTP route may execute agent actions.
 - CLI-first for all approval and audit actions.
 - Commit early, push often; tag baseline milestones.
 

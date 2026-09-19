@@ -12,6 +12,8 @@
 - `coordination-tools.ts` — Chat-tool handlers (run/status/results; subagent executor when enabled)
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
+- `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
+- `coordination-resume.ts` — Reclaim dead-owner workers to pending; find Inspector-hosted active runs
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**

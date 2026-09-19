@@ -207,6 +207,20 @@ export interface CoordinationRun {
   /** Session ID of the coordinator agent */
   sessionId: string;
 
+  /**
+   * Which host started (and is responsible for ticking) this run.
+   * `inspector` runs are resumed by the Inspector server on restart;
+   * `cli`/`daemon` runs are owned by their launching process.
+   */
+  hostKind?: "inspector" | "daemon" | "cli";
+
+  /**
+   * Approval mode this run executes under. Persisted so a resumed run
+   * (Inspector restart) keeps the mode it was started with instead of
+   * falling back to the on-disk default.
+   */
+  sessionMode?: "auto" | "ask" | "bypass";
+
   /** The top-level goal being decomposed */
   rootGoal: string;
 

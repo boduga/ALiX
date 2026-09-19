@@ -29,6 +29,7 @@ import { buildCoordinationRunView } from "../kernel/coordination-view.js";
 import { CollaborationStore } from "../kernel/collaboration-store.js";
 import { ConflictRepository } from "../kernel/collaboration-conflict-repository.js";
 import { parseSessionMode } from "../config/schema.js";
+import { isOwnerAlive } from "../kernel/owner-liveness.js";
 import type { CoordinationScheduler } from "../kernel/coordination-scheduler.js";
 import type { SecurityContext } from "../security/inspector/security-context.js";
 import type { SecureJsonResponder } from "./secure-response.js";
@@ -381,6 +382,68 @@ async function handleConflict(cwd: string, runId: string, conflictId: string, r:
 // Execution handlers (POST)
 // ---------------------------------------------------------------------------
 
+/**
+ * Build the scheduler runtime shared by fresh runs and resumed runs:
+ * config, policy/auth, ownership, and the executor (subagent child
+ * processes when enabled, in-process otherwise).
+ */
+async function buildCoordinationRuntime(
+  cwd: string,
+  config: import("../config/schema.js").AlixConfig,
+  opts: { maxConcurrency: number; sessionIdPrefix: string },
+): Promise<{ store: CoordinationStore; scheduler: CoordinationScheduler }> {
+  const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+  const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
+  const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
+  const { PolicyGate } = await import("../policy/policy-gate.js");
+  const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
+  const { ApprovalStore } = await import("../approvals/approval-store.js");
+
+  const store = new CoordinationStore(cwd);
+  const toolRegistry = buildDefaultToolIndex().registry;
+  const approvalStore = new ApprovalStore(cwd);
+  try { await approvalStore.load(); } catch { /* start unlocked when absent */ }
+  const policyGate = new PolicyGate(config, { approvalStore });
+  const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
+  const registry = new OwnershipRegistry(cwd);
+
+  let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
+  if (config.subagents?.enabled) {
+    const { SubagentWorkerExecutor } = await import("../kernel/subagent-worker-executor.js");
+    executor = new SubagentWorkerExecutor({
+      sessionId: `${opts.sessionIdPrefix}-${Date.now()}`,
+      config,
+    });
+  } else {
+    const { DefaultWorkerExecutor } = await import("../kernel/worker-executor.js");
+    executor = new DefaultWorkerExecutor();
+  }
+
+  const scheduler = new CoordinationScheduler(
+    {
+      cwd,
+      daemonInstanceId: `web-${process.pid}`,
+      configProvider: async () => config,
+      store,
+      authorization: auth,
+      ownershipRegistry: registry,
+      executor,
+    },
+    { maxConcurrency: opts.maxConcurrency },
+  );
+  return { store, scheduler };
+}
+
+/** Run a run to idle detached; a live handle is kept for cancel. */
+function runDetached(runId: string, scheduler: CoordinationScheduler): void {
+  backgroundSchedulers.set(runId, scheduler);
+  scheduler.runUntilIdle(runId).catch((err: unknown) => {
+    console.error(`[coordination] background run ${runId} failed: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    backgroundSchedulers.delete(runId);
+  });
+}
+
 async function handleStartRun(
   cwd: string,
   r: SecureJsonResponder,
@@ -405,70 +468,90 @@ async function handleStartRun(
   try {
     const { loadConfig } = await import("../config/loader.js");
     const { CoordinationPlanner } = await import("../kernel/coordination-planner.js");
-    const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
-    const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
-    const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
-    const { PolicyGate } = await import("../policy/policy-gate.js");
     const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
-    const { ApprovalStore } = await import("../approvals/approval-store.js");
 
     const config = await loadConfig(cwd);
     if (sessionMode !== undefined) {
       config.permissions.sessionMode = parseSessionMode(sessionMode);
     }
     const store = new CoordinationStore(cwd);
-    const toolRegistry = buildDefaultToolIndex().registry;
-    const planner = new CoordinationPlanner(cwd, agentPool?.length ? { agentPool } : {}, { toolRegistry });
+    const planner = new CoordinationPlanner(
+      cwd,
+      agentPool?.length ? { agentPool } : {},
+      { toolRegistry: buildDefaultToolIndex().registry },
+    );
     const planResult = await planner.plan(goal, "alix", `coord_web_${Date.now()}`);
     if (!planResult.valid || !planResult.run) {
       r.error("plan_failed", 400);
       return;
     }
 
-    const approvalStore = new ApprovalStore(cwd);
-    try { await approvalStore.load(); } catch { /* start unlocked when absent */ }
-    const policyGate = new PolicyGate(config, { approvalStore });
-    const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
-    const registry = new OwnershipRegistry(cwd);
-    // Same execution backend as the chat path: subagent child processes
-    // when subagents are enabled, so web runs share dispatch, ownership,
-    // lifecycle, and sessionMode propagation with delegate/chat. Falls
-    // back to the in-process executor when subagents are disabled.
-    let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
-    if (config.subagents?.enabled) {
-      const { SubagentWorkerExecutor } = await import("../kernel/subagent-worker-executor.js");
-      executor = new SubagentWorkerExecutor({
-        sessionId: `coord-web-${Date.now()}`,
-        config,
-      });
-    } else {
-      const { DefaultWorkerExecutor } = await import("../kernel/worker-executor.js");
-      executor = new DefaultWorkerExecutor();
-    }
-    const scheduler = new CoordinationScheduler(
-      {
-        cwd,
-        daemonInstanceId: `web-${process.pid}`,
-        configProvider: async () => config,
-        store,
-        authorization: auth,
-        ownershipRegistry: registry,
-        executor,
-      },
-      { maxConcurrency },
-    );
-    const runId = planResult.run.id;
-    backgroundSchedulers.set(runId, scheduler);
-    // Foreground-equivalent execution, detached: the client polls the
-    // existing GET routes. A server restart drops in-flight execution.
-    scheduler.runUntilIdle(runId).catch((err: unknown) => {
-      console.error(`[coordination] background run ${runId} failed: ${err instanceof Error ? err.message : String(err)}`);
-    }).finally(() => {
-      backgroundSchedulers.delete(runId);
+    const { scheduler } = await buildCoordinationRuntime(cwd, config, {
+      maxConcurrency,
+      sessionIdPrefix: "coord-web",
     });
+    const runId = planResult.run.id;
+    // Mark the Inspector as host and persist the approval mode so a later
+    // restart resumes with the same execution semantics.
+    await store.updateRun(runId, (run) => {
+      run.hostKind = "inspector";
+      run.sessionMode = parseSessionMode(config.permissions.sessionMode);
+    }).catch(() => {});
+    runDetached(runId, scheduler);
     r.ok({ runId, workers: planResult.run.workers.length, goal });
   } catch (err) {
     r.error("internal_error", 500);
+  }
+}
+
+/**
+ * Resume Inspector-hosted runs whose previous server process died:
+ * reclaim dead-owner workers, then run each to idle detached. Called once
+ * at server startup. Runs still owned by a live process are left alone.
+ */
+export async function resumeInspectorRuns(cwd: string): Promise<number> {
+  try {
+    const { loadConfig } = await import("../config/loader.js");
+    const { reclaimDeadOwnerWorkers, findResumableRuns } = await import("../kernel/coordination-resume.js");
+    const store = new CoordinationStore(cwd);
+    const runIds = await findResumableRuns(store, "inspector");
+    if (runIds.length === 0) return 0;
+
+    const config = await loadConfig(cwd);
+    let resumed = 0;
+    for (const runId of runIds) {
+      // Reclaim before deciding: a run may be entirely owned by dead
+      // processes and otherwise look live.
+      await reclaimDeadOwnerWorkers(store, runId);
+      const run = await store.load(runId);
+      if (!run) continue;
+      // Only resume work that can still progress. A blocked run whose
+      // workers are all terminal (cancelled/failed/completed) has nothing
+      // to retry.
+      const hasActionableWorker = run.workers.some(w => w.status === "pending" || w.status === "running");
+      if (!hasActionableWorker) continue;
+      const hasLiveWorker = run.workers.some(w =>
+        w.status === "running" &&
+        (w.executionOwnerId ? isOwnerAlive(w.executionOwnerId) : false),
+      );
+      if (hasLiveWorker) continue;
+      // Resume under the run's original approval mode, not the current
+      // on-disk default (a bypass run must not resume as ask and stall on
+      // approvals).
+      const runConfig = run.sessionMode
+        ? { ...config, permissions: { ...config.permissions, sessionMode: run.sessionMode } }
+        : config;
+      const { scheduler } = await buildCoordinationRuntime(cwd, runConfig, {
+        maxConcurrency: 2,
+        sessionIdPrefix: "coord-web",
+      });
+      runDetached(runId, scheduler);
+      resumed++;
+    }
+    return resumed;
+  } catch (err) {
+    console.error(`[coordination] resume failed: ${err instanceof Error ? err.message : String(err)}`);
+    return 0;
   }
 }
 
