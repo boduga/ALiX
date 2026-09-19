@@ -105,7 +105,7 @@ export type SubagentWorkerExecutorOptions = {
 export class SubagentWorkerExecutor implements CoordinationWorkerExecutor {
   private readonly manager: SubagentManager;
 
-  constructor(private readonly options: SubagentWorkerExecutorOptions = {}) {
+  constructor(options: SubagentWorkerExecutorOptions = {}) {
     this.manager =
       options.manager ??
       new SubagentManager({

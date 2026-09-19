@@ -57,12 +57,6 @@ const READ_ONLY_SCOPE: PermissionScope = {
   networkAccess: false,
 };
 
-const MUTATION_SCOPE: PermissionScope = {
-  workspaceWrite: true,
-  shellExecution: true,
-  networkAccess: false,
-};
-
 const NETWORK_SCOPE: PermissionScope = {
   workspaceWrite: false,
   shellExecution: false,
