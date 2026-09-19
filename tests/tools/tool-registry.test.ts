@@ -437,10 +437,12 @@ test("ToolRetriever.selectForIntent with write tags returns write-related tools"
 
   const result = retriever.selectForIntent(["write", "create"]);
 
-  // Should include essential tools (file.read, dir.search, done) plus write-related tools
+  // Should include essential tools (file.read, grep.search, glob.match, done)
+  // plus write-related tools.
   assert.ok(result.some(t => t.name === "file.read"));
   assert.ok(result.some(t => t.name === "file.create"));
-  assert.ok(result.some(t => t.name === "dir.search"));
+  assert.ok(result.some(t => t.name === "grep.search"));
+  assert.ok(result.some(t => t.name === "glob.match"));
   assert.ok(result.some(t => t.name === "done"));
 });
 
@@ -487,13 +489,16 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 18 tools", () => {
+test("buildDefaultToolIndex registers 21 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 18);
+  assert.strictEqual(all.length, 21);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
+    "coordination.results",
+    "coordination.run",
+    "coordination.status",
     "create_hook",
     "create_skill",
     "delegate",
@@ -521,12 +526,12 @@ test("buildDefaultToolIndex indexes all tags", () => {
 
   // Verify all expected tags are present
   const expectedTags = [
-    "agent", "check", "code", "command", "complete", "config", "content",
+    "agent", "aggregate", "check", "code", "command", "complete", "config", "content", "coordination",
     "create", "delete", "delegate", "directory", "done", "edit",
     "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
-    "grep", "hook", "inspect", "list", "mcp", "modify", "patch", "read",
-    "regex", "remove", "run", "search", "self-extend", "shell", "skill",
-    "subtask", "tool", "web", "write",
+    "grep", "hook", "inspect", "list", "mcp", "modify", "multi-agent", "parallel", "patch", "read",
+    "regex", "remove", "results", "run", "search", "self-extend", "shell", "skill", "status",
+    "subtask", "tool", "web", "workers", "write",
   ];
   for (const tag of expectedTags) {
     assert.ok(tags.includes(tag), `Expected tag "${tag}" to be indexed`);

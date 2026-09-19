@@ -446,6 +446,13 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
       const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
       const { CoordinationStore } = await import("../kernel/coordination-store.js");
       const store = new CoordinationStore(cwd);
+      // Unknown runs are an idempotent success. Check before loading config or
+      // constructing runtime dependencies so cancellation also works in a
+      // fresh workspace with no ALiX configuration.
+      if (!await store.load(runId)) {
+        r.ok({ runId, cancelled: true });
+        return;
+      }
       const { loadConfig } = await import("../config/loader.js");
       const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
       const { PolicyGate } = await import("../policy/policy-gate.js");

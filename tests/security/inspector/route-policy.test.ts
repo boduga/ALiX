@@ -278,9 +278,9 @@ describe("RoutePolicyRegistry", () => {
 });
 
 describe("canonical routeRegistry instance", () => {
-  it("has all 45 routes registered", () => {
+  it("has all 47 routes registered", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 45, `expected 45 routes, got ${all.length}`);
+    assert.equal(all.length, 47, `expected 47 routes, got ${all.length}`);
   });
 
   it("all routes have unique ids", () => {
