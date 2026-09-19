@@ -241,6 +241,51 @@ export class SubagentManager {
     });
   }
 
+  /**
+   * Parallel fan-out: launch every spec before awaiting any of them.
+   * Per-child error isolation — a spawn rejection becomes a failed result
+   * for that child, never a batch rejection. Results align to input order
+   * even when completion order differs. Reuses the single-spawn path, so
+   * ownership, lifecycle, and session-mode propagation behave identically.
+   */
+  async spawnMany(specs: SubagentTask[]): Promise<SubagentResult[]> {
+    const indices = new Map<string, number>();
+    specs.forEach((task, i) => indices.set(task.id, i));
+    const settled = await Promise.allSettled(specs.map(task => this.spawn(task)));
+    return settled.map((outcome, i) => {
+      if (outcome.status === "fulfilled") return outcome.value;
+      const task = specs[i];
+      return {
+        id: task.id,
+        role: task.role,
+        status: "failed" as const,
+        findings: [],
+        events: [],
+        error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      };
+    });
+  }
+
+  /** Cancel one running subagent (kill + release ownership). No-op when unknown. */
+  cancel(taskId: string): boolean {
+    const running = this.running.get(taskId);
+    if (!running) return false;
+    running.cancelled = true;
+    this.emitLifecycle("agent.cancelled", {
+      agentId: taskId,
+      parentAgentId: this.options.parentAgentId ?? `session:${this.options.sessionId}`,
+      taskId: running.task.id,
+      role: running.task.role,
+      state: "cancelled",
+      status: "cancelled",
+      operation: "Manager cancel",
+    });
+    running.process.kill();
+    this.running.delete(taskId);
+    this.releaseOwnership(running.task);
+    return true;
+  }
+
   shutdown(): void {
     for (const [agentId, running] of this.running) {
       running.cancelled = true;

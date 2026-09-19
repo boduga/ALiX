@@ -48,7 +48,7 @@ export const PROMPT_REGISTRY: PromptEntry[] = [
   entry("subagent.reviewer", "1.0.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.reviewer),
   entry("subagent.test-investigator", "1.0.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.test_investigator),
   entry("subagent.docs-researcher", "1.1.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.docs_researcher),
-  entry("subagent.worker", "1.0.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.worker),
+  entry("subagent.worker", "1.1.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.worker),
   entry("subagent.researcher", "1.1.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.researcher),
   entry("planner.graph", "2.1.0", "src/kernel/graph-planner.ts", buildPlanPrompt()),
   entry("route.retrieval-system", "1.1.0", "src/runtime/route-prompts.ts", buildExternalRetrievalPrompt("external_retrieval").systemPrompt),

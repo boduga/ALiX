@@ -24,7 +24,7 @@ import { CoordinationScheduler } from "./coordination-scheduler.js";
 import { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 import { PolicyGate } from "../policy/policy-gate.js";
-import { DefaultWorkerExecutor } from "./worker-executor.js";
+import type { CoordinationWorkerExecutor } from "./worker-executor.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
 
 export const COORDINATION_RUN_TOOL = "coordination.run";
@@ -114,7 +114,21 @@ async function handleCoordinationRun(
   const policyGate = new PolicyGate(config, { eventLog: deps.eventLog, approvalStore: deps.approvalStore });
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(deps.cwd);
-  const executor = new DefaultWorkerExecutor();
+  // Unified execution: when subagents are enabled, workers run as
+  // subagent child processes (same dispatch/ownership/tiers/session-mode
+  // as delegate); otherwise the in-process executor is used.
+  let executor: CoordinationWorkerExecutor;
+  if (config.subagents?.enabled) {
+    const { SubagentWorkerExecutor } = await import("./subagent-worker-executor.js");
+    executor = new SubagentWorkerExecutor({
+      sessionId: `coord-sub-${runId}`,
+      config,
+      eventLog: deps.eventLog,
+    });
+  } else {
+    const { DefaultWorkerExecutor } = await import("./worker-executor.js");
+    executor = new DefaultWorkerExecutor();
+  }
   const scheduler = new CoordinationScheduler(
     {
       cwd: deps.cwd,
