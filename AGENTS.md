@@ -146,7 +146,7 @@ Default section order:
   approval mode). No other HTTP route may execute agent actions.
 - **Coordination workers are reclaimable and non-orphaning (durable).** A
   subagent child exits when its host dies (stdin-pipe watchdog,
-  `installParentDeathWatchdog`), so a crash cannot leave workers writing
+  `installParentLivenessWatchdog`), so a crash cannot leave workers writing
   files after their scheduler is gone. A worker whose `executionOwnerId`
   encodes a dead `<kind>-<pid>` is reset to `pending` with `attempt++`
   (bounded by `maxAttempts`) so a restarted host resumes it; an owner that
