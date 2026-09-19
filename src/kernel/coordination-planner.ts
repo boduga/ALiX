@@ -161,6 +161,9 @@ export type PlannerOptions = {
   agentPool?: string[];
   modelEndpoint?: string;
   modelName?: string;
+  /** Provider-backed generator for planning; uses the configured model
+   * when supplied instead of the raw Ollama endpoint. */
+  generate?: import("./graph-planner.js").PlannerGenerate;
 };
 
 export class CoordinationPlanner {
@@ -182,6 +185,7 @@ export class CoordinationPlanner {
     this.planner = dependencies?.planner ?? new GraphPlanner({
       modelEndpoint: options.modelEndpoint,
       modelName: options.modelName,
+      generate: options.generate,
     });
     this.store = dependencies?.store ?? new CoordinationStore(cwd);
     this.agentPool = options.agentPool ?? [];

@@ -250,7 +250,12 @@ export class CoordinationScheduler {
         a.id.localeCompare(b.id)
       );
 
-    const config = await this.deps.configProvider();
+    const baseConfig = await this.deps.configProvider();
+    // The run's persisted approval mode wins over the host's current
+    // config (a bypass run must not be authorized as ask).
+    const config = run.sessionMode
+      ? { ...baseConfig, permissions: { ...baseConfig.permissions, sessionMode: run.sessionMode } }
+      : baseConfig;
     const dispatched: string[] = [];
     const awaitingApproval: string[] = [];
     const denied: string[] = [];
@@ -426,9 +431,15 @@ export class CoordinationScheduler {
     if (!worker) return;
 
     try {
+      const baseConfig = await this.deps.configProvider();
       const context: WorkerExecutionContext = {
         run, sessionId: run.sessionId, cwd: this.deps.cwd,
-        config: await this.deps.configProvider(),
+        // The run's persisted approval mode wins over the host's current
+        // config so a resumed/daemon-ticked run keeps the semantics it
+        // was started with.
+        config: run.sessionMode
+          ? { ...baseConfig, permissions: { ...baseConfig.permissions, sessionMode: run.sessionMode } }
+          : baseConfig,
       };
       const result = await this.deps.executor.execute(worker, context, signal);
 

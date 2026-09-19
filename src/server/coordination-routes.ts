@@ -480,6 +480,7 @@ async function handleStartRun(
   try {
     const { loadConfig } = await import("../config/loader.js");
     const { CoordinationPlanner } = await import("../kernel/coordination-planner.js");
+    const { createPlannerGenerator } = await import("../kernel/planner-model.js");
     const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
 
     const config = await loadConfig(cwd);
@@ -488,7 +489,7 @@ async function handleStartRun(
     }
     const planner = new CoordinationPlanner(
       cwd,
-      agentPool?.length ? { agentPool } : {},
+      { ...(agentPool?.length ? { agentPool } : {}), generate: createPlannerGenerator(config) },
       { toolRegistry: buildDefaultToolIndex().registry },
     );
     // Host/approval metadata is applied inside plan() before the run is

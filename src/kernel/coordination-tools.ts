@@ -21,6 +21,7 @@ import type { EventLog } from "../events/event-log.js";
 import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationPlanner } from "./coordination-planner.js";
+import { createPlannerGenerator } from "./planner-model.js";
 import { CoordinationScheduler } from "./coordination-scheduler.js";
 import { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
@@ -88,7 +89,9 @@ async function handleCoordinationRun(
     ? (args.agentPool as unknown[]).filter((a): a is string => typeof a === "string" && a.length > 0)
     : undefined;
   const planner = deps.planner ?? new CoordinationPlanner(
-    deps.cwd, agentPool?.length ? { agentPool } : {}, { toolRegistry },
+    deps.cwd,
+    { ...(agentPool?.length ? { agentPool } : {}), generate: createPlannerGenerator(deps.config) },
+    { toolRegistry },
   );
 
   let planResult;
