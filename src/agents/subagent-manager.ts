@@ -28,6 +28,33 @@ type RunningSubagent = {
   cancelled: boolean;
 };
 
+/**
+ * Kill a child and any grandchildren it spawned.
+ *
+ * On POSIX the child is spawned detached (its own process group whose id
+ * is its pid), so signalling the negative pid reaches the whole tree —
+ * including shell commands the subagent launched. Windows has no
+ * equivalent group signal here, so it falls back to the direct child.
+ * Combined with the child's stdin-EOF watchdog, this covers both explicit
+ * cancellation and host death.
+ */
+function terminateProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGKILL"): void {
+  if (!child.pid) return;
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Group already gone — fall through to the direct kill.
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // Already exited.
+  }
+}
+
 export type SubagentResultCallback = (result: SubagentResult) => void;
 
 /**
@@ -144,6 +171,10 @@ export class SubagentManager {
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
           stdio: ["pipe", "pipe", "pipe"] as const,
+          // Own process group on POSIX so terminateProcessTree can reap the
+          // whole tree; the stdin pipe still closes on host death, which
+          // the child's watchdog turns into a clean exit.
+          detached: process.platform !== "win32",
           env: buildChildEnv(this.options.config?.runtime?.envAllowlist, {
             ALIX_NO_BANNER: "1",
             // Secret-service IPC so the child can resolve cred:// references
@@ -296,7 +327,7 @@ export class SubagentManager {
       status: "cancelled",
       operation: "Manager cancel",
     });
-    running.process.kill();
+    terminateProcessTree(running.process);
     this.running.delete(taskId);
     this.releaseOwnership(running.task);
     return true;
@@ -314,7 +345,7 @@ export class SubagentManager {
         status: "cancelled",
         operation: "Manager shutdown",
       });
-      running.process.kill();
+      terminateProcessTree(running.process);
     }
     this.running.clear();
     this.ownershipRegistry.clear();

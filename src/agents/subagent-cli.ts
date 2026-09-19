@@ -125,9 +125,36 @@ export function inferSingleOwnedPatchPath(
   args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths![0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
 }
 
-export type SubagentOutputFormat = "json" | "text";
+/**
+ * Parent-liveness watchdog.
+ *
+ * The parent holds our stdin pipe open for the life of this subagent. If
+ * the host dies — including an uncatchable SIGKILL or OS crash — the
+ * kernel closes that pipe, stdin reaches EOF, and we exit instead of
+ * lingering as an orphan. This is the cross-platform guarantee that no
+ * in-process signal handler can provide.
+ *
+ * `unref()` keeps stdin from holding the event loop open, so a normal
+ * completion still exits; the handler only fires while work is running.
+ */
+export function installParentLivenessWatchdog(
+  stdin: NodeJS.ReadStream = process.stdin,
+  exit: (code: number) => void = (code) => process.exit(code),
+): void {
+  // A TTY means an interactive invocation, not a parent-held pipe.
+  if (stdin.isTTY) return;
+  const terminate = (): void => {
+    console.error("[subagent] parent closed stdin — terminating orphaned subagent");
+    exit(1);
+  };
+  stdin.resume();
+  stdin.on("end", terminate);
+  stdin.on("close", terminate);
+  stdin.on("error", terminate);
+  (stdin as unknown as { unref?: () => void }).unref?.();
+}
 
-export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
+export type SubagentOutputFormat = "json" | "text";export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
   if (format === "json") return JSON.stringify(result);
   if (result.status === "failed" || result.status === "rejected") return result.error ?? "Subagent failed.";
   const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
@@ -300,6 +327,7 @@ export function buildResult(
 
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
+    installParentLivenessWatchdog();
     const args = parseArgs({
       args: argv,
       options: {
