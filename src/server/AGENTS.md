@@ -13,8 +13,10 @@
   Execution endpoints require the `coordination:execute` permission
   (authenticated routes); loopback development passes through per the global
   auth posture like every other authenticated route. Runs execute detached —
-  the client polls the existing GET routes; a server restart drops in-flight
-  execution (the daemon owns durable ticking). Ask-mode worker capabilities
+  the client polls the existing GET routes. `cancelAllBackgroundRuns()` runs on
+  server close, aborting in-flight runs and their worker children; a run
+  started before a restart has no live handle, so `POST /:runId/cancel` marks
+  it via the stateless path. Ask-mode worker capabilities
   create approvals through the server-side ApprovalStore, visible in the
   approvals panel. Authentication session exchange/logout are the other
   POST routes; no other HTTP route may execute agent actions.

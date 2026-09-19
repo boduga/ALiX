@@ -39,6 +39,25 @@ import type { SecureJsonResponder } from "./secure-response.js";
 // the daemon owns durable ticking).
 const backgroundSchedulers = new Map<string, CoordinationScheduler>();
 
+/**
+ * Cancel every in-flight web-started run and drop its live handle.
+ * Called on server close so a shutdown aborts worker children instead of
+ * orphaning them. Detached runs started before a restart cannot be
+ * reached here (their handles died with the old process); `POST
+ * /:runId/cancel` still marks those runs via the stateless path.
+ */
+export async function cancelAllBackgroundRuns(): Promise<void> {
+  const entries = [...backgroundSchedulers.entries()];
+  backgroundSchedulers.clear();
+  await Promise.all(entries.map(async ([runId, scheduler]) => {
+    try {
+      await scheduler.cancelRun(runId);
+    } catch {
+      // Shutdown is best-effort; a failed cancel must not block close.
+    }
+  }));
+}
+
 const MAX_RUN_BODY_BYTES = 16 * 1024;
 
 /** Read a bounded JSON body (mirrors auth-routes readBody discipline). */

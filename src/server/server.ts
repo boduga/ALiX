@@ -641,7 +641,17 @@ export function startServer(
           sessionHub.stop();
           // Release all connection limiter slots
           connectionLimiter.releaseAll();
-          server.close(() => done());
+          // Abort in-flight coordination runs so worker children are not
+          // orphaned by a server shutdown.
+          void (async () => {
+            try {
+              const { cancelAllBackgroundRuns } = await import("./coordination-routes.js");
+              await cancelAllBackgroundRuns();
+            } catch {
+              // Shutdown is best-effort.
+            }
+            server.close(() => done());
+          })();
         }),
       });
     });

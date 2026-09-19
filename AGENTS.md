@@ -140,7 +140,9 @@ Default section order:
   are the only execution POSTs: both require the `coordination:execute`
   permission (authenticated routes), pass through on loopback development
   per the global auth posture, and execute detached (client polls the
-  existing GET routes). No other HTTP route may execute agent actions.
+  existing GET routes). Server close aborts in-flight runs and their worker
+  children; a run started before a restart has no live handle and can only be
+  marked cancelled. No other HTTP route may execute agent actions.
 - CLI-first for all approval and audit actions.
 - Commit early, push often; tag baseline milestones.
 

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Readable } from "node:stream";
-import { registerCoordinationRoutes } from "../../src/server/coordination-routes.js";
+import { registerCoordinationRoutes, cancelAllBackgroundRuns } from "../../src/server/coordination-routes.js";
 
 function mockRes() {
   const chunks: string[] = [];
@@ -80,5 +80,16 @@ describe("coordination POST routes", () => {
     await new Promise(r => setTimeout(r, 50));
     assert.equal(res.statusCode, 400);
     assert.equal(body().error, "invalid_run_id");
+  });
+});
+
+describe("cancelAllBackgroundRuns", () => {
+  it("resolves with no in-flight runs", async () => {
+    await assert.doesNotReject(() => cancelAllBackgroundRuns());
+  });
+
+  it("is idempotent", async () => {
+    await cancelAllBackgroundRuns();
+    await cancelAllBackgroundRuns();
   });
 });
