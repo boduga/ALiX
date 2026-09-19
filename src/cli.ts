@@ -121,6 +121,7 @@ Usage:
   alix audit by-action <action>  Filter by action type
   alix audit verify              Stream-verify audit log integrity
   alix audit verify --json       Structured integrity report
+  alix audit verify --all        Also verify the governance audit chain
   alix audit activate            Seal legacy log, start integrity chain
   alix audit checkpoint --output <path>  Create signed checkpoint
   alix audit checkpoint-verify <path>    Verify checkpoint evidence

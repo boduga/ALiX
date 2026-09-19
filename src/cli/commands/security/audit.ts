@@ -42,14 +42,27 @@ import { jsonMode, setJsonMode } from "./shared.js";
 
 export async function handleAuditVerify(args: string[]): Promise<void> {
   setJsonMode(args.includes("--json"));
+  const verifyAll = args.includes("--all");
 
   const cwd = process.cwd();
   const { AuditStore } = await import("../../../audit/audit-store.js");
 
   const result = await new AuditStore(cwd).verifyIntegrity();
 
+  // #782: `--all` also verifies the governance per-record chain so operators
+  // have one verification entry point across both chains.
+  let governance: import("../../../governance/audit-chain.js").ChainVerificationResult | undefined;
+  if (verifyAll) {
+    const { FileAuditStore } = await import("../../../governance/audit-store.js");
+    const { verifyChain } = await import("../../../governance/audit-chain.js");
+    const events = await new FileAuditStore(cwd).listChronological();
+    governance = verifyChain(events);
+  }
+
+  const ok = result.ok && (governance?.valid ?? true);
+
   if (jsonMode) {
-    console.log(JSON.stringify(result));
+    console.log(JSON.stringify(verifyAll ? { runtime: result, governance } : result));
   } else {
     console.log("Audit Log Verification\n");
 
@@ -86,9 +99,24 @@ export async function handleAuditVerify(args: string[]): Promise<void> {
       console.log("  - In production, investigate the integrity breach immediately.");
       console.log("  - Checkpoint evidence (if any) may help determine the last known-good state.");
     }
+
+    if (governance) {
+      console.log("\nGovernance Audit Chain Verification\n");
+      console.log(`Events:     ${governance.eventCount}`);
+      console.log(`Findings:   ${governance.findings.length}`);
+      console.log();
+      if (governance.valid) {
+        console.log("Result:     OK — no integrity issues detected.");
+      } else {
+        console.log("Result:     INTEGRITY FAILURE");
+        for (const f of governance.findings) {
+          console.log(`  [${f.type}] ${f.eventId} ${f.detail}`);
+        }
+      }
+    }
   }
 
-  process.exit(result.ok ? 0 : 1);
+  process.exit(ok ? 0 : 1);
 }
 
 

@@ -332,3 +332,48 @@ describe("RuntimeIndex", () => {
     }
   });
 });
+
+// #713 G2.1 — governance audit is visible in the unified runtime index
+describe("RuntimeIndex governance audit", () => {
+  it("includes governance audit events as a source", async () => {
+    const dir = seedDir();
+    try {
+      mkdirSync(join(dir, ".alix", "governance"), { recursive: true });
+      writeFileSync(
+        join(dir, ".alix", "governance", "governance-audit-events.jsonl"),
+        JSON.stringify({
+          eventId: "g1",
+          timestamp: "2026-06-09T13:00:00Z",
+          eventType: "policy.evaluated",
+          actorType: "system",
+          actorId: "governance",
+          subjectType: "policy",
+          subjectId: null,
+          action: "evaluate",
+          decision: "allowed",
+          policyId: null,
+          policyVersion: null,
+          ruleId: null,
+          reason: "ok",
+          evidenceRefs: [],
+          requestId: null,
+          traceId: null,
+          sessionId: null,
+          parentEventId: null,
+          riskLevel: "low",
+          requiresHumanReview: false,
+          metadata: {},
+          previousHash: null,
+          eventHash: "hash",
+        }) + "\n",
+      );
+      const idx = await buildRuntimeIndex(dir);
+      const governanceEvents = idx.events.filter((e) => e.source === "governance_audit");
+      assert.equal(governanceEvents.length, 1);
+      assert.equal(governanceEvents[0].action, "policy.evaluated");
+      assert.equal(idx.byAction("policy.evaluated").length, 1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -229,6 +229,7 @@ export async function handleAuditRoot(args: string[]): Promise<void> {
   console.log("  by-action <act>   Filter by action type");
   console.log("  verify             Stream-verify the audit log integrity (Sd2)");
   console.log("    --json           Output structured findings as JSON");
+  console.log("    --all            Also verify the governance audit chain");
   console.log("  checkpoint         Create signed checkpoint evidence (Sd2)");
   console.log("    --output <path>  Write checkpoint to file");
   console.log("  checkpoint-verify <path>  Verify a checkpoint (Sd2)");

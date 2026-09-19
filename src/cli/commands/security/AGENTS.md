@@ -24,6 +24,10 @@ existing import paths (notably `src/cli.ts` and tests) are unchanged.
   binding and call `setJsonMode`. One CLI invocation runs exactly one handler.
 - Audit writes remain fail-closed per the #685/#683 contracts (see `../AGENTS.md`
   and `src/audit/AGENTS.md`).
+- `alix audit verify --all` verifies both chains in one command: the runtime v2
+  chain (`AuditStore.verifyIntegrity`) and the governance per-record chain
+  (`governance/audit-chain.ts` `verifyChain`). JSON mode returns
+  `{ runtime, governance }` (#782).
 
 **Work Guidance:**
 - Moving a handler: keep the public name and re-export from `../security.ts`.
