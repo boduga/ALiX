@@ -122,14 +122,6 @@ Default section order:
 - When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md.
 - **Unlimited agent lifetime + progress-based liveness (durable).** Agent turns have NO wall-clock deadline. A run may last minutes or hours until it reaches a terminal state or the operator cancels. Do not introduce wall-clock timeouts on agent execution (TUI `dispatchToSession`, task loop, run CLI). Liveness = time since last progress mark (`AgentLiveness` in `src/agent/agent-liveness.ts`), surfaced as `agent.liveness.warning`/`agent.liveness.recovered`/`agent.liveness.stalled` events and the agent tab's RUNNING/⚠ line — never auto-termination. Provider streaming stays idle-timeout-only (silence = failure, long healthy streams = fine); `complete()` keeps its total timeout. For short-lived RPC-style calls (e.g. the chat tab's `processChat`), short deadlines remain acceptable.
 - **Store-only API key resolution (durable).** Provider API keys are resolved exclusively from the user config / credential store (`~/.config/alix/config.json` `apiKeys` — literals or `cred://<provider>/<keyLabel>` references). Environment variables are NOT consulted at any key-resolution site: `getApiKey` (cli/helpers/api-keys.ts), `agent.ts apiKeyFor`, `skills/factory.ts`, `tools/web-search.ts` (Brave), and `cli/commands/tui.ts`. The config loader still injects resolved store secrets into `process.env` at load time (ephemeral in-memory only) so provider SDKs keep working — this is injection, not env-first resolution. Tests that previously set `*_API_KEY` env vars now write a user-config file via `writeApiKeyConfig`.
-- **Subagent process trees die with their host (durable).** Subagent
-  children are spawned detached on POSIX (own process group) so
-  cancellation/shutdown can signal the whole tree, including shell commands
-  they launched. Because no in-process handler survives `SIGKILL`/OS crash,
-  the child also installs a stdin-EOF watchdog: the parent holds the stdin
-  pipe for the child's lifetime, so host death closes it and the child exits
-  rather than lingering as an orphan. Inspector-hosted runs are then
-  reclaimed and resumed on restart.
 - **Operator cancellation is first-class (durable).** An explicit user cancel (Escape in the TUI while an agent turn runs → `AgentSession.cancelActiveTurn`) is a NORMAL terminal outcome, never a failure and never a timeout. It flips a per-turn `CancellationToken` (`src/runtime/cancellation-token.ts`) checked at loop safe points (iteration top AND immediately before each tool dispatch — a cancel never launches a NEW tool) and aborts a paired `AbortSignal` raced against the in-flight provider request/stream and threaded into in-flight tools (`ToolCallRequest.signal` → `spawnCommand`), so an operator cancel KILLS a running shell.run child and unwinds as an `ExecutionCancelledError` — never as a tool failure / `tool.failed` (no new wall-clock deadlines; transport idle/timeout bounds and tool `timeoutMs`/`commandTimeoutMs` safety limits are untouched). Cancelled invocations are classified via `isCancellationError` (session.ts): counted `agent_invocation_cancelled_total` (never `agent_invocation_failed_total`), activity transitions `cancelling` ("Cancelling…") → `cancelled`, the TUI summary reads "Cancelled after Ns" (`getLastCancelSummary`), and the graph/workflow are marked `cancelled` — never `failed`. A provider-level abort (e.g. `ApiError` 408) is NOT a user cancel and stays a failure.
 - **Workspace containment applies to approval-free shell reads (durable).** Safe-shell admission only classifies command shape; it never grants path authority. Every filesystem operand accepted by the safe-shell grammar must pass `WorkspacePathResolver`, including lexical traversal, absolute paths, protected paths, and symlink targets. A failed safe-shell process is a failed tool result, not successful output. Tool-result failure detection must use the result envelope/prefix, never keywords found anywhere in successful file content.
 - **Shell exclusion predicates are not path access (durable).** A static, quoted `find -not -path`/`find ! -path` predicate may name a protected path solely to exclude it from traversal and must not be rejected as an access attempt. Positive predicates, dynamic/expanded exclusions, and any additional sensitive-path reference remain fail-closed.
@@ -152,6 +144,16 @@ Default section order:
   children; Inspector-hosted runs are reclaimed and resumed on restart
   (dead `executionOwnerId` workers reset to pending under the run's original
   approval mode). No other HTTP route may execute agent actions.
+- **Coordination workers are reclaimable and non-orphaning (durable).** A
+  subagent child exits when its host dies (stdin-pipe watchdog,
+  `installParentDeathWatchdog`), so a crash cannot leave workers writing
+  files after their scheduler is gone. A worker whose `executionOwnerId`
+  encodes a dead `<kind>-<pid>` is reset to `pending` with `attempt++`
+  (bounded by `maxAttempts`) so a restarted host resumes it; an owner that
+  cannot be proven dead is never stolen. `file.create` is idempotent when
+  the existing content is byte-identical (success), and still errors on
+  differing content — so a resumed retry that finds its output already
+  written succeeds instead of failing a non-idempotent create.
 - CLI-first for all approval and audit actions.
 - Commit early, push often; tag baseline milestones.
 

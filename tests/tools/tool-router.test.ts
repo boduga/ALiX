@@ -507,3 +507,31 @@ test("DelegateToolRouter routes record entries by tool name", async () => {
   assert.strictEqual(result.kind, "success");
   assert.strictEqual(result.output, "s");
 });
+
+test("file.create is idempotent for identical content", async () => {
+  const router = new FileToolRouter("/tmp");
+  const path = "idempotent-create.txt";
+  await writeFile(`/tmp/${path}`, "same");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path, content: "same" },
+  });
+  assert.strictEqual(result.kind, "success");
+  assert.match(result.output ?? "", /identical content/);
+  await rm(`/tmp/${path}`, { force: true });
+});
+
+test("file.create still rejects differing content on an existing file", async () => {
+  const router = new FileToolRouter("/tmp");
+  const path = "conflicting-create.txt";
+  await writeFile(`/tmp/${path}`, "original");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path, content: "different" },
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.match(result.message ?? "", /already exists/);
+  await rm(`/tmp/${path}`, { force: true });
+});

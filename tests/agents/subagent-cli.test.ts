@@ -1,7 +1,8 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
-import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, installParentDeathWatchdog, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import { PassThrough } from "node:stream";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -394,4 +395,22 @@ test("formatToolLedger: skips zero-count sides", () => {
     formatToolLedger(new Map([["web_search", { completed: 1, failed: 0 }]])),
     "web_search 1 completed",
   );
+});
+
+test("parent-death watchdog exits the child when stdin closes", () => {
+  const stdin = new PassThrough();
+  let exitCode: number | null = null;
+  const installed = installParentDeathWatchdog(stdin, (code: number) => { exitCode = code; }, { ALIX_SUBAGENT_CHILD: "1" } as NodeJS.ProcessEnv);
+  assert.equal(installed, true);
+  stdin.emit("end");
+  assert.equal(exitCode, 1);
+});
+
+test("parent-death watchdog is inert without the child marker", () => {
+  const stdin = new PassThrough();
+  let exitCode: number | null = null;
+  const installed = installParentDeathWatchdog(stdin, (code: number) => { exitCode = code; }, {} as NodeJS.ProcessEnv);
+  assert.equal(installed, false);
+  stdin.emit("end");
+  assert.equal(exitCode, null);
 });
