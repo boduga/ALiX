@@ -3,6 +3,7 @@
  *
  * Builds a unified RuntimeIndex from:
  *   - .alix/audit/audit.jsonl
+ *   - .alix/governance/governance-audit-events.jsonl (#713 G2.1)
  *   - .alix/approvals/approvals.json
  *   - .alix/graphs/*.json
  *   - .alix/graphs/*.runs.json
@@ -18,13 +19,14 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { AuditRecord } from "../audit/audit-types.js";
+import { readGovernanceAudit } from "../audit/audit-read-model.js";
 import { measurePhase } from "./timing-events.js";
 import { streamJsonlLines } from "../storage/jsonl-store.js";
 
 export type RuntimeIndexEvent = {
   id: string;
   timestamp?: string;
-  source: "session" | "graph" | "graph_run" | "approval" | "audit" | "report" | "daemon_task";
+  source: "session" | "graph" | "graph_run" | "approval" | "audit" | "governance_audit" | "report" | "daemon_task";
   action: string;
   graphId?: string;
   nodeId?: string;
@@ -170,6 +172,21 @@ export async function buildRuntimeIndex(
             };
           }),
         )));
+      }
+
+      // Source 1b: governance audit (unified read model, #713 G2.1).
+      // Project-scoped; the user-scoped Inspector auth audit stays out of
+      // the project runtime index.
+      const governanceRows = await readGovernanceAudit(cwd, RUNTIME_INDEX_AUDIT_CAP);
+      for (const row of governanceRows) {
+        events.push({
+          id: row.id,
+          timestamp: row.timestamp,
+          source: "governance_audit",
+          action: row.action,
+          summary: row.summary,
+          payload: row.details,
+        });
       }
 
       // Source 2: approvals/approvals.json (+ append-only journal, #703).

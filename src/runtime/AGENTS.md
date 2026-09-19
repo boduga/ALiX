@@ -12,13 +12,14 @@
 - `tool-scheduler.ts` — T4 concurrency-aware ToolExecutionPolicy {allowParallel, maxParallel:4} + authoritative ToolConcurrency safe/exclusive (fail-closed unknown→serial), effectiveParallel=model&&harness&&safe, Promise.all chunked scheduler.
 - `tool-correlation.ts` — T5 result correlation wiring: hierarchy executionId → invocationId → toolCallId, every parallel result retains all three so call_1 → result_1 never ambiguous; events carry hierarchy, messages retain correlation, next model turn receives full array (tracer bullet #636).
 
-**Backends aggregated (6 sources):**
+**Backends aggregated (7 sources):**
 1. `audit/audit.jsonl` — policy/runtime audit events
-2. `approvals/approvals.json` — approval lifecycle
-3. `graphs/*.json` — graph + per-node events
-4. `graphs/*.runs.json` — rerun attempts
-5. `sessions/*/events.jsonl` — allowlisted session events (16 types)
-6. `daemon-tasks.json` — daemon task lifecycle
+2. `governance/governance-audit-events.jsonl` — governance audit events (via `readGovernanceAudit`, #713 G2.1; user-scoped Inspector auth audit stays out of the project index)
+3. `approvals/approvals.json` — approval lifecycle
+4. `graphs/*.json` — graph + per-node events
+5. `graphs/*.runs.json` — rerun attempts
+6. `sessions/*/events.jsonl` — allowlisted session events (16 types)
+7. `daemon-tasks.json` — daemon task lifecycle
 
 **Local Contracts:**
 - No new storage — all data read from existing backends at query time.

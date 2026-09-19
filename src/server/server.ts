@@ -497,17 +497,17 @@ export function startServer(
       }
       if (url.pathname === "/api/audit") {
         try {
-          const { AuditStore } = await import("../audit/audit-store.js");
-          const store = new AuditStore(root);
+          const { readUnifiedAudit } = await import("../audit/audit-read-model.js");
           const limitParam = url.searchParams.get("limit");
           const limit = limitParam ? parseInt(limitParam, 10) || 100 : 100;
           const actionParam = url.searchParams.get("action");
           const graphParam = url.searchParams.get("graphId");
-          let records;
-          if (actionParam) records = await store.findByAction(actionParam as any, limit);
-          else if (graphParam) records = await store.findByGraph(graphParam, limit);
-          else records = await store.list(limit);
-          secure.ok(records);
+          // Unified runtime + governance audit rows (#713 G2.1). Additive to
+          // the legacy AuditRecord shape (id/action/timestamp/actor/details).
+          let records = await readUnifiedAudit(root, { limit: actionParam || graphParam ? 1000 : limit });
+          if (actionParam) records = records.filter((r) => r.action === actionParam);
+          if (graphParam) records = records.filter((r) => r.details?.graphId === graphParam);
+          secure.ok(records.slice(0, limit));
         } catch (err) {
           secure.error("internal_error", 500);
         }
