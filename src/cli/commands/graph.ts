@@ -7,7 +7,6 @@ import { existsSync } from "node:fs";
 import { readFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../../config/loader.js";
-import { resolveModelConfig } from "../../config/model-resolver.js";
 import "../../index.js";
 
 export async function handleGraphPlan(args: string[]): Promise<void> {
@@ -30,12 +29,9 @@ export async function handleGraphPlan(args: string[]): Promise<void> {
   await planLog.init();
 
   const wfRun = createWorkflowRun(sessionId, task);
-  const resolved = resolveModelConfig(config);
+  const { createPlannerGenerator } = await import("../../kernel/planner-model.js");
   const planner = new GraphPlanner({
-    modelName: resolved.name,
-    modelEndpoint: resolved.provider === "ollama"
-      ? "http://localhost:11434/api/generate"
-      : undefined,
+    generate: createPlannerGenerator(config),
   });
 
   console.log(`Planning: ${task}`);

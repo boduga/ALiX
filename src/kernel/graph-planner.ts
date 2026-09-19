@@ -180,15 +180,26 @@ export function createFallbackGraph(goal: string, workflowId: string): TaskGraph
   };
 }
 
+export type PlannerGenerate = (prompt: string) => Promise<string>;
+
 export class GraphPlanner {
   private modelEndpoint: string;
   private modelName: string;
   private capabilityCatalog: readonly string[];
+  private generate?: PlannerGenerate;
 
-  constructor(opts?: { modelEndpoint?: string; modelName?: string; capabilityCatalog?: string[] }) {
+  constructor(opts?: {
+    modelEndpoint?: string;
+    modelName?: string;
+    capabilityCatalog?: string[];
+    /** Provider-backed generator. When set, planning uses the configured
+     * model instead of the raw Ollama endpoint. */
+    generate?: PlannerGenerate;
+  }) {
     this.modelEndpoint = opts?.modelEndpoint ?? "http://localhost:11434/api/generate";
     this.modelName = opts?.modelName ?? "qwen3:4b";
     this.capabilityCatalog = opts?.capabilityCatalog ?? DEFAULT_CAPABILITY_CATALOG;
+    this.generate = opts?.generate;
   }
 
   async plan(goal: string, workflowId: string): Promise<PlannerResult> {
@@ -318,6 +329,10 @@ export class GraphPlanner {
 
   /** Single model call. Transport failures throw (not retried by plan()). */
   private async callModel(prompt: string): Promise<string> {
+    // Provider-backed path: use the configured model (any provider) via
+    // the shared provider abstraction. Falls back to the raw Ollama
+    // endpoint only when no generator was injected (standalone use).
+    if (this.generate) return this.generate(prompt);
     const response = await fetch(this.modelEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -136,6 +136,23 @@ describe("GraphPlanner", () => {
     assert.ok(!prompt.includes("{{capabilityCatalog}}"));
   });
 
+  it("uses an injected provider generator instead of the Ollama endpoint", async () => {
+    const modelJson = JSON.stringify({
+      nodes: [{ id: "n1", title: "Do it", goal: "Do it", domain: "coding", role: "worker" }],
+    });
+    let calls = 0;
+    const planner = new GraphPlanner({
+      generate: async () => {
+        calls++;
+        return modelJson;
+      },
+    });
+    const result = await planner.plan("do it", "wf_generate");
+    assert.equal(calls, 1);
+    assert.equal(result.valid, true);
+    assert.ok(result.graph.nodes[0].requiredCapabilities.length > 0);
+  });
+
   it("repair retry recovers from a title-less first attempt", async () => {
     const bad = JSON.stringify({ nodes: [{ id: "n1", goal: "Do it", domain: "coding" }] });
     const good = JSON.stringify({

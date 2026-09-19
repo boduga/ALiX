@@ -18,6 +18,7 @@ import { parseSessionMode } from "../../config/schema.js";
 import { CoordinationStore } from "../../kernel/coordination-store.js";
 import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
+import { createPlannerGenerator } from "../../kernel/planner-model.js";
 import { CoordinationScheduler } from "../../kernel/coordination-scheduler.js";
 import { OwnershipRegistry } from "../../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../../runtime/execution-authorization.js";
@@ -116,7 +117,10 @@ async function handleRun(args: string[]): Promise<void> {
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
 
-  const planner = new CoordinationPlanner(cwd, agentPool ? { agentPool } : {}, { toolRegistry });
+  const planner = new CoordinationPlanner(cwd, {
+    ...(agentPool ? { agentPool } : {}),
+    generate: createPlannerGenerator(config),
+  }, { toolRegistry });
   const planResult = await planner.plan(goal, "alix", `coord_${Date.now()}`, {
     hostKind: daemonMode ? "daemon" : "cli",
     sessionMode: parseSessionMode(config.permissions.sessionMode),
