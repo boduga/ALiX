@@ -436,6 +436,32 @@ describe("CoordinationScheduler", () => {
     await sched.shutdown();
   });
 
+  it("runUntilIdle reaps a hung worker at the per-worker ceiling", async () => {
+    const { executor } = createDeferredExecutor(); // never resolved
+    const sched = createScheduler({ executor });
+
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "watchdog test", coordinatorAgentId: "alix" });
+    await store.save(run);
+
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "stuck", goalPrompt: "do",
+      requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3,
+    });
+    await store.addWorker(run.id, worker);
+
+    const result = await sched.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 10000, workerTimeoutMs: 100 });
+
+    // Watchdog fires long before the run budget: worker failed with timeout.
+    const stored = await store.load(run.id);
+    const storedWorker = stored!.workers.find(w => w.id === worker.id)!;
+    assert.equal(storedWorker.status, "failed");
+    assert.equal(storedWorker.failureKind, "timeout");
+    assert.match(storedWorker.error ?? "", /timed out/);
+    assert.ok(result.durationMs < 5000);
+
+    await sched.shutdown();
+  });
+
   // ── Heartbeat ──────────────────────────────────────────────────────
 
   it("heartbeatActiveWorkers updates running worker timestamps", async () => {
