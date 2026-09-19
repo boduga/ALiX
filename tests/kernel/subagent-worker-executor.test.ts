@@ -111,15 +111,16 @@ describe("SubagentWorkerExecutor", () => {
     const delayed = `await new Promise(r => setTimeout(r, 400)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`;
     const executor = new SubagentWorkerExecutor({ manager: managerWith(delayed) });
     const ctx = { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig };
-    const t0 = Date.now();
-    const [a, b] = await Promise.all([
+    const pending = Promise.all([
       executor.execute(worker({ id: "pa" }), ctx, new AbortController().signal),
       executor.execute(worker({ id: "pb" }), ctx, new AbortController().signal),
     ]);
-    const dt = Date.now() - t0;
+    // Deterministic overlap proof: both children tracked before either resolves.
+    await new Promise((r) => setImmediate(r));
+    assert.equal((executor.subagentManager as unknown as { running: Map<string, unknown> }).running.size, 2);
+    const [a, b] = await pending;
     assert.equal(a.outcome, "success");
     assert.equal(b.outcome, "success");
-    assert.ok(dt < 700, `expected overlap, took ${dt}ms`);
   });
 
   it("aborted signal cancels the child", async () => {

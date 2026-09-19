@@ -235,16 +235,18 @@ test("spawnMany runs specs in parallel and aligns results to input order", async
       args: ["-e", `await new Promise(r => setTimeout(r, 200)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
     },
   });
-  const t0 = Date.now();
-  const results = await manager.spawnMany([
+  const pending = manager.spawnMany([
     makeTask({ id: "m1" }),
     makeTask({ id: "m2" }),
     makeTask({ id: "m3" }),
   ]);
-  const dt = Date.now() - t0;
+  // Deterministic overlap proof: all three children are tracked as running
+  // before any of them has resolved (no wall-clock threshold).
+  await new Promise((r) => setImmediate(r));
+  assert.equal((manager as unknown as { running: Map<string, unknown> }).running.size, 3);
+  const results = await pending;
   assert.deepEqual(results.map(r => r.id), ["m1", "m2", "m3"]);
   assert.ok(results.every(r => r.status === "success"));
-  assert.ok(dt < 500, `expected parallel overlap, took ${dt}ms`);
 });
 
 test("spawnMany isolates a spawn rejection to a failed result", async () => {

@@ -82,7 +82,10 @@ describe("CoordinationSchedulerService", () => {
     const inspector = await addRun("inspector", "si");
 
     scoped.start();
-    await new Promise(r => setTimeout(r, 80));
+    // Poll for the daemon dispatch instead of a fixed wait (load-insensitive).
+    for (let i = 0; i < 200 && !executed.includes(daemon.workerId); i++) {
+      await new Promise(r => setTimeout(r, 10));
+    }
     scoped.stop();
 
     assert.ok(executed.includes(daemon.workerId), "daemon worker dispatched");

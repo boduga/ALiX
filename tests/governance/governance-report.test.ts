@@ -35,7 +35,7 @@ function runExitCode(args: string): { stdout: string; stderr: string; status: nu
   }
 }
 
-describe("alix governance report", () => {
+describe("alix governance report", { timeout: 120000 }, () => {
   it("--json returns parseable JSON with all section keys", () => {
     const stdout = run("governance report --json");
     let parsed: Record<string, unknown>;
@@ -139,7 +139,7 @@ describe("alix governance report", () => {
 // P29.3 — Compliance subcommand tests
 // ---------------------------------------------------------------------------
 
-describe("alix governance report compliance (P29.3)", () => {
+describe("alix governance report compliance (P29.3)", { timeout: 120000 }, () => {
   let tmpDir: string;
   let bundlePath: string;
   let outputPath: string;

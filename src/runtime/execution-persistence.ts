@@ -34,16 +34,28 @@ import { ExecutionEvidenceStore } from "./execution-evidence-store.js";
  * ```
  */
 export class PersistenceEvidenceEmitter implements ExecutionEvidenceEmitter {
+  // Append order must match emission order: recovery reads the last record
+  // per intent to decide the terminal state. Fire-and-forget `emit` launches
+  // concurrent appends, which can complete out of order under load. Chain
+  // them so ordering is preserved while `emit` stays non-blocking.
+  private queue: Promise<void> = Promise.resolve();
+
   constructor(private readonly store: ExecutionEvidenceStore) {}
 
   emit(_eventType: ExecutionEventType, evidence: ExecutionEvidence): void {
-    // Fire-and-forget: non-blocking to avoid stalling the runtime
-    this.store.append(evidence).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `[PersistenceEvidenceEmitter] failed to persist evidence ${evidence.evidenceId}: ${msg}`,
-      );
-    });
+    this.queue = this.queue
+      .then(() => this.store.append(evidence))
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[PersistenceEvidenceEmitter] failed to persist evidence ${evidence.evidenceId}: ${msg}`,
+        );
+      });
+  }
+
+  /** Await all queued appends (durability barrier for callers/tests). */
+  async drain(): Promise<void> {
+    await this.queue;
   }
 }
 
