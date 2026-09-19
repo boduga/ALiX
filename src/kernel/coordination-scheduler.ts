@@ -227,6 +227,11 @@ export class CoordinationScheduler {
       return emptyTick(runId, run.status);
     }
 
+    // Step 0: Reap workers whose execution outlived the per-worker ceiling.
+    // tick() is the daemon/tick-command dispatch path (no runUntilIdle
+    // loop), so without this a hung worker would stall silently there.
+    await this.reapTimedOutWorkers(runId, this.options.workerTimeoutMs);
+
     // Step 1: Reconcile
     const recResult = await this.reconcile(runId);
 
@@ -601,27 +606,7 @@ export class CoordinationScheduler {
       // until the whole-run budget (default 30 min) expires with no
       // signal. The dangling promise is left to settle; the abort tells
       // cooperative executors to stop.
-      const now = performance.now();
-      for (const exec of activeForRun) {
-        if (now - exec.startedAt > workerTimeoutMs) {
-          exec.controller.abort();
-          // Bump attempt so maxAttempts trips: a hung future never
-          // completes, so without this the worker re-dispatches forever.
-          const live = await this.deps.store.load(runId).catch(() => null);
-          const current = live?.workers.find(w => w.id === exec.workerId);
-          await this.deps.store.patchWorker(runId, exec.workerId, {
-            status: "failed",
-            failureKind: "timeout",
-            error: `Worker timed out after ${Math.round(workerTimeoutMs / 1000)}s without completing`,
-            attempt: (current?.attempt ?? 0) + 1,
-          }).catch(() => {});
-          this.activeExecutions.delete(exec.workerId);
-          // The reaped promise is no longer awaited by the loop: swallow a
-          // late rejection so it can never surface as unhandled.
-          exec.promise.catch(() => {});
-          totalFailed++;
-        }
-      }
+      totalFailed += await this.reapTimedOutWorkers(runId, workerTimeoutMs);
       activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
       if (activeForRun.length > 0) {
         idleTicks = 0;
@@ -646,6 +631,39 @@ export class CoordinationScheduler {
     }
 
     return { runId, finalStatus: "blocked", stopReason: "timeout", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+  }
+
+  // ── Worker timeout watchdog ────────────────────────────────────────
+
+  /**
+   * Abort and fail active executions that outlived `workerTimeoutMs`.
+   * Shared by `runUntilIdle` and `tick` so the daemon/tick dispatch path
+   * surfaces hung workers as timeouts too. Returns the number reaped.
+   */
+  private async reapTimedOutWorkers(runId: string, workerTimeoutMs: number): Promise<number> {
+    const now = performance.now();
+    let reaped = 0;
+    for (const exec of [...this.activeExecutions.values()]) {
+      if (exec.runId !== runId) continue;
+      if (now - exec.startedAt <= workerTimeoutMs) continue;
+      exec.controller.abort();
+      // Bump attempt so maxAttempts trips: a hung future never completes,
+      // so without this the worker re-dispatches forever.
+      const live = await this.deps.store.load(runId).catch(() => null);
+      const current = live?.workers.find(w => w.id === exec.workerId);
+      await this.deps.store.patchWorker(runId, exec.workerId, {
+        status: "failed",
+        failureKind: "timeout",
+        error: `Worker timed out after ${Math.round(workerTimeoutMs / 1000)}s without completing`,
+        attempt: (current?.attempt ?? 0) + 1,
+      }).catch(() => {});
+      this.activeExecutions.delete(exec.workerId);
+      // The reaped promise is no longer awaited by the loop: swallow a
+      // late rejection so it can never surface as unhandled.
+      exec.promise.catch(() => {});
+      reaped++;
+    }
+    return reaped;
   }
 
   // ── Heartbeat ──────────────────────────────────────────────────────

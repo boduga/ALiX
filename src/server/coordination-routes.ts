@@ -474,13 +474,18 @@ async function handleStartRun(
     if (sessionMode !== undefined) {
       config.permissions.sessionMode = parseSessionMode(sessionMode);
     }
-    const store = new CoordinationStore(cwd);
     const planner = new CoordinationPlanner(
       cwd,
       agentPool?.length ? { agentPool } : {},
       { toolRegistry: buildDefaultToolIndex().registry },
     );
-    const planResult = await planner.plan(goal, "alix", `coord_web_${Date.now()}`);
+    // Host/approval metadata is applied inside plan() before the run is
+    // persisted, so a crash cannot strand a run without its resume identity.
+    const planResult = await planner.plan(goal, "alix", `coord_web_${Date.now()}`, {
+      hostKind: "inspector",
+      sessionMode: parseSessionMode(config.permissions.sessionMode),
+      maxConcurrency,
+    });
     if (!planResult.valid || !planResult.run) {
       r.error("plan_failed", 400);
       return;
@@ -491,12 +496,6 @@ async function handleStartRun(
       sessionIdPrefix: "coord-web",
     });
     const runId = planResult.run.id;
-    // Mark the Inspector as host and persist the approval mode so a later
-    // restart resumes with the same execution semantics.
-    await store.updateRun(runId, (run) => {
-      run.hostKind = "inspector";
-      run.sessionMode = parseSessionMode(config.permissions.sessionMode);
-    }).catch(() => {});
     runDetached(runId, scheduler);
     r.ok({ runId, workers: planResult.run.workers.length, goal });
   } catch (err) {
@@ -542,7 +541,7 @@ export async function resumeInspectorRuns(cwd: string): Promise<number> {
         ? { ...config, permissions: { ...config.permissions, sessionMode: run.sessionMode } }
         : config;
       const { scheduler } = await buildCoordinationRuntime(cwd, runConfig, {
-        maxConcurrency: 2,
+        maxConcurrency: run.maxConcurrency ?? 2,
         sessionIdPrefix: "coord-web",
       });
       runDetached(runId, scheduler);

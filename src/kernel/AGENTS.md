@@ -19,6 +19,8 @@
 **Local Contracts:**
 - GraphExecutor runs nodes sequentially, stops on first failure.
 - Coordination planning preserves truthful ownership: parallel writers with explicit disjoint paths remain concurrent, while vague writers with overlapping inferred claims are deterministically ordered by dependency rather than assigned fabricated scopes.
+- Graph strategy is inferred from dependency shape (`>=2` dependency-free roots → `hybrid`, else `sequential`), never from a model-supplied `strategy` label.
+- Coordination workers are ordered by `serializeOverlappingWriters`: any two writers whose ownership claims overlap (a vague `**` claim overlaps all) get a dependency edge; disjoint writers and read-only workers stay parallel.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.

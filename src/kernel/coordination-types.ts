@@ -221,6 +221,9 @@ export interface CoordinationRun {
    */
   sessionMode?: "auto" | "ask" | "bypass";
 
+  /** Dispatch concurrency this run was started with (resume default 2). */
+  maxConcurrency?: number;
+
   /** The top-level goal being decomposed */
   rootGoal: string;
 

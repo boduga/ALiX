@@ -109,26 +109,28 @@ function dependsTransitively(workerId: string, targetId: string, byId: ReadonlyM
 }
 
 /**
- * Vague write goals cannot be assigned truthful disjoint paths. Preserve
- * safety by ordering overlapping ambiguous writers instead of fabricating
- * ownership. Explicitly-scoped and read-only workers remain parallel.
+ * Order overlapping writers so the scheduler never dispatches two writers
+ * whose ownership claims overlap at the same time. Vague write goals carry
+ * a workspace-wide (`**`) claim that overlaps every other writer, so they
+ * are serialized against explicit-path writers too — not only against
+ * other ambiguous writers. Disjoint writers (and read-only workers, which
+ * carry no claims) stay parallel. The runtime ownership lease remains the
+ * hard guard; this is the planning-level ordering that avoids the
+ * conflict in the first place.
  */
-export function serializeAmbiguousWriters(
-  workers: WorkerAssignment[],
-  ambiguousWorkerIds: ReadonlySet<string>,
-): void {
-  const ordered = workers
-    .filter(worker => ambiguousWorkerIds.has(worker.id))
+export function serializeOverlappingWriters(workers: WorkerAssignment[]): void {
+  const writers = workers
+    .filter(worker => worker.ownershipClaims.length > 0)
     .sort((a, b) =>
       (a.planOrder ?? Number.MAX_SAFE_INTEGER) - (b.planOrder ?? Number.MAX_SAFE_INTEGER) ||
       a.createdAt.localeCompare(b.createdAt) ||
       a.id.localeCompare(b.id)
     );
   const byId = new Map(workers.map(worker => [worker.id, worker]));
-  for (let index = 0; index < ordered.length; index += 1) {
-    const current = ordered[index];
+  for (let index = 0; index < writers.length; index += 1) {
+    const current = writers[index];
     for (let priorIndex = index - 1; priorIndex >= 0; priorIndex -= 1) {
-      const prior = ordered[priorIndex];
+      const prior = writers[priorIndex];
       if (!claimsOverlap(current.ownershipClaims, prior.ownershipClaims)) continue;
       if (!dependsTransitively(current.id, prior.id, byId)) current.dependencies.push(prior.id);
       break;
@@ -191,6 +193,7 @@ export class CoordinationPlanner {
     goal: string,
     coordinatorAgentId: string,
     sessionId: string,
+    metadata?: { hostKind?: "inspector" | "daemon" | "cli"; sessionMode?: "auto" | "ask" | "bypass"; maxConcurrency?: number },
   ): Promise<CoordinationPlanResult> {
     let rawPlanResult: unknown;
 
@@ -251,6 +254,11 @@ export class CoordinationPlanner {
       taskGraphId: planResult.graph.id,
       taskGraphRef,
     });
+    // Apply host/approval metadata before the run is persisted so a crash
+    // can never leave a run saved without its resume identity.
+    if (metadata?.hostKind) run.hostKind = metadata.hostKind;
+    if (metadata?.sessionMode) run.sessionMode = metadata.sessionMode;
+    if (metadata?.maxConcurrency !== undefined) run.maxConcurrency = metadata.maxConcurrency;
 
     // Distinct owner labels by default: an empty pool previously stamped
     // every worker with the coordinator id, making parallel workers
@@ -261,7 +269,6 @@ export class CoordinationPlanner {
     const defaultLabel = (index: number): string => `${coordinatorAgentId}#${index + 1}`;
     const nodeToWorkerId = new Map<string, string>();
     const workers: WorkerAssignment[] = [];
-    const ambiguousWriterIds = new Set<string>();
 
     for (const node of planResult.graph.nodes) {
       const workerId = `worker_${randomUUID()}`;
@@ -295,9 +302,6 @@ export class CoordinationPlanner {
         planOrder: planOrderByNode.get(node.id),
         ownershipClaims: claimResult.claims,
       }));
-      if (writer && extractGoalPaths(node.goal ?? "").length === 0) {
-        ambiguousWriterIds.add(workerId);
-      }
     }
 
     for (let index = 0; index < planResult.graph.nodes.length; index += 1) {
@@ -313,7 +317,7 @@ export class CoordinationPlanner {
       }
     }
 
-    serializeAmbiguousWriters(workers, ambiguousWriterIds);
+    serializeOverlappingWriters(workers);
 
     run.workers = workers;
     // Deliberately remains "planning". M0.77c transitions it to "running".

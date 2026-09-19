@@ -26,6 +26,7 @@
 - Sorted newest-first by default; `order=asc` reverses.
 - Session events use an allowlist to filter out noisy event types.
 - Silent failure on unreadable/missing backends (never crashes).
+- Layer-3 route prompts: only the intents that actually reach a route carry dedicated text; misrouted intents (e.g. `workspace_mutation` on the chat/direct path) share one neutral read-only fallback and log a warning. Chat `workspace_*` intents are read-only because they route to `agent`, never `chat`.
 
 **Work Guidance:**
 - Adding a new source means adding a new block in `buildRuntimeIndex()` and adding the source string to the `RuntimeIndexEvent.source` union type.

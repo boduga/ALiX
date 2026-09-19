@@ -313,6 +313,36 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
   });
 
+  it("orders an ambiguous writer after an explicit-path writer whose claim it overlaps", async () => {
+    const graph = makeGraph([
+      makeNode("explicit", [], { goal: "Edit `src/foo.ts`", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("vague", [], { goal: "Improve the codebase", domain: "coding", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const explicit = result.run!.workers.find(w => w.sourceNodeId === "explicit")!;
+    const vague = result.run!.workers.find(w => w.sourceNodeId === "vague")!;
+    assert.deepEqual(explicit.ownershipScopes, ["src/foo.ts"]);
+    assert.deepEqual(vague.ownershipScopes, ["src/**", "tests/**", "package.json", "package-lock.json"]);
+    // The vague `src/**` claim overlaps the explicit `src/foo.ts` claim, so
+    // the vague writer is ordered after it instead of running concurrently.
+    assert.ok(vague.dependencies.includes(explicit.id));
+  });
+
+  it("persists host metadata and concurrency before the run is saved", async () => {
+    const graph = makeGraph([makeNode("a")]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1", {
+      hostKind: "inspector",
+      sessionMode: "bypass",
+      maxConcurrency: 5,
+    });
+    const loaded = await store.load(result.run!.id);
+    assert.equal(loaded!.hostKind, "inspector");
+    assert.equal(loaded!.sessionMode, "bypass");
+    assert.equal(loaded!.maxConcurrency, 5);
+  });
+
   it("does not duplicate an existing ordering dependency", async () => {
     const graph = makeGraph([
       makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),

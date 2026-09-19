@@ -125,6 +125,7 @@ describe("CoordinationScheduler", () => {
     authorization?: ExecutionAuthorization;
     maxConcurrency?: number;
     maxDispatchPerTick?: number;
+    workerTimeoutMs?: number;
   } = {}) {
     return new CoordinationScheduler({
       cwd,
@@ -138,6 +139,7 @@ describe("CoordinationScheduler", () => {
       maxConcurrency: overrides.maxConcurrency ?? 4,
       maxDispatchPerTick: overrides.maxDispatchPerTick ?? 5,
       orphanThresholdMs: 60000,
+      workerTimeoutMs: overrides.workerTimeoutMs,
     });
   }
 
@@ -458,6 +460,31 @@ describe("CoordinationScheduler", () => {
     assert.equal(storedWorker.failureKind, "timeout");
     assert.match(storedWorker.error ?? "", /timed out/);
     assert.ok(result.durationMs < 5000);
+
+    await sched.shutdown();
+  });
+
+  it("tick reaps a hung worker at the per-worker ceiling", async () => {
+    const { executor } = createDeferredExecutor(); // never resolves
+    const sched = createScheduler({ executor, workerTimeoutMs: 40 });
+
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "tick watchdog", coordinatorAgentId: "alix" });
+    await store.save(run);
+
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "stuck", goalPrompt: "do",
+      requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3,
+    });
+    await store.addWorker(run.id, worker);
+
+    await sched.tick(run.id); // dispatch
+    await new Promise(r => setTimeout(r, 80));
+    await sched.tick(run.id); // reap before reconcile
+
+    const stored = await store.load(run.id);
+    const storedWorker = stored!.workers.find(w => w.id === worker.id)!;
+    assert.equal(storedWorker.status, "failed");
+    assert.equal(storedWorker.failureKind, "timeout");
 
     await sched.shutdown();
   });
