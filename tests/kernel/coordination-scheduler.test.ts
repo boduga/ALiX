@@ -633,8 +633,13 @@ describe("CoordinationScheduler", () => {
     const r1 = await sched.tick(run.id);
     assert.equal(r1.dispatched.length, 1);
 
-    // Wait for pending execution to complete (it's immediate executor)
-    await new Promise(r => setTimeout(r, 10));
+    // Wait for the async execution to settle and reset the worker to
+    // pending (poll instead of a fixed sleep — load-insensitive).
+    for (let i = 0; i < 200; i++) {
+      const current = (await store.load(run.id))!.workers[0];
+      if (current.status === "pending") break;
+      await new Promise(r => setTimeout(r, 10));
+    }
 
     const afterTick1 = await store.load(run.id);
     assert.equal(afterTick1!.workers[0].status, "pending", "worker was reset to pending for retry");
@@ -643,7 +648,12 @@ describe("CoordinationScheduler", () => {
     const r2 = await sched.tick(run.id);
     assert.equal(r2.dispatched.length, 1);
 
-    await new Promise(r => setTimeout(r, 10));
+    // Poll until the second attempt settles back to pending (attempt 2 < 3).
+    for (let i = 0; i < 200; i++) {
+      const current = (await store.load(run.id))!.workers[0];
+      if (current.status === "pending" && (current.attempt ?? 0) >= 2) break;
+      await new Promise(r => setTimeout(r, 10));
+    }
 
     const afterTick2 = await store.load(run.id);
     // After tick 2, attempt count = 2 (2 < 3, so still pending)

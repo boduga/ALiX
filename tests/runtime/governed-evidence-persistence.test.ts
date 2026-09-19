@@ -52,18 +52,15 @@ function withTempStore(
   });
 }
 
-const flush = () => new Promise((r) => setTimeout(r, 50));
-
 describe("governed execution — durable evidence persistence (X3b)", () => {
   it("persists every evidence record to the append-only store, each referencing one intentId", async () => {
     await withTempStore(async (_dir, store) => {
       const route = await taskRouter("2 + 2");
       assert.equal(route.kind, "direct");
 
-      const out = await executeRouteGoverned(route, makeCtx(), fakeExecutor, {
-        emitter: new PersistenceEvidenceEmitter(store),
-      });
-      await flush();
+      const emitter = new PersistenceEvidenceEmitter(store);
+      const out = await executeRouteGoverned(route, makeCtx(), fakeExecutor, { emitter });
+      await emitter.drain();
 
       const all = await store.list();
       // 5 machine transitions + the governor's hashed COMPLETED terminal = 6.
@@ -82,10 +79,9 @@ describe("governed execution — durable evidence persistence (X3b)", () => {
   it("recoverExecutionState reconstructs the completed execution as SUCCEEDED", async () => {
     await withTempStore(async (_dir, store) => {
       const route = await taskRouter("2 + 2");
-      const out = await executeRouteGoverned(route, makeCtx(), fakeExecutor, {
-        emitter: new PersistenceEvidenceEmitter(store),
-      });
-      await flush();
+      const emitter = new PersistenceEvidenceEmitter(store);
+      const out = await executeRouteGoverned(route, makeCtx(), fakeExecutor, { emitter });
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
       assert.equal(result.totalEvidence, 6);
@@ -96,6 +92,24 @@ describe("governed execution — durable evidence persistence (X3b)", () => {
       assert.equal(result.completed[0].state, ExecutionState.SUCCEEDED);
       assert.equal(result.completed[0].isTerminal, true);
     });
+  });
+
+  it("serializes appends so store order matches emission order", async () => {
+    const written: string[] = [];
+    // Later emissions resolve faster — without serialization the store
+    // order would invert, and recovery would read the wrong terminal.
+    const fakeStore = {
+      append: async (evidence: { evidenceId: string }) => {
+        await new Promise((r) => setTimeout(r, 20 - written.length * 3));
+        written.push(evidence.evidenceId);
+      },
+    } as unknown as ExecutionEvidenceStore;
+    const emitter = new PersistenceEvidenceEmitter(fakeStore);
+    emitter.emit("x" as any, { evidenceId: "e1" } as any);
+    emitter.emit("x" as any, { evidenceId: "e2" } as any);
+    emitter.emit("x" as any, { evidenceId: "e3" } as any);
+    await emitter.drain();
+    assert.deepEqual(written, ["e1", "e2", "e3"]);
   });
 
   it("evidence persistence is non-blocking — a store failure never stalls execution", async () => {

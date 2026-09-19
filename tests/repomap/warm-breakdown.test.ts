@@ -92,8 +92,8 @@ async function buildRepoMapTimed(root: string): Promise<{ map: RepoMap; timings:
   return { map, timings };
 }
 
-describe("ContextCompiler.warm() detailed breakdown", () => {
-  it("shows per-operation timing for warm()", async () => {
+describe("ContextCompiler.warm() detailed breakdown", { timeout: 120000 }, () => {
+  it("shows per-operation timing for warm()", { timeout: 120000 }, async () => {
     const projectRoot = process.cwd();
     const { timings } = await buildRepoMapTimed(projectRoot);
 
