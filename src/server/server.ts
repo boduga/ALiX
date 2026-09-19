@@ -1,8 +1,7 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   InvalidSessionIdError,
@@ -26,6 +25,7 @@ import {
 } from "./security-alerts.js";
 import { AuthStore } from "../security/inspector/auth-store.js";
 import { AuthService } from "../security/inspector/auth-service.js";
+import { AuthAuditStore } from "../security/inspector/auth-audit-store.js";
 import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
 import { getUserStatePaths } from "../security/platform/user-state-paths.js";
 import { handleSessionExchange, handleLogout } from "./auth-routes.js";
@@ -152,20 +152,15 @@ export function startServer(
   // Fail-closed (#685): auth mutations must not succeed without an audit
   // record. Write failures propagate to AuthService, which converts them into
   // `audit_write_failed` results; the counter + stderr line mark the degraded
-  // condition so operators can see it.
+  // condition so operators can see it. Persists through AuthAuditStore
+  // (shared AuditEventStore/JsonlStore path, #713 G1.3).
   type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
   type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
-  const auditPath = join(userPaths.authStateDir, "audit.jsonl");
+  const authAudit = new AuthAuditStore(join(userPaths.authStateDir, "audit.jsonl"));
   let authAuditWriteFailures = 0;
   const fileAudit: AuditFn = async (event) => {
     try {
-      mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
-      const entry = JSON.stringify({
-        id: randomUUID(),
-        timestamp: new Date().toISOString(),
-        ...event,
-      }) + "\n";
-      appendFileSync(auditPath, entry, { mode: 0o600 });
+      await authAudit.append(event);
     } catch (err) {
       authAuditWriteFailures++;
       console.error(

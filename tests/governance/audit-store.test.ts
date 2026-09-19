@@ -24,6 +24,8 @@ import {
   validateAuditEvent,
   validateAuditEventInput,
   normalizeGovernanceEventType,
+  GOVERNANCE_EVENT_TYPES,
+  VALID_EVENT_TYPES,
   type GovernanceAuditEvent,
   type GovernanceAuditEventInput,
   type GovernanceEventType,
@@ -794,5 +796,22 @@ describe("queryByTimeRange", () => {
     const result = queryByTimeRange(events, undefined, baseTs);
     assert.equal(result.length, 1);
     assert.equal(result[0].eventId, "e1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Single-source governance vocabulary (#713 G3.1)
+// ---------------------------------------------------------------------------
+
+describe("governance event vocabulary derives from one source", () => {
+  it("VALID_EVENT_TYPES is the same set as GOVERNANCE_EVENT_TYPES", () => {
+    assert.deepEqual([...VALID_EVENT_TYPES].sort(), [...GOVERNANCE_EVENT_TYPES].sort());
+    assert.equal(VALID_EVENT_TYPES.length, 13);
+  });
+
+  it("every runtime-valid event type round-trips through normalizeGovernanceEventType", () => {
+    for (const eventType of VALID_EVENT_TYPES) {
+      assert.equal(normalizeGovernanceEventType(eventType), eventType);
+    }
   });
 });

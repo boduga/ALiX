@@ -20,27 +20,14 @@ import type { AuditAction } from "../audit/audit-types.js";
 
 /**
  * Governance audit event types — a compile-time subset of the canonical
- * `AuditAction` vocabulary. `Extract` guarantees a governance name can never
- * drift outside the canonical set.
+ * `AuditAction` vocabulary.
+ *
+ * Single source of truth: the const tuple is checked against `AuditAction`
+ * via `satisfies`, and both the type and the runtime validator derive from
+ * it. A canonical vocabulary change cannot silently desync the validator,
+ * and a name outside the canonical set fails to compile.
  */
-export type GovernanceEventType = Extract<
-  AuditAction,
-  | "policy.evaluated"
-  | "runtime.allowed"
-  | "runtime.blocked"
-  | "runtime.requires_approval"
-  | "approval.created"
-  | "approval.approved"
-  | "approval.denied"
-  | "override.applied"
-  | "tool.permission_checked"
-  | "agent.permission_checked"
-  | "memory.access_checked"
-  | "model.routing_decision"
-  | "security.boundary_checked"
->;
-
-export const VALID_EVENT_TYPES: GovernanceEventType[] = [
+export const GOVERNANCE_EVENT_TYPES = [
   "policy.evaluated",
   "runtime.allowed",
   "runtime.blocked",
@@ -54,7 +41,12 @@ export const VALID_EVENT_TYPES: GovernanceEventType[] = [
   "memory.access_checked",
   "model.routing_decision",
   "security.boundary_checked",
-];
+] as const satisfies readonly AuditAction[];
+
+export type GovernanceEventType = (typeof GOVERNANCE_EVENT_TYPES)[number];
+
+/** Runtime validator list, derived from the same tuple as the type. */
+export const VALID_EVENT_TYPES: readonly GovernanceEventType[] = GOVERNANCE_EVENT_TYPES;
 
 /**
  * Legacy (pre-#713) underscored governance event names → canonical dotted
