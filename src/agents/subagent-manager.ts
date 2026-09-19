@@ -3,6 +3,7 @@ import { buildChildEnv } from "../runtime/child-env.js";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
+import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 
 // Re-export types for consumers
@@ -27,7 +28,51 @@ type RunningSubagent = {
   cancelled: boolean;
 };
 
+/**
+ * Kill a child and any grandchildren it spawned.
+ *
+ * On POSIX the child is spawned detached (its own process group whose id
+ * is its pid), so signalling the negative pid reaches the whole tree —
+ * including shell commands the subagent launched. Windows has no
+ * equivalent group signal here, so it falls back to the direct child.
+ * Combined with the child's stdin-EOF watchdog, this covers both explicit
+ * cancellation and host death.
+ */
+function terminateProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGKILL"): void {
+  if (!child.pid) return;
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Group already gone — fall through to the direct kill.
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // Already exited.
+  }
+}
+
 export type SubagentResultCallback = (result: SubagentResult) => void;
+
+/**
+ * Presentation-only coordination correlation fields for lifecycle events.
+ * The three always travel together (planner → task → roster drawer), so
+ * they are gathered here rather than spread ad hoc at each emit site.
+ */
+export function coordinationPresentationMeta(task: SubagentTask): {
+  coordinationRunId?: string;
+  assignedAgentId?: string;
+  taskLabel?: string;
+} {
+  return {
+    ...(task.coordinationRunId ? { coordinationRunId: task.coordinationRunId } : {}),
+    ...(task.assignedAgentId ? { assignedAgentId: task.assignedAgentId } : {}),
+    ...(task.taskLabel ? { taskLabel: task.taskLabel } : {}),
+  };
+}
 
 export class SubagentManager {
   private running = new Map<string, RunningSubagent>();
@@ -69,6 +114,7 @@ export class SubagentManager {
           taskId: task.id,
           role: task.role,
           model: `${provider}/${name}`,
+          ...coordinationPresentationMeta(task),
         };
         // Emit subagent.started event
         this.options.eventLog?.append({
@@ -85,7 +131,7 @@ export class SubagentManager {
         });
         this.emitLifecycle("agent.task_assigned", {
           ...lifecycleBase,
-          title: task.prompt.slice(0, 200),
+          title: task.taskLabel ?? task.prompt.slice(0, 200),
           prompt: task.prompt.slice(0, 200),
           ownedPaths: task.ownedPaths ?? [],
         });
@@ -94,6 +140,7 @@ export class SubagentManager {
         }
 
         // Build CLI args array
+        const sessionMode = parseSessionMode(this.options.config?.permissions?.sessionMode);
         const cliArgs = [
           "run", "--subagent", task.role,
           "--task-id", task.id,
@@ -102,6 +149,7 @@ export class SubagentManager {
           "--session-id", task.contextBundle ?? `sub-${Date.now()}`,
           "--provider", provider,
           "--model", name,
+          "--session-mode", sessionMode,
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
         ];
 
@@ -123,6 +171,10 @@ export class SubagentManager {
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
           stdio: ["pipe", "pipe", "pipe"] as const,
+          // Own process group on POSIX so terminateProcessTree can reap the
+          // whole tree; the stdin pipe still closes on host death, which
+          // the child's watchdog turns into a clean exit.
+          detached: process.platform !== "win32",
           env: buildChildEnv(this.options.config?.runtime?.envAllowlist, {
             ALIX_NO_BANNER: "1",
             // Secret-service IPC so the child can resolve cred:// references
@@ -236,6 +288,51 @@ export class SubagentManager {
     });
   }
 
+  /**
+   * Parallel fan-out: launch every spec before awaiting any of them.
+   * Per-child error isolation — a spawn rejection becomes a failed result
+   * for that child, never a batch rejection. Results align to input order
+   * even when completion order differs. Reuses the single-spawn path, so
+   * ownership, lifecycle, and session-mode propagation behave identically.
+   */
+  async spawnMany(specs: SubagentTask[]): Promise<SubagentResult[]> {
+    const indices = new Map<string, number>();
+    specs.forEach((task, i) => indices.set(task.id, i));
+    const settled = await Promise.allSettled(specs.map(task => this.spawn(task)));
+    return settled.map((outcome, i) => {
+      if (outcome.status === "fulfilled") return outcome.value;
+      const task = specs[i];
+      return {
+        id: task.id,
+        role: task.role,
+        status: "failed" as const,
+        findings: [],
+        events: [],
+        error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      };
+    });
+  }
+
+  /** Cancel one running subagent (kill + release ownership). No-op when unknown. */
+  cancel(taskId: string): boolean {
+    const running = this.running.get(taskId);
+    if (!running) return false;
+    running.cancelled = true;
+    this.emitLifecycle("agent.cancelled", {
+      agentId: taskId,
+      parentAgentId: this.options.parentAgentId ?? `session:${this.options.sessionId}`,
+      taskId: running.task.id,
+      role: running.task.role,
+      state: "cancelled",
+      status: "cancelled",
+      operation: "Manager cancel",
+    });
+    terminateProcessTree(running.process);
+    this.running.delete(taskId);
+    this.releaseOwnership(running.task);
+    return true;
+  }
+
   shutdown(): void {
     for (const [agentId, running] of this.running) {
       running.cancelled = true;
@@ -248,7 +345,7 @@ export class SubagentManager {
         status: "cancelled",
         operation: "Manager shutdown",
       });
-      running.process.kill();
+      terminateProcessTree(running.process);
     }
     this.running.clear();
     this.ownershipRegistry.clear();

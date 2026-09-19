@@ -93,6 +93,16 @@ describe('TimelineBuilder', () => {
     expect(snap[0]!.text).toBe('search');
   });
 
+  it('preserves authoritative agent correlation without inferring it', () => {
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'tool.started', 's1', { toolCallId: 'tc1', toolName: 'search', agentId: 'agent-1' }),
+      evt(2, 'agent.response', 's1', { text: 'historical uncorrelated response' }),
+    ]);
+    expect(b.snapshot()[0]?.agentId).toBe('agent-1');
+    expect(b.snapshot()[1]?.agentId).toBeUndefined();
+  });
+
   it('admits tool.completed and tool.failed events to the timeline (slice #5)', () => {
     // #434: tool.completed/failed project so the agent scrollback can
     // render the result line right after the invocation. The detail

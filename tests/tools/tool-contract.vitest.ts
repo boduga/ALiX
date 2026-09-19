@@ -9,7 +9,7 @@ import { legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
  * Contract test for the canonical tool/capability taxonomy (INV-4).
  *
  * `src/tools/tool-registry.ts` is the single canonical source of
- * tool/capability metadata. This test locks the exact 16-entry executable
+ * tool/capability metadata. This test locks the exact 21-entry executable
  * surface (names, capability ids, policy keys, risk, mutation flags,
  * domains, always-include behavior, tags, execution profiles) plus the
  * INV-4 invariant:
@@ -81,7 +81,7 @@ const EXPECTED: Record<string, EntryShape> = {
     risk: "low",
     mutates: false,
     domain: "filesystem",
-    alwaysInclude: true,
+    alwaysInclude: false,
     tags: ["search", "file", "directory", "code"],
   },
   "grep.search": {
@@ -137,6 +137,33 @@ const EXPECTED: Record<string, EntryShape> = {
     domain: "agent",
     alwaysInclude: false,
     tags: ["delegate", "agent", "subtask"],
+  },
+  "coordination.run": {
+    capabilityId: "coordination.run",
+    policyKey: "coordination.run",
+    risk: "medium",
+    mutates: true,
+    domain: "agent",
+    alwaysInclude: false,
+    tags: ["coordination", "parallel", "workers", "multi-agent"],
+  },
+  "coordination.status": {
+    capabilityId: "coordination.read",
+    policyKey: "coordination.read",
+    risk: "low",
+    mutates: false,
+    domain: "agent",
+    alwaysInclude: false,
+    tags: ["coordination", "status", "workers"],
+  },
+  "coordination.results": {
+    capabilityId: "coordination.read",
+    policyKey: "coordination.read",
+    risk: "low",
+    mutates: false,
+    domain: "agent",
+    alwaysInclude: false,
+    tags: ["coordination", "results", "aggregate"],
   },
   web_search: {
     capabilityId: "web.search",
@@ -226,14 +253,14 @@ function project(cap: ToolCapability): EntryShape & { name: string } {
     domain,
     alwaysInclude,
     tags,
-    executionProfiles,
+    ...(executionProfiles ? { executionProfiles } : {}),
   };
 }
 
 describe("canonical tool capability taxonomy contract", () => {
-  it("registers exactly 18 canonical entries", () => {
+  it("registers exactly 21 canonical entries", () => {
     const { registry } = buildDefaultToolIndex();
-    expect(registry.getAll().length).toBe(18);
+    expect(registry.getAll().length).toBe(21);
   });
 
   it("matches the canonical table exactly", () => {

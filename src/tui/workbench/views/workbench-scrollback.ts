@@ -59,11 +59,21 @@ export function buildWorkbenchScrollbackLines(
   const pendingApproval = pendingApprovals[0];
   const pendingApprovalTool = pendingApproval?.toolName;
   let inlineApprovalRendered = false;
+  const focusAgentId = ctx.workbenchUiState?.drawer === 'agents'
+    ? ctx.workbenchUiState.selectedAgentId
+    : undefined;
   const conversation = new ConversationProjection().project({
     timeline: ctx.runtime?.agent?.timeline ?? [],
     trace: ctx.snap.runtime?.trace ?? [],
     mode,
+    ...(focusAgentId ? { focusAgentId } : {}),
   });
+
+  if (focusAgentId) {
+    wrapText(`focused agent: ${focusAgentId}`, textWidth).forEach((text, index) => {
+      out.push({ kind: 'context', text, isFirst: index === 0 });
+    });
+  }
 
   for (const item of conversation.items) {
     if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });

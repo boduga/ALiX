@@ -225,3 +225,39 @@ test("spawned subagent inherits the secret-service bus address but not ambient s
     }
   }
 });
+
+test("spawnMany runs specs in parallel and aligns results to input order", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `await new Promise(r => setTimeout(r, 200)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
+    },
+  });
+  const t0 = Date.now();
+  const results = await manager.spawnMany([
+    makeTask({ id: "m1" }),
+    makeTask({ id: "m2" }),
+    makeTask({ id: "m3" }),
+  ]);
+  const dt = Date.now() - t0;
+  assert.deepEqual(results.map(r => r.id), ["m1", "m2", "m3"]);
+  assert.ok(results.every(r => r.status === "success"));
+  assert.ok(dt < 500, `expected parallel overlap, took ${dt}ms`);
+});
+
+test("spawnMany isolates a spawn rejection to a failed result", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
+  });
+  const results = await manager.spawnMany([
+    makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "ok-1", ownedPaths: ["src/a.ts"] }),
+    makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "bad-1", ownedPaths: ["src/a.ts"] }),
+  ]);
+  assert.equal(results[0].status, "success");
+  assert.equal(results[1].status, "failed");
+  assert.match(results[1].error ?? "", /overlapping ownership/i);
+});

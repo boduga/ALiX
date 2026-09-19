@@ -17,6 +17,15 @@ export interface OperatorShellSnapshot {
   readonly eventCount: number;
   readonly queuedMessages: number;
   readonly approval?: OperatorShellApproval;
+  readonly agents?: {
+    readonly active: number;
+    readonly total: number;
+    readonly running: number;
+    readonly waitingApproval: number;
+    readonly stalled: number;
+    readonly knownCostUsd?: number;
+    readonly costCoverage: number;
+  };
 }
 
 /**
@@ -38,6 +47,7 @@ export function projectOperatorShell(
         toolName: oldest.toolName || 'operation',
       }
     : undefined;
+  const roster = snap.runtime?.agents;
 
   return {
     workspace: snap.cwd,
@@ -49,5 +59,14 @@ export function projectOperatorShell(
     eventCount: snap.runtime?.totalEventCount ?? 0,
     queuedMessages,
     ...(approval ? { approval } : {}),
+    ...(roster ? { agents: {
+      active: roster.active,
+      total: roster.totals.agents,
+      running: roster.totals.running,
+      waitingApproval: roster.totals.waitingApproval,
+      stalled: roster.totals.stalled,
+      ...(roster.totals.knownCostUsd !== undefined ? { knownCostUsd: roster.totals.knownCostUsd } : {}),
+      costCoverage: roster.totals.costCoverage,
+    } } : {}),
   };
 }

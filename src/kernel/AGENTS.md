@@ -6,10 +6,21 @@
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
 - `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
-- `graph-planner.ts` — Model-based graph generation from goals
+- `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
+- `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
+- `coordination-scheduler.ts` — Bounded parallel dispatch (maxConcurrency 8, per-worker timeout watchdog, heartbeats/leases, cancel)
+- `coordination-tools.ts` — Chat-tool handlers (run/status/results; subagent executor when enabled)
+- `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
+- `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
+- `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
+- `coordination-resume.ts` — Reclaim dead-owner workers to pending; find Inspector-hosted active runs
+- `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**
 - GraphExecutor runs nodes sequentially, stops on first failure.
+- Coordination planning preserves truthful ownership: parallel writers with explicit disjoint paths remain concurrent, while vague writers with overlapping inferred claims are deterministically ordered by dependency rather than assigned fabricated scopes.
+- Graph strategy is inferred from dependency shape (`>=2` dependency-free roots → `hybrid`, else `sequential`), never from a model-supplied `strategy` label.
+- Coordination workers are ordered by `serializeOverlappingWriters`: any two writers whose ownership claims overlap (a vague `**` claim overlaps all) get a dependency edge; disjoint writers and read-only workers stay parallel.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.
@@ -22,4 +33,8 @@
 **Verification:**
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
-- `tests/kernel/graph-planner.test.ts` — plan generation
+- `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry
+- `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
+- `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
+- `tests/kernel/coordination-tools.test.ts` — chat handlers
+- `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel

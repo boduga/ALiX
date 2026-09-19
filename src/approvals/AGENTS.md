@@ -9,6 +9,7 @@
 **Local Contracts:**
 - Approvals are CLI-first. No browser POST endpoints for write actions.
 - Approval records are durable JSON — full history preserved.
+- Approval records preserve optional canonical `agentId` correlation from execution authorization through created/resolved lifecycle events; never derive it from `workerId` or display labels.
 - `findPending` returns first match (expect at most one pending per graph/node/capability key).
 - `findResolved` returns most recent resolved record for a key.
 - `--enforce-capabilities` in graph run/sop run triggers approval creation via RuntimeGate.

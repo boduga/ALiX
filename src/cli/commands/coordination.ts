@@ -4,6 +4,9 @@
  * alix coordination run "<goal>"                — plan, schedule, run until idle
  * alix coordination run "<goal>" --daemon        — plan and persist (daemon hosts ticking)
  * alix coordination run "<goal>" --max-concurrency 2
+ * alix coordination run "<goal>" --session-mode bypass
+ *   (write goals need bypass/auto: foreground runs have no approval
+ *   store, so ask-gated capabilities fail closed without it)
  * alix coordination tick <run-id>               — one dispatch cycle (admin/debug)
  * alix coordination resume <run-id>             — reconcile + tick (recovery)
  * alix coordination status <run-id>             — print run state
@@ -92,18 +95,27 @@ async function handleRun(args: string[]): Promise<void> {
   const daemonMode = args.includes("--daemon");
   const maxConcurrencyArg = args.find(a => a.startsWith("--max-concurrency="));
   const maxConcurrency = maxConcurrencyArg ? parseInt(maxConcurrencyArg.split("=")[1], 10) : undefined;
+  const sessionModeArg = readFlag(args, "--session-mode") ?? readFlag(args, "--mode");
+  const agentPoolArg = readFlag(args, "--agent-pool");
+  const agentPool = agentPoolArg ? agentPoolArg.split(",").map(s => s.trim()).filter(Boolean) : undefined;
 
   if (!goal) {
-    console.error("Usage: alix coordination run \"<goal>\" [--daemon] [--max-concurrency=N]");
+    console.error("Usage: alix coordination run \"<goal>\" [--daemon] [--max-concurrency=N] [--session-mode=bypass|auto|ask] [--agent-pool=a,b]");
     process.exit(1);
   }
 
   const cwd = process.cwd();
   const config = await loadConfig(cwd);
+  if (sessionModeArg === "bypass" || sessionModeArg === "auto" || sessionModeArg === "ask") {
+    config.permissions.sessionMode = sessionModeArg;
+  } else if (sessionModeArg !== undefined) {
+    console.error(`Invalid --session-mode: ${sessionModeArg} (expected bypass|auto|ask)`);
+    process.exit(1);
+  }
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
 
-  const planner = new CoordinationPlanner(cwd, {}, { toolRegistry });
+  const planner = new CoordinationPlanner(cwd, agentPool ? { agentPool } : {}, { toolRegistry });
   const planResult = await planner.plan(goal, "alix", `coord_${Date.now()}`);
 
   if (!planResult.valid) {

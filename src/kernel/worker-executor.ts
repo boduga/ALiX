@@ -3,8 +3,10 @@
  */
 
 import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
 import type { CoordinationRun, WorkerAssignment, WorkerFailureKind } from "./coordination-types.js";
 import type { AlixConfig } from "../config/schema.js";
+import type { EventLog } from "../events/event-log.js";
 import type { WorkerCollaborationAPI } from "./worker-collaboration-api.js";
 import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaboration-types.js";
 import { createCollaborationTools } from "../tools/collaboration-tools.js";
@@ -39,6 +41,35 @@ export interface CoordinationWorkerExecutor {
 }
 
 /**
+ * Lazily initialize a real EventLog for the shared worker session.
+ * Previously `null` was passed and every worker crashed on the first
+ * `eventLog.append` ("Cannot read properties of null"). The log lives
+ * under the shared session dir so worker turns stay inspectable.
+ * Initializations are cached per session dir: parallel workers sharing
+ * one session would otherwise race mkdir/init on the same files.
+ */
+const sharedEventLogs = new Map<string, Promise<EventLog>>();
+
+async function initSharedEventLog(cwd: string, sessionId: string): Promise<EventLog> {
+  const sessionDir = join(cwd, ".alix", "sessions", sessionId);
+  let pending = sharedEventLogs.get(sessionDir);
+  if (!pending) {
+    pending = (async (): Promise<EventLog> => {
+      const { EventLog } = await import("../events/event-log.js");
+      await mkdir(sessionDir, { recursive: true });
+      const log = new EventLog(sessionDir);
+      await log.init();
+      return log as EventLog;
+    })();
+    sharedEventLogs.set(sessionDir, pending);
+    pending.catch(() => {
+      if (sharedEventLogs.get(sessionDir) === pending) sharedEventLogs.delete(sessionDir);
+    });
+  }
+  return pending;
+}
+
+/**
  * DefaultWorkerExecutor — concrete implementation that delegates to runTask()
  * for each worker execution. Passes through the AbortSignal for cancellation.
  *
@@ -65,7 +96,7 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
         sharedSession: {
           sessionId: context.sessionId,
           sessionDir: join(context.cwd, ".alix", "sessions", context.sessionId),
-          eventLog: null as any,
+          eventLog: await initSharedEventLog(context.cwd, context.sessionId),
         },
         injectedContext: context.collaboration
           ? {

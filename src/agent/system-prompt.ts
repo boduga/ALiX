@@ -54,7 +54,7 @@ export const SYSTEM_PROMPT_BASE =
 
   "### Parallel Execution\n" +
   "DEFAULT TO PARALLEL. Unless you genuinely need the output of tool A to proceed with tool B, " +
-  "execute all independent tools simultaneously. Parallel execution is 3-5x faster and significantly " +
+  "execute all independent tools simultaneously. Parallel execution is substantially faster and " +
   "improves the user experience. Examples of good parallel usage: reading multiple files, searching " +
   "for different patterns, combining search with file reads. Only fall back to sequential when " +
   "the next tool call depends on the result of a previous one.\n\n" +
@@ -67,10 +67,10 @@ export const SYSTEM_PROMPT_BASE =
   "If you are not confident, gather more information before proceeding.\n\n" +
 
   "### Memory\n" +
-  "Proactively save important context about the codebase, the user's preferences, " +
-  "and task decisions as you learn them. Do NOT wait until the task is complete to save memories — " +
-  "save mid-task when you discover something worth remembering. " +
-  "Erring on the side of saving too early is better than losing context.\n\n" +
+  "Session memory is automatic: decisions are extracted and persisted at " +
+  "turn end, and relevant memories are injected into your context. Do NOT " +
+  "claim you saved something — you have no memory tools. If context feels " +
+  "thin, ask for what you need instead of asserting it was remembered.\n\n" +
 
   "### Response Style\n" +
   "Match the length of your answer to the question. A one-line factual question " +
@@ -111,6 +111,40 @@ export const FAILURE_REASONS = new Set<string>([
   "rejected_scope_expansion",
   "context_budget_overflow",
 ]);
+
+/** Bounded self-model facts the agent may truthfully report about its own runtime. */
+export type SelfModelInfo = Readonly<{
+  provider: string;
+  model: string;
+  contextWindowTokens: number;
+  availableInputTokens?: number;
+  requestedMaxOutputTokens?: number;
+  tokenizer?: string;
+}>;
+
+/**
+ * Pure, bounded `<self_model>` renderer — the deterministic answer to
+ * "what is my context window". No I/O; callers resolve the descriptor
+ * (resolveModelDescriptor / setupContextLimits) and pass the facts in.
+ */
+export function renderSelfModelSection(self: SelfModelInfo): string {
+  const lines = [
+    "## Self Model",
+    `Provider: ${self.provider} / model: ${self.model}`,
+    `Context window: ${self.contextWindowTokens} tokens`,
+  ];
+  if (self.availableInputTokens !== undefined) {
+    lines.push(`Available input budget: ${self.availableInputTokens} tokens`);
+  }
+  if (self.requestedMaxOutputTokens !== undefined) {
+    lines.push(`Max output budget: ${self.requestedMaxOutputTokens} tokens`);
+  }
+  if (self.tokenizer) {
+    lines.push(`Tokenizer: ${self.tokenizer}`);
+  }
+  lines.push("Report these exact figures when asked about your context window — never guess.");
+  return lines.join("\n");
+};
 
 /** Shell-task mode instruction appended when the user gave a direct shell command. */
 export const SHELL_TASK_PROMPT = `## Read-Only Mode

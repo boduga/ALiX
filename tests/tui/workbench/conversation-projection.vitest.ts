@@ -56,6 +56,28 @@ describe('ConversationProjection', () => {
     expect(snapshot.items[2]).toMatchObject({ kind: 'tool-group', tools: [{ name: 'shell.run' }] });
   });
 
+  it('filters correlated items by selected agent while retaining uncorrelated history', () => {
+    const trace: ExecutionTraceEntry[] = [
+      { id: 'tr-1', kind: 'tool', status: 'completed', title: 'tool.file.read', agentId: 'agent-1', startedAt: 1, sourceEvents: { firstSequence: 1 } },
+      { id: 'tr-2', kind: 'tool', status: 'completed', title: 'tool.shell.run', agentId: 'agent-2', startedAt: 2, sourceEvents: { firstSequence: 2 } },
+      { id: 'tr-3', kind: 'tool', status: 'completed', title: 'tool.glob.match', startedAt: 3, sourceEvents: { firstSequence: 3 } },
+    ];
+    const snapshot = new ConversationProjection().project({ timeline: [], trace, mode: 'compact', focusAgentId: 'agent-1' });
+
+    const names = snapshot.items.flatMap((item) => item.kind === 'tool-group' ? item.tools.map((tool) => tool.name) : []);
+    expect(names).toEqual(['file.read', 'glob.match']);
+    expect(names).not.toContain('shell.run');
+  });
+
+  it('does not merge adjacent tool groups owned by different agents', () => {
+    const trace: ExecutionTraceEntry[] = [
+      { id: 'tr-1', kind: 'tool', status: 'completed', title: 'tool.file.read', agentId: 'agent-1', startedAt: 1, sourceEvents: { firstSequence: 1 } },
+      { id: 'tr-2', kind: 'tool', status: 'completed', title: 'tool.shell.run', agentId: 'agent-2', startedAt: 2, sourceEvents: { firstSequence: 2 } },
+    ];
+    const snapshot = new ConversationProjection().project({ timeline: [], trace, mode: 'compact' });
+    expect(snapshot.items).toHaveLength(2);
+  });
+
   it('does not collapse identical assistant text across user turns', () => {
     const timeline: TimelineEntry[] = [
       { id: 'tl-1', kind: 'agent.response', actor: 'agent', sessionId: 's', startedAt: 1, text: 'yes', sourceEvents: { firstSequence: 1 } },

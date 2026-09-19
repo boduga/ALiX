@@ -45,6 +45,10 @@ export const DEFAULT_MAX_DISPATCH_PER_TICK = 5;
 export const DEFAULT_RUN_POLL_INTERVAL_MS = 1_000;
 export const DEFAULT_MAX_IDLE_TICKS = 5;
 export const DEFAULT_RUN_TIMEOUT_MS = 30 * 60_000;
+/** Per-worker execution ceiling: a worker that starts but never settles
+ * within this budget is aborted and failed (was: silent stall until the
+ * 30-minute run budget). Research/file workers normally settle in ~1 min. */
+export const DEFAULT_WORKER_TIMEOUT_MS = 10 * 60_000;
 
 // ─── Clock ──────────────────────────────────────────────────────────────
 
@@ -68,6 +72,8 @@ export type SchedulerOptions = {
   maxDispatchPerTick?: number;
   enableConflictDetection?: boolean;
   enableMidExecutionReplanning?: boolean;
+  /** Per-worker execution ceiling (ms). Hung workers are aborted + failed. */
+  workerTimeoutMs?: number;
 };
 
 export type CoordinationSchedulerDeps = {
@@ -131,6 +137,8 @@ export type RunUntilIdleOptions = {
   pollIntervalMs?: number;
   timeoutMs?: number;
   maxIdleTicks?: number;
+  /** Per-worker execution ceiling (ms), overrides the scheduler default. */
+  workerTimeoutMs?: number;
 };
 
 // ─── CoordinationScheduler ──────────────────────────────────────────────
@@ -139,7 +147,7 @@ export class CoordinationScheduler {
   private readonly deps: CoordinationSchedulerDeps;
   private readonly options: Required<SchedulerOptions>;
   private readonly resultStore: CoordinationResultStore;
-  private readonly activeExecutions = new Map<string, { workerId: string; runId: string; controller: AbortController; promise: Promise<void> }>();
+  private readonly activeExecutions = new Map<string, { workerId: string; runId: string; controller: AbortController; promise: Promise<void>; startedAt: number }>();
 
   constructor(deps: CoordinationSchedulerDeps, options: SchedulerOptions = {}) {
     this.deps = deps;
@@ -151,6 +159,7 @@ export class CoordinationScheduler {
       maxDispatchPerTick: options.maxDispatchPerTick ?? DEFAULT_MAX_DISPATCH_PER_TICK,
       enableConflictDetection: options.enableConflictDetection ?? true,
       enableMidExecutionReplanning: options.enableMidExecutionReplanning ?? true,
+      workerTimeoutMs: options.workerTimeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
     };
     this.resultStore = new CoordinationResultStore(deps.cwd);
   }
@@ -217,6 +226,11 @@ export class CoordinationScheduler {
     if (run.status === "completed" || run.status === "failed" || run.status === "replanning") {
       return emptyTick(runId, run.status);
     }
+
+    // Step 0: Reap workers whose execution outlived the per-worker ceiling.
+    // tick() is the daemon/tick-command dispatch path (no runUntilIdle
+    // loop), so without this a hung worker would stall silently there.
+    await this.reapTimedOutWorkers(runId, this.options.workerTimeoutMs);
 
     // Step 1: Reconcile
     const recResult = await this.reconcile(runId);
@@ -362,7 +376,7 @@ export class CoordinationScheduler {
       // Start tracked execution
       const controller = new AbortController();
       const execPromise = this.executeWorker(runId, worker.id, controller.signal);
-      this.activeExecutions.set(worker.id, { workerId: worker.id, runId, controller, promise: execPromise });
+      this.activeExecutions.set(worker.id, { workerId: worker.id, runId, controller, promise: execPromise, startedAt: performance.now() });
       execPromise.finally(() => this.activeExecutions.delete(worker.id));
     }
 
@@ -565,6 +579,7 @@ export class CoordinationScheduler {
     const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_RUN_POLL_INTERVAL_MS;
     const timeoutMs = options.timeoutMs ?? DEFAULT_RUN_TIMEOUT_MS;
     const maxIdleTicks = options.maxIdleTicks ?? DEFAULT_MAX_IDLE_TICKS;
+    const workerTimeoutMs = options.workerTimeoutMs ?? this.options.workerTimeoutMs;
     const clock = this.deps.clock ?? systemClock;
 
     let cycles = 0;
@@ -585,7 +600,14 @@ export class CoordinationScheduler {
       }
 
       // Don't idle while active executions exist
-      const activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
+      let activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
+      // Watchdog: reap workers whose execution outlives the per-worker
+      // ceiling. Without this a parked runTask future stalls the loop
+      // until the whole-run budget (default 30 min) expires with no
+      // signal. The dangling promise is left to settle; the abort tells
+      // cooperative executors to stop.
+      totalFailed += await this.reapTimedOutWorkers(runId, workerTimeoutMs);
+      activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
       if (activeForRun.length > 0) {
         idleTicks = 0;
         await Promise.race([...activeForRun.map(e => e.promise), clock.sleep(pollIntervalMs)]);
@@ -609,6 +631,39 @@ export class CoordinationScheduler {
     }
 
     return { runId, finalStatus: "blocked", stopReason: "timeout", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+  }
+
+  // ── Worker timeout watchdog ────────────────────────────────────────
+
+  /**
+   * Abort and fail active executions that outlived `workerTimeoutMs`.
+   * Shared by `runUntilIdle` and `tick` so the daemon/tick dispatch path
+   * surfaces hung workers as timeouts too. Returns the number reaped.
+   */
+  private async reapTimedOutWorkers(runId: string, workerTimeoutMs: number): Promise<number> {
+    const now = performance.now();
+    let reaped = 0;
+    for (const exec of [...this.activeExecutions.values()]) {
+      if (exec.runId !== runId) continue;
+      if (now - exec.startedAt <= workerTimeoutMs) continue;
+      exec.controller.abort();
+      // Bump attempt so maxAttempts trips: a hung future never completes,
+      // so without this the worker re-dispatches forever.
+      const live = await this.deps.store.load(runId).catch(() => null);
+      const current = live?.workers.find(w => w.id === exec.workerId);
+      await this.deps.store.patchWorker(runId, exec.workerId, {
+        status: "failed",
+        failureKind: "timeout",
+        error: `Worker timed out after ${Math.round(workerTimeoutMs / 1000)}s without completing`,
+        attempt: (current?.attempt ?? 0) + 1,
+      }).catch(() => {});
+      this.activeExecutions.delete(exec.workerId);
+      // The reaped promise is no longer awaited by the loop: swallow a
+      // late rejection so it can never surface as unhandled.
+      exec.promise.catch(() => {});
+      reaped++;
+    }
+    return reaped;
   }
 
   // ── Heartbeat ──────────────────────────────────────────────────────

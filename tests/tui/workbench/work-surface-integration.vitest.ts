@@ -302,4 +302,16 @@ describe('Workbench work surface integration', () => {
     internal.handleRaw(Buffer.from('\x1b'));
     expect(internal.getWorkbenchStateForTest().overlayStack).toEqual([]);
   });
+
+  it.each([
+    ['/agents', 'agents'],
+    ['/tasks', 'tasks'],
+  ] as const)('opens the %s drawer without dispatching an agent turn', (command, drawer) => {
+    const processTurn = vi.fn(async () => ({ summary: 'unused' }));
+    const { internal } = makeWorkbench(processTurn);
+    type(internal, command);
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer, focus: 'drawer', composer: { text: '', cursor: 0 } });
+    expect(processTurn).not.toHaveBeenCalled();
+  });
 });

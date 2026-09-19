@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { CoordinationPlanner, DOMAIN_SCOPE_MAP } from "../../src/kernel/coordination-planner.js";
+import { CoordinationPlanner, DOMAIN_SCOPE_MAP, extractGoalPaths, inferOwnershipScopes } from "../../src/kernel/coordination-planner.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import type { TaskGraphPlanner } from "../../src/kernel/coordination-planner.js";
@@ -67,10 +67,10 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(result.run!.workers.map(w => w.agentId), ["agent-a", "agent-b", "agent-a"]);
   });
 
-  it("falls back to coordinator when pool is empty", async () => {
-    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([makeNode("a")])), toolRegistry: registry });
+  it("labels workers distinctly when pool is empty", async () => {
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([makeNode("a"), makeNode("b")])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.equal(result.run!.workers[0].agentId, "coordinator");
+    assert.deepEqual(result.run!.workers.map(w => w.agentId), ["coordinator#1", "coordinator#2"]);
   });
 
   it("blocks invalid planner result", async () => {
@@ -149,20 +149,33 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[2].dependencies, [workers[1].id]);
   });
 
-  it("uses workspace-wide scope for unknown-write", async () => {
+  it("read-only node with an unknown capability claims no ownership", async () => {
     const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
       makeNode("unknown", [], { domain: "unknown", requiredCapabilities: ["custom.tool"] }),
     ])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.deepEqual(result.run!.workers[0].ownershipScopes, ["**"]);
+    // roleForWorker(["custom.tool"]) is explorer → read-only → no write scopes,
+    // so the planner must not over-reserve workspace-wide ownership.
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, []);
   });
 
-  it("unknown-write overrides known domain scope", async () => {
+  it("unknown capability does not force workspace-wide ownership on a read-only node", async () => {
     const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
       makeNode("unknown", [], { domain: "coding", requiredCapabilities: ["custom.tool"] }),
     ])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.deepEqual(result.run!.workers[0].ownershipScopes, ["**"]);
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, []);
+  });
+
+  it("known writer with an extra unknown capability still claims goal scopes", async () => {
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
+      makeNode("writer", [], {
+        goal: "Create `.tmp/w.txt`",
+        requiredCapabilities: ["filesystem.write", "custom.tool"],
+      }),
+    ])), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, [".tmp/w.txt"]);
   });
 
   it("does not persist unsafe graph IDs", async () => {
@@ -220,5 +233,124 @@ describe("CoordinationPlanner", () => {
     const result = await planner.plan("Test", "coordinator", "session-1");
     assert.equal(result.valid, false);
     assert.equal(result.run!.status, "blocked");
+  });
+
+  it("normalizes caps-less model nodes to non-empty read-only caps", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { requiredCapabilities: [] }),
+      makeNode("b", [], { requiredCapabilities: ["not.a.real.cap"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.equal(result.valid, true);
+    for (const worker of result.run!.workers) {
+      assert.ok(worker.requiredCapabilities.length > 0, `worker ${worker.id} has empty caps`);
+    }
+    // Node "a" is coding domain with no role: domain default (read-only).
+    const capsA = result.run!.workers.find(w => w.sourceNodeId === "a")!.requiredCapabilities;
+    assert.deepEqual(capsA, ["filesystem.read"]);
+  });
+
+  it("extractGoalPaths finds quoted file paths, skips prose", () => {
+    assert.deepEqual(
+      extractGoalPaths("Create `.tmp/a.txt` containing 'B done' owning `.tmp/a.txt`"),
+      [".tmp/a.txt"],
+    );
+    assert.deepEqual(extractGoalPaths("Search sources and analyze findings"), []);
+    assert.deepEqual(extractGoalPaths("Fetch https://example.com/x.json soon"), []);
+  });
+
+  it("extractGoalPaths finds bare unquoted paths", () => {
+    assert.deepEqual(
+      extractGoalPaths("Create .tmp/pool-e.txt containing exactly E done owning .tmp/pool-e.txt"),
+      [".tmp/pool-e.txt"],
+    );
+    assert.deepEqual(
+      extractGoalPaths("Implement validation in src/auth/login.ts and cover it"),
+      ["src/auth/login.ts"],
+    );
+  });
+
+  it("prefers goal paths over domain scopes for writers", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], {
+        goal: "Create `.tmp/a.txt`",
+        requiredCapabilities: ["filesystem.write"],
+      }),
+      makeNode("b", [], {
+        goal: "Create `.tmp/b.txt`",
+        requiredCapabilities: ["filesystem.write"],
+      }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.equal(result.valid, true);
+    const scopes = result.run!.workers.map(w => w.ownershipScopes);
+    assert.deepEqual(scopes[0], [".tmp/a.txt"]);
+    assert.deepEqual(scopes[1], [".tmp/b.txt"]);
+    assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
+  });
+
+  it("serializes vague writers with overlapping ownership in deterministic plan order", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("b", [], { goal: "Improve error handling", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const [first, second] = result.run!.workers;
+    assert.deepEqual(first.dependencies, []);
+    assert.deepEqual(second.dependencies, [first.id]);
+  });
+
+  it("does not serialize vague read-only workers", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Inspect validation", requiredCapabilities: ["filesystem.read"] }),
+      makeNode("b", [], { goal: "Inspect error handling", requiredCapabilities: ["filesystem.read"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
+  });
+
+  it("orders an ambiguous writer after an explicit-path writer whose claim it overlaps", async () => {
+    const graph = makeGraph([
+      makeNode("explicit", [], { goal: "Edit `src/foo.ts`", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("vague", [], { goal: "Improve the codebase", domain: "coding", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const explicit = result.run!.workers.find(w => w.sourceNodeId === "explicit")!;
+    const vague = result.run!.workers.find(w => w.sourceNodeId === "vague")!;
+    assert.deepEqual(explicit.ownershipScopes, ["src/foo.ts"]);
+    assert.deepEqual(vague.ownershipScopes, ["src/**", "tests/**", "package.json", "package-lock.json"]);
+    // The vague `src/**` claim overlaps the explicit `src/foo.ts` claim, so
+    // the vague writer is ordered after it instead of running concurrently.
+    assert.ok(vague.dependencies.includes(explicit.id));
+  });
+
+  it("persists host metadata and concurrency before the run is saved", async () => {
+    const graph = makeGraph([makeNode("a")]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1", {
+      hostKind: "inspector",
+      sessionMode: "bypass",
+      maxConcurrency: 5,
+    });
+    const loaded = await store.load(result.run!.id);
+    assert.equal(loaded!.hostKind, "inspector");
+    assert.equal(loaded!.sessionMode, "bypass");
+    assert.equal(loaded!.maxConcurrency, 5);
+  });
+
+  it("does not duplicate an existing ordering dependency", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("b", ["a"], { goal: "Improve error handling", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const [first, second] = result.run!.workers;
+    assert.deepEqual(second.dependencies, [first.id]);
   });
 });

@@ -5,9 +5,10 @@
 
 import { randomUUID } from "node:crypto";
 import { relative } from "node:path";
-import { GraphPlanner, persistGraph } from "./graph-planner.js";
+import { GraphPlanner, persistGraph, normalizeNodeCapabilities } from "./graph-planner.js";
 import { validateGraphDag } from "./graph-validator.js";
 import { classifyCapabilities } from "./mutation-classifier.js";
+import { isWriteWorker } from "./worker-role.js";
 import { compileOwnershipClaims } from "./ownership-claim-compiler.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "./coordination-types.js";
@@ -45,12 +46,96 @@ export const DOMAIN_SCOPE_MAP: Record<string, string[]> = {
   business: ["docs/**", "README.md"],
 };
 
+/**
+ * Extract workspace-relative file paths mentioned in a node goal.
+ * Matches quoted segments (`path`, "path", 'path') plus bare tokens
+ * containing a slash (./x, .tmp/f.txt, src/a/b.ts) — the planner prompt
+ * tells the model to name concrete deliverables, which usually arrive
+ * unquoted. Skips URLs, flags, and tokens with spaces. Sorted, deduped,
+ * without leading ./ or /.
+ */
+export function extractGoalPaths(goal: string): string[] {
+  const found = new Set<string>();
+  // Normalize a candidate token and add it only if it is a plausible
+  // workspace-relative path (not a URL, flag, or prose word).
+  const addIfWorkspacePath = (candidate: string): void => {
+    const clean = candidate.trim().replace(/^\.\//, "").replace(/^\//, "").replace(/[.,;:)\"'`]+$/, "");
+    if (!clean || /\s/.test(clean)) return;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(clean)) return;
+    if (clean.startsWith("-")) return;
+    if (!clean.includes("/") && !/\.[a-z0-9]{1,5}$/i.test(clean)) return;
+    found.add(clean);
+  };
+  const quotedTokens = goal.match(/[`"']([^`"'${}]+)[`"']/g) ?? [];
+  for (const token of quotedTokens) addIfWorkspacePath(token.slice(1, -1));
+  const bareTokens = goal.match(/(?:^|[\s(])(\.\.?\/[\w.\-+/$]+|[\w.+\-]+(?:\/[\w.+\-]+)+)(?=$|[\s).,;:!?])/g) ?? [];
+  for (const token of bareTokens) addIfWorkspacePath(token.trim().replace(/^[([]/, ""));
+  return [...found].sort();
+}
+
 export function inferOwnershipScopes(node: TaskNode, mutationClass: MutationClass): string[] {
   if (mutationClass === "no-write") return [];
   if (mutationClass === "unknown-write") return ["**"];
+  // Prefer concrete goal-mentioned paths: two workers writing different
+  // files get disjoint scopes instead of colliding on the domain default
+  // (e.g. both claiming src/** blocks the second worker forever).
+  const goalPaths = extractGoalPaths(node.goal ?? "");
+  if (goalPaths.length > 0) return goalPaths;
   const domain = (node.domain ?? "").toLowerCase();
   if (domain && DOMAIN_SCOPE_MAP[domain]) return [...DOMAIN_SCOPE_MAP[domain]];
   return ["**"];
+}
+
+function claimsOverlap(
+  left: readonly { path: string; recursive: boolean }[],
+  right: readonly { path: string; recursive: boolean }[],
+): boolean {
+  const contains = (claim: { path: string; recursive: boolean }, path: string): boolean =>
+    claim.path === "." || claim.path === path || (claim.recursive && path.startsWith(`${claim.path}/`));
+  return left.some(a => right.some(b => contains(a, b.path) || contains(b, a.path)));
+}
+
+function dependsTransitively(workerId: string, targetId: string, byId: ReadonlyMap<string, WorkerAssignment>): boolean {
+  const seen = new Set<string>();
+  const pending = [...(byId.get(workerId)?.dependencies ?? [])];
+  while (pending.length > 0) {
+    const dependencyId = pending.pop()!;
+    if (dependencyId === targetId) return true;
+    if (seen.has(dependencyId)) continue;
+    seen.add(dependencyId);
+    pending.push(...(byId.get(dependencyId)?.dependencies ?? []));
+  }
+  return false;
+}
+
+/**
+ * Order overlapping writers so the scheduler never dispatches two writers
+ * whose ownership claims overlap at the same time. Vague write goals carry
+ * a workspace-wide (`**`) claim that overlaps every other writer, so they
+ * are serialized against explicit-path writers too — not only against
+ * other ambiguous writers. Disjoint writers (and read-only workers, which
+ * carry no claims) stay parallel. The runtime ownership lease remains the
+ * hard guard; this is the planning-level ordering that avoids the
+ * conflict in the first place.
+ */
+export function serializeOverlappingWriters(workers: WorkerAssignment[]): void {
+  const writers = workers
+    .filter(worker => worker.ownershipClaims.length > 0)
+    .sort((a, b) =>
+      (a.planOrder ?? Number.MAX_SAFE_INTEGER) - (b.planOrder ?? Number.MAX_SAFE_INTEGER) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id)
+    );
+  const byId = new Map(workers.map(worker => [worker.id, worker]));
+  for (let index = 0; index < writers.length; index += 1) {
+    const current = writers[index];
+    for (let priorIndex = index - 1; priorIndex >= 0; priorIndex -= 1) {
+      const prior = writers[priorIndex];
+      if (!claimsOverlap(current.ownershipClaims, prior.ownershipClaims)) continue;
+      if (!dependsTransitively(current.id, prior.id, byId)) current.dependencies.push(prior.id);
+      break;
+    }
+  }
 }
 
 /**
@@ -108,6 +193,7 @@ export class CoordinationPlanner {
     goal: string,
     coordinatorAgentId: string,
     sessionId: string,
+    metadata?: { hostKind?: "inspector" | "daemon" | "cli"; sessionMode?: "auto" | "ask" | "bypass"; maxConcurrency?: number },
   ): Promise<CoordinationPlanResult> {
     let rawPlanResult: unknown;
 
@@ -144,6 +230,22 @@ export class CoordinationPlanner {
       dagResult.topologicalOrder.map((nodeId, index) => [nodeId, index]),
     );
 
+    // Layer 2 (deterministic, registry-sourced): guarantee every node
+    // carries non-empty, known capabilities before workers are derived.
+    // The planner prompt asks for them, but flash-tier models omit or
+    // invent names — normalization filters to the live registry catalog
+    // and falls back to read-only role/domain defaults. `authorizeWorker`
+    // stays fail-closed; this only ensures well-formed input reaches it.
+    const catalog = new Set(
+      this.toolRegistry.getAll().flatMap(t => [t.name, t.capabilityId]),
+    );
+    for (const node of planResult.graph.nodes) {
+      node.requiredCapabilities = normalizeNodeCapabilities(
+        { requiredCapabilities: node.requiredCapabilities, role: node.role, domain: node.domain },
+        catalog,
+      );
+    }
+
     const absoluteGraphPath = await persistGraph(planResult.graph, this.cwd);
     const taskGraphRef = relative(this.cwd, absoluteGraphPath).replaceAll("\\", "/");
 
@@ -152,8 +254,19 @@ export class CoordinationPlanner {
       taskGraphId: planResult.graph.id,
       taskGraphRef,
     });
+    // Apply host/approval metadata before the run is persisted so a crash
+    // can never leave a run saved without its resume identity.
+    if (metadata?.hostKind) run.hostKind = metadata.hostKind;
+    if (metadata?.sessionMode) run.sessionMode = metadata.sessionMode;
+    if (metadata?.maxConcurrency !== undefined) run.maxConcurrency = metadata.maxConcurrency;
 
-    const pool = this.agentPool.length > 0 ? this.agentPool : [coordinatorAgentId];
+    // Distinct owner labels by default: an empty pool previously stamped
+    // every worker with the coordinator id, making parallel workers
+    // indistinguishable in listings. Indexed suffixes preserve attribution
+    // (prefix is still the coordinator) while telling workers apart.
+    // An explicit agentPool keeps round-robin behavior.
+    const pool = this.agentPool.length > 0 ? this.agentPool : [];
+    const defaultLabel = (index: number): string => `${coordinatorAgentId}#${index + 1}`;
     const nodeToWorkerId = new Map<string, string>();
     const workers: WorkerAssignment[] = [];
 
@@ -162,9 +275,15 @@ export class CoordinationPlanner {
       nodeToWorkerId.set(node.id, workerId);
 
       const mutationClass = classifyCapabilities(node.requiredCapabilities ?? [], this.toolRegistry);
-      const ownershipScopes = inferOwnershipScopes(node, mutationClass);
+      // Ownership must match execution privilege: only workers the executor
+      // will run in write mode claim write scopes. A read-only worker
+      // (explorer/researcher, including unknown-only capabilities) claims
+      // nothing, so the planner never over-reserves `**` for a node that
+      // cannot write.
+      const writer = isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] });
+      const ownershipScopes = writer ? inferOwnershipScopes(node, mutationClass) : [];
       const claimResult = compileOwnershipClaims(ownershipScopes);
-      const agentId = pool[workers.length % pool.length];
+      const agentId = pool.length > 0 ? pool[workers.length % pool.length] : defaultLabel(workers.length);
 
       workers.push(createWorkerAssignment({
         id: workerId,
@@ -197,6 +316,8 @@ export class CoordinationPlanner {
         workers[index].dependencies.push(dependencyWorkerId);
       }
     }
+
+    serializeOverlappingWriters(workers);
 
     run.workers = workers;
     // Deliberately remains "planning". M0.77c transitions it to "running".

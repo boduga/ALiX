@@ -42,6 +42,17 @@ export async function handleServe(_args: string[]): Promise<void> {
     sec?.authentication,
   );
   console.log(`ALiX inspector running at ${server.url}`);
+  // Graceful shutdown: close the server (which aborts in-flight
+  // coordination runs and their worker children) before exiting.
+  let shuttingDown = false;
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\nReceived ${signal} — shutting down inspector…`);
+    void server.close().finally(() => process.exit(0));
+  };
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
   await new Promise(() => undefined);
 }
 

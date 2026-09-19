@@ -66,7 +66,7 @@ import { TOOL_NAME_MAP } from "../../agents/tool-name-map.js";
 import { READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
 import type { PlanTask } from "../../planning/plan-task.js";
-import { SYSTEM_PROMPT_BASE, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "../system-prompt.js";
+import { SYSTEM_PROMPT_BASE, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT, renderSelfModelSection, type SelfModelInfo } from "../system-prompt.js";
 import { AgentSessionBuilder } from "./main.js";
 import { AgentSession, AgentSessionConfig } from "./types.js";
 
@@ -353,10 +353,14 @@ export async function setupContextLimits(
   shellTask: boolean;
   readOnlyTask: boolean;
   cappedIterations: number;
+  modelProvider: string;
+  modelName: string;
+  contextWindowTokens: number;
 }> {
   const userOverride = modelConfig.maxContextTokens;
   let contextBudget: ContextBudget;
   let tokenizer: TokenizerName;
+  let contextWindowTokens: number;
   const budgetOptions: ContextBudgetConfig = budgetConfig ?? {};
   // DeepSeek accepts output budgets far above the generic 32,768 cap (verified
   // against api.deepseek.com: 100k–300k `max_tokens` honored; reasoning +
@@ -371,6 +375,7 @@ export async function setupContextLimits(
   if (userOverride !== undefined) {
     contextBudget = createContextBudget({ contextWindowTokens: userOverride }, budgetOptions);
     tokenizer = getEncoding(modelConfig.provider);
+    contextWindowTokens = userOverride;
   } else {
     const { resolveModelDescriptor } = await import("../../config/context-limits.js");
     const descriptor = await resolveModelDescriptor(
@@ -380,6 +385,7 @@ export async function setupContextLimits(
     );
     tokenizer = descriptor.tokenizer;
     contextBudget = createContextBudget(descriptor, budgetOptions);
+    contextWindowTokens = descriptor.contextWindowTokens;
   }
 
   // Ensure the tiktoken encoder is genuinely loaded before any admission /
@@ -407,6 +413,9 @@ export async function setupContextLimits(
     shellTask,
     readOnlyTask,
     cappedIterations,
+    modelProvider: modelConfig.provider,
+    modelName: modelConfig.name,
+    contextWindowTokens,
   };
 }
 
@@ -642,12 +651,17 @@ export async function setupSystemPrompt(
     approvedPlanContent?: string;
     memoryContext?: string;
     memoryStats?: string;
+    selfContext?: SelfModelInfo;
   },
 ): Promise<string> {
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
   ];
+
+  if (opts.selfContext) {
+    lines.push(renderSelfModelSection(opts.selfContext));
+  }
 
   if (opts.shellTask) {
     lines.push(SHELL_TASK_PROMPT);

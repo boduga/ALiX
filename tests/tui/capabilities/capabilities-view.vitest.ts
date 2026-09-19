@@ -60,8 +60,8 @@ describe('CapabilitiesView', () => {
     setup();
     const view = new CapabilitiesView();
     const state = createInitialTuiAppState();
-    const canvas = new TerminalCanvas(80, 24);
-    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 80, rows: 24 }, perTab: state.views.capabilities, canvas };
+    const canvas = new TerminalCanvas(80, 50);
+    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 80, rows: 50 }, perTab: state.views.capabilities, canvas };
     view.render(ctx as never);
     const out = canvas.renderFrame();
     expect(out).toContain('core.session.list');

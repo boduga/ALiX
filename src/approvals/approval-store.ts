@@ -34,6 +34,7 @@ export type ApprovalRequestInput = {
   graphId?: string;
   nodeId?: string;
   sessionId?: string;
+  agentId?: string;
   toolId?: string;
   riskLevel?: "low" | "medium" | "high" | "critical";
   groupId?: string;
@@ -300,6 +301,7 @@ export class ApprovalStore {
         graphId: input.graphId,
         nodeId: input.nodeId,
         sessionId: input.sessionId,
+        agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
@@ -321,6 +323,7 @@ export class ApprovalStore {
         toolId: record.toolId,
         requestId: record.requestId,
         sessionId: record.sessionId,
+        agentId: record.agentId,
       }, record.sessionId);
 
       return record;
@@ -373,6 +376,7 @@ export class ApprovalStore {
         graphId: input.graphId,
         nodeId: input.nodeId,
         sessionId: input.sessionId,
+        agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
@@ -393,6 +397,7 @@ export class ApprovalStore {
         toolId: record.toolId,
         requestId: record.requestId,
         sessionId: record.sessionId,
+        agentId: record.agentId,
       }, record.sessionId);
 
       return record;
@@ -421,6 +426,7 @@ export class ApprovalStore {
         graphId: input.graphId,
         nodeId: input.nodeId,
         sessionId: input.sessionId,
+        agentId: input.agentId,
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
@@ -441,6 +447,7 @@ export class ApprovalStore {
         toolId: record.toolId,
         requestId: record.requestId,
         sessionId: record.sessionId,
+        agentId: record.agentId,
       }, record.sessionId);
 
       return record;
@@ -453,6 +460,7 @@ export class ApprovalStore {
     graphId?: string;
     nodeId?: string;
     sessionId?: string;
+    agentId?: string;
     capability?: string;
     toolId?: string;
     riskLevel?: "low" | "medium" | "high" | "critical";
@@ -484,6 +492,7 @@ export class ApprovalStore {
       graphId: opts.graphId,
       nodeId: opts.nodeId,
       sessionId: opts.sessionId,
+      agentId: opts.agentId,
       toolId: opts.toolId,
       riskLevel: opts.riskLevel,
       requestId: opts.requestId,
@@ -511,6 +520,7 @@ export class ApprovalStore {
         approvalId: id,
         coordinationRunId: resolved.coordinationRunId,
         workerId: resolved.workerId,
+        agentId: resolved.agentId,
         capabilities: resolved.capabilities,
         bindingKey: resolved.bindingKey,
         policyRevision: resolved.policyRevision,
@@ -805,7 +815,7 @@ export class ApprovalStore {
     // Emit per-member approval.resolved for members actually resolved by this call.
     // Partial branch: already-resolved members already have their own event.
     for (const m of resolvedMembers) {
-      this.emit(APPROVAL_EVENT_TYPES.RESOLVED, { approvalId: m.id, status }, m.sessionId);
+      this.emit(APPROVAL_EVENT_TYPES.RESOLVED, { approvalId: m.id, agentId: m.agentId, status }, m.sessionId);
     }
     return group;
   }

@@ -125,9 +125,36 @@ export function inferSingleOwnedPatchPath(
   args.patchText = `<<<<<<< SEARCH path=${opts.ownedPaths![0]}\n${parts[0]}\n=======\n${parts[1]}\n>>>>>>> REPLACE`;
 }
 
-export type SubagentOutputFormat = "json" | "text";
+/**
+ * Parent-liveness watchdog.
+ *
+ * The parent holds our stdin pipe open for the life of this subagent. If
+ * the host dies — including an uncatchable SIGKILL or OS crash — the
+ * kernel closes that pipe, stdin reaches EOF, and we exit instead of
+ * lingering as an orphan. This is the cross-platform guarantee that no
+ * in-process signal handler can provide.
+ *
+ * `unref()` keeps stdin from holding the event loop open, so a normal
+ * completion still exits; the handler only fires while work is running.
+ */
+export function installParentLivenessWatchdog(
+  stdin: NodeJS.ReadStream = process.stdin,
+  exit: (code: number) => void = (code) => process.exit(code),
+): void {
+  // A TTY means an interactive invocation, not a parent-held pipe.
+  if (stdin.isTTY) return;
+  const terminate = (): void => {
+    console.error("[subagent] parent closed stdin — terminating orphaned subagent");
+    exit(1);
+  };
+  stdin.resume();
+  stdin.on("end", terminate);
+  stdin.on("close", terminate);
+  stdin.on("error", terminate);
+  (stdin as unknown as { unref?: () => void }).unref?.();
+}
 
-export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
+export type SubagentOutputFormat = "json" | "text";export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
   if (format === "json") return JSON.stringify(result);
   if (result.status === "failed" || result.status === "rejected") return result.error ?? "Subagent failed.";
   const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
@@ -300,6 +327,7 @@ export function buildResult(
 
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
+    installParentLivenessWatchdog();
     const args = parseArgs({
       args: argv,
       options: {
@@ -310,6 +338,7 @@ export class SubagentCLI {
         provider: { type: "string" },
         mode: { type: "string" },
         "session-id": { type: "string" },
+        "session-mode": { type: "string" },
         "owned-paths": { type: "string" },
         output: { type: "string" },
       },
@@ -321,6 +350,7 @@ export class SubagentCLI {
     const prompt = args.values.prompt ?? "";
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
+    const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
@@ -335,6 +365,11 @@ export class SubagentCLI {
     const projectRoot = process.cwd();
     const loadConfig = (await import("../config/loader.js")).loadConfig;
     const config = await loadConfig(projectRoot) as AlixConfig;
+    // Propagate parent sessionMode so bypass/auto parents don't strand
+    // headless children in ask with no approval store (shell.run fail-closed).
+    if (sessionMode === "auto" || sessionMode === "ask" || sessionMode === "bypass") {
+      config.permissions.sessionMode = sessionMode;
+    }
 
     // §10.3: resolve the effective model with precedence —
     //   explicit provider/model override > models.<tier> > models.default.
@@ -433,7 +468,15 @@ export class SubagentCLI {
     });
     const providerTools = buildToolsForProvider(provider);
     const toolPolicy = getToolPolicy(role);
-    const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);
+    // No nested coordination runs: subagents cannot spawn scheduler runs
+    // (single-level delegation keeps ownership and lifecycle tractable).
+    const nestedRunBlocklist = new Set([
+      "alix_coordination_run",
+      "alix_coordination_status",
+      "alix_coordination_results",
+    ]);
+    const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy)
+      .filter(t => !nestedRunBlocklist.has(t.name));
 
     const executor = new ToolExecutor(
       config,
@@ -467,17 +510,15 @@ export class SubagentCLI {
 
 Task: ${prompt}${contextSection}
 
-## Critical Rules
+## Critical Rules (mechanics — output shape follows your role instructions above)
 - alix_file_read reads the CONTENT of a SINGLE FILE. It does NOT list directories.
 - To list files in a directory, you MUST use alix_shell_run with: ls <path>
 - NEVER call alix_file_read with a directory path (it will fail with "EISDIR")
 - Do NOT invent file names or paths. Report only what the tools return.
 - Call ONE tool at a time. Wait for the result before calling the next.
-- When the tools return output, copy it EXACTLY into a code block. Do NOT interpret it.
-- Stop after copying the tool output.
-- Report the EXACT output from each tool call. Do NOT summarize or rephrase.
-- NEVER emit aider '*** Begin Patch' format. Use only 'search_replace', 'structured_patch', or 'unified_diff'.
-- When calling alix_patch_apply with format 'search_replace', ALWAYS start the patch with a '<<<<<<< SEARCH path=<file>' line naming the target file.
+- When the tools return output, use it to satisfy your role instructions (explorer: concise findings with refs; worker: explain what you changed).
+- Stop when your role's objective is met; then call alix_done.
+- Patch format details live in the alix_patch_apply schema (search_replace with a leading '<<<<<<< SEARCH path=<file>' line). Aider-style '*** Begin Patch' text is normalized tool-side — prefer search_replace.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
@@ -550,6 +591,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             toolCallId: toolCall.id,
             name: execName,
             args: toolCall.args,
+            agentId: taskId,
             executionId,
             invocationId,
           });

@@ -77,17 +77,21 @@ test("shell.run uses the configured workspace as cwd when cwd is omitted", async
   }
 });
 
-test("file.create creates file at correct path", async () => {
+test("file.create creates file and preserves agent identity on lifecycle events", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
   try {
     const log = new EventLog(dir);
     await log.init();
     const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
-    const result = await executor.execute({ toolCallId: "1", name: "file.create", args: { path: "hello.txt", content: "world" }, ...TEST_CORRELATION });
+    const result = await executor.execute({ toolCallId: "1", name: "file.create", args: { path: "hello.txt", content: "world" }, agentId: "agent-1", ...TEST_CORRELATION });
     assert.equal(result.kind, "success");
     assert.equal((result as any).createdPath, "hello.txt");
     const content = await readFile(join(dir, "hello.txt"), "utf8");
     assert.equal(content, "world");
+    const events = (await log.readAll()).filter((event) => event.type.startsWith("tool."));
+    assert.ok(events.some((event) => event.type === "tool.started"));
+    assert.ok(events.some((event) => event.type === "tool.completed"));
+    assert.ok(events.every((event) => (event.payload as Record<string, unknown>).agentId === "agent-1"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

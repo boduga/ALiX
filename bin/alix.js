@@ -20,6 +20,16 @@ const child = spawn(
   }
 );
 
+// Forward termination signals to the CLI child. Without this, `kill`ing the
+// wrapper (or a supervisor sending SIGTERM to the wrapper PID) terminates
+// only the wrapper and leaves the real CLI — and any worker children it
+// spawned — running. The child's own handler performs graceful shutdown.
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    if (!child.killed) child.kill(signal);
+  });
+}
+
 child.on("exit", (code) => process.exit(code ?? 0));
 child.on("error", (err) => {
   console.error("Failed to start ALiX:", err);

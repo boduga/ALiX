@@ -5,7 +5,7 @@ import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./s
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
@@ -191,6 +191,19 @@ export class FileToolRouter implements ToolRouter {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
         if (existsSync(resolvedPath)) {
+          // Idempotent create: a resumed/retried worker that already wrote
+          // the exact same content reports success instead of failing on a
+          // non-idempotent "already exists". Differing content still errors
+          // so a create never silently clobbers an existing file.
+          const existing = await readFileFs(resolvedPath, "utf8");
+          if (existing === content) {
+            return {
+              kind: "success",
+              output: `File already exists with identical content: ${path}`,
+              createdPath: path,
+              changedFiles: [path],
+            };
+          }
           return { kind: "error", message: "File already exists", retryable: false };
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
@@ -571,11 +584,12 @@ export class DelegateToolRouter implements ToolRouter {
   constructor(private handlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>) {}
 
   canHandle(name: string): boolean {
-    return name === "delegate";
+    if (name === "delegate") return true;
+    return this.handlers?.[name] !== undefined;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
-    const handler = this.handlers?.delegate;
+    const handler = this.handlers?.[request.name] ?? (request.name === "delegate" ? this.handlers?.delegate : undefined);
     if (!handler) {
       return { kind: "error", message: "Delegate handler not initialized", retryable: false };
     }

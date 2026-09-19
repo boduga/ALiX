@@ -61,6 +61,7 @@ export interface MutableLifecycle {
   kind: ExecutionTraceKind;
   key: string;              // toolCallId / invocationId / timingId / workflowId / phase / approvalId / checkpointId
   title: string;
+  agentId?: string;
   /** Streamed detail parts accumulated from intermediate events (e.g. each
    *  tool.output stdout preview appends here). Joined with "\n" at
    *  materialization — long-running tool traces accumulate, not overwrite. */
@@ -159,10 +160,17 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       const mapKey = `${kind}:${key}`;
       let o = state.openByKey.get(mapKey);
       if (!o) {
-        o = { kind, key, title: titleOf(kind, e.type, payload), detailParts: [], startedAt: ts, firstSequence: seqNum, lastSequence: seqNum };
+        o = {
+          kind, key, title: titleOf(kind, e.type, payload), detailParts: [], startedAt: ts,
+          firstSequence: seqNum, lastSequence: seqNum,
+          ...(typeof payload.agentId === 'string' && payload.agentId.length > 0 ? { agentId: payload.agentId } : {}),
+        };
         state.openByKey.set(mapKey, o);
       } else {
         o.lastSequence = Math.max(o.lastSequence, seqNum);
+        if (o.agentId === undefined && typeof payload.agentId === 'string' && payload.agentId.length > 0) {
+          o.agentId = payload.agentId;
+        }
       }
       // Accumulate streamed detail (each tool.output preview appends) — a
       // long-running tool trace builds up, it does not overwrite.
@@ -196,6 +204,8 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       state.closedByKey.set(mapKey, id);
       state.terminalById.set(id, {
         id, kind, status, title: o.title,
+        ...(o.agentId !== undefined ? { agentId: o.agentId } :
+          typeof payload.agentId === 'string' && payload.agentId.length > 0 ? { agentId: payload.agentId } : {}),
         detail: resolveDetail(payload, o.detailParts.join("\n")),
         startedAt: o.startedAt, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : Math.max(0, ts - o.startedAt),
@@ -206,6 +216,7 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       // A terminal event without a recorded open — synthesize a completed entry.
       state.terminalById.set(id, {
         id, kind, status, title: titleOf(kind, e.type, payload),
+        ...(typeof payload.agentId === 'string' && payload.agentId.length > 0 ? { agentId: payload.agentId } : {}),
         detail: resolveDetail(payload),
         startedAt: ts, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : 0,
@@ -226,6 +237,7 @@ export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntr
     .sort((a, b) => a.firstSequence - b.firstSequence)
     .map(o => cloneEntry({
       id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
+      ...(o.agentId !== undefined ? { agentId: o.agentId } : {}),
       detail: o.detailParts.length > 0 ? o.detailParts.join("\n") : undefined,
       startedAt: o.startedAt,
       sourceEvents: { firstSequence: o.firstSequence },
@@ -236,6 +248,7 @@ export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntr
 function cloneEntry(e: ExecutionTraceEntry): ExecutionTraceEntry {
   return {
     id: e.id, kind: e.kind, status: e.status, title: e.title,
+    ...(e.agentId !== undefined ? { agentId: e.agentId } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
     startedAt: e.startedAt,
     ...(e.completedAt !== undefined ? { completedAt: e.completedAt } : {}),

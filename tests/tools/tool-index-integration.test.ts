@@ -63,9 +63,11 @@ describe("ToolAwareRouter", () => {
 
   it("does not filter essential file.read for any intent", () => {
     const router = new ToolAwareRouter(downstream);
-    // dir.search, file.read, done are essential — always included
+    // grep.search, glob.match, file.read, and done are essential — always included
     router.setIntent(["delete"]);
     assert.ok(router.canHandle("file.read"), "file.read is essential — always included");
-    assert.ok(router.canHandle("dir.search"), "dir.search is essential — always included");
+    assert.ok(router.canHandle("grep.search"), "grep.search is essential — always included");
+    assert.ok(router.canHandle("glob.match"), "glob.match is essential — always included");
+    assert.ok(!router.canHandle("dir.search"), "legacy dir.search is no longer essential");
   });
 });

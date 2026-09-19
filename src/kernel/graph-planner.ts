@@ -19,23 +19,42 @@ export interface PlannerResult {
   errors: string[];
 }
 
-const DEFAULT_PLAN_PROMPT = `Decompose this task into sequential steps.
+const DEFAULT_PLAN_PROMPT = `You are a task planner. Decompose the goal into the fewest steps that one worker each can execute.
 
-Return ONLY valid JSON. No markdown, no code fences, no explanation.
+Return ONLY a JSON object. No markdown, no code fences, no explanation.
 The first character must be { and the last must be }.
 
 {
   "nodes": [
     {
-      "title": "Search sources",
-      "goal": "Find relevant information about the topic",
-      "domain": "research"
+      "id": "n1",
+      "title": "Example step (illustrative only — never reuse this content)",
+      "goal": "Example goal (replace with a real imperative sentence)",
+      "domain": "coding",
+      "role": "worker",
+      "requiredCapabilities": ["filesystem.read", "filesystem.write"],
+      "dependencies": []
     }
   ]
 }
 
-Each node: title (short), goal (what it does), domain (coding|research|infra|docs|business)
-Produce 2-5 nodes. Include search, analyze, and synthesize nodes for research tasks.
+Each node: id (short, unique), title (short), goal (one imperative sentence naming a concrete deliverable), domain (coding|research|infra|docs|business), role (explorer|researcher|worker|reviewer|test-investigator|docs-researcher), requiredCapabilities (see catalog below), dependencies (ids of nodes whose output this node consumes).
+
+Rules:
+- 1-6 nodes. A single-action goal is 1 node. Do not pad with generic Search/Analyze/Synthesize steps; name what is searched, analyzed, or produced.
+- requiredCapabilities: the minimum needed, chosen ONLY from the catalog below. Never invent names. Every node needs at least one. Read-only steps must not request write or shell capabilities.
+- dependencies: independent steps get [] so they can run in parallel. A node that consumes another's output lists it.
+- Add a final merge node only if several nodes' outputs must be combined.
+
+Capability catalog:
+{{capabilityCatalog}}
+
+Example — plain goal in, titled nodes out:
+Goal: Create two files in parallel. Worker A creates .tmp/a.txt with 'A done'. Worker B creates .tmp/b.txt with 'B done'.
+{"nodes": [
+  {"id": "n1", "title": "Write file A", "goal": "Create .tmp/a.txt containing exactly 'A done'", "domain": "coding", "role": "worker", "requiredCapabilities": ["filesystem.write"], "dependencies": []},
+  {"id": "n2", "title": "Write file B", "goal": "Create .tmp/b.txt containing exactly 'B done'", "domain": "coding", "role": "worker", "requiredCapabilities": ["filesystem.write"], "dependencies": []}
+]}
 
 Task:`;
 
@@ -48,13 +67,99 @@ function validateGraph(json: unknown): string[] {
   let root = json as Record<string, unknown>;
   let graph = root.graph && typeof root.graph === "object" ? root.graph as Record<string, unknown> : root;
 
-  if (!Array.isArray(graph.nodes) || graph.nodes.length < 2) { errors.push("Graph must have 2+ nodes"); return errors; }
+  if (!Array.isArray(graph.nodes) || graph.nodes.length < 1) { errors.push("Graph must have 1+ nodes"); return errors; }
+  if (graph.nodes.length > 6) { errors.push("Graph must have at most 6 nodes"); return errors; }
   for (let i = 0; i < graph.nodes.length; i++) {
     const n = graph.nodes[i] as Record<string, unknown>;
     if (!n.title) errors.push(`Node ${i}: missing title`);
     if (!n.goal) errors.push(`Node ${i}: missing goal`);
   }
   return errors;
+}
+
+/**
+ * Static fallback capability catalog (capabilityIds + tool names).
+ * Authority is the registry (`buildDefaultToolIndex()` in
+ * src/tools/tool-registry.ts); `CoordinationPlanner` injects the live
+ * catalog at plan time, and a parity test pins this mirror. The `mcp.*`
+ * wildcard is excluded — a concrete MCP tool name cannot be predicted
+ * at plan time.
+ */
+export const DEFAULT_CAPABILITY_CATALOG: readonly string[] = [
+  "filesystem.read", "filesystem.write", "filesystem.search",
+  "shell.exec", "patch.apply", "task.complete", "agent.delegate",
+  "web.search", "web.fetch", "tool.invoke", "mcp.invoke",
+  "file.read", "file.create", "file.delete", "file.exists",
+  "dir.search", "grep.search", "glob.match", "shell.run",
+  "done", "delegate", "web_search", "web_fetch",
+  "create_skill", "list_extensions", "inspect_extension", "create_hook",
+];
+
+/** Read-only capability defaults by subagent role. Never write or shell. */
+export const ROLE_CAPABILITY_DEFAULTS: Readonly<Record<string, readonly string[]>> = {
+  explorer: ["filesystem.read", "filesystem.search"],
+  reviewer: ["filesystem.read"],
+  test_investigator: ["filesystem.read", "filesystem.search"],
+  docs_researcher: ["filesystem.read"],
+  researcher: ["web.search", "web.fetch"],
+  worker: ["filesystem.read"],
+};
+
+/** Read-only capability defaults by domain. Never write or shell. */
+export const DOMAIN_CAPABILITY_DEFAULTS: Readonly<Record<string, readonly string[]>> = {
+  coding: ["filesystem.read"],
+  research: ["filesystem.read"],
+  infra: ["filesystem.read"],
+  docs: ["filesystem.read"],
+  business: ["filesystem.read"],
+};
+
+export type RawPlannedNode = {
+  requiredCapabilities?: unknown;
+  role?: unknown;
+  domain?: unknown;
+};
+
+/**
+ * Deterministic normalization (Layer 2): filter claimed capabilities to
+ * the catalog, and guarantee non-empty caps. Empty/missing claims fall
+ * back to read-only role/domain defaults. Claims containing UNKNOWN names
+ * are preserved verbatim: `classifyCapabilities` treats unknown as
+ * unknown-write (workspace-wide scopes) and `authorizeWorker` judges each
+ * name through policy — silently dropping an unknown write capability
+ * would under-scope ownership and mis-authorize the worker. Only a node
+ * that declares nothing gets defaulted (read-only only, never write or
+ * shell). `authorizeWorker` stays fail-closed.
+ */
+export function normalizeNodeCapabilities(
+  node: RawPlannedNode,
+  catalog: Iterable<string>,
+): string[] {
+  const allowed = new Set(catalog);
+  const raw = node.requiredCapabilities;
+  if (raw !== undefined && !Array.isArray(raw)) {
+    return [...roleDomainDefault(node)];
+  }
+  const claimed = (Array.isArray(raw) ? raw : []).filter(
+    (c): c is string => typeof c === "string",
+  );
+  if (claimed.length === 0) return [...roleDomainDefault(node)];
+  const unknown = claimed.filter(c => !allowed.has(c));
+  if (unknown.length > 0) return [...new Set(claimed)];
+  return [...new Set(claimed.filter(c => allowed.has(c)))];
+}
+
+function roleDomainDefault(node: RawPlannedNode): readonly string[] {
+  const role = typeof node.role === "string" ? node.role : undefined;
+  if (role && ROLE_CAPABILITY_DEFAULTS[role]) return ROLE_CAPABILITY_DEFAULTS[role];
+  const domain = typeof node.domain === "string" ? node.domain.toLowerCase() : undefined;
+  if (domain && DOMAIN_CAPABILITY_DEFAULTS[domain]) return DOMAIN_CAPABILITY_DEFAULTS[domain];
+  return ["filesystem.read"];
+}
+
+/** Render the plan prompt with a concrete capability catalog. */
+export function buildPlanPrompt(catalog: readonly string[] = DEFAULT_CAPABILITY_CATALOG): string {
+  return DEFAULT_PLAN_PROMPT.replace("{{capabilityCatalog}}", [...catalog].sort().join(", "));
 }
 
 /** Create a fallback sequential graph when the model fails. */
@@ -78,30 +183,24 @@ export function createFallbackGraph(goal: string, workflowId: string): TaskGraph
 export class GraphPlanner {
   private modelEndpoint: string;
   private modelName: string;
+  private capabilityCatalog: readonly string[];
 
-  constructor(opts?: { modelEndpoint?: string; modelName?: string }) {
+  constructor(opts?: { modelEndpoint?: string; modelName?: string; capabilityCatalog?: string[] }) {
     this.modelEndpoint = opts?.modelEndpoint ?? "http://localhost:11434/api/generate";
     this.modelName = opts?.modelName ?? "qwen3:4b";
+    this.capabilityCatalog = opts?.capabilityCatalog ?? DEFAULT_CAPABILITY_CATALOG;
   }
 
   async plan(goal: string, workflowId: string): Promise<PlannerResult> {
-    const prompt = DEFAULT_PLAN_PROMPT + `\n${goal}`;
+    const prompt = buildPlanPrompt(this.capabilityCatalog) + `\n${goal}`;
 
+    // Attempt 1: base prompt. Attempt 2 (single repair retry): the first
+    // output plus its validation errors. Flash-tier models frequently
+    // emit near-miss JSON (missing title, fences, prose) that a targeted
+    // re-prompt fixes. Transport failures are not retried.
     let rawModelOutput = "";
     try {
-      const response = await fetch(this.modelEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.modelName,
-          prompt,
-          stream: false,
-          format: "json",
-        }),
-        signal: AbortSignal.timeout(120000),
-      });
-      const data = await response.json() as Record<string, unknown>;
-      rawModelOutput = (data.response || data.thinking || "") as string;
+      rawModelOutput = await this.callModel(prompt);
     } catch (err) {
       return {
         graph: createFallbackGraph(goal, workflowId),
@@ -111,59 +210,72 @@ export class GraphPlanner {
       };
     }
 
-    // Extract JSON from model output (strip markdown fences if present)
-    let cleanOutput = rawModelOutput.trim();
-    const fenceMatch = cleanOutput.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) cleanOutput = fenceMatch[1].trim();
-
-    // Parse model output
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleanOutput);
-    } catch {
-      return {
-        graph: createFallbackGraph(goal, workflowId),
-        rawModelOutput,
-        valid: false,
-        errors: ["Invalid JSON from model"],
-      };
-    }
-
-    // Validate
-    const errors = validateGraph(parsed);
+    let parsed = tryParseGraphOutput(rawModelOutput);
+    let errors = parsed.ok ? validateGraph(parsed.value) : [parsed.error];
     if (errors.length > 0) {
-      return {
-        graph: createFallbackGraph(goal, workflowId),
-        rawModelOutput,
-        valid: false,
-        errors,
-      };
+      const repairPrompt =
+        `Your previous output failed validation:\n- ${errors.join("\n- ")}\n\n` +
+        `Previous output:\n${rawModelOutput.slice(0, 4000)}\n\n` +
+        `Return ONLY the corrected JSON object (first character {, last character }). ` +
+        `Keep the same nodes and goal; fix exactly the listed problems.`;
+      try {
+        rawModelOutput = await this.callModel(repairPrompt);
+      } catch (err) {
+        return {
+          graph: createFallbackGraph(goal, workflowId),
+          rawModelOutput: String(err),
+          valid: false,
+          errors: [`Model repair call failed: ${err instanceof Error ? err.message : String(err)}`],
+        };
+      }
+      parsed = tryParseGraphOutput(rawModelOutput);
+      errors = parsed.ok ? validateGraph(parsed.value) : [parsed.error];
+      if (errors.length > 0) {
+        return {
+          graph: createFallbackGraph(goal, workflowId),
+          rawModelOutput,
+          valid: false,
+          errors,
+        };
+      }
     }
 
-    // Build TaskGraph from parsed model output
-    const root = parsed as Record<string, unknown>;
+    // Build TaskGraph from parsed model output (validation passed above,
+    // so parsed is the success variant).
+    const root = (parsed as { ok: true; value: unknown }).value as Record<string, unknown>;
     const modelGraph = (root.graph as Record<string, unknown>) || root;
     const now = new Date().toISOString();
     const graphId = `graph_${randomUUID()}`;
     const modelNodes = modelGraph.nodes as Record<string, unknown>[];
 
-    const nodes: TaskNode[] = modelNodes.map((n, i) => ({
-      id: (n.id as string) || `node_${graphId}_${i}`,
-      graphId,
-      title: n.title as string,
-      goal: n.goal as string,
-      domain: (n.domain as string) || "unknown",
-      status: "pending" as const,
-      dependencies: (n.dependencies as string[]) || [],
-      requiredCapabilities: (n.requiredCapabilities as string[]) || [],
-      riskLevel: (n.riskLevel as TaskNode["riskLevel"]) || "low",
-      approvalMode: (n.approvalMode as TaskNode["approvalMode"]) || "auto",
-      inputs: { goal },
-      artifacts: [],
-      memoryRefs: [],
-      createdAt: now,
-      updatedAt: now,
-    }));
+    const nodes: TaskNode[] = modelNodes.map((n, i) => {
+      // Accept `dependsOn` as an alias for the canonical `dependencies`
+      // (the planner prompt historically used neither name consistently).
+      const rawDeps = (n.dependencies as unknown) ?? (n.dependsOn as unknown);
+      const role = typeof n.role === "string" ? (n.role as string) : undefined;
+      const domain = (n.domain as string) || "unknown";
+      return {
+        id: (n.id as string) || `node_${graphId}_${i}`,
+        graphId,
+        title: n.title as string,
+        goal: n.goal as string,
+        domain,
+        ...(role ? { role } : {}),
+        status: "pending" as const,
+        dependencies: Array.isArray(rawDeps) ? (rawDeps as string[]) : [],
+        requiredCapabilities: normalizeNodeCapabilities(
+          { requiredCapabilities: n.requiredCapabilities, role, domain },
+          this.capabilityCatalog,
+        ),
+        riskLevel: (n.riskLevel as TaskNode["riskLevel"]) || "low",
+        approvalMode: (n.approvalMode as TaskNode["approvalMode"]) || "auto",
+        inputs: { goal },
+        artifacts: [],
+        memoryRefs: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+    });
 
     // Build edges from dependency declarations
     const edges: TaskGraph["edges"] = [];
@@ -182,11 +294,11 @@ export class GraphPlanner {
       }
     }
 
-    // Infer strategy from nodes (#711): only sequential/hybrid are
-    // supported, so store the inferred value instead of passing through
-    // whatever strategy label the model returned.
-    const hasParallel = nodes.some(n => (n as any).strategy === "parallel" || (n as any).strategy === "map_reduce");
-    const strategy: GraphStrategy = hasParallel ? "hybrid" : "sequential";
+    // Infer strategy from dependency shape (#711): only sequential/hybrid are
+    // supported. Two or more dependency-free roots means the graph fans out
+    // and the scheduler can dispatch those workers in parallel.
+    const rootCount = nodes.filter(n => n.dependencies.length === 0).length;
+    const strategy: GraphStrategy = rootCount >= 2 ? "hybrid" : "sequential";
 
     const graph: TaskGraph = {
       id: graphId,
@@ -202,6 +314,38 @@ export class GraphPlanner {
     };
 
     return { graph, rawModelOutput, valid: true, errors: [] };
+  }
+
+  /** Single model call. Transport failures throw (not retried by plan()). */
+  private async callModel(prompt: string): Promise<string> {
+    const response = await fetch(this.modelEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: this.modelName,
+        prompt,
+        stream: false,
+        format: "json",
+        // Planning is deterministic work: temperature 0 keeps titles,
+        // ids, and capability names stable on flash-tier models.
+        options: { temperature: 0 },
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+    const data = await response.json() as Record<string, unknown>;
+    return (data.response || data.thinking || "") as string;
+  }
+}
+
+/** Parse leniently: strip markdown fences, then JSON.parse. */
+function tryParseGraphOutput(raw: string): { ok: true; value: unknown } | { ok: false; error: string } {
+  let cleanOutput = raw.trim();
+  const fenceMatch = cleanOutput.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) cleanOutput = fenceMatch[1].trim();
+  try {
+    return { ok: true, value: JSON.parse(cleanOutput) };
+  } catch {
+    return { ok: false, error: "Invalid JSON from model" };
   }
 }
 

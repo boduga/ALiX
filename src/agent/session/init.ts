@@ -207,6 +207,14 @@ export async function initialize(state: SessionState): Promise<void> {
     approvedPlanContent: state.approvedPlanContent,
     memoryContext: state.memoryContext,
     memoryStats: state.memoryStats,
+    selfContext: {
+      provider: p5.modelProvider,
+      model: p5.modelName,
+      contextWindowTokens: p5.contextWindowTokens,
+      availableInputTokens: state.contextBudget?.availableInputTokens,
+      requestedMaxOutputTokens: state.contextBudget?.requestedMaxOutputTokens,
+      tokenizer: state.tokenizer,
+    },
   });
 
   // P9: Hooks

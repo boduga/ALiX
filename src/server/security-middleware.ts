@@ -475,6 +475,7 @@ export function derivePermissions(role: string): string[] {
         "sessions:read",
         "observability:read",
         "coordination:read",
+        "coordination:execute",
       );
       break;
     case "operator":
@@ -487,6 +488,7 @@ export function derivePermissions(role: string): string[] {
         "sessions:read",
         "observability:read",
         "coordination:read",
+        "coordination:execute",
       );
       break;
     case "readonly":

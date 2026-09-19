@@ -11,6 +11,8 @@ export type WorkbenchUiAction =
   | { readonly type: 'queue.shift' }
   | { readonly type: 'focus.set'; readonly focus: WorkbenchFocus }
   | { readonly type: 'drawer.toggle'; readonly drawer: Exclude<WorkbenchDrawer, 'closed'> }
+  | { readonly type: 'drawer.close' }
+  | { readonly type: 'agent.select'; readonly agentId: string; readonly scrollOffset: number }
   | { readonly type: 'overlay.toggle'; readonly overlay: WorkbenchOverlay }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.mode'; readonly mode: WorkbenchTranscriptMode }

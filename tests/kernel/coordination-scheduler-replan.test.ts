@@ -18,6 +18,14 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
+
+/** Poll until `cond` is true or the budget elapses (load-insensitive). */
+async function waitUntil(cond: () => boolean, timeoutMs = 2000): Promise<void> {
+  const start = Date.now();
+  while (!cond() && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 import { tmpdir } from "node:os";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { CoordinationScheduler } from "../../src/kernel/coordination-scheduler.js";
@@ -156,7 +164,7 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.addWorker(run.id, worker);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    await waitUntil(() => calls.length > 0);
 
     // Replanner should have been called
     assert.equal(calls.length, 1);
@@ -328,7 +336,9 @@ describe("CoordinationScheduler replanning integration", () => {
 
     // Should not throw — error is caught and logged
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    // Replan is triggered asynchronously after the worker settles; poll
+    // instead of a fixed sleep so the assertion is not load-sensitive.
+    await waitUntil(() => calls.length > 0);
 
     // Replanner was called (once)
     assert.equal(calls.length, 1);

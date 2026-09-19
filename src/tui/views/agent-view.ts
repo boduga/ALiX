@@ -178,6 +178,8 @@ export class AgentView implements TuiView {
         layout: responsive,
         agents: ctx.snap.runtime?.agents ?? null,
         tasks: ctx.snap.runtime?.tasks ?? null,
+        selectedAgentId: ctx.workbenchUiState?.selectedAgentId,
+        agentScrollOffset: ctx.workbenchUiState?.drawerScrollOffset,
       });
     }
 

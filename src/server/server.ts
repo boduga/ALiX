@@ -612,7 +612,7 @@ export function startServer(
         return;
       }
 
-      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure)) {
+      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure, req)) {
         return;
       }
       secure.error("not_found", 404);
@@ -632,6 +632,17 @@ export function startServer(
       // P4.3-Sc2: Start SSE hubs after server is listening
       observabilityHub.start();
 
+      // Resume Inspector-hosted coordination runs whose previous server
+      // process died, so a restart does not strand in-flight work.
+      void import("./coordination-routes.js")
+        .then(({ resumeInspectorRuns }) => resumeInspectorRuns(root))
+        .then((count) => {
+          if (count > 0) console.log(`[coordination] resumed ${count} run(s) after restart`);
+        })
+        .catch((err: unknown) => {
+          console.error(`[coordination] startup resume failed: ${err instanceof Error ? err.message : String(err)}`);
+        });
+
       const address = server.address() as AddressInfo;
       resolve({
         url: `http://${host}:${address.port}`,
@@ -641,7 +652,17 @@ export function startServer(
           sessionHub.stop();
           // Release all connection limiter slots
           connectionLimiter.releaseAll();
-          server.close(() => done());
+          // Abort in-flight coordination runs so worker children are not
+          // orphaned by a server shutdown.
+          void (async () => {
+            try {
+              const { cancelAllBackgroundRuns } = await import("./coordination-routes.js");
+              await cancelAllBackgroundRuns();
+            } catch {
+              // Shutdown is best-effort.
+            }
+            server.close(() => done());
+          })();
         }),
       });
     });

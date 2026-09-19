@@ -629,6 +629,37 @@ routeRegistry.register({
 });
 
 // ---------------------------------------------------------------------------
+// Route registration — coordination execution (authenticated + execute
+// permission). These mutate: they plan, dispatch workers, and cancel runs.
+// Allowed only with the coordination:execute permission; loopback
+// development still passes through per the global auth posture.
+// ---------------------------------------------------------------------------
+
+routeRegistry.register({
+  id: "api.coordination.run",
+  method: "POST",
+  pathPattern: "/api/coordination/run",
+  pathType: "exact",
+  auth: "authenticated",
+  permission: "coordination:execute",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+routeRegistry.register({
+  id: "api.coordination.runId.cancel",
+  method: "POST",
+  pathPattern: "/api/coordination/:runId/cancel",
+  pathType: "pattern",
+  auth: "authenticated",
+  permission: "coordination:execute",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+// ---------------------------------------------------------------------------
 // Route registration — doctor diagnostics (authenticated, Sc1)
 // ---------------------------------------------------------------------------
 
