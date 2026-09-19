@@ -275,5 +275,39 @@ describe("CoordinationPlanner", () => {
     const scopes = result.run!.workers.map(w => w.ownershipScopes);
     assert.deepEqual(scopes[0], [".tmp/a.txt"]);
     assert.deepEqual(scopes[1], [".tmp/b.txt"]);
+    assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
+  });
+
+  it("serializes vague writers with overlapping ownership in deterministic plan order", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("b", [], { goal: "Improve error handling", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const [first, second] = result.run!.workers;
+    assert.deepEqual(first.dependencies, []);
+    assert.deepEqual(second.dependencies, [first.id]);
+  });
+
+  it("does not serialize vague read-only workers", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Inspect validation", requiredCapabilities: ["filesystem.read"] }),
+      makeNode("b", [], { goal: "Inspect error handling", requiredCapabilities: ["filesystem.read"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
+  });
+
+  it("does not duplicate an existing ordering dependency", async () => {
+    const graph = makeGraph([
+      makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),
+      makeNode("b", ["a"], { goal: "Improve error handling", requiredCapabilities: ["filesystem.write"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    const [first, second] = result.run!.workers;
+    assert.deepEqual(second.dependencies, [first.id]);
   });
 });

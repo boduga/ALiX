@@ -83,6 +83,56 @@ export function inferOwnershipScopes(node: TaskNode, mutationClass: MutationClas
   return ["**"];
 }
 
+function claimsOverlap(
+  left: readonly { path: string; recursive: boolean }[],
+  right: readonly { path: string; recursive: boolean }[],
+): boolean {
+  const contains = (claim: { path: string; recursive: boolean }, path: string): boolean =>
+    claim.path === "." || claim.path === path || (claim.recursive && path.startsWith(`${claim.path}/`));
+  return left.some(a => right.some(b => contains(a, b.path) || contains(b, a.path)));
+}
+
+function dependsTransitively(workerId: string, targetId: string, byId: ReadonlyMap<string, WorkerAssignment>): boolean {
+  const seen = new Set<string>();
+  const pending = [...(byId.get(workerId)?.dependencies ?? [])];
+  while (pending.length > 0) {
+    const dependencyId = pending.pop()!;
+    if (dependencyId === targetId) return true;
+    if (seen.has(dependencyId)) continue;
+    seen.add(dependencyId);
+    pending.push(...(byId.get(dependencyId)?.dependencies ?? []));
+  }
+  return false;
+}
+
+/**
+ * Vague write goals cannot be assigned truthful disjoint paths. Preserve
+ * safety by ordering overlapping ambiguous writers instead of fabricating
+ * ownership. Explicitly-scoped and read-only workers remain parallel.
+ */
+export function serializeAmbiguousWriters(
+  workers: WorkerAssignment[],
+  ambiguousWorkerIds: ReadonlySet<string>,
+): void {
+  const ordered = workers
+    .filter(worker => ambiguousWorkerIds.has(worker.id))
+    .sort((a, b) =>
+      (a.planOrder ?? Number.MAX_SAFE_INTEGER) - (b.planOrder ?? Number.MAX_SAFE_INTEGER) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id)
+    );
+  const byId = new Map(workers.map(worker => [worker.id, worker]));
+  for (let index = 0; index < ordered.length; index += 1) {
+    const current = ordered[index];
+    for (let priorIndex = index - 1; priorIndex >= 0; priorIndex -= 1) {
+      const prior = ordered[priorIndex];
+      if (!claimsOverlap(current.ownershipClaims, prior.ownershipClaims)) continue;
+      if (!dependsTransitively(current.id, prior.id, byId)) current.dependencies.push(prior.id);
+      break;
+    }
+  }
+}
+
 /**
  * Defensive mapping error.
  * Should be unreachable after validateGraphDag() succeeds,
@@ -208,6 +258,7 @@ export class CoordinationPlanner {
     const defaultLabel = (index: number): string => `${coordinatorAgentId}#${index + 1}`;
     const nodeToWorkerId = new Map<string, string>();
     const workers: WorkerAssignment[] = [];
+    const ambiguousWriterIds = new Set<string>();
 
     for (const node of planResult.graph.nodes) {
       const workerId = `worker_${randomUUID()}`;
@@ -235,6 +286,9 @@ export class CoordinationPlanner {
         planOrder: planOrderByNode.get(node.id),
         ownershipClaims: claimResult.claims,
       }));
+      if (mutationClass !== "no-write" && extractGoalPaths(node.goal ?? "").length === 0) {
+        ambiguousWriterIds.add(workerId);
+      }
     }
 
     for (let index = 0; index < planResult.graph.nodes.length; index += 1) {
@@ -249,6 +303,8 @@ export class CoordinationPlanner {
         workers[index].dependencies.push(dependencyWorkerId);
       }
     }
+
+    serializeAmbiguousWriters(workers, ambiguousWriterIds);
 
     run.workers = workers;
     // Deliberately remains "planning". M0.77c transitions it to "running".
