@@ -96,6 +96,7 @@ export class JsonlStore {
   constructor(
     readonly filePath: string,
     private readonly dirMode?: number,
+    private readonly fileMode?: number,
   ) {}
 
   get dir(): string {
@@ -110,7 +111,14 @@ export class JsonlStore {
 
   async appendLine(line: string): Promise<void> {
     await this.ensureDir();
-    await appendFile(this.filePath, line + "\n", "utf-8");
+    // `fileMode` (when set) applies only when appendFile creates the file —
+    // same semantics as appendFileSync's mode option. Used by stores with
+    // restrictive-permission requirements (e.g. the Inspector auth audit).
+    if (this.fileMode === undefined) {
+      await appendFile(this.filePath, line + "\n", "utf-8");
+    } else {
+      await appendFile(this.filePath, line + "\n", { encoding: "utf-8", mode: this.fileMode });
+    }
   }
 
   async appendRecord(record: unknown): Promise<void> {

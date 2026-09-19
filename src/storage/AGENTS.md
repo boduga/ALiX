@@ -9,6 +9,7 @@
 - No domain logic here: no validation, hashing, filtering, or vocabularies. Stores keep those; this module owns bytes and parsing only.
 - Corruption policy: blank lines skipped silently; malformed lines counted (never thrown) by parse helpers; single-file readers return null when missing and throw when malformed.
 - Atomic writes use temp-file + rename with `0o600`/`wx`, matching the credential/config writers.
+- `JsonlStore` accepts optional `dirMode`/`fileMode`; `fileMode` applies when `appendFile` creates the file (restrictive-permission stores, e.g. the Inspector auth audit's 0o600).
 - Streaming reads stay O(1) in memory; full-file reads are the caller's explicit choice.
 
 **Work Guidance:**

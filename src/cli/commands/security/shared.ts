@@ -19,9 +19,8 @@ import { AuthStore } from "../../../security/inspector/auth-store.js";
 import { AuthService, type AuditFn, type MetricsFn } from "../../../security/inspector/auth-service.js";
 import { getUserStatePaths } from "../../../security/platform/user-state-paths.js";
 import { join } from "node:path";
-import { mkdirSync, appendFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { AuthAuditStore } from "../../../security/inspector/auth-audit-store.js";
 import "../../../security/credentials/credential-store.js";
 import "../../../security/credentials/credential-reference.js";
 import "../../../security/credentials/credential-migration.js";
@@ -70,25 +69,15 @@ export function auditLogPath(): string {
 
 /**
  * Create a file-backed audit function.
- * Uses synchronous writes so errors propagate to the caller
- * (audit failure can fail the enclosing mutation).
+ *
+ * Writes through `AuthAuditStore` (the shared `AuditEventStore`/`JsonlStore`
+ * path, #713 G1.3). Async and awaited by callers so a write failure still
+ * fails the enclosing auth mutation (fail-closed).
  */
 export function createFileAudit(): AuditFn {
-  const logPath = auditLogPath();
-  return (event) => {
-    try {
-      const dir = join(logPath, "..");
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-      const entry = JSON.stringify({
-        id: randomUUID(),
-        timestamp: new Date().toISOString(),
-        ...event,
-      }) + "\n";
-      appendFileSync(logPath, entry, { mode: 0o600 });
-    } catch (err) {
-      // Re-throw so the mutation can fail if audit cannot persist
-      throw err;
-    }
+  const store = new AuthAuditStore(auditLogPath());
+  return async (event) => {
+    await store.append(event);
   };
 }
 
