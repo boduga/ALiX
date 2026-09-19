@@ -92,6 +92,8 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
   { pathname: "/api/coordination/run-001/ownership", method: "GET", source: "coordination-routes.ts" },
   { pathname: "/api/coordination/run-001/conflicts", method: "GET", source: "coordination-routes.ts" },
   { pathname: "/api/coordination/run-001/conflicts/conf-001", method: "GET", source: "coordination-routes.ts" },
+  { pathname: "/api/coordination/run", method: "POST", source: "coordination-routes.ts" },
+  { pathname: "/api/coordination/run-001/cancel", method: "POST", source: "coordination-routes.ts" },
 
   // -- Doctor (Sc1) --------------------------------------------------------
   { pathname: "/api/doctor", method: "GET", source: "server.ts" },
@@ -183,16 +185,21 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("non-GET routes are limited to auth and read-only verification endpoints", () => {
+  it("non-GET routes are limited to auth, read-only verification, and gated coordination execution endpoints", () => {
     const all = routeRegistry.getAll();
     const nonGet: string[] = [];
     const allowedReadOnlyPosts = new Set(["api.security.evidence.verify"]);
+    // Coordination execution requires the coordination:execute permission
+    // (authenticated routes); loopback development passes through per the
+    // global auth posture like every other authenticated route.
+    const allowedExecutionPosts = new Set(["api.coordination.run", "api.coordination.runId.cancel"]);
 
     for (const d of all) {
       if (
         d.method !== "GET" &&
         d.routeClass !== "auth" &&
-        !allowedReadOnlyPosts.has(d.id)
+        !allowedReadOnlyPosts.has(d.id) &&
+        !allowedExecutionPosts.has(d.id)
       ) {
         nonGet.push(`${d.id} (${d.method} ${d.pathPattern})`);
       }
@@ -205,12 +212,12 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("registry has exactly 45 routes", () => {
+  it("registry has exactly 47 routes", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 45, `expected 45 routes, got ${all.length}`);
+    assert.equal(all.length, 47, `expected 47 routes, got ${all.length}`);
   });
 
-  it("all 45 routes have distinct ids", () => {
+  it("all 47 routes have distinct ids", () => {
     const all = routeRegistry.getAll();
     const ids = all.map((d) => d.id);
     const unique = new Set(ids);

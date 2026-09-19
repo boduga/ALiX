@@ -6,9 +6,17 @@
 - `server.ts` — All route handlers: sessions (SSE, snapshot, comparison), graphs (list, projection), registry (agents, tools), policy (rules, eval), approvals, audit.
 
 **Local Contracts:**
-- Data API routes are read-only GET except for the read-only evidence-integrity
-  verification endpoint. Authentication session exchange/logout are the other
-  POST routes; no HTTP route may execute agent actions.
+- Data API routes are read-only GET except for: the read-only evidence-integrity
+  verification endpoint, and the coordination execution endpoints
+  (`POST /api/coordination/run`, `POST /api/coordination/:runId/cancel`).
+  Execution endpoints require the `coordination:execute` permission
+  (authenticated routes); loopback development passes through per the global
+  auth posture like every other authenticated route. Runs execute detached —
+  the client polls the existing GET routes; a server restart drops in-flight
+  execution (the daemon owns durable ticking). Ask-mode worker capabilities
+  create approvals through the server-side ApprovalStore, visible in the
+  approvals panel. Authentication session exchange/logout are the other
+  POST routes; no other HTTP route may execute agent actions.
 - `startServer` receives the configured Inspector authentication mode and must
   pass an explicit `enforceAuth` value to `createSecurityMiddleware`.
 - With authentication required, every registered data and SSE route requires

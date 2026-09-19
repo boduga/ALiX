@@ -125,6 +125,116 @@ document.getElementById("graph-nodes")?.addEventListener("click", (e) => {
   }
 });
 
+// ── Runs tab (coordination) ──────────────────────────────
+let runsPollTimer = null;
+let selectedRunId = null;
+
+async function loadCoordRuns() {
+  const list = document.getElementById("runs-list");
+  if (!list) return;
+  try {
+    const res = await fetch("/api/coordination");
+    const runs = await res.json();
+    if (!Array.isArray(runs) || runs.length === 0) {
+      list.innerHTML = `<p class="empty">No runs yet.</p>`;
+      return;
+    }
+    list.innerHTML = runs.map((run) =>
+      `<div class="run-row"><button class="run-select" data-run-id="${escapeHtml(run.id)}">${escapeHtml(run.id.slice(0, 18))}</button>` +
+      `<span class="run-status status-${escapeHtml(run.status)}">${escapeHtml(run.status)}</span>` +
+      `<span>${escapeHtml(run.workerCount ?? 0)} workers</span></div>`
+    ).join("");
+  } catch {
+    list.innerHTML = `<p class="error">Failed to load runs</p>`;
+  }
+}
+
+async function loadCoordRunDetail(runId) {
+  const detail = document.getElementById("runs-detail");
+  if (!detail) return;
+  try {
+    const [viewRes, resultsRes] = await Promise.all([
+      fetch(`/api/coordination/${encodeURIComponent(runId)}`),
+      fetch(`/api/coordination/${encodeURIComponent(runId)}/results`),
+    ]);
+    if (!viewRes.ok) {
+      detail.innerHTML = `<p class="error">Run not found: ${escapeHtml(runId)}</p>`;
+      return;
+    }
+    const view = await viewRes.json();
+    const workers = (view.workers || []).map((w) =>
+      `<li>${escapeHtml(w.taskLabel || w.id)} — <span class="status-${escapeHtml(w.status)}">${escapeHtml(w.status)}</span>` +
+      (w.error ? ` <span class="error">${escapeHtml(w.error)}</span>` : "") + `</li>`
+    ).join("");
+    let results = "";
+    if (resultsRes.ok) {
+      const agg = await resultsRes.json();
+      results = `<h4>Results</h4><pre class="event-payload">${escapeHtml(JSON.stringify(agg, null, 2).slice(0, 3000))}</pre>`;
+    }
+    const terminal = ["completed", "failed", "cancelled"].includes(view.status);
+    detail.innerHTML =
+      `<h3 class="mono">${escapeHtml(view.id)}</h3>` +
+      `<p>Status: <span class="status-${escapeHtml(view.status)}">${escapeHtml(view.status)}</span></p>` +
+      `<ul>${workers}</ul>${results}` +
+      (terminal ? "" : `<button id="runs-cancel">Cancel run</button>`);
+    document.getElementById("runs-cancel")?.addEventListener("click", async () => {
+      await fetch(`/api/coordination/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+      loadCoordRunDetail(runId);
+      loadCoordRuns();
+    });
+    if (!terminal && !runsPollTimer) {
+      runsPollTimer = setInterval(() => {
+        if (!document.getElementById("panel-runs")?.classList.contains("active")) return;
+        loadCoordRunDetail(selectedRunId);
+        loadCoordRuns();
+      }, 3000);
+    }
+    if (terminal && runsPollTimer) {
+      clearInterval(runsPollTimer);
+      runsPollTimer = null;
+    }
+  } catch {
+    detail.innerHTML = `<p class="error">Failed to load run ${escapeHtml(runId)}</p>`;
+  }
+}
+
+document.getElementById("runs-list")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".run-select");
+  if (!btn) return;
+  selectedRunId = btn.dataset.runId;
+  loadCoordRunDetail(selectedRunId);
+});
+
+document.getElementById("runs-refresh")?.addEventListener("click", () => {
+  loadCoordRuns();
+  if (selectedRunId) loadCoordRunDetail(selectedRunId);
+});
+
+document.getElementById("runs-start")?.addEventListener("click", async () => {
+  const goal = document.getElementById("runs-goal").value.trim();
+  if (!goal) return;
+  const maxConcurrency = Math.min(8, Math.max(1, parseInt(document.getElementById("runs-concurrency").value, 10) || 2));
+  const mode = document.getElementById("runs-mode").value || undefined;
+  const detail = document.getElementById("runs-detail");
+  try {
+    const res = await fetch("/api/coordination/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ goal, maxConcurrency, ...(mode ? { sessionMode: mode } : {}) }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      detail.innerHTML = `<p class="error">Start failed: ${escapeHtml(data.error || res.status)}</p>`;
+      return;
+    }
+    selectedRunId = data.runId;
+    loadCoordRuns();
+    loadCoordRunDetail(selectedRunId);
+  } catch {
+    detail.innerHTML = `<p class="error">Start failed: network error</p>`;
+  }
+});
+
 // Registry data loading
 let registryData = { agents: [], tools: [] };
 
@@ -913,6 +1023,7 @@ async function loadStateMetrics() {
 // Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
+loadCoordRuns();
 loadPolicyRules();
 loadApprovals();
 loadAudit();
@@ -925,6 +1036,7 @@ loadStateMetrics();
 window.reloadInspectorData = function () {
   loadRegistry();
   loadGraphList();
+  loadCoordRuns();
   loadPolicyRules();
   loadApprovals();
   loadAudit();

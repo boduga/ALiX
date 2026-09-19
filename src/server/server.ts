@@ -612,7 +612,7 @@ export function startServer(
         return;
       }
 
-      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure)) {
+      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure, req)) {
         return;
       }
       secure.error("not_found", 404);
