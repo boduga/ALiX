@@ -16,12 +16,17 @@ export type CoordinationSchedulerServiceOptions = {
   renewIntervalMs?: number;
   heartbeatIntervalMs?: number;
   maxRunsPerCycle?: number;
+  /**
+   * When set, only runs with this `hostKind` are ticked. The daemon sets
+   * `"daemon"` so it never double-dispatches runs the Inspector owns.
+   */
+  hostKind?: "inspector" | "daemon" | "cli";
 };
 
 export class CoordinationSchedulerService {
   private readonly scheduler: CoordinationScheduler;
   private readonly store: CoordinationStore;
-  private readonly options: Required<CoordinationSchedulerServiceOptions>;
+  private readonly options: Required<Omit<CoordinationSchedulerServiceOptions, "hostKind">> & { hostKind?: "inspector" | "daemon" | "cli" };
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private renewTimer: ReturnType<typeof setInterval> | null = null;
@@ -44,6 +49,7 @@ export class CoordinationSchedulerService {
       renewIntervalMs: options.renewIntervalMs ?? DEFAULT_OWNERSHIP_RENEW_INTERVAL_MS,
       heartbeatIntervalMs: 15_000,
       maxRunsPerCycle: options.maxRunsPerCycle ?? 10,
+      ...(options.hostKind ? { hostKind: options.hostKind } : {}),
     };
   }
 
@@ -63,15 +69,14 @@ export class CoordinationSchedulerService {
   }
 
   /**
-   * Request an immediate tick for a specific run.
-   * Called by ApprovalWatcher when approvals are resolved.
-   * Returns immediately — does not wait for tick completion.
+   * Request an immediate tick for a specific run (e.g. after an approval
+   * resolves). Fire-and-forget: the tick is serialized against the poll
+   * loop via `tickInProgress`, so a resolved approval resumes a blocked
+   * run without waiting for the next poll cycle.
    */
-  requestTick(_runId: string): void {
-    // Fire-and-forget: will be picked up on next poll cycle
-    // For immediate processing, we could trigger here,
-    // but to maintain non-overlapping guarantees, we schedule for next poll.
-    // The next tickAll() will pick it up.
+  requestTick(runId: string): void {
+    if (this.stopped) return;
+    void this.scheduler.tick(runId).catch(() => {});
   }
 
   async shutdown(): Promise<void> {
@@ -86,6 +91,7 @@ export class CoordinationSchedulerService {
       const runs = await this.store.list();
       const active = runs
         .filter(r => r.status === "running" || r.status === "planning" || r.status === "blocked")
+        .filter(r => !this.options.hostKind || r.hostKind === this.options.hostKind)
         .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
       const cycle = active.slice(0, this.options.maxRunsPerCycle);
       for (const run of cycle) {

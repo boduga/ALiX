@@ -437,11 +437,23 @@ async function buildCoordinationRuntime(
 /** Run a run to idle detached; a live handle is kept for cancel. */
 function runDetached(runId: string, scheduler: CoordinationScheduler): void {
   backgroundSchedulers.set(runId, scheduler);
-  scheduler.runUntilIdle(runId).catch((err: unknown) => {
-    console.error(`[coordination] background run ${runId} failed: ${err instanceof Error ? err.message : String(err)}`);
-  }).finally(() => {
-    backgroundSchedulers.delete(runId);
-  });
+  void (async () => {
+    try {
+      let result = await scheduler.runUntilIdle(runId);
+      // Awaiting approval is not terminal: keep the scheduler alive and
+      // re-tick periodically so `reconcile` resumes the run once the
+      // operator approves (the isApproved binding check resets the
+      // worker to pending). Other stop reasons end the loop.
+      while (result.stopReason === "awaiting_approval" && backgroundSchedulers.has(runId)) {
+        await new Promise((r) => setTimeout(r, 3000));
+        result = await scheduler.runUntilIdle(runId);
+      }
+    } catch (err) {
+      console.error(`[coordination] background run ${runId} failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      backgroundSchedulers.delete(runId);
+    }
+  })();
 }
 
 async function handleStartRun(
@@ -513,7 +525,7 @@ export async function resumeInspectorRuns(cwd: string): Promise<number> {
     const { loadConfig } = await import("../config/loader.js");
     const { reclaimDeadOwnerWorkers, findResumableRuns } = await import("../kernel/coordination-resume.js");
     const store = new CoordinationStore(cwd);
-    const runIds = await findResumableRuns(store, "inspector");
+    const runIds = await findResumableRuns(store, ["inspector", "cli"]);
     if (runIds.length === 0) return 0;
 
     const config = await loadConfig(cwd);

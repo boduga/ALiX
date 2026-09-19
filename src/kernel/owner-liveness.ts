@@ -2,16 +2,16 @@
  * owner-liveness.ts — Liveness of a coordination execution owner.
  *
  * Coordination schedulers tag workers with an `executionOwnerId` of the
- * form `<kind>-<pid>` (web/tool/cli). When a host process dies mid-run,
- * its workers stay `running` with a dead owner. Detecting that lets a new
- * host reclaim and retry them instead of waiting out the heartbeat
- * threshold or leaving the run stuck forever.
+ * form `<kind>-<pid>` (web/tool/cli/daemon). When a host process dies
+ * mid-run, its workers stay `running` with a dead owner. Detecting that
+ * lets a new host reclaim and retry them instead of waiting out the
+ * heartbeat threshold or leaving the run stuck forever.
  *
  * Unparseable owners (e.g. a named daemon) report alive: we must never
  * steal a run from a host we cannot prove is dead.
  */
 
-const OWNER_PATTERN = /^(?:web|tool|cli)-(\d+)$/;
+const OWNER_PATTERN = /^(?:web|tool|cli|daemon)-(\d+)$/;
 
 export function parseOwnerPid(ownerId: string | undefined | null): number | null {
   if (!ownerId) return null;
