@@ -73,6 +73,9 @@ function readJsonBody(req: IncomingMessage | undefined): Promise<{ ok: true; val
       }
     });
     req.on("error", () => done({ ok: false, error: "body_error" }));
+    // Premature client disconnect: without this the promise hangs forever
+    // when the connection drops mid-body.
+    req.on("close", () => done({ ok: false, error: "body_error" }));
   });
 }
 

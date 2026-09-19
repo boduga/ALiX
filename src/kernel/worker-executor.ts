@@ -45,14 +45,28 @@ export interface CoordinationWorkerExecutor {
  * Previously `null` was passed and every worker crashed on the first
  * `eventLog.append` ("Cannot read properties of null"). The log lives
  * under the shared session dir so worker turns stay inspectable.
+ * Initializations are cached per session dir: parallel workers sharing
+ * one session would otherwise race mkdir/init on the same files.
  */
+const sharedEventLogs = new Map<string, Promise<EventLog>>();
+
 async function initSharedEventLog(cwd: string, sessionId: string): Promise<EventLog> {
-  const { EventLog } = await import("../events/event-log.js");
   const sessionDir = join(cwd, ".alix", "sessions", sessionId);
-  await mkdir(sessionDir, { recursive: true });
-  const log = new EventLog(sessionDir);
-  await log.init();
-  return log as EventLog;
+  let pending = sharedEventLogs.get(sessionDir);
+  if (!pending) {
+    pending = (async (): Promise<EventLog> => {
+      const { EventLog } = await import("../events/event-log.js");
+      await mkdir(sessionDir, { recursive: true });
+      const log = new EventLog(sessionDir);
+      await log.init();
+      return log as EventLog;
+    })();
+    sharedEventLogs.set(sessionDir, pending);
+    pending.catch(() => {
+      if (sharedEventLogs.get(sessionDir) === pending) sharedEventLogs.delete(sessionDir);
+    });
+  }
+  return pending;
 }
 
 /**

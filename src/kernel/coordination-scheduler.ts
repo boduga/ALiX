@@ -616,6 +616,9 @@ export class CoordinationScheduler {
             attempt: (current?.attempt ?? 0) + 1,
           }).catch(() => {});
           this.activeExecutions.delete(exec.workerId);
+          // The reaped promise is no longer awaited by the loop: swallow a
+          // late rejection so it can never surface as unhandled.
+          exec.promise.catch(() => {});
           totalFailed++;
         }
       }
