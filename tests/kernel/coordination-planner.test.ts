@@ -67,10 +67,10 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(result.run!.workers.map(w => w.agentId), ["agent-a", "agent-b", "agent-a"]);
   });
 
-  it("falls back to coordinator when pool is empty", async () => {
-    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([makeNode("a")])), toolRegistry: registry });
+  it("labels workers distinctly when pool is empty", async () => {
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([makeNode("a"), makeNode("b")])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.equal(result.run!.workers[0].agentId, "coordinator");
+    assert.deepEqual(result.run!.workers.map(w => w.agentId), ["coordinator#1", "coordinator#2"]);
   });
 
   it("blocks invalid planner result", async () => {

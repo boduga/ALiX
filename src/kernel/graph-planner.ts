@@ -49,6 +49,13 @@ Rules:
 Capability catalog:
 {{capabilityCatalog}}
 
+Example — plain goal in, titled nodes out:
+Goal: Create two files in parallel. Worker A creates .tmp/a.txt with 'A done'. Worker B creates .tmp/b.txt with 'B done'.
+{"nodes": [
+  {"id": "n1", "title": "Write file A", "goal": "Create .tmp/a.txt containing exactly 'A done'", "domain": "coding", "role": "worker", "requiredCapabilities": ["filesystem.write"], "dependencies": []},
+  {"id": "n2", "title": "Write file B", "goal": "Create .tmp/b.txt containing exactly 'B done'", "domain": "coding", "role": "worker", "requiredCapabilities": ["filesystem.write"], "dependencies": []}
+]}
+
 Task:`;
 
 /** Validate a parsed TaskGraph structure. */
@@ -319,6 +326,9 @@ export class GraphPlanner {
         prompt,
         stream: false,
         format: "json",
+        // Planning is deterministic work: temperature 0 keeps titles,
+        // ids, and capability names stable on flash-tier models.
+        options: { temperature: 0 },
       }),
       signal: AbortSignal.timeout(120000),
     });

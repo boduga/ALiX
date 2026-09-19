@@ -199,7 +199,13 @@ export class CoordinationPlanner {
       taskGraphRef,
     });
 
-    const pool = this.agentPool.length > 0 ? this.agentPool : [coordinatorAgentId];
+    // Distinct owner labels by default: an empty pool previously stamped
+    // every worker with the coordinator id, making parallel workers
+    // indistinguishable in listings. Indexed suffixes preserve attribution
+    // (prefix is still the coordinator) while telling workers apart.
+    // An explicit agentPool keeps round-robin behavior.
+    const pool = this.agentPool.length > 0 ? this.agentPool : [];
+    const defaultLabel = (index: number): string => `${coordinatorAgentId}#${index + 1}`;
     const nodeToWorkerId = new Map<string, string>();
     const workers: WorkerAssignment[] = [];
 
@@ -210,7 +216,7 @@ export class CoordinationPlanner {
       const mutationClass = classifyCapabilities(node.requiredCapabilities ?? [], this.toolRegistry);
       const ownershipScopes = inferOwnershipScopes(node, mutationClass);
       const claimResult = compileOwnershipClaims(ownershipScopes);
-      const agentId = pool[workers.length % pool.length];
+      const agentId = pool.length > 0 ? pool[workers.length % pool.length] : defaultLabel(workers.length);
 
       workers.push(createWorkerAssignment({
         id: workerId,
