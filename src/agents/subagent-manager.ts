@@ -69,6 +69,9 @@ export class SubagentManager {
           taskId: task.id,
           role: task.role,
           model: `${provider}/${name}`,
+          ...(task.coordinationRunId ? { coordinationRunId: task.coordinationRunId } : {}),
+          ...(task.assignedAgentId ? { assignedAgentId: task.assignedAgentId } : {}),
+          ...(task.taskLabel ? { taskLabel: task.taskLabel } : {}),
         };
         // Emit subagent.started event
         this.options.eventLog?.append({
@@ -85,7 +88,7 @@ export class SubagentManager {
         });
         this.emitLifecycle("agent.task_assigned", {
           ...lifecycleBase,
-          title: task.prompt.slice(0, 200),
+          title: task.taskLabel ?? task.prompt.slice(0, 200),
           prompt: task.prompt.slice(0, 200),
           ownedPaths: task.ownedPaths ?? [],
         });

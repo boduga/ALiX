@@ -30,6 +30,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 140, top: 3, bottom: 18, layout,
       agents: { active: 1, totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 1, costCoverage: 1 }, agents: [{
         agentId: 'a1', role: 'worker', state: 'tool_running', currentOperation: 'Editing composer',
+        coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', taskLabel: 'Finish Workbench',
         activeTool: { toolCallId: 'tc1', toolName: 'patch.apply', startedAt: 1, lastProgressAt: 2501, elapsedMs: 2500 },
         model: 'qwen-test',
         ownedPaths: ['src/tui'], startedAt: 1, lastProgressAt: 2,
@@ -41,6 +42,7 @@ describe('Workbench responsive drawer', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('AGENTS  1 active');
     expect(frame).toContain('worker · tool_running');
+    expect(frame).toContain('run coord-1 · assigned alix#2');
     expect(frame).toContain('›● worker · tool_running');
     expect(frame).toContain('Editing composer');
     expect(frame).toContain('tool patch.apply · 2.5s');
@@ -77,6 +79,7 @@ describe('Workbench responsive drawer', () => {
         queued: 1, running: 1,
         tasks: [{
           taskId: 'task-1', agentId: 'agent-1', title: 'Finish Workbench', state: 'running',
+          coordinationRunId: 'coord-1', assignedAgentId: 'alix#2',
           currentOperation: 'Rendering task cards', ownedPaths: ['src/tui'], createdAt: 1, updatedAt: 2,
         }],
       },
@@ -85,6 +88,7 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('TASKS  1 running · 1 queued');
     expect(frame).toContain('● Finish Workbench');
     expect(frame).toContain('running · agent agent-1');
+    expect(frame).toContain('run coord-1 · assigned alix#2');
     expect(frame).toContain('Rendering task cards');
     expect(frame).toContain('owns src/tui');
   });

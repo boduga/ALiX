@@ -3,6 +3,8 @@ export type WorkbenchTaskState = 'queued' | 'assigned' | 'running' | 'completed'
 export interface TaskSummary {
   readonly taskId: string;
   readonly agentId?: string;
+  readonly coordinationRunId?: string;
+  readonly assignedAgentId?: string;
   readonly title: string;
   readonly state: WorkbenchTaskState;
   readonly currentOperation?: string;

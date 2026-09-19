@@ -82,6 +82,9 @@ describe("taskForWorker", () => {
     assert.equal(task.mode, "write");
     assert.deepEqual(task.ownedPaths, [".tmp/a.txt"]);
     assert.ok(task.prompt.includes(".tmp/a.txt"));
+    assert.equal(task.coordinationRunId, "coord_test");
+    assert.equal(task.assignedAgentId, "alix#1");
+    assert.equal(task.taskLabel, "Do");
   });
 
   it("builds a read-only task without owned paths", () => {

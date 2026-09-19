@@ -30,6 +30,9 @@ export interface AgentUsageSummary {
 export interface AgentSummary {
   readonly agentId: string;
   readonly parentAgentId?: string;
+  readonly coordinationRunId?: string;
+  readonly assignedAgentId?: string;
+  readonly taskLabel?: string;
   readonly role: string;
   readonly model?: string;
   readonly state: WorkbenchAgentState;

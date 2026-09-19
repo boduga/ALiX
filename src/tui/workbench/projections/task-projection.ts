@@ -38,6 +38,8 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
         this.byId.set(id, {
           taskId: id,
           agentId: typeof p.agentId === 'string' ? p.agentId : previous?.agentId ?? id,
+          ...(typeof p.coordinationRunId === 'string' ? { coordinationRunId: p.coordinationRunId } : previous?.coordinationRunId ? { coordinationRunId: previous.coordinationRunId } : {}),
+          ...(typeof p.assignedAgentId === 'string' ? { assignedAgentId: p.assignedAgentId } : previous?.assignedAgentId ? { assignedAgentId: previous.assignedAgentId } : {}),
           title: typeof p.prompt === 'string' ? p.prompt : typeof p.title === 'string' ? p.title : previous?.title ?? id,
           state: event.type === 'agent.task_assigned' ? 'assigned' : 'running',
           ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((v): v is string => typeof v === 'string') : previous?.ownedPaths ?? [],

@@ -80,6 +80,9 @@ export function taskForWorker(
     ownedPaths,
     contextBundle: sessionId,
     cwd,
+    coordinationRunId: worker.coordinationRunId,
+    assignedAgentId: worker.agentId,
+    taskLabel: worker.taskLabel,
   };
 }
 

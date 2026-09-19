@@ -59,6 +59,9 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
         this.byId.set(id, {
           agentId: id,
           ...(typeof p.parentAgentId === 'string' ? { parentAgentId: p.parentAgentId } : {}),
+          ...(typeof p.coordinationRunId === 'string' ? { coordinationRunId: p.coordinationRunId } : {}),
+          ...(typeof p.assignedAgentId === 'string' ? { assignedAgentId: p.assignedAgentId } : {}),
+          ...(typeof p.taskLabel === 'string' ? { taskLabel: p.taskLabel } : {}),
           role: typeof p.role === 'string' ? p.role : previous?.role ?? 'agent',
           ...(typeof p.model === 'string' ? { model: p.model } : previous?.model ? { model: previous.model } : {}),
           state: stateOf(p.state, 'starting'),

@@ -345,6 +345,9 @@ export type SubagentTask = {
   contextBundle?: string; // serialized context from ContextCompiler
   cwd?: string; // working directory for the spawned subagent process
   scriptedScenarioJson?: string; // scripted provider scenario for the eval harness
+  coordinationRunId?: string; // optional operator-facing correlation metadata
+  assignedAgentId?: string; // planner-assigned agent label; not the execution identity
+  taskLabel?: string; // concise operator-facing task title
 };
 
 export type SubagentResult = {

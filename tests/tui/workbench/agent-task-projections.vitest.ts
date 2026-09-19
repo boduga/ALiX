@@ -97,6 +97,29 @@ describe('Workbench agent and task projections', () => {
     });
   });
 
+  it('preserves coordination metadata without conflating agent and worker identity', () => {
+    const agents = new AgentRosterProjection();
+    const tasks = new TaskProjection();
+    const events = [
+      event(1, 'agent.spawned', {
+        agentId: 'worker-1', taskId: 'worker-1', role: 'worker', state: 'starting',
+        coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', taskLabel: 'Repair planner',
+      }),
+      event(2, 'agent.task_assigned', {
+        agentId: 'worker-1', taskId: 'worker-1', title: 'Repair planner',
+        coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', taskLabel: 'Repair planner',
+      }),
+    ];
+    agents.update(events);
+    tasks.update(events);
+    expect(agents.snapshot().agents[0]).toMatchObject({
+      agentId: 'worker-1', coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', taskLabel: 'Repair planner',
+    });
+    expect(tasks.snapshot().tasks[0]).toMatchObject({
+      taskId: 'worker-1', agentId: 'worker-1', coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', title: 'Repair planner',
+    });
+  });
+
   it('keeps unknown usage unavailable and preserves explicit zero values', () => {
     const agents = new AgentRosterProjection();
     agents.update([event(1, 'agent.spawned', { agentId: 'agent-1', state: 'thinking' })]);

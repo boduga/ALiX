@@ -54,6 +54,11 @@ export function paintRosterDrawer(input: {
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
       const selected = agent.agentId === input.selectedAgentId ? '›' : ' ';
       canvas.write(left + 2, row++, fit(`${selected}${active} ${agent.role} · ${agent.state}`, inner));
+      if (row <= bottom - 1 && (agent.coordinationRunId || agent.assignedAgentId)) {
+        const run = agent.coordinationRunId ? `run ${agent.coordinationRunId}` : '';
+        const assigned = agent.assignedAgentId ? `assigned ${agent.assignedAgentId}` : '';
+        canvas.write(left + 2, row++, `\x1b[90m${fit([run, assigned].filter(Boolean).join(' · '), inner)}${RESET}`);
+      }
       if (row <= bottom - 1 && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
         const label = agent.liveness.state === 'stalled' ? 'possibly stalled' : 'slow progress';
         canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
@@ -86,6 +91,11 @@ export function paintRosterDrawer(input: {
       canvas.write(left + 2, row++, fit(`${taskStateGlyph(task.state)} ${task.title}`, inner));
       const owner = task.agentId ? ` · agent ${task.agentId}` : '';
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
+      if (row <= bottom - 1 && (task.coordinationRunId || task.assignedAgentId)) {
+        const run = task.coordinationRunId ? `run ${task.coordinationRunId}` : '';
+        const assigned = task.assignedAgentId ? `assigned ${task.assignedAgentId}` : '';
+        canvas.write(left + 2, row++, `\x1b[90m${fit([run, assigned].filter(Boolean).join(' · '), inner)}${RESET}`);
+      }
       if (row <= bottom - 1 && task.currentOperation && task.currentOperation !== task.title) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(task.currentOperation, inner)}${RESET}`);
       }
