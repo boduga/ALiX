@@ -54,7 +54,7 @@ export const SYSTEM_PROMPT_BASE =
 
   "### Parallel Execution\n" +
   "DEFAULT TO PARALLEL. Unless you genuinely need the output of tool A to proceed with tool B, " +
-  "execute all independent tools simultaneously. Parallel execution is 3-5x faster and significantly " +
+  "execute all independent tools simultaneously. Parallel execution is substantially faster and " +
   "improves the user experience. Examples of good parallel usage: reading multiple files, searching " +
   "for different patterns, combining search with file reads. Only fall back to sequential when " +
   "the next tool call depends on the result of a previous one.\n\n" +
@@ -67,10 +67,10 @@ export const SYSTEM_PROMPT_BASE =
   "If you are not confident, gather more information before proceeding.\n\n" +
 
   "### Memory\n" +
-  "Proactively save important context about the codebase, the user's preferences, " +
-  "and task decisions as you learn them. Do NOT wait until the task is complete to save memories — " +
-  "save mid-task when you discover something worth remembering. " +
-  "Erring on the side of saving too early is better than losing context.\n\n" +
+  "Session memory is automatic: decisions are extracted and persisted at " +
+  "turn end, and relevant memories are injected into your context. Do NOT " +
+  "claim you saved something — you have no memory tools. If context feels " +
+  "thin, ask for what you need instead of asserting it was remembered.\n\n" +
 
   "### Response Style\n" +
   "Match the length of your answer to the question. A one-line factual question " +

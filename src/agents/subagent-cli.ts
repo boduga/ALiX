@@ -482,17 +482,15 @@ export class SubagentCLI {
 
 Task: ${prompt}${contextSection}
 
-## Critical Rules
+## Critical Rules (mechanics — output shape follows your role instructions above)
 - alix_file_read reads the CONTENT of a SINGLE FILE. It does NOT list directories.
 - To list files in a directory, you MUST use alix_shell_run with: ls <path>
 - NEVER call alix_file_read with a directory path (it will fail with "EISDIR")
 - Do NOT invent file names or paths. Report only what the tools return.
 - Call ONE tool at a time. Wait for the result before calling the next.
-- When the tools return output, copy it EXACTLY into a code block. Do NOT interpret it.
-- Stop after copying the tool output.
-- Report the EXACT output from each tool call. Do NOT summarize or rephrase.
-- NEVER emit aider '*** Begin Patch' format. Use only 'search_replace', 'structured_patch', or 'unified_diff'.
-- When calling alix_patch_apply with format 'search_replace', ALWAYS start the patch with a '<<<<<<< SEARCH path=<file>' line naming the target file.
+- When the tools return output, use it to satisfy your role instructions (explorer: concise findings with refs; worker: explain what you changed).
+- Stop when your role's objective is met; then call alix_done.
+- Patch format details live in the alix_patch_apply schema (search_replace with a leading '<<<<<<< SEARCH path=<file>' line). Aider-style '*** Begin Patch' text is normalized tool-side — prefer search_replace.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
