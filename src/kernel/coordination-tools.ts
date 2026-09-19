@@ -16,6 +16,7 @@
  */
 
 import type { AlixConfig } from "../config/schema.js";
+import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
@@ -58,10 +59,8 @@ function effectiveSessionMode(
   config: AlixConfig,
   arg: unknown,
 ): "auto" | "ask" | "bypass" {
-  if (arg === "bypass" || arg === "auto" || arg === "ask") return arg;
-  const current = config.permissions.sessionMode;
-  if (current === "bypass" || current === "auto" || current === "ask") return current;
-  return "ask";
+  if (arg === "auto" || arg === "ask" || arg === "bypass") return arg;
+  return parseSessionMode(config.permissions.sessionMode);
 }
 
 async function handleCoordinationRun(

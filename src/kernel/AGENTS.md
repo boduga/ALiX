@@ -6,7 +6,12 @@
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
 - `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
-- `graph-planner.ts` — Model-based graph generation from goals
+- `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
+- `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
+- `coordination-scheduler.ts` — Bounded parallel dispatch (maxConcurrency 8, per-worker timeout watchdog, heartbeats/leases, cancel)
+- `coordination-tools.ts` — Chat-tool handlers (run/status/results; subagent executor when enabled)
+- `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
+- `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**
 - GraphExecutor runs nodes sequentially, stops on first failure.
@@ -23,4 +28,8 @@
 **Verification:**
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
-- `tests/kernel/graph-planner.test.ts` — plan generation
+- `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry
+- `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
+- `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
+- `tests/kernel/coordination-tools.test.ts` — chat handlers
+- `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel

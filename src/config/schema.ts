@@ -2,6 +2,17 @@ import type { ContextBudgetConfig } from "./context-budget.js";
 
 export type SessionMode = "auto" | "ask" | "bypass";
 
+/**
+ * Parse a session-mode value from untrusted input (CLI flags, tool args,
+ * POST bodies). Returns the value when it is a valid mode, otherwise the
+ * fallback. Single authority for the allowlist previously repeated at
+ * every boundary (subagent-manager, coordination-tools/routes).
+ */
+export function parseSessionMode(value: unknown, fallback: SessionMode = "ask"): SessionMode {
+  if (value === "auto" || value === "ask" || value === "bypass") return value;
+  return fallback;
+}
+
 export type Decision = "ask" | "allow" | "deny";
 
 export type ModelCapabilityName = "tools" | "structured_output" | "vision";

@@ -3,6 +3,7 @@ import { buildChildEnv } from "../runtime/child-env.js";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
+import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 
 // Re-export types for consumers
@@ -28,6 +29,23 @@ type RunningSubagent = {
 };
 
 export type SubagentResultCallback = (result: SubagentResult) => void;
+
+/**
+ * Presentation-only coordination correlation fields for lifecycle events.
+ * The three always travel together (planner → task → roster drawer), so
+ * they are gathered here rather than spread ad hoc at each emit site.
+ */
+export function coordinationPresentationMeta(task: SubagentTask): {
+  coordinationRunId?: string;
+  assignedAgentId?: string;
+  taskLabel?: string;
+} {
+  return {
+    ...(task.coordinationRunId ? { coordinationRunId: task.coordinationRunId } : {}),
+    ...(task.assignedAgentId ? { assignedAgentId: task.assignedAgentId } : {}),
+    ...(task.taskLabel ? { taskLabel: task.taskLabel } : {}),
+  };
+}
 
 export class SubagentManager {
   private running = new Map<string, RunningSubagent>();
@@ -69,9 +87,7 @@ export class SubagentManager {
           taskId: task.id,
           role: task.role,
           model: `${provider}/${name}`,
-          ...(task.coordinationRunId ? { coordinationRunId: task.coordinationRunId } : {}),
-          ...(task.assignedAgentId ? { assignedAgentId: task.assignedAgentId } : {}),
-          ...(task.taskLabel ? { taskLabel: task.taskLabel } : {}),
+          ...coordinationPresentationMeta(task),
         };
         // Emit subagent.started event
         this.options.eventLog?.append({
@@ -97,10 +113,7 @@ export class SubagentManager {
         }
 
         // Build CLI args array
-        const parentMode = this.options.config?.permissions?.sessionMode;
-        const sessionMode = parentMode === "bypass" || parentMode === "auto" || parentMode === "ask"
-          ? parentMode
-          : "ask";
+        const sessionMode = parseSessionMode(this.options.config?.permissions?.sessionMode);
         const cliArgs = [
           "run", "--subagent", task.role,
           "--task-id", task.id,

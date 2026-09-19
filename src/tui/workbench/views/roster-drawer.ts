@@ -18,6 +18,14 @@ function taskStateGlyph(state: TaskRosterSnapshot['tasks'][number]['state']): st
   return '○';
 }
 
+/** Dim coordination correlation line shared by agent and task rows. */
+function formatCoordMeta(entry: { coordinationRunId?: string; assignedAgentId?: string }): string | null {
+  if (!entry.coordinationRunId && !entry.assignedAgentId) return null;
+  const run = entry.coordinationRunId ? `run ${entry.coordinationRunId}` : '';
+  const assigned = entry.assignedAgentId ? `assigned ${entry.assignedAgentId}` : '';
+  return [run, assigned].filter(Boolean).join(' · ');
+}
+
 export function paintRosterDrawer(input: {
   readonly canvas: TerminalCanvas;
   readonly terminalColumns: number;
@@ -54,10 +62,9 @@ export function paintRosterDrawer(input: {
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
       const selected = agent.agentId === input.selectedAgentId ? '›' : ' ';
       canvas.write(left + 2, row++, fit(`${selected}${active} ${agent.role} · ${agent.state}`, inner));
-      if (row <= bottom - 1 && (agent.coordinationRunId || agent.assignedAgentId)) {
-        const run = agent.coordinationRunId ? `run ${agent.coordinationRunId}` : '';
-        const assigned = agent.assignedAgentId ? `assigned ${agent.assignedAgentId}` : '';
-        canvas.write(left + 2, row++, `\x1b[90m${fit([run, assigned].filter(Boolean).join(' · '), inner)}${RESET}`);
+      const coordMeta = formatCoordMeta(agent);
+      if (row <= bottom - 1 && coordMeta) {
+        canvas.write(left + 2, row++, `\x1b[90m${fit(coordMeta, inner)}${RESET}`);
       }
       if (row <= bottom - 1 && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
         const label = agent.liveness.state === 'stalled' ? 'possibly stalled' : 'slow progress';
@@ -91,10 +98,9 @@ export function paintRosterDrawer(input: {
       canvas.write(left + 2, row++, fit(`${taskStateGlyph(task.state)} ${task.title}`, inner));
       const owner = task.agentId ? ` · agent ${task.agentId}` : '';
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
-      if (row <= bottom - 1 && (task.coordinationRunId || task.assignedAgentId)) {
-        const run = task.coordinationRunId ? `run ${task.coordinationRunId}` : '';
-        const assigned = task.assignedAgentId ? `assigned ${task.assignedAgentId}` : '';
-        canvas.write(left + 2, row++, `\x1b[90m${fit([run, assigned].filter(Boolean).join(' · '), inner)}${RESET}`);
+      const taskCoordMeta = formatCoordMeta(task);
+      if (row <= bottom - 1 && taskCoordMeta) {
+        canvas.write(left + 2, row++, `\x1b[90m${fit(taskCoordMeta, inner)}${RESET}`);
       }
       if (row <= bottom - 1 && task.currentOperation && task.currentOperation !== task.title) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(task.currentOperation, inner)}${RESET}`);

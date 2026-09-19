@@ -55,18 +55,20 @@ export const DOMAIN_SCOPE_MAP: Record<string, string[]> = {
  */
 export function extractGoalPaths(goal: string): string[] {
   const found = new Set<string>();
-  const accept = (inner: string): void => {
-    const clean = inner.trim().replace(/^\.\//, "").replace(/^\//, "").replace(/[.,;:)\"'`]+$/, "");
+  // Normalize a candidate token and add it only if it is a plausible
+  // workspace-relative path (not a URL, flag, or prose word).
+  const addIfWorkspacePath = (candidate: string): void => {
+    const clean = candidate.trim().replace(/^\.\//, "").replace(/^\//, "").replace(/[.,;:)\"'`]+$/, "");
     if (!clean || /\s/.test(clean)) return;
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(clean)) return;
     if (clean.startsWith("-")) return;
     if (!clean.includes("/") && !/\.[a-z0-9]{1,5}$/i.test(clean)) return;
     found.add(clean);
   };
-  const quoted = goal.match(/[`"']([^`"'${}]+)[`"']/g) ?? [];
-  for (const m of quoted) accept(m.slice(1, -1));
-  const bare = goal.match(/(?:^|[\s(])(\.\.?\/[\w.\-+/$]+|[\w.+\-]+(?:\/[\w.+\-]+)+)(?=$|[\s).,;:!?])/g) ?? [];
-  for (const m of bare) accept(m.trim().replace(/^[([]/, ""));
+  const quotedTokens = goal.match(/[`"']([^`"'${}]+)[`"']/g) ?? [];
+  for (const token of quotedTokens) addIfWorkspacePath(token.slice(1, -1));
+  const bareTokens = goal.match(/(?:^|[\s(])(\.\.?\/[\w.\-+/$]+|[\w.+\-]+(?:\/[\w.+\-]+)+)(?=$|[\s).,;:!?])/g) ?? [];
+  for (const token of bareTokens) addIfWorkspacePath(token.trim().replace(/^[([]/, ""));
   return [...found].sort();
 }
 

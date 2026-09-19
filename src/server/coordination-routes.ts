@@ -28,6 +28,7 @@ import { CoordinationAggregateStore } from "../kernel/coordination-aggregate-sto
 import { buildCoordinationRunView } from "../kernel/coordination-view.js";
 import { CollaborationStore } from "../kernel/collaboration-store.js";
 import { ConflictRepository } from "../kernel/collaboration-conflict-repository.js";
+import { parseSessionMode } from "../config/schema.js";
 import type { CoordinationScheduler } from "../kernel/coordination-scheduler.js";
 import type { SecurityContext } from "../security/inspector/security-context.js";
 import type { SecureJsonResponder } from "./secure-response.js";
@@ -373,7 +374,8 @@ async function handleStartRun(
   const rawConcurrency = typeof body.value.maxConcurrency === "number" ? body.value.maxConcurrency : 2;
   const maxConcurrency = Math.min(8, Math.max(1, Math.floor(rawConcurrency)));
   const sessionMode = body.value.sessionMode;
-  if (sessionMode !== undefined && sessionMode !== "auto" && sessionMode !== "ask" && sessionMode !== "bypass") {
+  // Valid modes round-trip through the parser; anything else is rejected.
+  if (sessionMode !== undefined && parseSessionMode(sessionMode) !== sessionMode) {
     r.error("invalid_session_mode", 400);
     return;
   }
