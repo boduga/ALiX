@@ -390,13 +390,12 @@ async function handleStartRun(
     const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
     const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
     const { PolicyGate } = await import("../policy/policy-gate.js");
-    const { DefaultWorkerExecutor } = await import("../kernel/worker-executor.js");
     const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
     const { ApprovalStore } = await import("../approvals/approval-store.js");
 
     const config = await loadConfig(cwd);
-    if (sessionMode === "auto" || sessionMode === "ask" || sessionMode === "bypass") {
-      config.permissions.sessionMode = sessionMode;
+    if (sessionMode !== undefined) {
+      config.permissions.sessionMode = parseSessionMode(sessionMode);
     }
     const store = new CoordinationStore(cwd);
     const toolRegistry = buildDefaultToolIndex().registry;
@@ -412,7 +411,21 @@ async function handleStartRun(
     const policyGate = new PolicyGate(config, { approvalStore });
     const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
     const registry = new OwnershipRegistry(cwd);
-    const executor = new DefaultWorkerExecutor();
+    // Same execution backend as the chat path: subagent child processes
+    // when subagents are enabled, so web runs share dispatch, ownership,
+    // lifecycle, and sessionMode propagation with delegate/chat. Falls
+    // back to the in-process executor when subagents are disabled.
+    let executor: import("../kernel/worker-executor.js").CoordinationWorkerExecutor;
+    if (config.subagents?.enabled) {
+      const { SubagentWorkerExecutor } = await import("../kernel/subagent-worker-executor.js");
+      executor = new SubagentWorkerExecutor({
+        sessionId: `coord-web-${Date.now()}`,
+        config,
+      });
+    } else {
+      const { DefaultWorkerExecutor } = await import("../kernel/worker-executor.js");
+      executor = new DefaultWorkerExecutor();
+    }
     const scheduler = new CoordinationScheduler(
       {
         cwd,

@@ -8,6 +8,7 @@ import { relative } from "node:path";
 import { GraphPlanner, persistGraph, normalizeNodeCapabilities } from "./graph-planner.js";
 import { validateGraphDag } from "./graph-validator.js";
 import { classifyCapabilities } from "./mutation-classifier.js";
+import { isWriteWorker } from "./worker-role.js";
 import { compileOwnershipClaims } from "./ownership-claim-compiler.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "./coordination-types.js";
@@ -267,7 +268,13 @@ export class CoordinationPlanner {
       nodeToWorkerId.set(node.id, workerId);
 
       const mutationClass = classifyCapabilities(node.requiredCapabilities ?? [], this.toolRegistry);
-      const ownershipScopes = inferOwnershipScopes(node, mutationClass);
+      // Ownership must match execution privilege: only workers the executor
+      // will run in write mode claim write scopes. A read-only worker
+      // (explorer/researcher, including unknown-only capabilities) claims
+      // nothing, so the planner never over-reserves `**` for a node that
+      // cannot write.
+      const writer = isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] });
+      const ownershipScopes = writer ? inferOwnershipScopes(node, mutationClass) : [];
       const claimResult = compileOwnershipClaims(ownershipScopes);
       const agentId = pool.length > 0 ? pool[workers.length % pool.length] : defaultLabel(workers.length);
 
@@ -288,7 +295,7 @@ export class CoordinationPlanner {
         planOrder: planOrderByNode.get(node.id),
         ownershipClaims: claimResult.claims,
       }));
-      if (mutationClass !== "no-write" && extractGoalPaths(node.goal ?? "").length === 0) {
+      if (writer && extractGoalPaths(node.goal ?? "").length === 0) {
         ambiguousWriterIds.add(workerId);
       }
     }

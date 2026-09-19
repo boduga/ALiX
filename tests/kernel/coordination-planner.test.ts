@@ -149,20 +149,33 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[2].dependencies, [workers[1].id]);
   });
 
-  it("uses workspace-wide scope for unknown-write", async () => {
+  it("read-only node with an unknown capability claims no ownership", async () => {
     const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
       makeNode("unknown", [], { domain: "unknown", requiredCapabilities: ["custom.tool"] }),
     ])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.deepEqual(result.run!.workers[0].ownershipScopes, ["**"]);
+    // roleForWorker(["custom.tool"]) is explorer → read-only → no write scopes,
+    // so the planner must not over-reserve workspace-wide ownership.
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, []);
   });
 
-  it("unknown-write overrides known domain scope", async () => {
+  it("unknown capability does not force workspace-wide ownership on a read-only node", async () => {
     const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
       makeNode("unknown", [], { domain: "coding", requiredCapabilities: ["custom.tool"] }),
     ])), toolRegistry: registry });
     const result = await planner.plan("Test", "coordinator", "session-1");
-    assert.deepEqual(result.run!.workers[0].ownershipScopes, ["**"]);
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, []);
+  });
+
+  it("known writer with an extra unknown capability still claims goal scopes", async () => {
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(makeGraph([
+      makeNode("writer", [], {
+        goal: "Create `.tmp/w.txt`",
+        requiredCapabilities: ["filesystem.write", "custom.tool"],
+      }),
+    ])), toolRegistry: registry });
+    const result = await planner.plan("Test", "coordinator", "session-1");
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, [".tmp/w.txt"]);
   });
 
   it("does not persist unsafe graph IDs", async () => {

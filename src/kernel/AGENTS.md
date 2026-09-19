@@ -11,6 +11,7 @@
 - `coordination-scheduler.ts` — Bounded parallel dispatch (maxConcurrency 8, per-worker timeout watchdog, heartbeats/leases, cancel)
 - `coordination-tools.ts` — Chat-tool handlers (run/status/results; subagent executor when enabled)
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
+- `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**

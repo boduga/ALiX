@@ -21,32 +21,17 @@
 
 import { randomUUID } from "node:crypto";
 import { SubagentManager } from "../agents/subagent-manager.js";
-import type { SubagentRole, SubagentTask, AlixConfig } from "../config/schema.js";
+import type { SubagentTask, AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import type { WorkerAssignment } from "./coordination-types.js";
+import { roleForWorker } from "./worker-role.js";
 import type {
   CoordinationWorkerExecutor,
   WorkerExecutionContext,
   WorkerExecutionResult,
 } from "./worker-executor.js";
 
-const WRITE_CAPABILITIES = new Set([
-  "filesystem.write",
-  "file.create",
-  "file.delete",
-  "patch.apply",
-  "shell.exec",
-  "shell.run",
-]);
-
-const RESEARCH_CAPABILITIES = new Set(["web.search", "web.fetch"]);
-
-export function roleForWorker(worker: Pick<WorkerAssignment, "requiredCapabilities">): SubagentRole {
-  const caps = worker.requiredCapabilities ?? [];
-  if (caps.some(c => WRITE_CAPABILITIES.has(c))) return "worker";
-  if (caps.some(c => RESEARCH_CAPABILITIES.has(c))) return "researcher";
-  return "explorer";
-}
+export { roleForWorker } from "./worker-role.js";
 
 /** Owned paths for a write worker: exact claim paths first, then scopes. */
 export function ownedPathsForWorker(

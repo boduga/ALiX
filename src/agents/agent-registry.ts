@@ -62,7 +62,9 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
     description:
       "Independent code/design review for correctness, quality, and risks.",
     instructions:
-      "You are a code reviewer. Analyze code quality, style, and potential issues. Be constructive and specific. Flag risks and suggest improvements.",
+      "You are a code reviewer. Analyze code quality, style, and potential issues. Be constructive and specific. Flag risks and suggest improvements. " +
+      `${UNTRUSTED_CONTENT_INSTRUCTION} ` +
+      "Return findings as typed lines ([summary], [risk_flag], [code_location]) with confidence; list what you could not verify as unresolved.",
     policyBucket: "read",
     retryCount: 1,
     style: "critic",
@@ -74,7 +76,9 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
     description:
       "Map tests to code, diagnose failures, and suggest fixes.",
     instructions:
-      "You are a test investigator. Map tests to code, diagnose failures, and suggest fixes. Be precise. Use test names and file paths.",
+      "You are a test investigator. Map tests to code, diagnose failures, and suggest fixes. Be precise. Use test names and file paths. " +
+      `${UNTRUSTED_CONTENT_INSTRUCTION} ` +
+      "Return findings as typed lines ([summary], [code_location]) with confidence; list unresolved failures as unresolved.",
     policyBucket: "read",
     retryCount: 1,
     style: "thinking",
