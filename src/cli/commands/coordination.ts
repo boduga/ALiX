@@ -28,9 +28,12 @@ import { buildDefaultToolIndex } from "../../tools/tool-registry.js";
 import { ConflictRepository } from "../../kernel/collaboration-conflict-repository.js";
 import { CollaborationStore } from "../../kernel/collaboration-store.js";
 
-function readFlag(args: string[], flag: string): string | undefined {
+export function readFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
-  return idx === -1 || idx + 1 >= args.length ? undefined : args[idx + 1];
+  if (idx !== -1 && idx + 1 < args.length) return args[idx + 1];
+  // Support `--flag=value` form (the usage strings advertise it).
+  const prefixed = args.find(a => a.startsWith(flag + "="));
+  return prefixed ? prefixed.slice(flag.length + 1) : undefined;
 }
 function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
