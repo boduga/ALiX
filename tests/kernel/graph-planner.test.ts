@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateGraphSchema, createFallbackGraph, normalizeNodeCapabilities, buildPlanPrompt, DEFAULT_CAPABILITY_CATALOG, GraphPlanner } from "../../src/kernel/graph-planner.js";
+import { validateGraphSchema, createFallbackGraph, normalizeNodeCapabilities, buildPlanPrompt, DEFAULT_CAPABILITY_CATALOG, GraphPlanner, isLocalStateGoal, applyLocalStateRouting } from "../../src/kernel/graph-planner.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import type { TaskGraph } from "../../src/kernel/task-graph.js";
 
@@ -195,5 +195,61 @@ describe("GraphPlanner", () => {
     } finally {
       globalThis.fetch = realFetch;
     }
+  });
+});
+
+describe("local-state routing guardrail", () => {
+  it("detects local-state goals", () => {
+    assert.equal(isLocalStateGoal("Use the state.query tool to list my 5 most recent sessions"), true);
+    assert.equal(isLocalStateGoal("Show my saved graphs"), true);
+    assert.equal(isLocalStateGoal("List pending approvals"), true);
+    assert.equal(isLocalStateGoal("What daemon tasks are running?"), true);
+    assert.equal(isLocalStateGoal("Fix the login bug"), false);
+    assert.equal(isLocalStateGoal("Research vector databases"), false);
+    assert.equal(isLocalStateGoal(undefined), false);
+  });
+
+  it("coerces web-capped local-state nodes to explorer + state.read", () => {
+    assert.deepEqual(
+      applyLocalStateRouting("List my sessions", ["web.search", "web.fetch"], "researcher"),
+      { requiredCapabilities: ["filesystem.read", "state.read"], role: "explorer" },
+    );
+    assert.deepEqual(
+      applyLocalStateRouting("Show my saved graphs", ["filesystem.read"], undefined),
+      { requiredCapabilities: ["filesystem.read", "state.read"], role: "explorer" },
+    );
+  });
+
+  it("leaves writers and non-local nodes untouched", () => {
+    assert.deepEqual(
+      applyLocalStateRouting("List my sessions", ["filesystem.write"], "worker"),
+      { requiredCapabilities: ["filesystem.write"], role: "worker" },
+    );
+    assert.deepEqual(
+      applyLocalStateRouting("Research vector databases", ["web.search"], "researcher"),
+      { requiredCapabilities: ["web.search"], role: "researcher" },
+    );
+    assert.deepEqual(
+      applyLocalStateRouting("Review the auth module", ["filesystem.read"], "reviewer"),
+      { requiredCapabilities: ["filesystem.read"], role: "reviewer" },
+    );
+  });
+
+  it("plan() coerces a model-picked researcher node for a local-state goal", async () => {
+    const modelJson = JSON.stringify({
+      nodes: [{
+        id: "n1", title: "List sessions", domain: "research", role: "researcher",
+        goal: "List my 5 most recent sessions",
+        requiredCapabilities: ["web.search"],
+      }],
+    });
+    const planner = new GraphPlanner({
+      generate: async () => modelJson,
+    });
+    const result = await planner.plan("list my sessions", "wf_localstate");
+    assert.equal(result.valid, true);
+    const node = result.graph.nodes[0];
+    assert.equal(node.role, "explorer");
+    assert.deepEqual(node.requiredCapabilities, ["filesystem.read", "state.read"]);
   });
 });
