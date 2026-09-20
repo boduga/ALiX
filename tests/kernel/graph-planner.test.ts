@@ -61,7 +61,7 @@ describe("GraphPlanner", () => {
     const catalog = new Set(DEFAULT_CAPABILITY_CATALOG);
     assert.deepEqual(
       normalizeNodeCapabilities({ requiredCapabilities: [], role: "explorer", domain: "coding" }, catalog),
-      ["filesystem.read", "filesystem.search"],
+      ["filesystem.read", "filesystem.search", "state.read"],
     );
     assert.deepEqual(
       normalizeNodeCapabilities({ requiredCapabilities: undefined, role: "researcher", domain: "research" }, catalog),
