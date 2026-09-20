@@ -108,6 +108,13 @@ export interface AgentTurnResult {
    * present.
    */
   readonly planTasks?: readonly PlanTask[];
+  /**
+   * Last model prose persisted as an agent.message event this turn, if any.
+   * Lets the TUI skip re-persisting an identical turn summary as
+   * agent.response (write-time dedup of a known double-write). Absent on
+   * direct routes and tool-only turns.
+   */
+  readonly lastAgentProse?: string;
 }
 
 /**
