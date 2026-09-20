@@ -194,6 +194,7 @@ describe("CardLoader", () => {
     assert.ok(cards.find(c => c.id === "coordination.run"));
     assert.ok(cards.find(c => c.id === "coordination.status"));
     assert.ok(cards.find(c => c.id === "coordination.list"));
+    assert.ok(cards.find(c => c.id === "state.query"));
     assert.ok(cards.find(c => c.id === "coordination.results"));
     // the old hand-written card ids are GONE
     assert.ok(!cards.find(c => c.id === "shell_exec"));

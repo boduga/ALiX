@@ -644,6 +644,24 @@ export class ScheduleToolRouter implements ToolRouter {
   }
 }
 
+/**
+ * state.query — read-only window into ALiX's own local state (sessions,
+ * audit, approvals, daemon tasks, schedules, graphs). Single bounded tool so
+ * the model stops guessing / web-searching for local state.
+ */
+export class StateToolRouter implements ToolRouter {
+  constructor(private readonly cwd: string) {}
+
+  canHandle(name: string): boolean {
+    return name === "state.query";
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const { handleStateQuery } = await import("./state-query.js");
+    return handleStateQuery(this.cwd, request.args);
+  }
+}
+
 export class WebToolsRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
   constructor(private readonly allowDomains: string[] = []) {}

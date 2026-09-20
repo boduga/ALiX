@@ -455,7 +455,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(fsTools.every(t => t.domain === "filesystem"));
 
   const systemTools = retriever.selectForDomain("system");
-  assert.strictEqual(systemTools.length, 6);
+  assert.strictEqual(systemTools.length, 7);
   assert.ok(systemTools.every(t => t.domain === "system"));
   assert.ok(systemTools.some(t => t.name === "done"));
   assert.ok(systemTools.some(t => t.name === "schedule.propose"));
@@ -463,7 +463,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(systemTools.some(t => t.name === "list_extensions"));
   assert.ok(systemTools.some(t => t.name === "inspect_extension"));
   assert.ok(systemTools.some(t => t.name === "create_hook"));
-  assert.ok(systemTools.some(t => t.name === "schedule.propose"));
+  assert.ok(systemTools.some(t => t.name === "state.query"));
 });
 
 test("ToolRetriever.selectForDomain returns empty array when domain has no tools", () => {
@@ -491,10 +491,10 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 23 tools", () => {
+test("buildDefaultToolIndex registers 24 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 23);
+  assert.strictEqual(all.length, 24);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
@@ -519,6 +519,7 @@ test("buildDefaultToolIndex registers 23 tools", () => {
     "patch.apply",
     "schedule.propose",
     "shell.run",
+    "state.query",
     "web_fetch",
     "web_search",
   ]);
@@ -535,7 +536,7 @@ test("buildDefaultToolIndex indexes all tags", () => {
     "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
     "grep", "hook", "inspect", "job", "list", "mcp", "modify", "multi-agent", "parallel", "patch",
     "propose", "read", "recurring", "regex", "remove", "results", "run", "runs", "schedule", "search",
-    "self-extend", "shell", "skill", "status", "subtask", "tool", "web", "workers", "write",
+    "self", "self-extend", "shell", "skill", "state", "status", "subtask", "tool", "web", "workers", "write",
   ];
   for (const tag of expectedTags) {
     assert.ok(tags.includes(tag), `Expected tag "${tag}" to be indexed`);

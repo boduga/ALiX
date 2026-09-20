@@ -170,8 +170,9 @@ Default section order:
   `agent-loop.ts` prompt. `TUI_SLASH_COMMANDS` is pinned to
   `parseWorkbenchBuiltinCommand` by `tests/agent/self-capabilities.test.ts`;
   update it when a CLI command group or slash command is added. Questions about
-  local state (runs, audits, sessions) are answered by inspecting the workspace
-  (`.alix/...`) or running the matching `alix` command — never web search.
+  local state are answered by the read-only `state.query` tool
+  (`sessions|audit|approvals|daemon|schedule|graphs`) or the matching `alix`
+  command — never web search.
 - **CLI foreground coordination runs self-heal (durable).** `alix coordination
   run` installs SIGINT/SIGTERM handlers that `cancelRun` before exit, and on
   start sweeps dead-owner `cli` runs via `cancelDeadOwnerRuns`
