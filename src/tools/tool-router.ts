@@ -601,6 +601,49 @@ export class DelegateToolRouter implements ToolRouter {
   }
 }
 
+/**
+ * schedule.propose — the agent's only path to a recurring job.
+ *
+ * Writes a PENDING approval to the global approval store (~/.alix/approvals);
+ * nothing runs until a human approves it and the daemon materializes it.
+ * `scheduledRun` blocks a scheduled job from proposing another.
+ */
+export class ScheduleToolRouter implements ToolRouter {
+  constructor(private readonly sessionId?: () => string | undefined) {}
+
+  canHandle(name: string): boolean {
+    return name === "schedule.propose";
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    if (process.env.ALIX_SCHEDULED_RUN === "1") {
+      return { kind: "error", message: "A scheduled run cannot propose another schedule.", retryable: false };
+    }
+    const { proposeSchedule } = await import("../schedule/propose.js");
+    const { openGlobalApprovalStore } = await import("../approvals/global-store.js");
+    const approvals = await openGlobalApprovalStore();
+    // Assemble the structured schedule from the flat wire params.
+    const { schedule_kind, time, days, minutes, ...rest } = request.args as Record<string, unknown>;
+    const schedule =
+      schedule_kind === "every"
+        ? { kind: "every", minutes }
+        : { kind: schedule_kind, ...(time !== undefined ? { time } : {}), ...(days !== undefined ? { days } : {}) };
+    const args = { cwd: process.cwd(), ...rest, schedule };
+    const sessionId = request.sessionId ?? this.sessionId?.();
+    const outcome = await proposeSchedule(args, {
+      approvals,
+      ...(sessionId ? { sessionId } : {}),
+    });
+    if (!outcome.ok) return { kind: "error", message: outcome.error };
+    return {
+      kind: "success",
+      output:
+        `Proposed schedule (${outcome.description}). It is NOT scheduled. ` +
+        `A human must approve it: alix approvals approve ${outcome.approvalId}`,
+    };
+  }
+}
+
 export class WebToolsRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
   constructor(private readonly allowDomains: string[] = []) {}

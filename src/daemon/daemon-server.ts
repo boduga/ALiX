@@ -46,6 +46,8 @@ const globalDir = join(homedir(), ".alix");
 let currentSessionId: string | undefined;
 let coordinationService: import("./coordination-scheduler-service.js").CoordinationSchedulerService | undefined;
 let approvalWatcher: import("./approval-watcher.js").ApprovalWatcher | undefined;
+let scheduledTaskService: import("../schedule/scheduled-task-service.js").ScheduledTaskService | undefined;
+let scheduledTaskTimer: ReturnType<typeof setInterval> | undefined;
 
 /**
  * Host coordination runs in the daemon: tick `daemon`-hosted runs and
@@ -96,9 +98,45 @@ async function startCoordinationService(): Promise<void> {
   approvalWatcher.start();
 }
 
+/**
+ * Scheduled-task service: materialize human-approved schedule proposals into
+ * active jobs and enqueue due ones on the daemon task queue. The daemon owns
+ * the timer; the service owns the logic (mirrors CoordinationSchedulerService).
+ */
+async function startScheduleService(): Promise<void> {
+  const { ScheduledTaskService } = await import("../schedule/scheduled-task-service.js");
+  const { ScheduledTaskStore } = await import("../schedule/scheduled-task-store.js");
+  const { openGlobalApprovalStore } = await import("../approvals/global-store.js");
+  const tasks = new ScheduledTaskStore();
+  await tasks.load();
+  const approvals = await openGlobalApprovalStore();
+  scheduledTaskService = new ScheduledTaskService({
+    approvals,
+    tasks,
+    enqueue: (task, cwd) => {
+      // Push onto the daemon's own task queue (not just the registry): a
+      // registry record alone is never drained, so the run would never happen.
+      const record = registry.create(task, cwd);
+      taskQueue.push({ task, taskId: record.id, cwd, client: DETACHED_CLIENT, scheduled: true });
+      void processQueue();
+    },
+  });
+  const tick = (): void => {
+    void scheduledTaskService!.runOnce().catch(() => {});
+  };
+  scheduledTaskTimer = setInterval(tick, 60_000);
+  tick();
+}
+
 const registry = new TaskRegistry();  // global ~/.alix/ path
 
-const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket }> = [];
+const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket; scheduled?: boolean }> = [];
+/**
+ * Null-object Socket for detached (scheduled) runs: they have no connected
+ * client to stream to, but the run path writes through `client`. Writes are
+ * discarded; `destroyed`/`writable` keep `safeWrite` a no-op.
+ */
+const DETACHED_CLIENT = { destroyed: false, writable: true, write: () => true } as unknown as Socket;
 let taskRunning = false;
 const serverStartTime = Date.now();
 const activeTaskControllers = new Map<string, AbortController>();
@@ -106,12 +144,18 @@ const activeTaskControllers = new Map<string, AbortController>();
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
-  const { task, taskId, cwd: requestCwd, route, client } = taskQueue.shift()!;
+  const { task, taskId, cwd: requestCwd, route, client, scheduled } = taskQueue.shift()!;
   const controller = new AbortController();
   activeTaskControllers.set(taskId, controller);
+  // Mark scheduled runs for the duration of the run so schedule.propose is
+  // hard-denied inside them (a scheduled job cannot schedule another).
+  const prevScheduledFlag = process.env.ALIX_SCHEDULED_RUN;
+  if (scheduled) process.env.ALIX_SCHEDULED_RUN = "1";
   try {
     await handleRun(task, taskId, client, requestCwd ?? defaultCwd, route, controller.signal);
   } finally {
+    if (prevScheduledFlag === undefined) delete process.env.ALIX_SCHEDULED_RUN;
+    else process.env.ALIX_SCHEDULED_RUN = prevScheduledFlag;
     activeTaskControllers.delete(taskId);
     taskRunning = false;
     processQueue(); // process next
@@ -557,6 +601,9 @@ server.listen(socketPath, () => {
   startCoordinationService().catch((err: unknown) => {
     console.error("[daemon] coordination service failed to start:", err instanceof Error ? err.message : String(err));
   });
+  startScheduleService().catch((err: unknown) => {
+    console.error("[daemon] schedule service failed to start:", err instanceof Error ? err.message : String(err));
+  });
   startHeartbeat();
   const statusPath = join(globalDir, "daemon.json");
   if (existsSync(statusPath)) {
@@ -573,6 +620,7 @@ server.listen(socketPath, () => {
 
 process.on("SIGTERM", () => {
   approvalWatcher?.stop();
+  if (scheduledTaskTimer) clearInterval(scheduledTaskTimer);
   const stopCoordination = coordinationService?.shutdown() ?? Promise.resolve();
   void stopCoordination.catch(() => {}).then(() => {
     server.close(() => {

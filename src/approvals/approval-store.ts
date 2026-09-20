@@ -41,6 +41,8 @@ export type ApprovalRequestInput = {
   expiresAt?: string;
   /** Stable request id (typically the toolCallId) used for retry de-dup. */
   requestId?: string;
+  /** Structured payload for non-tool approvals (e.g. schedule.propose). */
+  metadata?: Record<string, unknown>;
 };
 
 export class ApprovalStore {
@@ -306,6 +308,7 @@ export class ApprovalStore {
         riskLevel: input.riskLevel,
         groupId: input.groupId,
         requestId: input.requestId,
+        metadata: input.metadata,
       };
       approvals.push(record);
 
@@ -381,6 +384,7 @@ export class ApprovalStore {
         riskLevel: input.riskLevel,
         groupId: input.groupId,
         requestId: input.requestId,
+        metadata: input.metadata,
       };
       approvals.push(record);
 
@@ -431,6 +435,7 @@ export class ApprovalStore {
         riskLevel: input.riskLevel,
         groupId: input.groupId,
         requestId: input.requestId,
+        metadata: input.metadata,
       };
       approvals.push(record);
 

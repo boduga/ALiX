@@ -29,6 +29,11 @@ let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
 
 beforeEach(() => {
+  // Pin wall-clock so the fixed-date profiles (2026-06-22) stay inside the
+  // 90-day propose window. Without this the suite is a date time bomb: it
+  // passed until 2026-09-20 and then the profile aged out of the window.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-06-23T00:00:00.000Z"));
   tempRoot = mkdtempSync(join(tmpdir(), "p8-gate-"));
   cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
 });
@@ -36,6 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   cwdSpy.mockRestore();
   rmSync(tempRoot, { recursive: true, force: true });
+  vi.useRealTimers();
 });
 
 function mockExit() {

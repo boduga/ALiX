@@ -32,13 +32,12 @@ export async function handleCapabilityRoot(args: string[]): Promise<void> {
 }
 
 export async function handleApprovalsRoot(args: string[]): Promise<void> {
-  const { ApprovalStore } = await import("../../approvals/approval-store.js");
+  const { openApprovalStores } = await import("../helpers/approval-stores.js");
   const cwd = process.cwd();
-  const store = new ApprovalStore(cwd);
-  await store.load();
+  const { union, owner } = await openApprovalStores(cwd);
 
   if (args[0] === "list") {
-    const all = store.list();
+    const all = union((s) => s.list());
     if (all.length === 0) {
       console.log("No approval requests.");
     } else {
@@ -53,7 +52,7 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
   }
 
   if (args[0] === "pending") {
-    const pending = store.listPending();
+    const pending = union((s) => s.listPending());
     if (pending.length === 0) {
       console.log("No pending approvals.");
     } else {
@@ -70,7 +69,7 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
   if (args[0] === "show") {
     const id = args[1];
     if (!id) { console.error("Usage: alix approvals show <id>"); process.exit(1); }
-    const record = store.get(id);
+    const record = owner(id).get(id);
     if (!record) { console.error(`Approval not found: ${id}`); process.exit(1); }
     console.log(`ID:       ${record.id}`);
     console.log(`Status:   ${record.status}`);
@@ -80,6 +79,9 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
     if (record.graphId) console.log(`Graph:    ${record.graphId}`);
     if (record.nodeId) console.log(`Node:     ${record.nodeId}`);
     if (record.sessionId) console.log(`Session:  ${record.sessionId}`);
+    if (record.metadata?.scheduleProposal) {
+      console.log(`Schedule: ${JSON.stringify(record.metadata.scheduleProposal)}`);
+    }
     console.log(`Reason:   ${record.reason}`);
     console.log(`Created:  ${new Date(record.createdAt).toLocaleString()}`);
     if (record.decidedAt) console.log(`Decided:  ${new Date(record.decidedAt).toLocaleString()}`);
@@ -93,7 +95,7 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
     const reasonIdx = args.indexOf("--reason");
     const decisionReason = reasonIdx >= 0 ? args[reasonIdx + 1] : undefined;
     const status = args[0] === "approve" ? "approved" as const : "denied" as const;
-    const result = await store.resolve(id, status, decisionReason);
+    const result = await owner(id).resolve(id, status, decisionReason);
     if (!result) { console.error(`Approval not found: ${id}`); process.exit(1); }
     console.log(`${status.charAt(0).toUpperCase() + status.slice(1)}: ${id}`);
     process.exit(0);

@@ -298,6 +298,17 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["done", "complete", "finish"],
     },
     {
+      name: "schedule.propose",
+      capabilityId: "schedule.propose",
+      policyKey: "schedule.propose",
+      description: "Propose a recurring job for human approval. Writes a PENDING approval; nothing is scheduled until a human approves it and the daemon materializes it.",
+      risk: "high",
+      domain: "system",
+      mutates: true,
+      alwaysInclude: false,
+      tags: ["schedule", "cron", "recurring", "job", "propose"],
+    },
+    {
       name: "delegate",
       capabilityId: "agent.delegate",
       policyKey: "delegate",

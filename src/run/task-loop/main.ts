@@ -1387,7 +1387,7 @@ if (toolCalls.length === 0) {
       rePrompt =
         "You have only used file search tools so far (" + usedList.join(", ") + "). " +
         "The user's request may require other tools. Available tool categories include: " +
-        "shell.run, cron.schedule, notification.send, user.send_file, monitor, findings.report, ask_user. " +
+        "shell.run, notification.send, user.send_file, monitor, findings.report, ask_user. " +
         "Try using a different tool to make progress. If you truly have nothing left to do, " +
         "write a final summary and signal that the task is done.";
     } else {
