@@ -64,3 +64,40 @@ export async function findResumableRuns(
     .filter(run => hostKinds.length === 0 || (run.hostKind !== undefined && hostKinds.includes(run.hostKind)))
     .map(run => run.id);
 }
+
+/**
+ * Finalize abandoned runs whose host died mid-execution (SIGKILL — no
+ * shutdown handler could run). Only runs with at least one `running`
+ * worker whose owner is provably dead are touched; their running+pending
+ * workers and the run are marked cancelled. Pending-only runs (never
+ * started, or queued) are left alone — a live host may still claim them.
+ *
+ * Used by the CLI on start to self-heal a stranded foreground run.
+ */
+export async function cancelDeadOwnerRuns(
+  store: CoordinationStore,
+  hostKinds: readonly string[],
+): Promise<string[]> {
+  const runs = await store.list();
+  const cancelled: string[] = [];
+  for (const run of runs) {
+    if (!ACTIVE_RUN_STATUSES.has(run.status)) continue;
+    if (hostKinds.length > 0 && (run.hostKind === undefined || !hostKinds.includes(run.hostKind))) continue;
+    const runningWorkers = run.workers.filter(w => w.status === "running");
+    if (runningWorkers.length === 0) continue;
+    if (!runningWorkers.every(w => !isOwnerAlive(w.executionOwnerId))) continue;
+    const deadOwner = runningWorkers[0]?.executionOwnerId ?? "unknown";
+    await store.updateRun(run.id, (current) => {
+      for (const worker of current.workers) {
+        if (worker.status === "running" || worker.status === "pending") {
+          worker.status = "cancelled";
+          worker.blockReason = "cancelled";
+          worker.leaseIds = [];
+          worker.error = `Run abandoned — host ${deadOwner} stopped`;
+        }
+      }
+    });
+    cancelled.push(run.id);
+  }
+  return cancelled;
+}

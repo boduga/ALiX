@@ -67,6 +67,7 @@ import { READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
 import type { PlanTask } from "../../planning/plan-task.js";
 import { SYSTEM_PROMPT_BASE, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT, renderSelfModelSection, type SelfModelInfo } from "../system-prompt.js";
+import { renderSelfCapabilitySection } from "../self-capabilities.js";
 import { AgentSessionBuilder } from "./main.js";
 import { AgentSession, AgentSessionConfig } from "./types.js";
 
@@ -657,6 +658,11 @@ export async function setupSystemPrompt(
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
+    renderSelfCapabilitySection({
+      skills: opts.matchedSkills
+        .map((s: any) => (s?.manifest?.trigger as string | undefined) ?? (s?.manifest?.name ? `/${s.manifest.name}` : undefined))
+        .filter((s: string | undefined): s is string => Boolean(s)),
+    }),
   ];
 
   if (opts.selfContext) {

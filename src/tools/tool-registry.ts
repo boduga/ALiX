@@ -342,6 +342,17 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["coordination", "status", "workers"],
     },
     {
+      name: "coordination.list",
+      capabilityId: "coordination.read",
+      policyKey: "coordination.read",
+      description: "List recent coordination runs (id, status, goal, worker count), newest first",
+      risk: "low",
+      domain: "agent",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["coordination", "list", "runs"],
+    },
+    {
       name: "coordination.results",
       capabilityId: "coordination.read",
       policyKey: "coordination.read",

@@ -32,6 +32,7 @@ import type { TraceClient } from "../tracing/client.js";
 import type { RunOutcome, TraceRun } from "../tracing/types.js";
 import { isCancellationError } from "../runtime/cancellation-token.js";
 import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT, renderSelfModelSection } from "./system-prompt.js";
+import { renderSelfCapabilitySection } from "./self-capabilities.js";
 import { CancellationToken } from "../runtime/cancellation-token.js";
 
 /** Shared mutable handle between the run root wrapper and its impl. The impl
@@ -360,6 +361,7 @@ async function runTaskCoreImpl(
   const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
   readOnlyToolFilter.add("alix_delegate");
   readOnlyToolFilter.add("alix_coordination_status");
+  readOnlyToolFilter.add("alix_coordination_list");
   readOnlyToolFilter.add("alix_coordination_results");
   const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
   const providerTools = toolFilter
@@ -396,6 +398,11 @@ async function runTaskCoreImpl(
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
+    renderSelfCapabilitySection({
+      skills: (matchedSkills ?? [])
+        .map((s: any) => (s?.manifest?.trigger as string | undefined) ?? (s?.manifest?.name ? `/${s.manifest.name}` : undefined))
+        .filter((s: string | undefined): s is string => Boolean(s)),
+    }),
     renderSelfModelSection({
       provider: resolved.provider,
       model: resolved.name,

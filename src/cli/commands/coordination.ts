@@ -117,6 +117,16 @@ async function handleRun(args: string[]): Promise<void> {
   const store = new CoordinationStore(cwd);
   const toolRegistry = buildDefaultToolIndex().registry;
 
+  // Self-heal a stranded foreground run from a previous SIGKILL: a `cli`
+  // run whose host died mid-execution is finalized as cancelled so it does
+  // not linger `running` forever (Ctrl+C is handled by the signal handler
+  // below; this covers SIGKILL/crash).
+  const { cancelDeadOwnerRuns } = await import("../../kernel/coordination-resume.js");
+  const abandoned = await cancelDeadOwnerRuns(store, ["cli"]);
+  if (abandoned.length > 0) {
+    console.log(`Finalized ${abandoned.length} abandoned run(s) from a dead CLI host.`);
+  }
+
   const planner = new CoordinationPlanner(cwd, {
     ...(agentPool ? { agentPool } : {}),
     generate: createPlannerGenerator(config),
@@ -162,7 +172,29 @@ async function handleRun(args: string[]): Promise<void> {
     { maxConcurrency },
   );
 
-  const result = await scheduler.runUntilIdle(planResult.run!.id);
+  // Foreground reclaim: on Ctrl+C / SIGTERM, cancel the run (abort in-flight
+  // workers, mark cancelled, finalize) before exiting, so the run never
+  // lingers `running` under a dead `cli-<pid>` owner.
+  const runId = planResult.run!.id;
+  let cancelling = false;
+  const onSignal = (signal: NodeJS.Signals): void => {
+    if (cancelling) return;
+    cancelling = true;
+    console.log(`\nReceived ${signal} — cancelling run ${runId}…`);
+    void scheduler.cancelRun(runId)
+      .catch(() => {})
+      .finally(() => process.exit(130));
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+
+  let result: import("../../kernel/coordination-scheduler.js").SchedulerRunResult;
+  try {
+    result = await scheduler.runUntilIdle(runId);
+  } finally {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+  }
   console.log(`\nCoordination run complete:`);
   console.log(`  Status: ${result.finalStatus}`);
   console.log(`  Stop reason: ${result.stopReason}`);

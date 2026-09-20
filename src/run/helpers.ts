@@ -277,6 +277,16 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
+    name: "alix_coordination_list",
+    description: "List recent coordination runs (id, status, goal, worker count), newest first. Use this to find the latest run id before calling coordination.status/results.",
+    input_schema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", description: "Max runs to return (default 10, max 50)" }
+      }
+    }
+  },
+  {
     name: "alix_coordination_results",
     description: "Show the aggregate results of a coordination run (per-worker outcomes and result summary).",
     input_schema: {

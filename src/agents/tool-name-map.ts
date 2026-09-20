@@ -32,6 +32,7 @@ export const TOOL_NAME_MAP: ToolNameMap = {
   alix_delegate:          "delegate",
   alix_coordination_run:    "coordination.run",
   alix_coordination_status: "coordination.status",
+  alix_coordination_list:   "coordination.list",
   alix_coordination_results: "coordination.results",
   alix_web_search:        "web_search",
   alix_web_fetch:         "web_fetch",

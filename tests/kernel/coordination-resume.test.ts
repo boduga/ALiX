@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseOwnerPid, isPidAlive, isOwnerAlive } from "../../src/kernel/owner-liveness.js";
-import { reclaimDeadOwnerWorkers, findResumableRuns } from "../../src/kernel/coordination-resume.js";
+import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/kernel/coordination-resume.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
 
@@ -111,5 +111,78 @@ describe("coordination resume", () => {
     assert.deepEqual(found.sort(), [inspector.id, cli.id].sort());
     // Empty list matches every host.
     assert.equal((await findResumableRuns(store, [])).length, 3);
+  });
+});
+
+describe("cancelDeadOwnerRuns", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-dead-owner-"));
+    store = new CoordinationStore(cwd);
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  function addWorker(runId: string, overrides: Record<string, unknown>) {
+    return createWorkerAssignment({
+      coordinationRunId: runId,
+      agentId: "alix#1",
+      taskLabel: "T",
+      goalPrompt: "do",
+      status: "running",
+      attempt: 0,
+      maxAttempts: 3,
+      ...overrides,
+    });
+  }
+
+  it("finalizes a cli run whose running worker owner is dead", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    await store.save(run);
+    const dead = addWorker(run.id, { executionOwnerId: `cli-${DEAD_PID}` });
+    await store.addWorker(run.id, dead);
+
+    const cancelled = await cancelDeadOwnerRuns(store, ["cli"]);
+    assert.deepEqual(cancelled, [run.id]);
+    const loaded = await store.load(run.id);
+    assert.equal(loaded!.workers[0].status, "cancelled");
+    assert.match(loaded!.workers[0].error ?? "", /host cli-/);
+    assert.ok(!["planning", "running"].includes(loaded!.status), "run must leave active statuses");
+  });
+
+  it("leaves a live-owner running run alone", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    await store.save(run);
+    await store.addWorker(run.id, addWorker(run.id, { executionOwnerId: `cli-${process.pid}` }));
+
+    assert.deepEqual(await cancelDeadOwnerRuns(store, ["cli"]), []);
+    const loaded = await store.load(run.id);
+    assert.equal(loaded!.workers[0].status, "running");
+  });
+
+  it("leaves a pending-only run alone (never executed)", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    await store.save(run);
+    await store.addWorker(run.id, addWorker(run.id, { status: "pending", executionOwnerId: undefined }));
+
+    assert.deepEqual(await cancelDeadOwnerRuns(store, ["cli"]), []);
+    assert.equal((await store.load(run.id))!.workers[0].status, "pending");
+  });
+
+  it("ignores runs of other host kinds", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "daemon";
+    await store.save(run);
+    await store.addWorker(run.id, addWorker(run.id, { executionOwnerId: `daemon-${DEAD_PID}` }));
+
+    assert.deepEqual(await cancelDeadOwnerRuns(store, ["cli"]), []);
+    assert.equal((await store.load(run.id))!.workers[0].status, "running");
   });
 });
