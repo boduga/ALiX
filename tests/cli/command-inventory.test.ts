@@ -31,6 +31,7 @@ const ROOT_COMMAND_ORDER = [
   "runs",
   "failures",
   "approvals",
+  "schedule",
 ];
 
 function rootHelp(): string {

@@ -455,9 +455,10 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(fsTools.every(t => t.domain === "filesystem"));
 
   const systemTools = retriever.selectForDomain("system");
-  assert.strictEqual(systemTools.length, 5);
+  assert.strictEqual(systemTools.length, 6);
   assert.ok(systemTools.every(t => t.domain === "system"));
   assert.ok(systemTools.some(t => t.name === "done"));
+  assert.ok(systemTools.some(t => t.name === "schedule.propose"));
   assert.ok(systemTools.some(t => t.name === "create_skill"));
   assert.ok(systemTools.some(t => t.name === "list_extensions"));
   assert.ok(systemTools.some(t => t.name === "inspect_extension"));
@@ -489,10 +490,10 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 21 tools", () => {
+test("buildDefaultToolIndex registers 22 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 21);
+  assert.strictEqual(all.length, 22);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
@@ -514,6 +515,7 @@ test("buildDefaultToolIndex registers 21 tools", () => {
     "list_extensions",
     "mcp.*",
     "patch.apply",
+    "schedule.propose",
     "shell.run",
     "web_fetch",
     "web_search",
@@ -527,10 +529,10 @@ test("buildDefaultToolIndex indexes all tags", () => {
   // Verify all expected tags are present
   const expectedTags = [
     "agent", "aggregate", "check", "code", "command", "complete", "config", "content", "coordination",
-    "create", "delete", "delegate", "directory", "done", "edit",
+    "create", "cron", "delete", "delegate", "directory", "done", "edit",
     "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
-    "grep", "hook", "inspect", "list", "mcp", "modify", "multi-agent", "parallel", "patch", "read",
-    "regex", "remove", "results", "run", "search", "self-extend", "shell", "skill", "status",
+    "grep", "hook", "inspect", "job", "list", "mcp", "modify", "multi-agent", "parallel", "patch", "propose", "read",
+    "recurring", "regex", "remove", "results", "run", "schedule", "search", "self-extend", "shell", "skill", "status",
     "subtask", "tool", "web", "workers", "write",
   ];
   for (const tag of expectedTags) {
