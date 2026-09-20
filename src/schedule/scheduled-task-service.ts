@@ -54,7 +54,7 @@ export class ScheduledTaskService {
         skipped.push(approval.id);
         continue;
       }
-      const validated = validateProposal(approval.metadata?.scheduleProposal);
+      const validated = validateProposal(approval.metadata?.scheduleProposal, now);
       if (!validated.ok) {
         skipped.push(approval.id);
         continue;
