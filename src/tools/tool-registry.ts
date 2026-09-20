@@ -364,6 +364,17 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["coordination", "results", "aggregate"],
     },
     {
+      name: "state.query",
+      capabilityId: "state.read",
+      policyKey: "state.read",
+      description: "Read ALiX's own local state: recent sessions, audit events, pending approvals, daemon tasks, scheduled jobs, or saved graphs. Use this instead of web-searching for local state.",
+      risk: "low",
+      domain: "system",
+      mutates: false,
+      alwaysInclude: false,
+      tags: ["state", "read", "self"],
+    },
+    {
       name: "web_search",
       capabilityId: "web.search",
       policyKey: "web.search",

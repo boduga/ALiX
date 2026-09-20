@@ -59,7 +59,7 @@ export function renderSelfCapabilitySection(opts: SelfCapabilityOptions = {}): s
   }
   lines.push(
     "",
-    "When asked about your own state or runs, inspect the workspace (`.alix/coordination/`, `.alix/audit/`, `.alix/sessions/`) or run the matching `alix` command — never web-search for local state.",
+    "When asked about your own state or runs, use the `state.query` tool (kinds: sessions, audit, approvals, daemon, schedule, graphs) or inspect `.alix/...`, or run the matching `alix` command — never web-search for local state.",
   );
   return lines.join("\n");
 }

@@ -298,6 +298,22 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
+    name: "alix_state_query",
+    description: "Read ALiX's own local state: recent sessions, audit events, pending approvals, daemon tasks, scheduled jobs, or saved graphs. Use this for questions about your own runs/state instead of web-searching.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["sessions", "audit", "approvals", "daemon", "schedule", "graphs"],
+          description: "Which local-state surface to read"
+        },
+        limit: { type: "integer", description: "Max rows to return (default 10, max 50)" }
+      },
+      required: ["kind"]
+    }
+  },
+  {
     name: "alix_web_search",
     description: "Search the public WEB for current information (news, recent data, facts beyond the model's cutoff). This does NOT search the local workspace — for local code/text use alix_grep_search, for local filenames use alix_glob_match. Requires a configured Brave API key.",
     input_schema: {
