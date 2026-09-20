@@ -93,11 +93,12 @@ export const DEFAULT_CAPABILITY_CATALOG: readonly string[] = [
   "dir.search", "grep.search", "glob.match", "shell.run",
   "done", "delegate", "web_search", "web_fetch",
   "create_skill", "list_extensions", "inspect_extension", "create_hook",
+  "state.read", "state.query",
 ];
 
 /** Read-only capability defaults by subagent role. Never write or shell. */
 export const ROLE_CAPABILITY_DEFAULTS: Readonly<Record<string, readonly string[]>> = {
-  explorer: ["filesystem.read", "filesystem.search"],
+  explorer: ["filesystem.read", "filesystem.search", "state.read"],
   reviewer: ["filesystem.read"],
   test_investigator: ["filesystem.read", "filesystem.search"],
   docs_researcher: ["filesystem.read"],

@@ -51,13 +51,13 @@ describe("prompt registry", () => {
       "agent.verification-supplement": "f104d69cfdfe3fa3",
       "agent.shell-task": "240b73f373d06efe",
       "agent.read-only-mode": "47cee00c48da8752",
-      "subagent.explorer": "ecf0727acebe1ee7",
+      "subagent.explorer": "688d0d2d82929e9f",
       "subagent.reviewer": "0dee12e10bd5c931",
       "subagent.test-investigator": "22872bbc841610b6",
       "subagent.docs-researcher": "36f722f069f3b831",
       "subagent.worker": "43df6b28ad9296dd",
-      "subagent.researcher": "ce69bbea7e10e472",
-      "planner.graph": "25ba5b338988e8cc",
+      "subagent.researcher": "f4fea7a09a499d77",
+      "planner.graph": "ba1e49648366b6f5",
       "route.retrieval-system": "4a663044320ac9ba",
     };
     for (const e of PROMPT_REGISTRY) {

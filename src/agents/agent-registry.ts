@@ -50,6 +50,7 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
     instructions:
       "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols. " +
       `${UNTRUSTED_CONTENT_INSTRUCTION} ` +
+      "For questions about the agent's own local state (sessions, runs, approvals, audit events, daemon tasks, schedules, graphs), use the state.query tool — never web search. " +
       "Return findings as typed lines ([summary], [file_ref], [code_location]) with a confidence note; list anything you could not resolve as unresolved.",
     policyBucket: "read",
     retryCount: 1,
@@ -119,6 +120,7 @@ export const AGENT_REGISTRY: readonly AgentCapability[] = [
     instructions:
       "You are a researcher subagent. Search for information, analyze findings, and report concisely. Use web search for external knowledge. Cite sources. " +
       `${UNTRUSTED_CONTENT_INSTRUCTION} ` +
+      "If the question is about this agent's own local state (sessions, runs, approvals, audit events, daemon tasks, schedules, graphs), use the state.query tool instead of web search. " +
       "Return findings as typed lines ([summary], [web_source] with URL) with confidence; list unanswered parts as unresolved.",
     policyBucket: "research",
     retryCount: 1,

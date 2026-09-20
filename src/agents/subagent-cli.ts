@@ -514,6 +514,7 @@ Task: ${prompt}${contextSection}
 - alix_file_read reads the CONTENT of a SINGLE FILE. It does NOT list directories.
 - To list files in a directory, you MUST use alix_shell_run with: ls <path>
 - NEVER call alix_file_read with a directory path (it will fail with "EISDIR")
+- To read the agent's own state (sessions, audit, approvals, daemon tasks, schedules, graphs), call alix_state_query — never web search for local state.
 - Do NOT invent file names or paths. Report only what the tools return.
 - Call ONE tool at a time. Wait for the result before calling the next.
 - When the tools return output, use it to satisfy your role instructions (explorer: concise findings with refs; worker: explain what you changed).
