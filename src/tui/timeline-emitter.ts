@@ -11,6 +11,17 @@ export interface TimelineEmitterOpts {
   agentSessionId?: string;
 }
 
+/**
+ * Write-time dedup predicate: true when persisting `summary` as
+ * agent.response would duplicate the turn's already-persisted agent.message
+ * prose. Mirrors the read-time rule in scroll-math (same-turn, byte-equal,
+ * non-empty). Divergent summaries and turns with no loop prose return false
+ * so the response is still stored.
+ */
+export function shouldSkipDuplicateResponse(summary: string, lastAgentProse: string | undefined): boolean {
+  return lastAgentProse !== undefined && summary.length > 0 && summary === lastAgentProse;
+}
+
 /** Single-emit timeline writes into the EventLog (Phase 6 D9).
  *  The EventLog is the single source of truth timeline; the per-tab
  *  in-memory cache was removed. Fire-and-forget appends — a log-write

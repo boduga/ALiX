@@ -299,6 +299,12 @@ await log.append({ ...session, actor: "system", type: "embedder.initialized", pa
 await log.append({ ...session, actor: "system", type: "embedder.init_failed", payload: { error: String(err) } });
   }
 
+  // Last model prose persisted as an agent.message event this run. Declared
+  // outside the main try so catch-path returns can carry it too. Returned
+  // on RunResult so the TUI can skip re-persisting an identical turn summary
+  // as agent.response (write-time dedup of a known double-write).
+  let lastAgentProse: string | undefined;
+
   try {
 // Track search calls for research tasks
 let searchCalls = 0;
@@ -669,6 +675,7 @@ if (
 
 if (text.length > 0) {
   await emitAgent(log, session, "agent.message", { text });
+  lastAgentProse = text;
 }
 
 // Emit model call metric for every call regardless of usage data
@@ -789,13 +796,13 @@ if (toolCalls.length === 0) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
       if (i >= limits.maxIterations) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, contextPressure: contextPressure.snapshot() };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
     }
     if (modelSaysDone) {
@@ -903,7 +910,7 @@ if (toolCalls.length === 0) {
           : "Task completed, but the model provided no final synthesis.";
       await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: text.trim().length > 0 ? reason : "completed_unverified", summary: completionSummary, unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: completionSummary, streamed: model.streaming, reason: text.trim().length > 0 ? reason : "completed_unverified", contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: completionSummary, streamed: model.streaming, reason: text.trim().length > 0 ? reason : "completed_unverified", contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
     }
     // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {
@@ -939,7 +946,7 @@ if (toolCalls.length === 0) {
       }
 
       await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: model.streaming, contextPressure: contextPressure.snapshot() };
+      return { sessionId, summary: text, streamed: model.streaming, contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
     }
 
     // Repair loop — verification failed or model didn't signal done
@@ -1155,7 +1162,7 @@ if (toolCalls.length === 0) {
           const summary = gate.__gateEarlyReturn.summary;
           await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
-          return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
+            return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
         }
         if (gate.__gateMessage) messages.push(gate.__gateMessage);
         continue;
@@ -1228,7 +1235,7 @@ if (toolCalls.length === 0) {
             const summary = buildScopeRejectionSummary(pathsToCheck);
             await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
             await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
-            return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot() };
+          return { sessionId, summary, streamed: model.streaming, reason: "rejected_scope_expansion", contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
           }
         }
         continue;
@@ -1486,6 +1493,7 @@ config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
         reason: "context_budget_overflow" as const,
         contextBudgetOverflow: err,
         contextPressure: contextPressure.snapshot(),
+        ...(lastAgentProse !== undefined ? { lastAgentProse } : {}),
       };
     }
     throw err;

@@ -23,7 +23,7 @@ import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
 import { computeBottomAnchor, HEADER_H, FOOTER_H, trimStreamedTextToLanded } from './views/scroll-math.js';
-import { createTimelineEmitter, type TimelineEmitter } from './timeline-emitter.js';
+import { createTimelineEmitter, shouldSkipDuplicateResponse, type TimelineEmitter } from './timeline-emitter.js';
 import { SlashController } from './slash-controller.js';
 import { PaletteController } from './palette-controller.js';
 import { createApprovalResolver, type ApprovalResolver } from './approval-resolver.js';
@@ -1040,7 +1040,7 @@ export class TuiApp {
     text: string,
     kind: 'chat' | 'agent',
     perTab: TimelineWritableState,
-    candidates: Array<((text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
+    candidates: Array<((text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[]; lastAgentProse?: string }>) | undefined>,
     fallbackPrefix: string,
     /** Wall-clock race for the CHAT path only. `undefined` for the agent path. */
     timeoutMs?: number,
@@ -1051,6 +1051,10 @@ export class TuiApp {
     this.sessionDispatchActive = true;
     try {
     let summary: string = `${fallbackPrefix} ${text}`;
+    // Last model prose persisted as agent.message this turn, when the
+    // candidate reports it. Used below to skip re-persisting an identical
+    // turn summary as agent.response (write-time dedup).
+    let lastAgentProse: string | undefined;
     // Clear stale plan content and plan tasks before starting a new turn
     perTab.planContent = undefined;
     perTab.planTasks = undefined;
@@ -1084,6 +1088,7 @@ export class TuiApp {
           };
           if (noHelp(result.summary)) continue;
           summary = result.summary;
+          lastAgentProse = result.lastAgentProse;
           // Capture plan content and structured tasks from the session turn result
           if (result.planContent) {
             perTab.planContent = result.planContent;
@@ -1149,7 +1154,14 @@ export class TuiApp {
     // The single log emit stamps the sub-session that matches the submission
     // kind — chat submits route to the chat collector, agent submits to the
     // agent collector (Phase 6). The per-tab in-memory cache is gone.
-    this.timelineEmitter.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
+    // Write-time dedup: the task loop already persisted the final prose as
+    // agent.message; when the turn summary is byte-identical, skip the
+    // agent.response emit instead of storing the answer twice. Divergent
+    // summaries (synthesis rewrites, sentinels, error/cancel paths) and
+    // turns with no loop prose (direct/chat routes) still emit.
+    if (!shouldSkipDuplicateResponse(summary, lastAgentProse)) {
+      this.timelineEmitter.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
+    }
     // Auto-follow is now handled by the per-tab `pinnedBottom` flag plus the
     // view's branched render logic; the app layer no longer clamps the offset.
     this.paintFullFrame();
@@ -1184,10 +1196,10 @@ export class TuiApp {
    */
   private raceAgentCall(
     text: string,
-    fn: (text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>,
+    fn: (text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[]; lastAgentProse?: string }>,
     timeoutMs: number | undefined,
     skills?: string[],
-  ): Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }> {
+  ): Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[]; lastAgentProse?: string }> {
     if (timeoutMs === undefined) {
       return skills ? fn(text, { skills }) : fn(text);
     }
