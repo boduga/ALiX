@@ -31,6 +31,7 @@ import { buildDefaultToolIndex } from "../tools/tool-registry.js";
 
 export const COORDINATION_RUN_TOOL = "coordination.run";
 export const COORDINATION_STATUS_TOOL = "coordination.status";
+export const COORDINATION_LIST_TOOL = "coordination.list";
 export const COORDINATION_RESULTS_TOOL = "coordination.results";
 
 export const MAX_COORDINATION_TOOL_CONCURRENCY = 8;
@@ -52,6 +53,7 @@ export function createCoordinationHandlers(
   return {
     [COORDINATION_RUN_TOOL]: (args) => handleCoordinationRun(deps, args),
     [COORDINATION_STATUS_TOOL]: (args) => handleCoordinationStatus(deps, args),
+    [COORDINATION_LIST_TOOL]: (args) => handleCoordinationList(deps, args),
     [COORDINATION_RESULTS_TOOL]: (args) => handleCoordinationResults(deps, args),
   };
 }
@@ -165,6 +167,26 @@ async function handleCoordinationRun(
     return { kind: "error", message: lines.join("\n"), retryable: false };
   }
   return { kind: "success", output: lines.join("\n") };
+}
+
+async function handleCoordinationList(
+  deps: CoordinationToolDeps,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  const rawLimit = typeof args.limit === "number" ? args.limit : 10;
+  const limit = Math.min(50, Math.max(1, Math.floor(rawLimit)));
+  const store = deps.store ?? new CoordinationStore(deps.cwd);
+  const runs = await store.list();
+  const recent = runs
+    .sort((a, b) => (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt))
+    .slice(0, limit);
+  if (recent.length === 0) {
+    return { kind: "success", output: "No coordination runs." };
+  }
+  const lines = recent.map((run) =>
+    `${run.id}  ${run.status}  ${run.workers.length} worker(s)  ${(run.rootGoal ?? "").slice(0, 80)}`,
+  );
+  return { kind: "success", output: `Coordination runs (newest first):\n${lines.join("\n")}` };
 }
 
 async function handleCoordinationStatus(

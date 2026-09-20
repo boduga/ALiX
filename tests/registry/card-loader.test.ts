@@ -186,7 +186,6 @@ describe("CardLoader", () => {
     const cards = defaultToolCards();
     // One card per canonical tool registry entry
     assert.equal(cards.length, buildDefaultToolIndex().registry.getAll().length);
-    assert.equal(cards.length, 22);
     // ids are the canonical tool names
     assert.ok(cards.find(c => c.id === "web_search"));
     assert.ok(cards.find(c => c.id === "file.read"));
@@ -194,6 +193,7 @@ describe("CardLoader", () => {
     assert.ok(cards.find(c => c.id === "mcp.*"));
     assert.ok(cards.find(c => c.id === "coordination.run"));
     assert.ok(cards.find(c => c.id === "coordination.status"));
+    assert.ok(cards.find(c => c.id === "coordination.list"));
     assert.ok(cards.find(c => c.id === "coordination.results"));
     // the old hand-written card ids are GONE
     assert.ok(!cards.find(c => c.id === "shell_exec"));

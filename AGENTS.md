@@ -162,6 +162,21 @@ Default section order:
   `CoordinationSchedulerService` + `ApprovalWatcher`. `cli` runs are owned by
   their launching process and reclaimed by the Inspector if that process is
   gone. A host never ticks another host's live run.
+- **Self-awareness is first-class (durable).** The system prompt must state the
+  model's own surface, not just its tools: `renderSelfCapabilitySection`
+  (`src/agent/self-capabilities.ts`) emits a bounded `## Your Capabilities`
+  block (CLI command groups + TUI slash commands + skill triggers) into both
+  `setupSystemPrompt` (`src/agent/session/setup.ts`) and the legacy
+  `agent-loop.ts` prompt. `TUI_SLASH_COMMANDS` is pinned to
+  `parseWorkbenchBuiltinCommand` by `tests/agent/self-capabilities.test.ts`;
+  update it when a CLI command group or slash command is added. Questions about
+  local state (runs, audits, sessions) are answered by inspecting the workspace
+  (`.alix/...`) or running the matching `alix` command — never web search.
+- **CLI foreground coordination runs self-heal (durable).** `alix coordination
+  run` installs SIGINT/SIGTERM handlers that `cancelRun` before exit, and on
+  start sweeps dead-owner `cli` runs via `cancelDeadOwnerRuns`
+  (`src/kernel/coordination-resume.ts`), so a SIGKILL'd run never lingers
+  `running` under a dead `cli-<pid>` owner.
 - CLI-first for all approval and audit actions.
 - Commit early, push often; tag baseline milestones.
 

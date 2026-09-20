@@ -9,11 +9,11 @@
 - `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
 - `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
 - `coordination-scheduler.ts` — Bounded parallel dispatch (maxConcurrency 8, per-worker timeout watchdog, heartbeats/leases, cancel)
-- `coordination-tools.ts` — Chat-tool handlers (run/status/results; subagent executor when enabled)
+- `coordination-tools.ts` — Chat-tool handlers (run/status/list/results; subagent executor when enabled)
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
 - `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
-- `coordination-resume.ts` — Reclaim dead-owner workers to pending; find Inspector-hosted active runs
+- `coordination-resume.ts` — Reclaim dead-owner workers to pending; find Inspector-hosted active runs; `cancelDeadOwnerRuns` finalizes runs whose host died mid-execution (SIGKILL)
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**

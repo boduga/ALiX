@@ -53,7 +53,15 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   (provider/model/window/budgets/tokenizer). `setupContextLimits` returns
   `modelProvider/modelName/contextWindowTokens` additively; `init.ts` P5→P8
   threads them. The legacy `agent-loop.ts` inline prompt uses the same renderer.
+- Self-capability prompt section: `setupSystemPrompt` always injects
+  `renderSelfCapabilitySection` (`src/agent/self-capabilities.ts`) as a bounded
+  `## Your Capabilities` block (CLI command groups + TUI slash commands + skill
+  triggers); the legacy `agent-loop.ts` inline prompt does the same. It is the
+  model's index of its own surface — keep `TUI_SLASH_COMMANDS` in sync with
+  `parseWorkbenchBuiltinCommand` (pinned by
+  `tests/agent/self-capabilities.test.ts`).
 
 **Verification:**
 - `tests/agent/*.vitest.ts`, `tests/agent/session-skills.test.ts`,
-  `tests/session-resume.vitest.ts`, `tests/tracing/langfuse-boundary.vitest.ts`.
+  `tests/agent/self-capabilities.test.ts`, `tests/session-resume.vitest.ts`,
+  `tests/tracing/langfuse-boundary.vitest.ts`.

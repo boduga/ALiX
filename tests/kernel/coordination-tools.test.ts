@@ -7,6 +7,7 @@ import {
   createCoordinationHandlers,
   COORDINATION_RUN_TOOL,
   COORDINATION_STATUS_TOOL,
+  COORDINATION_LIST_TOOL,
   COORDINATION_RESULTS_TOOL,
 } from "../../src/kernel/coordination-tools.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
@@ -44,10 +45,11 @@ describe("coordination chat tools", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("exposes run/status/results handlers", () => {
+  it("exposes run/status/list/results handlers", () => {
     const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
     assert.ok(typeof handlers[COORDINATION_RUN_TOOL] === "function");
     assert.ok(typeof handlers[COORDINATION_STATUS_TOOL] === "function");
+    assert.ok(typeof handlers[COORDINATION_LIST_TOOL] === "function");
     assert.ok(typeof handlers[COORDINATION_RESULTS_TOOL] === "function");
   });
 
@@ -85,5 +87,26 @@ describe("coordination chat tools", () => {
     const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
     const result = await handlers[COORDINATION_RESULTS_TOOL]({ runId: "coord_missing" });
     assert.equal(result.kind, "error");
+  });
+
+  it("list reports no runs when empty", async () => {
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
+    const result = await handlers[COORDINATION_LIST_TOOL]({});
+    assert.equal(result.kind, "success");
+    assert.match(result.output ?? "", /No coordination runs/);
+  });
+
+  it("list returns recent runs newest first, bounded by limit", async () => {
+    const older = createCoordinationRun({ sessionId: "s1", rootGoal: "older goal", coordinatorAgentId: "alix" });
+    await store.save(older);
+    await new Promise((r) => setTimeout(r, 10));
+    const newer = createCoordinationRun({ sessionId: "s2", rootGoal: "newer goal", coordinatorAgentId: "alix" });
+    await store.save(newer);
+
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
+    const result = await handlers[COORDINATION_LIST_TOOL]({ limit: 1 });
+    assert.equal(result.kind, "success");
+    assert.match(result.output ?? "", /newer goal/);
+    assert.doesNotMatch(result.output ?? "", /older goal/);
   });
 });
