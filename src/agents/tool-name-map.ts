@@ -28,6 +28,7 @@ export const TOOL_NAME_MAP: ToolNameMap = {
   alix_shell_run:         "shell.run",
   alix_patch_apply:       "patch.apply",
   alix_done:              "done",
+  alix_schedule_propose:  "schedule.propose",
   alix_delegate:          "delegate",
   alix_coordination_run:    "coordination.run",
   alix_coordination_status: "coordination.status",

@@ -64,6 +64,11 @@ export class TaskRegistry {
       });
   }
 
+  /** Await the in-flight write — callers that exit immediately must flush. */
+  async flush(): Promise<void> {
+    await this.savePromise;
+  }
+
   create(task: string, cwd: string): DaemonTaskRecord {
     const record: DaemonTaskRecord = {
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

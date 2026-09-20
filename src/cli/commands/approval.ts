@@ -12,6 +12,7 @@
  */
 
 import { ApprovalStore } from "../../approvals/approval-store.js";
+import { openGlobalApprovalStore } from "../../approvals/global-store.js";
 
 export async function handleApproval(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -23,32 +24,40 @@ export async function handleApproval(args: string[]): Promise<void> {
   const cwd = process.cwd();
   const store = new ApprovalStore(cwd);
   await store.load();
+  // One inbox: schedule proposals live in the global store, tool approvals in
+  // the project store. Reviewing/approving by id works across both.
+  const globalStore = await openGlobalApprovalStore();
+  const stores = [store, globalStore];
+  const owner = (id: string): ApprovalStore => stores.find((s) => s.get(id)) ?? store;
 
   switch (subcommand) {
     case "list":
-      return handleList(store, args.slice(1));
+      return handleList(stores, args.slice(1));
     case "show":
-      return handleShow(store, args.slice(1));
+      return handleShow(owner(args[1] ?? ""), args.slice(1));
     case "approve":
-      return handleResolve(store, args.slice(1), "approved");
+      return handleResolve(owner(args[1] ?? ""), args.slice(1), "approved");
     case "deny":
-      return handleResolve(store, args.slice(1), "denied");
+      return handleResolve(owner(args[1] ?? ""), args.slice(1), "denied");
     case "revoke":
-      return handleRevoke(store, args.slice(1));
+      return handleRevoke(owner(args[1] ?? ""), args.slice(1));
     case "expire":
-      return handleExpire(store, args.slice(1));
+      return handleExpire(stores, args.slice(1));
     default:
       console.error(`Unknown approval subcommand: ${subcommand}`);
       process.exit(1);
   }
 }
 
-async function handleList(store: ApprovalStore, args: string[]): Promise<void> {
+async function handleList(stores: ApprovalStore[], args: string[]): Promise<void> {
   const showAll = args.includes("--all");
   const jsonMode = args.includes("--json");
   const runFilter = args.find(a => a.startsWith("--run="))?.split("=")[1];
 
-  let approvals = store.list();
+  const seen = new Set<string>();
+  let approvals = stores
+    .flatMap((s) => s.list())
+    .filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
   if (!showAll) approvals = approvals.filter(a => a.status === "pending");
   if (runFilter) approvals = approvals.filter(a => a.coordinationRunId === runFilter);
 
@@ -96,7 +105,8 @@ async function handleRevoke(store: ApprovalStore, args: string[]): Promise<void>
   console.log(`Revoked: ${id}`);
 }
 
-async function handleExpire(store: ApprovalStore, _args: string[]): Promise<void> {
-  const expired = await store.expireDue(new Date());
-  console.log(`Expired ${expired.length} approval(s).`);
+async function handleExpire(stores: ApprovalStore[], _args: string[]): Promise<void> {
+  let count = 0;
+  for (const store of stores) count += (await store.expireDue(new Date())).length;
+  console.log(`Expired ${count} approval(s).`);
 }

@@ -9,7 +9,7 @@ import { legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
  * Contract test for the canonical tool/capability taxonomy (INV-4).
  *
  * `src/tools/tool-registry.ts` is the single canonical source of
- * tool/capability metadata. This test locks the exact 21-entry executable
+ * tool/capability metadata. This test locks the exact 22-entry executable
  * surface (names, capability ids, policy keys, risk, mutation flags,
  * domains, always-include behavior, tags, execution profiles) plus the
  * INV-4 invariant:
@@ -128,6 +128,15 @@ const EXPECTED: Record<string, EntryShape> = {
     domain: "system",
     alwaysInclude: true,
     tags: ["done", "complete", "finish"],
+  },
+  "schedule.propose": {
+    capabilityId: "schedule.propose",
+    policyKey: "schedule.propose",
+    risk: "high",
+    mutates: true,
+    domain: "system",
+    alwaysInclude: false,
+    tags: ["schedule", "cron", "recurring", "job", "propose"],
   },
   delegate: {
     capabilityId: "agent.delegate",
@@ -258,9 +267,9 @@ function project(cap: ToolCapability): EntryShape & { name: string } {
 }
 
 describe("canonical tool capability taxonomy contract", () => {
-  it("registers exactly 21 canonical entries", () => {
+  it("registers exactly 22 canonical entries", () => {
     const { registry } = buildDefaultToolIndex();
-    expect(registry.getAll().length).toBe(21);
+    expect(registry.getAll().length).toBe(22);
   });
 
   it("matches the canonical table exactly", () => {

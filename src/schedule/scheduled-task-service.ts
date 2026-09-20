@@ -108,6 +108,10 @@ export class ScheduledTaskService {
   }
 
   async runOnce(): Promise<{ materialized: MaterializeSummary; ticked: TickSummary }> {
+    // Re-read both stores: the human may have approved a proposal (or the CLI
+    // revoked a job) since the last cycle, and the daemon is long-lived.
+    await this.deps.approvals.load?.().catch(() => {});
+    await this.deps.tasks.load?.().catch(() => {});
     const materialized = await this.materializeApproved();
     const ticked = await this.tick();
     return { materialized, ticked };

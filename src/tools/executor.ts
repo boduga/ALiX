@@ -25,6 +25,7 @@ import {
   McpToolRouter,
   DelegateToolRouter,
   SelfExtendToolRouter,
+  ScheduleToolRouter,
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
@@ -139,6 +140,7 @@ export class ToolExecutor {
       new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),
       new SelfExtendToolRouter(),
+      new ScheduleToolRouter(() => this.sessionId()),
       new WebToolsRouter(config.permissions?.allowNetworkDomains ?? []),
     ]);
     this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());

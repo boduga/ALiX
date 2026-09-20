@@ -161,6 +161,10 @@ Usage:
   alix approvals show <id>  Show approval details
   alix approvals approve <id> [--reason "..."]  Approve a pending request
   alix approvals deny <id> [--reason "..."]  Deny a pending request
+  alix schedule list     List approved scheduled jobs
+  alix schedule show <name>  Show a scheduled job
+  alix schedule run-now <name>  Enqueue one run now
+  alix schedule revoke <name>  Remove a scheduled job
 `);
   process.exit(0);
 }
@@ -502,6 +506,12 @@ if (command === "research") {
 if (command === "approvals") {
   const { handleApprovalsRoot } = await import("./cli/commands/approvals-doctor-capability.js");
   await handleApprovalsRoot(args);
+}
+
+if (command === "schedule") {
+  const { handleSchedule } = await import("./cli/commands/schedule.js");
+  await handleSchedule(args);
+  process.exit(0);
 }
 
 if (command === "models") {

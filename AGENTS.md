@@ -185,6 +185,7 @@ Default section order:
 | `src/observability/AGENTS.md` | Observability platform — metrics, telemetry, diagnostics, alerts, cost, health |
 | `src/utils/memory/AGENTS.md` | Agent memory store — persistence, recall, consolidation, decision extraction |
 | `src/evals/AGENTS.md` | Behavioral eval suite — scripted provider, drivers, evaluators, cases, runner, `alix evals` |
+| `src/schedule/AGENTS.md` | Agent-proposed scheduled jobs — spec, store, propose (approval-gated), daemon tick |
 | `src/skills/AGENTS.md` | Skill lifecycle — dispatch, factory distillation (prose + trace evidence), promotion |
 | `src/cli/commands/skills/AGENTS.md` | `alix skills` CLI surface — routing, install/run, distill-from-traces |
 | `src/cli/commands/security/AGENTS.md` | Security CLI handlers — security/inspector-auth/audit/credential/supply-chain submodules |

@@ -16,6 +16,14 @@ removes it.
 | `propose.ts` | `schedule.propose` core: validate a proposal, record a pending `ApprovalStore` entry with `capabilities: ["schedule.propose"]` and `metadata.scheduleProposal` |
 | `scheduled-task-service.ts` | Daemon-side logic: `materializeApproved()` (approval → one active job, keyed by approvalId) and `tick()` (enqueue due jobs, advance next run, expire) |
 
+Wiring: `schedule.propose` is a registry capability (`src/tools/tool-registry.ts`),
+handled by `ScheduleToolRouter` (`src/tools/tool-router.ts`), exposed to the model
+as `alix_schedule_propose` (`src/run/helpers.ts` BASE_TOOLS + `src/agents/tool-name-map.ts`),
+and gated by the default `permissions.default: "ask"` (plus a hard deny when
+`ALIX_SCHEDULED_RUN=1`). The daemon starts `ScheduledTaskService` on listen
+(`src/daemon/daemon-server.ts`); `alix schedule {list|show|run-now|revoke}`
+manages active jobs and `alix approvals` unions the global store.
+
 ## Local Contracts
 
 - **One approval surface.** Schedule proposals land in the (global)

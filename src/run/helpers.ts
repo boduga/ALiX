@@ -182,6 +182,25 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: { type: "object", properties: {} }
   },
   {
+    name: "alix_schedule_propose",
+    description: "Propose a recurring job. NOTHING is scheduled until a human approves it — never tell the user a job is running. The proposal appears in `alix approvals` for review. Schedules are daily HH:MM, weekly on named days, or every N minutes (minimum 5). Expiry is required (max 30 days). The task runs later as a fresh session; it cannot propose further schedules.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Stable job name: lowercase letters, digits, dashes (2..41 chars)." },
+        task: { type: "string", description: "The task to run on schedule, as a normal instruction (e.g. \"summarize yesterday's failing runs\")." },
+        cwd: { type: "string", description: "Absolute directory the task runs in (defaults to the current workspace)." },
+        schedule_kind: { type: "string", enum: ["daily", "weekly", "every"], description: "Schedule type." },
+        time: { type: "string", description: "HH:MM (24h, local). Required for daily/weekly." },
+        days: { type: "array", items: { type: "string" }, description: "Weekdays for weekly, e.g. [\"Mon\",\"Wed\"]." },
+        minutes: { type: "number", description: "Interval in minutes for every (>= 5)." },
+        expires: { type: "string", description: "YYYY-MM-DD expiry (required, at most 30 days out). The job stops on this date." },
+        reason: { type: "string", description: "Short note for the human reviewer explaining why this job is wanted." }
+      },
+      required: ["name", "task", "schedule_kind", "expires"]
+    }
+  },
+  {
     name: "alix_create_hook",
     description: "Create a hook that runs before or after tool calls or events. Hooks can log, audit, or modify behavior. For example: 'log every file deletion to audit.log'. Describe what you want in the prompt parameter and provide valid JavaScript code in the body.",
     input_schema: {
