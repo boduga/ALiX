@@ -60,6 +60,7 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('j', drawer)).toEqual({ type: 'drawer.move', direction: 1 });
     expect(routeWorkbenchInput('Escape', drawer)).toEqual({ type: 'drawer.close' });
     expect(routeWorkbenchInput('j', context({ drawer: 'tasks', focus: 'drawer' }))).toEqual({ type: 'drawer.move', direction: 1 });
+    expect(routeWorkbenchInput('j', context({ drawer: 'artifacts', focus: 'drawer' }))).toEqual({ type: 'drawer.move', direction: 1 });
     expect(routeWorkbenchInput('[', drawer)).toEqual({ type: 'run.move', direction: -1 });
     expect(routeWorkbenchInput(']', drawer)).toEqual({ type: 'run.move', direction: 1 });
     expect(routeWorkbenchInput('Enter', drawer)).toEqual({ type: 'agentRoster.toggle' });

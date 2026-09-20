@@ -163,6 +163,30 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('1 blocked');
   });
 
+  it('renders selected artifact metadata and a bounded result preview', () => {
+    const canvas = new TerminalCanvas(140, 24);
+    paintRosterDrawer({
+      canvas, terminalColumns: 140, top: 3, bottom: 18,
+      layout: resolveWorkbenchLayout(140, 'artifacts'), agents: null, tasks: null,
+      artifacts: { artifacts: 1, results: 1, failed: 1, items: [
+        {
+          id: 'report-1', kind: 'artifact', status: 'available', title: 'Run report', artifactType: 'report',
+          uri: 'file:///tmp/report.md', mediaType: 'text/markdown', sizeBytes: 2048, digest: 'abcdef1234567890',
+          preview: 'First line\nSecond line', coordinationRunId: 'run-1', agentId: 'agent-1', taskId: 'task-1', createdAt: 1, sourceSequence: 1,
+        },
+        { id: 'result-1', kind: 'result', status: 'failed', title: 'Worker result', preview: 'failed', createdAt: 2, sourceSequence: 2 },
+      ] },
+      selectedRunId: 'run-1', selectedAgentId: 'agent-1', selectedTaskId: 'task-1', selectedArtifactId: 'report-1',
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('ARTIFACTS  1 files · 1 results');
+    expect(frame).toContain('›◆ Run report');
+    expect(frame).toContain('report · agent agent-1 · task ta…');
+    expect(frame).toContain('file:///tmp/report.md');
+    expect(frame).toContain('text/markdown · 2.0 KiB · digest…');
+    expect(frame).toContain('First line');
+  });
+
   it('renders compact roster totals and marks partial known cost', () => {
     const canvas = new TerminalCanvas(180, 24);
     paintOperatorShell({

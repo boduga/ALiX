@@ -2,6 +2,7 @@ import type { TerminalCanvas } from '../../canvas.js';
 import { RESET } from '../../ansi-constants.js';
 import type { AgentRosterSnapshot } from '../model/agent-roster.js';
 import type { TaskRosterSnapshot } from '../model/task-roster.js';
+import type { WorkbenchArtifactSnapshot, WorkbenchInspectableItem } from '../model/artifact-inspection.js';
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
 import { truncateDisplayText } from '../render/terminal-text.js';
 import { visibleForRun } from '../model/selection.js';
@@ -28,6 +29,24 @@ function formatCoordMeta(entry: { coordinationRunId?: string; assignedAgentId?: 
   return [run, assigned].filter(Boolean).join(' · ');
 }
 
+function formatBytes(value: number): string {
+  if (value < 1_024) return `${value} B`;
+  if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
+  return `${(value / 1_048_576).toFixed(1)} MiB`;
+}
+
+function visibleArtifacts(
+  items: readonly WorkbenchInspectableItem[],
+  runId?: string,
+  agentId?: string,
+  taskId?: string,
+): readonly WorkbenchInspectableItem[] {
+  return items.filter((item) =>
+    (!runId || !item.coordinationRunId || item.coordinationRunId === runId) &&
+    (!agentId || !item.agentId || item.agentId === agentId) &&
+    (!taskId || !item.taskId || item.taskId === taskId));
+}
+
 export function paintRosterDrawer(input: {
   readonly canvas: TerminalCanvas;
   readonly terminalColumns: number;
@@ -36,9 +55,11 @@ export function paintRosterDrawer(input: {
   readonly layout: WorkbenchResponsiveLayout;
   readonly agents: AgentRosterSnapshot | null;
   readonly tasks: TaskRosterSnapshot | null;
+  readonly artifacts?: WorkbenchArtifactSnapshot | null;
   readonly selectedAgentId?: string;
   readonly selectedTaskId?: string;
   readonly selectedRunId?: string;
+  readonly selectedArtifactId?: string;
   readonly agentRosterExpanded?: boolean;
   readonly agentScrollOffset?: number;
 }): void {
@@ -53,7 +74,9 @@ export function paintRosterDrawer(input: {
   }
   const title = layout.drawer === 'agents'
     ? `AGENTS  ${input.agents?.active ?? 0} active`
-    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`;
+    : layout.drawer === 'tasks'
+      ? `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`
+      : `ARTIFACTS  ${input.artifacts?.artifacts ?? 0} files · ${input.artifacts?.results ?? 0} results`;
   canvas.write(left + 2, top, `\x1b[1m${fit(title, inner)}${RESET}`);
   canvas.write(left + 2, top + 1, `\x1b[90m${'─'.repeat(inner)}${RESET}`);
 
@@ -103,7 +126,7 @@ export function paintRosterDrawer(input: {
       }
       row++;
     }
-  } else {
+  } else if (layout.drawer === 'tasks') {
     const tasks = visibleForRun(input.tasks?.tasks ?? [], input.selectedRunId);
     if (tasks.length === 0) canvas.write(left + 2, row, `\x1b[90mNo delegated tasks${RESET}`);
     for (const task of tasks) {
@@ -127,6 +150,39 @@ export function paintRosterDrawer(input: {
       }
       if (row <= bottom - 1 && task.ownedPaths.length > 0) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${task.ownedPaths.join(', ')}`, inner)}${RESET}`);
+      }
+      row++;
+    }
+  } else {
+    const items = visibleArtifacts(
+      input.artifacts?.items ?? [],
+      input.selectedRunId,
+      input.selectedAgentId,
+      input.selectedTaskId,
+    );
+    if (items.length === 0) {
+      canvas.write(left + 2, row, `\x1b[90mNo artifacts or results${RESET}`);
+      return;
+    }
+    const offset = Math.max(0, input.agentScrollOffset ?? 0);
+    for (const item of items.slice(offset)) {
+      if (row > bottom - 1) break;
+      const selected = item.id === input.selectedArtifactId ? '›' : ' ';
+      const marker = item.status === 'failed' ? '✗' : item.status === 'unavailable' ? '!' : item.kind === 'artifact' ? '◆' : '✓';
+      canvas.write(left + 2, row++, fit(`${selected}${marker} ${item.title}`, inner));
+      if (item.id !== input.selectedArtifactId) continue;
+      const correlation = [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : '']
+        .filter(Boolean).join(' · ');
+      if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(correlation, inner)}${RESET}`);
+      if (row <= bottom - 1 && item.uri) canvas.write(left + 2, row++, `\x1b[90m${fit(item.uri, inner)}${RESET}`);
+      const metadata = [item.mediaType, item.sizeBytes !== undefined ? formatBytes(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : '']
+        .filter(Boolean).join(' · ');
+      if (row <= bottom - 1 && metadata) canvas.write(left + 2, row++, `\x1b[90m${fit(metadata, inner)}${RESET}`);
+      if (row <= bottom - 1 && item.preview) {
+        for (const line of item.preview.split(/\r?\n/).slice(0, 5)) {
+          if (row > bottom - 1) break;
+          canvas.write(left + 2, row++, fit(`  ${line}`, inner));
+        }
       }
       row++;
     }

@@ -5,7 +5,7 @@ export interface WorkbenchInputContext {
   readonly approvalPending?: boolean;
   readonly overlayOpen?: boolean;
   readonly transcriptMode: 'compact' | 'detailed' | 'raw';
-  readonly drawer: 'closed' | 'agents' | 'tasks';
+  readonly drawer: 'closed' | 'agents' | 'tasks' | 'artifacts';
   readonly focus: 'composer' | 'transcript' | 'drawer' | 'modal';
 }
 
@@ -22,7 +22,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'permission.cycle' }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.toggle' }
-  | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' }
+  | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' | 'artifacts' }
   | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
   | { readonly type: 'run.move'; readonly direction: -1 | 1 }
   | { readonly type: 'agentRoster.toggle' }

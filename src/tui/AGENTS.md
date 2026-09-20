@@ -48,7 +48,7 @@
 - Workbench composer insertion, movement, Backspace, and Delete operate on complete Unicode graphemes; its cursor remains a JavaScript string offset positioned at a grapheme boundary. Left/Right move by grapheme, and Home/End move to document boundaries.
 - Bracketed paste inserts one normalized text block at the authoritative Workbench cursor; it never rebuilds composer state from the legacy input-buffer adapter.
 - Runtime collectors coalesce EventLog watch notifications into serialized 20 ms projection samples; the one-second interval remains a recovery/clock fallback.
-- `/agents` and `/tasks` open their presentation drawers; `/diff`, `/review`, and `/help` open built-in Workbench overlays. Built-in commands require an exact match and never dispatch runtime work or skills. Their read models are projection-backed and their painters remain side-effect free.
+- `/agents`, `/tasks`, and `/artifacts` open projection-backed presentation drawers; `/diff`, `/review`, and `/help` open built-in Workbench overlays. Artifact/result inspection is read-only, preserves authoritative run/agent/task correlation, and renders only bounded event-provided previews—it never reads artifact paths from a painter. Built-in commands require an exact match and never dispatch runtime work or skills. Their painters remain side-effect free.
 - Diagnostic overlays consume editing, paste, and navigation input; Escape closes them and Ctrl+C retains cancellation/exit. Approval cards paint above diagnostics and their decision keys remain actionable.
 - Workbench rollout is additive and feature-gated until legacy parity is proven.
 - Keep the custom ANSI canvas; do not introduce a second terminal UI framework without a separately approved architecture change.

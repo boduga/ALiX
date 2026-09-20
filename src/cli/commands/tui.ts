@@ -40,6 +40,7 @@ import type { GovernanceRecommendation } from "../../evolution/verification/cont
 import { AgentRosterProjection } from "../../tui/workbench/projections/agent-roster-projection.js";
 import { TaskProjection } from "../../tui/workbench/projections/task-projection.js";
 import { DiffProjection } from "../../tui/workbench/projections/diff-projection.js";
+import { ArtifactProjection } from "../../tui/workbench/projections/artifact-projection.js";
 export type { PolicyConfig } from "../../tui/helpers/policy-commands.js";
 export { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 
@@ -212,6 +213,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     [ProjectionIds.agents, new AgentRosterProjection()],
     [ProjectionIds.tasks, new TaskProjection()],
     [ProjectionIds.diffs, new DiffProjection()],
+    [ProjectionIds.artifacts, new ArtifactProjection()],
   ]);
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,

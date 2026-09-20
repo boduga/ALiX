@@ -42,5 +42,6 @@ describe("self capabilities", () => {
     assert.match(prompt, /## Your Capabilities/);
     assert.match(prompt, /alix coordination/);
     assert.match(prompt, /\/agents/);
+    assert.match(prompt, /\/artifacts/);
   });
 });

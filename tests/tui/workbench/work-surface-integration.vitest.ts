@@ -45,6 +45,28 @@ function type(internal: { handleRaw(buffer: Buffer): void }, text: string): void
 }
 
 describe('Workbench work surface integration', () => {
+  it('opens artifact inspection and navigates correlated results', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.getStateForTest().lastSnapshot.runtime = {
+      agents: null, tasks: null,
+      artifacts: {
+        artifacts: 1, results: 1, failed: 0,
+        items: [
+          { id: 'artifact-1', kind: 'artifact', status: 'available', title: 'Report', coordinationRunId: 'run-1', agentId: 'agent-1', createdAt: 1, sourceSequence: 1 },
+          { id: 'result-1', kind: 'result', status: 'available', title: 'Worker result', coordinationRunId: 'run-1', agentId: 'agent-1', createdAt: 2, sourceSequence: 2 },
+        ],
+      },
+    };
+
+    type(internal, '/artifacts');
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'artifacts', focus: 'drawer' });
+    internal.handleRaw(Buffer.from('j'));
+    expect(internal.getWorkbenchStateForTest().selectedArtifactId).toBe('artifact-1');
+    internal.handleRaw(Buffer.from('j'));
+    expect(internal.getWorkbenchStateForTest().selectedArtifactId).toBe('result-1');
+  });
+
   it('reconciles a vanished run before preserving still-valid agent and task focus', () => {
     const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     internal.getStateForTest().lastSnapshot.runtime = {

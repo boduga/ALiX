@@ -77,19 +77,22 @@ export function reduceWorkbenchUiState(
         ? state
         : { ...state, drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 };
     case 'run.select':
-      return { ...state, selectedRunId: action.runId, selectedAgentId: undefined, selectedTaskId: undefined, drawerScrollOffset: 0 };
+      return { ...state, selectedRunId: action.runId, selectedAgentId: undefined, selectedTaskId: undefined, selectedArtifactId: undefined, drawerScrollOffset: 0 };
     case 'agent.select':
-      return { ...state, selectedAgentId: action.agentId, selectedTaskId: undefined, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+      return { ...state, selectedAgentId: action.agentId, selectedTaskId: undefined, selectedArtifactId: undefined, drawerScrollOffset: Math.max(0, action.scrollOffset) };
     case 'task.select':
-      return { ...state, selectedTaskId: action.taskId, selectedAgentId: action.agentId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+      return { ...state, selectedTaskId: action.taskId, selectedAgentId: action.agentId, selectedArtifactId: undefined, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+    case 'artifact.select':
+      return { ...state, selectedArtifactId: action.artifactId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
     case 'agentRoster.toggle':
       return { ...state, agentRosterExpanded: !state.agentRosterExpanded };
     case 'selection.reconcile': {
       const selectedRunId = state.selectedRunId && action.runIds.includes(state.selectedRunId) ? state.selectedRunId : undefined;
       const selectedAgentId = state.selectedAgentId && action.agentIds.includes(state.selectedAgentId) ? state.selectedAgentId : undefined;
       const selectedTaskId = state.selectedTaskId && action.taskIds.includes(state.selectedTaskId) ? state.selectedTaskId : undefined;
-      if (selectedRunId === state.selectedRunId && selectedAgentId === state.selectedAgentId && selectedTaskId === state.selectedTaskId) return state;
-      return { ...state, selectedRunId, selectedAgentId, selectedTaskId };
+      const selectedArtifactId = state.selectedArtifactId && action.artifactIds?.includes(state.selectedArtifactId) ? state.selectedArtifactId : undefined;
+      if (selectedRunId === state.selectedRunId && selectedAgentId === state.selectedAgentId && selectedTaskId === state.selectedTaskId && selectedArtifactId === state.selectedArtifactId) return state;
+      return { ...state, selectedRunId, selectedAgentId, selectedTaskId, selectedArtifactId };
     }
     case 'overlay.toggle': {
       const current = state.overlayStack[state.overlayStack.length - 1];

@@ -5,6 +5,7 @@ describe('Workbench built-in commands', () => {
   it.each([
     ['/agents', { type: 'drawer.open', drawer: 'agents' }],
     ['/tasks', { type: 'drawer.open', drawer: 'tasks' }],
+    ['/artifacts', { type: 'drawer.open', drawer: 'artifacts' }],
     ['/diff', { type: 'overlay.open', overlay: 'diff' }],
     ['/review', { type: 'overlay.open', overlay: 'review' }],
     ['/help', { type: 'overlay.open', overlay: 'help' }],
@@ -17,7 +18,7 @@ describe('Workbench built-in commands', () => {
     expect(parseWorkbenchBuiltinCommand('  /AGENTS  ')).toEqual({ type: 'drawer.open', drawer: 'agents' });
   });
 
-  it.each(['/agents now', '/tasks/active', '/unknown', 'agents'])('rejects non-exact command %s', (input) => {
+  it.each(['/agents now', '/tasks/active', '/artifacts all', '/unknown', 'agents'])('rejects non-exact command %s', (input) => {
     expect(parseWorkbenchBuiltinCommand(input)).toBeNull();
   });
 });

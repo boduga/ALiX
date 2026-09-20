@@ -150,6 +150,7 @@ export interface RuntimeSnapshot {
   readonly agents?: import('./workbench/model/agent-roster.js').AgentRosterSnapshot | null;
   readonly tasks?: import('./workbench/model/task-roster.js').TaskRosterSnapshot | null;
   readonly diffs?: import('./workbench/model/diff-summary.js').WorkbenchDiffSnapshot | null;
+  readonly artifacts?: import('./workbench/model/artifact-inspection.js').WorkbenchArtifactSnapshot | null;
   /**
    * Evolution-loop projection (A7 lifecycle → A8 learning → A9 forecasts /
    * correlations → A2.5/A3 projected decisions → measurements). Null when the

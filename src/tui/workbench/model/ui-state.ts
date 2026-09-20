@@ -1,5 +1,5 @@
 export type WorkbenchFocus = 'composer' | 'transcript' | 'drawer' | 'modal';
-export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks';
+export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks' | 'artifacts';
 export type WorkbenchTranscriptMode = 'compact' | 'detailed' | 'raw';
 export type WorkbenchOverlay = 'diff' | 'review' | 'help';
 
@@ -24,6 +24,7 @@ export interface WorkbenchUiState {
   /** Undefined means the aggregate across every agent in the selected run. */
   readonly selectedAgentId?: string;
   readonly selectedTaskId?: string;
+  readonly selectedArtifactId?: string;
   readonly agentRosterExpanded: boolean;
   readonly drawer: WorkbenchDrawer;
   readonly drawerScrollOffset: number;
