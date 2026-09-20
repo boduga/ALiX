@@ -7,6 +7,7 @@ export interface ApprovalProjectionEntry {
   readonly approvalId: string;
   readonly prompt?: string;
   readonly toolName?: string;
+  readonly agentId?: string;
   readonly status: 'pending' | 'approved' | 'denied' | 'edited'
     | 'expired' | 'revoked' | 'consumed' | 'invalidated' | 'resumed';
   readonly requestedAt: number;
@@ -64,7 +65,7 @@ function parseTimestamp(e: AlixEvent): number {
   return t;
 }
 
-function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolName?: string } {
+function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolName?: string; agentId?: string } {
   const p = (e.payload ?? {}) as Record<string, unknown>;
   const capabilities = Array.isArray(p.capabilities) ? p.capabilities.filter((c): c is string => typeof c === 'string') : [];
   return {
@@ -73,6 +74,8 @@ function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolNa
     toolName: typeof p.toolName === 'string' ? p.toolName
       : (capabilities.length > 0 ? capabilities[0]
       : (typeof p.toolId === 'string' ? p.toolId : undefined)),
+    agentId: typeof p.agentId === 'string' ? p.agentId
+      : (typeof p.assignedAgentId === 'string' ? p.assignedAgentId : undefined),
   };
 }
 
@@ -131,19 +134,20 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
       }
       this.lastSeq = e.seq;
       const timestamp = parseTimestamp(e);
-      const { approvalId, prompt, toolName } = entryFrom(e);
+      const { approvalId, prompt, toolName, agentId } = entryFrom(e);
       if (!approvalId) continue;
 
       const isCreate = e.type === 'approval.requested' || e.type === 'approval.created';
       if (isCreate) {
         if (!this.pending.has(approvalId)) {
-          this.pending.set(approvalId, { approvalId, prompt, toolName, status: 'pending', requestedAt: timestamp });
+          this.pending.set(approvalId, { approvalId, prompt, toolName, agentId, status: 'pending', requestedAt: timestamp });
         } else {
           // merge-enrich: fill missing fields ONLY, never overwrite
           const existing = this.pending.get(approvalId)!;
           const next = { ...existing };
           if (next.prompt == null && prompt != null) next.prompt = prompt;
           if (next.toolName == null && toolName != null) next.toolName = toolName;
+          if (next.agentId == null && agentId != null) next.agentId = agentId;
           this.pending.set(approvalId, next);
         }
       } else if (e.type === 'approval.resumed') {

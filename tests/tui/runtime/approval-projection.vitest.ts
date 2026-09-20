@@ -46,6 +46,14 @@ describe('ApprovalProjection', () => {
     expect(p.snapshot().completed[0]!.completedAt).toBe(2 * 1000);
   });
 
+  it('preserves optional agent correlation across the approval lifecycle', () => {
+    const p = new ApprovalProjection();
+    p.update([evt('approval.requested', { approvalId: 'a1', agentId: 'worker-2', toolName: 'shell.run' }, 1)]);
+    expect(p.snapshot().pending[0]).toMatchObject({ approvalId: 'a1', agentId: 'worker-2' });
+    p.update([resolved(2, 'a1', 'approved')]);
+    expect(p.snapshot().completed[0]).toMatchObject({ approvalId: 'a1', agentId: 'worker-2' });
+  });
+
   it('completed is bounded by MAX_COMPLETED (FIFO drop of oldest)', () => {
     const p = new ApprovalProjection();
     const ids = Array.from({ length: MAX_COMPLETED + 5 }, (_, i) => `a${i}`);

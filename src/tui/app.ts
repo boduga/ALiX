@@ -32,6 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import { approvalVisibleTo, coordinationRunIds, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
@@ -246,6 +247,7 @@ export class TuiApp {
       this.state.lastSnapshot = snap;
     }
     await this.sampleRuntimeCollectors();
+    this.reconcileWorkbenchSelection();
     this.paintFullFrame();
     // Repaint after the catalog read resolves so a CLI-side install/remove
     // (invalidateSlashCatalog) refreshes the completion strip immediately
@@ -340,6 +342,7 @@ export class TuiApp {
     this.syncPendingApprovals();
     this.syncCurrentIntent();
     await this.sampleRuntimeCollectors();
+    this.reconcileWorkbenchSelection();
     this.paintFullFrame();
     // Re-read the slash manifest catalog so a CLI-side install/remove
     // (invalidateSlashCatalog) becomes visible in the TUI's completion
@@ -377,6 +380,21 @@ export class TuiApp {
     if (this.agentRuntime && agentPer.streamingText) {
       agentPer.streamingText = trimStreamedTextToLanded(this.agentRuntime.timeline, agentPer.streamingText);
     }
+  }
+
+  /** Keep a valid operator selection while streaming snapshots append/reorder rows. */
+  private reconcileWorkbenchSelection(): void {
+    const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
+    const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
+    const runIds = coordinationRunIds([...agents, ...tasks]);
+    const currentRunId = this.workbenchStore.snapshot().selectedRunId;
+    const selectedRunId = currentRunId && runIds.includes(currentRunId) ? currentRunId : undefined;
+    this.workbenchStore.dispatch({
+      type: 'selection.reconcile',
+      runIds,
+      agentIds: visibleForRun(agents, selectedRunId).map((agent) => agent.agentId),
+      taskIds: visibleForRun(tasks, selectedRunId).map((task) => task.taskId),
+    });
   }
 
   /**
@@ -441,6 +459,7 @@ export class TuiApp {
         toolName: p.toolName,
         target: p.target,
         requestedAt: p.requestedAt,
+        agentId: p.agentId,
       }));
       perTab.pendingApprovals = [
         ...sampledPending,
@@ -815,11 +834,6 @@ export class TuiApp {
       }
       case 'drawer.toggle':
         this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
-        if (intent.drawer === 'agents' && this.workbenchStore.snapshot().drawer === 'agents') {
-          const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
-          const selected = agents.find((agent) => agent.agentId === state.selectedAgentId) ?? agents[0];
-          if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: 0 });
-        }
         this.paintFullFrame();
         return true;
       case 'drawer.close':
@@ -827,19 +841,42 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'drawer.move': {
-        if (state.drawer !== 'agents') return true;
-        const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
-        if (agents.length === 0) return true;
-        const selectedIndex = agents.findIndex((agent) => agent.agentId === state.selectedAgentId);
-        const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
-        const target = Math.max(0, Math.min(agents.length - 1, current + intent.direction));
-        const selected = agents[target]!;
-        this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
+        if (state.drawer === 'agents') {
+          const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
+          const ids: Array<string | undefined> = [undefined, ...agents.map((agent) => agent.agentId)];
+          const selectedIndex = ids.findIndex((id) => id === state.selectedAgentId);
+          const current = selectedIndex >= 0 ? selectedIndex : 0;
+          const target = Math.max(0, Math.min(ids.length - 1, current + intent.direction));
+          this.workbenchStore.dispatch({ type: 'agent.select', agentId: ids[target], scrollOffset: Math.max(0, target - 2) });
+        } else if (state.drawer === 'tasks') {
+          const tasks = visibleForRun(this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
+          if (tasks.length === 0) return true;
+          const selectedIndex = tasks.findIndex((task) => task.taskId === state.selectedTaskId);
+          const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
+          const target = Math.max(0, Math.min(tasks.length - 1, current + intent.direction));
+          const selected = tasks[target]!;
+          this.workbenchStore.dispatch({ type: 'task.select', taskId: selected.taskId, agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
+        }
         this.paintFullFrame();
         return true;
       }
+      case 'run.move': {
+        const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
+        const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
+        const runs = coordinationRunIds([...agents, ...tasks]);
+        const ids: Array<string | undefined> = [undefined, ...runs];
+        const current = Math.max(0, ids.findIndex((id) => id === state.selectedRunId));
+        const target = (current + intent.direction + ids.length) % ids.length;
+        this.workbenchStore.dispatch({ type: 'run.select', runId: ids[target] });
+        this.paintFullFrame();
+        return true;
+      }
+      case 'agentRoster.toggle':
+        this.workbenchStore.dispatch({ type: 'agentRoster.toggle' });
+        this.paintFullFrame();
+        return true;
       case 'approval.resolve': {
-        const target = perTab.pendingApprovals[0] ?? fallbackTarget;
+        const target = perTab.pendingApprovals.find((approval) => approvalVisibleTo(approval, state.selectedAgentId)) ?? fallbackTarget;
         if (!target) return false;
         if (this.pendingApprovalDecisions.has(target.id)) return true;
         this.pendingApprovalDecisions.add(target.id);
@@ -886,11 +923,6 @@ export class TuiApp {
     const state = this.workbenchStore.snapshot();
     if (state.drawer !== command.drawer) {
       this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: command.drawer });
-    }
-    if (command.drawer === 'agents') {
-      const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
-      const selected = agents.find((agent) => agent.agentId === state.selectedAgentId) ?? agents[0];
-      if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: 0 });
     }
     return true;
   }

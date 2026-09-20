@@ -41,7 +41,7 @@ describe('Workbench agent and task projections', () => {
       agents: [{ agentId: 'task-1', role: 'reviewer', state: 'partial', currentTaskId: 'task-1' }],
     });
     expect(tasks.snapshot()).toMatchObject({
-      queued: 0, running: 0,
+      queued: 0, running: 0, blocked: 0,
       tasks: [{ taskId: 'task-1', agentId: 'task-1', title: 'Review the TUI', state: 'partial' }],
     });
   });
@@ -95,6 +95,21 @@ describe('Workbench agent and task projections', () => {
         ownedPaths: ['src/tui', 'tests/tui'],
       }],
     });
+  });
+
+  it('preserves authoritative dependency and ownership block reasons', () => {
+    const tasks = new TaskProjection();
+    tasks.update([
+      event(1, 'agent.task_assigned', { agentId: 'agent-1', taskId: 'task-1', title: 'Write files' }),
+      event(2, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'blocked', blockReason: 'ownership_conflict' }),
+    ]);
+    expect(tasks.snapshot()).toMatchObject({ blocked: 1, tasks: [{ state: 'blocked', blockReason: 'ownership_conflict' }] });
+
+    tasks.update([
+      event(3, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'running', blockReason: 'ownership_conflict' }),
+    ]);
+    expect(tasks.snapshot()).toMatchObject({ blocked: 0, running: 1, tasks: [{ state: 'running' }] });
+    expect(tasks.snapshot().tasks[0]?.blockReason).toBeUndefined();
   });
 
   it('preserves coordination metadata without conflating agent and worker identity', () => {

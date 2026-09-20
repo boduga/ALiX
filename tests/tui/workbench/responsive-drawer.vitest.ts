@@ -76,7 +76,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 100, top: 3, bottom: 18, layout: resolveWorkbenchLayout(100, 'tasks'),
       agents: null,
       tasks: {
-        queued: 1, running: 1,
+        queued: 1, running: 1, blocked: 0,
         tasks: [{
           taskId: 'task-1', agentId: 'agent-1', title: 'Finish Workbench', state: 'running',
           coordinationRunId: 'coord-1', assignedAgentId: 'alix#2',
@@ -85,7 +85,7 @@ describe('Workbench responsive drawer', () => {
       },
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('TASKS  1 running · 1 queued');
+    expect(frame).toContain('TASKS  1 running · 1 queued · 0 blocked');
     expect(frame).toContain('● Finish Workbench');
     expect(frame).toContain('running · agent agent-1');
     expect(frame).toContain('run coord-1 · assigned alix#2');
@@ -99,7 +99,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 20, top: 3, bottom: 12, layout: resolveWorkbenchLayout(20, 'tasks'),
       agents: null,
       tasks: {
-        queued: 0, running: 1,
+        queued: 0, running: 1, blocked: 0,
         tasks: [{
           taskId: 'task-1', title: '調査調査調査調査調査', state: 'running',
           ownedPaths: [], createdAt: 1, updatedAt: 2,
@@ -107,7 +107,7 @@ describe('Workbench responsive drawer', () => {
       },
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('● 調査調査調査調…');
+    expect(frame).toContain('● 調査調査調査…');
   });
 
   it('starts agent rendering at the presentation scroll offset', () => {
@@ -125,6 +125,42 @@ describe('Workbench responsive drawer', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).not.toContain('first · thinking');
     expect(frame).toContain('›● second · thinking');
+  });
+
+  it('filters by run, exposes aggregate selection, and collapses the roster', () => {
+    const agent = (agentId: string, coordinationRunId: string) => ({
+      agentId, coordinationRunId, role: agentId, state: 'thinking' as const,
+      ownedPaths: [], startedAt: 1, lastProgressAt: 2, usage: {},
+    });
+    const canvas = new TerminalCanvas(140, 24);
+    paintRosterDrawer({
+      canvas, terminalColumns: 140, top: 3, bottom: 18,
+      layout: resolveWorkbenchLayout(140, 'agents'),
+      agents: { active: 2, totals: { agents: 2, running: 2, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 }, agents: [agent('a1', 'r1'), agent('a2', 'r2')] },
+      tasks: null, selectedRunId: 'r2', agentRosterExpanded: false,
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('RUN r2 · [ ] switch');
+    expect(frame).toContain('›◉ All agents');
+    expect(frame).toContain('Enter to expand roster');
+    expect(frame).not.toContain('a1 · thinking');
+  });
+
+  it('marks the selected task and names ownership conflicts', () => {
+    const canvas = new TerminalCanvas(100, 24);
+    paintRosterDrawer({
+      canvas, terminalColumns: 100, top: 3, bottom: 18,
+      layout: resolveWorkbenchLayout(100, 'tasks'), agents: null,
+      tasks: { queued: 0, running: 0, blocked: 1, tasks: [{
+        taskId: 'task-1', title: 'Write shared files', state: 'blocked', blockReason: 'ownership_conflict',
+        ownedPaths: ['src/tui'], createdAt: 1, updatedAt: 2,
+      }] },
+      selectedTaskId: 'task-1',
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('›! Write shared files');
+    expect(frame).toContain('⚠ OWNERSHIP CONFLICT');
+    expect(frame).toContain('1 blocked');
   });
 
   it('renders compact roster totals and marks partial known cost', () => {

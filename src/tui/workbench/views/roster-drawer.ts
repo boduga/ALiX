@@ -4,6 +4,7 @@ import type { AgentRosterSnapshot } from '../model/agent-roster.js';
 import type { TaskRosterSnapshot } from '../model/task-roster.js';
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
 import { truncateDisplayText } from '../render/terminal-text.js';
+import { visibleForRun } from '../model/selection.js';
 
 function fit(text: string, width: number): string {
   return truncateDisplayText(text, width);
@@ -15,6 +16,7 @@ function taskStateGlyph(state: TaskRosterSnapshot['tasks'][number]['state']): st
   if (state === 'completed') return '✓';
   if (state === 'partial') return '◐';
   if (state === 'failed') return '✗';
+  if (state === 'blocked') return '!';
   return '○';
 }
 
@@ -35,6 +37,9 @@ export function paintRosterDrawer(input: {
   readonly agents: AgentRosterSnapshot | null;
   readonly tasks: TaskRosterSnapshot | null;
   readonly selectedAgentId?: string;
+  readonly selectedTaskId?: string;
+  readonly selectedRunId?: string;
+  readonly agentRosterExpanded?: boolean;
   readonly agentScrollOffset?: number;
 }): void {
   const { canvas, terminalColumns, top, bottom, layout } = input;
@@ -48,13 +53,21 @@ export function paintRosterDrawer(input: {
   }
   const title = layout.drawer === 'agents'
     ? `AGENTS  ${input.agents?.active ?? 0} active`
-    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued`;
+    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`;
   canvas.write(left + 2, top, `\x1b[1m${fit(title, inner)}${RESET}`);
   canvas.write(left + 2, top + 1, `\x1b[90m${'─'.repeat(inner)}${RESET}`);
 
-  let row = top + 3;
+  const runLabel = input.selectedRunId ? `RUN ${input.selectedRunId}` : 'RUN all';
+  canvas.write(left + 2, top + 2, `\x1b[90m${fit(`${runLabel} · [ ] switch`, inner)}${RESET}`);
+  let row = top + 4;
   if (layout.drawer === 'agents') {
-    const agents = input.agents?.agents ?? [];
+    const agents = visibleForRun(input.agents?.agents ?? [], input.selectedRunId);
+    const aggregateSelected = input.selectedAgentId === undefined;
+    canvas.write(left + 2, row++, fit(`${aggregateSelected ? '›' : ' '}◉ All agents`, inner));
+    if (input.agentRosterExpanded === false) {
+      if (row <= bottom) canvas.write(left + 2, row, `\x1b[90m${fit('Enter to expand roster', inner)}${RESET}`);
+      return;
+    }
     const visibleAgents = agents.slice(Math.max(0, input.agentScrollOffset ?? 0));
     if (agents.length === 0) canvas.write(left + 2, row, `\x1b[90mNo subagents${RESET}`);
     for (const agent of visibleAgents) {
@@ -91,11 +104,12 @@ export function paintRosterDrawer(input: {
       row++;
     }
   } else {
-    const tasks = input.tasks?.tasks ?? [];
+    const tasks = visibleForRun(input.tasks?.tasks ?? [], input.selectedRunId);
     if (tasks.length === 0) canvas.write(left + 2, row, `\x1b[90mNo delegated tasks${RESET}`);
     for (const task of tasks) {
       if (row > bottom - 1) break;
-      canvas.write(left + 2, row++, fit(`${taskStateGlyph(task.state)} ${task.title}`, inner));
+      const selected = task.taskId === input.selectedTaskId ? '›' : ' ';
+      canvas.write(left + 2, row++, fit(`${selected}${taskStateGlyph(task.state)} ${task.title}`, inner));
       const owner = task.agentId ? ` · agent ${task.agentId}` : '';
       if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
       const taskCoordMeta = formatCoordMeta(task);
@@ -104,6 +118,12 @@ export function paintRosterDrawer(input: {
       }
       if (row <= bottom - 1 && task.currentOperation && task.currentOperation !== task.title) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(task.currentOperation, inner)}${RESET}`);
+      }
+      if (row <= bottom - 1 && task.blockReason) {
+        const label = task.blockReason === 'ownership_conflict' ? 'OWNERSHIP CONFLICT'
+          : task.blockReason === 'dependency_failed' ? 'DEPENDENCY BLOCKED'
+          : `BLOCKED · ${task.blockReason}`;
+        canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
       }
       if (row <= bottom - 1 && task.ownedPaths.length > 0) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${task.ownedPaths.join(', ')}`, inner)}${RESET}`);

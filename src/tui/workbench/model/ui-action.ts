@@ -12,7 +12,11 @@ export type WorkbenchUiAction =
   | { readonly type: 'focus.set'; readonly focus: WorkbenchFocus }
   | { readonly type: 'drawer.toggle'; readonly drawer: Exclude<WorkbenchDrawer, 'closed'> }
   | { readonly type: 'drawer.close' }
-  | { readonly type: 'agent.select'; readonly agentId: string; readonly scrollOffset: number }
+  | { readonly type: 'run.select'; readonly runId?: string }
+  | { readonly type: 'agent.select'; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'task.select'; readonly taskId?: string; readonly agentId?: string; readonly scrollOffset: number }
+  | { readonly type: 'agentRoster.toggle' }
+  | { readonly type: 'selection.reconcile'; readonly runIds: readonly string[]; readonly agentIds: readonly string[]; readonly taskIds: readonly string[] }
   | { readonly type: 'overlay.toggle'; readonly overlay: WorkbenchOverlay }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.mode'; readonly mode: WorkbenchTranscriptMode }

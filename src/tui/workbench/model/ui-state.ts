@@ -19,7 +19,12 @@ export interface WorkbenchUiState {
   readonly overlayStack: readonly WorkbenchOverlay[];
   readonly transcriptMode: WorkbenchTranscriptMode;
   readonly selectedItemId?: string;
+  /** Undefined means the aggregate across every coordination run. */
+  readonly selectedRunId?: string;
+  /** Undefined means the aggregate across every agent in the selected run. */
   readonly selectedAgentId?: string;
+  readonly selectedTaskId?: string;
+  readonly agentRosterExpanded: boolean;
   readonly drawer: WorkbenchDrawer;
   readonly drawerScrollOffset: number;
   readonly followTail: boolean;
@@ -35,6 +40,7 @@ export function createInitialWorkbenchUiState(
     focus: 'composer',
     overlayStack: [],
     transcriptMode: 'compact',
+    agentRosterExpanded: true,
     drawer: 'closed',
     drawerScrollOffset: 0,
     followTail: true,
