@@ -1,84 +1,8 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { ToolResult, FindingReport } from "./types.js";
-
-// ===========================================================================
-// cron.schedule — Schedule a recurring task
-// ===========================================================================
-
-export type CronScheduleArgs = { name: string; expression: string; command: string; timezone?: string };
-export type CronListArgs = Record<string, never>;
-export type CronUnscheduleArgs = { name: string };
-
-const CRON_FILE = join(homedir(), ".alix", "cron-tasks.json");
-
-type CronTask = {
-  name: string;
-  expression: string;
-  command: string;
-  timezone?: string;
-  createdAt: string;
-};
-
-async function loadCronTasks(): Promise<CronTask[]> {
-  try {
-    if (!existsSync(CRON_FILE)) return [];
-    const raw = await readFile(CRON_FILE, "utf8");
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-async function saveCronTasks(tasks: CronTask[]): Promise<void> {
-  await mkdir(join(homedir(), ".alix"), { recursive: true });
-  await writeFile(CRON_FILE, JSON.stringify(tasks, null, 2), "utf8");
-}
-
-export async function cronSchedule(args: CronScheduleArgs): Promise<ToolResult> {
-  const { name, expression, command, timezone } = args;
-  if (!name || !expression || !command) {
-    return { kind: "error", message: "cron.schedule requires name, expression, and command" };
-  }
-  // Basic cron expression validation (5 fields)
-  const parts = expression.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    return { kind: "error", message: `Invalid cron expression "${expression}". Must have exactly 5 fields (min hour dom mon dow).` };
-  }
-  const tasks = await loadCronTasks();
-  if (tasks.some((t) => t.name === name)) {
-    return { kind: "error", message: `Cron task "${name}" already exists. Use cron.unschedule first to replace it.` };
-  }
-  tasks.push({ name, expression, command, timezone, createdAt: new Date().toISOString() });
-  await saveCronTasks(tasks);
-  return { kind: "success", output: `Scheduled cron task "${name}" with expression "${expression}"` };
-}
-
-export async function cronList(_args: CronListArgs): Promise<ToolResult> {
-  const tasks = await loadCronTasks();
-  if (tasks.length === 0) {
-    return { kind: "success", output: "No cron tasks scheduled." };
-  }
-  const lines = tasks.map(
-    (t) => `${t.name.padEnd(24)} ${t.expression.padEnd(16)} ${t.command}`,
-  );
-  return { kind: "success", output: `Scheduled cron tasks:\n${lines.join("\n")}`, value: JSON.stringify(tasks) };
-}
-
-export async function cronUnschedule(args: CronUnscheduleArgs): Promise<ToolResult> {
-  const { name } = args;
-  if (!name) return { kind: "error", message: "cron.unschedule requires a name" };
-  const tasks = await loadCronTasks();
-  const idx = tasks.findIndex((t) => t.name === name);
-  if (idx === -1) {
-    return { kind: "error", message: `Cron task "${name}" not found` };
-  }
-  tasks.splice(idx, 1);
-  await saveCronTasks(tasks);
-  return { kind: "success", output: `Unscheduled cron task "${name}"` };
-}
 
 // ===========================================================================
 // findings.report — Report structured code-review findings
