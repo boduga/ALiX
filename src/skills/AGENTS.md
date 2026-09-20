@@ -52,6 +52,9 @@ eligible candidates under usage gating.
   `runSkillFactoryFromTrace` — never gate caller-side.
 - Keep `MinedCandidate` a `Pick` of `TraceEvidence` so the mine/factory
   contract cannot drift field by field.
+- Skill tests must isolate HOME to a temp dir (see `promotion.test.ts`):
+  cleanup hooks that run against the real `~/.alix` will delete the
+  operator's installed skills on every test run.
 
 ## Verification
 
