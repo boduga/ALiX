@@ -39,6 +39,8 @@ export const MAX_COORDINATION_TOOL_CONCURRENCY = 8;
 export type CoordinationToolDeps = {
   cwd: string;
   config: AlixConfig;
+  /** Active parent session used by session-scoped runtime projections. */
+  sessionId?: string;
   approvalStore?: any;
   eventLog?: EventLog;
   /** Injectable for tests (defaults to a live store/planner). */
@@ -98,7 +100,7 @@ async function handleCoordinationRun(
 
   let planResult;
   try {
-    planResult = await planner.plan(goal, "alix", `coord_tool_${Date.now()}`, {
+    planResult = await planner.plan(goal, "alix", deps.sessionId ?? `coord_tool_${Date.now()}`, {
       hostKind: "cli",
       sessionMode,
       maxConcurrency,

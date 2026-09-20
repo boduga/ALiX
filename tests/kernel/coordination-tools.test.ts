@@ -60,6 +60,27 @@ describe("coordination chat tools", () => {
     assert.match(result.message ?? "", /goal/);
   });
 
+  it("plans chat coordination runs in the active parent session", async () => {
+    let plannedSessionId: string | undefined;
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        plannedSessionId = sessionId;
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        return { valid: true, errors: [], run };
+      },
+    } as any;
+    const handlers = createCoordinationHandlers({
+      cwd, config: testConfig(), store, planner, sessionId: "tui-session-1",
+    });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "coordinate test" });
+
+    assert.equal(result.kind, "success");
+    assert.equal(plannedSessionId, "tui-session-1");
+    assert.equal((await store.list())[0]?.sessionId, "tui-session-1");
+  });
+
   it("status reports workers by status and failures", async () => {
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "goal", coordinatorAgentId: "alix" });
     run.status = "failed";
