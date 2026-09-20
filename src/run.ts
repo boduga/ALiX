@@ -32,6 +32,13 @@ export type RunResult = {
    * iterationsSincePeak is derivable as totalIterations − peak.iteration.
    */
   contextPressure?: ContextPressure;
+  /**
+   * Last model prose persisted as an agent.message event this run, if any.
+   * Lets the TUI skip re-persisting an identical turn summary as
+   * agent.response (write-time dedup of a known double-write). Absent when
+   * no prose was persisted (direct routes, tool-only turns).
+   */
+  lastAgentProse?: string;
 };
 
 /**

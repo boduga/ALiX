@@ -1063,6 +1063,9 @@ export async function processTurnBody(
     ...(result.contextBudgetOverflow
       ? { contextBudgetOverflow: result.contextBudgetOverflow }
       : {}),
+    ...(result.lastAgentProse !== undefined
+      ? { lastAgentProse: result.lastAgentProse }
+      : {}),
     ...(state.approvedPlanContent !== undefined
       ? { planContent: state.approvedPlanContent }
       : {}),
