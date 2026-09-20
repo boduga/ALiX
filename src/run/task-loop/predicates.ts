@@ -58,7 +58,7 @@ export function buildShedToolRetryMessage(toolCall: ToolCall): string {
 // uncontested, which is the failure mode we're closing.
 
 export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: string }> = [
-  { keywords: /\bschedul(ed|ing)\b.*\bcron\b|\bcron\b.*\bschedul/i, toolPrefix: "cron.", label: "scheduling a cron job" },
+  { keywords: /\bschedul(e|ed|ing)\b|\brecurring\b|\bcron\b/i, toolPrefix: "schedule.", label: "scheduling a job" },
   { keywords: /\bsent?\b.*\bnotification\b|\bnotifi(ed|cation)\b/i, toolPrefix: "notification.", label: "sending a notification" },
   { keywords: /\bsent?\b.*\bfile\b/i, toolPrefix: "user.send_file", label: "sending a file to the user" },
   { keywords: /\badded\b.*\bregistrat|\bregister(ed|ing)\b/i, toolPrefix: "file.edit", label: "editing/registering files" },

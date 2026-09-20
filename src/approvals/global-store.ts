@@ -7,23 +7,12 @@
  * store with the project store, so there is still one inbox.
  */
 
-import { join } from "node:path";
 import { homedir } from "node:os";
 import { ApprovalStore } from "./approval-store.js";
 
-/** Directory of the global approval store (the ApprovalStore's `cwd` root). */
-export function globalApprovalRoot(): string {
-  return homedir();
-}
-
-/** Open (and load) the global approval store. */
+/** Open (and load) the global approval store at `~/.alix/approvals`. */
 export async function openGlobalApprovalStore(): Promise<ApprovalStore> {
-  const store = new ApprovalStore(globalApprovalRoot());
+  const store = new ApprovalStore(homedir());
   await store.load();
   return store;
-}
-
-/** Absolute path to the global approvals file, for messages/tests. */
-export function globalApprovalsPath(): string {
-  return join(homedir(), ".alix", "approvals", "approvals.json");
 }

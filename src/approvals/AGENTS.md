@@ -3,8 +3,9 @@
 **Purpose:** File-backed approval queue management — create, resolve, list, and lookup pending/resolved approvals.
 
 **Ownership:**
-- `approval-store.ts` — File-backed store at `.alix/approvals/approvals.json`. Supports create, resolve, list, listPending, findPending, findResolved, get.
-- CLI commands in `src/cli.ts` — `alix approvals {list|pending|show|approve|deny}`.
+- `approval-store.ts` — File-backed store at `.alix/approvals/approvals.json`. Supports create, resolve, list, listPending, findPending, findResolved, get. `ApprovalRequestInput.metadata` carries a structured payload for non-tool approvals (e.g. `schedule.propose`), copied onto the record.
+- `global-store.ts` — `openGlobalApprovalStore()`: the cross-project store at `~/.alix/approvals`. Schedule proposals live here so the daemon and the human see them regardless of cwd; `src/cli/helpers/approval-stores.ts` unions it with the project store for the one-inbox `alix approvals` surface.
+- CLI commands in `src/cli.ts` — `alix approvals {list|pending|show|approve|deny}` (unions project + global stores).
 
 **Local Contracts:**
 - Approvals are CLI-first. No browser POST endpoints for write actions.
@@ -16,7 +17,7 @@
 
 **Work Guidance:**
 - RuntimeGate (`src/policy/runtime-gate.ts`) is the primary consumer of `findPending` and `findResolved`.
-- Adding new fields to ApprovalRecord means updating the type, all call sites, and the audit emission.
+- Adding new fields to ApprovalRecord means updating the type, all call sites, and the audit emission (e.g. `metadata` was added for schedule proposals).
 - CLI commands mirror the store methods: list, pending, show, approve, deny.
 
 **Verification:**

@@ -98,6 +98,10 @@ export async function proposeSchedule(
     policyRevision: SCHEDULE_POLICY_REVISION,
     capabilities: [SCHEDULE_CAPABILITY],
     riskLevel: "high",
+    // The review window tracks the JOB horizon, not ApprovalStore's 30-minute
+    // default: a human may approve days later, and the job's own expiry still
+    // bounds how long it can run.
+    expiresAt: `${p.expires}T23:59:59`,
     ...(deps.sessionId !== undefined ? { sessionId: deps.sessionId } : {}),
     metadata: { scheduleProposal: p },
   });

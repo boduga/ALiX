@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateScheduleSpec,
   nextRunAfter,
+  advanceNextRun,
   describeSchedule,
   withinExpiryWindow,
   parseTime,
@@ -59,6 +60,28 @@ describe("nextRunAfter", () => {
     const base = new Date(2026, 8, 19, 9, 0, 0);
     const next = nextRunAfter({ kind: "every", minutes: 15 }, base);
     expect(next.getTime() - base.getTime()).toBe(15 * 60_000);
+  });
+});
+
+describe("advanceNextRun", () => {
+  it("daily/weekly fall through to nextRunAfter", () => {
+    const now = new Date(2026, 8, 19, 9, 0, 0);
+    expect(advanceNextRun({ kind: "daily", time: "10:00" }, now, now).getHours()).toBe(10);
+  });
+
+  it("every keeps phase from the previous slot", () => {
+    const previous = new Date(2026, 8, 19, 9, 0, 0);
+    const now = new Date(2026, 8, 19, 9, 5, 0);
+    expect(advanceNextRun({ kind: "every", minutes: 15 }, previous, now).getTime())
+      .toBe(new Date(2026, 8, 19, 9, 15, 0).getTime());
+  });
+
+  it("every skips missed windows without bursting", () => {
+    const previous = new Date(2026, 8, 19, 9, 0, 0);
+    const now = new Date(2026, 8, 19, 10, 0, 0); // 4 windows missed
+    const next = advanceNextRun({ kind: "every", minutes: 15 }, previous, now);
+    expect(next.getTime()).toBeGreaterThan(now.getTime());
+    expect(next.getTime()).toBe(new Date(2026, 8, 19, 10, 15, 0).getTime());
   });
 });
 

@@ -12,7 +12,7 @@
  */
 
 import { ApprovalStore } from "../../approvals/approval-store.js";
-import { openGlobalApprovalStore } from "../../approvals/global-store.js";
+import { openApprovalStores } from "../helpers/approval-stores.js";
 
 export async function handleApproval(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -21,14 +21,8 @@ export async function handleApproval(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const cwd = process.cwd();
-  const store = new ApprovalStore(cwd);
-  await store.load();
-  // One inbox: schedule proposals live in the global store, tool approvals in
-  // the project store. Reviewing/approving by id works across both.
-  const globalStore = await openGlobalApprovalStore();
-  const stores = [store, globalStore];
-  const owner = (id: string): ApprovalStore => stores.find((s) => s.get(id)) ?? store;
+  // One inbox: schedule proposals (global) + tool approvals (project).
+  const { stores, owner } = await openApprovalStores(process.cwd());
 
   switch (subcommand) {
     case "list":

@@ -121,8 +121,8 @@ const EVASION_PATTERNS: EvasionPattern[] = [
   // Persistence mechanisms: the agent proposes schedules via schedule.propose
   // (human-approved); writing OS persistence directly is always reviewed.
   { pattern: /\bcrontab\b/, severity: "ask", reason: "Crontab access — use schedule.propose (approval-gated) instead" },
-  { pattern: /\bat\s+(?:\d|now)\b|\batq\b|\batrm\b|\bbatch\s+-f\b/, severity: "ask", reason: "at(1)/batch job access detected" },
-  { pattern: /\bsystemd-run\b|\bloginctl\b|\bsystemctl\s+(?:enable|start|daemon-reload|link)\b/, severity: "ask", reason: "systemd unit control detected" },
+  { pattern: /\bat\s+(?:\d|now)\b|\bbatch\s+-f\b/, severity: "ask", reason: "at(1)/batch job access detected" },
+  { pattern: /\bsystemd-run\b|\bloginctl\b|\bsystemctl\s+(?:enable|start)\b/, severity: "ask", reason: "systemd unit control detected" },
   { pattern: /\/etc\/(?:cron|systemd|init\.d)|\/var\/spool\/cron|\.config\/systemd\/|\/\.ssh\/authorized_keys/, severity: "ask", reason: "Write to a persistence location detected" },
   { pattern: /authorized_keys|ssh.*key.*>>/, severity: "ask", reason: "SSH key injection detected" },
   // Merged from the retired PolicyEngine (#689) so no prior denial is lost

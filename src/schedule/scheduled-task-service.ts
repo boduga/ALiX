@@ -11,7 +11,7 @@
  * Dependency-injected so it is unit-testable without a daemon or filesystem.
  */
 
-import { nextRunAfter, MAX_ACTIVE_JOBS } from "./schedule-spec.js";
+import { advanceNextRun, nextRunAfter, MAX_ACTIVE_JOBS } from "./schedule-spec.js";
 import { SCHEDULE_CAPABILITY, validateProposal } from "./propose.js";
 import type { ScheduledTaskStore } from "./scheduled-task-store.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
@@ -87,22 +87,23 @@ export class ScheduledTaskService {
     const enqueued: string[] = [];
     const expired: string[] = [];
 
+    // Retire expired jobs first so `due()` cannot enqueue a job past its horizon.
     for (const task of this.deps.tasks.list()) {
       if (task.status !== "active") continue;
       if (Date.parse(task.expiresAt) <= now.getTime()) {
         this.deps.tasks.update(task.id, { status: "expired" });
         expired.push(task.name);
-        continue;
       }
-      if (Date.parse(task.nextRunAt) <= now.getTime()) {
-        this.deps.enqueue(task.task, task.cwd);
-        this.deps.tasks.update(task.id, {
-          lastRunAt: now.toISOString(),
-          runCount: task.runCount + 1,
-          nextRunAt: nextRunAfter(task.schedule, now).toISOString(),
-        });
-        enqueued.push(task.name);
-      }
+    }
+
+    for (const task of this.deps.tasks.due(now)) {
+      this.deps.enqueue(task.task, task.cwd);
+      this.deps.tasks.update(task.id, {
+        lastRunAt: now.toISOString(),
+        runCount: task.runCount + 1,
+        nextRunAt: advanceNextRun(task.schedule, new Date(task.nextRunAt), now).toISOString(),
+      });
+      enqueued.push(task.name);
     }
     return { enqueued, expired };
   }

@@ -32,20 +32,9 @@ export async function handleCapabilityRoot(args: string[]): Promise<void> {
 }
 
 export async function handleApprovalsRoot(args: string[]): Promise<void> {
-  const { ApprovalStore } = await import("../../approvals/approval-store.js");
-  const { openGlobalApprovalStore } = await import("../../approvals/global-store.js");
+  const { openApprovalStores } = await import("../helpers/approval-stores.js");
   const cwd = process.cwd();
-  const store = new ApprovalStore(cwd);
-  await store.load();
-  // One inbox: tool approvals live in the project store; schedule proposals in
-  // the global store. Both are listed here, and resolving by id works on either.
-  const globalStore = await openGlobalApprovalStore();
-  const stores = [store, globalStore];
-  const union = <T extends { id: string }>(pick: (s: (typeof stores)[number]) => T[]): T[] => {
-    const seen = new Set<string>();
-    return stores.flatMap(pick).filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
-  };
-  const owner = (id: string) => stores.find((s) => s.get(id)) ?? store;
+  const { union, owner } = await openApprovalStores(cwd);
 
   if (args[0] === "list") {
     const all = union((s) => s.list());

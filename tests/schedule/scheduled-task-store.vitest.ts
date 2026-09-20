@@ -54,7 +54,7 @@ describe("ScheduledTaskStore", () => {
     const now = new Date("2026-09-20T09:00:00.000Z");
     const due = store.create({ ...base, name: "due", nextRunAt: "2026-09-20T08:30:00.000Z" });
     store.create({ ...base, name: "later", nextRunAt: "2026-09-21T08:30:00.000Z" });
-    store.create({ ...base, name: "paused", status: "disabled", nextRunAt: "2026-09-20T08:00:00.000Z" });
+    store.create({ ...base, name: "paused", status: "expired", nextRunAt: "2026-09-20T08:00:00.000Z" });
     const got = store.due(now).map((t) => t.name);
     expect(got).toEqual(["due"]);
     expect(store.get(due.id)?.status).toBe("active");

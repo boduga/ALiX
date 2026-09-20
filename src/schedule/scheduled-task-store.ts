@@ -7,14 +7,13 @@
  * "what is scheduled" registry; ApprovalStore is the "who approved it" gate.
  */
 
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { readJsonFile, writeJsonFileAtomic } from "../storage/jsonl-store.js";
 import type { ScheduleSpec } from "./schedule-spec.js";
 
-export type ScheduledTaskStatus = "active" | "disabled" | "expired";
+export type ScheduledTaskStatus = "active" | "expired";
 
 export type ScheduledTaskRecord = {
   id: string;
@@ -51,12 +50,8 @@ export class ScheduledTaskStore {
   }
 
   async load(): Promise<void> {
-    if (!existsSync(this.filePath)) {
-      this.tasks = [];
-      return;
-    }
     try {
-      const parsed: unknown = JSON.parse(await readFile(this.filePath, "utf-8"));
+      const parsed = await readJsonFile<unknown>(this.filePath);
       this.tasks = Array.isArray(parsed) ? (parsed as ScheduledTaskRecord[]) : [];
     } catch {
       this.tasks = [];
@@ -64,11 +59,7 @@ export class ScheduledTaskStore {
   }
 
   private async save(): Promise<void> {
-    const dir = join(this.filePath, "..");
-    if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-    const tmp = `${this.filePath}.tmp`;
-    await writeFile(tmp, JSON.stringify(this.tasks, null, 2), "utf-8");
-    await rename(tmp, this.filePath);
+    await writeJsonFileAtomic(this.filePath, this.tasks);
   }
 
   /** Serialized write — concurrent mutations cannot interleave. */

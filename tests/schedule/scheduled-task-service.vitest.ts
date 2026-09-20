@@ -83,6 +83,8 @@ describe("proposeSchedule", () => {
     expect(input.bindingKey).toBe("schedule:nightly-report");
     expect(input.capabilities).toEqual([SCHEDULE_CAPABILITY]);
     expect(input.metadata).toEqual({ scheduleProposal: proposal });
+    // Review window tracks the job horizon, not ApprovalStore's 30-minute default.
+    expect(input.expiresAt).toBe("2026-10-10T23:59:59");
     expect(store.list()).toHaveLength(0);
   });
 

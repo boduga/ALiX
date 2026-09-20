@@ -133,3 +133,22 @@ export function withinExpiryWindow(dateStr: string, now: Date = new Date()): boo
   if (!Number.isFinite(end)) return false;
   return end > now.getTime() && end <= now.getTime() + MAX_EXPIRY_DAYS * 86_400_000;
 }
+
+/**
+ * The next run after `now`, preserving phase for `every` schedules.
+ *
+ * For `daily`/`weekly` this is just `nextRunAfter(spec, now)`. For `every`,
+ * stepping from the PREVIOUS scheduled time keeps the interval aligned; if
+ * the daemon was down past several windows, it skips the missed ones rather
+ * than bursting (no catch-up storm), landing on the first future slot.
+ */
+export function advanceNextRun(spec: ScheduleSpec, previous: Date, now: Date): Date {
+  if (spec.kind !== "every") return nextRunAfter(spec, now);
+  const step = spec.minutes * 60_000;
+  let t = previous.getTime() + step;
+  if (t <= now.getTime()) {
+    const missed = Math.floor((now.getTime() - t) / step) + 1;
+    t += missed * step;
+  }
+  return new Date(t);
+}

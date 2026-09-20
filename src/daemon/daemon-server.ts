@@ -114,7 +114,11 @@ async function startScheduleService(): Promise<void> {
     approvals,
     tasks,
     enqueue: (task, cwd) => {
-      registry.create(task, cwd);
+      // Push onto the daemon's own task queue (not just the registry): a
+      // registry record alone is never drained, so the run would never happen.
+      const record = registry.create(task, cwd);
+      taskQueue.push({ task, taskId: record.id, cwd, client: DETACHED_CLIENT, scheduled: true });
+      void processQueue();
     },
   });
   const tick = (): void => {
@@ -126,7 +130,13 @@ async function startScheduleService(): Promise<void> {
 
 const registry = new TaskRegistry();  // global ~/.alix/ path
 
-const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket }> = [];
+const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket; scheduled?: boolean }> = [];
+/**
+ * Null-object Socket for detached (scheduled) runs: they have no connected
+ * client to stream to, but the run path writes through `client`. Writes are
+ * discarded; `destroyed`/`writable` keep `safeWrite` a no-op.
+ */
+const DETACHED_CLIENT = { destroyed: false, writable: true, write: () => true } as unknown as Socket;
 let taskRunning = false;
 const serverStartTime = Date.now();
 const activeTaskControllers = new Map<string, AbortController>();
@@ -134,12 +144,18 @@ const activeTaskControllers = new Map<string, AbortController>();
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
-  const { task, taskId, cwd: requestCwd, route, client } = taskQueue.shift()!;
+  const { task, taskId, cwd: requestCwd, route, client, scheduled } = taskQueue.shift()!;
   const controller = new AbortController();
   activeTaskControllers.set(taskId, controller);
+  // Mark scheduled runs for the duration of the run so schedule.propose is
+  // hard-denied inside them (a scheduled job cannot schedule another).
+  const prevScheduledFlag = process.env.ALIX_SCHEDULED_RUN;
+  if (scheduled) process.env.ALIX_SCHEDULED_RUN = "1";
   try {
     await handleRun(task, taskId, client, requestCwd ?? defaultCwd, route, controller.signal);
   } finally {
+    if (prevScheduledFlag === undefined) delete process.env.ALIX_SCHEDULED_RUN;
+    else process.env.ALIX_SCHEDULED_RUN = prevScheduledFlag;
     activeTaskControllers.delete(taskId);
     taskRunning = false;
     processQueue(); // process next
