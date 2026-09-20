@@ -174,8 +174,10 @@ Default section order:
   (`sessions|audit|approvals|daemon|schedule|graphs`) or the matching `alix`
   command — never web search. Graph planners offer the `state.read`
   capability (explorer default) and subagent role prompts point local-state
-  questions at `state.query`, so delegated workers route the same way instead
-  of falling back to web-only researcher behavior.
+  questions at `state.query`. A deterministic guardrail
+  (`applyLocalStateRouting` in `graph-planner.ts`) coerces local-state nodes
+  the model caps with `web.search` to explorer + `state.read`, so a planner
+  miss can no longer strand the worker in the web-only researcher sandbox.
 - **CLI foreground coordination runs self-heal (durable).** `alix coordination
   run` installs SIGINT/SIGTERM handlers that `cancelRun` before exit, and on
   start sweeps dead-owner `cli` runs via `cancelDeadOwnerRuns`

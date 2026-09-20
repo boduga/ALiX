@@ -11,6 +11,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskGraph, TaskNode, GraphStrategy } from "./task-graph.js";
+import { WRITE_CAPABILITIES, RESEARCH_CAPABILITIES } from "./worker-role.js";
 
 export interface PlannerResult {
   graph: TaskGraph;
@@ -158,6 +159,52 @@ function roleDomainDefault(node: RawPlannedNode): readonly string[] {
   return ["filesystem.read"];
 }
 
+/**
+ * Local-state routing guardrail (deterministic, Layer 2.5).
+ *
+ * The planner catalog offers `state.read`, but the model still habitually
+ * assigns `web.search` to local-state goals ("list my sessions/graphs"),
+ * which routes the node to the web-only researcher sandbox that then
+ * refuses — a truthful refusal from the wrong sandbox. When a node's goal
+ * is about the agent's own local state and the node claims no write
+ * capability, force explorer routing with `state.read`, regardless of the
+ * model's cap pick. Nodes that would already route elsewhere (reviewer,
+ * worker, or explorer without web caps) are left untouched.
+ */
+const LOCAL_STATE_PATTERNS: readonly RegExp[] = [
+  /\bstate\.query\b/i,
+  /\bsessions?\b/i,
+  /\bmy\s+(runs?|graphs?|audits?|approvals?|tasks?|jobs?|schedules?)\b/i,
+  /\b(saved|recent|latest)\s+(runs?|graphs?|sessions?|audits?)\b/i,
+  /\bpending\s+approvals?\b/i,
+  /\baudit\s+(events?|trail|log)\b/i,
+  /\bdaemon\s+tasks?\b/i,
+  /\bscheduled\s+(jobs?|tasks?)\b/i,
+  /\bcoordination\s+runs?\b/i,
+];
+
+export function isLocalStateGoal(goal: unknown): boolean {
+  if (typeof goal !== "string" || goal.length === 0) return false;
+  return LOCAL_STATE_PATTERNS.some((p) => p.test(goal));
+}
+
+export function applyLocalStateRouting(
+  goal: unknown,
+  requiredCapabilities: string[],
+  role: string | undefined,
+): { requiredCapabilities: string[]; role: string | undefined } {
+  if (!isLocalStateGoal(goal)) return { requiredCapabilities, role };
+  if (requiredCapabilities.some((c) => WRITE_CAPABILITIES.has(c))) {
+    return { requiredCapabilities, role };
+  }
+  const researcherBound =
+    role === undefined ||
+    role === "researcher" ||
+    requiredCapabilities.some((c) => RESEARCH_CAPABILITIES.has(c));
+  if (!researcherBound) return { requiredCapabilities, role };
+  return { requiredCapabilities: ["filesystem.read", "state.read"], role: "explorer" };
+}
+
 /** Render the plan prompt with a concrete capability catalog. */
 export function buildPlanPrompt(catalog: readonly string[] = DEFAULT_CAPABILITY_CATALOG): string {
   return DEFAULT_PLAN_PROMPT.replace("{{capabilityCatalog}}", [...catalog].sort().join(", "));
@@ -266,19 +313,27 @@ export class GraphPlanner {
       const rawDeps = (n.dependencies as unknown) ?? (n.dependsOn as unknown);
       const role = typeof n.role === "string" ? (n.role as string) : undefined;
       const domain = (n.domain as string) || "unknown";
+      // Deterministic local-state guardrail: the model may assign web caps
+      // to local-state goals; coerce those nodes to explorer + state.read
+      // so they route to a sandbox that actually has the state.query tool.
+      const routed = applyLocalStateRouting(
+        n.goal,
+        normalizeNodeCapabilities(
+          { requiredCapabilities: n.requiredCapabilities, role, domain },
+          this.capabilityCatalog,
+        ),
+        role,
+      );
       return {
         id: (n.id as string) || `node_${graphId}_${i}`,
         graphId,
         title: n.title as string,
         goal: n.goal as string,
         domain,
-        ...(role ? { role } : {}),
+        ...(routed.role ? { role: routed.role } : {}),
         status: "pending" as const,
         dependencies: Array.isArray(rawDeps) ? (rawDeps as string[]) : [],
-        requiredCapabilities: normalizeNodeCapabilities(
-          { requiredCapabilities: n.requiredCapabilities, role, domain },
-          this.capabilityCatalog,
-        ),
+        requiredCapabilities: routed.requiredCapabilities,
         riskLevel: (n.riskLevel as TaskNode["riskLevel"]) || "low",
         approvalMode: (n.approvalMode as TaskNode["approvalMode"]) || "auto",
         inputs: { goal },
