@@ -1,7 +1,19 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach, after } from "node:test";
 import assert from "node:assert";
-import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync, unlinkSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+// Isolate HOME before anything (including the modules under test, which
+// capture it at import time) reads it. A prior version used the real HOME,
+// and its cleanup wiped ~/.alix/skills/* — deleting the installed skill on
+// every test run.
+const TEST_HOME = mkdtempSync(join(tmpdir(), "promotion-home-"));
+process.env.HOME = TEST_HOME;
+
+after(() => {
+  rmSync(TEST_HOME, { recursive: true, force: true });
+});
 
 describe("promotion lifecycle", () => {
   const home = process.env.HOME ?? "/home/babasola";

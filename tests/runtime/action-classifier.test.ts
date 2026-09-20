@@ -188,6 +188,26 @@ describe("classifyAction — workspace/action dominance", () => {
     assert.equal(classifyActionWithConfidence("grep foo src/").intent, "shell_execution");
     assert.equal(classifyActionWithConfidence("find . -name '*.ts'").intent, "shell_execution");
   });
+
+  it("routes local agent-state probes to workspace_action (not external_retrieval)", () => {
+    // Regression: "list my 5 most recent sessions, then my saved graphs"
+    // classified external_retrieval via `\brecent\b` → web-only grounded_chat,
+    // so the model reported "no such tool" despite state.query existing.
+    for (const prompt of [
+      "Use the state.query tool to list my 5 most recent sessions, then my saved graphs.",
+      "Show my saved graphs",
+      "List pending approvals",
+      "Show audit events",
+      "What are my scheduled jobs",
+    ]) {
+      assert.equal(classifyAction(prompt).intent, "workspace_action", prompt);
+    }
+  });
+
+  it("does not misroute bare nouns or shell commands as agent state", () => {
+    assert.notEqual(classifyAction("ls sessions").intent, "workspace_action");
+    assert.equal(classifyAction("Fix the user sessions table migration").intent, "ambiguous");
+  });
 });
 
 // ── Classification: external retrieval ───────────────────────────────
