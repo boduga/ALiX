@@ -42,6 +42,7 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
           ...(typeof p.assignedAgentId === 'string' ? { assignedAgentId: p.assignedAgentId } : previous?.assignedAgentId ? { assignedAgentId: previous.assignedAgentId } : {}),
           title: typeof p.prompt === 'string' ? p.prompt : typeof p.title === 'string' ? p.title : previous?.title ?? id,
           state: event.type === 'agent.task_assigned' ? 'assigned' : 'running',
+          ...(typeof p.blockReason === 'string' ? { blockReason: p.blockReason } : {}),
           ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((v): v is string => typeof v === 'string') : previous?.ownedPaths ?? [],
           createdAt: previous?.createdAt ?? at,
           updatedAt: at,
@@ -50,7 +51,8 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
       }
       if (!previous) continue;
       if (event.type === 'agent.state_changed') {
-        const state = p.state === 'queued' || p.state === 'starting' ? 'assigned'
+        const state = p.state === 'blocked' || typeof p.blockReason === 'string' ? 'blocked'
+          : p.state === 'queued' || p.state === 'starting' ? 'assigned'
           : p.state === 'completed' || p.state === 'partial' || p.state === 'failed' || p.state === 'cancelled'
             ? terminal(p.state)
             : 'running';
@@ -58,6 +60,7 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
           ...previous,
           state,
           currentOperation: typeof p.operation === 'string' ? p.operation : previous.currentOperation,
+          blockReason: typeof p.blockReason === 'string' ? p.blockReason : previous.blockReason,
           updatedAt: at,
         });
       } else if (event.type === 'agent.progress') {

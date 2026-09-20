@@ -76,8 +76,21 @@ export function reduceWorkbenchUiState(
       return state.drawer === 'closed'
         ? state
         : { ...state, drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 };
+    case 'run.select':
+      return { ...state, selectedRunId: action.runId, selectedAgentId: undefined, selectedTaskId: undefined, drawerScrollOffset: 0 };
     case 'agent.select':
-      return { ...state, selectedAgentId: action.agentId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+      return { ...state, selectedAgentId: action.agentId, selectedTaskId: undefined, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+    case 'task.select':
+      return { ...state, selectedTaskId: action.taskId, selectedAgentId: action.agentId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+    case 'agentRoster.toggle':
+      return { ...state, agentRosterExpanded: !state.agentRosterExpanded };
+    case 'selection.reconcile': {
+      const selectedRunId = state.selectedRunId && action.runIds.includes(state.selectedRunId) ? state.selectedRunId : undefined;
+      const selectedAgentId = state.selectedAgentId && action.agentIds.includes(state.selectedAgentId) ? state.selectedAgentId : undefined;
+      const selectedTaskId = state.selectedTaskId && action.taskIds.includes(state.selectedTaskId) ? state.selectedTaskId : undefined;
+      if (selectedRunId === state.selectedRunId && selectedAgentId === state.selectedAgentId && selectedTaskId === state.selectedTaskId) return state;
+      return { ...state, selectedRunId, selectedAgentId, selectedTaskId };
+    }
     case 'overlay.toggle': {
       const current = state.overlayStack[state.overlayStack.length - 1];
       return { ...state, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };

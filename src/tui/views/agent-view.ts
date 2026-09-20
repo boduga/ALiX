@@ -77,7 +77,9 @@ export class AgentView implements TuiView {
     // escalating to a warning when the run appears stalled. Never a kill.
     const ses = ctx.snap.session;
     const liveness = ses?.liveness;
-    const pendingApproval = ctx.perTab.pendingApprovals?.[0];
+    const selectedAgentId = ctx.workbenchUiState?.selectedAgentId;
+    const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) =>
+      !selectedAgentId || !approval.agentId || approval.agentId === selectedAgentId);
     if (pendingApproval) {
       const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
       c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
@@ -179,6 +181,9 @@ export class AgentView implements TuiView {
         agents: ctx.snap.runtime?.agents ?? null,
         tasks: ctx.snap.runtime?.tasks ?? null,
         selectedAgentId: ctx.workbenchUiState?.selectedAgentId,
+        selectedTaskId: ctx.workbenchUiState?.selectedTaskId,
+        selectedRunId: ctx.workbenchUiState?.selectedRunId,
+        agentRosterExpanded: ctx.workbenchUiState?.agentRosterExpanded,
         agentScrollOffset: ctx.workbenchUiState?.drawerScrollOffset,
       });
     }

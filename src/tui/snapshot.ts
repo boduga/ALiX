@@ -105,6 +105,7 @@ export interface ApprovalRecordSnapshot {
   readonly args: Record<string, unknown>;
   readonly requestedAt: number;
   readonly requestedBy: string;
+  readonly agentId?: string;
   /** Present only for authoritative completed projection entries. */
   readonly status?: 'approved' | 'denied' | 'edited' | 'expired' | 'revoked' | 'consumed' | 'invalidated';
   readonly resolvedAt?: number;

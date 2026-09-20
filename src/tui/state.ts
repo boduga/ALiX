@@ -31,6 +31,7 @@ export interface PendingApproval {
   toolName: string;
   target: string;
   requestedAt: number;
+  agentId?: string;
 }
 
 /**

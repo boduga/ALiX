@@ -78,4 +78,24 @@ describe('WorkbenchStore', () => {
     store.dispatch({ type: 'drawer.close' });
     expect(store.snapshot()).toMatchObject({ drawer: 'closed', focus: 'composer', drawerScrollOffset: 0 });
   });
+
+  it('preserves valid streamed selections and falls back to aggregate views', () => {
+    const store = new WorkbenchStore();
+    store.dispatch({ type: 'run.select', runId: 'run-1' });
+    store.dispatch({ type: 'agent.select', agentId: 'agent-1', scrollOffset: 2 });
+    store.dispatch({ type: 'selection.reconcile', runIds: ['run-1'], agentIds: ['agent-1'], taskIds: [] });
+    expect(store.snapshot()).toMatchObject({ selectedRunId: 'run-1', selectedAgentId: 'agent-1' });
+
+    store.dispatch({ type: 'selection.reconcile', runIds: ['run-1'], agentIds: ['agent-2'], taskIds: [] });
+    expect(store.snapshot().selectedAgentId).toBeUndefined();
+    store.dispatch({ type: 'selection.reconcile', runIds: [], agentIds: [], taskIds: [] });
+    expect(store.snapshot().selectedRunId).toBeUndefined();
+  });
+
+  it('selects tasks and toggles the roster without losing focus', () => {
+    const store = new WorkbenchStore();
+    store.dispatch({ type: 'task.select', taskId: 'task-1', agentId: 'agent-1', scrollOffset: 1 });
+    store.dispatch({ type: 'agentRoster.toggle' });
+    expect(store.snapshot()).toMatchObject({ selectedTaskId: 'task-1', selectedAgentId: 'agent-1', agentRosterExpanded: false });
+  });
 });

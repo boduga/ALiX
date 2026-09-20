@@ -143,6 +143,11 @@ export class ConversationProjection {
           text: text || entry.kind,
         };
         candidates.push(item);
+        continue;
+      }
+
+      if (entry.kind === 'execution.artifact_registered') {
+        candidates.push({ ...base, kind: 'diagnostic', severity: 'info', text: text || 'artifact registered' });
       }
     }
 

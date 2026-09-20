@@ -6,6 +6,7 @@ export type TimelineKind =
   | 'chat.message' | 'chat.response'
   | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.plan' | 'agent.response'
   | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested'
+  | 'execution.artifact_registered'
   // #434 — tool lifecycle events project into the timeline so the agent
   // scrollback can render invocation + result lines in chronological
   // order (slice #5 of the stage-decorated scrollback). The started
@@ -36,6 +37,7 @@ export const TIMELINE_TYPES = new Set<TimelineKind>([
   'chat.message', 'chat.response',
   'agent.message', 'agent.reasoning', 'agent.decision', 'agent.plan', 'agent.response',
   'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
+  'execution.artifact_registered',
   'tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed',
   // T6 — C1 observability: context lifecycle events
   'context.snapshot.created', 'context.budget.computed', 'context.assembled',
@@ -201,6 +203,12 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       // surfaces toolName/target from `perTab.pendingApprovals[0]` so the
       // keys always name their target.
       text = p.prompt;
+    } else if (kind === 'execution.artifact_registered') {
+      const artifact = p as TimelinePayload & { artifactId?: unknown; uri?: unknown; kind?: unknown };
+      const label = typeof artifact.artifactId === 'string' ? artifact.artifactId : 'artifact';
+      const uri = typeof artifact.uri === 'string' ? ` · ${artifact.uri}` : '';
+      const artifactKind = typeof artifact.kind === 'string' ? ` (${artifact.kind})` : '';
+      text = `artifact ${label}${artifactKind}${uri}`;
     }
     // ── T6: context lifecycle event text mappings ─────────────────────
     if (kind === 'context.snapshot.created') {

@@ -24,6 +24,8 @@ export type WorkbenchInputIntent =
   | { readonly type: 'transcript.toggle' }
   | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' }
   | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
+  | { readonly type: 'run.move'; readonly direction: -1 | 1 }
+  | { readonly type: 'agentRoster.toggle' }
   | { readonly type: 'drawer.close' }
   | { readonly type: 'unhandled' };
 
@@ -42,8 +44,11 @@ export function routeWorkbenchInput(
   if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
   if (context.focus === 'drawer' && context.drawer !== 'closed') {
     if (key === 'Escape') return { type: 'drawer.close' };
-    if (context.drawer === 'agents' && (key === 'ArrowUp' || key === 'k')) return { type: 'drawer.move', direction: -1 };
-    if (context.drawer === 'agents' && (key === 'ArrowDown' || key === 'j')) return { type: 'drawer.move', direction: 1 };
+    if (key === 'ArrowUp' || key === 'k') return { type: 'drawer.move', direction: -1 };
+    if (key === 'ArrowDown' || key === 'j') return { type: 'drawer.move', direction: 1 };
+    if (key === '[') return { type: 'run.move', direction: -1 };
+    if (key === ']') return { type: 'run.move', direction: 1 };
+    if (context.drawer === 'agents' && key === 'Enter') return { type: 'agentRoster.toggle' };
     return { type: 'unhandled' };
   }
   if (key === 'Shift+Enter') return { type: 'composer.insert', text: '\n' };

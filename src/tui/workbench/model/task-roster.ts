@@ -1,4 +1,4 @@
-export type WorkbenchTaskState = 'queued' | 'assigned' | 'running' | 'completed' | 'partial' | 'failed' | 'cancelled';
+export type WorkbenchTaskState = 'queued' | 'assigned' | 'running' | 'blocked' | 'completed' | 'partial' | 'failed' | 'cancelled';
 
 export interface TaskSummary {
   readonly taskId: string;
@@ -8,6 +8,7 @@ export interface TaskSummary {
   readonly title: string;
   readonly state: WorkbenchTaskState;
   readonly currentOperation?: string;
+  readonly blockReason?: string;
   readonly ownedPaths: readonly string[];
   readonly createdAt: number;
   readonly updatedAt: number;

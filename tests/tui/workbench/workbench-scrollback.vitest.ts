@@ -101,7 +101,7 @@ describe('Workbench scrollback', () => {
     expect(text).toContain('context snapshot created');
   });
 
-  it('applies selected-agent focus only while the agent drawer is open', () => {
+  it('preserves selected-agent focus after the drawer closes and supports aggregate view', () => {
     const trace: ExecutionTraceEntry[] = [
       { id: 'tool-a', kind: 'tool', status: 'completed', title: 'tool.file.read', agentId: 'agent-1', startedAt: 1, sourceEvents: { firstSequence: 1 } },
       { id: 'tool-b', kind: 'tool', status: 'completed', title: 'tool.shell.run', agentId: 'agent-2', startedAt: 2, sourceEvents: { firstSequence: 2 } },
@@ -118,8 +118,13 @@ describe('Workbench scrollback', () => {
     (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
       ...createInitialWorkbenchUiState(), selectedAgentId: 'agent-1',
     };
-    const unfocused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
-    expect(unfocused).toContain('shell.run');
+    const stillFocused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+    expect(stillFocused).not.toContain('shell.run');
+
+    (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = createInitialWorkbenchUiState();
+    const aggregate = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
+    expect(aggregate).toContain('all agents');
+    expect(aggregate).toContain('shell.run');
   });
 
   it('maps Ctrl+O to the transcript density transition', () => {

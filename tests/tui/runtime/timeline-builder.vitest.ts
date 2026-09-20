@@ -174,6 +174,17 @@ describe('TimelineBuilder', () => {
 
 // ─── #430 — admit phase-changed and turn-completed; drop dead tool.invocation ─
 describe('TimelineBuilder — #430 timeline vocabulary extension', () => {
+  it('projects correlated artifacts for focused Workbench inspection', () => {
+    const b = new TimelineBuilder('s1');
+    b.update([evt(1, 'execution.artifact_registered', 's1', {
+      artifactId: 'report-1', kind: 'report', uri: 'file:///tmp/report.md', agentId: 'worker-1',
+    })]);
+    expect(b.snapshot()[0]).toMatchObject({
+      kind: 'execution.artifact_registered', agentId: 'worker-1',
+      text: 'artifact report-1 (report) · file:///tmp/report.md',
+    });
+  });
+
   it('admits agent.session.phase_changed events (stage boundary arrives)', () => {
     // #430: phase_changed events are admitted so the agent scrollback's
     // line builder can attribute output to stages downstream.

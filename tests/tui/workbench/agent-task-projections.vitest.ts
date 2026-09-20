@@ -97,6 +97,15 @@ describe('Workbench agent and task projections', () => {
     });
   });
 
+  it('preserves authoritative dependency and ownership block reasons', () => {
+    const tasks = new TaskProjection();
+    tasks.update([
+      event(1, 'agent.task_assigned', { agentId: 'agent-1', taskId: 'task-1', title: 'Write files' }),
+      event(2, 'agent.state_changed', { agentId: 'agent-1', taskId: 'task-1', state: 'blocked', blockReason: 'ownership_conflict' }),
+    ]);
+    expect(tasks.snapshot().tasks[0]).toMatchObject({ state: 'blocked', blockReason: 'ownership_conflict' });
+  });
+
   it('preserves coordination metadata without conflating agent and worker identity', () => {
     const agents = new AgentRosterProjection();
     const tasks = new TaskProjection();
