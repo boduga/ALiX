@@ -118,6 +118,20 @@ describe("taskRouter", async () => {
     assert.equal(r.kind, "grounded_chat");
   });
 
+  it("routes local agent-state questions to agent (not grounded_chat)", async () => {
+    // Regression: `\brecent\b` sent "list my 5 most recent sessions" to the
+    // web-only grounded_chat manifest, so the model refused despite
+    // state.query existing. Local-state probes must reach the full loop.
+    for (const prompt of [
+      "Use the state.query tool to list my 5 most recent sessions, then my saved graphs.",
+      "Show my saved graphs",
+      "List pending approvals",
+    ]) {
+      const r = await taskRouter(prompt);
+      assert.equal(r.kind, "agent", prompt);
+    }
+  });
+
   it("routes 'search latest docs' to grounded_chat (Task 2 required prompt)", async () => {
     const r = await taskRouter("search latest docs");
     assert.equal(r.kind, "grounded_chat");

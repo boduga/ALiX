@@ -353,6 +353,33 @@ const WORKSPACE_PATH_SIGNALS: readonly RegExp[] = [
 ];
 
 /**
+ * Local agent-state probes — "list my recent sessions", "show my saved
+ * graphs", "pending approvals", "audit events". These semantically require
+ * the agent's own local state (state.query), NOT web retrieval.
+ *
+ * Composite anchors only (possessive/recency + state noun, or the tool
+ * name itself) so bare nouns elsewhere ("user sessions table" in a coding
+ * task) don't misroute. Placed above RETRIEVAL_SIGNALS so `\brecent\b` /
+ * `\blatest\b` / `\bschedule\b` can't route a local-state question to the
+ * web-only grounded_chat (allowedTools web_search/web_fetch only), where
+ * the model truthfully reports "no such tool". Same bug history as the
+ * local-machine probes above: observed on "list my 5 most recent
+ * sessions, then my saved graphs", which classified external_retrieval
+ * and refused despite state.query existing. Sibling guardrail:
+ * applyLocalStateRouting in src/kernel/graph-planner.ts (planner layer).
+ */
+const LOCAL_AGENT_STATE_ANCHORS: readonly RegExp[] = [
+  /\bstate\.query\b/i,
+  /\bmy\s+(?:\d+\s+)?(?:most\s+)?(?:recent\s+)?(?:saved\s+)?(?:sessions?|graphs?|runs?|audits?|approvals?|tasks?|jobs?|schedules?)\b/i,
+  /\b(?:recent|latest|saved)\s+(?:sessions?|graphs?|runs?)\b/i,
+  /\bpending\s+approvals?\b/i,
+  /\baudit\s+(?:events?|trail|log)\b/i,
+  /\bdaemon\s+tasks?\b/i,
+  /\bscheduled\s+(?:jobs?|tasks?)\b/i,
+  /\bcoordination\s+runs?\b/i,
+];
+
+/**
  * Local-machine probes — "what is my linux version", "what macos am I
  * running", "what windows do I have". These semantically require local
  * shell access (`uname -a`, `sw_vers`, `ver`, `systeminfo`), NOT web
@@ -704,6 +731,19 @@ export function classifyAction(input: string): ActionClassification {
     return {
       intent: "workspace_action",
       reason: "prompt references a workspace path or local code search",
+    };
+  }
+
+  // 2.7 Local agent-state probes — "list my recent sessions", "show my
+  //     saved graphs", "pending approvals". These semantically require the
+  //     agent's own local state (state.query), so they must reach the full
+  //     agent loop. Must fire BEFORE RETRIEVAL_SIGNALS (step 4) or
+  //     `\brecent\b` / `\blatest\b` / `\bschedule\b` routes them to the
+  //     web-only grounded_chat, where the model reports "no such tool".
+  if (!isShellTask(trimmed) && hasAny(trimmed, LOCAL_AGENT_STATE_ANCHORS)) {
+    return {
+      intent: "workspace_action",
+      reason: "prompt asks about the agent's own local state",
     };
   }
 

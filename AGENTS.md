@@ -178,6 +178,9 @@ Default section order:
   (`applyLocalStateRouting` in `graph-planner.ts`) coerces local-state nodes
   the model caps with `web.search` to explorer + `state.read`, so a planner
   miss can no longer strand the worker in the web-only researcher sandbox.
+  Layer 1 (`LOCAL_AGENT_STATE_ANCHORS` in `action-classifier.ts`) keeps
+  local-state prompts out of the web-only `grounded_chat` route entirely, so
+  the turn reaches the full agent loop.
 - **CLI foreground coordination runs self-heal (durable).** `alix coordination
   run` installs SIGINT/SIGTERM handlers that `cancelRun` before exit, and on
   start sweeps dead-owner `cli` runs via `cancelDeadOwnerRuns`
