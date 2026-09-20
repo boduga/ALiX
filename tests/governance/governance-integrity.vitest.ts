@@ -22,6 +22,11 @@ let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
 
 beforeEach(() => {
+  // Pin wall-clock to the fixtures' NOW so the 90-day window in
+  // buildGovernanceIntegrity/queryByWindow stays deterministic. Without this
+  // the suite is a date time bomb: the seeded reviews age out of the window.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(NOW));
   tempRoot = mkdtempSync(join(tmpdir(), "gov-int-"));
   cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
 });
@@ -29,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   cwdSpy.mockRestore();
   rmSync(tempRoot, { recursive: true, force: true });
+  vi.useRealTimers();
 });
 
 // ---------------------------------------------------------------------------

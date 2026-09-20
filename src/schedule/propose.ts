@@ -37,7 +37,7 @@ export type ProposalValidation =
   | { ok: true; proposal: ScheduleProposal }
   | { ok: false; error: string };
 
-export function validateProposal(input: unknown): ProposalValidation {
+export function validateProposal(input: unknown, now: Date = new Date()): ProposalValidation {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, error: "proposal must be an object" };
   }
@@ -53,7 +53,7 @@ export function validateProposal(input: unknown): ProposalValidation {
   }
   const sched = validateScheduleSpec(p.schedule);
   if (!sched.ok) return { ok: false, error: sched.error };
-  if (typeof p.expires !== "string" || !withinExpiryWindow(p.expires)) {
+  if (typeof p.expires !== "string" || !withinExpiryWindow(p.expires, now)) {
     return { ok: false, error: "expires must be a YYYY-MM-DD date within the allowed horizon" };
   }
   if (p.reason !== undefined && (typeof p.reason !== "string" || p.reason.length > 300)) {
@@ -85,9 +85,9 @@ export type ProposeOutcome =
 
 export async function proposeSchedule(
   input: unknown,
-  deps: { approvals: ApprovalStore; sessionId?: string },
+  deps: { approvals: ApprovalStore; sessionId?: string; now?: Date },
 ): Promise<ProposeOutcome> {
-  const validated = validateProposal(input);
+  const validated = validateProposal(input, deps.now ?? new Date());
   if (!validated.ok) return { ok: false, error: validated.error };
   const p = validated.proposal;
 

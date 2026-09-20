@@ -77,7 +77,7 @@ describe("proposeSchedule", () => {
       },
     } as unknown as ApprovalStore;
 
-    const out = await proposeSchedule(proposal, { approvals, sessionId: "ses-1" });
+    const out = await proposeSchedule(proposal, { approvals, sessionId: "ses-1", now: NOW });
     expect(out).toEqual({ ok: true, approvalId: "approval_1", description: "daily at 02:30" });
     const input = calls[0] as Record<string, unknown>;
     expect(input.bindingKey).toBe("schedule:nightly-report");
