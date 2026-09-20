@@ -18,4 +18,5 @@ export interface TaskRosterSnapshot {
   readonly tasks: readonly TaskSummary[];
   readonly queued: number;
   readonly running: number;
+  readonly blocked: number;
 }

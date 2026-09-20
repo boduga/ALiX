@@ -7,6 +7,7 @@ import type { ViewRenderContext } from '../../views/types.js';
 import { ConversationProjection } from '../projections/conversation-projection.js';
 import type { ToolItem, TranscriptMode } from '../model/transcript-item.js';
 import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
+import { approvalVisibleTo } from '../model/selection.js';
 
 function appendRendered(
   out: ScrollbackLine[],
@@ -57,7 +58,7 @@ export function buildWorkbenchScrollbackLines(
   const mode: TranscriptMode = ctx.perTab.transcriptMode ?? 'compact';
   const focusAgentId = ctx.workbenchUiState?.selectedAgentId;
   const pendingApprovals = (ctx.perTab.pendingApprovals ?? [])
-    .filter((approval) => !focusAgentId || !approval.agentId || approval.agentId === focusAgentId);
+    .filter((approval) => approvalVisibleTo(approval, focusAgentId));
   const pendingApproval = pendingApprovals[0];
   const pendingApprovalTool = pendingApproval?.toolName;
   let inlineApprovalRendered = false;

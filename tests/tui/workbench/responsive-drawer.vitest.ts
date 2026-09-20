@@ -76,7 +76,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 100, top: 3, bottom: 18, layout: resolveWorkbenchLayout(100, 'tasks'),
       agents: null,
       tasks: {
-        queued: 1, running: 1,
+        queued: 1, running: 1, blocked: 0,
         tasks: [{
           taskId: 'task-1', agentId: 'agent-1', title: 'Finish Workbench', state: 'running',
           coordinationRunId: 'coord-1', assignedAgentId: 'alix#2',
@@ -85,7 +85,7 @@ describe('Workbench responsive drawer', () => {
       },
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('TASKS  1 running · 1 queued');
+    expect(frame).toContain('TASKS  1 running · 1 queued · 0 blocked');
     expect(frame).toContain('● Finish Workbench');
     expect(frame).toContain('running · agent agent-1');
     expect(frame).toContain('run coord-1 · assigned alix#2');
@@ -99,7 +99,7 @@ describe('Workbench responsive drawer', () => {
       canvas, terminalColumns: 20, top: 3, bottom: 12, layout: resolveWorkbenchLayout(20, 'tasks'),
       agents: null,
       tasks: {
-        queued: 0, running: 1,
+        queued: 0, running: 1, blocked: 0,
         tasks: [{
           taskId: 'task-1', title: '調査調査調査調査調査', state: 'running',
           ownedPaths: [], createdAt: 1, updatedAt: 2,
@@ -151,7 +151,7 @@ describe('Workbench responsive drawer', () => {
     paintRosterDrawer({
       canvas, terminalColumns: 100, top: 3, bottom: 18,
       layout: resolveWorkbenchLayout(100, 'tasks'), agents: null,
-      tasks: { queued: 0, running: 0, tasks: [{
+      tasks: { queued: 0, running: 0, blocked: 1, tasks: [{
         taskId: 'task-1', title: 'Write shared files', state: 'blocked', blockReason: 'ownership_conflict',
         ownedPaths: ['src/tui'], createdAt: 1, updatedAt: 2,
       }] },
@@ -160,6 +160,7 @@ describe('Workbench responsive drawer', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('›! Write shared files');
     expect(frame).toContain('⚠ OWNERSHIP CONFLICT');
+    expect(frame).toContain('1 blocked');
   });
 
   it('renders compact roster totals and marks partial known cost', () => {

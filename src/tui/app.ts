@@ -32,6 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
+import { approvalVisibleTo, coordinationRunIds, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
@@ -385,15 +386,14 @@ export class TuiApp {
   private reconcileWorkbenchSelection(): void {
     const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
     const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
-    const runIds = [...new Set([...agents, ...tasks]
-      .map((entry) => entry.coordinationRunId)
-      .filter((id): id is string => Boolean(id)))];
-    const selectedRunId = this.workbenchStore.snapshot().selectedRunId;
+    const runIds = coordinationRunIds([...agents, ...tasks]);
+    const currentRunId = this.workbenchStore.snapshot().selectedRunId;
+    const selectedRunId = currentRunId && runIds.includes(currentRunId) ? currentRunId : undefined;
     this.workbenchStore.dispatch({
       type: 'selection.reconcile',
       runIds,
-      agentIds: agents.filter((agent) => !selectedRunId || agent.coordinationRunId === selectedRunId).map((agent) => agent.agentId),
-      taskIds: tasks.filter((task) => !selectedRunId || task.coordinationRunId === selectedRunId).map((task) => task.taskId),
+      agentIds: visibleForRun(agents, selectedRunId).map((agent) => agent.agentId),
+      taskIds: visibleForRun(tasks, selectedRunId).map((task) => task.taskId),
     });
   }
 
@@ -842,16 +842,14 @@ export class TuiApp {
         return true;
       case 'drawer.move': {
         if (state.drawer === 'agents') {
-          const agents = (this.state.lastSnapshot?.runtime?.agents?.agents ?? [])
-            .filter((agent) => !state.selectedRunId || agent.coordinationRunId === state.selectedRunId);
+          const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
           const ids: Array<string | undefined> = [undefined, ...agents.map((agent) => agent.agentId)];
           const selectedIndex = ids.findIndex((id) => id === state.selectedAgentId);
           const current = selectedIndex >= 0 ? selectedIndex : 0;
           const target = Math.max(0, Math.min(ids.length - 1, current + intent.direction));
           this.workbenchStore.dispatch({ type: 'agent.select', agentId: ids[target], scrollOffset: Math.max(0, target - 2) });
         } else if (state.drawer === 'tasks') {
-          const tasks = (this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [])
-            .filter((task) => !state.selectedRunId || task.coordinationRunId === state.selectedRunId);
+          const tasks = visibleForRun(this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [], state.selectedRunId);
           if (tasks.length === 0) return true;
           const selectedIndex = tasks.findIndex((task) => task.taskId === state.selectedTaskId);
           const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
@@ -865,7 +863,7 @@ export class TuiApp {
       case 'run.move': {
         const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
         const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
-        const runs = [...new Set([...agents, ...tasks].map((entry) => entry.coordinationRunId).filter((id): id is string => Boolean(id)))].sort();
+        const runs = coordinationRunIds([...agents, ...tasks]);
         const ids: Array<string | undefined> = [undefined, ...runs];
         const current = Math.max(0, ids.findIndex((id) => id === state.selectedRunId));
         const target = (current + intent.direction + ids.length) % ids.length;
@@ -878,7 +876,7 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'approval.resolve': {
-        const target = perTab.pendingApprovals.find((approval) => !state.selectedAgentId || !approval.agentId || approval.agentId === state.selectedAgentId) ?? fallbackTarget;
+        const target = perTab.pendingApprovals.find((approval) => approvalVisibleTo(approval, state.selectedAgentId)) ?? fallbackTarget;
         if (!target) return false;
         if (this.pendingApprovalDecisions.has(target.id)) return true;
         this.pendingApprovalDecisions.add(target.id);

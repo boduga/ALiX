@@ -33,6 +33,8 @@ function makeWorkbench(
     getStateForTest(): any;
     getWorkbenchStateForTest(): any;
     syncPendingApprovals(): void;
+    reconcileWorkbenchSelection(): void;
+    workbenchStore: { dispatch(action: any): void };
   };
   internal.getStateForTest().lastSnapshot = snapshot;
   return { app, internal, cancelActiveTurn };
@@ -43,6 +45,27 @@ function type(internal: { handleRaw(buffer: Buffer): void }, text: string): void
 }
 
 describe('Workbench work surface integration', () => {
+  it('reconciles a vanished run before preserving still-valid agent and task focus', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.getStateForTest().lastSnapshot.runtime = {
+      agents: {
+        active: 1,
+        totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 },
+        agents: [{ agentId: 'agent-1', coordinationRunId: 'run-1', role: 'worker', state: 'thinking', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} }],
+      },
+      tasks: { queued: 0, running: 1, blocked: 0, tasks: [{ taskId: 'task-1', agentId: 'agent-1', coordinationRunId: 'run-1', title: 'Work', state: 'running', ownedPaths: [], createdAt: 1, updatedAt: 1 }] },
+    };
+    internal.workbenchStore.dispatch({ type: 'run.select', runId: 'run-1' });
+    internal.workbenchStore.dispatch({ type: 'task.select', taskId: 'task-1', agentId: 'agent-1', scrollOffset: 0 });
+
+    internal.getStateForTest().lastSnapshot.runtime.agents.agents[0].coordinationRunId = 'run-2';
+    internal.getStateForTest().lastSnapshot.runtime.tasks.tasks[0].coordinationRunId = 'run-2';
+    internal.reconcileWorkbenchSelection();
+
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ selectedAgentId: 'agent-1', selectedTaskId: 'task-1' });
+    expect(internal.getWorkbenchStateForTest().selectedRunId).toBeUndefined();
+  });
+
   it('preserves pending approvals while the approval snapshot is unavailable', () => {
     const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     const pending = { id: 'ap-persist', toolName: 'shell.run', target: 'npm test', requestedAt: 1 };

@@ -11,6 +11,7 @@ import { layoutComposer } from '../workbench/views/composer-view.js';
 import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 import { formatActivityElapsed } from '../../agent/agent-activity.js';
+import { approvalVisibleTo } from '../workbench/model/selection.js';
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -78,8 +79,7 @@ export class AgentView implements TuiView {
     const ses = ctx.snap.session;
     const liveness = ses?.liveness;
     const selectedAgentId = ctx.workbenchUiState?.selectedAgentId;
-    const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) =>
-      !selectedAgentId || !approval.agentId || approval.agentId === selectedAgentId);
+    const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
     if (pendingApproval) {
       const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
       c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);

@@ -4,6 +4,7 @@ import type { AgentRosterSnapshot } from '../model/agent-roster.js';
 import type { TaskRosterSnapshot } from '../model/task-roster.js';
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
 import { truncateDisplayText } from '../render/terminal-text.js';
+import { visibleForRun } from '../model/selection.js';
 
 function fit(text: string, width: number): string {
   return truncateDisplayText(text, width);
@@ -52,7 +53,7 @@ export function paintRosterDrawer(input: {
   }
   const title = layout.drawer === 'agents'
     ? `AGENTS  ${input.agents?.active ?? 0} active`
-    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued`;
+    : `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`;
   canvas.write(left + 2, top, `\x1b[1m${fit(title, inner)}${RESET}`);
   canvas.write(left + 2, top + 1, `\x1b[90m${'─'.repeat(inner)}${RESET}`);
 
@@ -60,7 +61,7 @@ export function paintRosterDrawer(input: {
   canvas.write(left + 2, top + 2, `\x1b[90m${fit(`${runLabel} · [ ] switch`, inner)}${RESET}`);
   let row = top + 4;
   if (layout.drawer === 'agents') {
-    const agents = (input.agents?.agents ?? []).filter((agent) => !input.selectedRunId || agent.coordinationRunId === input.selectedRunId);
+    const agents = visibleForRun(input.agents?.agents ?? [], input.selectedRunId);
     const aggregateSelected = input.selectedAgentId === undefined;
     canvas.write(left + 2, row++, fit(`${aggregateSelected ? '›' : ' '}◉ All agents`, inner));
     if (input.agentRosterExpanded === false) {
@@ -103,7 +104,7 @@ export function paintRosterDrawer(input: {
       row++;
     }
   } else {
-    const tasks = (input.tasks?.tasks ?? []).filter((task) => !input.selectedRunId || task.coordinationRunId === input.selectedRunId);
+    const tasks = visibleForRun(input.tasks?.tasks ?? [], input.selectedRunId);
     if (tasks.length === 0) canvas.write(left + 2, row, `\x1b[90mNo delegated tasks${RESET}`);
     for (const task of tasks) {
       if (row > bottom - 1) break;

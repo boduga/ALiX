@@ -41,6 +41,7 @@
 - Below 120 columns, agent and task drawers overlay the work surface. From 120 columns they render beside it; at 160 columns and above the agent roster is persistent by default.
 - An explicitly opened drawer owns Up/Down (or j/k) navigation and Escape until closed. Agent selection and scroll offset are presentation state only and must never affect runtime execution. Agent drawers also own Enter for roster expansion and both roster drawers own `[`/`]` run cycling.
 - Run, agent, and task selections persist independently of drawer visibility while their projected identities remain valid. Undefined run/agent selection is the explicit all-runs/all-agents aggregate view; streamed snapshots reconcile vanished selections back to that aggregate.
+- Selection reconciliation validates the run first, then validates agent/task identity against that reconciled scope. Explicit non-blocked task states clear stale block reasons, and blocked tasks remain visible in roster totals.
 - Agent selection filters transcript, tools, approvals, and diagnostics carrying a different authoritative `agentId`; uncorrelated items remain visible so incomplete metadata cannot hide operator actions.
 - Workbench transcript wrapping, composer rows, scroll anchors, and terminal cursor placement derive from the same responsive surface geometry.
 - Workbench frames are row-diffed against the previous frame, and composer cursor math uses grapheme display width rather than UTF-16 length.
