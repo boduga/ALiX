@@ -185,6 +185,7 @@ describe('Workbench responsive drawer', () => {
     expect(frame).toContain('file:///tmp/report.md');
     expect(frame).toContain('text/markdown · 2.0 KiB · digest…');
     expect(frame).toContain('First line');
+    expect(frame).not.toContain('Worker result');
   });
 
   it('renders compact roster totals and marks partial known cost', () => {

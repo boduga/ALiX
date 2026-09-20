@@ -83,6 +83,7 @@ describe("taskForWorker", () => {
     assert.deepEqual(task.ownedPaths, [".tmp/a.txt"]);
     assert.ok(task.prompt.includes(".tmp/a.txt"));
     assert.equal(task.coordinationRunId, "coord_test");
+    assert.equal(task.eventSessionId, "sess-1");
     assert.equal(task.assignedAgentId, "alix#1");
     assert.equal(task.taskLabel, "Do");
   });

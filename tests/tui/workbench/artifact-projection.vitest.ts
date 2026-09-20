@@ -36,5 +36,19 @@ describe('ArtifactProjection', () => {
     expect(item.status).toBe('unavailable');
     expect(item.preview?.length).toBe(800);
     expect(item.preview?.endsWith('…')).toBe(true);
+    expect(projection.snapshot().failed).toBe(0);
+  });
+
+  it('keeps multiple unreferenced results from the same agent', () => {
+    const projection = new ArtifactProjection();
+    projection.update([
+      event(1, 'subagent.result', { agentId: 'agent-1', findings: 'first' }),
+      event(2, 'subagent.result', { agentId: 'agent-1', findings: 'second' }),
+    ]);
+
+    expect(projection.snapshot().items).toEqual([
+      expect.objectContaining({ id: 'result-agent-1-1', preview: 'first' }),
+      expect.objectContaining({ id: 'result-agent-1-2', preview: 'second' }),
+    ]);
   });
 });

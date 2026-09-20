@@ -83,7 +83,14 @@ export function reduceWorkbenchUiState(
     case 'task.select':
       return { ...state, selectedTaskId: action.taskId, selectedAgentId: action.agentId, selectedArtifactId: undefined, drawerScrollOffset: Math.max(0, action.scrollOffset) };
     case 'artifact.select':
-      return { ...state, selectedArtifactId: action.artifactId, drawerScrollOffset: Math.max(0, action.scrollOffset) };
+      return {
+        ...state,
+        selectedRunId: action.runId,
+        selectedAgentId: action.agentId,
+        selectedTaskId: action.taskId,
+        selectedArtifactId: action.artifactId,
+        drawerScrollOffset: Math.max(0, action.scrollOffset),
+      };
     case 'agentRoster.toggle':
       return { ...state, agentRosterExpanded: !state.agentRosterExpanded };
     case 'selection.reconcile': {

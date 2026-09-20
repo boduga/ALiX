@@ -101,9 +101,15 @@ describe('WorkbenchStore', () => {
 
   it('preserves a valid artifact selection and clears one that disappears', () => {
     const store = new WorkbenchStore();
-    store.dispatch({ type: 'artifact.select', artifactId: 'artifact-1', scrollOffset: 2 });
+    store.dispatch({
+      type: 'artifact.select', artifactId: 'artifact-1', runId: 'run-1',
+      agentId: 'agent-1', taskId: 'task-1', scrollOffset: 2,
+    });
     store.dispatch({ type: 'selection.reconcile', runIds: [], agentIds: [], taskIds: [], artifactIds: ['artifact-1'] });
-    expect(store.snapshot()).toMatchObject({ selectedArtifactId: 'artifact-1', drawerScrollOffset: 2 });
+    expect(store.snapshot()).toMatchObject({
+      selectedRunId: undefined, selectedAgentId: undefined, selectedTaskId: undefined,
+      selectedArtifactId: 'artifact-1', drawerScrollOffset: 2,
+    });
     store.dispatch({ type: 'selection.reconcile', runIds: [], agentIds: [], taskIds: [], artifactIds: [] });
     expect(store.snapshot().selectedArtifactId).toBeUndefined();
   });

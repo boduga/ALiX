@@ -64,6 +64,7 @@ export function taskForWorker(
     prompt,
     ownedPaths,
     contextBundle: sessionId,
+    eventSessionId: sessionId,
     cwd,
     coordinationRunId: worker.coordinationRunId,
     assignedAgentId: worker.agentId,

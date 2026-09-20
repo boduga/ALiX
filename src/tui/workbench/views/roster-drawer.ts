@@ -2,10 +2,10 @@ import type { TerminalCanvas } from '../../canvas.js';
 import { RESET } from '../../ansi-constants.js';
 import type { AgentRosterSnapshot } from '../model/agent-roster.js';
 import type { TaskRosterSnapshot } from '../model/task-roster.js';
-import type { WorkbenchArtifactSnapshot, WorkbenchInspectableItem } from '../model/artifact-inspection.js';
+import type { WorkbenchArtifactSnapshot } from '../model/artifact-inspection.js';
 import type { WorkbenchResponsiveLayout } from '../layout/responsive-layout.js';
 import { truncateDisplayText } from '../render/terminal-text.js';
-import { visibleForRun } from '../model/selection.js';
+import { visibleArtifacts, visibleForRun } from '../model/selection.js';
 
 function fit(text: string, width: number): string {
   return truncateDisplayText(text, width);
@@ -33,18 +33,6 @@ function formatBytes(value: number): string {
   if (value < 1_024) return `${value} B`;
   if (value < 1_048_576) return `${(value / 1_024).toFixed(1)} KiB`;
   return `${(value / 1_048_576).toFixed(1)} MiB`;
-}
-
-function visibleArtifacts(
-  items: readonly WorkbenchInspectableItem[],
-  runId?: string,
-  agentId?: string,
-  taskId?: string,
-): readonly WorkbenchInspectableItem[] {
-  return items.filter((item) =>
-    (!runId || !item.coordinationRunId || item.coordinationRunId === runId) &&
-    (!agentId || !item.agentId || item.agentId === agentId) &&
-    (!taskId || !item.taskId || item.taskId === taskId));
 }
 
 export function paintRosterDrawer(input: {
@@ -154,12 +142,11 @@ export function paintRosterDrawer(input: {
       row++;
     }
   } else {
-    const items = visibleArtifacts(
-      input.artifacts?.items ?? [],
-      input.selectedRunId,
-      input.selectedAgentId,
-      input.selectedTaskId,
-    );
+    const items = visibleArtifacts(input.artifacts?.items ?? [], {
+      runId: input.selectedRunId,
+      agentId: input.selectedAgentId,
+      taskId: input.selectedTaskId,
+    });
     if (items.length === 0) {
       canvas.write(left + 2, row, `\x1b[90mNo artifacts or results${RESET}`);
       return;

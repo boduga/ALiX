@@ -32,7 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
-import { approvalVisibleTo, coordinationRunIds, visibleForRun } from './workbench/model/selection.js';
+import { approvalVisibleTo, artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
@@ -386,8 +386,8 @@ export class TuiApp {
   private reconcileWorkbenchSelection(): void {
     const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
     const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
-    const artifacts = this.state.lastSnapshot?.runtime?.artifacts?.items ?? [];
-    const runIds = coordinationRunIds([...agents, ...tasks, ...artifacts]);
+    const artifacts = artifactItemsFrom(this.state.lastSnapshot);
+    const runIds = coordinationRunIds([...agents, ...tasks]);
     const currentSelection = this.workbenchStore.snapshot();
     const currentRunId = currentSelection.selectedRunId;
     const selectedRunId = currentRunId && runIds.includes(currentRunId) ? currentRunId : undefined;
@@ -396,11 +396,11 @@ export class TuiApp {
       runIds,
       agentIds: visibleForRun(agents, selectedRunId).map((agent) => agent.agentId),
       taskIds: visibleForRun(tasks, selectedRunId).map((task) => task.taskId),
-      artifactIds: artifacts
-        .filter((item) =>
-          (!selectedRunId || !item.coordinationRunId || item.coordinationRunId === selectedRunId) &&
-          (!currentSelection.selectedAgentId || !item.agentId || item.agentId === currentSelection.selectedAgentId) &&
-          (!currentSelection.selectedTaskId || !item.taskId || item.taskId === currentSelection.selectedTaskId))
+      artifactIds: visibleArtifacts(artifacts, {
+        runId: selectedRunId,
+        agentId: currentSelection.selectedAgentId,
+        taskId: currentSelection.selectedTaskId,
+      })
         .map((item) => item.id),
     });
   }
@@ -865,15 +865,24 @@ export class TuiApp {
           const selected = tasks[target]!;
           this.workbenchStore.dispatch({ type: 'task.select', taskId: selected.taskId, agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
         } else if (state.drawer === 'artifacts') {
-          const items = (this.state.lastSnapshot?.runtime?.artifacts?.items ?? []).filter((item) =>
-            (!state.selectedRunId || !item.coordinationRunId || item.coordinationRunId === state.selectedRunId) &&
-            (!state.selectedAgentId || !item.agentId || item.agentId === state.selectedAgentId) &&
-            (!state.selectedTaskId || !item.taskId || item.taskId === state.selectedTaskId));
+          const items = visibleArtifacts(artifactItemsFrom(this.state.lastSnapshot), {
+            runId: state.selectedRunId,
+            agentId: state.selectedAgentId,
+            taskId: state.selectedTaskId,
+          });
           if (items.length === 0) return true;
           const selectedIndex = items.findIndex((item) => item.id === state.selectedArtifactId);
           const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
           const target = Math.max(0, Math.min(items.length - 1, current + intent.direction));
-          this.workbenchStore.dispatch({ type: 'artifact.select', artifactId: items[target]!.id, scrollOffset: Math.max(0, target - 1) });
+          const selected = items[target]!;
+          this.workbenchStore.dispatch({
+            type: 'artifact.select',
+            artifactId: selected.id,
+            runId: selected.coordinationRunId,
+            agentId: selected.agentId,
+            taskId: selected.taskId,
+            scrollOffset: Math.max(0, target - 1),
+          });
         }
         this.paintFullFrame();
         return true;
@@ -881,8 +890,7 @@ export class TuiApp {
       case 'run.move': {
         const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
         const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
-        const artifacts = this.state.lastSnapshot?.runtime?.artifacts?.items ?? [];
-        const runs = coordinationRunIds([...agents, ...tasks, ...artifacts]);
+        const runs = coordinationRunIds([...agents, ...tasks]);
         const ids: Array<string | undefined> = [undefined, ...runs];
         const current = Math.max(0, ids.findIndex((id) => id === state.selectedRunId));
         const target = (current + intent.direction + ids.length) % ids.length;
@@ -1626,6 +1634,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\x0f') return 'Ctrl+o';   // Ctrl+O — transcript detail toggle
   if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
   if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
+  if (s === '\x12') return 'Ctrl+r';   // Ctrl+R — Workbench artifact/result drawer
   // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
   // Shift+Enter. A plain Enter remains submission.
   if (s === '\x1b[13;2u' || s === '\x1b[27;2;13~') return 'Shift+Enter';

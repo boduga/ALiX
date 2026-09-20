@@ -13,11 +13,11 @@ function payload(event: AlixEvent): Record<string, unknown> {
   return event.payload && typeof event.payload === 'object' ? event.payload as Record<string, unknown> : {};
 }
 
-function text(value: unknown): string | undefined {
+function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }
 
-function nonNegative(value: unknown): number | undefined {
+function nonNegativeNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
@@ -42,13 +42,14 @@ export class ArtifactProjection implements ProjectionBuilder<WorkbenchArtifactSn
       const p = payload(event);
       const at = Date.parse(event.timestamp) || 0;
       const sourceSequence = event.seq ?? 0;
-      const coordinationRunId = text(p.coordinationRunId ?? p.runId);
-      const agentId = text(p.agentId ?? p.workerId ?? p.subagentId);
-      const taskId = text(p.taskId);
+      const coordinationRunId = nonEmptyString(p.coordinationRunId ?? p.runId);
+      const agentId = nonEmptyString(p.agentId ?? p.workerId ?? p.subagentId);
+      const taskId = nonEmptyString(p.taskId);
 
       if (event.type === 'subagent.result') {
-        const id = text(p.resultRef) ?? `result-${agentId ?? taskId ?? sourceSequence}`;
-        const statusValue = text(p.status)?.toLowerCase();
+        const id = nonEmptyString(p.resultRef) ?? `result-${agentId ?? taskId ?? 'event'}-${sourceSequence}`;
+        const statusValue = nonEmptyString(p.status)?.toLowerCase();
+        const preview = boundedPreview(p.summary ?? p.content ?? p.findings ?? p.error);
         const status = statusValue === 'failed' || statusValue === 'failure' || statusValue === 'error'
           ? 'failed' as const
           : 'available' as const;
@@ -56,8 +57,8 @@ export class ArtifactProjection implements ProjectionBuilder<WorkbenchArtifactSn
           id,
           kind: 'result',
           status,
-          title: text(p.title) ?? text(p.role) ?? `Result ${id}`,
-          ...(boundedPreview(p.summary ?? p.content ?? p.findings ?? p.error) ? { preview: boundedPreview(p.summary ?? p.content ?? p.findings ?? p.error) } : {}),
+          title: nonEmptyString(p.title) ?? nonEmptyString(p.role) ?? `Result ${id}`,
+          ...(preview ? { preview } : {}),
           ...(coordinationRunId ? { coordinationRunId } : {}),
           ...(agentId ? { agentId } : {}),
           ...(taskId ? { taskId } : {}),
@@ -67,19 +68,23 @@ export class ArtifactProjection implements ProjectionBuilder<WorkbenchArtifactSn
         continue;
       }
 
-      const id = text(p.artifactId ?? p.id) ?? `artifact-${sourceSequence}`;
-      const uri = text(p.uri ?? p.path);
+      const id = nonEmptyString(p.artifactId ?? p.id) ?? `artifact-${sourceSequence}`;
+      const uri = nonEmptyString(p.uri ?? p.path);
       const preview = boundedPreview(p.preview ?? p.content ?? p.outputPreview);
+      const artifactType = nonEmptyString(p.kind ?? p.artifactType);
+      const mediaType = nonEmptyString(p.mediaType ?? p.mimeType);
+      const sizeBytes = nonNegativeNumber(p.sizeBytes ?? p.size);
+      const digest = nonEmptyString(p.digest);
       this.byId.set(id, {
         id,
         kind: 'artifact',
         status: uri ? 'available' : 'unavailable',
-        title: text(p.title ?? p.name) ?? id,
-        ...(text(p.kind ?? p.artifactType) ? { artifactType: text(p.kind ?? p.artifactType) } : {}),
+        title: nonEmptyString(p.title ?? p.name) ?? id,
+        ...(artifactType ? { artifactType } : {}),
         ...(uri ? { uri } : {}),
-        ...(text(p.mediaType ?? p.mimeType) ? { mediaType: text(p.mediaType ?? p.mimeType) } : {}),
-        ...(nonNegative(p.sizeBytes ?? p.size) !== undefined ? { sizeBytes: nonNegative(p.sizeBytes ?? p.size) } : {}),
-        ...(text(p.digest) ? { digest: text(p.digest) } : {}),
+        ...(mediaType ? { mediaType } : {}),
+        ...(sizeBytes !== undefined ? { sizeBytes } : {}),
+        ...(digest ? { digest } : {}),
         ...(preview ? { preview } : {}),
         ...(coordinationRunId ? { coordinationRunId } : {}),
         ...(agentId ? { agentId } : {}),
@@ -96,7 +101,7 @@ export class ArtifactProjection implements ProjectionBuilder<WorkbenchArtifactSn
       items,
       artifacts: items.filter((item) => item.kind === 'artifact').length,
       results: items.filter((item) => item.kind === 'result').length,
-      failed: items.filter((item) => item.status === 'failed' || item.status === 'unavailable').length,
+      failed: items.filter((item) => item.status === 'failed').length,
     };
   }
 

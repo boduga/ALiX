@@ -15,7 +15,7 @@ export type WorkbenchUiAction =
   | { readonly type: 'run.select'; readonly runId?: string }
   | { readonly type: 'agent.select'; readonly agentId?: string; readonly scrollOffset: number }
   | { readonly type: 'task.select'; readonly taskId?: string; readonly agentId?: string; readonly scrollOffset: number }
-  | { readonly type: 'artifact.select'; readonly artifactId?: string; readonly scrollOffset: number }
+  | { readonly type: 'artifact.select'; readonly artifactId?: string; readonly runId?: string; readonly agentId?: string; readonly taskId?: string; readonly scrollOffset: number }
   | { readonly type: 'agentRoster.toggle' }
   | { readonly type: 'selection.reconcile'; readonly runIds: readonly string[]; readonly agentIds: readonly string[]; readonly taskIds: readonly string[]; readonly artifactIds?: readonly string[] }
   | { readonly type: 'overlay.toggle'; readonly overlay: WorkbenchOverlay }

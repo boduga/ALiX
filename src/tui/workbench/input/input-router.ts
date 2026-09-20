@@ -42,6 +42,7 @@ export function routeWorkbenchInput(
   }
   if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
   if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
+  if (key === 'Ctrl+r') return { type: 'drawer.toggle', drawer: 'artifacts' };
   if (context.focus === 'drawer' && context.drawer !== 'closed') {
     if (key === 'Escape') return { type: 'drawer.close' };
     if (key === 'ArrowUp' || key === 'k') return { type: 'drawer.move', direction: -1 };
