@@ -68,17 +68,59 @@ function isFiniteNumber(n: unknown): n is number {
 }
 
 /** Confidence, when present, must be 0..1. Absent is valid. */
-export function isValidConfidence(c: number | undefined): boolean {
+export function isValidConfidence(c: unknown): boolean {
   if (c === undefined) return true;
-  return isFiniteNumber(c) && c >= 0 && c <= 1;
+  return isUnitInterval(c);
 }
 
-export function isValidScore(s: unknown): s is number {
-  return isFiniteNumber(s) && (s as number) >= 0 && (s as number) <= 1;
+function isUnitInterval(n: unknown): n is number {
+  return isFiniteNumber(n) && (n as number) >= 0 && (n as number) <= 1;
 }
 
-export function isValidProbability(p: unknown): p is number {
-  return isFiniteNumber(p) && (p as number) >= 0 && (p as number) <= 1;
+/** Bounded 0..1 score. Shares the probability range; the name keeps native semantics. */
+export const isValidScore: (s: unknown) => s is number = isUnitInterval;
+
+/** Bounded 0..1 probability. Shares the score range; the name keeps native semantics. */
+export const isValidProbability: (p: unknown) => p is number = isUnitInterval;
+
+/**
+ * Structural outcome for the shared validation gate (journal + executors).
+ * Deliberately provenance-free: gates judge shape, records carry provenance.
+ */
+export type OutcomeLike =
+  | { kind: "choice"; choice: unknown; confidence?: unknown }
+  | { kind: "score"; score: unknown; confidence?: unknown }
+  | { kind: "noul"; probability: unknown }
+  | { kind: "failure"; error: unknown };
+
+/** Pure gate: reason string when malformed, null when valid. Never throws. */
+export function outcomeIssue(
+  outcome: OutcomeLike,
+  candidates?: readonly unknown[],
+): string | null {
+  if (!outcome || typeof outcome !== "object") return "outcome must be an object";
+  switch (outcome.kind) {
+    case "choice":
+      if (!isValidConfidence(outcome.confidence)) return "choice.confidence outside 0..1";
+      if (candidates !== undefined && !candidates.includes(outcome.choice)) {
+        return "choice not in candidate set";
+      }
+      return null;
+    case "score":
+      if (!isValidScore(outcome.score)) return "score outside 0..1";
+      if (!isValidConfidence(outcome.confidence)) return "score.confidence outside 0..1";
+      return null;
+    case "noul":
+      if (!isValidProbability(outcome.probability)) return "probability outside 0..1";
+      return null;
+    case "failure":
+      if (typeof outcome.error !== "string" || outcome.error.length === 0) {
+        return "failure.error must be non-empty";
+      }
+      return null;
+    default:
+      return `unknown outcome kind: ${String((outcome as { kind?: unknown }).kind)}`;
+  }
 }
 
 /**

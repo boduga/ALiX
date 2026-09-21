@@ -1,4 +1,5 @@
 import type { ContextBudgetConfig } from "./context-budget.js";
+import type { DecisionConfig } from "../decision/config.js";
 
 export type SessionMode = "auto" | "ask" | "bypass";
 
@@ -496,6 +497,12 @@ export type AlixConfig = {
   tracing?: TracingConfig;
   modelProfile?: string;
   models?: ModelsConfig;
+  /**
+   * Bounded probabilistic decisions (Jev System One). Optional: absent means
+   * local defaults (DEFAULT_DECISION_CONFIG). Type-only import — the schema
+   * stays decoupled from the decision runtime leaf.
+   */
+  decision?: DecisionConfig;
 };
 
 /**
