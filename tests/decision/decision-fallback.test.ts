@@ -51,11 +51,13 @@ describe("local baseline engine", () => {
     assert.equal(outcome.provenance.projectionHash, sealed().hash);
   });
 
-  it("abstains honestly where rules cannot judge", async () => {
+  it("scores relevance locally and reports unsupported decisions honestly", async () => {
     const relevance = await createLocalBaselineExecutor().execute(
       input({ decision: "context-relevance" }),
     );
-    assert.deepEqual(relevance, { kind: "failure", error: "local-abstain: keep existing behavior" });
+    assert.equal(relevance.kind, "noul");
+    if (relevance.kind !== "noul") return;
+    assert.equal(relevance.probability, 0);
     const tier = await createLocalBaselineExecutor().execute(input({ decision: "model-tier" }));
     assert.deepEqual(tier, { kind: "failure", error: "unsupported decision for local engine" });
   });
@@ -73,7 +75,7 @@ describe("local baseline engine", () => {
   it("default registry binds the local executor", () => {
     const engine = createDefaultRegistry().resolve({ engineId: "local" });
     assert.equal(engine.executor?.engineId, LOCAL_ENGINE_ID);
-    assert.deepEqual(engine.capabilities, ["choice"]);
+    assert.deepEqual(engine.capabilities, ["choice", "noul"]);
   });
 });
 

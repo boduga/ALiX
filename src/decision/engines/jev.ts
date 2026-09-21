@@ -34,11 +34,18 @@ import {
   fromJevResponse,
   toJevRequest,
 } from "../decisions/claim-verification/jev-mapping.js";
+import {
+  fromJevRelevanceResponse,
+  toJevRelevanceRequest,
+} from "../decisions/context-relevance/jev-mapping.js";
 
 export const JEV_ENGINE_ID = "jev";
 
-/** Decisions this adapter can answer today (J1: claim verification only). */
-const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = ["claim-verification"];
+/** Decisions this adapter can answer today (J1 claim, J2 relevance). */
+const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
+  "claim-verification",
+  "context-relevance",
+];
 
 type JevDecisionMapping = {
   toRequest(sealed: ExecuteInput["sealed"]): JevSystemOneRequest;
@@ -49,6 +56,10 @@ const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
   "claim-verification": {
     toRequest: (sealed) => toJevRequest(sealed),
     fromResponse: (response, ctx) => fromJevResponse(response, ctx),
+  },
+  "context-relevance": {
+    toRequest: (sealed) => toJevRelevanceRequest(sealed),
+    fromResponse: (response, ctx) => fromJevRelevanceResponse(response, ctx),
   },
 };
 
@@ -141,7 +152,7 @@ export function jevEngineMeta(executor?: DecisionExecutor): DecisionEngine {
   return {
     id: JEV_ENGINE_ID,
     remote: true,
-    capabilities: ["choice"],
+    capabilities: ["choice", "noul"],
     supportsDecision: (decision) => JEV_SUPPORTED_DECISIONS.includes(decision),
     ...(executor !== undefined ? { executor } : {}),
   };

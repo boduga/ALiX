@@ -12,14 +12,19 @@
  */
 
 import type { DecisionJournalRecord } from "../../journal.js";
-import { recordDecision, type DecisionJournalStore } from "../../journal.js";
+import type { DecisionJournalStore } from "../../journal.js";
 import type { DecisionConfig } from "../../config.js";
 import type { EngineRegistry } from "../../registry.js";
 import { buildPlan, executeWithFallback, type AttemptRecord } from "../../fallback.js";
 import type { ExecutorOutcome } from "../../executors.js";
 import { LOCAL_ENGINE_ID } from "../../engines/local.js";
-import { JEV_ENGINE_ID } from "../../engines/jev.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
+import { observedEngineId, totalLatency } from "../shared/attempts.js";
+import {
+  journalAttempts,
+  journalizeOutcome,
+  type JournalContext,
+} from "../shared/journaling.js";
 import { CLAIM_VERDICT_CANDIDATES, isClaimVerdict, type ClaimVerdict } from "./schema.js";
 import {
   projectClaimVerification,
@@ -66,91 +71,27 @@ function withVerdict(outcome: ExecutorOutcome): { verdict?: ClaimVerdict } {
   return verdict !== undefined ? { verdict } : {};
 }
 
-function observedEngineId(attempts: readonly AttemptRecord[], fallbackId: string): string {
-  for (let index = attempts.length - 1; index >= 0; index -= 1) {
-    if (attempts[index]?.ok) return attempts[index]!.engineId;
-  }
-  return fallbackId;
-}
-
-function totalLatency(attempts: readonly AttemptRecord[]): number {
-  return attempts.reduce((sum, attempt) => sum + attempt.latencyMs, 0);
-}
-
-function toDecisionOutcome(outcome: ExecutorOutcome) {
-  switch (outcome.kind) {
-    case "choice":
-      return {
-        kind: "choice" as const,
-        choice: outcome.choice,
-        candidates: CLAIM_VERDICT_CANDIDATES,
-        ...(outcome.confidence !== undefined ? { confidence: outcome.confidence } : {}),
-      };
-    case "score":
-      return {
-        kind: "score" as const,
-        score: outcome.score,
-        ...(outcome.confidence !== undefined ? { confidence: outcome.confidence } : {}),
-      };
-    case "noul":
-      return { kind: "noul" as const, probability: outcome.probability };
-    case "failure":
-      return { kind: "failure" as const, error: outcome.error };
-  }
-}
-
-function baseRecordFields(
+/** Journal context for one engine; `remote` comes from the registry meta. */
+function contextFor(
   engineId: string,
   sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-) {
-  const remote = engineId === JEV_ENGINE_ID;
+  deps: ClaimVerificationShadowDeps,
+): JournalContext {
   return {
-    decision: "claim-verification" as const,
+    decision: "claim-verification",
     engineId,
-    projectionHash: sealed.hash,
-    projectorVersion: sealed.projectorVersion,
-    thresholdProfile: config.claimVerification.thresholdProfile,
-    remote,
-    redactionApplied: remote,
-    ...(executionId !== undefined ? { executionId } : {}),
+    sealed,
+    remote: deps.registry.get(engineId)?.remote === true,
+    thresholdProfile: deps.config.claimVerification.thresholdProfile,
+    candidates: CLAIM_VERDICT_CANDIDATES,
+    ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };
-}
-
-function journalize(
-  observation: ShadowObservation,
-  sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-): DecisionJournalRecord {
-  const engineVersion =
-    observation.outcome.kind !== "failure" ? observation.outcome.provenance.engineVersion : undefined;
-  return recordDecision({
-    ...baseRecordFields(observation.engineId, sealed, config, executionId),
-    ...(engineVersion !== undefined ? { engineVersion } : {}),
-    outcome: toDecisionOutcome(observation.outcome),
-    latencyMs: observation.latencyMs,
-  });
-}
-
-/** A failed attempt is journaled as an explicit failure with its latency. */
-function journalizeFailure(
-  attempt: AttemptRecord,
-  sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-): DecisionJournalRecord {
-  return recordDecision({
-    ...baseRecordFields(attempt.engineId, sealed, config, executionId),
-    outcome: { kind: "failure", error: attempt.error ?? "unknown failure" },
-    latencyMs: attempt.latencyMs,
-  });
 }
 
 type ConfiguredRun = {
   observation: ShadowObservation;
   attempts: AttemptRecord[];
+  primaryId: string;
 };
 
 async function runConfigured(
@@ -171,6 +112,7 @@ async function runConfigured(
       latencyMs: totalLatency(result.attempts),
     },
     attempts: result.attempts,
+    primaryId: plan.primaryId,
   };
 }
 
@@ -203,21 +145,27 @@ export async function runClaimVerificationShadow(
   deps: ClaimVerificationShadowDeps,
 ): Promise<ClaimVerificationShadowResult> {
   const sealed = projectClaimVerification(input);
-  const { observation: observed, attempts } = await runConfigured(sealed, deps);
+  const { observation: observed, attempts, primaryId } = await runConfigured(sealed, deps);
 
-  const records: DecisionJournalRecord[] = attempts.map((attempt) =>
-    attempt.ok
-      ? journalize(observed, sealed, deps.config, deps.executionId)
-      : journalizeFailure(attempt, sealed, deps.config, deps.executionId),
+  const records: DecisionJournalRecord[] = journalAttempts(
+    attempts,
+    observed.outcome,
+    (engineId) => contextFor(engineId, sealed, deps),
+    primaryId,
   );
-  if (records.length === 0) {
-    records.push(journalize(observed, sealed, deps.config, deps.executionId));
-  }
 
   let baseline: ShadowObservation | undefined;
   if (deps.compareBaseline !== false && observed.engineId !== LOCAL_ENGINE_ID) {
     baseline = await runLocalBaseline(sealed, deps);
-    if (baseline) records.push(journalize(baseline, sealed, deps.config, deps.executionId));
+    if (baseline) {
+      records.push(
+        journalizeOutcome(
+          contextFor(baseline.engineId, sealed, deps),
+          baseline.outcome,
+          baseline.latencyMs,
+        ),
+      );
+    }
   }
 
   const agree =

@@ -13,6 +13,11 @@ export type DecisionRoutePolicy = {
   engine: string;
   fallback: string;
   thresholdProfile: string;
+  /**
+   * Feature flag for routes wired into runtime behavior. Absent/false means
+   * the consumer keeps its existing behavior (J2 exit criterion).
+   */
+  enabled?: boolean;
 };
 
 export type DecisionConfig = {
@@ -40,6 +45,7 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
     engine: "local",
     fallback: "local",
     thresholdProfile: "context-relevance/local/v1",
+    enabled: false,
   },
   modelTier: {
     engine: "existing-routing",
@@ -112,6 +118,9 @@ export function validateDecisionConfig(
       if (typeof route[field] !== "string" || (route[field] as string).length === 0) {
         issues.push({ path: `${key}.${field}`, message: `${key}.${field} must be a non-empty string` });
       }
+    }
+    if (route.enabled !== undefined && typeof route.enabled !== "boolean") {
+      issues.push({ path: `${key}.enabled`, message: `${key}.enabled must be a boolean` });
     }
   }
   return { valid: issues.length === 0, issues };

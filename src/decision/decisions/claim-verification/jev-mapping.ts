@@ -14,7 +14,7 @@ import type {
   JevSystemOneRequest,
   JevSystemOneResponse,
 } from "../../engines/jev-protocol.js";
-import { JEV_DEFAULT_MODEL } from "../../engines/jev-protocol.js";
+import { JEV_DEFAULT_MODEL, isJevChoiceAnswer } from "../../engines/jev-protocol.js";
 import { CLAIM_VERDICT_CANDIDATES, isClaimVerdict, type ClaimVerdict } from "./schema.js";
 import { readClaimProjection, type ClaimVerificationProjection } from "./projection.js";
 
@@ -69,10 +69,12 @@ export function fromJevResponse(
   if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
     throw new MalformedResultError("jev response missing answers array");
   }
-  const answer = response.answers.find((item) => item?.id === JEV_CLAIM_QUESTION_ID);
-  if (!answer) {
+  const answer = response.answers.find(
+    (item) => item?.id === JEV_CLAIM_QUESTION_ID && isJevChoiceAnswer(item),
+  );
+  if (!answer || !isJevChoiceAnswer(answer)) {
     throw new MalformedResultError(
-      `jev response missing answer for question ${JEV_CLAIM_QUESTION_ID}`,
+      `jev response missing choice answer for question ${JEV_CLAIM_QUESTION_ID}`,
     );
   }
   if (!isClaimVerdict(answer.choice)) {
