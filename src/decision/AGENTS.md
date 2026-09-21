@@ -15,8 +15,8 @@
 - `engines/jev-protocol.ts` — Jev System One wire types (Choice + Noul) + injectable `JevTransport` (neutral: no decisions/engines imports).
 - `engines/jev.ts` — Jev adapter: transport, per-decision mapping table, capability declaration, store-only key, disabled by default.
 - `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
-- `decisions/context-relevance/` — second decision (per-item Noul scoring + deterministic selection); see its AGENTS.md.
-- `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers) shared by decisions.
+- `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
+- `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
 

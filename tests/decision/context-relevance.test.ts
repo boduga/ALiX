@@ -19,12 +19,14 @@ import {
   fromJevRelevanceResponse,
   projectContextRelevance,
   registerJevEngine,
-  resolveRelevanceThreshold,
+  resolveProfileForEngine,
   runContextRelevanceShadow,
   scoreRelevanceLocally,
+  selectContextItems,
   selectWithEngineThresholds,
   thresholdProfileForEngine,
   toJevRelevanceRequest,
+  tryThresholdProfileForEngine,
   type DecisionConfig,
   type JevTransport,
   type ScoredItem,
@@ -135,16 +137,22 @@ describe("engine-specific thresholds (JEV-9)", () => {
   });
 
   it("refuses to apply another engine's profile", () => {
-    assert.throws(
-      () => resolveRelevanceThreshold("context-relevance/jev/v1", LOCAL_ENGINE_ID),
-      /belongs to engine jev, not local/,
+    assert.equal(
+      resolveProfileForEngine(LOCAL_ENGINE_ID, "context-relevance/jev/v1").id,
+      "context-relevance/local/v1",
     );
-    assert.throws(() => resolveRelevanceThreshold("nope", LOCAL_ENGINE_ID), /Unknown relevance threshold/);
+    assert.equal(
+      resolveProfileForEngine("jev", "context-relevance/jev/v1").id,
+      "context-relevance/jev/v1",
+    );
+    assert.equal(tryThresholdProfileForEngine("mystery"), undefined);
+    assert.throws(() => resolveProfileForEngine("mystery", "context-relevance/local/v1"), /No relevance threshold profile/);
   });
 });
 
 describe("deterministic selection", () => {
-  const resolveProfile = thresholdProfileForEngine;
+  const resolveProfile = (engineId: string) =>
+    resolveProfileForEngine(engineId, "context-relevance/local/v1");
 
   it("ranks by probability desc, stable on ties, then caps", () => {
     const scores: ScoredItem[] = [
@@ -295,6 +303,10 @@ describe("context-relevance shadow runner", () => {
     assert.equal(result.selection.thresholdProfileIds[0], "context-relevance/local/v1");
     const jevFailure = result.records.find((r) => r.engineId === "jev");
     assert.equal(jevFailure?.outcome.kind, "failure");
+    // The journaled profile must match the threshold actually applied per engine.
+    assert.equal(jevFailure?.thresholdProfile, "context-relevance/jev/v1");
+    const localRecord = result.records.find((r) => r.engineId === LOCAL_ENGINE_ID);
+    assert.equal(localRecord?.thresholdProfile, "context-relevance/local/v1");
   });
 
   it("keeps items no engine could score instead of dropping them", async () => {
@@ -334,5 +346,49 @@ describe("context-relevance shadow runner", () => {
       { config: relevanceConfig(), registry: createDefaultRegistry(), maxItems: 1 },
     );
     assert.deepEqual(result.selection.selectedIds, ["i1"]);
+  });
+});
+
+describe("selectContextItems integration seam", () => {
+  it("off (default) is identity and runs no engine", async () => {
+    const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
+      config: relevanceConfig(),
+      registry: createDefaultRegistry(),
+    });
+    assert.equal(result.mode, "off");
+    assert.deepEqual(result.items.map((i) => i.id), ["i1", "i2"]);
+    assert.equal(result.shadow, undefined);
+  });
+
+  it("shadow observes but returns every item unchanged", async () => {
+    const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
+      config: relevanceConfig(),
+      registry: createDefaultRegistry(),
+      mode: "shadow",
+    });
+    assert.equal(result.mode, "shadow");
+    assert.deepEqual(result.items.map((i) => i.id), ["i1", "i2"]);
+    assert.equal(result.shadow?.observations.length, 2);
+    assert.deepEqual(result.shadow?.selection.selectedIds, ["i1"]);
+  });
+
+  it("active returns only the selected items", async () => {
+    const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
+      config: relevanceConfig(),
+      registry: createDefaultRegistry(),
+      mode: "active",
+    });
+    assert.equal(result.mode, "active");
+    assert.deepEqual(result.items.map((i) => i.id), ["i1"]);
+  });
+
+  it("active on a disabled route still passes items through", async () => {
+    const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
+      config: DEFAULT_DECISION_CONFIG,
+      registry: createDefaultRegistry(),
+      mode: "active",
+    });
+    assert.deepEqual(result.items.map((i) => i.id), ["i1", "i2"]);
+    assert.equal(result.shadow?.enabled, false);
   });
 });

@@ -47,21 +47,23 @@ export function thresholdProfileForEngine(engineId: string): RelevanceThresholdP
   return profile;
 }
 
-/**
- * Resolve the profile a route configured, asserting it belongs to the engine
- * that actually answered. Mismatch fails closed rather than applying another
- * engine's calibration (JEV-9).
- */
-export function resolveRelevanceThreshold(
-  profileId: string,
+/** Non-throwing variant for journaling an attempt from an unknown engine. */
+export function tryThresholdProfileForEngine(
   engineId: string,
+): RelevanceThresholdProfile | undefined {
+  return CONTEXT_RELEVANCE_THRESHOLDS.find((entry) => entry.engineId === engineId);
+}
+
+/**
+ * The profile the consumer should apply for `engineId`. The route's configured
+ * profile wins when it belongs to that engine; otherwise the engine's own
+ * profile is used, so a fallback never inherits another engine's calibration.
+ */
+export function resolveProfileForEngine(
+  engineId: string,
+  configuredProfileId: string,
 ): RelevanceThresholdProfile {
-  const profile = thresholdProfileById(profileId);
-  if (!profile) throw new Error(`Unknown relevance threshold profile: ${profileId}`);
-  if (profile.engineId !== engineId) {
-    throw new Error(
-      `Threshold profile ${profileId} belongs to engine ${profile.engineId}, not ${engineId}`,
-    );
-  }
-  return profile;
+  const configured = thresholdProfileById(configuredProfileId);
+  if (configured !== undefined && configured.engineId === engineId) return configured;
+  return thresholdProfileForEngine(engineId);
 }

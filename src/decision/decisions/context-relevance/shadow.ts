@@ -11,17 +11,19 @@
  */
 
 import type { DecisionJournalRecord } from "../../journal.js";
-import { recordDecision, type DecisionJournalStore } from "../../journal.js";
+import type { DecisionJournalStore } from "../../journal.js";
 import type { DecisionConfig } from "../../config.js";
 import type { EngineRegistry } from "../../registry.js";
-import { buildPlan, executeWithFallback, type AttemptRecord } from "../../fallback.js";
-import type { ExecutorOutcome } from "../../executors.js";
-import { JEV_ENGINE_ID } from "../../engines/jev.js";
+import { buildPlan, executeWithFallback } from "../../fallback.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import { observedEngineId } from "../shared/attempts.js";
+import { journalAttempts, type JournalContext } from "../shared/journaling.js";
 import { projectContextRelevance, type ContextRelevanceItemInput } from "./projection.js";
 import { selectWithEngineThresholds, type SelectionResult } from "./selection.js";
-import { thresholdProfileForEngine } from "./thresholds.js";
+import {
+  resolveProfileForEngine,
+  tryThresholdProfileForEngine,
+} from "./thresholds.js";
 
 export type ContextRelevanceShadowDeps = {
   config: DecisionConfig;
@@ -54,59 +56,21 @@ export type ContextRelevanceShadowResult = {
   authority: "none";
 };
 
-function baseRecordFields(
+/** Journal context for one engine: profile and remote flag are engine-specific. */
+function contextFor(
   engineId: string,
   sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-) {
-  const remote = engineId === JEV_ENGINE_ID;
+  deps: ContextRelevanceShadowDeps,
+): JournalContext {
+  const profile = tryThresholdProfileForEngine(engineId);
   return {
-    decision: "context-relevance" as const,
+    decision: "context-relevance",
     engineId,
-    projectionHash: sealed.hash,
-    projectorVersion: sealed.projectorVersion,
-    thresholdProfile: config.contextRelevance.thresholdProfile,
-    remote,
-    redactionApplied: remote,
-    ...(executionId !== undefined ? { executionId } : {}),
+    sealed,
+    remote: deps.registry.get(engineId)?.remote === true,
+    ...(profile !== undefined ? { thresholdProfile: profile.id } : {}),
+    ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };
-}
-
-function journalizeOutcome(
-  engineId: string,
-  outcome: ExecutorOutcome,
-  sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-  latencyMs: number,
-): DecisionJournalRecord {
-  const engineVersion = outcome.kind !== "failure" ? outcome.provenance.engineVersion : undefined;
-  const decisionOutcome =
-    outcome.kind === "noul"
-      ? { kind: "noul" as const, probability: outcome.probability }
-      : outcome.kind === "failure"
-        ? { kind: "failure" as const, error: outcome.error }
-        : { kind: "failure" as const, error: `unexpected ${outcome.kind} outcome` };
-  return recordDecision({
-    ...baseRecordFields(engineId, sealed, config, executionId),
-    ...(engineVersion !== undefined ? { engineVersion } : {}),
-    outcome: decisionOutcome,
-    latencyMs,
-  });
-}
-
-function journalizeFailure(
-  attempt: AttemptRecord,
-  sealed: RemoteSealedProjection<Record<string, unknown>>,
-  config: DecisionConfig,
-  executionId: string | undefined,
-): DecisionJournalRecord {
-  return recordDecision({
-    ...baseRecordFields(attempt.engineId, sealed, config, executionId),
-    outcome: { kind: "failure", error: attempt.error ?? "unknown failure" },
-    latencyMs: attempt.latencyMs,
-  });
 }
 
 async function scoreItem(
@@ -124,25 +88,14 @@ async function scoreItem(
   );
 
   const engineId = observedEngineId(result.attempts, plan.primaryId);
-  for (const attempt of result.attempts) {
-    records.push(
-      attempt.ok
-        ? journalizeOutcome(
-            attempt.engineId,
-            result.outcome,
-            sealed,
-            deps.config,
-            deps.executionId,
-            attempt.latencyMs,
-          )
-        : journalizeFailure(attempt, sealed, deps.config, deps.executionId),
-    );
-  }
-  if (result.attempts.length === 0) {
-    records.push(
-      journalizeOutcome(engineId, result.outcome, sealed, deps.config, deps.executionId, 0),
-    );
-  }
+  records.push(
+    ...journalAttempts(
+      result.attempts,
+      result.outcome,
+      (attemptEngineId) => contextFor(attemptEngineId, sealed, deps),
+      plan.primaryId,
+    ),
+  );
 
   const probability = result.outcome.kind === "noul" ? result.outcome.probability : undefined;
   return {
@@ -203,7 +156,11 @@ export async function runContextRelevanceShadow(
       probability: entry.probability,
       engineId: entry.engineId,
     })),
-    { resolveProfile: thresholdProfileForEngine, maxItems: deps.maxItems },
+    {
+      resolveProfile: (engineId) =>
+        resolveProfileForEngine(engineId, deps.config.contextRelevance.thresholdProfile),
+      maxItems: deps.maxItems,
+    },
   );
 
   const unscoredIds = observations

@@ -24,7 +24,7 @@ export function renderRelevanceState(objective: string, item: string): string {
   return `OBJECTIVE:\n${objective}\n\nITEM:\n${item}`;
 }
 
-function readProjection(sealed: RemoteSealedProjection<Record<string, unknown>>) {
+function requireRelevanceProjection(sealed: RemoteSealedProjection<Record<string, unknown>>) {
   const projection = readRelevanceProjection(sealed.payload);
   if (projection.objective.length === 0 || projection.item.length === 0) {
     throw new Error("context-relevance projection requires an objective and an item");
@@ -35,7 +35,7 @@ function readProjection(sealed: RemoteSealedProjection<Record<string, unknown>>)
 export function toJevRelevanceRequest(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
 ): JevSystemOneRequest {
-  const projection = readProjection(sealed);
+  const projection = requireRelevanceProjection(sealed);
   return {
     model: JEV_DEFAULT_MODEL,
     state: renderRelevanceState(projection.objective, projection.item),

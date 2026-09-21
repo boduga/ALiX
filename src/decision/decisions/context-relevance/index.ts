@@ -12,3 +12,4 @@ export * from "./thresholds.js";
 export * from "./selection.js";
 export * from "./corpus.js";
 export * from "./shadow.js";
+export * from "./selection-service.js";

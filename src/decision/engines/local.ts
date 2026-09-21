@@ -1,11 +1,10 @@
 /**
- * engines/local.ts — Deterministic local baseline executor (J0).
+ * engines/local.ts — Deterministic local baseline executor (J0-J2).
  *
- * Fail-closed defaults: claim verification answers "insufficient" (never
- * grants authority); context relevance abstains (consumer keeps existing
- * behavior); model-tier is unsupported here (default route is
- * existing-routing, wired in J3). No confidence emitted — local rules carry
- * no calibration (JEV-9).
+ * Fail-closed defaults: claim verification answers from deterministic rules
+ * (never grants authority); context relevance scores P(relevant) per item;
+ * model-tier is unsupported here (default route is existing-routing, wired in
+ * J3). No confidence emitted — local rules carry no calibration (JEV-9).
  */
 
 import type { DecisionType } from "../contracts.js";
