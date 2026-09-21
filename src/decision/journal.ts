@@ -24,7 +24,7 @@ const DEBUG_DIR = "debug";
 
 /** Native outcome, or an explicit failure descriptor. Shape-level only. */
 export type DecisionOutcome =
-  | { kind: "choice"; choice: unknown; candidates?: unknown[]; confidence?: number }
+  | { kind: "choice"; choice: unknown; candidates?: readonly unknown[]; confidence?: number }
   | { kind: "score"; score: number; confidence?: number }
   | { kind: "noul"; probability: number }
   | { kind: "failure"; error: string; fallbackEngine?: string };
