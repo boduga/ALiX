@@ -14,6 +14,17 @@ import type { DecisionType } from "../../contracts.js";
 export const MODEL_TIER_DECISION: DecisionType = "model-tier";
 export const MODEL_TIER_PROJECTOR_VERSION = "model-tier/v1";
 
+/**
+ * Task kinds.
+ *
+ * `image` means the deliverable IS an image — a pure image-generation prompt
+ * ("create a Christmas card", "edit this photo"). When an image is only PART
+ * of a larger deliverable (a report with images, a UI mockup in a coding
+ * session), keep the composite kind (`synthesis` / `code` / `analysis`) so the
+ * task stays on the multimodal reasoning tier and the image work happens as a
+ * nested sub-task. The `image` tier is chosen only when the prompt itself asks
+ * for image generation; an explicit instruction in the prompt wins.
+ */
 export const MODEL_TIER_TASK_KINDS = [
   "code",
   "analysis",
