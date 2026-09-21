@@ -26,6 +26,7 @@ import {
 } from "./config.js";
 import { JEV_ENGINE_ID } from "./engines/jev.js";
 
+/** Uncalibrated operational default. J4 tunes timeouts from latency evidence. */
 export const DEFAULT_FALLBACK_TIMEOUT_MS = 10_000;
 export const EXTERNAL_ROUTING_FALLBACK = "existing-routing";
 
@@ -172,6 +173,20 @@ function failureOutcome(error: string): ExecutorOutcome {
 }
 
 /**
+ * Single attempt: run under timeout, then failure-model validation.
+ * Throws fallback-eligible errors upward; unexpected bugs propagate raw.
+ */
+async function attempt(
+  executor: DecisionExecutor,
+  input: ExecuteInput,
+  timeoutMs: number,
+): Promise<ExecutorOutcome> {
+  const outcome = await runWithTimeout(executor, input, timeoutMs);
+  assertValidOutcome(outcome, input.candidates);
+  return outcome;
+}
+
+/**
  * Execute primary, fall back on known engine errors or malformed results.
  * Unknown errors (engine bugs) propagate. External-only plans return an
  * explicit failure outcome for the J3 runtime to handle.
@@ -183,7 +198,7 @@ export async function executeWithFallback(
 ): Promise<FallbackResult> {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_FALLBACK_TIMEOUT_MS;
   const attempts: AttemptRecord[] = [];
-  const note = (attempt: AttemptRecord): void => {
+  const recordAttempt = (attempt: AttemptRecord): void => {
     attempts.push(attempt);
     opts?.onAttempt?.(attempt);
   };
@@ -197,14 +212,13 @@ export async function executeWithFallback(
   }
   const started = Date.now();
   try {
-    const outcome = await runWithTimeout(plan.primary, input, timeoutMs);
-    assertValidOutcome(outcome, input.candidates);
-    note({ engineId: plan.primaryId, ok: true, latencyMs: Date.now() - started });
+    const outcome = await attempt(plan.primary, input, timeoutMs);
+    recordAttempt({ engineId: plan.primaryId, ok: true, latencyMs: Date.now() - started });
     return { outcome, attempts, usedFallback: false };
   } catch (primaryError) {
     if (!isFallbackEligible(primaryError)) throw primaryError;
     const primaryMessage = (primaryError as Error).message;
-    note({ engineId: plan.primaryId, ok: false, error: primaryMessage, latencyMs: Date.now() - started });
+    recordAttempt({ engineId: plan.primaryId, ok: false, error: primaryMessage, latencyMs: Date.now() - started });
     if (!plan.fallback) {
       return {
         outcome: failureOutcome(`primary failed: ${primaryMessage} (no fallback)`),
@@ -215,9 +229,8 @@ export async function executeWithFallback(
     }
     const fallbackStarted = Date.now();
     try {
-      const outcome = await runWithTimeout(plan.fallback, input, timeoutMs);
-      assertValidOutcome(outcome, input.candidates);
-      note({ engineId: plan.fallbackId as string, ok: true, latencyMs: Date.now() - fallbackStarted });
+      const outcome = await attempt(plan.fallback, input, timeoutMs);
+      recordAttempt({ engineId: plan.fallbackId as string, ok: true, latencyMs: Date.now() - fallbackStarted });
       return {
         outcome,
         attempts,
@@ -227,7 +240,7 @@ export async function executeWithFallback(
     } catch (fallbackError) {
       if (!isFallbackEligible(fallbackError)) throw fallbackError;
       const fallbackMessage = (fallbackError as Error).message;
-      note({
+      recordAttempt({
         engineId: plan.fallbackId as string,
         ok: false,
         error: fallbackMessage,

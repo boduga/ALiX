@@ -7,7 +7,7 @@
  * EngineUnavailableError until then, which is fallback-eligible.
  */
 
-import type { DecisionEngine } from "../registry.js";
+import type { DecisionEngine, EngineRegistry } from "../registry.js";
 import { RemoteEngineNotAllowedError } from "../registry.js";
 import {
   EngineUnavailableError,
@@ -24,21 +24,20 @@ export type JevAdapterOptions = {
   timeoutMs?: number;
 };
 
-export class JevExecutor implements DecisionExecutor {
-  readonly engineId = JEV_ENGINE_ID;
-  readonly timeoutMs: number;
-  private readonly apiKey: string | undefined;
-
-  constructor(opts: JevAdapterOptions) {
-    if (opts.enabled !== true) throw new RemoteEngineNotAllowedError(JEV_ENGINE_ID);
-    this.apiKey = opts.apiKey;
-    this.timeoutMs = opts.timeoutMs ?? 30_000;
-  }
-
-  async execute(_input: ExecuteInput): Promise<ExecutorOutcome> {
-    if (!this.apiKey) throw new EngineUnavailableError(JEV_ENGINE_ID, "api key missing");
-    throw new EngineUnavailableError(JEV_ENGINE_ID, "provider SDK mapping lands in J1");
-  }
+export function createJevExecutor(
+  opts: JevAdapterOptions,
+): DecisionExecutor & { readonly timeoutMs: number } {
+  if (opts.enabled !== true) throw new RemoteEngineNotAllowedError(JEV_ENGINE_ID);
+  const apiKey = opts.apiKey;
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  return {
+    engineId: JEV_ENGINE_ID,
+    timeoutMs,
+    async execute(_input: ExecuteInput): Promise<ExecutorOutcome> {
+      if (!apiKey) throw new EngineUnavailableError(JEV_ENGINE_ID, "api key missing");
+      throw new EngineUnavailableError(JEV_ENGINE_ID, "provider SDK mapping lands in J1");
+    },
+  };
 }
 
 export function jevEngineMeta(executor?: DecisionExecutor): DecisionEngine {
@@ -50,19 +49,15 @@ export function jevEngineMeta(executor?: DecisionExecutor): DecisionEngine {
   };
 }
 
-export type EngineRegistryLike = {
-  register(engine: DecisionEngine): void;
-};
-
 /**
  * Explicit opt-in registration. No-op (false) unless opts.enabled.
  * Never consults process.env — key arrives caller-supplied or not at all.
  */
 export function registerJevEngine(
-  registry: EngineRegistryLike,
+  registry: Pick<EngineRegistry, "register">,
   opts: JevAdapterOptions,
 ): boolean {
   if (opts.enabled !== true) return false;
-  registry.register(jevEngineMeta(new JevExecutor(opts)));
+  registry.register(jevEngineMeta(createJevExecutor(opts)));
   return true;
 }

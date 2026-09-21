@@ -8,6 +8,7 @@
  * no calibration (JEV-9).
  */
 
+import type { DecisionType } from "../contracts.js";
 import type { DecisionEngine } from "../registry.js";
 import type {
   DecisionExecutor,
@@ -17,34 +18,44 @@ import type {
 
 export const LOCAL_ENGINE_ID = "local";
 
-export class LocalBaselineExecutor implements DecisionExecutor {
-  readonly engineId = LOCAL_ENGINE_ID;
-
-  async execute(input: ExecuteInput): Promise<ExecutorOutcome> {
-    const started = Date.now();
-    const provenance = {
+function claimChoice(input: ExecuteInput, started: number): ExecutorOutcome {
+  if (input.candidates !== undefined && !input.candidates.includes("insufficient")) {
+    return { kind: "failure", error: "candidate set incompatible with local baseline" };
+  }
+  return {
+    kind: "choice",
+    choice: "insufficient",
+    provenance: {
       engineId: LOCAL_ENGINE_ID,
-      latencyMs: 0,
+      latencyMs: Date.now() - started,
       remote: false,
       projectionHash: input.sealed.hash,
-    };
-    switch (input.decision) {
-      case "claim-verification": {
-        if (input.candidates !== undefined && !input.candidates.includes("insufficient")) {
-          return { kind: "failure", error: "candidate set incompatible with local baseline" };
-        }
-        return {
-          kind: "choice",
-          choice: "insufficient",
-          provenance: { ...provenance, latencyMs: Date.now() - started },
-        };
-      }
-      case "context-relevance":
-        return { kind: "failure", error: "local-abstain: keep existing behavior" };
-      case "model-tier":
-        return { kind: "failure", error: "unsupported decision for local engine" };
-    }
-  }
+    },
+  };
+}
+
+function abstain(_input: ExecuteInput, _started: number): ExecutorOutcome {
+  return { kind: "failure", error: "local-abstain: keep existing behavior" };
+}
+
+function unsupported(_input: ExecuteInput, _started: number): ExecutorOutcome {
+  return { kind: "failure", error: "unsupported decision for local engine" };
+}
+
+/** Exhaustive dispatch: adding a DecisionType without a baseline fails compile. */
+const BASELINE: Record<DecisionType, (input: ExecuteInput, started: number) => ExecutorOutcome> = {
+  "claim-verification": claimChoice,
+  "context-relevance": abstain,
+  "model-tier": unsupported,
+};
+
+export function createLocalBaselineExecutor(): DecisionExecutor {
+  return {
+    engineId: LOCAL_ENGINE_ID,
+    async execute(input: ExecuteInput): Promise<ExecutorOutcome> {
+      return BASELINE[input.decision](input, Date.now());
+    },
+  };
 }
 
 export function localEngineMeta(executor?: DecisionExecutor): DecisionEngine {

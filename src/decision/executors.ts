@@ -7,7 +7,7 @@
  */
 
 import type { DecisionType, DecisionResult } from "./contracts.js";
-import { isValidConfidence, isValidProbability, isValidScore } from "./contracts.js";
+import { outcomeIssue } from "./contracts.js";
 import type { RemoteSealedProjection } from "./boundary.js";
 
 /** Terminal outcome: native result or explicit failure signal. */
@@ -58,30 +58,6 @@ export function assertValidOutcome(
   outcome: ExecutorOutcome,
   candidates?: readonly unknown[],
 ): void {
-  switch (outcome.kind) {
-    case "choice":
-      if (!isValidConfidence(outcome.confidence)) {
-        throw new MalformedResultError("choice.confidence outside 0..1");
-      }
-      if (candidates !== undefined && !(candidates as readonly unknown[]).includes(outcome.choice)) {
-        throw new MalformedResultError("choice not in candidate set");
-      }
-      return;
-    case "score":
-      if (!isValidScore(outcome.score)) throw new MalformedResultError("score outside 0..1");
-      if (!isValidConfidence(outcome.confidence)) {
-        throw new MalformedResultError("score.confidence outside 0..1");
-      }
-      return;
-    case "noul":
-      if (!isValidProbability(outcome.probability)) {
-        throw new MalformedResultError("probability outside 0..1");
-      }
-      return;
-    case "failure":
-      if (typeof outcome.error !== "string" || outcome.error.length === 0) {
-        throw new MalformedResultError("failure.error must be non-empty");
-      }
-      return;
-  }
+  const issue = outcomeIssue(outcome, candidates);
+  if (issue !== null) throw new MalformedResultError(issue);
 }

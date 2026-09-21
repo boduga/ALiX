@@ -3,15 +3,15 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DECISION_CONFIG,
   EngineNotRegisteredError,
-  EngineRegistry,
   EngineUnavailableError,
   EXTERNAL_ROUTING_FALLBACK,
-  JevExecutor,
   LOCAL_ENGINE_ID,
-  LocalBaselineExecutor,
   RemoteEngineNotAllowedError,
   buildPlan,
   createDefaultRegistry,
+  createEngineRegistry,
+  createJevExecutor,
+  createLocalBaselineExecutor,
   executeWithFallback,
   registerJevEngine,
   sealForRemote,
@@ -41,7 +41,7 @@ function stubExecutor(
 
 describe("local baseline engine", () => {
   it("claim-verification answers insufficient with hash-bound provenance", async () => {
-    const outcome = await new LocalBaselineExecutor().execute(input());
+    const outcome = await createLocalBaselineExecutor().execute(input());
     assert.equal(outcome.kind, "choice");
     if (outcome.kind !== "choice") return;
     assert.equal(outcome.choice, "insufficient");
@@ -52,16 +52,16 @@ describe("local baseline engine", () => {
   });
 
   it("abstains honestly where rules cannot judge", async () => {
-    const relevance = await new LocalBaselineExecutor().execute(
+    const relevance = await createLocalBaselineExecutor().execute(
       input({ decision: "context-relevance" }),
     );
     assert.deepEqual(relevance, { kind: "failure", error: "local-abstain: keep existing behavior" });
-    const tier = await new LocalBaselineExecutor().execute(input({ decision: "model-tier" }));
+    const tier = await createLocalBaselineExecutor().execute(input({ decision: "model-tier" }));
     assert.deepEqual(tier, { kind: "failure", error: "unsupported decision for local engine" });
   });
 
   it("rejects incompatible candidate sets instead of coercing", async () => {
-    const outcome = await new LocalBaselineExecutor().execute(
+    const outcome = await createLocalBaselineExecutor().execute(
       input({ candidates: ["fast", "coding"] }),
     );
     assert.deepEqual(outcome, {
@@ -72,7 +72,8 @@ describe("local baseline engine", () => {
 
   it("default registry binds the local executor", () => {
     const engine = createDefaultRegistry().resolve({ engineId: "local" });
-    assert.ok(engine.executor instanceof LocalBaselineExecutor);
+    assert.equal(engine.executor?.engineId, LOCAL_ENGINE_ID);
+    assert.deepEqual(engine.capabilities, ["choice"]);
   });
 });
 
@@ -82,7 +83,7 @@ describe("jev adapter seam", () => {
     assert.equal(registerJevEngine(registry, { enabled: false }), false);
     assert.equal(registry.has("jev"), false);
     assert.throws(
-      () => new JevExecutor({ enabled: false }),
+      () => createJevExecutor({ enabled: false }),
       RemoteEngineNotAllowedError,
     );
   });
@@ -102,7 +103,7 @@ describe("jev adapter seam", () => {
   it("never reads ambient environment for credentials", async () => {
     process.env.JEV_API_KEY = "junk-from-env";
     try {
-      const executor = new JevExecutor({ enabled: true });
+      const executor = createJevExecutor({ enabled: true });
       await assert.rejects(executor.execute(input()), /api key missing/);
     } finally {
       delete process.env.JEV_API_KEY;
@@ -165,7 +166,7 @@ describe("fallback policy", () => {
   });
 
   it("JEV-1: malformed primary result falls back; double failure is explicit", async () => {
-    const registry = new EngineRegistry();
+    const registry = createEngineRegistry();
     registry.register({
       id: "wild",
       remote: false,
@@ -193,7 +194,7 @@ describe("fallback policy", () => {
   });
 
   it("timeout engages fallback; engine bugs propagate", async () => {
-    const registry = new EngineRegistry();
+    const registry = createEngineRegistry();
     registry.register({
       id: "slow",
       remote: false,
@@ -204,7 +205,7 @@ describe("fallback policy", () => {
       id: "local",
       remote: false,
       capabilities: ["choice"],
-      executor: new LocalBaselineExecutor(),
+      executor: createLocalBaselineExecutor(),
     });
     const config: DecisionConfig = {
       ...DEFAULT_DECISION_CONFIG,

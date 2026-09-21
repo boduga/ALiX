@@ -4,10 +4,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  DecisionJournalStore,
   JournalReadError,
   JournalValidationError,
   JournalWriteError,
+  createDecisionJournalStore,
   recordDecision,
   writeDebugPayload,
   type RecordDecisionInput,
@@ -45,8 +45,7 @@ describe("journal record", () => {
     });
   });
 
-  it("records failure outcomes with fallback metadata", () => {
-    const record = recordDecision(
+  it("records failure outcomes with fallback metadata", () => {    const record = recordDecision(
       input({
         outcome: { kind: "failure", error: "timeout after 3000ms", fallbackEngine: "local" },
         remote: true,
@@ -78,6 +77,27 @@ describe("journal record", () => {
       JournalValidationError,
     );
   });
+
+  it("choice requires a non-empty candidate set containing the choice", () => {
+    assert.throws(
+      () => recordDecision(input({ outcome: { kind: "choice", choice: "supported" } })),
+      JournalValidationError,
+    );
+    assert.throws(
+      () => recordDecision(input({ outcome: { kind: "choice", choice: "supported", candidates: [] } })),
+      JournalValidationError,
+    );
+    assert.throws(
+      () => recordDecision(input({ outcome: { kind: "choice", choice: "other", candidates: ["supported"] } })),
+      JournalValidationError,
+    );
+  });
+
+  it("carries the state/version identifier when provided", () => {
+    const record = recordDecision(input({ stateVersion: "hist:47:9f3a" }));
+    assert.equal(record.stateVersion, "hist:47:9f3a");
+    assert.equal(recordDecision(input()).stateVersion, undefined);
+  });
 });
 
 describe("journal store", () => {
@@ -90,7 +110,7 @@ describe("journal store", () => {
   });
 
   it("empty store reads empty; append round-trips with queries", () => {
-    const store = new DecisionJournalStore(join(dir, "s1"));
+    const store = createDecisionJournalStore(join(dir, "s1"));
     assert.deepEqual(store.readAll(), []);
     const r1 = recordDecision(input({ now: 10 }));
     const r2 = recordDecision(input({ decision: "model-tier", executionId: "exec-2", now: 11 }));
@@ -100,12 +120,12 @@ describe("journal store", () => {
     assert.equal(store.findByDecision("model-tier").length, 1);
     assert.equal(store.findByExecution("exec-1").length, 1);
     assert.equal(store.findByProjectionHash("sha256:abc").length, 2);
-    assert.equal(store.exportForCalibration().length, 2);
+    assert.equal(store.readAll().length, 2);
   });
 
   it("sensitive payload never persisted by default; debug separate + gated", () => {
     const storeDir = join(dir, "s2");
-    const store = new DecisionJournalStore(storeDir);
+    const store = createDecisionJournalStore(storeDir);
     const secret = "sk-abcdefghijklmnopqrstuvwx";
     store.append(recordDecision(input({ now: 20 })));
     writeDebugPayload(storeDir, "d1", { evidence: secret }, { enabled: false });
@@ -121,13 +141,13 @@ describe("journal store", () => {
   it("journal failure policy: I/O errors surface explicitly", () => {
     const blocker = join(dir, "blocker");
     writeFileSync(blocker, "not a dir", "utf8");
-    const store = new DecisionJournalStore(join(blocker, "inner"));
+    const store = createDecisionJournalStore(join(blocker, "inner"));
     assert.throws(() => store.append(recordDecision(input({ now: 30 }))), JournalWriteError);
   });
 
   it("corrupt ledger line fails closed with location", () => {
     const corruptDir = join(dir, "s3");
-    const store = new DecisionJournalStore(corruptDir);
+    const store = createDecisionJournalStore(corruptDir);
     store.append(recordDecision(input({ now: 40 })));
     writeFileSync(join(corruptDir, "decisions.jsonl"), "not-json{\n", "utf8");
     assert.throws(() => store.readAll(), JournalReadError);

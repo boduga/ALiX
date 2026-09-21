@@ -4,6 +4,7 @@ import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, DerivedSubagentConfig, McpServerConfig, ModelTier, ModelTierConfig, SubagentConfig, TracingConfig } from "./schema.js";
+import type { DecisionConfig, DecisionRoutePolicy } from "../decision/config.js";
 import { isValidModelConfig, MODEL_SUBAGENT_TIERS, seedLegacyModelDefault } from "./schema.js";
 import { NO_MODEL_CONFIGURED_MESSAGE } from "./model-resolver.js";
 import { validateConfig } from "./validator.js";
@@ -81,7 +82,7 @@ function homedir(): string { return homedirOverride ?? realHomedir(); }
 // tracing is declared explicitly (not via Partial<AlixConfig>) so nested
 // langfuse/capture overrides can be partial — an intersection with the full
 // optional TracingConfig would otherwise require every nested field.
-type PartialConfig = Omit<Partial<AlixConfig>, "tracing"> & {
+type PartialConfig = Omit<Partial<AlixConfig>, "tracing" | "decision"> & {
   model?: Partial<AlixConfig["model"]>;
   permissions?: Partial<AlixConfig["permissions"]>;
   context?: Partial<AlixConfig["context"]>;
@@ -96,6 +97,13 @@ type PartialConfig = Omit<Partial<AlixConfig>, "tracing"> & {
     langfuse?: Partial<TracingConfig["langfuse"]>;
     capture?: Partial<TracingConfig["capture"]>;
     flushTimeoutMs?: TracingConfig["flushTimeoutMs"];
+  };
+  decision?: {
+    defaultEngine?: DecisionConfig["defaultEngine"];
+    remote?: { jev?: { enabled?: boolean } };
+    claimVerification?: Partial<DecisionRoutePolicy>;
+    contextRelevance?: Partial<DecisionRoutePolicy>;
+    modelTier?: Partial<DecisionRoutePolicy>;
   };
 };
 
@@ -460,6 +468,20 @@ export function mergeConfig(
         langfuse: { ...result.tracing?.langfuse, ...override.tracing?.langfuse },
         capture: { ...result.tracing?.capture, ...override.tracing?.capture },
       } as AlixConfig["tracing"],
+      // decision mirrors tracing: nested remote/routes merge so overriding one
+      // route (e.g. decision.claimVerification.engine) preserves siblings.
+      decision: {
+        ...result.decision,
+        ...override.decision,
+        remote: {
+          ...result.decision?.remote,
+          ...override.decision?.remote,
+          jev: { ...result.decision?.remote?.jev, ...override.decision?.remote?.jev },
+        },
+        claimVerification: { ...result.decision?.claimVerification, ...override.decision?.claimVerification },
+        contextRelevance: { ...result.decision?.contextRelevance, ...override.decision?.contextRelevance },
+        modelTier: { ...result.decision?.modelTier, ...override.decision?.modelTier },
+      } as AlixConfig["decision"],
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
