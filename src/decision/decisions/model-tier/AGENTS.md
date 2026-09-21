@@ -20,6 +20,7 @@
 - **Composite deliverables stay on the multimodal reasoning tier.** When an image is only PART of a larger deliverable — a report with images, a UI mockup in a coding session — the caller keeps the composite kind (`synthesis`/`code`/`analysis`) and the image work happens as a nested sub-task. The `image` tier is used only when the prompt itself asks for image generation; an explicit instruction in the prompt wins.
 - Image *editing* is `taskKind: "image"` **and** `needsVision: true` (the caller supplies the photo): image output plus an image-input hard constraint.
 - **Hard constraints belong to the caller.** `needsVision` (image INPUT) is a hint, not a gate: the caller excludes tiers that cannot satisfy a pass/fail requirement before invoking the decision. A probabilistic decision must not decide whether a hard requirement is met (same principle as JEV-8).
+- The caller filters with `filterTiersByCapability(config, tiers, required)`, reading the operator's `models[tier].capabilities` declaration (`vision` = image input, `image_output` = image generation, plus `tools`/`structured_output`). An undeclared capability is unverifiable and therefore unsatisfied — fail closed, never assumed available.
 - `resolveTierModel` fails closed on an unknown/unconfigured tier instead of falling back to `models.default` (arch §11), so a bad tier cannot reach a provider invocation.
 - Only task features cross the boundary — no prompt text, source, tool output, provider or model names.
 - Current routing stays the fallback: the default route is `existing-routing`, and a non-configured route yields an explicit failure, not a guess.
@@ -33,10 +34,12 @@
 - Adding a tier means adding it to the canonical `MODEL_TIER_VALUES` (`src/config/schema.ts`) and to `TASK_KIND_PREFERENCE` where it applies; `TIER_CANDIDATES` follows automatically.
 - Keep `chooseTierLocally` deterministic and preference-ordered; never guess a tier that is not enabled.
 - Resolution goes through `resolveTierModel`/`resolveModelConfig` — never read provider/model IDs from a decision result.
-- When a capability requirement appears (vision input, tools, min context), filter the candidate set in the caller — do not add a gate to the baseline.
+- When a capability requirement appears (vision input, tools, min context), filter the candidate set in the caller with `filterTiersByCapability` — do not add a gate to the baseline. Ask the operator to declare the capability on `models[tier].capabilities` if it is missing.
 
 **Verification:**
-- `tests/decision/model-tier.test.ts` — candidate enumeration (incl. image), feature-only projection, baseline corpus/image/hard-constraint/abstention, canonical resolution (legacy projection ignored, fail-closed tiers, image), Jev mapping (no model IDs on the wire, malformed rejection, image hint), shadow (disabled/local/remote/fallback/existing-routing), `selectModelTier` off/shadow/active.
+- `tests/decision/model-tier.test.ts` — candidate enumeration (incl. image), feature-only projection, baseline corpus/image/hard-constraint/abstention, canonical resolution (legacy projection ignored, fail-closed tiers, image), Jev mapping (no model IDs on the wire, malformed rejection, image hint), shadow (disabled/local/remote/fallback/existing-routing), `selectModelTier` off/shadow/active, caller-side `filterTiersByCapability` (fail-closed on undeclared).
+- `tests/config/validator.test.ts` — capability declarations accepted/rejected.
+- `tests/providers/model-resolver.vitest.ts` — an unverifiable capability requirement is unsatisfiable, not ignored.
 
 **Known deferrals:**
 - Active routing (mode `active`) is gated behind evaluation per the plan PR strategy ("model-tier routing in shadow mode, then separately activate"); no runtime call site consumes `selectModelTier` yet.

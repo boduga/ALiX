@@ -58,6 +58,16 @@ describe("validateConfig", () => {
     assert.ok(result.issues.some(i => i.path === "permissions.default" && i.level === "error"));
   });
 
+  it("accepts known capability declarations and rejects unknown ones", () => {
+    const config = makeValidConfig();
+    config.models!.default!.capabilities = ["vision", "image_output", "tools"];
+    assert.equal(validateConfig(config).valid, true);
+
+    config.models!.default!.capabilities = ["telepathy" as never];
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.capabilities" && i.level === "error"));
+  });
+
   it("reports error when repoMapMode is invalid", () => {
     const config = makeValidConfig();
     config.context.repoMapMode = "invalid" as any;

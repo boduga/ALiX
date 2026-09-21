@@ -12,7 +12,7 @@
  * pass/fail requirement.
  */
 
-import type { AlixConfig, ModelTier } from "../../../config/schema.js";
+import type { AlixConfig, ModelCapabilityName, ModelTier } from "../../../config/schema.js";
 import { MODEL_TIER_VALUES, isModelTier, isValidModelConfig } from "../../../config/schema.js";
 
 /** Canonical tier candidates, in canonical order. */
@@ -43,4 +43,25 @@ export function assertEnabledTier(
       `Unknown or disabled model tier: ${String(tier)} (enabled: ${enabled.join(", ") || "none"})`,
     );
   }
+}
+
+/**
+ * Caller-side HARD-CONSTRAINT filter: keep the tiers whose DECLARED
+ * capabilities satisfy every requirement. A tier that declares nothing
+ * satisfies nothing — an unverifiable capability is not the same as an
+ * available one (fail closed).
+ *
+ * This is deliberately not a gate inside the decision: a pass/fail
+ * requirement must not be decided probabilistically (see the module AGENTS.md).
+ */
+export function filterTiersByCapability(
+  config: Pick<AlixConfig, "models">,
+  tiers: readonly ModelTier[],
+  required: readonly ModelCapabilityName[],
+): ModelTier[] {
+  if (required.length === 0) return [...tiers];
+  return tiers.filter((tier) => {
+    const declared = config.models?.[tier]?.capabilities ?? [];
+    return required.every((capability) => declared.includes(capability));
+  });
 }

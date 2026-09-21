@@ -16,7 +16,26 @@ export function parseSessionMode(value: unknown, fallback: SessionMode = "ask"):
 
 export type Decision = "ask" | "allow" | "deny";
 
-export type ModelCapabilityName = "tools" | "structured_output" | "vision";
+/**
+ * Capability vocabulary shared by tier declarations and discovery policies.
+ *
+ * `vision` is image INPUT (the model can read an image). `image_output` is
+ * image GENERATION (the model can produce one). A model that both reads and
+ * writes images declares both.
+ */
+export type ModelCapabilityName = "tools" | "structured_output" | "vision" | "image_output";
+
+/** Runtime list of the vocabulary, for boundary validation. */
+export const MODEL_CAPABILITY_NAMES = [
+  "tools",
+  "structured_output",
+  "vision",
+  "image_output",
+] as const;
+
+export function isModelCapabilityName(value: unknown): value is ModelCapabilityName {
+  return (MODEL_CAPABILITY_NAMES as readonly unknown[]).includes(value);
+}
 
 /**
  * Selection policy for a model tier: a declarative requirement instead of a
@@ -61,6 +80,15 @@ export type ModelConfig = {
   provider: string;
   name: string;
   selection?: ModelSelectionPolicy;
+  /**
+   * What the configured model is DECLARED to do, by the operator. Distinct
+   * from `selection.capabilities`, which is a discovery REQUIREMENT: this is
+   * the statement of fact callers filter against when a hard constraint
+   * applies (e.g. a task that must read an image, or one that must produce
+   * one). A capability that is not declared is unverifiable and therefore
+   * treated as unsatisfied (fail closed) — never assumed available.
+   */
+  capabilities?: ModelCapabilityName[];
   temperature?: number;
   maxOutputTokens?: number;
   maxContextTokens?: number;

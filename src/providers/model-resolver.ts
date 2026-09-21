@@ -25,10 +25,17 @@ import type {
   ModelCapabilityName,
 } from "../config/schema.js";
 
-/** Maps a policy capability name onto the `DiscoveredModel` support flag that gates it. */
-const CAPABILITY_SUPPORT_FLAG: Record<
-  ModelCapabilityName,
-  "supportsTools" | "supportsStructuredOutput" | "supportsVision"
+/**
+ * Maps a policy capability name onto the `DiscoveredModel` support flag that
+ * gates it. Partial on purpose: discovery does not report every capability
+ * (e.g. image generation), and an unmappable requirement is unsatisfiable
+ * rather than silently ignored.
+ */
+const CAPABILITY_SUPPORT_FLAG: Partial<
+  Record<
+    ModelCapabilityName,
+    "supportsTools" | "supportsStructuredOutput" | "supportsVision"
+  >
 > = {
   tools: "supportsTools",
   structured_output: "supportsStructuredOutput",
@@ -227,7 +234,8 @@ export function selectModelFromDiscovery(
           const flag =
             CAPABILITY_SUPPORT_FLAG[capability];
 
-          if (model[flag] !== true) {
+          // Unmappable capability is unsatisfiable, not ignored (fail closed).
+          if (flag === undefined || model[flag] !== true) {
             return false;
           }
         }

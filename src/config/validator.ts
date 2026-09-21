@@ -1,4 +1,5 @@
 import type { AlixConfig, ConfigValidationResult, ModelConfig, TracingCaptureConfig, ValidationIssue } from "./schema.js";
+import { MODEL_CAPABILITY_NAMES, isModelCapabilityName } from "./schema.js";
 
 /** Returns true when host resolves to a loopback address. */
 export function isLoopbackHost(host: string): boolean {
@@ -36,6 +37,26 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   // → valid (the launcher owns the defaults).
   for (const [tier, model] of Object.entries(config.models ?? {})) {
     pushLocalLlamaIssues(`models.${tier}`, model, issues);
+    for (const capability of model?.capabilities ?? []) {
+      if (!isModelCapabilityName(capability)) {
+        issues.push({
+          path: `models.${tier}.capabilities`,
+          level: "error",
+          message: `unknown capability "${String(capability)}" (expected one of ${MODEL_CAPABILITY_NAMES.join(", ")})`,
+        });
+      }
+    }
+    if (model?.selection?.capabilities !== undefined) {
+      for (const capability of model.selection.capabilities) {
+        if (!isModelCapabilityName(capability)) {
+          issues.push({
+            path: `models.${tier}.selection.capabilities`,
+            level: "error",
+            message: `unknown capability "${String(capability)}"`,
+          });
+        }
+      }
+    }
     if (model?.ollamaBaseUrl !== undefined && !isValidHttpUrl(model.ollamaBaseUrl)) {
       issues.push({ path: `models.${tier}.ollamaBaseUrl`, level: "error", message: "ollamaBaseUrl must be a valid http(s) URL" });
     }

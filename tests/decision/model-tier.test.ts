@@ -16,6 +16,7 @@ import {
   createDefaultRegistry,
   createJevExecutor,
   describeCurrentRouting,
+  filterTiersByCapability,
   fromJevModelTierResponse,
   isModelTierValue,
   listEnabledTiers,
@@ -387,6 +388,43 @@ describe("model-tier shadow runner", () => {
     const result = await runModelTierShadow(FEATURES, { config, registry: createDefaultRegistry() });
     assert.equal(result.observed?.tier, undefined);
     assert.equal(result.records[0].outcome.kind, "failure");
+  });
+});
+
+describe("caller-side capability filter", () => {
+  const MODELS_WITH_CAPS = {
+    default: { provider: "openai", name: "gpt-4o", capabilities: ["vision", "tools"] },
+    coding: { provider: "anthropic", name: "claude-sonnet-4", capabilities: ["vision", "tools", "structured_output"] },
+    image: { provider: "google", name: "gemini-2.5-flash-image", capabilities: ["image_output", "vision"] },
+    thinking: { provider: "deepseek", name: "deepseek-reasoner" },
+  } as unknown as AlixConfig["models"];
+
+  const enabled = listEnabledTiers({ models: MODELS_WITH_CAPS });
+
+  it("keeps only tiers declaring every required capability", () => {
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["image_output"]), ["image"]);
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["structured_output"]), ["coding"]);
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["vision"]), [
+      "default",
+      "coding",
+      "image",
+    ]);
+  });
+
+  it("fails closed: an undeclared tier satisfies nothing", () => {
+    // thinking declares nothing, so it is never offered for a hard requirement.
+    assert.equal(
+      filterTiersByCapability({ models: MODELS_WITH_CAPS }, ["thinking"], ["vision"]).length,
+      0,
+    );
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, ["thinking"], []), ["thinking"]);
+  });
+
+  it("supports the image-editing pair (output + input)", () => {
+    assert.deepEqual(
+      filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["image_output", "vision"]),
+      ["image"],
+    );
   });
 });
 

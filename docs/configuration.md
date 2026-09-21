@@ -60,6 +60,26 @@ Override in config:
 }
 ```
 
+### Declared capabilities
+
+`models.<tier>.capabilities` declares what that tier's model can do, so a caller can filter tiers against a hard requirement (a task that must read an image, or one that must produce one). It is a statement of fact; `models.<tier>.selection.capabilities` is the separate discovery *requirement*.
+
+```json
+{
+  "models": {
+    "image":  { "provider": "google", "name": "gemini-2.5-flash-image", "capabilities": ["image_output", "vision"] },
+    "coding": { "provider": "anthropic", "name": "claude-sonnet-4", "capabilities": ["vision", "tools", "structured_output"] }
+  }
+}
+```
+
+- `tools` — tool/function calling
+- `structured_output` — schema-constrained output
+- `vision` — image **input** (the model can read an image)
+- `image_output` — image **generation** (the model can produce one)
+
+A capability that is not declared is unverifiable and therefore treated as unsatisfied — callers never assume it is available.
+
 ## Providers
 
 ALiX supports multiple providers. Keyed providers require an API key; keyless local providers run without one.
