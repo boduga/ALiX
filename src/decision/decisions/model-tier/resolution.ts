@@ -12,7 +12,7 @@
 
 import type { AlixConfig, ModelConfig, ModelTier } from "../../../config/schema.js";
 import { resolveModelConfig } from "../../../config/model-resolver.js";
-import { assertRoutableTier, listEnabledTiers } from "./tiers.js";
+import { assertEnabledTier, listEnabledTiers } from "./tiers.js";
 
 /**
  * Resolve the concrete model for a tier via the canonical configuration.
@@ -22,7 +22,7 @@ export function resolveTierModel(
   config: Pick<AlixConfig, "models">,
   tier: ModelTier,
 ): ModelConfig {
-  assertRoutableTier(tier, listEnabledTiers(config));
+  assertEnabledTier(tier, listEnabledTiers(config));
   return resolveModelConfig(config, tier);
 }
 

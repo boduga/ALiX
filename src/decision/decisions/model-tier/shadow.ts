@@ -11,7 +11,7 @@
 
 import type { DecisionJournalRecord } from "../../journal.js";
 import type { DecisionJournalStore } from "../../journal.js";
-import type { AlixConfig } from "../../../config/schema.js";
+import type { AlixConfig, ModelTier } from "../../../config/schema.js";
 import type { EngineRegistry } from "../../registry.js";
 import { buildPlan, executeWithFallback } from "../../fallback.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
@@ -19,7 +19,7 @@ import { DEFAULT_DECISION_CONFIG } from "../../config.js";
 import { observedEngineId } from "../shared/attempts.js";
 import { journalAttempts, type JournalContext } from "../shared/journaling.js";
 import { projectModelTier, type ModelTierRequestFeatures } from "./projection.js";
-import { isRoutableTier, listEnabledTiers, type RoutableTier } from "./tiers.js";
+import { isModelTierValue, listEnabledTiers } from "./tiers.js";
 import {
   describeCurrentRouting,
   tierMatchesCurrentRouting,
@@ -36,14 +36,14 @@ export type ModelTierShadowDeps = {
 
 export type ModelTierObservation = {
   engineId: string;
-  tier?: RoutableTier;
+  tier?: ModelTier;
   confidence?: number;
 };
 
 export type ModelTierShadowResult = {
   decision: "model-tier";
   enabled: boolean;
-  enabledTiers: RoutableTier[];
+  enabledTiers: ModelTier[];
   observed?: ModelTierObservation;
   /** What the existing routing policy would use today. */
   current: CurrentRouting;
@@ -111,7 +111,7 @@ export async function runModelTierShadow(
   for (const record of records) deps.journal?.append(record);
 
   const tier =
-    result.outcome.kind === "choice" && isRoutableTier(result.outcome.choice)
+    result.outcome.kind === "choice" && isModelTierValue(result.outcome.choice)
       ? result.outcome.choice
       : undefined;
   const confidence = result.outcome.kind === "choice" ? result.outcome.confidence : undefined;

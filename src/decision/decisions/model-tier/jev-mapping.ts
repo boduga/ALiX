@@ -16,8 +16,9 @@ import type {
   JevSystemOneResponse,
 } from "../../engines/jev-protocol.js";
 import { JEV_DEFAULT_MODEL, isJevChoiceAnswer } from "../../engines/jev-protocol.js";
+import type { ModelTier } from "../../../config/schema.js";
+import { isModelTier } from "../../../config/schema.js";
 import { readModelTierProjection, type ModelTierProjection } from "./projection.js";
-import { isRoutableTier, type RoutableTier } from "./tiers.js";
 
 export const JEV_MODEL_TIER_QUESTION_ID = "model-tier";
 
@@ -26,13 +27,14 @@ export function renderModelTierState(features: ModelTierProjection): string {
     `TASK KIND: ${features.taskKind}`,
     `PROMPT SIZE (chars): ${features.promptChars}`,
     `NEEDS TOOLS: ${features.needsTools}`,
+    `NEEDS IMAGE INPUT: ${features.needsVision}`,
     `LONG CONTEXT: ${features.longContext}`,
   ].join("\n");
 }
 
 export function toJevModelTierRequest(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
-  candidates: readonly RoutableTier[],
+  candidates: readonly ModelTier[],
 ): JevSystemOneRequest {
   if (candidates.length === 0) {
     throw new Error("model-tier requires at least one enabled candidate tier");
@@ -59,8 +61,8 @@ export function toJevModelTierRequest(
 export function fromJevModelTierResponse(
   response: JevSystemOneResponse,
   ctx: JevResponseContext & { engineId?: string },
-  candidates: readonly RoutableTier[],
-): ChoiceResult<RoutableTier> {
+  candidates: readonly ModelTier[],
+): ChoiceResult<ModelTier> {
   if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
     throw new MalformedResultError("jev response missing answers array");
   }
@@ -72,7 +74,7 @@ export function fromJevModelTierResponse(
       `jev response missing choice answer for question ${JEV_MODEL_TIER_QUESTION_ID}`,
     );
   }
-  if (!isRoutableTier(answer.choice) || !candidates.includes(answer.choice)) {
+  if (!isModelTier(answer.choice) || !candidates.includes(answer.choice)) {
     throw new MalformedResultError(
       `jev returned a non-candidate tier: ${String(answer.choice)}`,
     );

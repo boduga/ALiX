@@ -20,6 +20,7 @@ export const MODEL_TIER_TASK_KINDS = [
   "synthesis",
   "quick",
   "critique",
+  "image",
   "other",
 ] as const;
 
@@ -32,6 +33,10 @@ export function isModelTierTaskKind(value: unknown): value is ModelTierTaskKind 
 /** Prompt length is a feature, never the prompt itself. */
 export const MAX_PROMPT_CHARS = 2_000_000;
 
+/**
+ * `needsVision` is an image-INPUT hint. It is NOT a gate: the caller excludes
+ * tiers that cannot satisfy hard requirements before invoking the decision.
+ */
 export type ModelTierRequestFeatures = {
   taskKind: ModelTierTaskKind;
   promptChars: number;

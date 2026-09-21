@@ -42,7 +42,7 @@ import {
   fromJevModelTierResponse,
   toJevModelTierRequest,
 } from "../decisions/model-tier/jev-mapping.js";
-import { filterRoutableTiers } from "../decisions/model-tier/tiers.js";
+import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
@@ -66,7 +66,7 @@ type JevDecisionMapping = {
 };
 
 function routableCandidates(candidates: readonly unknown[] | undefined) {
-  return filterRoutableTiers(candidates);
+  return filterTierCandidates(candidates);
 }
 
 const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {

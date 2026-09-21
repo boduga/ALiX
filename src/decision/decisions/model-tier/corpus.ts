@@ -3,15 +3,15 @@
  *
  * Features → expected tier. `expected` is the label for shadow comparison and
  * J4 tuning; `unsatisfiable: true` marks requests the decision must abstain on
- * rather than guess.
+ * rather than guess (e.g. an image task with no image tier configured).
  */
 
 import type { ModelTierRequestFeatures } from "./projection.js";
-import type { RoutableTier } from "./tiers.js";
+import type { ModelTier } from "../../../config/schema.js";
 
 export type ModelTierFixture = ModelTierRequestFeatures & {
   id: string;
-  expected: RoutableTier | null;
+  expected: ModelTier | null;
   unsatisfiable?: boolean;
   note?: string;
 };
@@ -54,14 +54,23 @@ export const MODEL_TIER_CORPUS: readonly ModelTierFixture[] = [
     expected: "critic",
   },
   {
-    id: "vision-request",
-    taskKind: "other",
-    promptChars: 1_000,
+    id: "image-generation",
+    taskKind: "image",
+    promptChars: 300,
+    needsTools: false,
+    needsVision: false,
+    longContext: false,
+    expected: "image",
+    note: "routes to models.image (e.g. a nano-banana-class model)",
+  },
+  {
+    id: "vision-input-analysis",
+    taskKind: "analysis",
+    promptChars: 8_000,
     needsTools: false,
     needsVision: true,
     longContext: false,
-    expected: null,
-    unsatisfiable: true,
-    note: "vision is a modality choice, not a compute class",
+    expected: "thinking",
+    note: "image input is a hard constraint the caller pre-filters, not a tier",
   },
 ];

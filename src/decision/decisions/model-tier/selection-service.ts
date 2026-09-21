@@ -11,7 +11,7 @@
  * operator flips `modelTier.enabled` (and, per the plan, only after evaluation).
  */
 
-import type { RoutableTier } from "./tiers.js";
+import type { ModelTier } from "../../../config/schema.js";
 import type { ModelTierRequestFeatures } from "./projection.js";
 import type { ModelTierShadowDeps, ModelTierShadowResult } from "./shadow.js";
 import { runModelTierShadow } from "./shadow.js";
@@ -21,7 +21,7 @@ export type ModelTierSelectionMode = "off" | "shadow" | "active";
 export type ModelTierSelection = {
   mode: ModelTierSelectionMode;
   /** Present only in "active" mode and only when a tier was selected. */
-  tier?: RoutableTier;
+  tier?: ModelTier;
   shadow?: ModelTierShadowResult;
 };
 

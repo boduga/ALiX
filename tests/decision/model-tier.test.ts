@@ -9,18 +9,19 @@ import {
   LOCAL_ENGINE_ID,
   MalformedResultError,
   MODEL_TIER_CORPUS,
-  ROUTABLE_TIERS,
-  assertRoutableTier,
+  TIER_CANDIDATES,
+  assertEnabledTier,
   chooseTierLocally,
   createDecisionJournalStore,
   createDefaultRegistry,
   createJevExecutor,
   describeCurrentRouting,
   fromJevModelTierResponse,
-  isRoutableTier,
+  isModelTierValue,
   listEnabledTiers,
   projectModelTier,
   registerJevEngine,
+  renderModelTierState,
   resolveTierModel,
   runModelTierShadow,
   selectModelTier,
@@ -39,6 +40,7 @@ const ALL_TIERS_MODELS = {
   coding: { provider: "anthropic", name: "claude-sonnet-4" },
   thinking: { provider: "deepseek", name: "deepseek-reasoner" },
   critic: { provider: "openai", name: "gpt-4o-mini" },
+  image: { provider: "google", name: "gemini-2.5-flash-image" },
 } as const;
 
 function alixConfig(
@@ -79,14 +81,15 @@ function tierTransport(choice: string): JevTransport {
 }
 
 describe("canonical tier candidates (JEV-10)", () => {
-  it("enumerates only configured canonical tiers", () => {
+  it("enumerates every configured canonical tier, including image", () => {
     assert.deepEqual(listEnabledTiers({ models: { ...ALL_TIERS_MODELS } }), [
-      "tiny",
-      "fast",
       "default",
-      "coding",
       "thinking",
+      "coding",
+      "fast",
       "critic",
+      "tiny",
+      "image",
     ]);
     assert.deepEqual(listEnabledTiers({ models: { default: { provider: "openai", name: "gpt-4o" } } }), [
       "default",
@@ -94,12 +97,13 @@ describe("canonical tier candidates (JEV-10)", () => {
     assert.deepEqual(listEnabledTiers({ models: {} }), []);
   });
 
-  it("rejects unknown and disabled tiers", () => {
-    assert.equal(isRoutableTier("coding"), true);
-    assert.equal(isRoutableTier("image"), false);
-    assert.equal(isRoutableTier("openai/gpt-4o"), false);
-    assert.throws(() => assertRoutableTier("image", ["default"]), /Unknown or disabled model tier/);
-    assert.throws(() => assertRoutableTier("coding", ["default"]), /Unknown or disabled model tier/);
+  it("rejects non-tier values and unconfigured tiers", () => {
+    assert.equal(isModelTierValue("coding"), true);
+    assert.equal(isModelTierValue("image"), true);
+    assert.equal(isModelTierValue("openai/gpt-4o"), false);
+    assert.equal(isModelTierValue(undefined), false);
+    assert.throws(() => assertEnabledTier("image", ["default"]), /Unknown or disabled model tier/);
+    assert.throws(() => assertEnabledTier("vision", ["default"]), /Unknown or disabled model tier/);
   });
 });
 
@@ -137,7 +141,7 @@ describe("model-tier projection", () => {
 
 describe("local tier baseline", () => {
   it("matches the labeled corpus", () => {
-    const enabled = [...ROUTABLE_TIERS];
+    const enabled = [...TIER_CANDIDATES];
     for (const fixture of MODEL_TIER_CORPUS) {
       const { tier } = chooseTierLocally(fixture, enabled);
       if (fixture.unsatisfiable) {
@@ -148,8 +152,32 @@ describe("local tier baseline", () => {
     }
   });
 
-  it("abstains on vision and when no enabled tier satisfies the request", () => {
-    assert.equal(chooseTierLocally({ ...FEATURES, needsVision: true }, [...ROUTABLE_TIERS]).tier, undefined);
+  it("routes image-generation tasks to the image tier", () => {
+    const imageTask: ModelTierRequestFeatures = {
+      taskKind: "image",
+      promptChars: 300,
+      needsTools: false,
+      needsVision: false,
+      longContext: false,
+    };
+    assert.equal(chooseTierLocally(imageTask, [...TIER_CANDIDATES]).tier, "image");
+    // No image tier configured -> abstain rather than fall back to a text model.
+    assert.equal(chooseTierLocally(imageTask, ["default", "thinking"]).tier, undefined);
+  });
+
+  it("does not gate on image input — hard constraints belong to the caller", () => {
+    const visionTask: ModelTierRequestFeatures = {
+      taskKind: "analysis",
+      promptChars: 8_000,
+      needsTools: false,
+      needsVision: true,
+      longContext: false,
+    };
+    assert.equal(chooseTierLocally(visionTask, [...TIER_CANDIDATES]).tier, "thinking");
+    assert.equal(chooseTierLocally(visionTask, ["coding"]).tier, undefined);
+  });
+
+  it("abstains when no enabled tier satisfies the request", () => {
     assert.equal(chooseTierLocally(FEATURES, []).tier, undefined);
     assert.equal(chooseTierLocally({ ...FEATURES, taskKind: "code" }, ["tiny"]).tier, undefined);
   });
@@ -183,11 +211,18 @@ describe("tier resolution through canonical config", () => {
     assert.deepEqual(resolveTierModel(legacy, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
   });
 
-  it("arch 11: fails closed on an unknown or disabled tier", () => {
+  it("arch 11: fails closed on an unknown or unconfigured tier", () => {
     const config = alixConfig({ default: { provider: "openai", name: "gpt-4o" } });
     assert.throws(() => resolveTierModel(config, "coding"), /Unknown or disabled model tier/);
-    assert.throws(() => resolveTierModel(config, "image" as never), /Unknown or disabled model tier/);
+    assert.throws(() => resolveTierModel(config, "vision" as never), /Unknown or disabled model tier/);
     assert.deepEqual(resolveTierModel(config, "default"), { provider: "openai", name: "gpt-4o" });
+  });
+
+  it("resolves the image tier to its configured model", () => {
+    assert.deepEqual(resolveTierModel(alixConfig(), "image"), {
+      provider: "google",
+      name: "gemini-2.5-flash-image",
+    });
   });
 });
 
@@ -201,9 +236,14 @@ describe("jev model-tier mapping", () => {
     assert.deepEqual(question.options, ["default", "coding"]);
     for (const option of question.options) {
       assert.equal(option.includes("/"), false);
-      assert.ok(ROUTABLE_TIERS.includes(option as never));
+      assert.ok(TIER_CANDIDATES.includes(option as never));
     }
     assert.equal(JSON.stringify(request).includes("openai"), false);
+  });
+
+  it("renders image input as a hint, not a gate", () => {
+    const state = renderModelTierState({ ...FEATURES, needsVision: true });
+    assert.match(state, /NEEDS IMAGE INPUT: true/);
   });
 
   it("requires a candidate set", () => {

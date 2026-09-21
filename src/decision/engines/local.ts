@@ -20,7 +20,7 @@ import { scoreRelevanceLocally } from "../decisions/context-relevance/local-base
 import { readRelevanceProjection } from "../decisions/context-relevance/projection.js";
 import { chooseTierLocally } from "../decisions/model-tier/local-baseline.js";
 import { readModelTierProjection } from "../decisions/model-tier/projection.js";
-import { filterRoutableTiers } from "../decisions/model-tier/tiers.js";
+import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const LOCAL_ENGINE_ID = "local";
 
@@ -56,7 +56,7 @@ function relevanceNoul(input: ExecuteInput, started: number): ExecutorOutcome {
 }
 
 function modelTierChoice(input: ExecuteInput, started: number): ExecutorOutcome {
-  const enabledTiers = filterRoutableTiers(input.candidates);
+  const enabledTiers = filterTierCandidates(input.candidates);
   if (enabledTiers.length === 0) {
     return { kind: "failure", error: "model-tier requires an enabled candidate set" };
   }

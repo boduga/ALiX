@@ -1,52 +1,44 @@
 /**
- * tiers.ts — Canonical ALiX compute classes offered for routing (J3).
+ * tiers.ts — Canonical tier candidates for routing (J3).
  *
  * JEV-10: Jev selects a TIER, never a provider/model ID. The candidate set is
- * derived from the canonical `models.*` configuration, so a tier that is not
- * configured is not offered and cannot be selected.
+ * every canonical tier that is actually configured, so an unconfigured tier is
+ * never offered and cannot be selected.
+ *
+ * `image` IS a candidate: it is the tier for image-generation tasks (e.g. a
+ * "nano banana" model configured as `models.image`). Capability requirements
+ * such as image *input* are hard constraints the CALLER applies by filtering
+ * the candidate set — a probabilistic decision must not be the gate for a
+ * pass/fail requirement.
  */
 
-import type { AlixConfig } from "../../../config/schema.js";
-import { isValidModelConfig } from "../../../config/schema.js";
+import type { AlixConfig, ModelTier } from "../../../config/schema.js";
+import { MODEL_TIER_VALUES, isModelTier, isValidModelConfig } from "../../../config/schema.js";
 
-/**
- * Compute classes offered for routing. `image` is deliberately excluded: it is
- * a modality choice, not a compute class, so this decision abstains on vision
- * requests and leaves them to the existing routing policy.
- */
-export const ROUTABLE_TIERS = [
-  "tiny",
-  "fast",
-  "default",
-  "coding",
-  "thinking",
-  "critic",
-] as const;
+/** Canonical tier candidates, in canonical order. */
+export const TIER_CANDIDATES = MODEL_TIER_VALUES;
 
-export type RoutableTier = (typeof ROUTABLE_TIERS)[number];
-
-export function isRoutableTier(value: unknown): value is RoutableTier {
-  return (ROUTABLE_TIERS as readonly unknown[]).includes(value);
-}
-
-/** Filter an untrusted candidate list down to routable tiers (order preserved). */
-export function filterRoutableTiers(
-  candidates: readonly unknown[] | undefined,
-): RoutableTier[] {
-  return (candidates ?? []).filter(isRoutableTier);
+/** Untrusted-input guard: `isModelTier` requires a string, values may be anything. */
+export function isModelTierValue(value: unknown): value is ModelTier {
+  return typeof value === "string" && isModelTier(value);
 }
 
 /** Tiers with a valid canonical model entry, in canonical order. */
-export function listEnabledTiers(config: Pick<AlixConfig, "models">): RoutableTier[] {
-  return ROUTABLE_TIERS.filter((tier) => isValidModelConfig(config.models?.[tier]));
+export function listEnabledTiers(config: Pick<AlixConfig, "models">): ModelTier[] {
+  return MODEL_TIER_VALUES.filter((tier) => isValidModelConfig(config.models?.[tier]));
 }
 
-/** Fail-closed membership check. Unknown/disabled tiers are rejected. */
-export function assertRoutableTier(
+/** Filter an untrusted candidate list down to canonical tiers (order preserved). */
+export function filterTierCandidates(candidates: readonly unknown[] | undefined): ModelTier[] {
+  return (candidates ?? []).filter(isModelTierValue);
+}
+
+/** Fail-closed membership check. Unknown or unconfigured tiers are rejected. */
+export function assertEnabledTier(
   tier: unknown,
-  enabled: readonly RoutableTier[],
-): asserts tier is RoutableTier {
-  if (!isRoutableTier(tier) || !enabled.includes(tier)) {
+  enabled: readonly ModelTier[],
+): asserts tier is ModelTier {
+  if (!isModelTierValue(tier) || !enabled.includes(tier)) {
     throw new Error(
       `Unknown or disabled model tier: ${String(tier)} (enabled: ${enabled.join(", ") || "none"})`,
     );
