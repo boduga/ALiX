@@ -8,6 +8,7 @@
 - `config.ts` — DecisionConfig skeleton (standalone in J0a; canonical AlixConfig wiring later) + local-first defaults + pure validator.
 - `projector.ts` — Projector contract + projectForRemote (project -> gate -> seal).
 - `boundary.ts` — Remote-boundary gates + seal/verify (secret/shape/size/depth, fail-closed).
+- `journal.ts` — Journal schema + recordDecision + JSONL store + queries + separate debug retention.
 - `index.ts` — barrel.
 
 **Local Contracts:**
