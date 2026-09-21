@@ -59,11 +59,13 @@ function contextFor(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
   deps: ModelTierShadowDeps,
 ): JournalContext {
+  const decisionConfig = deps.config.decision ?? DEFAULT_DECISION_CONFIG;
   return {
     decision: "model-tier",
     engineId,
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
+    thresholdProfile: decisionConfig.modelTier.thresholdProfile,
     candidates: listEnabledTiers(deps.config),
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };

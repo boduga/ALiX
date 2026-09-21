@@ -182,6 +182,13 @@ describe("tier resolution through canonical config", () => {
     const legacy = { ...config, model: { provider: "legacy", name: "legacy-model" } };
     assert.deepEqual(resolveTierModel(legacy, "coding"), { provider: "anthropic", name: "claude-sonnet-4" });
   });
+
+  it("arch 11: fails closed on an unknown or disabled tier", () => {
+    const config = alixConfig({ default: { provider: "openai", name: "gpt-4o" } });
+    assert.throws(() => resolveTierModel(config, "coding"), /Unknown or disabled model tier/);
+    assert.throws(() => resolveTierModel(config, "image" as never), /Unknown or disabled model tier/);
+    assert.deepEqual(resolveTierModel(config, "default"), { provider: "openai", name: "gpt-4o" });
+  });
 });
 
 describe("jev model-tier mapping", () => {
@@ -279,6 +286,7 @@ describe("model-tier shadow runner", () => {
     assert.equal(result.agree, false);
     assert.equal(result.records.length, 1);
     assert.equal(result.records[0].outcome.kind, "choice");
+    assert.equal(result.records[0].thresholdProfile, "model-tier/local/v1");
     assert.equal(journal.readAll().length, 1);
   });
 

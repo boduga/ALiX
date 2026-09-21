@@ -42,7 +42,7 @@ import {
   fromJevModelTierResponse,
   toJevModelTierRequest,
 } from "../decisions/model-tier/jev-mapping.js";
-import { isRoutableTier, type RoutableTier } from "../decisions/model-tier/tiers.js";
+import { filterRoutableTiers } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
@@ -65,8 +65,8 @@ type JevDecisionMapping = {
   ): ExecutorOutcome;
 };
 
-function routableCandidates(candidates: readonly unknown[] | undefined): RoutableTier[] {
-  return (candidates ?? []).filter(isRoutableTier);
+function routableCandidates(candidates: readonly unknown[] | undefined) {
+  return filterRoutableTiers(candidates);
 }
 
 const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {

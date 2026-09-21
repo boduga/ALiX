@@ -40,13 +40,8 @@ export type ModelTierRequestFeatures = {
   longContext: boolean;
 };
 
-export type ModelTierProjection = {
-  taskKind: ModelTierTaskKind;
-  promptChars: number;
-  needsTools: boolean;
-  needsVision: boolean;
-  longContext: boolean;
-};
+/** The projection IS the normalized feature set — one shape, so they cannot drift. */
+export type ModelTierProjection = ModelTierRequestFeatures;
 
 export function createModelTierProjector(): Projector<
   ModelTierRequestFeatures,

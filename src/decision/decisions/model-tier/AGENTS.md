@@ -15,7 +15,8 @@
 
 **Local Contracts:**
 - JEV-10: the candidate set is ALiX compute classes; Jev never sees or returns a provider/model ID. Resolution happens locally, after the choice.
-- Candidate set = enabled canonical tiers (`isValidModelConfig(models[tier])`); unknown or disabled tiers are rejected, never coerced.
+- Candidate set = enabled canonical tiers (`isValidModelConfig(models[tier])`); unknown or disabled tiers are rejected, never coerced. `image` is deliberately excluded from `ROUTABLE_TIERS` (a modality, not a compute class), so "enabled canonical tiers" here means enabled *routable compute classes*.
+- `resolveTierModel` fails closed on an unknown/disabled tier instead of falling back to `models.default` (arch §11), so a bad tier cannot reach a provider invocation.
 - Only task features cross the boundary — no prompt text, source, tool output, provider or model names.
 - Vision requests abstain (the decision is not equipped to route modality) so existing routing keeps the call.
 - Current routing stays the fallback: the default route is `existing-routing`, and a non-configured route yields an explicit failure, not a guess.
@@ -24,15 +25,15 @@
 - Shadow results carry `authority: "none"`.
 - Wire shape is `documented-unverified`; remote stays disabled until acknowledged.
 
-**Known deferrals:**
-- Active routing (mode `active`) is gated behind evaluation per the plan PR strategy ("model-tier routing in shadow mode, then separately activate"); no runtime call site consumes `selectModelTier` yet.
-
 **Work Guidance:**
 - A new candidate tier must be a canonical `MODEL_TIER_VALUES` entry and must be added to `ROUTABLE_TIERS` deliberately; `image` stays out.
 - Keep `chooseTierLocally` deterministic and preference-ordered; never guess a tier that is not enabled.
-- Resolution goes through `resolveModelConfig` — never read provider/model IDs from a decision result.
+- Resolution goes through `resolveTierModel`/`resolveModelConfig` — never read provider/model IDs from a decision result.
 
 **Verification:**
-- `tests/decision/model-tier.test.ts` — candidate enumeration, feature-only projection, baseline corpus/abstention, canonical resolution (legacy projection ignored), Jev mapping (no model IDs on the wire, malformed rejection), shadow (disabled/local/remote/fallback/existing-routing), `selectModelTier` off/shadow/active.
+- `tests/decision/model-tier.test.ts` — candidate enumeration, feature-only projection, baseline corpus/abstention, canonical resolution (legacy projection ignored, fail-closed tiers), Jev mapping (no model IDs on the wire, malformed rejection), shadow (disabled/local/remote/fallback/existing-routing), `selectModelTier` off/shadow/active.
+
+**Known deferrals:**
+- Active routing (mode `active`) is gated behind evaluation per the plan PR strategy ("model-tier routing in shadow mode, then separately activate"); no runtime call site consumes `selectModelTier` yet.
 
 **Child DOX Index:** none.

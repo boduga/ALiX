@@ -6,7 +6,7 @@
  * configured is not offered and cannot be selected.
  */
 
-import type { AlixConfig, ModelTier } from "../../../config/schema.js";
+import type { AlixConfig } from "../../../config/schema.js";
 import { isValidModelConfig } from "../../../config/schema.js";
 
 /**
@@ -29,6 +29,13 @@ export function isRoutableTier(value: unknown): value is RoutableTier {
   return (ROUTABLE_TIERS as readonly unknown[]).includes(value);
 }
 
+/** Filter an untrusted candidate list down to routable tiers (order preserved). */
+export function filterRoutableTiers(
+  candidates: readonly unknown[] | undefined,
+): RoutableTier[] {
+  return (candidates ?? []).filter(isRoutableTier);
+}
+
 /** Tiers with a valid canonical model entry, in canonical order. */
 export function listEnabledTiers(config: Pick<AlixConfig, "models">): RoutableTier[] {
   return ROUTABLE_TIERS.filter((tier) => isValidModelConfig(config.models?.[tier]));
@@ -45,10 +52,3 @@ export function assertRoutableTier(
     );
   }
 }
-
-/** The canonical tier a resolved model belongs to is not tracked here — only tiers cross to Jev. */
-export type TierModelTarget = {
-  tier: ModelTier;
-  provider: string;
-  name: string;
-};
