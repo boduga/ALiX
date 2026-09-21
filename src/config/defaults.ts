@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import type { AlixConfig } from "./schema.js";
+import { DEFAULT_DECISION_CONFIG } from "../decision/config.js";
 import {
   DEFAULT_OUTPUT_RATIO,
   DEFAULT_OUTPUT_FLOOR,
@@ -126,6 +127,8 @@ export const DEFAULT_CONFIG: AlixConfig = {
     },
     flushTimeoutMs: 2000,
   },
+  // Bounded probabilistic decisions: local-first, Jev disabled (JEV-7).
+  decision: { ...DEFAULT_DECISION_CONFIG },
 };
 
 /**

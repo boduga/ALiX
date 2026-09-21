@@ -15,8 +15,9 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DecisionType } from "./contracts.js";
-import { isValidConfidence, isValidProbability, isValidScore } from "./contracts.js";
+import { outcomeIssue } from "./contracts.js";
 
+/** Uncalibrated operational default. J4 tunes caps from calibration evidence. */
 export const MAX_CANDIDATES = 200;
 const JOURNAL_FILE = "decisions.jsonl";
 const DEBUG_DIR = "debug";
@@ -41,6 +42,8 @@ export type DecisionJournalRecord = {
   outcome: DecisionOutcome;
   thresholdProfile?: string;
   policyVersion?: string;
+  /** Relevant state/version identifier for replay grouping (journal §9). */
+  stateVersion?: string;
   latencyMs: number;
   remote: boolean;
   redactionApplied: boolean;
@@ -56,6 +59,8 @@ export type RecordDecisionInput = {
   outcome: DecisionOutcome;
   thresholdProfile?: string;
   policyVersion?: string;
+  /** Relevant state/version identifier for replay grouping (journal §9). */
+  stateVersion?: string;
   latencyMs: number;
   remote: boolean;
   redactionApplied: boolean;
@@ -88,56 +93,47 @@ export class JournalReadError extends Error {
   }
 }
 
-function fail(when: boolean, message: string): void {
+function throwIf(when: boolean, message: string): void {
   if (when) throw new JournalValidationError(message);
 }
 
 function validateOutcome(outcome: DecisionOutcome): void {
-  fail(!outcome || typeof outcome !== "object", "outcome must be an object");
-  switch (outcome.kind) {
-    case "choice":
-      fail(!isValidConfidence(outcome.confidence), "choice.confidence must be 0..1 when present");
-      if (outcome.candidates !== undefined) {
-        fail(!Array.isArray(outcome.candidates), "choice.candidates must be an array");
-        fail(outcome.candidates.length > MAX_CANDIDATES, `choice.candidates exceeds ${MAX_CANDIDATES}`);
-      }
-      break;
-    case "score":
-      fail(!isValidScore(outcome.score), "score.score must be 0..1");
-      fail(!isValidConfidence(outcome.confidence), "score.confidence must be 0..1 when present");
-      break;
-    case "noul":
-      fail(!isValidProbability(outcome.probability), "noul.probability must be 0..1");
-      break;
-    case "failure":
-      fail(typeof outcome.error !== "string" || outcome.error.length === 0, "failure.error must be non-empty");
-      fail(
-        outcome.fallbackEngine !== undefined && typeof outcome.fallbackEngine !== "string",
-        "failure.fallbackEngine must be a string when present",
-      );
-      break;
-    default:
-      throw new JournalValidationError(`unknown outcome kind: ${(outcome as { kind: string }).kind}`);
+  throwIf(!outcome || typeof outcome !== "object", "outcome must be an object");
+  if (outcome.kind === "choice") {
+    const candidates = outcome.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      throw new JournalValidationError("choice.candidates required non-empty (journal §9)");
+    }
+    throwIf(candidates.length > MAX_CANDIDATES, `choice.candidates exceeds ${MAX_CANDIDATES}`);
+  }
+  const issue = outcomeIssue(outcome, outcome.kind === "choice" ? outcome.candidates : undefined);
+  if (issue !== null) throw new JournalValidationError(issue);
+  if (outcome.kind === "failure" && outcome.fallbackEngine !== undefined) {
+    throwIf(typeof outcome.fallbackEngine !== "string", "failure.fallbackEngine must be a string when present");
   }
 }
 
 /** Pure record builder. No I/O. Never accepts a payload — hashes only. */
 export function recordDecision(input: RecordDecisionInput): DecisionJournalRecord {
-  fail(typeof input.decision !== "string" || input.decision.length === 0, "decision required");
-  fail(typeof input.engineId !== "string" || input.engineId.length === 0, "engineId required");
-  fail(
+  throwIf(typeof input.decision !== "string" || input.decision.length === 0, "decision required");
+  throwIf(typeof input.engineId !== "string" || input.engineId.length === 0, "engineId required");
+  throwIf(
     typeof input.projectionHash !== "string" || input.projectionHash.length === 0,
     "projectionHash required",
   );
-  fail(
+  throwIf(
     typeof input.latencyMs !== "number" || !Number.isFinite(input.latencyMs) || input.latencyMs < 0,
     "latencyMs must be >= 0",
   );
-  fail(typeof input.remote !== "boolean", "remote flag required");
-  fail(typeof input.redactionApplied !== "boolean", "redactionApplied flag required");
+  throwIf(typeof input.remote !== "boolean", "remote flag required");
+  throwIf(typeof input.redactionApplied !== "boolean", "redactionApplied flag required");
+  throwIf(
+    input.stateVersion !== undefined && typeof input.stateVersion !== "string",
+    "stateVersion must be a string when present",
+  );
   validateOutcome(input.outcome);
   const timestamp = input.now ?? Date.now();
-  fail(!Number.isFinite(timestamp), "timestamp must be finite");
+  throwIf(!Number.isFinite(timestamp), "timestamp must be finite");
   return {
     decisionId: randomUUID(),
     timestamp,
@@ -150,32 +146,28 @@ export function recordDecision(input: RecordDecisionInput): DecisionJournalRecor
     outcome: input.outcome,
     ...(input.thresholdProfile !== undefined ? { thresholdProfile: input.thresholdProfile } : {}),
     ...(input.policyVersion !== undefined ? { policyVersion: input.policyVersion } : {}),
+    ...(input.stateVersion !== undefined ? { stateVersion: input.stateVersion } : {}),
     latencyMs: input.latencyMs,
     remote: input.remote,
     redactionApplied: input.redactionApplied,
   };
 }
 
-export class DecisionJournalStore {
-  constructor(private readonly dir: string) {}
+/** Store handle. Closure over the directory; calibration export lives in J4. */
+export type DecisionJournalStore = {
+  append(record: DecisionJournalRecord): void;
+  readAll(): DecisionJournalRecord[];
+  findByDecision(decision: DecisionType): DecisionJournalRecord[];
+  findByExecution(executionId: string): DecisionJournalRecord[];
+  findByProjectionHash(projectionHash: string): DecisionJournalRecord[];
+};
 
-  private journalPath(): string {
-    return join(this.dir, JOURNAL_FILE);
-  }
-
-  append(record: DecisionJournalRecord): void {
-    try {
-      mkdirSync(this.dir, { recursive: true });
-      appendFileSync(this.journalPath(), `${JSON.stringify(record)}\n`, "utf8");
-    } catch (cause) {
-      throw new JournalWriteError((cause as Error).message, { cause });
-    }
-  }
-
-  readAll(): DecisionJournalRecord[] {
+export function createDecisionJournalStore(dir: string): DecisionJournalStore {
+  const journalPath = join(dir, JOURNAL_FILE);
+  function readAll(): DecisionJournalRecord[] {
     let text: string;
     try {
-      text = readFileSync(this.journalPath(), "utf8");
+      text = readFileSync(journalPath, "utf8");
     } catch (cause) {
       if ((cause as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw new JournalReadError((cause as Error).message, { cause });
@@ -191,23 +183,26 @@ export class DecisionJournalStore {
     }
     return records;
   }
-
-  findByDecision(decision: DecisionType): DecisionJournalRecord[] {
-    return this.readAll().filter((r) => r.decision === decision);
-  }
-
-  findByExecution(executionId: string): DecisionJournalRecord[] {
-    return this.readAll().filter((r) => r.executionId === executionId);
-  }
-
-  findByProjectionHash(projectionHash: string): DecisionJournalRecord[] {
-    return this.readAll().filter((r) => r.projectionHash === projectionHash);
-  }
-
-  /** Calibration export (J4 seam). Debug payloads excluded by construction. */
-  exportForCalibration(): DecisionJournalRecord[] {
-    return this.readAll();
-  }
+  return {
+    append(record: DecisionJournalRecord): void {
+      try {
+        mkdirSync(dir, { recursive: true });
+        appendFileSync(journalPath, `${JSON.stringify(record)}\n`, "utf8");
+      } catch (cause) {
+        throw new JournalWriteError((cause as Error).message, { cause });
+      }
+    },
+    readAll,
+    findByDecision(decision: DecisionType): DecisionJournalRecord[] {
+      return readAll().filter((r) => r.decision === decision);
+    },
+    findByExecution(executionId: string): DecisionJournalRecord[] {
+      return readAll().filter((r) => r.executionId === executionId);
+    },
+    findByProjectionHash(projectionHash: string): DecisionJournalRecord[] {
+      return readAll().filter((r) => r.projectionHash === projectionHash);
+    },
+  };
 }
 
 /**

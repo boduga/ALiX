@@ -121,6 +121,21 @@ describe("boundary security/governance (JEV-2..JEV-6)", () => {
     const toolResult = { toolUseId: "t1", content: "ok", invocationId: "i1", executionId: "e1" };
     assert.throws(() => sealForRemote("context-relevance", "v1", toolResult), /tool result/);
   });
+
+  it("partial raw state rejected from two keys; lone objective still passes", () => {
+    assert.throws(
+      () => sealForRemote("model-tier", "v1", { objective: "x", status: "running", note: "y" }),
+      /ExecutionState/,
+    );
+    assert.deepEqual(inspectRemoteProjection({ objective: "x", item: "y" }), []);
+  });
+
+  it("single correlation key rejected (lifted, not extracted)", () => {
+    assert.throws(
+      () => sealForRemote("context-relevance", "v1", { item: "y", executionId: "e1" }),
+      /tool result/,
+    );
+  });
 });
 
 describe("projector contract", () => {

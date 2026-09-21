@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DECISION_CONFIG,
   EngineNotRegisteredError,
-  EngineRegistry,
   RemoteEngineNotAllowedError,
   createDefaultRegistry,
+  createEngineRegistry,
   isChoiceResult,
   isNoulResult,
   isRemoteEngineAllowed,
@@ -83,7 +83,7 @@ describe("engine registry", () => {
   });
 
   it("remote engine fails closed without opt-in", () => {
-    const registry = new EngineRegistry();
+    const registry = createEngineRegistry();
     registry.register({ id: "local", remote: false, capabilities: ["choice"] });
     registry.register({ id: "jev", remote: true, capabilities: ["choice"] });
     assert.throws(() => registry.resolve({ engineId: "jev" }), RemoteEngineNotAllowedError);

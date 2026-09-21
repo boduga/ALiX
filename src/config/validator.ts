@@ -220,6 +220,29 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     }
   }
 
+  // decision — fragment-tolerant like tracing: each value checked only when
+  // DEFINED. A missing section is incomplete, not invalid (defaults fill it).
+  const decision = config.decision;
+  if (decision) {
+    if (decision.defaultEngine !== undefined && decision.defaultEngine !== "local") {
+      issues.push({ path: "decision.defaultEngine", level: "error", message: 'defaultEngine must be "local"' });
+    }
+    const jevEnabled = decision.remote?.jev?.enabled;
+    if (jevEnabled !== undefined && typeof jevEnabled !== "boolean") {
+      issues.push({ path: "decision.remote.jev.enabled", level: "error", message: "remote.jev.enabled must be a boolean" });
+    }
+    for (const key of ["claimVerification", "contextRelevance", "modelTier"] as const) {
+      const route = decision[key];
+      if (!route) continue;
+      for (const field of ["engine", "fallback", "thresholdProfile"] as const) {
+        const value: unknown = route[field];
+        if (value !== undefined && (typeof value !== "string" || value.length === 0)) {
+          issues.push({ path: `decision.${key}.${field}`, level: "error", message: `${key}.${field} must be a non-empty string` });
+        }
+      }
+    }
+  }
+
   return { valid: issues.filter(i => i.level === "error").length === 0, issues };
 }
 

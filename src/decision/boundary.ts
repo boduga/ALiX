@@ -21,7 +21,9 @@ import { createHash } from "node:crypto";
 import { redactSecrets } from "../policy/secret-scanner.js";
 import type { DecisionType } from "./contracts.js";
 
+/** Uncalibrated operational defaults. J4 tunes caps from calibration evidence. */
 export const MAX_PROJECTION_JSON_BYTES = 64_000;
+/** Uncalibrated operational default. J4 tunes caps from calibration evidence. */
 export const MAX_PROJECTION_DEPTH = 8;
 
 /** ExecutionState contract keys (mirrors execution-state.ts, decoupled). */
@@ -121,7 +123,7 @@ function hasSecrets(value: string): boolean {
   return redactSecrets(value) !== value;
 }
 
-function walk(value: unknown, depth: number, issues: string[]): void {
+function scanValue(value: unknown, depth: number, issues: string[]): void {
   if (issues.length > 0 && issues.length >= 8) return;
   if (depth > MAX_PROJECTION_DEPTH) {
     issues.push(`exceeds max depth ${MAX_PROJECTION_DEPTH}`);
@@ -137,7 +139,7 @@ function walk(value: unknown, depth: number, issues: string[]): void {
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value) walk(item, depth + 1, issues);
+    for (const item of value) scanValue(item, depth + 1, issues);
     return;
   }
   if (isPlainObject(value)) {
@@ -148,21 +150,25 @@ function walk(value: unknown, depth: number, issues: string[]): void {
         return;
       }
     }
+    // JEV-2: a lone contract key (e.g. J2's `objective`) is a legit minimal
+    // field; two or more smell like a partial raw ExecutionState.
     const stateHits = keys.filter((k) =>
       (EXECUTION_STATE_KEYS as readonly string[]).includes(k),
     ).length;
-    if (stateHits >= 4) {
+    if (stateHits >= 2) {
       issues.push("resembles raw ExecutionState");
       return;
     }
+    // JEV-4: correlation internals never belong in a minimal projection —
+    // even one proves the payload was lifted, not extracted.
     const toolHits = keys.filter((k) =>
       (TOOL_RESULT_KEYS as readonly string[]).includes(k),
     ).length;
-    if (toolHits >= 2) {
+    if (toolHits >= 1) {
       issues.push("resembles raw tool result");
       return;
     }
-    for (const key of keys) walk(value[key], depth + 1, issues);
+    for (const key of keys) scanValue(value[key], depth + 1, issues);
     return;
   }
   issues.push("not JSON-safe");
@@ -174,7 +180,7 @@ export function inspectRemoteProjection(payload: unknown): string[] {
   if (!isPlainObject(payload)) {
     return ["projection must be a plain object"];
   }
-  walk(payload, 0, issues);
+  scanValue(payload, 0, issues);
   if (issues.length === 0) {
     const bytes = Buffer.byteLength(stableStringify(payload), "utf8");
     if (bytes > MAX_PROJECTION_JSON_BYTES) {

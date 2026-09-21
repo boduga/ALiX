@@ -53,18 +53,18 @@ export const JEV_ENABLED_OVERLAY: Pick<DecisionConfig, "remote"> = {
   remote: { jev: { enabled: true } },
 };
 
+/** Route table: adding a DecisionType without a route fails compile. */
+const DECISION_ROUTE_KEYS = {
+  "claim-verification": "claimVerification",
+  "context-relevance": "contextRelevance",
+  "model-tier": "modelTier",
+} as const;
+
 export function routePolicyFor(
   config: DecisionConfig,
   decision: DecisionType,
 ): DecisionRoutePolicy {
-  switch (decision) {
-    case "claim-verification":
-      return config.claimVerification;
-    case "context-relevance":
-      return config.contextRelevance;
-    case "model-tier":
-      return config.modelTier;
-  }
+  return config[DECISION_ROUTE_KEYS[decision]];
 }
 
 /**
