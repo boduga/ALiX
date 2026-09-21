@@ -11,8 +11,10 @@
 - `journal.ts` — Journal schema + recordDecision + JSONL store + queries + separate debug retention.
 - `executors.ts` — DecisionExecutor contract + outcome validation (JEV-1 failure model).
 - `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
-- `engines/local.ts` — LocalBaselineExecutor (insufficient/abstain/unsupported, no confidence).
-- `engines/jev.ts` — Jev adapter seam (explicit opt-in, store-only key, SDK maps in J1).
+- `engines/local.ts` — LocalBaselineExecutor (claim-verification classifier, abstain/unsupported elsewhere, no confidence).
+- `engines/jev-protocol.ts` — Jev System One wire types/endpoint + injectable `JevTransport` (neutral: no decisions/engines imports).
+- `engines/jev.ts` — Jev adapter: transport, per-decision mapping table, capability declaration, store-only key, disabled by default.
+- `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
 
@@ -23,11 +25,13 @@
 - Threshold profiles engine-specific; Jev calibration never transfers to local/LLM.
 - Jev selects canonical tiers only, never provider/model IDs (enforced J3).
 - Boundary caps/timeouts are uncalibrated operational defaults pending J4 evidence.
+- Engines declare `supportsDecision`; `buildPlan` fails closed when an engine cannot answer the decision.
 - No runtime wiring until J0 projection/redaction/journal/fallback tested.
 - New files only in J0a; `PolicyGate`/`createProvider`/loader untouched.
 
 **Work Guidance:**
-- New decision = projector (J1-J3 slices own schemas) + route policy + executor + journaled attempts. Reuse `projectForRemote`, `buildPlan`/`executeWithFallback`, `recordDecision`.
+- New decision = projector (decision folder owns its schema) + route policy + executor mapping + journaled attempts. Reuse `projectForRemote`, `buildPlan`/`executeWithFallback`, `recordDecision`, `runClaimVerificationShadow` as the shadow template.
+- Keep the wire protocol in `engines/jev-protocol.ts`; per-decision mapping stays in the decision folder (avoids an engines↔decisions cycle).
 - Prefer factories and pure functions (CONTRIBUTING); classes only for `Error` subclasses.
 - Share range/shape gates via `outcomeIssue`; keep error types per module.
 - Thresholds stay per decision/engine/risk; never copy a Jev profile onto local/LLM.
@@ -39,6 +43,13 @@
 - `tests/decision/decision-journal.test.ts` — provenance, store, failure policy, debug separation.
 - `tests/decision/decision-fallback.test.ts` — local baseline, Jev seam, fallback policy, plan errors.
 - `tests/decision/decision-approval.test.ts` — JEV-8 floor truth table.
-- `tests/config/*` — canonical `decision` section wiring (loader/validator/defaults).
+- `tests/decision/claim-verification.test.ts` — J1 decision (schema, projection, baseline, mapping, shadow).
+- `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
+
+**Child DOX Index:**
+
+| Path | Scope |
+|------|-------|
+| `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
 
 **Child DOX Index:** none.

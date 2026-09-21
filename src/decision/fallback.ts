@@ -8,7 +8,7 @@
  */
 
 import type { DecisionType } from "./contracts.js";
-import type { EngineRegistry } from "./registry.js";
+import type { EngineRegistry, DecisionEngine } from "./registry.js";
 import { EngineNotRegisteredError, RemoteEngineNotAllowedError } from "./registry.js";
 import {
   EngineUnavailableError,
@@ -91,9 +91,19 @@ function externalPlan(primarySkipped: string | undefined): ExecutionPlan {
   };
 }
 
+function assertSupportsDecision(
+  engine: DecisionEngine,
+  engineId: string,
+  decision: DecisionType,
+): void {
+  if (engine.supportsDecision !== undefined && !engine.supportsDecision(decision)) {
+    throw new EngineNotRegisteredError(`${engineId} for ${decision}`);
+  }
+}
+
 /**
  * Pure plan builder. Known-remote-disabled degrades to fallback (JEV-7);
- * unknown engine ids fail closed (config error, explicit throw).
+ * unknown engine ids and engines that cannot answer the decision fail closed.
  */
 export function buildPlan(
   decision: DecisionType,
@@ -105,6 +115,7 @@ export function buildPlan(
   let primarySkipped: string | undefined;
   const primaryMeta = registry.get(primaryId);
   if (primaryMeta) {
+    assertSupportsDecision(primaryMeta, primaryId, decision);
     if (primaryMeta.remote && !isRemoteEngineAllowed(primaryId, config)) {
       primarySkipped = `remote-not-allowed:${primaryId}`;
       primaryId = route.fallback;
@@ -126,6 +137,7 @@ export function buildPlan(
     } else {
       const fallbackMeta = registry.get(route.fallback);
       if (!fallbackMeta) throw new EngineNotRegisteredError(route.fallback);
+      assertSupportsDecision(fallbackMeta, route.fallback, decision);
       if (!fallbackMeta.remote || isRemoteEngineAllowed(route.fallback, config)) {
         fallback = requireExecutor(registry, route.fallback, config);
         fallbackId = route.fallback;

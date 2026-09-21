@@ -15,16 +15,19 @@ import type {
   ExecuteInput,
   ExecutorOutcome,
 } from "../executors.js";
+import { classifyClaimLocally } from "../decisions/claim-verification/local-baseline.js";
+import { readClaimProjection } from "../decisions/claim-verification/projection.js";
 
 export const LOCAL_ENGINE_ID = "local";
 
 function claimChoice(input: ExecuteInput, started: number): ExecutorOutcome {
-  if (input.candidates !== undefined && !input.candidates.includes("insufficient")) {
+  const { verdict } = classifyClaimLocally(readClaimProjection(input.sealed.payload));
+  if (input.candidates !== undefined && !input.candidates.includes(verdict)) {
     return { kind: "failure", error: "candidate set incompatible with local baseline" };
   }
   return {
     kind: "choice",
-    choice: "insufficient",
+    choice: verdict,
     provenance: {
       engineId: LOCAL_ENGINE_ID,
       latencyMs: Date.now() - started,
