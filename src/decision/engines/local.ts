@@ -18,6 +18,9 @@ import { classifyClaimLocally } from "../decisions/claim-verification/local-base
 import { readClaimProjection } from "../decisions/claim-verification/projection.js";
 import { scoreRelevanceLocally } from "../decisions/context-relevance/local-baseline.js";
 import { readRelevanceProjection } from "../decisions/context-relevance/projection.js";
+import { chooseTierLocally } from "../decisions/model-tier/local-baseline.js";
+import { readModelTierProjection } from "../decisions/model-tier/projection.js";
+import { isRoutableTier } from "../decisions/model-tier/tiers.js";
 
 export const LOCAL_ENGINE_ID = "local";
 
@@ -52,15 +55,32 @@ function relevanceNoul(input: ExecuteInput, started: number): ExecutorOutcome {
   };
 }
 
-function unsupported(_input: ExecuteInput, _started: number): ExecutorOutcome {
-  return { kind: "failure", error: "unsupported decision for local engine" };
+function modelTierChoice(input: ExecuteInput, started: number): ExecutorOutcome {
+  const enabledTiers = (input.candidates ?? []).filter(isRoutableTier);
+  if (enabledTiers.length === 0) {
+    return { kind: "failure", error: "model-tier requires an enabled candidate set" };
+  }
+  const { tier, reason } = chooseTierLocally(readModelTierProjection(input.sealed.payload), enabledTiers);
+  if (tier === undefined) {
+    return { kind: "failure", error: `no enabled tier satisfies the request: ${reason}` };
+  }
+  return {
+    kind: "choice",
+    choice: tier,
+    provenance: {
+      engineId: LOCAL_ENGINE_ID,
+      latencyMs: Date.now() - started,
+      remote: false,
+      projectionHash: input.sealed.hash,
+    },
+  };
 }
 
 /** Exhaustive dispatch: adding a DecisionType without a baseline fails compile. */
 const BASELINE: Record<DecisionType, (input: ExecuteInput, started: number) => ExecutorOutcome> = {
   "claim-verification": claimChoice,
   "context-relevance": relevanceNoul,
-  "model-tier": unsupported,
+  "model-tier": modelTierChoice,
 };
 
 export function createLocalBaselineExecutor(): DecisionExecutor {

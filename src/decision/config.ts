@@ -51,6 +51,7 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
     engine: "existing-routing",
     fallback: "existing-routing",
     thresholdProfile: "model-tier/existing-routing/v1",
+    enabled: false,
   },
 };
 
