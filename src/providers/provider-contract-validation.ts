@@ -190,6 +190,29 @@ function outcomeForError(e: unknown, endedAt: number): SpanOutcome {
   };
 }
 
+/**
+ * Fail-closed output ceiling: never send a provider more max_tokens than
+ * the adapter declares it accepts. The budget layer sizes requests from
+ * the context window alone (its `outputTokenLimit ... when known` input is
+ * never populated upstream), so models with small ceilings (e.g. gpt-4o at
+ * 16,384) otherwise receive budgets they reject with HTTP 400.
+ * A limit of 0/undefined means "unknown" and disables clamping, preserving
+ * the daemon's historical uncapped behavior. DeepSeek is exempt:
+ * api.deepseek.com honors 100k–300k budgets (see the P5 elevation in
+ * agent/session/setup.ts) far above its declared 8,192.
+ */
+function clampMaxOutputTokens(
+  adapter: ModelAdapter,
+  request: NormalizedRequest,
+): NormalizedRequest {
+  const requested = request.maxOutputTokens;
+  if (requested === undefined) return request;
+  if (adapter.capabilities?.provider === "deepseek") return request;
+  const limit = adapter.capabilities?.outputTokenLimit;
+  if (typeof limit !== "number" || limit <= 0 || requested <= limit) return request;
+  return { ...request, maxOutputTokens: limit };
+}
+
 // ---------------------------------------------------------------------------
 // Wrapper
 // ---------------------------------------------------------------------------
@@ -252,7 +275,7 @@ export function withProviderContracts(
       // or any throw.
       let span: ModelSpanHandle = null;
       try {
-        const validatedRequest = validateNormalizedRequest(request);
+        const validatedRequest = clampMaxOutputTokens(adapter, validateNormalizedRequest(request));
         span = await beginModelSpan(adapter, request, callContext, false);
         const response = timeoutMs
           ? await withTimeout(
@@ -300,8 +323,9 @@ export function withProviderContracts(
             const callContext = resolveContext(request);
 
             // Validate request before starting stream
+            let streamRequest: NormalizedRequest;
             try {
-              validateNormalizedRequest(request);
+              streamRequest = clampMaxOutputTokens(adapter, validateNormalizedRequest(request));
             } catch (e: unknown) {
               if (e instanceof ContractValidationError && onDiagnostic) {
                 emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message, undefined, callContext));
@@ -314,7 +338,7 @@ export function withProviderContracts(
             // (natural completion / error / cancellation / consumer early-close).
             const span = await beginModelSpan(adapter, request, callContext, true);
 
-            const rawStream = adapter.stream!(request, options);
+            const rawStream = adapter.stream!(streamRequest, options);
 
             // Wrap with idle timeout when configured
             const timedStream = streamIdleTimeoutMs

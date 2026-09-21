@@ -9,7 +9,7 @@ Test all 12 ALiX capabilities by verifying each system exists and functions corr
 - Confirm run limiter enforces max iterations (default 10) and max repairs (3)
 
 ## Capability 2: 12 Provider Support  
-- List all providers in src/providers/ and confirm: anthropic, openai, gemini, deepseek, groq, ollama, perplexity, minimax, zhipuai, groqai, openrouter, mock
+- List all providers in src/providers/ and confirm: anthropic, openai, gemini, deepseek, groq, ollama, perplexity, minimax, zhipuai, grokai, openrouter, mock (plus extras: freellmapi, local-llama, etc.; 31 files total)
 - Verify base provider handles errors with retry logic
 - Verify tiktoken token counting exists in src/utils/tokens.ts
 
@@ -24,13 +24,13 @@ Test all 12 ALiX capabilities by verifying each system exists and functions corr
 
 ## Capability 5: Patch Engine
 - Verify src/patch/preimage-validator.ts has preimage validation
-- Verify src/checkpoints/ has checkpoint management
+- Verify src/patch/checkpoint.ts has checkpoint management
 - Verify src/patch/rollback-manager.ts has rollback logic
 - Verify supports structured_patch, search_replace, and full_file formats
 - Verify src/patch/full-file-guard.ts prevents accidental rewrites
 
 ## Capability 6: Policy Engine
-- Verify src/policy/policy-engine.ts exists with allow/ask/deny logic
+- Verify src/policy/rule-evaluator.ts, src/policy/runtime-gate.ts, and src/policy/policy-gate.ts exist with allow/ask/deny logic
 - Verify src/policy/shell-whitelist.ts restricts commands
 - Verify src/security/secret-scanner.ts scans for secrets
 
@@ -49,7 +49,7 @@ Test all 12 ALiX capabilities by verifying each system exists and functions corr
 ## Capability 9: Skills & Extensions
 - Verify src/skills/ has: loader.ts, catalog.ts, dispatcher.ts
 - Verify src/extensions/hook-runner.ts supports lifecycle hooks
-- Verify src/extensions/extension-registry.ts exists
+- Verify src/extensions/registry.ts exists
 
 ## Capability 10: Context Intelligence
 - Verify src/repomap/context-compiler.ts ranks files by relevance
@@ -66,7 +66,7 @@ Test all 12 ALiX capabilities by verifying each system exists and functions corr
 - Verify src/autonomy/state-machine.ts tracks task state
 - Verify src/autonomy/run-limiter.ts enforces hard limits
 - Verify src/autonomy/scope-tracker.ts prevents expansion
-- Verify src/memory/ has layered memory architecture
+- Verify src/utils/memory/store.ts has layered memory architecture
 
 ## Output Format
 Return a summary table with columns: Capability | Status | Details

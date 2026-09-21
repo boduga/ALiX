@@ -12,6 +12,8 @@ export function findRepoRoot(startDir: string): string {
   let current = startDir;
 
   while (true) {
+    // Skip build-output dirs: dist/ ships a copied package.json that
+    // must not be mistaken for the repository root.
     if (basename(current) !== "dist" && existsSync(join(current, "package.json"))) {
       return current;
     }

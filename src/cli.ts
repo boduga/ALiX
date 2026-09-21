@@ -548,6 +548,12 @@ if (command === "security" && args[0] === "doctor") {
   await handleSecurityDoctor(args);
 }
 
+// --- alix security gate --- P4.3-Sg2 ---
+if (command === "security" && args[0] === "gate") {
+  const { handleSecurityGate } = await import("./cli/commands/security-ops.js");
+  await handleSecurityGate(args);
+}
+
 // --- alix security config keygen --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "keygen") {
   const { handleSecurityConfigKeygen } = await import("./cli/commands/security-ops.js");

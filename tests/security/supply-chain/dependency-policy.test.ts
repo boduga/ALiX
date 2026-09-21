@@ -4,8 +4,13 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   extractLifecyclePackages,
+  extractPnpmLifecyclePackages,
+  runLifecycleCheck,
   compareVersions,
   versionMatches,
   checkLifecyclePolicy,
@@ -227,8 +232,7 @@ describe("checkLifecyclePolicy", () => {
     assert.equal(result.expiredEntries.length, 0);
   });
 
-  it("handles multiple packages correctly", () => {
-    const multiAllowlist: AllowlistFile = {
+  it("handles multiple packages correctly", () => {    const multiAllowlist: AllowlistFile = {
       packages: [
         { name: "pkg-a", versionRange: ">=1.0.0", scripts: ["install"], reason: "ok", owner: "boduga", created: "2025-01-01", expiry: "2027-01-01" },
         { name: "pkg-b", versionRange: ">=2.0.0", scripts: ["postinstall"], reason: "ok", owner: "boduga", created: "2025-01-01", expiry: "2027-01-01" },
@@ -244,5 +248,121 @@ describe("checkLifecyclePolicy", () => {
     assert.equal(result.approved.length, 2);
     assert.equal(result.newUnapproved.length, 1);
     assert.equal(result.newUnapproved[0].name, "pkg-c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractPnpmLifecyclePackages + runLifecycleCheck pnpm fallback
+// ---------------------------------------------------------------------------
+
+describe("pnpm lifecycle inventory", () => {
+  async function fixture(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "alix-pnpm-"));
+    await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name: "fixture", dependencies: { alpha: "^1.0.0" } }),
+      "utf8",
+    );
+    const nm = join(dir, "node_modules");
+    await mkdir(join(nm, "alpha"), { recursive: true });
+    await writeFile(
+      join(nm, "alpha", "package.json"),
+      JSON.stringify({ name: "alpha", version: "1.0.0", scripts: { install: "echo hi" } }),
+      "utf8",
+    );
+    await mkdir(join(nm, "beta"), { recursive: true });
+    await writeFile(
+      join(nm, "beta", "package.json"),
+      JSON.stringify({ name: "beta", version: "2.0.0", scripts: { test: "exit 0" } }),
+      "utf8",
+    );
+    await mkdir(join(nm, "@scope", "gamma"), { recursive: true });
+    await writeFile(
+      join(nm, "@scope", "gamma", "package.json"),
+      JSON.stringify({ name: "@scope/gamma", version: "3.0.0", scripts: { postinstall: "echo yo" } }),
+      "utf8",
+    );
+    await mkdir(join(nm, "broken"), { recursive: true });
+    return dir;
+  }
+
+  it("finds direct + scoped-transitive scripts, skips clean/broken entries", async () => {
+    const dir = await fixture();
+    try {
+      const { packages, error } = await extractPnpmLifecyclePackages(dir);
+      assert.equal(error, undefined);
+      assert.equal(packages.length, 2);
+      const alpha = packages.find((p) => p.name === "alpha")!;
+      assert.equal(alpha.version, "1.0.0");
+      assert.equal(alpha.isDirect, true);
+      const gamma = packages.find((p) => p.name === "@scope/gamma")!;
+      assert.equal(gamma.isDirect, false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("dedupes top-level links against .pnpm store targets", async () => {
+    const dir = await fixture();
+    try {
+      const nm = join(dir, "node_modules");
+      const storePkg = join(nm, ".pnpm", "alpha@1.0.0", "node_modules", "alpha");
+      await mkdir(storePkg, { recursive: true });
+      await writeFile(
+        join(storePkg, "package.json"),
+        JSON.stringify({ name: "alpha", version: "1.0.0", scripts: { install: "echo hi" } }),
+        "utf8",
+      );
+      const { packages } = await extractPnpmLifecyclePackages(dir);
+      assert.equal(packages.filter((p) => p.name === "alpha").length, 1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports LOCKFILE_MISSING when neither lockfile exists", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alix-pnpm-"));
+    try {
+      const { packages, error } = await extractPnpmLifecyclePackages(dir);
+      assert.equal(packages.length, 0);
+      assert.equal(error?.code, LIFECYCLE_ERROR_CODES.LOCKFILE_MISSING);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when node_modules cannot be read", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "alix-pnpm-"));
+    try {
+      await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+      const { packages, error } = await extractPnpmLifecyclePackages(dir);
+      assert.equal(packages.length, 0);
+      assert.equal(error?.code, LIFECYCLE_ERROR_CODES.LOCKFILE_UNREADABLE);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("runLifecycleCheck passes a pnpm checkout against the allowlist", async () => {
+    const dir = await fixture();
+    try {
+      await writeFile(
+        join(dir, "allowlist.json"),
+        JSON.stringify({
+          packages: [
+            { name: "alpha", versionRange: "*", scripts: ["install"], reason: "t", owner: "t", created: "2025-01-01", expiry: "2027-01-01" },
+            { name: "@scope/gamma", versionRange: "*", scripts: ["postinstall"], reason: "t", owner: "t", created: "2025-01-01", expiry: "2027-01-01" },
+          ],
+        }),
+        "utf8",
+      );
+      const result = await runLifecycleCheck(dir, "allowlist.json");
+      assert.ok(result.ok);
+      assert.equal(result.totalLifecyclePackages, 2);
+      assert.equal(result.approved.length, 2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
