@@ -51,7 +51,7 @@ describe("local baseline engine", () => {
     assert.equal(outcome.provenance.projectionHash, sealed().hash);
   });
 
-  it("scores relevance locally and reports unsupported decisions honestly", async () => {
+  it("scores relevance locally and requires candidates for model-tier", async () => {
     const relevance = await createLocalBaselineExecutor().execute(
       input({ decision: "context-relevance" }),
     );
@@ -59,7 +59,7 @@ describe("local baseline engine", () => {
     if (relevance.kind !== "noul") return;
     assert.equal(relevance.probability, 0);
     const tier = await createLocalBaselineExecutor().execute(input({ decision: "model-tier" }));
-    assert.deepEqual(tier, { kind: "failure", error: "unsupported decision for local engine" });
+    assert.deepEqual(tier, { kind: "failure", error: "model-tier requires an enabled candidate set" });
   });
 
   it("rejects incompatible candidate sets instead of coercing", async () => {

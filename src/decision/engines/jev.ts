@@ -38,19 +38,36 @@ import {
   fromJevRelevanceResponse,
   toJevRelevanceRequest,
 } from "../decisions/context-relevance/jev-mapping.js";
+import {
+  fromJevModelTierResponse,
+  toJevModelTierRequest,
+} from "../decisions/model-tier/jev-mapping.js";
+import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
-/** Decisions this adapter can answer today (J1 claim, J2 relevance). */
+/** Decisions this adapter can answer today (J1 claim, J2 relevance, J3 tier). */
 const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
   "claim-verification",
   "context-relevance",
+  "model-tier",
 ];
 
 type JevDecisionMapping = {
-  toRequest(sealed: ExecuteInput["sealed"]): JevSystemOneRequest;
-  fromResponse(response: JevSystemOneResponse, ctx: JevResponseContext): ExecutorOutcome;
+  toRequest(
+    sealed: ExecuteInput["sealed"],
+    candidates?: readonly unknown[],
+  ): JevSystemOneRequest;
+  fromResponse(
+    response: JevSystemOneResponse,
+    ctx: JevResponseContext,
+    candidates?: readonly unknown[],
+  ): ExecutorOutcome;
 };
+
+function routableCandidates(candidates: readonly unknown[] | undefined) {
+  return filterTierCandidates(candidates);
+}
 
 const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
   "claim-verification": {
@@ -60,6 +77,11 @@ const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
   "context-relevance": {
     toRequest: (sealed) => toJevRelevanceRequest(sealed),
     fromResponse: (response, ctx) => fromJevRelevanceResponse(response, ctx),
+  },
+  "model-tier": {
+    toRequest: (sealed, candidates) => toJevModelTierRequest(sealed, routableCandidates(candidates)),
+    fromResponse: (response, ctx, candidates) =>
+      fromJevModelTierResponse(response, ctx, routableCandidates(candidates)),
   },
 };
 
@@ -131,7 +153,7 @@ export function createJevExecutor(
           `no mapping for decision ${input.decision}`,
         );
       }
-      const request = { ...mapping.toRequest(input.sealed), model: opts.model ?? JEV_DEFAULT_MODEL };
+      const request = { ...mapping.toRequest(input.sealed, input.candidates), model: opts.model ?? JEV_DEFAULT_MODEL };
       const started = Date.now();
       let response: JevSystemOneResponse;
       try {
@@ -143,7 +165,7 @@ export function createJevExecutor(
       return mapping.fromResponse(response, {
         projectionHash: input.sealed.hash,
         latencyMs: Date.now() - started,
-      });
+      }, input.candidates);
     },
   };
 }

@@ -218,10 +218,10 @@ describe("jev executor", () => {
     );
   });
 
-  it("refuses decisions it has no mapping for", async () => {
+  it("refuses a decision it has no mapping for", async () => {
     const executor = createJevExecutor({ enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("supported") });
     await assert.rejects(
-      executor.execute({ decision: "model-tier", sealed: sealedClaim() }),
+      executor.execute({ decision: "not-a-decision" as never, sealed: sealedClaim() }),
       (e: unknown) => e instanceof EngineUnavailableError && /no mapping/.test(e.message),
     );
   });
@@ -312,9 +312,20 @@ describe("fallback and capability enforcement", () => {
 
   it("an engine that cannot answer the decision fails closed at plan time", () => {
     const registry = createDefaultRegistry();
-    registerJevEngine(registry, { enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("supported") });
+    registry.register({
+      id: "claim-only",
+      remote: false,
+      capabilities: ["choice"],
+      supportsDecision: (decision) => decision === "claim-verification",
+      executor: {
+        engineId: "claim-only",
+        async execute() {
+          return { kind: "failure", error: "not applicable" };
+        },
+      },
+    });
     const config = jevConfig({
-      modelTier: { engine: JEV_ENGINE_ID, fallback: "existing-routing", thresholdProfile: "t/v1" },
+      modelTier: { engine: "claim-only", fallback: "existing-routing", thresholdProfile: "t/v1" },
     });
     assert.throws(() => buildPlan("model-tier", config, registry), EngineNotRegisteredError);
   });

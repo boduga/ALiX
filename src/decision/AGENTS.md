@@ -16,6 +16,7 @@
 - `engines/jev.ts` — Jev adapter: transport, per-decision mapping table, capability declaration, store-only key, disabled by default.
 - `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
+- `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
@@ -51,6 +52,7 @@
 - `tests/decision/decision-approval.test.ts` — JEV-8 floor truth table.
 - `tests/decision/claim-verification.test.ts` — J1 decision (schema, projection, baseline, mapping, shadow).
 - `tests/decision/context-relevance.test.ts` — J2 decision (per-item projection, Noul mapping, JEV-9 thresholds, selection, shadow).
+- `tests/decision/model-tier.test.ts` — J3 decision (candidate tiers, feature-only projection, canonical resolution, JEV-10, shadow, selection).
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
@@ -59,3 +61,4 @@
 |------|-------|
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
+| `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
