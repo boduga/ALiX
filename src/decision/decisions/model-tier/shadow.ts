@@ -32,6 +32,11 @@ export type ModelTierShadowDeps = {
   journal?: DecisionJournalStore;
   timeoutMs?: number;
   executionId?: string;
+  /**
+   * Candidate tiers. Defaults to every enabled tier; a caller applying hard
+   * constraints (via `filterTiersByCapability`) passes the filtered set here.
+   */
+  candidates?: readonly ModelTier[];
 };
 
 export type ModelTierObservation = {
@@ -58,6 +63,7 @@ function contextFor(
   engineId: string,
   sealed: RemoteSealedProjection<Record<string, unknown>>,
   deps: ModelTierShadowDeps,
+  candidates: readonly ModelTier[],
 ): JournalContext {
   const decisionConfig = deps.config.decision ?? DEFAULT_DECISION_CONFIG;
   return {
@@ -66,7 +72,7 @@ function contextFor(
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
     thresholdProfile: decisionConfig.modelTier.thresholdProfile,
-    candidates: listEnabledTiers(deps.config),
+    candidates,
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };
 }
@@ -81,6 +87,9 @@ export async function runModelTierShadow(
 ): Promise<ModelTierShadowResult> {
   const decisionConfig = deps.config.decision ?? DEFAULT_DECISION_CONFIG;
   const enabledTiers = listEnabledTiers(deps.config);
+  // A caller applying hard constraints passes the filtered set; otherwise every
+  // enabled tier is a candidate.
+  const candidates = deps.candidates ?? enabledTiers;
   const current = describeCurrentRouting(deps.config);
 
   if (decisionConfig.modelTier.enabled !== true) {
@@ -98,14 +107,14 @@ export async function runModelTierShadow(
   const plan = buildPlan("model-tier", decisionConfig, deps.registry);
   const result = await executeWithFallback(
     plan,
-    { decision: "model-tier", sealed, candidates: enabledTiers },
+    { decision: "model-tier", sealed, candidates },
     { timeoutMs: deps.timeoutMs },
   );
 
   const records = journalAttempts(
     result.attempts,
     result.outcome,
-    (engineId) => contextFor(engineId, sealed, deps),
+    (engineId) => contextFor(engineId, sealed, deps, candidates),
     plan.primaryId,
   );
   for (const record of records) deps.journal?.append(record);

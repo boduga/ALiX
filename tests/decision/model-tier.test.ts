@@ -16,6 +16,7 @@ import {
   createDefaultRegistry,
   createJevExecutor,
   describeCurrentRouting,
+  filterTiersByCapability,
   fromJevModelTierResponse,
   isModelTierValue,
   listEnabledTiers,
@@ -387,6 +388,94 @@ describe("model-tier shadow runner", () => {
     const result = await runModelTierShadow(FEATURES, { config, registry: createDefaultRegistry() });
     assert.equal(result.observed?.tier, undefined);
     assert.equal(result.records[0].outcome.kind, "failure");
+  });
+});
+
+describe("caller-side capability filter", () => {
+  const MODELS_WITH_CAPS = {
+    default: { provider: "openai", name: "gpt-4o", capabilities: ["vision", "tools"] },
+    coding: { provider: "anthropic", name: "claude-sonnet-4", capabilities: ["vision", "tools", "structured_output"] },
+    image: { provider: "google", name: "gemini-2.5-flash-image", capabilities: ["image_output", "vision"] },
+    thinking: { provider: "deepseek", name: "deepseek-reasoner" },
+  } as unknown as AlixConfig["models"];
+
+  const enabled = listEnabledTiers({ models: MODELS_WITH_CAPS });
+
+  it("keeps only tiers declaring every required capability", () => {
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["image_output"]), ["image"]);
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["structured_output"]), ["coding"]);
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["vision"]), [
+      "default",
+      "coding",
+      "image",
+    ]);
+  });
+
+  it("fails closed: an undeclared tier satisfies nothing", () => {
+    // thinking declares nothing, so it is never offered for a hard requirement.
+    assert.equal(
+      filterTiersByCapability({ models: MODELS_WITH_CAPS }, ["thinking"], ["vision"]).length,
+      0,
+    );
+    assert.deepEqual(filterTiersByCapability({ models: MODELS_WITH_CAPS }, ["thinking"], []), ["thinking"]);
+  });
+
+  it("supports the image-editing pair (output + input)", () => {
+    assert.deepEqual(
+      filterTiersByCapability({ models: MODELS_WITH_CAPS }, enabled, ["image_output", "vision"]),
+      ["image"],
+    );
+  });
+
+  it("never returns an unconfigured tier, even when it is asked for", () => {
+    const models = {
+      default: { provider: "openai", name: "gpt-4o", capabilities: ["vision"] },
+    } as unknown as AlixConfig["models"];
+    assert.deepEqual(filterTiersByCapability({ models }, ["default", "coding"], []), ["default"]);
+    assert.deepEqual(filterTiersByCapability({ models }, ["coding"], []), []);
+  });
+});
+
+describe("caller-supplied candidate set", () => {
+  it("drives the choice: the decision only sees the tiers the caller allowed", async () => {
+    // A pure image prompt whose caller filtered candidates down to the image tier.
+    const imageOnly = await runModelTierShadow(
+      { taskKind: "image", promptChars: 100, needsTools: false, needsVision: false, longContext: false },
+      { config: alixConfig(), registry: createDefaultRegistry(), candidates: ["image"] },
+    );
+    assert.equal(imageOnly.observed?.tier, "image");
+    assert.equal(imageOnly.records[0].outcome.kind, "choice");
+    if (imageOnly.records[0].outcome.kind === "choice") {
+      assert.deepEqual(imageOnly.records[0].outcome.candidates, ["image"]);
+    }
+  });
+
+  it("enforces a hard constraint: a vision-only code task cannot reach a blind tier", async () => {
+    // Caller pre-filters reasoning tiers to the one that declares vision.
+    const models = {
+      default: { provider: "openai", name: "gpt-4o" },
+      coding: { provider: "anthropic", name: "claude-sonnet-4", capabilities: ["vision"] },
+      thinking: { provider: "deepseek", name: "deepseek-reasoner" },
+    } as unknown as AlixConfig["models"];
+    const config = alixConfig(models);
+    const candidates = filterTiersByCapability(config, ["coding", "default", "thinking"], ["vision"]);
+    assert.deepEqual(candidates, ["coding"]);
+
+    const result = await runModelTierShadow(
+      { taskKind: "code", promptChars: 4_000, needsTools: true, needsVision: true, longContext: false },
+      { config, registry: createDefaultRegistry(), candidates },
+    );
+    assert.equal(result.observed?.tier, "coding");
+  });
+
+  it("selectModelTier forwards the caller's candidates", async () => {
+    const result = await selectModelTier(FEATURES, {
+      config: alixConfig(),
+      registry: createDefaultRegistry(),
+      mode: "active",
+      candidates: ["thinking"],
+    });
+    assert.equal(result.tier, "thinking");
   });
 });
 

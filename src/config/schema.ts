@@ -16,7 +16,46 @@ export function parseSessionMode(value: unknown, fallback: SessionMode = "ask"):
 
 export type Decision = "ask" | "allow" | "deny";
 
-export type ModelCapabilityName = "tools" | "structured_output" | "vision";
+/**
+ * Capabilities a tier's model can be DECLARED to have (`models.<tier>.capabilities`).
+ *
+ * `vision` is image INPUT (the model can read an image). `image_output` is
+ * image GENERATION (the model can produce one). A model that both reads and
+ * writes images declares both.
+ */
+export const MODEL_CAPABILITY_NAMES = [
+  "tools",
+  "structured_output",
+  "vision",
+  "image_output",
+] as const;
+
+export type ModelCapabilityName = (typeof MODEL_CAPABILITY_NAMES)[number];
+
+export function isModelCapabilityName(value: unknown): value is ModelCapabilityName {
+  return (MODEL_CAPABILITY_NAMES as readonly unknown[]).includes(value);
+}
+
+/**
+ * The subset of capabilities DISCOVERY can verify, used by
+ * `selection.capabilities` (a requirement resolved against a catalog).
+ *
+ * `image_output` is deliberately absent: no discovery source reports it, so
+ * accepting it as a selection requirement would create an always-unsatisfiable
+ * policy. Declare it on `models.<tier>.capabilities` instead and let the caller
+ * filter.
+ */
+export const DISCOVERY_CAPABILITY_NAMES = [
+  "tools",
+  "structured_output",
+  "vision",
+] as const;
+
+export type DiscoveryCapabilityName = (typeof DISCOVERY_CAPABILITY_NAMES)[number];
+
+export function isDiscoveryCapabilityName(value: unknown): value is DiscoveryCapabilityName {
+  return (DISCOVERY_CAPABILITY_NAMES as readonly unknown[]).includes(value);
+}
 
 /**
  * Selection policy for a model tier: a declarative requirement instead of a
@@ -25,7 +64,8 @@ export type ModelCapabilityName = "tools" | "structured_output" | "vision";
  *
  * `cost`: "free" selects only zero-priced models (derived from catalog pricing,
  * not the `:free` suffix); "paid" only nonzero-priced; "any" both.
- * `capabilities`: required capability intersection.
+ * `capabilities`: required capability intersection, restricted to what
+ * discovery can verify (`DiscoveryCapabilityName`).
  * `minContext`: minimum verified input-token context.
  *
  * Design principle: configuration expresses requirements; discovery supplies
@@ -34,7 +74,7 @@ export type ModelCapabilityName = "tools" | "structured_output" | "vision";
 export type ModelSelectionPolicy = {
   provider?: string;
   cost?: "free" | "paid" | "any";
-  capabilities?: ModelCapabilityName[];
+  capabilities?: DiscoveryCapabilityName[];
   minContext?: number;
 };
 
@@ -61,6 +101,15 @@ export type ModelConfig = {
   provider: string;
   name: string;
   selection?: ModelSelectionPolicy;
+  /**
+   * What the configured model is DECLARED to do, by the operator. Distinct
+   * from `selection.capabilities`, which is a discovery REQUIREMENT: this is
+   * the statement of fact callers filter against when a hard constraint
+   * applies (e.g. a task that must read an image, or one that must produce
+   * one). A capability that is not declared is unverifiable and therefore
+   * treated as unsatisfied (fail closed) — never assumed available.
+   */
+  capabilities?: ModelCapabilityName[];
   temperature?: number;
   maxOutputTokens?: number;
   maxContextTokens?: number;

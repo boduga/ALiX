@@ -22,12 +22,12 @@ import {
 
 import type {
   ModelSelectionPolicy,
-  ModelCapabilityName,
+  DiscoveryCapabilityName,
 } from "../config/schema.js";
 
 /** Maps a policy capability name onto the `DiscoveredModel` support flag that gates it. */
 const CAPABILITY_SUPPORT_FLAG: Record<
-  ModelCapabilityName,
+  DiscoveryCapabilityName,
   "supportsTools" | "supportsStructuredOutput" | "supportsVision"
 > = {
   tools: "supportsTools",

@@ -40,25 +40,49 @@ alix config doctor
 
 ## Model tiers
 
-ALiX uses 3 model tiers for subagents:
-
-- **fast** (Ollama) — simple lookups, file reads
-- **thinking** (configurable) — analysis, planning
-- **coding** (configurable) — code generation, edits
-
-Override in config:
+`models.<tier>` is the canonical, persisted source of model assignment. The tiers are `default`, `thinking`, `coding`, `fast`, `critic`, `tiny`, `image`. `model` and `subagents.<tier>` are loader-derived compatibility projections — configure tiers under `models`.
 
 ```json
 {
-  "subagents": {
-    "modelTiers": {
-      "fast": { "provider": "ollama", "name": "llama3.2" },
-      "thinking": { "provider": "anthropic", "name": "claude-opus-4-8" },
-      "coding": { "provider": "anthropic", "name": "claude-opus-4-8" }
-    }
+  "models": {
+    "default": { "provider": "openai", "name": "gpt-4o" },
+    "fast": { "provider": "ollama", "name": "llama3.2" },
+    "thinking": { "provider": "anthropic", "name": "claude-opus-4-8" },
+    "coding": { "provider": "anthropic", "name": "claude-sonnet-4" },
+    "image": { "provider": "google", "name": "gemini-2.5-flash-image" }
   }
 }
 ```
+
+A tier may also express a discovery *requirement* instead of a concrete model, in which case discovery supplies the id:
+
+```json
+{
+  "models": {
+    "fast": { "provider": "openrouter", "name": "openrouter/free", "selection": { "cost": "free", "capabilities": ["tools"] } }
+  }
+}
+```
+
+### Declared capabilities
+
+`models.<tier>.capabilities` declares what that tier's model can do, so a caller can filter tiers against a hard requirement (a task that must read an image, or one that must produce one). It is a statement of fact; `models.<tier>.selection.capabilities` is the separate discovery *requirement* and accepts only what discovery can verify.
+
+```json
+{
+  "models": {
+    "image":  { "provider": "google", "name": "gemini-2.5-flash-image", "capabilities": ["image_output", "vision"] },
+    "coding": { "provider": "anthropic", "name": "claude-sonnet-4", "capabilities": ["vision", "tools", "structured_output"] }
+  }
+}
+```
+
+- `tools` — tool/function calling
+- `structured_output` — schema-constrained output
+- `vision` — image **input** (the model can read an image)
+- `image_output` — image **generation** (the model can produce one)
+
+A capability that is not declared is unverifiable and therefore treated as unsatisfied — callers never assume it is available. `image_output` is declaration-only: no discovery source reports it, so it is rejected under `selection.capabilities`.
 
 ## Providers
 

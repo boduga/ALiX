@@ -1,4 +1,10 @@
 import type { AlixConfig, ConfigValidationResult, ModelConfig, TracingCaptureConfig, ValidationIssue } from "./schema.js";
+import {
+  DISCOVERY_CAPABILITY_NAMES,
+  MODEL_CAPABILITY_NAMES,
+  isDiscoveryCapabilityName,
+  isModelCapabilityName,
+} from "./schema.js";
 
 /** Returns true when host resolves to a loopback address. */
 export function isLoopbackHost(host: string): boolean {
@@ -36,6 +42,20 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
   // → valid (the launcher owns the defaults).
   for (const [tier, model] of Object.entries(config.models ?? {})) {
     pushLocalLlamaIssues(`models.${tier}`, model, issues);
+    pushCapabilityIssues(
+      `models.${tier}.capabilities`,
+      model?.capabilities,
+      isModelCapabilityName,
+      MODEL_CAPABILITY_NAMES,
+      issues,
+    );
+    pushCapabilityIssues(
+      `models.${tier}.selection.capabilities`,
+      model?.selection?.capabilities,
+      isDiscoveryCapabilityName,
+      DISCOVERY_CAPABILITY_NAMES,
+      issues,
+    );
     if (model?.ollamaBaseUrl !== undefined && !isValidHttpUrl(model.ollamaBaseUrl)) {
       issues.push({ path: `models.${tier}.ollamaBaseUrl`, level: "error", message: "ollamaBaseUrl must be a valid http(s) URL" });
     }
@@ -252,6 +272,24 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
 const TRACING_CAPTURE_MODE_FIELDS: Array<keyof TracingCaptureConfig> = ["messages", "reasoning", "toolInput", "toolOutput"];
 const TRACING_CAPTURE_LIMIT_FIELDS: Array<keyof TracingCaptureConfig> = ["maxMessageChars", "maxToolOutputChars"];
 const TRACING_CAPTURE_MODES = ["full", "truncated", "off"] as const;
+
+function pushCapabilityIssues(
+  path: string,
+  values: readonly unknown[] | undefined,
+  isKnown: (value: unknown) => boolean,
+  expected: readonly string[],
+  issues: ValidationIssue[],
+): void {
+  for (const capability of values ?? []) {
+    if (!isKnown(capability)) {
+      issues.push({
+        path,
+        level: "error",
+        message: `unknown capability "${String(capability)}" (expected one of ${expected.join(", ")})`,
+      });
+    }
+  }
+}
 
 function pushLocalLlamaIssues(
   path: string,
