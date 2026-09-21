@@ -20,6 +20,7 @@ import type { ExecutorOutcome } from "../../executors.js";
 import { LOCAL_ENGINE_ID } from "../../engines/local.js";
 import { JEV_ENGINE_ID } from "../../engines/jev.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
+import { observedEngineId, totalLatency } from "../shared/attempts.js";
 import { CLAIM_VERDICT_CANDIDATES, isClaimVerdict, type ClaimVerdict } from "./schema.js";
 import {
   projectClaimVerification,
@@ -64,17 +65,6 @@ function verdictOf(outcome: ExecutorOutcome): ClaimVerdict | undefined {
 function withVerdict(outcome: ExecutorOutcome): { verdict?: ClaimVerdict } {
   const verdict = verdictOf(outcome);
   return verdict !== undefined ? { verdict } : {};
-}
-
-function observedEngineId(attempts: readonly AttemptRecord[], fallbackId: string): string {
-  for (let index = attempts.length - 1; index >= 0; index -= 1) {
-    if (attempts[index]?.ok) return attempts[index]!.engineId;
-  }
-  return fallbackId;
-}
-
-function totalLatency(attempts: readonly AttemptRecord[]): number {
-  return attempts.reduce((sum, attempt) => sum + attempt.latencyMs, 0);
 }
 
 function toDecisionOutcome(outcome: ExecutorOutcome) {

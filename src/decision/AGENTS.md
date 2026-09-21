@@ -11,10 +11,12 @@
 - `journal.ts` — Journal schema + recordDecision + JSONL store + queries + separate debug retention.
 - `executors.ts` — DecisionExecutor contract + outcome validation (JEV-1 failure model).
 - `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
-- `engines/local.ts` — LocalBaselineExecutor (claim-verification classifier, abstain/unsupported elsewhere, no confidence).
-- `engines/jev-protocol.ts` — Jev System One wire types/endpoint + injectable `JevTransport` (neutral: no decisions/engines imports).
+- `engines/local.ts` — LocalBaselineExecutor (claim classifier + relevance scorer, unsupported elsewhere, no confidence).
+- `engines/jev-protocol.ts` — Jev System One wire types (Choice + Noul) + injectable `JevTransport` (neutral: no decisions/engines imports).
 - `engines/jev.ts` — Jev adapter: transport, per-decision mapping table, capability declaration, store-only key, disabled by default.
 - `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
+- `decisions/context-relevance/` — second decision (per-item Noul scoring + deterministic selection); see its AGENTS.md.
+- `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers) shared by decisions.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
 
@@ -29,6 +31,8 @@
 - The Jev adapter re-verifies the sealed projection before transport (arch §6); a forged/unsealed payload is rejected, never sent.
 - Enabling remote requires `acknowledgeUnverifiedWireFormat` until the wire shape is verified against the official SDK.
 - Shadow runs journal every attempt (including a failed remote attempt) under one `projectionHash`.
+- Decision routes carry `enabled`; absent/false means the consumer keeps existing behavior.
+- Threshold profiles are versioned and engine-specific; a fallback engine uses its own profile or fails closed (JEV-9).
 - No runtime wiring until projection/redaction/journal/fallback are tested; `PolicyGate`/`createProvider`/loader stay untouched by decision work.
 
 **Work Guidance:**
@@ -46,6 +50,7 @@
 - `tests/decision/decision-fallback.test.ts` — local baseline, Jev seam, fallback policy, plan errors.
 - `tests/decision/decision-approval.test.ts` — JEV-8 floor truth table.
 - `tests/decision/claim-verification.test.ts` — J1 decision (schema, projection, baseline, mapping, shadow).
+- `tests/decision/context-relevance.test.ts` — J2 decision (per-item projection, Noul mapping, JEV-9 thresholds, selection, shadow).
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
@@ -53,3 +58,4 @@
 | Path | Scope |
 |------|-------|
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
+| `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |

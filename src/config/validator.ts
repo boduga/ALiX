@@ -240,6 +240,9 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
           issues.push({ path: `decision.${key}.${field}`, level: "error", message: `${key}.${field} must be a non-empty string` });
         }
       }
+      if (route.enabled !== undefined && typeof route.enabled !== "boolean") {
+        issues.push({ path: `decision.${key}.enabled`, level: "error", message: `${key}.enabled must be a boolean` });
+      }
     }
   }
 

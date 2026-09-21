@@ -10,12 +10,7 @@
 
 import type { ClaimVerdict } from "./schema.js";
 import type { ClaimVerificationProjection } from "./projection.js";
-
-const STOPWORDS = new Set([
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "of", "to", "in", "on", "at", "for", "and", "or", "that", "this", "it",
-  "as", "by", "with", "from", "than", "then", "there", "these", "those",
-]);
+import { contentWords, numbers } from "../shared/text.js";
 
 /** Whole-word negation/contradiction markers. */
 const NEGATION_RE =
@@ -23,16 +18,6 @@ const NEGATION_RE =
 
 /** Claim-term overlap at or above this ratio counts as "evidence bears on it". */
 export const SUPPORT_OVERLAP_THRESHOLD = 0.5;
-
-function contentWords(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z0-9]+/g) ?? []).filter(
-    (word) => word.length >= 3 && !STOPWORDS.has(word),
-  );
-}
-
-function numbers(text: string): string[] {
-  return text.match(/\d+(?:\.\d+)?/g) ?? [];
-}
 
 export type LocalClaimVerdict = {
   verdict: ClaimVerdict;
