@@ -6,7 +6,7 @@
 - `schema.ts` — `CLAIM_VERDICTS` (`supported|contradicted|insufficient`) + `isClaimVerdict`.
 - `projection.ts` — `ClaimVerificationProjection` (claim + bounded evidence excerpts), projector, `readClaimProjection` (lenient read for local engines).
 - `local-baseline.ts` — deterministic rule baseline (`classifyClaimLocally`): term overlap + whole-word negation + numeric mismatch; conservative `insufficient`.
-- `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial), `corpusById`.
+- `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial).
 - `jev-mapping.ts` — `toJevRequest` / `fromJevResponse`; unknown verdict → `MalformedResultError`.
 - `shadow.ts` — `runClaimVerificationShadow`: project → run configured route → run local baseline → journal each under one `projectionHash`.
 - `index.ts` — barrel.
@@ -19,7 +19,8 @@
 - Local baseline emits no confidence (uncalibrated, JEV-9).
 - Shadow results carry `authority: "none"`; the consumer decides what verification action follows.
 - Baseline and observed outcomes journal separately under the same `projectionHash` — that is the J4 calibration/comparison input.
-- `jev-mapping.ts` wire shape follows the documented System One surface and MUST be verified against the official SDK before enabling remote (plan stop condition).
+- Every attempt is journaled: a failed remote attempt that fell back appears as an explicit `failure` record with its latency.
+- `jev-mapping.ts` wire shape follows the documented System One surface and MUST be verified against the official SDK before enabling remote (plan stop condition). The adapter refuses to enable remote without an explicit `acknowledgeUnverifiedWireFormat` acknowledgement, and re-verifies the sealed projection before transport.
 
 **Work Guidance:**
 - New decision verdict/field: change `schema.ts` first; the corpus and tests pin the legal space.

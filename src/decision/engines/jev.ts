@@ -7,14 +7,15 @@
  * per-decision mapping in `decisions/*\/jev-mapping.ts`; execute() rejects
  * unsupported decisions rather than mis-answering them.
  *
- * Failure classification (fallback-eligible): missing key, transport error,
- * timeout, and malformed/unknown response. Provider schema violations are
- * impossible by construction per the vendor, but we fail closed anyway.
+ * The remote boundary is re-validated here (architecture §6): a caller that
+ * bypasses `projectForRemote` cannot cross to Jev with an unsealed or forged
+ * projection. Transport failure/malformed response are fallback-eligible.
  */
 
 import type { DecisionType } from "../contracts.js";
 import type { DecisionEngine, EngineRegistry } from "../registry.js";
 import { RemoteEngineNotAllowedError } from "../registry.js";
+import { ProjectionRejectedError, verifySealedProjection } from "../boundary.js";
 import {
   EngineUnavailableError,
   type DecisionExecutor,
@@ -24,6 +25,7 @@ import {
 import {
   JEV_DEFAULT_MODEL,
   JEV_SYSTEMONE_ENDPOINT,
+  type JevResponseContext,
   type JevSystemOneRequest,
   type JevSystemOneResponse,
   type JevTransport,
@@ -40,10 +42,7 @@ const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = ["claim-verification"];
 
 type JevDecisionMapping = {
   toRequest(sealed: ExecuteInput["sealed"]): JevSystemOneRequest;
-  fromResponse(
-    response: JevSystemOneResponse,
-    ctx: { projectionHash: string; latencyMs: number },
-  ): ExecutorOutcome;
+  fromResponse(response: JevSystemOneResponse, ctx: JevResponseContext): ExecutorOutcome;
 };
 
 const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
@@ -52,6 +51,17 @@ const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
     fromResponse: (response, ctx) => fromJevResponse(response, ctx),
   },
 };
+
+export class JevWireFormatUnacknowledgedError extends Error {
+  readonly code = "JEV_WIRE_FORMAT_UNACKNOWLEDGED";
+  constructor() {
+    super(
+      "Jev wire format is documented but not verified against the official SDK; " +
+        "pass acknowledgeUnverifiedWireFormat: true to enable remote",
+    );
+    this.name = "JevWireFormatUnacknowledgedError";
+  }
+}
 
 export const defaultJevTransport: JevTransport = async (request, { apiKey, timeoutMs, signal }) => {
   const response = await fetch(JEV_SYSTEMONE_ENDPOINT, {
@@ -76,12 +86,21 @@ export type JevAdapterOptions = {
   /** Injected transport (tests). Defaults to the fetch-based transport. */
   transport?: JevTransport;
   model?: string;
+  /**
+   * The wire shape in `jev-protocol.ts` is documented, not SDK-verified.
+   * Enabling remote requires this explicit acknowledgement so an unverified
+   * boundary can never be switched on silently.
+   */
+  acknowledgeUnverifiedWireFormat?: boolean;
 };
 
 export function createJevExecutor(
   opts: JevAdapterOptions,
 ): DecisionExecutor & { readonly timeoutMs: number } {
   if (opts.enabled !== true) throw new RemoteEngineNotAllowedError(JEV_ENGINE_ID);
+  if (opts.acknowledgeUnverifiedWireFormat !== true) {
+    throw new JevWireFormatUnacknowledgedError();
+  }
   const apiKey = opts.apiKey;
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const transport = opts.transport ?? defaultJevTransport;
@@ -90,6 +109,10 @@ export function createJevExecutor(
     timeoutMs,
     async execute(input: ExecuteInput): Promise<ExecutorOutcome> {
       if (!apiKey) throw new EngineUnavailableError(JEV_ENGINE_ID, "api key missing");
+      // Re-validate the sealed projection before any remote transport (§6).
+      if (!verifySealedProjection(input.sealed)) {
+        throw new ProjectionRejectedError("sealed projection failed verification");
+      }
       const mapping = MAPPINGS[input.decision];
       if (!mapping) {
         throw new EngineUnavailableError(

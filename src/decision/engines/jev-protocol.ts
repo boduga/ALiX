@@ -13,11 +13,19 @@
 export const JEV_SYSTEMONE_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 export const JEV_DEFAULT_MODEL = "jev-latest";
 
+/**
+ * The wire shape below follows the documented System One surface but has NOT
+ * been verified against the official SDK (implementation-plan stop condition).
+ * Enabling remote requires an explicit operator acknowledgement — see
+ * `JevAdapterOptions.acknowledgeUnverifiedWireFormat`.
+ */
+export const JEV_WIRE_FORMAT_STATUS = "documented-unverified" as const;
+
 export type JevChoiceQuestion = {
   id: string;
   type: "choice";
   prompt: string;
-  options: string[];
+  options: readonly string[];
 };
 
 export type JevSystemOneRequest = {
@@ -35,6 +43,12 @@ export type JevChoiceAnswer = {
 export type JevSystemOneResponse = {
   model?: string;
   answers?: JevChoiceAnswer[];
+};
+
+/** Provenance context every decision mapper needs when building a result. */
+export type JevResponseContext = {
+  projectionHash: string;
+  latencyMs: number;
 };
 
 /** Injected transport seam — tests supply a fake; production uses fetch. */

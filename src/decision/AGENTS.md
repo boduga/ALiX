@@ -26,8 +26,10 @@
 - Jev selects canonical tiers only, never provider/model IDs (enforced J3).
 - Boundary caps/timeouts are uncalibrated operational defaults pending J4 evidence.
 - Engines declare `supportsDecision`; `buildPlan` fails closed when an engine cannot answer the decision.
-- No runtime wiring until J0 projection/redaction/journal/fallback tested.
-- New files only in J0a; `PolicyGate`/`createProvider`/loader untouched.
+- The Jev adapter re-verifies the sealed projection before transport (arch §6); a forged/unsealed payload is rejected, never sent.
+- Enabling remote requires `acknowledgeUnverifiedWireFormat` until the wire shape is verified against the official SDK.
+- Shadow runs journal every attempt (including a failed remote attempt) under one `projectionHash`.
+- No runtime wiring until projection/redaction/journal/fallback are tested; `PolicyGate`/`createProvider`/loader stay untouched by decision work.
 
 **Work Guidance:**
 - New decision = projector (decision folder owns its schema) + route policy + executor mapping + journaled attempts. Reuse `projectForRemote`, `buildPlan`/`executeWithFallback`, `recordDecision`, `runClaimVerificationShadow` as the shadow template.
@@ -51,5 +53,3 @@
 | Path | Scope |
 |------|-------|
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
-
-**Child DOX Index:** none.

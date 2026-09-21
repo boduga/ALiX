@@ -3,8 +3,9 @@
  *
  * Runs the configured route and, when it differs, the deterministic local
  * baseline over the SAME sealed projection, journaling each engine's outcome
- * under one projectionHash. That is the baseline-vs-Jev comparison the J1
- * exit criteria ask for, and the calibration input J4 will read.
+ * under one projectionHash. Every attempt is journaled — including a failed
+ * remote attempt that fell back — so the ledger carries the failure/fallback
+ * metadata §9 requires and J4 needs for calibration.
  *
  * Grants NO execution authority: the return value is observation data only
  * (hand-off §13.1 — the consumer decides what verification action follows).
@@ -19,7 +20,7 @@ import type { ExecutorOutcome } from "../../executors.js";
 import { LOCAL_ENGINE_ID } from "../../engines/local.js";
 import { JEV_ENGINE_ID } from "../../engines/jev.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
-import { CLAIM_VERDICTS, isClaimVerdict, type ClaimVerdict } from "./schema.js";
+import { CLAIM_VERDICT_CANDIDATES, isClaimVerdict, type ClaimVerdict } from "./schema.js";
 import {
   projectClaimVerification,
   type ClaimVerificationInput,
@@ -51,10 +52,18 @@ export type ClaimVerificationShadowDeps = {
   timeoutMs?: number;
   /** Default true; skipped automatically when the observed engine is local. */
   compareBaseline?: boolean;
+  /** Correlation id from the surrounding execution, when available (§9). */
+  executionId?: string;
 };
 
 function verdictOf(outcome: ExecutorOutcome): ClaimVerdict | undefined {
   return outcome.kind === "choice" && isClaimVerdict(outcome.choice) ? outcome.choice : undefined;
+}
+
+/** Conditional spread so a missing verdict does not add an `undefined` key. */
+function withVerdict(outcome: ExecutorOutcome): { verdict?: ClaimVerdict } {
+  const verdict = verdictOf(outcome);
+  return verdict !== undefined ? { verdict } : {};
 }
 
 function observedEngineId(attempts: readonly AttemptRecord[], fallbackId: string): string {
@@ -74,7 +83,7 @@ function toDecisionOutcome(outcome: ExecutorOutcome) {
       return {
         kind: "choice" as const,
         choice: outcome.choice,
-        candidates: [...CLAIM_VERDICTS] as unknown[],
+        candidates: CLAIM_VERDICT_CANDIDATES,
         ...(outcome.confidence !== undefined ? { confidence: outcome.confidence } : {}),
       };
     case "score":
@@ -90,44 +99,78 @@ function toDecisionOutcome(outcome: ExecutorOutcome) {
   }
 }
 
+function baseRecordFields(
+  engineId: string,
+  sealed: RemoteSealedProjection<Record<string, unknown>>,
+  config: DecisionConfig,
+  executionId: string | undefined,
+) {
+  const remote = engineId === JEV_ENGINE_ID;
+  return {
+    decision: "claim-verification" as const,
+    engineId,
+    projectionHash: sealed.hash,
+    projectorVersion: sealed.projectorVersion,
+    thresholdProfile: config.claimVerification.thresholdProfile,
+    remote,
+    redactionApplied: remote,
+    ...(executionId !== undefined ? { executionId } : {}),
+  };
+}
+
 function journalize(
   observation: ShadowObservation,
   sealed: RemoteSealedProjection<Record<string, unknown>>,
   config: DecisionConfig,
+  executionId: string | undefined,
 ): DecisionJournalRecord {
-  const remote = observation.engineId === JEV_ENGINE_ID;
   const engineVersion =
     observation.outcome.kind !== "failure" ? observation.outcome.provenance.engineVersion : undefined;
   return recordDecision({
-    decision: "claim-verification",
-    engineId: observation.engineId,
+    ...baseRecordFields(observation.engineId, sealed, config, executionId),
     ...(engineVersion !== undefined ? { engineVersion } : {}),
-    projectionHash: sealed.hash,
-    projectorVersion: sealed.projectorVersion,
     outcome: toDecisionOutcome(observation.outcome),
-    thresholdProfile: config.claimVerification.thresholdProfile,
     latencyMs: observation.latencyMs,
-    remote,
-    redactionApplied: remote,
   });
 }
+
+/** A failed attempt is journaled as an explicit failure with its latency. */
+function journalizeFailure(
+  attempt: AttemptRecord,
+  sealed: RemoteSealedProjection<Record<string, unknown>>,
+  config: DecisionConfig,
+  executionId: string | undefined,
+): DecisionJournalRecord {
+  return recordDecision({
+    ...baseRecordFields(attempt.engineId, sealed, config, executionId),
+    outcome: { kind: "failure", error: attempt.error ?? "unknown failure" },
+    latencyMs: attempt.latencyMs,
+  });
+}
+
+type ConfiguredRun = {
+  observation: ShadowObservation;
+  attempts: AttemptRecord[];
+};
 
 async function runConfigured(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
   deps: ClaimVerificationShadowDeps,
-): Promise<ShadowObservation> {
+): Promise<ConfiguredRun> {
   const plan = buildPlan("claim-verification", deps.config, deps.registry);
   const result = await executeWithFallback(
     plan,
-    { decision: "claim-verification", sealed, candidates: [...CLAIM_VERDICTS] },
+    { decision: "claim-verification", sealed, candidates: CLAIM_VERDICT_CANDIDATES },
     { timeoutMs: deps.timeoutMs },
   );
-  const engineId = observedEngineId(result.attempts, plan.primaryId);
   return {
-    engineId,
-    outcome: result.outcome,
-    ...(verdictOf(result.outcome) !== undefined ? { verdict: verdictOf(result.outcome)! } : {}),
-    latencyMs: totalLatency(result.attempts),
+    observation: {
+      engineId: observedEngineId(result.attempts, plan.primaryId),
+      outcome: result.outcome,
+      ...withVerdict(result.outcome),
+      latencyMs: totalLatency(result.attempts),
+    },
+    attempts: result.attempts,
   };
 }
 
@@ -141,12 +184,12 @@ async function runLocalBaseline(
   const outcome = await executor.execute({
     decision: "claim-verification",
     sealed,
-    candidates: [...CLAIM_VERDICTS],
+    candidates: CLAIM_VERDICT_CANDIDATES,
   });
   return {
     engineId: LOCAL_ENGINE_ID,
     outcome,
-    ...(verdictOf(outcome) !== undefined ? { verdict: verdictOf(outcome)! } : {}),
+    ...withVerdict(outcome),
     latencyMs: Date.now() - started,
   };
 }
@@ -160,13 +203,21 @@ export async function runClaimVerificationShadow(
   deps: ClaimVerificationShadowDeps,
 ): Promise<ClaimVerificationShadowResult> {
   const sealed = projectClaimVerification(input);
-  const observed = await runConfigured(sealed, deps);
-  const records: DecisionJournalRecord[] = [journalize(observed, sealed, deps.config)];
+  const { observation: observed, attempts } = await runConfigured(sealed, deps);
+
+  const records: DecisionJournalRecord[] = attempts.map((attempt) =>
+    attempt.ok
+      ? journalize(observed, sealed, deps.config, deps.executionId)
+      : journalizeFailure(attempt, sealed, deps.config, deps.executionId),
+  );
+  if (records.length === 0) {
+    records.push(journalize(observed, sealed, deps.config, deps.executionId));
+  }
 
   let baseline: ShadowObservation | undefined;
   if (deps.compareBaseline !== false && observed.engineId !== LOCAL_ENGINE_ID) {
     baseline = await runLocalBaseline(sealed, deps);
-    if (baseline) records.push(journalize(baseline, sealed, deps.config));
+    if (baseline) records.push(journalize(baseline, sealed, deps.config, deps.executionId));
   }
 
   const agree =

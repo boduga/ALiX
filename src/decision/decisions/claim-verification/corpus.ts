@@ -75,7 +75,3 @@ export const CLAIM_VERIFICATION_CORPUS: readonly ClaimVerificationFixture[] = [
     adversarial: true,
   },
 ];
-
-export function corpusById(id: string): ClaimVerificationFixture | undefined {
-  return CLAIM_VERIFICATION_CORPUS.find((fixture) => fixture.id === id);
-}
