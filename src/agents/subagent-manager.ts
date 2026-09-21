@@ -107,7 +107,11 @@ export class SubagentManager {
         // Resolve the model before publishing the spawn so the roster never
         // shows a fabricated or guessed model identity.
         const { provider, name } = this.getRoleModel(task.role);
-        const parentAgentId = this.options.parentAgentId ?? `session:${this.options.sessionId}`;
+        // Coordination managers have their own internal id (`coord-sub-*`),
+        // but their lifecycle events stay in the explicit parent runtime
+        // session so session-scoped projections can observe the worker.
+        const eventSessionId = task.eventSessionId ?? this.options.sessionId;
+        const parentAgentId = this.options.parentAgentId ?? `session:${eventSessionId}`;
         const lifecycleBase = {
           agentId: task.id,
           parentAgentId,
@@ -118,7 +122,7 @@ export class SubagentManager {
         };
         // Emit subagent.started event
         this.options.eventLog?.append({
-          sessionId: this.options.sessionId,
+          sessionId: eventSessionId,
           actor: "system",
           type: "subagent.started",
           payload: { role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200), ownedPaths: task.ownedPaths ?? [] },
@@ -128,15 +132,15 @@ export class SubagentManager {
           state: "starting",
           operation: task.prompt.slice(0, 200),
           ownedPaths: task.ownedPaths ?? [],
-        });
+        }, eventSessionId);
         this.emitLifecycle("agent.task_assigned", {
           ...lifecycleBase,
           title: task.taskLabel ?? task.prompt.slice(0, 200),
           prompt: task.prompt.slice(0, 200),
           ownedPaths: task.ownedPaths ?? [],
-        });
+        }, eventSessionId);
         if (task.ownedPaths?.length) {
-          this.emitLifecycle("agent.ownership_changed", { ...lifecycleBase, ownedPaths: task.ownedPaths });
+          this.emitLifecycle("agent.ownership_changed", { ...lifecycleBase, ownedPaths: task.ownedPaths }, eventSessionId);
         }
 
         // Build CLI args array
@@ -195,7 +199,7 @@ export class SubagentManager {
 
         const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };
         this.running.set(task.id, running);
-        this.emitLifecycle("agent.state_changed", { ...lifecycleBase, state: "thinking", operation: "Subagent running" });
+        this.emitLifecycle("agent.state_changed", { ...lifecycleBase, state: "thinking", operation: "Subagent running" }, eventSessionId);
 
         let stdoutData = "";
         if (child.stdout) {
@@ -239,7 +243,7 @@ export class SubagentManager {
 
           // Emit subagent.result event
           this.options.eventLog?.append({
-            sessionId: this.options.sessionId,
+            sessionId: eventSessionId,
             actor: "system",
             type: "subagent.result",
             payload: { role: task.role, taskId: task.id, status: result.status, findings: result.findings },
@@ -253,7 +257,7 @@ export class SubagentManager {
               state: result.status === "success" ? "completed" : result.status,
               status: result.status,
               ...(result.error ? { error: result.error } : {}),
-            });
+            }, eventSessionId);
           }
 
           // Resolve whenever we have a structured result (even a failed one, so the
@@ -275,7 +279,7 @@ export class SubagentManager {
               state: "failed",
               status: "failed",
               error: err.message,
-            });
+            }, eventSessionId);
           }
           reject(err);
         });
@@ -320,13 +324,13 @@ export class SubagentManager {
     running.cancelled = true;
     this.emitLifecycle("agent.cancelled", {
       agentId: taskId,
-      parentAgentId: this.options.parentAgentId ?? `session:${this.options.sessionId}`,
+      parentAgentId: this.options.parentAgentId ?? `session:${running.task.eventSessionId ?? this.options.sessionId}`,
       taskId: running.task.id,
       role: running.task.role,
       state: "cancelled",
       status: "cancelled",
       operation: "Manager cancel",
-    });
+    }, running.task.eventSessionId ?? this.options.sessionId);
     terminateProcessTree(running.process);
     this.running.delete(taskId);
     this.releaseOwnership(running.task);
@@ -338,13 +342,13 @@ export class SubagentManager {
       running.cancelled = true;
       this.emitLifecycle("agent.cancelled", {
         agentId,
-        parentAgentId: this.options.parentAgentId ?? `session:${this.options.sessionId}`,
+        parentAgentId: this.options.parentAgentId ?? `session:${running.task.eventSessionId ?? this.options.sessionId}`,
         taskId: running.task.id,
         role: running.task.role,
         state: "cancelled",
         status: "cancelled",
         operation: "Manager shutdown",
-      });
+      }, running.task.eventSessionId ?? this.options.sessionId);
       terminateProcessTree(running.process);
     }
     this.running.clear();
@@ -359,9 +363,9 @@ export class SubagentManager {
     }
   }
 
-  private emitLifecycle(type: string, payload: Record<string, unknown>): void {
+  private emitLifecycle(type: string, payload: Record<string, unknown>, sessionId = this.options.sessionId): void {
     void this.options.eventLog?.append({
-      sessionId: this.options.sessionId,
+      sessionId,
       actor: "system",
       type,
       payload,

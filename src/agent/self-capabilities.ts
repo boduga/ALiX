@@ -18,6 +18,7 @@ export type CapabilityEntry = { readonly name: string; readonly description: str
 export const TUI_SLASH_COMMANDS: readonly CapabilityEntry[] = [
   { name: "/agents", description: "open the agent roster drawer" },
   { name: "/tasks", description: "open the delegated-task drawer" },
+  { name: "/artifacts", description: "inspect correlated artifacts and worker results" },
   { name: "/diff", description: "open the diff overlay" },
   { name: "/review", description: "open the review overlay" },
   { name: "/help", description: "open the help overlay" },

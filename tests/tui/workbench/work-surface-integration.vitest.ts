@@ -45,6 +45,57 @@ function type(internal: { handleRaw(buffer: Buffer): void }, text: string): void
 }
 
 describe('Workbench work surface integration', () => {
+  it('opens artifact inspection and navigates correlated results', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.getStateForTest().lastSnapshot.runtime = {
+      agents: null, tasks: null,
+      artifacts: {
+        artifacts: 1, results: 1, failed: 0,
+        items: [
+          { id: 'artifact-1', kind: 'artifact', status: 'available', title: 'Report', coordinationRunId: 'run-1', agentId: 'agent-1', createdAt: 1, sourceSequence: 1 },
+          { id: 'result-1', kind: 'result', status: 'available', title: 'Worker result', coordinationRunId: 'run-1', agentId: 'agent-1', createdAt: 2, sourceSequence: 2 },
+        ],
+      },
+    };
+
+    type(internal, '/artifacts');
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'artifacts', focus: 'drawer' });
+    internal.handleRaw(Buffer.from('j'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({
+      selectedRunId: 'run-1', selectedAgentId: 'agent-1', selectedArtifactId: 'artifact-1',
+    });
+    internal.handleRaw(Buffer.from('j'));
+    expect(internal.getWorkbenchStateForTest().selectedArtifactId).toBe('result-1');
+  });
+
+  it('opens artifact inspection with Ctrl+R', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.handleRaw(Buffer.from('\x12'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'artifacts', focus: 'drawer' });
+  });
+
+  it('does not add artifact-only correlation ids to global run cycling', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.getStateForTest().lastSnapshot.runtime = {
+      agents: {
+        active: 1,
+        totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 },
+        agents: [{ agentId: 'agent-1', coordinationRunId: 'run-1', role: 'worker', state: 'thinking', ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} }],
+      },
+      tasks: null,
+      artifacts: {
+        artifacts: 1, results: 0, failed: 0,
+        items: [{ id: 'artifact-2', kind: 'artifact', status: 'available', title: 'Detached', coordinationRunId: 'run-2', createdAt: 1, sourceSequence: 1 }],
+      },
+    };
+    internal.handleRaw(Buffer.from('\x12'));
+    internal.handleRaw(Buffer.from(']'));
+    expect(internal.getWorkbenchStateForTest().selectedRunId).toBe('run-1');
+    internal.handleRaw(Buffer.from(']'));
+    expect(internal.getWorkbenchStateForTest().selectedRunId).toBeUndefined();
+  });
+
   it('reconciles a vanished run before preserving still-valid agent and task focus', () => {
     const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     internal.getStateForTest().lastSnapshot.runtime = {

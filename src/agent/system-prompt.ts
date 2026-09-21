@@ -58,6 +58,11 @@ export const SYSTEM_PROMPT_BASE =
   "improves the user experience. Examples of good parallel usage: reading multiple files, searching " +
   "for different patterns, combining search with file reads. Only fall back to sequential when " +
   "the next tool call depends on the result of a previous one.\n\n" +
+  "When the user explicitly asks for a coordinated, multi-agent, multi-worker, or parallel-worker run, " +
+  "you MUST call alix_coordination_run. Do not satisfy that request with ordinary tool calls, direct file edits, " +
+  "or sequential alix_delegate calls. Pass the complete requested goal to alix_coordination_run, including " +
+  "deliverables, dependencies, ownership paths, and requested worker count or concurrency. A task is not complete " +
+  "until that coordination call returns its run id and worker outcomes.\n\n" +
 
   "### Thorough Context Gathering\n" +
   "Before concluding or making changes, gather the FULL picture. " +

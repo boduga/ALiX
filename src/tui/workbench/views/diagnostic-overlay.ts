@@ -27,7 +27,7 @@ export function paintWorkbenchDiagnosticOverlay(
   }
   rect.canvas.write(left, top + height - 1, `\x1b[36m╰${'─'.repeat(inner)}╯${RESET}`);
   const lines = overlay === 'help'
-    ? ['Enter submit / queue', 'Shift+Enter newline', 'Esc close / cancel', 'Ctrl+A agents · Ctrl+T tasks', 'Ctrl+O details · Shift+Tab permission', '/agents · /tasks · /diff · /review · /help']
+    ? ['Enter submit / queue', 'Shift+Enter newline', 'Esc close / cancel', 'Ctrl+A agents · Ctrl+T tasks · Ctrl+R artifacts', 'Ctrl+O details · Shift+Tab permission', '/agents · /tasks · /artifacts · /diff · /review · /help']
     : [
         `${diffs?.filesChanged ?? 0} files across ${diffs?.diffs.length ?? 0} patch operations`,
         '',

@@ -32,7 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
-import { approvalVisibleTo, coordinationRunIds, visibleForRun } from './workbench/model/selection.js';
+import { approvalVisibleTo, artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
@@ -386,14 +386,22 @@ export class TuiApp {
   private reconcileWorkbenchSelection(): void {
     const agents = this.state.lastSnapshot?.runtime?.agents?.agents ?? [];
     const tasks = this.state.lastSnapshot?.runtime?.tasks?.tasks ?? [];
+    const artifacts = artifactItemsFrom(this.state.lastSnapshot);
     const runIds = coordinationRunIds([...agents, ...tasks]);
-    const currentRunId = this.workbenchStore.snapshot().selectedRunId;
+    const currentSelection = this.workbenchStore.snapshot();
+    const currentRunId = currentSelection.selectedRunId;
     const selectedRunId = currentRunId && runIds.includes(currentRunId) ? currentRunId : undefined;
     this.workbenchStore.dispatch({
       type: 'selection.reconcile',
       runIds,
       agentIds: visibleForRun(agents, selectedRunId).map((agent) => agent.agentId),
       taskIds: visibleForRun(tasks, selectedRunId).map((task) => task.taskId),
+      artifactIds: visibleArtifacts(artifacts, {
+        runId: selectedRunId,
+        agentId: currentSelection.selectedAgentId,
+        taskId: currentSelection.selectedTaskId,
+      })
+        .map((item) => item.id),
     });
   }
 
@@ -856,6 +864,25 @@ export class TuiApp {
           const target = Math.max(0, Math.min(tasks.length - 1, current + intent.direction));
           const selected = tasks[target]!;
           this.workbenchStore.dispatch({ type: 'task.select', taskId: selected.taskId, agentId: selected.agentId, scrollOffset: Math.max(0, target - 1) });
+        } else if (state.drawer === 'artifacts') {
+          const items = visibleArtifacts(artifactItemsFrom(this.state.lastSnapshot), {
+            runId: state.selectedRunId,
+            agentId: state.selectedAgentId,
+            taskId: state.selectedTaskId,
+          });
+          if (items.length === 0) return true;
+          const selectedIndex = items.findIndex((item) => item.id === state.selectedArtifactId);
+          const current = selectedIndex >= 0 ? selectedIndex : intent.direction > 0 ? -1 : 0;
+          const target = Math.max(0, Math.min(items.length - 1, current + intent.direction));
+          const selected = items[target]!;
+          this.workbenchStore.dispatch({
+            type: 'artifact.select',
+            artifactId: selected.id,
+            runId: selected.coordinationRunId,
+            agentId: selected.agentId,
+            taskId: selected.taskId,
+            scrollOffset: Math.max(0, target - 1),
+          });
         }
         this.paintFullFrame();
         return true;
@@ -1607,6 +1634,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\x0f') return 'Ctrl+o';   // Ctrl+O — transcript detail toggle
   if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
   if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
+  if (s === '\x12') return 'Ctrl+r';   // Ctrl+R — Workbench artifact/result drawer
   // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
   // Shift+Enter. A plain Enter remains submission.
   if (s === '\x1b[13;2u' || s === '\x1b[27;2;13~') return 'Shift+Enter';

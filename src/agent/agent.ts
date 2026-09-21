@@ -189,7 +189,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   // tool call itself; opts.approvalStore flows into worker authorization.
   const { createCoordinationHandlers } = await import("../kernel/coordination-tools.js");
   const coordinationHandlers = createCoordinationHandlers({
-    cwd, config, approvalStore: opts.approvalStore, eventLog: log,
+    cwd, config, sessionId, approvalStore: opts.approvalStore, eventLog: log,
   });
 
   const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, {

@@ -38,7 +38,7 @@ function entry(id: string, version: string, source: string, text: string): Promp
 }
 
 export const PROMPT_REGISTRY: PromptEntry[] = [
-  entry("agent.system-base", "1.1.0", "src/agent/system-prompt.ts", SYSTEM_PROMPT_BASE),
+  entry("agent.system-base", "1.2.0", "src/agent/system-prompt.ts", SYSTEM_PROMPT_BASE),
   entry("agent.research-supplement", "1.0.0", "src/agent/system-prompt.ts", RESEARCH_SUPPLEMENT),
   entry("agent.execution-supplement", "1.0.0", "src/agent/system-prompt.ts", MUTATION_SUPPLEMENT),
   entry("agent.verification-supplement", "1.0.0", "src/agent/system-prompt.ts", VALIDATION_SUPPLEMENT),

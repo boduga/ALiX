@@ -165,6 +165,25 @@ test("manager emits partial once without rewriting it as completed state", async
   assert.deepEqual(terminal.map((entry) => [entry.type, entry.payload.state]), [["agent.completed", "partial"]]);
 });
 
+test("manager emits coordination lifecycle into the parent runtime session", async () => {
+  const emitted: Array<{ type: string; sessionId: string }> = [];
+  const manager = new SubagentManager({
+    sessionId: "coord-sub-run-1",
+    config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+    eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
+    spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
+  });
+
+  await manager.spawn(makeTask({
+    id: "coord-worker",
+    contextBundle: "serialized worker context",
+    eventSessionId: "agent-session-1",
+  }));
+
+  assert.ok(emitted.some((entry) => entry.type === "agent.spawned"));
+  assert.ok(emitted.every((entry) => entry.sessionId === "agent-session-1"));
+});
+
 test("manager shutdown emits cancellation without a later failed terminal", async () => {
   const emitted: Array<{ type: string }> = [];
   const manager = new SubagentManager({

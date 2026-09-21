@@ -11,4 +11,5 @@ export const ProjectionIds = {
   agents: 'agents',
   tasks: 'tasks',
   diffs: 'diffs',
+  artifacts: 'artifacts',
 } as const;

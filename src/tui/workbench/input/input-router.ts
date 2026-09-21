@@ -5,7 +5,7 @@ export interface WorkbenchInputContext {
   readonly approvalPending?: boolean;
   readonly overlayOpen?: boolean;
   readonly transcriptMode: 'compact' | 'detailed' | 'raw';
-  readonly drawer: 'closed' | 'agents' | 'tasks';
+  readonly drawer: 'closed' | 'agents' | 'tasks' | 'artifacts';
   readonly focus: 'composer' | 'transcript' | 'drawer' | 'modal';
 }
 
@@ -22,7 +22,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'permission.cycle' }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.toggle' }
-  | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' }
+  | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' | 'artifacts' }
   | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
   | { readonly type: 'run.move'; readonly direction: -1 | 1 }
   | { readonly type: 'agentRoster.toggle' }
@@ -42,6 +42,7 @@ export function routeWorkbenchInput(
   }
   if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
   if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
+  if (key === 'Ctrl+r') return { type: 'drawer.toggle', drawer: 'artifacts' };
   if (context.focus === 'drawer' && context.drawer !== 'closed') {
     if (key === 'Escape') return { type: 'drawer.close' };
     if (key === 'ArrowUp' || key === 'k') return { type: 'drawer.move', direction: -1 };

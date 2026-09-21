@@ -14,7 +14,7 @@ const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> =
 });
 
 describe('routeWorkbenchInput', () => {
-  it.each(['Shift+Enter', 'Backspace', 'Delete', 'Ctrl+o', 'Ctrl+a', 'Ctrl+t', 'Shift+Tab', 'Enter', 'Tab'])('blocks %s behind diagnostic overlays', (key) => {
+  it.each(['Shift+Enter', 'Backspace', 'Delete', 'Ctrl+o', 'Ctrl+a', 'Ctrl+t', 'Ctrl+r', 'Shift+Tab', 'Enter', 'Tab'])('blocks %s behind diagnostic overlays', (key) => {
     expect(routeWorkbenchInput(key, context({ overlayOpen: true }))).toEqual({ type: 'unhandled' });
   });
 
@@ -52,6 +52,7 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('Enter', context({ slashActive: true }))).toEqual({ type: 'slash.submit' });
     expect(routeWorkbenchInput('Ctrl+a', context())).toEqual({ type: 'drawer.toggle', drawer: 'agents' });
     expect(routeWorkbenchInput('Ctrl+t', context())).toEqual({ type: 'drawer.toggle', drawer: 'tasks' });
+    expect(routeWorkbenchInput('Ctrl+r', context())).toEqual({ type: 'drawer.toggle', drawer: 'artifacts' });
   });
 
   it('gives an open focused drawer ownership of navigation and Escape', () => {
@@ -60,6 +61,7 @@ describe('routeWorkbenchInput', () => {
     expect(routeWorkbenchInput('j', drawer)).toEqual({ type: 'drawer.move', direction: 1 });
     expect(routeWorkbenchInput('Escape', drawer)).toEqual({ type: 'drawer.close' });
     expect(routeWorkbenchInput('j', context({ drawer: 'tasks', focus: 'drawer' }))).toEqual({ type: 'drawer.move', direction: 1 });
+    expect(routeWorkbenchInput('j', context({ drawer: 'artifacts', focus: 'drawer' }))).toEqual({ type: 'drawer.move', direction: 1 });
     expect(routeWorkbenchInput('[', drawer)).toEqual({ type: 'run.move', direction: -1 });
     expect(routeWorkbenchInput(']', drawer)).toEqual({ type: 'run.move', direction: 1 });
     expect(routeWorkbenchInput('Enter', drawer)).toEqual({ type: 'agentRoster.toggle' });

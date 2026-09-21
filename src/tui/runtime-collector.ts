@@ -32,6 +32,7 @@ import type { ContextProjectionSnapshot } from './runtime/context-projection.js'
 import type { EvolutionProjectionSnapshot } from './runtime/evolution/evolution-projection-snapshot.js';
 import type { AgentRosterSnapshot } from './workbench/model/agent-roster.js';
 import type { TaskRosterSnapshot } from './workbench/model/task-roster.js';
+import type { WorkbenchArtifactSnapshot } from './workbench/model/artifact-inspection.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -122,6 +123,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       agents: null,
       tasks: null,
       diffs: null,
+      artifacts: null,
     };
   }
 
@@ -295,6 +297,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         agents: this.projectionRuntime.snapshotOf<AgentRosterSnapshot>(ProjectionIds.agents) ?? null,
         tasks: this.projectionRuntime.snapshotOf<TaskRosterSnapshot>(ProjectionIds.tasks) ?? null,
         diffs: this.projectionRuntime.snapshotOf<import('./workbench/model/diff-summary.js').WorkbenchDiffSnapshot>(ProjectionIds.diffs) ?? null,
+        artifacts: this.projectionRuntime.snapshotOf<WorkbenchArtifactSnapshot>(ProjectionIds.artifacts) ?? null,
         evolution: (await this.projectionRuntime.snapshotOfAsync<EvolutionProjectionSnapshot>(ProjectionIds.evolution)) ?? null,
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,

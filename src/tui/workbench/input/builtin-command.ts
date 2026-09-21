@@ -18,6 +18,8 @@ export function parseWorkbenchBuiltinCommand(text: string): WorkbenchBuiltinComm
       return { type: 'drawer.open', drawer: 'agents' };
     case '/tasks':
       return { type: 'drawer.open', drawer: 'tasks' };
+    case '/artifacts':
+      return { type: 'drawer.open', drawer: 'artifacts' };
     default:
       return null;
   }

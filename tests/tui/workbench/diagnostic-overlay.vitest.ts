@@ -25,6 +25,7 @@ describe('Workbench diagnostic overlays', () => {
       null,
     );
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('/agents · /tasks · /diff · /review · /help');
+    expect(frame).toContain('Ctrl+R artifacts');
+    expect(frame).toContain('/agents · /tasks · /artifacts · /diff · /review · /help');
   });
 });
