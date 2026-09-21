@@ -7,6 +7,8 @@
  */
 
 import type { DecisionType } from "./contracts.js";
+import type { DecisionExecutor } from "./executors.js";
+import { LocalBaselineExecutor } from "./engines/local.js";
 
 export type DecisionEngineCapability = "choice" | "score" | "noul";
 
@@ -19,6 +21,8 @@ export type DecisionEngine = {
   capabilities: DecisionEngineCapability[];
   /** Optional per-decision opt-out. Absent = supports all. */
   supportsDecision?: (decision: DecisionType) => boolean;
+  /** Bound work unit. Absent = metadata only (registry resolves, execution skips). */
+  executor?: DecisionExecutor;
 };
 
 export class EngineNotRegisteredError extends Error {
@@ -98,6 +102,6 @@ export class EngineRegistry {
 /** Default registry: local baseline only. Jev registered only when opted in. */
 export function createDefaultRegistry(): EngineRegistry {
   const registry = new EngineRegistry();
-  registry.register({ ...LOCAL_ENGINE });
+  registry.register({ ...LOCAL_ENGINE, executor: new LocalBaselineExecutor() });
   return registry;
 }

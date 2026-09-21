@@ -9,6 +9,10 @@
 - `projector.ts` — Projector contract + projectForRemote (project -> gate -> seal).
 - `boundary.ts` — Remote-boundary gates + seal/verify (secret/shape/size/depth, fail-closed).
 - `journal.ts` — Journal schema + recordDecision + JSONL store + queries + separate debug retention.
+- `executors.ts` — DecisionExecutor contract + outcome validation (JEV-1 failure model).
+- `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
+- `engines/local.ts` — LocalBaselineExecutor (insufficient/abstain/unsupported, no confidence).
+- `engines/jev.ts` — Jev adapter seam (explicit opt-in, store-only key, SDK maps in J1).
 - `index.ts` — barrel.
 
 **Local Contracts:**
@@ -21,6 +25,9 @@
 - New files only in J0a; `PolicyGate`/`createProvider`/loader untouched.
 
 **Verification:**
-- `tests/decision/decision-foundation.test.ts` — contracts, registry, config, JEV-1/7/9 applicable slices.
+- `tests/decision/decision-foundation.test.ts` — contracts, registry, config, JEV-1/7/9/10 slices.
+- `tests/decision/decision-boundary.test.ts` — gates, seal/verify, JEV-2..6.
+- `tests/decision/decision-journal.test.ts` — provenance, store, failure policy, debug separation.
+- `tests/decision/decision-fallback.test.ts` — local baseline, Jev seam, fallback policy, plan errors.
 
 **Child DOX Index:** none.
