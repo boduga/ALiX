@@ -12,8 +12,9 @@
  * pass/fail requirement.
  */
 
-import type { AlixConfig, ModelCapabilityName, ModelTier } from "../../../config/schema.js";
+import type { ModelCapabilityName, ModelTier } from "../../../config/schema.js";
 import { MODEL_TIER_VALUES, isModelTier, isValidModelConfig } from "../../../config/schema.js";
+import type { ModelSourceConfig } from "../../../config/model-resolver.js";
 
 /** Canonical tier candidates, in canonical order. */
 export const TIER_CANDIDATES = MODEL_TIER_VALUES;
@@ -24,7 +25,7 @@ export function isModelTierValue(value: unknown): value is ModelTier {
 }
 
 /** Tiers with a valid canonical model entry, in canonical order. */
-export function listEnabledTiers(config: Pick<AlixConfig, "models">): ModelTier[] {
+export function listEnabledTiers(config: ModelSourceConfig): ModelTier[] {
   return MODEL_TIER_VALUES.filter((tier) => isValidModelConfig(config.models?.[tier]));
 }
 
@@ -46,21 +47,24 @@ export function assertEnabledTier(
 }
 
 /**
- * Caller-side HARD-CONSTRAINT filter: keep the tiers whose DECLARED
- * capabilities satisfy every requirement. A tier that declares nothing
- * satisfies nothing — an unverifiable capability is not the same as an
- * available one (fail closed).
+ * Caller-side HARD-CONSTRAINT filter: from `tiers`, keep those that are
+ * configured AND whose declared `models[tier].capabilities` satisfy every
+ * requirement. A tier that declares nothing satisfies nothing — an
+ * unverifiable capability is not the same as an available one (fail closed).
  *
  * This is deliberately not a gate inside the decision: a pass/fail
- * requirement must not be decided probabilistically (see the module AGENTS.md).
+ * requirement must not be decided probabilistically. Callers pass the result
+ * to `selectModelTier`/`runModelTierShadow` as `candidates`.
  */
 export function filterTiersByCapability(
-  config: Pick<AlixConfig, "models">,
+  config: ModelSourceConfig,
   tiers: readonly ModelTier[],
   required: readonly ModelCapabilityName[],
 ): ModelTier[] {
-  if (required.length === 0) return [...tiers];
+  const enabled = new Set(listEnabledTiers(config));
   return tiers.filter((tier) => {
+    if (!enabled.has(tier)) return false;
+    if (required.length === 0) return true;
     const declared = config.models?.[tier]?.capabilities ?? [];
     return required.every((capability) => declared.includes(capability));
   });

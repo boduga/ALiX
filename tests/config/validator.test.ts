@@ -68,6 +68,20 @@ describe("validateConfig", () => {
     assert.ok(result.issues.some(i => i.path === "models.default.capabilities" && i.level === "error"));
   });
 
+  it("rejects a discovery requirement discovery cannot verify", () => {
+    const config = makeValidConfig();
+    config.models!.default!.selection = { capabilities: ["vision"] };
+    assert.equal(validateConfig(config).valid, true);
+
+    config.models!.default!.selection = { capabilities: ["image_output" as never] };
+    const result = validateConfig(config);
+    assert.ok(
+      result.issues.some(
+        i => i.path === "models.default.selection.capabilities" && i.level === "error",
+      ),
+    );
+  });
+
   it("reports error when repoMapMode is invalid", () => {
     const config = makeValidConfig();
     config.context.repoMapMode = "invalid" as any;

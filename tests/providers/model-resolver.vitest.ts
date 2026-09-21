@@ -497,24 +497,3 @@ describe(
     );
   },
 );
-
-describe("unverifiable capability requirements", () => {
-  it("fails closed when discovery cannot verify a required capability", () => {
-    const models = [
-      M("a/multimodal", 128_000, 2, ["tools", "vision"]),
-      M("b/text", 128_000, 1, ["tools"]),
-    ];
-
-    // image_output is a declared-capability concept; OpenRouter discovery
-    // reports no flag for it, so the requirement is unsatisfiable rather than
-    // silently ignored.
-    expect(
-      selectModelFromDiscovery(
-        {
-          capabilities: ["image_output"],
-        },
-        models,
-      ),
-    ).toBeUndefined();
-  });
-});
