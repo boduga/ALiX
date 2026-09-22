@@ -7,6 +7,8 @@
  */
 
 import type { ReplayFixture } from "./fixtures.js";
+import { JEV_ENGINE_ID } from "../engines/jev.js";
+import { LOCAL_ENGINE_ID } from "../engines/local.js";
 
 /** TypeSafe Jev: $0.042 / MTok input, output free (research doc §4, primary sources). */
 export const JEV_PRICE_PER_MTOK_USD = 0.042;
@@ -27,8 +29,8 @@ export function estimateFixtureCostUsd(
   fixture: ReplayFixture,
   engineId: string,
 ): number {
-  if (engineId === "local") return 0;
-  if (engineId === "jev") {
+  if (engineId === LOCAL_ENGINE_ID) return 0;
+  if (engineId === JEV_ENGINE_ID) {
     const tokens = estimateInputTokens(JSON.stringify(fixture.sealed.payload));
     return (tokens / 1_000_000) * JEV_PRICE_PER_MTOK_USD;
   }

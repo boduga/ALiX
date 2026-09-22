@@ -34,6 +34,14 @@ export class EngineUnavailableError extends Error {
   }
 }
 
+export class EngineTimeoutError extends Error {
+  readonly code = "ENGINE_TIMEOUT";
+  constructor(engineId: string, timeoutMs: number) {
+    super(`Decision engine timed out (${engineId} after ${timeoutMs}ms)`);
+    this.name = "EngineTimeoutError";
+  }
+}
+
 export class ExecutorMissingError extends Error {
   readonly code = "EXECUTOR_MISSING";
   constructor(engineId: string) {
@@ -60,4 +68,26 @@ export function assertValidOutcome(
 ): void {
   const issue = outcomeIssue(outcome, candidates);
   if (issue !== null) throw new MalformedResultError(issue);
+}
+
+/**
+ * Run an executor under a wall-clock bound. One shared implementation so the
+ * fallback and replay paths cannot drift in timeout semantics.
+ */
+export async function executeWithTimeout(
+  executor: DecisionExecutor,
+  input: ExecuteInput,
+  timeoutMs: number,
+): Promise<ExecutorOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      executor.execute(input),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new EngineTimeoutError(executor.engineId, timeoutMs)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

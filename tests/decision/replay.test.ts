@@ -128,6 +128,18 @@ describe("dry-run harness", () => {
     assert.ok(Number.isFinite(run.latencyMs) && run.latencyMs >= 0);
   });
 
+  it("rejects a rogue executor's invalid answer as malformed, never coerced", async () => {
+    const rogue: DecisionExecutor = {
+      engineId: "local",
+      async execute() {
+        return { kind: "choice", choice: "execute-plan" } as never;
+      },
+    };
+    const run = await replayFixture(claimFixture("f1"), rogue);
+    assert.equal(run.outcome.kind, "failure");
+    assert.match(run.outcome.kind === "failure" ? run.outcome.error : "", /not in candidate set/);
+  });
+
   it("turns transport failure and timeout into explicit failures, never throws", async () => {
     const failing = jevExecutor(async () => {
       throw new Error("socket hang up");

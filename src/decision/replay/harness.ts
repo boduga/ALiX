@@ -9,11 +9,11 @@
  * the harness.
  */
 
-import { EngineTimeoutError } from "../fallback.js";
-import type {
-  DecisionExecutor,
-  ExecuteInput,
-  ExecutorOutcome,
+import {
+  assertValidOutcome,
+  executeWithTimeout,
+  type DecisionExecutor,
+  type ExecutorOutcome,
 } from "../executors.js";
 import type { ReplayFixture } from "./fixtures.js";
 
@@ -26,31 +26,12 @@ export type ReplayRun = {
   latencyMs: number;
 };
 
-async function runWithTimeout(
-  executor: DecisionExecutor,
-  input: ExecuteInput,
-  timeoutMs: number,
-): Promise<ExecutorOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      executor.execute(input),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new EngineTimeoutError(executor.engineId, timeoutMs)),
-          timeoutMs,
-        );
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
 /**
- * Replay one fixture through one executor. Transport failure, timeout, and
- * unexpected errors all become explicit failure outcomes with the engine and
- * fixture id — never a throw that could abort a whole suite.
+ * Replay one fixture through one executor. Transport failure, timeout,
+ * unexpected errors, and malformed non-failure outcomes all become explicit
+ * failure outcomes with the engine and fixture id — a rogue executor can
+ * neither throw through a suite nor smuggle an invalid result past the gate
+ * (arch §11: reject, never coerce).
  */
 export async function replayFixture(
   fixture: ReplayFixture,
@@ -61,11 +42,15 @@ export async function replayFixture(
   const started = Date.now();
   let outcome: ExecutorOutcome;
   try {
-    outcome = await runWithTimeout(
+    outcome = await executeWithTimeout(
       executor,
       { decision: fixture.decision, sealed: fixture.sealed, candidates: fixture.candidates },
       timeoutMs,
     );
+    // Validate here as well as in the fallback path: replayed executors are
+    // often experimental, and a malformed choice must reach the gate as a
+    // failure rather than as an answer.
+    assertValidOutcome(outcome, fixture.candidates);
   } catch (cause) {
     outcome = {
       kind: "failure",
