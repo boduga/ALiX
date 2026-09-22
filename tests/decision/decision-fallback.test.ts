@@ -92,7 +92,7 @@ describe("jev adapter seam", () => {
 
   it("enabled without key registers but stays unavailable (J1 wires SDK)", async () => {
     const registry = createDefaultRegistry();
-    assert.equal(registerJevEngine(registry, { enabled: true, acknowledgeUnverifiedWireFormat: true }), true);
+    assert.equal(registerJevEngine(registry, { enabled: true }), true);
     const engine = registry.resolve({ engineId: "jev", allowRemote: true });
     assert.equal(engine.remote, true);
     assert.ok(engine.executor);
@@ -105,7 +105,7 @@ describe("jev adapter seam", () => {
   it("never reads ambient environment for credentials", async () => {
     process.env.JEV_API_KEY = "junk-from-env";
     try {
-      const executor = createJevExecutor({ enabled: true, acknowledgeUnverifiedWireFormat: true });
+      const executor = createJevExecutor({ enabled: true });
       await assert.rejects(executor.execute(input()), /api key missing/);
     } finally {
       delete process.env.JEV_API_KEY;
@@ -155,7 +155,7 @@ describe("fallback policy", () => {
       },
     };
     const registry = createDefaultRegistry();
-    registerJevEngine(registry, { enabled: true, acknowledgeUnverifiedWireFormat: true });
+    registerJevEngine(registry, { enabled: true });
     const plan = buildPlan("claim-verification", enabled, registry);
     assert.equal(plan.primaryId, "jev");
     const seen: string[] = [];

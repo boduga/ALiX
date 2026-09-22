@@ -1,15 +1,16 @@
 /**
- * jev-mapping.ts — Claim verification ↔ Jev System One wire mapping (J1).
+ * jev-mapping.ts — Claim verification ↔ System One wire mapping.
  *
- * Pure: builds a Choice request from a sealed projection and maps a Jev
- * response back to a native ChoiceResult. Transport and endpoint live in
- * `engines/jev-protocol.ts` + `engines/jev.ts`.
+ * Verified shape: one Choice question keyed by id; options live in `criteria`
+ * as option -> rubric description (the descriptions are what separate the
+ * options for the model). The answer is read back from `answers[id]`.
  */
 
 import { MalformedResultError } from "../../executors.js";
 import type { ChoiceResult } from "../../contracts.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import type {
+  JevChoiceCriteria,
   JevResponseContext,
   JevSystemOneRequest,
   JevSystemOneResponse,
@@ -20,6 +21,13 @@ import { readClaimProjection, type ClaimVerificationProjection } from "./project
 
 export const JEV_CLAIM_QUESTION_ID = "claim-verdict";
 
+/** Rubric descriptions separate the options from one another. */
+const VERDICT_CRITERIA: JevChoiceCriteria = {
+  supported: "The evidence supports the claim",
+  contradicted: "The evidence contradicts the claim",
+  insufficient: "The evidence does not bear on the claim either way",
+};
+
 /** Human-readable state block. Evidence is bounded by the projection. */
 export function renderClaimState(projection: ClaimVerificationProjection): string {
   const evidence =
@@ -29,7 +37,7 @@ export function renderClaimState(projection: ClaimVerificationProjection): strin
   return `CLAIM:\n${projection.claim}\n\nEVIDENCE:\n${evidence}`;
 }
 
-function readProjection(
+function requireClaimProjection(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
 ): ClaimVerificationProjection {
   const projection = readClaimProjection(sealed.payload);
@@ -42,37 +50,32 @@ function readProjection(
 export function toJevRequest(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
 ): JevSystemOneRequest {
-  const projection = readProjection(sealed);
+  const projection = requireClaimProjection(sealed);
   return {
-    model: JEV_DEFAULT_MODEL,
     state: renderClaimState(projection),
-    questions: [
-      {
-        id: JEV_CLAIM_QUESTION_ID,
+    model: JEV_DEFAULT_MODEL,
+    questions: {
+      [JEV_CLAIM_QUESTION_ID]: {
         type: "choice",
-        prompt: "Does the evidence support the claim, contradict it, or is it insufficient?",
-        options: CLAIM_VERDICT_CANDIDATES,
+        instructions:
+          "Does the evidence support the claim, contradict it, or is it insufficient to judge?",
+        criteria: VERDICT_CRITERIA,
       },
-    ],
+    },
   };
 }
 
 /**
- * Map a Jev response to a native ChoiceResult. Unknown verdicts and
- * out-of-range confidence are malformed results — rejected, never coerced
- * (JEV-1), which makes them fallback-eligible.
+ * Map a response to a native ChoiceResult. Unknown verdicts and out-of-range
+ * confidence are malformed results — rejected, never coerced (JEV-1), which
+ * makes them fallback-eligible.
  */
 export function fromJevResponse(
   response: JevSystemOneResponse,
   ctx: JevResponseContext & { engineId?: string },
 ): ChoiceResult<ClaimVerdict> {
-  if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
-    throw new MalformedResultError("jev response missing answers array");
-  }
-  const answer = response.answers.find(
-    (item) => item?.id === JEV_CLAIM_QUESTION_ID && isJevChoiceAnswer(item),
-  );
-  if (!answer || !isJevChoiceAnswer(answer)) {
+  const answer = response?.answers?.[JEV_CLAIM_QUESTION_ID];
+  if (!isJevChoiceAnswer(answer)) {
     throw new MalformedResultError(
       `jev response missing choice answer for question ${JEV_CLAIM_QUESTION_ID}`,
     );
@@ -102,3 +105,6 @@ export function fromJevResponse(
     },
   };
 }
+
+/** Exposed for callers that need the legal option list. */
+export const CLAIM_VERDICT_OPTIONS = CLAIM_VERDICT_CANDIDATES;

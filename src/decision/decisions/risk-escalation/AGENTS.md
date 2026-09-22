@@ -22,7 +22,7 @@
 - Local baseline emits no confidence (uncalibrated, JEV-9).
 - `riskEscalation.enabled` absent/false judges nothing (existing behavior kept).
 - Shadow results carry `authority: "none"`.
-- Wire shape is `documented-unverified`; remote stays disabled until acknowledged.
+- Wire shape is `verified-against-docs` (see `engines/jev-protocol.ts` for the source links); remote is opt-in via `remote.jev.enabled`.
 
 **J6 admission review (hand-off §14):**
 - Atomic: "what risk tier is this single action?" — one action, one judgement. Admitted.

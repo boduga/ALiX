@@ -12,8 +12,8 @@
 - `executors.ts` — DecisionExecutor contract + outcome validation (JEV-1 failure model).
 - `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
 - `engines/local.ts` — LocalBaselineExecutor (claim classifier + relevance scorer, unsupported elsewhere, no confidence).
-- `engines/jev-protocol.ts` — Jev System One wire types (Choice + Noul) + injectable `JevTransport` (neutral: no decisions/engines imports).
-- `engines/jev.ts` — Jev adapter: transport, per-decision mapping table, capability declaration, store-only key, disabled by default.
+- `engines/jev-protocol.ts` — System One wire types (Choice + Noul), verified against the official API reference + SDK types (source links in the header); injectable `JevTransport` (neutral: no decisions/engines imports).
+- `engines/jev.ts` — Jev adapter: fetch transport with bounded 429/529 retry, per-decision mapping table, capability declaration, store-only key, disabled by default.
 - `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
@@ -33,7 +33,7 @@
 - Boundary caps/timeouts are uncalibrated operational defaults pending J4 evidence.
 - Engines declare `supportsDecision`; `buildPlan` fails closed when an engine cannot answer the decision.
 - The Jev adapter re-verifies the sealed projection before transport (arch §6); a forged/unsealed payload is rejected, never sent.
-- Enabling remote requires `acknowledgeUnverifiedWireFormat` until the wire shape is verified against the official SDK.
+- The System One wire shape is verified against the official API reference and SDK types (links in `engines/jev-protocol.ts`); remote is opt-in via `remote.jev.enabled`.
 - Shadow runs journal every attempt (including a failed remote attempt) under one `projectionHash`.
 - Decision routes carry `enabled`; absent/false means the consumer keeps existing behavior.
 - Threshold profiles are versioned and engine-specific; a fallback engine uses its own profile or fails closed (JEV-9).
@@ -60,6 +60,7 @@
 - `tests/decision/calibration.test.ts` — J4 labels/store/dataset/reliability.
 - `tests/decision/threshold-profiles.test.ts` — J4b versioned profiles, provenance-gated promotion/rollback, scope resolution.
 - `tests/decision/replay.test.ts` — J5 fixtures, dry-run, comparison, cost, promotion gate.
+- `tests/decision/jev-protocol.test.ts` — the verified System One request/response shape (map questions/answers, `noul` field, legacy shape rejected).
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
