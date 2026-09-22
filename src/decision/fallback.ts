@@ -11,14 +11,18 @@ import type { DecisionType } from "./contracts.js";
 import type { EngineRegistry, DecisionEngine } from "./registry.js";
 import { EngineNotRegisteredError, RemoteEngineNotAllowedError } from "./registry.js";
 import {
+  EngineTimeoutError,
   EngineUnavailableError,
   ExecutorMissingError,
   MalformedResultError,
   assertValidOutcome,
+  executeWithTimeout,
   type DecisionExecutor,
   type ExecuteInput,
   type ExecutorOutcome,
 } from "./executors.js";
+/** Re-exported so existing importers keep resolving it from the fallback seam. */
+export { EngineTimeoutError } from "./executors.js";
 import {
   isRemoteEngineAllowed,
   routePolicyFor,
@@ -29,14 +33,6 @@ import { JEV_ENGINE_ID } from "./engines/jev.js";
 /** Uncalibrated operational default. J4 tunes timeouts from latency evidence. */
 export const DEFAULT_FALLBACK_TIMEOUT_MS = 10_000;
 export const EXTERNAL_ROUTING_FALLBACK = "existing-routing";
-
-export class EngineTimeoutError extends Error {
-  readonly code = "ENGINE_TIMEOUT";
-  constructor(engineId: string, timeoutMs: number) {
-    super(`Decision engine timed out (${engineId} after ${timeoutMs}ms)`);
-    this.name = "EngineTimeoutError";
-  }
-}
 
 export type AttemptRecord = {
   engineId: string;
@@ -162,24 +158,6 @@ function isFallbackEligible(error: unknown): boolean {
   );
 }
 
-async function runWithTimeout(
-  executor: DecisionExecutor,
-  input: ExecuteInput,
-  timeoutMs: number,
-): Promise<ExecutorOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      executor.execute(input),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new EngineTimeoutError(executor.engineId, timeoutMs)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
 function failureOutcome(error: string): ExecutorOutcome {
   return { kind: "failure", error };
 }
@@ -193,7 +171,7 @@ async function attempt(
   input: ExecuteInput,
   timeoutMs: number,
 ): Promise<ExecutorOutcome> {
-  const outcome = await runWithTimeout(executor, input, timeoutMs);
+  const outcome = await executeWithTimeout(executor, input, timeoutMs);
   assertValidOutcome(outcome, input.candidates);
   return outcome;
 }
