@@ -104,6 +104,7 @@ type PartialConfig = Omit<Partial<AlixConfig>, "tracing" | "decision"> & {
     claimVerification?: Partial<DecisionRoutePolicy>;
     contextRelevance?: Partial<DecisionRoutePolicy>;
     modelTier?: Partial<DecisionRoutePolicy>;
+    riskEscalation?: Partial<DecisionRoutePolicy>;
   };
 };
 
@@ -481,6 +482,7 @@ export function mergeConfig(
         claimVerification: { ...result.decision?.claimVerification, ...override.decision?.claimVerification },
         contextRelevance: { ...result.decision?.contextRelevance, ...override.decision?.contextRelevance },
         modelTier: { ...result.decision?.modelTier, ...override.decision?.modelTier },
+        riskEscalation: { ...result.decision?.riskEscalation, ...override.decision?.riskEscalation },
       } as AlixConfig["decision"],
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers

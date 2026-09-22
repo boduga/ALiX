@@ -11,7 +11,8 @@
 export type DecisionType =
   | "claim-verification"
   | "context-relevance"
-  | "model-tier";
+  | "model-tier"
+  | "risk-escalation";
 
 /**
  * Risk context a decision was made under, captured AT DECISION TIME.

@@ -30,6 +30,7 @@ export type DecisionConfig = {
   claimVerification: DecisionRoutePolicy;
   contextRelevance: DecisionRoutePolicy;
   modelTier: DecisionRoutePolicy;
+  riskEscalation: DecisionRoutePolicy;
 };
 
 /** Local-first defaults. Jev disabled. Every route resolves without remote. */
@@ -53,6 +54,12 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
     thresholdProfile: "model-tier/existing-routing/v1",
     enabled: false,
   },
+  riskEscalation: {
+    engine: "local",
+    fallback: "local",
+    thresholdProfile: "risk-escalation/local/v1",
+    enabled: false,
+  },
 };
 
 /** Example Jev-enabled overlay. Concept only, never default. */
@@ -65,6 +72,7 @@ const DECISION_ROUTE_KEYS = {
   "claim-verification": "claimVerification",
   "context-relevance": "contextRelevance",
   "model-tier": "modelTier",
+  "risk-escalation": "riskEscalation",
 } as const;
 
 export function routePolicyFor(
@@ -109,7 +117,7 @@ export function validateDecisionConfig(
   if (typeof jev?.enabled !== "boolean") {
     issues.push({ path: "remote.jev.enabled", message: "remote.jev.enabled must be a boolean" });
   }
-  for (const key of ["claimVerification", "contextRelevance", "modelTier"] as const) {
+  for (const key of ["claimVerification", "contextRelevance", "modelTier", "riskEscalation"] as const) {
     const route = c[key] as Record<string, unknown> | undefined;
     if (!route || typeof route !== "object") {
       issues.push({ path: key, message: `${key} must be an object` });

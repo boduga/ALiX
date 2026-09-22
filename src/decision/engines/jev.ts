@@ -42,15 +42,20 @@ import {
   fromJevModelTierResponse,
   toJevModelTierRequest,
 } from "../decisions/model-tier/jev-mapping.js";
+import {
+  fromJevRiskResponse,
+  toJevRiskRequest,
+} from "../decisions/risk-escalation/jev-mapping.js";
 import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
-/** Decisions this adapter can answer today (J1 claim, J2 relevance, J3 tier). */
+/** Decisions this adapter can answer today (J1 claim, J2 relevance, J3 tier, J6 risk). */
 const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
   "claim-verification",
   "context-relevance",
   "model-tier",
+  "risk-escalation",
 ];
 
 type JevDecisionMapping = {
@@ -65,10 +70,6 @@ type JevDecisionMapping = {
   ): ExecutorOutcome;
 };
 
-function routableCandidates(candidates: readonly unknown[] | undefined) {
-  return filterTierCandidates(candidates);
-}
-
 const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
   "claim-verification": {
     toRequest: (sealed) => toJevRequest(sealed),
@@ -79,9 +80,13 @@ const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
     fromResponse: (response, ctx) => fromJevRelevanceResponse(response, ctx),
   },
   "model-tier": {
-    toRequest: (sealed, candidates) => toJevModelTierRequest(sealed, routableCandidates(candidates)),
+    toRequest: (sealed, candidates) => toJevModelTierRequest(sealed, filterTierCandidates(candidates)),
     fromResponse: (response, ctx, candidates) =>
-      fromJevModelTierResponse(response, ctx, routableCandidates(candidates)),
+      fromJevModelTierResponse(response, ctx, filterTierCandidates(candidates)),
+  },
+  "risk-escalation": {
+    toRequest: (sealed) => toJevRiskRequest(sealed),
+    fromResponse: (response, ctx) => fromJevRiskResponse(response, ctx),
   },
 };
 

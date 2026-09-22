@@ -251,7 +251,7 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     if (jevEnabled !== undefined && typeof jevEnabled !== "boolean") {
       issues.push({ path: "decision.remote.jev.enabled", level: "error", message: "remote.jev.enabled must be a boolean" });
     }
-    for (const key of ["claimVerification", "contextRelevance", "modelTier"] as const) {
+    for (const key of ["claimVerification", "contextRelevance", "modelTier", "riskEscalation"] as const) {
       const route = decision[key];
       if (!route) continue;
       for (const field of ["engine", "fallback", "thresholdProfile"] as const) {
