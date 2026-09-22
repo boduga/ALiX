@@ -23,6 +23,9 @@ existing import paths are unchanged.
   (assembly + tool-schema reservation + T6 context events + preflight).
 - `verification-phase.ts` — `runIterationVerification`: end-of-iteration
   verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
+- `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
+  (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
+  `ExecutionStateEmitter`; inert/fail-soft otherwise.
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
@@ -37,8 +40,12 @@ existing import paths are unchanged.
   `grep '^function|^const'` over-reports inner statements as top-level — do not
   slice this file by that grep.
 - Relative imports: `../../` → `src/`, `../` → `src/run/`.
+- Execution-state emission is opt-in and fail-soft: `runTaskLoop` calls
+  `initExecutionStateEmission` once at start; it must never throw into the loop
+  and must not change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
 
 **Verification:**
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,
   `tests/runtime/parallel-tool-execution.vitest.ts`,
-  `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`.
+  `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`,
+  `tests/execution-state-emitter.vitest.ts` (emitter phase).

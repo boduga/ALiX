@@ -6,6 +6,7 @@
 - `execution-state.ts` — ExecutionState (11 keys: executionId/schemaVersion/version/step/objective/status/intent/pendingActions/activeCapabilities/constraints/artifacts), StatePatch (patch-only, null=delete omission=preserve), validation (no arbitrary keys), applyStatePatch, schemaVersion vs version distinction.
 - `execution-state-projector.ts` — StateProjector deterministic reducer EVENT TYPE → STATE EFFECT (execution.created→objective, status lifecycle, intent_bound, action proposed/completed→pending, capability bound/unbound, constraint applied/removed, artifact registered/removed), fail-closed ProjectionError/ProjectionUnsupportedError with failedAtRevision, checkpoint historyRevision/historyHash, INV-P1/P2/P7.
 - `execution-state-store.ts` — ExecutionStateStore durable snapshot: filesystem `.alix/executions/<id>/state.json` (atomic tmp→fsync→rename), OCC CAS `save(state, expectedVersion)` (1 row commit, 0 → STATE_VERSION_CONFLICT), delete, flat CheckpointedExecutionState persistence (`...ExecutionState, projectionVersion/historyRevision/historyHash/savedAt`), rebuildFromEvents (delete→replay→reconstruct), single-writer POC invariant.
+- `execution-state-emitter.ts` — `ExecutionStateEmitter`: live governed emission of `execution.*` events into the session EventLog (option A of #616 follow-up). `bootstrap(objective)` appends genesis (`execution.created` + `running`) and rebuilds the snapshot via `rebuildFromEvents`; `setObjective`/`setStatus`/`registerArtifact`/`bindCapability`/`applyConstraint` each run a patch-only `StateTransitionProposal` through the canonical `StateTransitionHarness` (schema → version CAS → patch-only governor → apply → CAS persist → emit). Opt-in via `isExecutionStateEmitEnabled` (`ALIX_EXECUTION_STATE_EMIT=1`, default off) and `executionStateStoreDir` (`ALIX_EXECUTION_STATE_DIR`, default `.alix/executions`); fail-soft (`lastError`, never throws into the task loop).
 - `state-transition.ts` — alias re-export of canonical harness `src/runtime/state/state-transition.ts` (#627 compatibility).
 
 **Local Contracts:**
@@ -15,6 +16,7 @@
 - schemaVersion (contract generation, 1.0.0) ≠ version (per-execution monotonic) ≠ projectionVersion (projector generation); historyRevision/historyHash lineage distinct from version.
 - Projector: no LLM, O(relevant events) typed dispatch, never mutates history (INV-P2), same history→same state (INV-P1), fail-closed on invalid lifecycle/unsupported type, evidence events ignored but advance historyRevision/historyHash, checkpoint invariant state@47+events48..100==full replay 1..100 (INV-P7).
 - Store: EventLog authoritative, state disposable (INV-10); atomic tmp→rename, deterministic JSON, corruption detection (StateCorruptionError), OCC version check (STATE_VERSION_CONFLICT, single-writer POC, no auto-rebase), flat+envelope read compat, rebuild delete→replay equality (INV-P7).
+- Emitter: genesis is the only direct EventLog append (the harness cannot create); every later mutation is patch-only through the harness and the governor denies any `action` (tools execute in the task loop). State derived, EventLog authoritative; failures never propagate into the loop.
 - No prompt/governor logic here — contract + projector + store only (arch doc §6-10, §14-15, §32-35, §41 invariants 4-5,10; resolutions #617-619, #618).
 
 **Verification:**
@@ -22,3 +24,4 @@
 - Manual validation via `validateExecutionState` / `validateStatePatch` / `applyStatePatch` (arbitrary keys rejected, null delete verified).
 - `project(history)` / `applyEvent` / `projectFromCheckpoint` deterministic, checkpoint invariant verified (state@47+48..100==full 1..100).
 - Store: save/load CAS (commit vs STATE_VERSION_CONFLICT), atomic .tmp→rename, delete idempotent, flat persistence with projectionVersion/historyRevision/historyHash, rebuildFromEvents delete→replay equality and corruption detection.
+- `vitest run tests/execution-state-emitter.vitest.ts` — opt-in flag, genesis emits `execution.created`+`running`, idempotent bootstrap, objective/artifact/capability/constraint via harness (events present), fail-soft without genesis, idempotent artifact registration.

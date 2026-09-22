@@ -64,6 +64,7 @@ import type { CorrelationContext } from "../../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../../runtime/tool-correlation.js";
 import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
+import { initExecutionStateEmission } from "./execution-state-phase.js";
 import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext } from "./context-phase.js";
@@ -206,6 +207,12 @@ onProgress,
   // §10.1: runtime model resolution reads the canonical `models` object only.
   // deps.config is a partial config projection; the resolver only reads `.models`.
   const model = resolveModelConfig(config);
+
+  // ── Governed execution-state emission (opt-in: ALIX_EXECUTION_STATE_EMIT=1) ──
+  // Emits authoritative execution.* transitions (created/running/objective) to
+  // the session EventLog through the StateTransitionHarness. Inert unless the
+  // env flag is set and fail-soft (never throws into the loop).
+  await initExecutionStateEmission({ log, sessionId, objective: evidenceTask });
 
   // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
   // Independent of Task 4's deferred §1 factor wiring — we only need to read
