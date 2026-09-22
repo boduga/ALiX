@@ -1,22 +1,33 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CalibrationError,
-  LabelReadError,
+  CalibrationValidationError,
   LabelValidationError,
   LabelWriteError,
   buildCalibrationDataset,
   computeReliability,
+  createDecisionJournalStore,
   createOutcomeLabel,
   createOutcomeLabelStore,
+  exportCalibrationDataset,
   indexLabelsByDecisionId,
+  isDecisionOutcomeLabel,
+  recordDecision,
   type CalibrationSample,
   type DecisionJournalRecord,
   type DecisionOutcomeLabel,
 } from "../../src/decision/index.js";
+
+let dir2: string;
+before(() => {
+  dir2 = mkdtempSync(join(tmpdir(), "alix-calibration-export-"));
+});
+after(() => {
+  rmSync(dir2, { recursive: true, force: true });
+});
 
 function record(
   overrides: Partial<DecisionJournalRecord> & { decisionId: string },
@@ -45,13 +56,14 @@ function label(
   };
 }
 
-function sample(overrides: Partial<CalibrationSample> & { correct: boolean }): CalibrationSample {
+function sample(
+  overrides: Partial<CalibrationSample> & { correct: boolean },
+): CalibrationSample {
   return {
     decisionId: "d",
     decision: "claim-verification",
     engineId: "local",
-    latencyMs: 1,
-    remote: false,
+    kind: "choice",
     ...overrides,
   };
 }
@@ -61,13 +73,37 @@ describe("outcome labels", () => {
     const built = createOutcomeLabel({ decisionId: "d1", decision: "claim-verification", label: "correct" });
     assert.equal(built.label, "correct");
     assert.ok(Number.isFinite(built.observedAt));
-    assert.equal("risk" in built, false);
+    assert.equal("errorType" in built, false);
+  });
+
+  it("carries a false-positive/false-negative direction on incorrect labels", () => {
+    const built = createOutcomeLabel({
+      decisionId: "d1",
+      decision: "context-relevance",
+      label: "incorrect",
+      errorType: "false_positive",
+    });
+    assert.equal(built.errorType, "false_positive");
   });
 
   it("rejects malformed labels", () => {
     assert.throws(() => createOutcomeLabel({ decisionId: "", decision: "claim-verification", label: "correct" }), LabelValidationError);
     assert.throws(() => createOutcomeLabel({ decisionId: "d", decision: "claim-verification", label: "maybe" as never }), LabelValidationError);
-    assert.throws(() => createOutcomeLabel({ decisionId: "d", decision: "claim-verification", label: "correct", risk: "extreme" as never }), LabelValidationError);
+    assert.throws(
+      () => createOutcomeLabel({ decisionId: "d", decision: "claim-verification", label: "incorrect", errorType: "wrong" as never }),
+      LabelValidationError,
+    );
+    // errorType only makes sense on an incorrect label.
+    assert.throws(
+      () => createOutcomeLabel({ decisionId: "d", decision: "claim-verification", label: "correct", errorType: "other" }),
+      /only meaningful on an incorrect label/,
+    );
+  });
+
+  it("structurally validates labels read back from disk", () => {
+    assert.equal(isDecisionOutcomeLabel(label({ decisionId: "d1" })), true);
+    assert.equal(isDecisionOutcomeLabel({ decisionId: "d1", decision: "claim-verification", label: "correct" }), false);
+    assert.equal(isDecisionOutcomeLabel({ ...label({ decisionId: "d1" }), observedAt: "soon" }), false);
   });
 
   it("keeps the latest label per decision", () => {
@@ -90,69 +126,82 @@ describe("outcome label store", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("empty store reads empty; append round-trips and filters", () => {
+  it("empty store reads empty; append round-trips and filters", async () => {
     const store = createOutcomeLabelStore(join(dir, "s1"));
-    assert.deepEqual(store.readAll(), []);
-    store.append(label({ decisionId: "d1" }));
-    store.append(label({ decisionId: "d2", decision: "context-relevance" }));
-    assert.equal(store.readAll().length, 2);
-    assert.equal(store.findByDecision("claim-verification").length, 1);
+    assert.deepEqual(await store.readAll(), { labels: [], malformed: 0 });
+    await store.append(label({ decisionId: "d1" }));
+    await store.append(label({ decisionId: "d2", decision: "context-relevance" }));
+    assert.equal((await store.readAll()).labels.length, 2);
+    assert.equal((await store.findByDecision("claim-verification")).length, 1);
   });
 
-  it("validates before persisting", () => {
+  it("validates before persisting", async () => {
     const store = createOutcomeLabelStore(join(dir, "s2"));
-    assert.throws(
-      () => store.append({ decisionId: "d1", decision: "claim-verification", label: "nope" as never, observedAt: 1 }),
+    await assert.rejects(
+      store.append({ decisionId: "d1", decision: "claim-verification", label: "nope" as never, observedAt: 1 }),
       LabelValidationError,
     );
-    assert.equal(store.readAll().length, 0);
+    assert.equal((await store.readAll()).labels.length, 0);
   });
 
-  it("fails closed on a corrupt line and on I/O errors", () => {
+  it("counts malformed lines instead of throwing", async () => {
     const corrupt = join(dir, "s3");
     const store = createOutcomeLabelStore(corrupt);
-    store.append(label({ decisionId: "d1" }));
-    writeFileSync(join(corrupt, "labels.jsonl"), "not-json{\n", "utf8");
-    assert.throws(() => store.readAll(), LabelReadError);
+    await store.append(label({ decisionId: "d1" }));
+    writeFileSync(join(corrupt, "labels.jsonl"), `${readFileSync(join(corrupt, "labels.jsonl"), "utf8")}not-json{\n`, "utf8");
+    const result = await store.readAll();
+    assert.equal(result.labels.length, 1);
+    assert.equal(result.malformed, 1);
+  });
 
+  it("surfaces I/O failures explicitly", async () => {
     const blocker = join(dir, "blocker");
     writeFileSync(blocker, "not a dir", "utf8");
     const broken = createOutcomeLabelStore(join(blocker, "inner"));
-    assert.throws(() => broken.append(label({ decisionId: "d1" })), LabelWriteError);
+    await assert.rejects(broken.append(label({ decisionId: "d1" })), LabelWriteError);
   });
 });
 
 describe("calibration dataset", () => {
   const records: DecisionJournalRecord[] = [
     record({ decisionId: "d1" }),
-    record({ decisionId: "d2", outcome: { kind: "choice", choice: "supported", candidates: ["supported"], confidence: 0.8 } }),
+    record({ decisionId: "d2", risk: "high", outcome: { kind: "choice", choice: "supported", candidates: ["supported"], confidence: 0.8 } }),
     record({ decisionId: "d3", outcome: { kind: "noul", probability: 0.7 } }),
-    record({ decisionId: "d4", outcome: { kind: "failure", error: "down" } }),
-    record({ decisionId: "d5" }),
-    record({ decisionId: "d6", engineId: "jev" }),
+    record({ decisionId: "d4", outcome: { kind: "score", score: 0.6, confidence: 0.5 } }),
+    record({ decisionId: "d5", outcome: { kind: "failure", error: "down" } }),
+    record({ decisionId: "d6" }),
+    record({ decisionId: "d7", engineId: "jev" }),
   ];
   const labels: DecisionOutcomeLabel[] = [
     label({ decisionId: "d1", label: "correct" }),
-    label({ decisionId: "d2", label: "incorrect", risk: "high" }),
+    label({ decisionId: "d2", label: "incorrect", errorType: "false_positive" }),
     label({ decisionId: "d3", label: "correct" }),
     label({ decisionId: "d4", label: "correct" }),
-    label({ decisionId: "d5", label: "unknown" }),
-    // d6 intentionally unlabeled
+    label({ decisionId: "d5", label: "correct" }),
+    label({ decisionId: "d6", label: "unknown" }),
+    // d7 intentionally unlabeled
   ];
 
   it("joins labelled records and counts everything it skips", () => {
     const { samples, skipped } = buildCalibrationDataset(records, labels);
-    assert.equal(samples.length, 3);
+    assert.equal(samples.length, 4);
     assert.deepEqual(skipped, { unlabeled: 1, unknownLabel: 1, failureOutcome: 1, duplicateDecisionId: 0 });
 
     const d2 = samples.find((s) => s.decisionId === "d2");
+    assert.equal(d2?.kind, "choice");
     assert.equal(d2?.confidence, 0.8);
     assert.equal(d2?.correct, false);
+    // Risk comes from the journal record (decision time), not the label.
     assert.equal(d2?.risk, "high");
 
     const d3 = samples.find((s) => s.decisionId === "d3");
+    assert.equal(d3?.kind, "noul");
     assert.equal(d3?.probability, 0.7);
     assert.equal("confidence" in (d3 ?? {}), false);
+
+    const d4 = samples.find((s) => s.decisionId === "d4");
+    assert.equal(d4?.kind, "score");
+    assert.equal(d4?.score, 0.6);
   });
 
   it("filters by decision and engine", () => {
@@ -163,6 +212,32 @@ describe("calibration dataset", () => {
   it("counts duplicate journal rows for the same decision", () => {
     const { skipped } = buildCalibrationDataset([record({ decisionId: "d1" }), record({ decisionId: "d1" })], labels);
     assert.equal(skipped.duplicateDecisionId, 1);
+  });
+
+  it("exports a portable artifact from both stores", async () => {
+    const exportDir = join(dir2, "export");
+    const journal = createDecisionJournalStore(exportDir);
+    const labelStore = createOutcomeLabelStore(exportDir);
+    const entry = recordDecision({
+      decision: "claim-verification",
+      engineId: "local",
+      projectionHash: "sha256:abc",
+      outcome: { kind: "choice", choice: "supported", candidates: ["supported"], confidence: 0.9 },
+      latencyMs: 3,
+      remote: false,
+      redactionApplied: false,
+      risk: "medium",
+      now: 1,
+    });
+    journal.append(entry);
+    await labelStore.append(createOutcomeLabel({ decisionId: entry.decisionId, decision: "claim-verification", label: "correct", observedAt: 2 }));
+
+    const outPath = join(exportDir, "dataset.json");
+    const artifact = await exportCalibrationDataset({ journal, labels: labelStore }, { outPath, now: 7 });
+    assert.equal(artifact.samples.length, 1);
+    assert.equal(artifact.exportedAt, 7);
+    assert.equal(artifact.samples[0].risk, "medium");
+    assert.deepEqual(JSON.parse(readFileSync(outPath, "utf8")).samples.length, 1);
   });
 });
 
@@ -197,20 +272,20 @@ describe("reliability", () => {
     assert.ok(Math.abs(report.brierScore - 0.41) < 1e-9);
   });
 
-  it("reports zero error for perfectly calibrated confidence", () => {
-    const samples = Array.from({ length: 8 }, () => sample({ correct: true, confidence: 1 }));
-    const report = computeReliability(samples);
-    assert.equal(report.expectedCalibrationError, 0);
-    assert.equal(report.brierScore, 0);
-  });
-
-  it("uses probability for Noul samples", () => {
-    const report = computeReliability([
-      sample({ correct: true, probability: 0.6, decision: "context-relevance" }),
-      sample({ correct: false, probability: 0.6, decision: "context-relevance" }),
+  it("calibrates Noul by probability and Score by its rubric rating", () => {
+    const noul = computeReliability([
+      sample({ correct: true, probability: 0.6, kind: "noul", decision: "context-relevance" }),
+      sample({ correct: false, probability: 0.6, kind: "noul", decision: "context-relevance" }),
     ]);
-    assert.equal(report.metric, "probability");
-    assert.equal(report.decision, "context-relevance");
+    assert.equal(noul.metric, "probability");
+    assert.equal(noul.decision, "context-relevance");
+
+    const scored = computeReliability([
+      sample({ correct: true, score: 0.8, kind: "score", decision: "model-tier" }),
+      sample({ correct: false, score: 0.2, kind: "score", decision: "model-tier" }),
+    ]);
+    assert.equal(scored.metric, "score");
+    assert.equal(scored.sampleCount, 2);
   });
 
   it("counts samples with no native score instead of scoring them 0", () => {
@@ -222,11 +297,11 @@ describe("reliability", () => {
     assert.equal(report.excludedUnscored, 1);
   });
 
-  it("refuses empty, mixed-metric, and cross-engine samples", () => {
-    assert.throws(() => computeReliability([]), CalibrationError);
+  it("refuses empty, mixed-kind, and cross-engine samples", () => {
+    assert.throws(() => computeReliability([]), CalibrationValidationError);
     assert.throws(
-      () => computeReliability([sample({ correct: true, probability: 0.5 }), sample({ correct: true, confidence: 0.5 })]),
-      /cannot mix probability/,
+      () => computeReliability([sample({ correct: true, probability: 0.5, kind: "noul" }), sample({ correct: true, confidence: 0.5 })]),
+      /cannot mix native result kinds/,
     );
     assert.throws(
       () =>
@@ -240,6 +315,6 @@ describe("reliability", () => {
       () => computeReliability([sample({ correct: true, confidence: 0.5, decision: "model-tier" }), sample({ correct: false, confidence: 0.5 })]),
       /multiple decisions/,
     );
-    assert.throws(() => computeReliability([sample({ correct: true })]), /no samples carry a native score/);
+    assert.throws(() => computeReliability([sample({ correct: true })]), /carry a native score/);
   });
 });

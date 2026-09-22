@@ -13,6 +13,20 @@ export type DecisionType =
   | "context-relevance"
   | "model-tier";
 
+/**
+ * Risk context a decision was made under, captured AT DECISION TIME.
+ *
+ * It belongs on the journal record, not on a post-hoc label: threshold
+ * profiles are per decision/engine/risk, and risk cannot be reconstructed
+ * after the fact from a label that may never arrive or may be revised.
+ */
+export const RISK_CONTEXTS = ["low", "medium", "high"] as const;
+export type RiskContext = (typeof RISK_CONTEXTS)[number];
+
+export function isRiskContext(value: unknown): value is RiskContext {
+  return (RISK_CONTEXTS as readonly unknown[]).includes(value);
+}
+
 /** Common provenance attached to every decision result. */
 export type DecisionProvenance = {
   engineId: string;

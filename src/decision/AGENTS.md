@@ -18,7 +18,8 @@
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
-- `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join, reliability. See its AGENTS.md.
+- `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability. See its AGENTS.md.
+- Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
 

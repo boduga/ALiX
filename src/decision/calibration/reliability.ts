@@ -4,16 +4,23 @@
  * Computes binned calibration (accuracy vs. mean score) plus ECE and Brier,
  * but ONLY where the semantics are valid:
  *
- *  - Noul samples carry a probability; Choice/Score samples may carry a
- *    confidence. Those are different scales, so a report refuses to mix them.
+ *  - The metric follows the native result primitive: Noul → probability,
+ *    Score → the rubric score, Choice → confidence. Those are different
+ *    scales, so a report refuses to mix kinds.
  *  - A report is scoped to one decision AND one engine: JEV-9 forbids
  *    transferring calibration across engines.
  *  - Samples with no native score cannot be binned; they are counted, not
  *    silently treated as 0.
+ *
+ * SIMPLEX ASSUMPTION: probabilities are treated as a proper simplex over a
+ * single question. The vendor does not guarantee structural invariants across
+ * complementary questions (its own example has P and 1-P summing to 1.19), so
+ * this is only meaningful because every ALiX decision asks exactly ONE
+ * question per call. Do not reuse this for a multi-question payload.
  */
 
 import type { DecisionType } from "../contracts.js";
-import type { CalibrationSample } from "./dataset.js";
+import type { CalibrationSample, CalibrationSampleKind } from "./dataset.js";
 
 export type ReliabilityBin = {
   from: number;
@@ -23,57 +30,77 @@ export type ReliabilityBin = {
   accuracy: number;
 };
 
+export type ReliabilityMetric = "confidence" | "probability" | "score";
+
 export type ReliabilityReport = {
   decision: DecisionType;
   engineId: string;
-  metric: "confidence" | "probability";
+  metric: ReliabilityMetric;
   /** Scorable samples used in the report. */
   sampleCount: number;
-  /** Samples carrying no native score. */
+  /** Samples carrying no native score for their kind. */
   excludedUnscored: number;
   bins: ReliabilityBin[];
   expectedCalibrationError: number;
   brierScore: number;
 };
 
-export class CalibrationError extends Error {
-  readonly code = "CALIBRATION_ERROR";
+export class CalibrationValidationError extends Error {
+  readonly code = "CALIBRATION_VALIDATION";
   constructor(message: string) {
     super(message);
-    this.name = "CalibrationError";
+    this.name = "CalibrationValidationError";
   }
 }
 
 export const DEFAULT_BIN_COUNT = 10;
 
+/** Metric is a function of the native primitive, never of which field is set. */
+const METRIC_BY_KIND: Record<CalibrationSampleKind, ReliabilityMetric> = {
+  choice: "confidence",
+  score: "score",
+  noul: "probability",
+};
+
+function nativeScoreOf(
+  sample: CalibrationSample,
+  metric: ReliabilityMetric,
+): number | undefined {
+  switch (metric) {
+    case "probability":
+      return sample.probability;
+    case "score":
+      return sample.score;
+    case "confidence":
+      return sample.confidence;
+  }
+}
+
 type Scorable = { score: number; correct: boolean };
 
-function scorableSamples(
-  samples: readonly CalibrationSample[],
-): { scorable: Scorable[]; excludedUnscored: number; metric: "confidence" | "probability" } {
-  const withProbability = samples.filter((sample) => sample.probability !== undefined).length;
-  const withConfidence = samples.filter((sample) => sample.confidence !== undefined).length;
-
-  if (withProbability > 0 && withConfidence > 0) {
-    throw new CalibrationError(
-      "cannot mix probability (Noul) and confidence (Choice/Score) samples in one report",
+function scorableSamples(samples: readonly CalibrationSample[]): {
+  scorable: Scorable[];
+  excludedUnscored: number;
+  metric: ReliabilityMetric;
+} {
+  const kinds = new Set(samples.map((sample) => sample.kind));
+  if (kinds.size !== 1) {
+    throw new CalibrationValidationError(
+      `cannot mix native result kinds in one report: ${[...kinds].join(", ")}`,
     );
   }
-  if (withProbability === 0 && withConfidence === 0) {
-    throw new CalibrationError("no samples carry a native score to calibrate");
-  }
+  const metric = METRIC_BY_KIND[samples[0].kind];
 
-  const metric = withProbability > 0 ? "probability" : "confidence";
   const scorable: Scorable[] = [];
   let excludedUnscored = 0;
   for (const sample of samples) {
-    const score = metric === "probability" ? sample.probability : sample.confidence;
+    const score = nativeScoreOf(sample, metric);
     if (score === undefined) {
       excludedUnscored += 1;
       continue;
     }
     if (!Number.isFinite(score) || score < 0 || score > 1) {
-      throw new CalibrationError(`native score outside 0..1: ${String(score)}`);
+      throw new CalibrationValidationError(`native score outside 0..1: ${String(score)}`);
     }
     scorable.push({ score, correct: sample.correct });
   }
@@ -89,28 +116,31 @@ export function computeReliability(
   opts?: { bins?: number },
 ): ReliabilityReport {
   if (samples.length === 0) {
-    throw new CalibrationError("no samples to calibrate");
+    throw new CalibrationValidationError("no samples to calibrate");
   }
   const decisions = new Set(samples.map((sample) => sample.decision));
   const engines = new Set(samples.map((sample) => sample.engineId));
   if (decisions.size !== 1) {
-    throw new CalibrationError(
+    throw new CalibrationValidationError(
       `samples span multiple decisions: ${[...decisions].join(", ")}`,
     );
   }
   if (engines.size !== 1) {
-    throw new CalibrationError(
+    throw new CalibrationValidationError(
       `samples span multiple engines: ${[...engines].join(", ")} (calibration is not transferable)`,
     );
   }
 
   const binCount = opts?.bins ?? DEFAULT_BIN_COUNT;
   if (!Number.isInteger(binCount) || binCount <= 0) {
-    throw new CalibrationError(`bins must be a positive integer, got ${String(binCount)}`);
+    throw new CalibrationValidationError(`bins must be a positive integer, got ${String(binCount)}`);
   }
 
   const { scorable, excludedUnscored, metric } = scorableSamples(samples);
   const total = scorable.length;
+  if (total === 0) {
+    throw new CalibrationValidationError("no samples carry a native score to calibrate");
+  }
 
   const buckets: Scorable[][] = Array.from({ length: binCount }, () => []);
   for (const sample of scorable) {

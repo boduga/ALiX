@@ -1,18 +1,25 @@
 /**
  * dataset.ts — Journal × labels → calibration dataset (J4 task 27).
  *
- * Joins observed decisions with their ground-truth labels. Everything that
- * cannot be calibrated is counted in `skipped` rather than silently dropped,
- * so an empty dataset is always explainable.
+ * Joins observed decisions with their ground-truth labels, and exports the
+ * result as a portable artifact. Everything that cannot be calibrated is
+ * counted in `skipped` rather than silently dropped, so an empty dataset is
+ * always explainable.
  */
 
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { DecisionJournalRecord } from "../journal.js";
-import type { DecisionType } from "../contracts.js";
+import type { DecisionType, RiskContext } from "../contracts.js";
+import type { DecisionJournalStore } from "../journal.js";
+import type { OutcomeLabelStore } from "./label-store.js";
 import {
   indexLabelsByDecisionId,
   type DecisionOutcomeLabel,
-  type RiskContext,
 } from "./labels.js";
+
+/** Native result primitive, which determines how a sample is calibrated. */
+export type CalibrationSampleKind = "choice" | "score" | "noul";
 
 export type CalibrationSample = {
   decisionId: string;
@@ -20,15 +27,18 @@ export type CalibrationSample = {
   engineId: string;
   engineVersion?: string;
   thresholdProfile?: string;
-  /** Native confidence (choice/score). Absent for Noul and for engines that emit none. */
+  /** Which native result the decision produced. */
+  kind: CalibrationSampleKind;
+  /** Choice/Score confidence, when the engine emitted one. */
   confidence?: number;
-  /** Native probability (noul). */
+  /** Noul probability. */
   probability?: number;
+  /** Score rubric rating (the native score of a `score` result). */
+  score?: number;
   /** Ground truth. */
   correct: boolean;
+  /** Risk context captured at decision time. */
   risk?: RiskContext;
-  latencyMs: number;
-  remote: boolean;
 };
 
 export type CalibrationSkipReasons = {
@@ -43,19 +53,29 @@ export type CalibrationDataset = {
   skipped: CalibrationSkipReasons;
 };
 
-function nativeScore(outcome: DecisionJournalRecord["outcome"]): {
+function nativeFields(outcome: DecisionJournalRecord["outcome"]): {
+  kind: CalibrationSampleKind;
   confidence?: number;
   probability?: number;
+  score?: number;
 } {
   switch (outcome.kind) {
     case "choice":
-      return outcome.confidence !== undefined ? { confidence: outcome.confidence } : {};
+      return {
+        kind: "choice",
+        ...(outcome.confidence !== undefined ? { confidence: outcome.confidence } : {}),
+      };
     case "score":
-      return outcome.confidence !== undefined ? { confidence: outcome.confidence } : {};
+      return {
+        kind: "score",
+        score: outcome.score,
+        ...(outcome.confidence !== undefined ? { confidence: outcome.confidence } : {}),
+      };
     case "noul":
-      return { probability: outcome.probability };
+      return { kind: "noul", probability: outcome.probability };
     case "failure":
-      return {};
+      // Callers must filter failures before calling; kept exhaustive for types.
+      return { kind: "choice" };
   }
 }
 
@@ -107,13 +127,50 @@ export function buildCalibrationDataset(
       engineId: record.engineId,
       ...(record.engineVersion !== undefined ? { engineVersion: record.engineVersion } : {}),
       ...(record.thresholdProfile !== undefined ? { thresholdProfile: record.thresholdProfile } : {}),
-      ...nativeScore(record.outcome),
+      ...nativeFields(record.outcome),
       correct: label.label === "correct",
-      ...(label.risk !== undefined ? { risk: label.risk } : {}),
-      latencyMs: record.latencyMs,
-      remote: record.remote,
+      ...(record.risk !== undefined ? { risk: record.risk } : {}),
     });
   }
 
   return { samples, skipped };
+}
+
+export type CalibrationExport = CalibrationDataset & {
+  exportedAt: number;
+  filters: { decision?: DecisionType; engineId?: string };
+};
+
+/**
+ * Query both stores and produce a portable calibration artifact. When
+ * `outPath` is given the artifact is written as JSON (parent dirs created).
+ */
+export async function exportCalibrationDataset(
+  deps: { journal: Pick<DecisionJournalStore, "readAll">; labels: OutcomeLabelStore },
+  opts?: {
+    decision?: DecisionType;
+    engineId?: string;
+    outPath?: string;
+    now?: number;
+  },
+): Promise<CalibrationExport> {
+  const records = deps.journal.readAll();
+  const { labels } = await deps.labels.readAll();
+  const dataset = buildCalibrationDataset(records, labels, {
+    ...(opts?.decision !== undefined ? { decision: opts.decision } : {}),
+    ...(opts?.engineId !== undefined ? { engineId: opts.engineId } : {}),
+  });
+  const artifact: CalibrationExport = {
+    ...dataset,
+    exportedAt: opts?.now ?? Date.now(),
+    filters: {
+      ...(opts?.decision !== undefined ? { decision: opts.decision } : {}),
+      ...(opts?.engineId !== undefined ? { engineId: opts.engineId } : {}),
+    },
+  };
+  if (opts?.outPath !== undefined) {
+    await mkdir(join(opts.outPath, ".."), { recursive: true });
+    await writeFile(opts.outPath, JSON.stringify(artifact, null, 2), "utf8");
+  }
+  return artifact;
 }
