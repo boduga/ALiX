@@ -17,6 +17,7 @@
 - `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
+- `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability. See its AGENTS.md.
 - Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
@@ -55,6 +56,7 @@
 - `tests/decision/claim-verification.test.ts` — J1 decision (schema, projection, baseline, mapping, shadow).
 - `tests/decision/context-relevance.test.ts` — J2 decision (per-item projection, Noul mapping, JEV-9 thresholds, selection, shadow).
 - `tests/decision/model-tier.test.ts` — J3 decision (candidate tiers, feature-only projection, canonical resolution, JEV-10, shadow, selection).
+- `tests/decision/risk-escalation.test.ts` — J6 decision (schema, projection, baseline, mapping, shadow recommendation, selection).
 - `tests/decision/calibration.test.ts` — J4 labels/store/dataset/reliability.
 - `tests/decision/threshold-profiles.test.ts` — J4b versioned profiles, provenance-gated promotion/rollback, scope resolution.
 - `tests/decision/replay.test.ts` — J5 fixtures, dry-run, comparison, cost, promotion gate.
@@ -67,5 +69,6 @@
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
+| `src/decision/decisions/risk-escalation/AGENTS.md` | J6 decision — bounded risk tiers, composed approval recommendation, §14 admission review |
 | `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability, versioned threshold profiles + promotion/rollback |
 | `src/decision/replay/AGENTS.md` | J5 dry-run harness — stored fixtures, comparison, promotion gate |

@@ -217,7 +217,7 @@ Default section order:
 | `src/cli/commands/adaptation/AGENTS.md` | Adaptation CLI handlers — shared/appliers/renderers/handlers/main submodules |
 | `src/cli/commands/governance/AGENTS.md` | Governance CLI handlers — shared/evolution/status/lifecycle/investigation/analytics/inbox/actions/execution/workbench/readiness/handoff/intelligence/audit/audit-insights/main submodules |
 | `src/cli/commands/decision/AGENTS.md` | Decision CLI handlers — shared/context-risk/queue-brief/review/outcome/intent/main submodules |
-| `src/decision/AGENTS.md` | Bounded probabilistic decisions (Jev System One) — contracts, engine registry, config, three decisions, calibration |
+| `src/decision/AGENTS.md` | Bounded probabilistic decisions (Jev System One) — contracts, engine registry, config, four decisions, calibration, replay |
 | `src/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
 | `src/tui/AGENTS.md` | Interactive terminal UI — projections, Workbench transcript, views, input, layout, rendering |
 | `src/tracing/AGENTS.md` | Langfuse tracing facade — TraceClient, noop client, capture policy, adapter |

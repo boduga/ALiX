@@ -21,6 +21,8 @@ import { readRelevanceProjection } from "../decisions/context-relevance/projecti
 import { chooseTierLocally } from "../decisions/model-tier/local-baseline.js";
 import { readModelTierProjection } from "../decisions/model-tier/projection.js";
 import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
+import { classifyRiskLocally } from "../decisions/risk-escalation/local-baseline.js";
+import { readRiskProjection } from "../decisions/risk-escalation/projection.js";
 
 export const LOCAL_ENGINE_ID = "local";
 
@@ -76,11 +78,29 @@ function modelTierChoice(input: ExecuteInput, started: number): ExecutorOutcome 
   };
 }
 
+function riskChoice(input: ExecuteInput, started: number): ExecutorOutcome {
+  const { tier } = classifyRiskLocally(readRiskProjection(input.sealed.payload));
+  if (input.candidates !== undefined && !input.candidates.includes(tier)) {
+    return { kind: "failure", error: "candidate set incompatible with local baseline" };
+  }
+  return {
+    kind: "choice",
+    choice: tier,
+    provenance: {
+      engineId: LOCAL_ENGINE_ID,
+      latencyMs: Date.now() - started,
+      remote: false,
+      projectionHash: input.sealed.hash,
+    },
+  };
+}
+
 /** Exhaustive dispatch: adding a DecisionType without a baseline fails compile. */
 const BASELINE: Record<DecisionType, (input: ExecuteInput, started: number) => ExecutorOutcome> = {
   "claim-verification": claimChoice,
   "context-relevance": relevanceNoul,
   "model-tier": modelTierChoice,
+  "risk-escalation": riskChoice,
 };
 
 export function createLocalBaselineExecutor(): DecisionExecutor {
