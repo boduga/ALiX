@@ -12,6 +12,7 @@ import {
   computeReliability,
   createCalibrationProvenance,
   createProfileRegistry,
+  deriveThresholdProfile,
   loadProfileRegistry,
   profileById,
   promoteProfile,
@@ -20,6 +21,7 @@ import {
   resolveProfileForEngine,
   rollbackProfile,
   saveProfileRegistry,
+  suggestThreshold,
   thresholdProfileById,
   thresholdProfileForEngine,
   type CalibrationSample,
@@ -125,27 +127,65 @@ describe("promotion and rollback", () => {
   const v2 = profile({ id: "p/v2", status: "shadow", threshold: 0.5, provenance: provenance() });
 
   it("promotes a calibrated profile and retires the incumbent", () => {
-    const promoted = promoteProfile(createProfileRegistry([v1, v2]), "p/v2", { now: 7 });
+    const promoted = promoteProfile(createProfileRegistry([v1, v2]), "p/v2", { now: 7, approved: true });
     assert.equal(activeProfile(promoted, { decision: "context-relevance", engineId: LOCAL_ENGINE_ID })?.id, "p/v2");
     assert.equal(profileById(promoted, "p/v1")?.status, "retired");
     assert.equal(profileById(promoted, "p/v1")?.retiredAt, 7);
     assert.equal(profileById(promoted, "p/v2")?.promotedAt, 7);
   });
 
+  it("requires an affirmative governance approval to promote", () => {
+    const registry = createProfileRegistry([v1, v2]);
+    assert.throws(
+      () => promoteProfile(registry, "p/v2", { now: 7 }),
+      /affirmative governance approval/,
+    );
+    const promoted = promoteProfile(registry, "p/v2", { now: 7, approved: true, approvedBy: "op-1" });
+    assert.equal(profileById(promoted, "p/v2")?.approvedBy, "op-1");
+  });
+
   it("fails closed on unknown, uncalibrated, or already-active promotion", () => {
     const registry = createProfileRegistry([v1, profile({ id: "p/v3" })]);
-    assert.throws(() => promoteProfile(registry, "nope"), /unknown profile/);
-    assert.throws(() => promoteProfile(registry, "p/v3"), /no calibration provenance/);
-    assert.throws(() => promoteProfile(registry, "p/v1"), /already active/);
+    assert.throws(() => promoteProfile(registry, "nope", { approved: true }), /unknown profile/);
+    assert.throws(() => promoteProfile(registry, "p/v3", { approved: true }), /no calibration provenance/);
+    assert.throws(() => promoteProfile(registry, "p/v1", { approved: true }), /already active/);
   });
 
   it("rolls back to the most recently retired profile", () => {
     const registry = createProfileRegistry([v1, v2]);
-    const promoted = promoteProfile(registry, "p/v2", { now: 7 });
+    const promoted = promoteProfile(registry, "p/v2", { now: 7, approved: true });
     const rolledBack = rollbackProfile(promoted, { decision: "context-relevance", engineId: LOCAL_ENGINE_ID }, { now: 9 });
     assert.equal(activeProfile(rolledBack, { decision: "context-relevance", engineId: LOCAL_ENGINE_ID })?.id, "p/v1");
     assert.equal(profileById(rolledBack, "p/v2")?.status, "retired");
     assert.equal(profileById(rolledBack, "p/v1")?.promotedAt, 9);
+  });
+
+  it("closes the loop: report -> derived profile -> approved promotion", () => {
+    const report = computeReliability([
+      { decisionId: "d1", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.8, correct: true },
+      { decisionId: "d2", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.9, correct: true },
+      { decisionId: "d3", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.2, correct: false },
+    ]);
+    const derived = deriveThresholdProfile({
+      report,
+      datasetId: "fixture/first",
+      id: "context-relevance/local/v2",
+      decision: "context-relevance",
+      engineId: "local",
+      targetAccuracy: 0.5,
+      computedAt: 2,
+    });
+    assert.equal(derived.status, "shadow");
+    assert.equal(derived.provenance?.datasetId, "fixture/first");
+    assert.ok(typeof derived.threshold === "number" && derived.threshold >= 0);
+
+    const registry = promoteProfile(createProfileRegistry([derived]), "context-relevance/local/v2", {
+      now: 4,
+      approved: true,
+      approvedBy: "op-1",
+    });
+    assert.equal(thresholdProfileForEngine(LOCAL_ENGINE_ID, registry).threshold, derived.threshold);
+    assert.equal(profileById(registry, "context-relevance/local/v2")?.approvedBy, "op-1");
   });
 
   it("fails closed when there is nothing to roll back to", () => {
@@ -188,9 +228,29 @@ describe("profile persistence", () => {
     writeFileSync(path, JSON.stringify({ profiles: [{ id: "x" }] }), "utf8");
     assert.throws(() => loadProfileRegistry(path), ProfileValidationError);
   });
+  it("suggests the least context dropped for an acceptable error rate", () => {
+    const report = computeReliability([
+      { decisionId: "d1", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.9, correct: true },
+      { decisionId: "d2", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.9, correct: false },
+      { decisionId: "d3", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.1, correct: false },
+    ]);
+    const suggestion = suggestThreshold(report, { targetAccuracy: 0.5 });
+    assert.equal(suggestion.threshold, 0.2);
+    assert.ok(Math.abs(suggestion.accuracy - 0.5) < 1e-9, `accuracy ${suggestion.accuracy} ≈ 1/2`);
+    assert.ok(Math.abs(suggestion.coverage - 2 / 3) < 1e-9, `coverage ${suggestion.coverage} ≈ 2/3`);
+  });
+
+  it("fails closed on a threshold suggestion no one could beat", () => {
+    const report = computeReliability([
+      { decisionId: "d1", decision: "context-relevance", engineId: "local", kind: "noul" as const, probability: 0.9, correct: false },
+    ]);
+    const suggestion = suggestThreshold(report, { targetAccuracy: 0.9 });
+    assert.equal(suggestion.threshold, 1);
+    assert.equal(suggestion.coverage, 0);
+  });
 });
 
-describe("no automation without a calibrated threshold", () => {
+describe("first calibration and profile provenance", () => {
   it("the shipped seed is shadow-only, so resolution fails closed", () => {
     assert.equal(profileById(CONTEXT_RELEVANCE_PROFILES, "context-relevance/local/v1")?.status, "shadow");
     assert.throws(
@@ -205,13 +265,13 @@ describe("no automation without a calibrated threshold", () => {
 
   it("an uncalibrated seed cannot be promoted; a calibrated one can", () => {
     assert.throws(
-      () => promoteProfile(CONTEXT_RELEVANCE_PROFILES, "context-relevance/local/v1"),
+      () => promoteProfile(CONTEXT_RELEVANCE_PROFILES, "context-relevance/local/v1", { approved: true }),
       /no calibration provenance/,
     );
 
     const seed = profileById(CONTEXT_RELEVANCE_PROFILES, "context-relevance/local/v1") as ThresholdProfile;
     const calibrated = createProfileRegistry([{ ...seed, provenance: provenance() }]);
-    const promoted = promoteProfile(calibrated, "context-relevance/local/v1", { now: 3 });
+    const promoted = promoteProfile(calibrated, "context-relevance/local/v1", { now: 3, approved: true });
     assert.equal(thresholdProfileForEngine(LOCAL_ENGINE_ID, promoted).threshold, 0.34);
     assert.equal(thresholdProfileById("context-relevance/local/v1", promoted)?.status, "active");
   });

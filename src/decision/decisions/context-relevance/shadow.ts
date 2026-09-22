@@ -74,8 +74,10 @@ function contextFor(
     engineId,
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
-    ...(profile !== undefined ? { thresholdProfile: profile.id } : {}),
-    ...(deps.risk !== undefined ? { risk: deps.risk } : {}),
+    // The profile actually applied; when none resolves (unknown engine), the
+    // route's configured id documents the policy in effect so the field is
+    // never silently absent (§9).
+    thresholdProfile: profile?.id ?? deps.config.contextRelevance.thresholdProfile,
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };
 }

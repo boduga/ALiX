@@ -59,6 +59,8 @@ export type ThresholdProfile = {
   provenance?: CalibrationProvenance;
   promotedAt?: number;
   retiredAt?: number;
+  /** Who approved the promotion (governance trail). */
+  approvedBy?: string;
 };
 
 export type ProfileRegistry = {
@@ -73,7 +75,7 @@ export class ProfileValidationError extends Error {
   }
 }
 
-function throwIfInvalid(condition: boolean, message: string): void {
+function rejectWhen(condition: boolean, message: string): void {
   if (condition) throw new ProfileValidationError(message);
 }
 
@@ -85,15 +87,15 @@ export function createCalibrationProvenance(input: {
   value: number;
   computedAt?: number;
 }): CalibrationProvenance {
-  throwIfInvalid(typeof input.datasetId !== "string" || input.datasetId.length === 0, "datasetId required");
-  throwIfInvalid(
+  rejectWhen(typeof input.datasetId !== "string" || input.datasetId.length === 0, "datasetId required");
+  rejectWhen(
     !Number.isInteger(input.sampleCount) || input.sampleCount <= 0,
     "sampleCount must be a positive integer",
   );
-  throwIfInvalid(!isProvenanceMetric(input.metric), `unknown metric: ${String(input.metric)}`);
-  throwIfInvalid(!Number.isFinite(input.value), "value must be finite");
+  rejectWhen(!isProvenanceMetric(input.metric), `unknown metric: ${String(input.metric)}`);
+  rejectWhen(!Number.isFinite(input.value), "value must be finite");
   const computedAt = input.computedAt ?? Date.now();
-  throwIfInvalid(!Number.isFinite(computedAt), "computedAt must be finite");
+  rejectWhen(!Number.isFinite(computedAt), "computedAt must be finite");
   return {
     datasetId: input.datasetId,
     sampleCount: input.sampleCount,
@@ -116,17 +118,16 @@ export function provenanceFromReliability(
   report: ReliabilityReport,
   input: { datasetId: string; metric: ProvenanceMetric; computedAt?: number },
 ): CalibrationProvenance {
-  const value =
-    input.metric === "accuracy"
-      ? reportAccuracy(report)
-      : input.metric === "expectedCalibrationError"
-        ? report.expectedCalibrationError
-        : report.brierScore;
+  const value: Record<ProvenanceMetric, number> = {
+    accuracy: reportAccuracy(report),
+    expectedCalibrationError: report.expectedCalibrationError,
+    brierScore: report.brierScore,
+  };
   return createCalibrationProvenance({
     datasetId: input.datasetId,
     sampleCount: report.sampleCount,
     metric: input.metric,
-    value,
+    value: value[input.metric],
     ...(input.computedAt !== undefined ? { computedAt: input.computedAt } : {}),
   });
 }
@@ -151,18 +152,18 @@ export function isThresholdProfile(value: unknown): value is ThresholdProfile {
 
 /** Structural check used by the loader; stricter than `isThresholdProfile`. */
 function assertValidProfile(profile: ThresholdProfile): void {
-  throwIfInvalid(
+  rejectWhen(
     !isThresholdProfile(profile),
     `invalid profile: ${JSON.stringify(profile)}`,
   );
-  throwIfInvalid(
+  rejectWhen(
     profile.threshold < 0 || profile.threshold > 1,
     `threshold outside 0..1: ${String(profile.threshold)}`,
   );
   if (profile.provenance !== undefined) {
     createCalibrationProvenance(profile.provenance);
   }
-  throwIfInvalid(
+  rejectWhen(
     profile.status === "active" && profile.provenance === undefined,
     `active profile ${profile.id} has no provenance (thresholds require empirical provenance)`,
   );
@@ -172,7 +173,7 @@ export function createProfileRegistry(seed: readonly ThresholdProfile[] = []): P
   const ids = new Set<string>();
   for (const profile of seed) {
     assertValidProfile(profile);
-    throwIfInvalid(ids.has(profile.id), `duplicate profile id: ${profile.id}`);
+    rejectWhen(ids.has(profile.id), `duplicate profile id: ${profile.id}`);
     ids.add(profile.id);
   }
   return { profiles: [...seed] };
@@ -188,13 +189,14 @@ export type ProfileScope = {
   risk?: RiskContext;
 };
 
+/** Scope identity as one comparable key; `sameScope` is key equality. */
+function scopeKey(scope: { decision: DecisionType; engineId: string; risk?: RiskContext }): string {
+  return `${scope.decision}/${scope.engineId}/${scope.risk ?? ""}`;
+}
+
 /** Exact scope identity: same decision, engine, and risk (including absent). */
 function sameScope(profile: ThresholdProfile, scope: ProfileScope): boolean {
-  return (
-    profile.decision === scope.decision &&
-    profile.engineId === scope.engineId &&
-    profile.risk === scope.risk
-  );
+  return scopeKey(profile) === scopeKey(scope);
 }
 
 /**
@@ -242,21 +244,27 @@ export function activeProfilesForEngine(
 
 /**
  * Promote a profile to active for its scope. Fails closed when the profile is
- * unknown, already active, or has no provenance.
+ * unknown, already active, or has no provenance. Requires an affirmative
+ * governance approval (arch §10: promotion goes through normal governance) —
+ * the caller obtains it via the approvals/policy path and records who gave it.
  */
 export function promoteProfile(
   registry: ProfileRegistry,
   id: string,
-  opts?: { now?: number },
+  opts?: { now?: number; approved?: boolean; approvedBy?: string },
 ): ProfileRegistry {
   const target = profileById(registry, id);
-  throwIfInvalid(target === undefined, `unknown profile: ${id}`);
+  rejectWhen(target === undefined, `unknown profile: ${id}`);
   const profile = target as ThresholdProfile;
-  throwIfInvalid(
+  rejectWhen(
+    opts?.approved !== true,
+    `promotion of ${id} requires an affirmative governance approval (arch §10)`,
+  );
+  rejectWhen(
     profile.provenance === undefined,
     `cannot promote ${id}: no calibration provenance (thresholds require empirical evidence)`,
   );
-  throwIfInvalid(profile.status === "active", `${id} is already active`);
+  rejectWhen(profile.status === "active", `${id} is already active`);
 
   const now = opts?.now ?? Date.now();
   const scope: ProfileScope = {
@@ -273,12 +281,80 @@ export function promoteProfile(
   return {
     profiles: registry.profiles.map((entry) => {
       if (entry.id === profile.id) {
-        return { ...entry, status: "active" as const, promotedAt: now, retiredAt: undefined };
+        return {
+          ...entry,
+          status: "active" as const,
+          promotedAt: now,
+          retiredAt: undefined,
+          ...(opts?.approvedBy !== undefined ? { approvedBy: opts.approvedBy } : {}),
+        };
       }
       if (previous !== undefined && entry.id === previous.id) {
         return { ...entry, status: "retired" as const, retiredAt: now };
       }
       return entry;
+    }),
+  };
+}
+
+/**
+ * Suggest the lowest threshold that meets a target accuracy over the report's
+ * bins — the least context dropped for an acceptable error rate. Returns a
+ * fully-closed threshold (1) with zero coverage when nothing meets the target.
+ */
+export function suggestThreshold(
+  report: ReliabilityReport,
+  opts: { targetAccuracy: number },
+): { threshold: number; accuracy: number; coverage: number } {
+  const total = report.sampleCount;
+  if (total === 0) {
+    return { threshold: 1, accuracy: 0, coverage: 0 };
+  }
+  const bins = report.bins.length;
+  for (let i = 0; i < bins; i += 1) {
+    let kept = 0;
+    let correct = 0;
+    for (let j = i; j < bins; j += 1) {
+      kept += report.bins[j].count;
+      correct += report.bins[j].count * report.bins[j].accuracy;
+    }
+    if (kept > 0 && correct / kept >= opts.targetAccuracy) {
+      return { threshold: i / bins, accuracy: correct / kept, coverage: kept / total };
+    }
+  }
+  return { threshold: 1, accuracy: 0, coverage: 0 };
+}
+
+/**
+ * Derive a versioned, provenance-bearing profile from a reliability report.
+ * Returned `shadow` — it still needs an approved `promoteProfile` to take
+ * effect. This is the src path from evidence to a promotable profile, so a
+ * first calibration never deadlocks on hand-edited JSON.
+ */
+export function deriveThresholdProfile(input: {
+  report: ReliabilityReport;
+  datasetId: string;
+  id: string;
+  decision: DecisionType;
+  engineId: string;
+  risk?: RiskContext;
+  targetAccuracy: number;
+  computedAt?: number;
+}): ThresholdProfile {
+  const suggestion = suggestThreshold(input.report, { targetAccuracy: input.targetAccuracy });
+  return {
+    id: input.id,
+    decision: input.decision,
+    engineId: input.engineId,
+    ...(input.risk !== undefined ? { risk: input.risk } : {}),
+    threshold: suggestion.threshold,
+    status: "shadow",
+    provenance: createCalibrationProvenance({
+      datasetId: input.datasetId,
+      sampleCount: input.report.sampleCount,
+      metric: "accuracy",
+      value: suggestion.accuracy,
+      ...(input.computedAt !== undefined ? { computedAt: input.computedAt } : {}),
     }),
   };
 }
@@ -295,12 +371,12 @@ export function rollbackProfile(
   const current = registry.profiles.find(
     (profile) => profile.status === "active" && sameScope(profile, scope),
   );
-  throwIfInvalid(current === undefined, "no active profile to roll back");
+  rejectWhen(current === undefined, "no active profile to roll back");
 
   const retired = registry.profiles
     .filter((profile) => profile.status === "retired" && sameScope(profile, scope))
     .sort((a, b) => (b.retiredAt ?? 0) - (a.retiredAt ?? 0));
-  throwIfInvalid(retired.length === 0, "no retired profile to restore");
+  rejectWhen(retired.length === 0, "no retired profile to restore");
 
   const restore = retired[0];
   const now = opts?.now ?? Date.now();
@@ -327,6 +403,6 @@ export function saveProfileRegistry(path: string, registry: ProfileRegistry): vo
 export function loadProfileRegistry(path: string): ProfileRegistry {
   const raw = readJsonFileSync<ProfileRegistry>(path);
   if (raw === null) return { profiles: [] };
-  throwIfInvalid(!Array.isArray(raw.profiles), "profile registry must contain a profiles array");
+  rejectWhen(!Array.isArray(raw.profiles), "profile registry must contain a profiles array");
   return createProfileRegistry(raw.profiles);
 }
