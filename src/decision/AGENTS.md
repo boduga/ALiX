@@ -56,6 +56,7 @@
 - `tests/decision/context-relevance.test.ts` — J2 decision (per-item projection, Noul mapping, JEV-9 thresholds, selection, shadow).
 - `tests/decision/model-tier.test.ts` — J3 decision (candidate tiers, feature-only projection, canonical resolution, JEV-10, shadow, selection).
 - `tests/decision/calibration.test.ts` — J4 labels/store/dataset/reliability.
+- `tests/decision/threshold-profiles.test.ts` — J4b versioned profiles, provenance-gated promotion/rollback, scope resolution.
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
@@ -65,4 +66,4 @@
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
-| `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability |
+| `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability, versioned threshold profiles + promotion/rollback |

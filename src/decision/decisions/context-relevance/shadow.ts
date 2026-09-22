@@ -19,6 +19,7 @@ import { buildPlan, executeWithFallback } from "../../fallback.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import { observedEngineId } from "../shared/attempts.js";
 import { journalAttempts, type JournalContext } from "../shared/journaling.js";
+import type { ProfileRegistry } from "../../calibration/profiles.js";
 import { projectContextRelevance, type ContextRelevanceItemInput } from "./projection.js";
 import { selectWithEngineThresholds, type SelectionResult } from "./selection.js";
 import {
@@ -36,6 +37,8 @@ export type ContextRelevanceShadowDeps = {
   executionId?: string;
   /** Risk context at decision time. */
   risk?: RiskContext;
+  /** Threshold profiles to apply. Defaults to the shadow-only seed. */
+  profiles?: ProfileRegistry;
 };
 
 export type ContextRelevanceItemObservation = {
@@ -65,7 +68,7 @@ function contextFor(
   sealed: RemoteSealedProjection<Record<string, unknown>>,
   deps: ContextRelevanceShadowDeps,
 ): JournalContext {
-  const profile = tryThresholdProfileForEngine(engineId);
+  const profile = tryThresholdProfileForEngine(engineId, deps.profiles);
   return {
     decision: "context-relevance",
     engineId,
@@ -162,7 +165,7 @@ export async function runContextRelevanceShadow(
     })),
     {
       resolveProfile: (engineId) =>
-        resolveProfileForEngine(engineId, deps.config.contextRelevance.thresholdProfile),
+        resolveProfileForEngine(engineId, deps.config.contextRelevance.thresholdProfile, deps.profiles),
       maxItems: deps.maxItems,
     },
   );

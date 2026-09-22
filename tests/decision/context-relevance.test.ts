@@ -13,9 +13,11 @@ import {
   MAX_OBJECTIVE_CHARS,
   MalformedResultError,
   ProjectionRejectedError,
+  createCalibrationProvenance,
   createDecisionJournalStore,
   createDefaultRegistry,
   createJevExecutor,
+  createProfileRegistry,
   fromJevRelevanceResponse,
   projectContextRelevance,
   registerJevEngine,
@@ -44,6 +46,41 @@ function relevanceConfig(overrides?: Partial<DecisionConfig>): DecisionConfig {
     ...overrides,
   };
 }
+
+/**
+ * A promoted registry: the shipped seed is shadow-only, so tests that apply a
+ * threshold must inject calibrated profiles (that is the J4 gate).
+ */
+const ACTIVE_PROFILES = createProfileRegistry([
+  {
+    id: "context-relevance/local/v1",
+    decision: "context-relevance",
+    engineId: LOCAL_ENGINE_ID,
+    threshold: 0.34,
+    status: "active",
+    provenance: createCalibrationProvenance({
+      datasetId: "fixture/local",
+      sampleCount: 40,
+      metric: "accuracy",
+      value: 0.9,
+      computedAt: 1,
+    }),
+  },
+  {
+    id: "context-relevance/jev/v1",
+    decision: "context-relevance",
+    engineId: "jev",
+    threshold: 0.5,
+    status: "active",
+    provenance: createCalibrationProvenance({
+      datasetId: "fixture/jev",
+      sampleCount: 60,
+      metric: "accuracy",
+      value: 0.88,
+      computedAt: 1,
+    }),
+  },
+]);
 
 function jevRelevanceConfig(): DecisionConfig {
   return relevanceConfig({
@@ -110,7 +147,7 @@ describe("local relevance baseline", () => {
       const second = scoreRelevanceLocally({ objective: fixture.objective, item: fixture.item });
       assert.deepEqual(first, second, `${fixture.id} not deterministic`);
       if (fixture.knownBaselineFalsePositive) continue;
-      const threshold = thresholdProfileForEngine(LOCAL_ENGINE_ID).threshold;
+      const threshold = thresholdProfileForEngine(LOCAL_ENGINE_ID, ACTIVE_PROFILES).threshold;
       const predicted = first.probability >= threshold ? "relevant" : "irrelevant";
       assert.equal(predicted, fixture.expected, `${fixture.id}: ${first.reason}`);
     }
@@ -120,7 +157,7 @@ describe("local relevance baseline", () => {
     const fixture = CONTEXT_RELEVANCE_CORPUS.find((f) => f.knownBaselineFalsePositive);
     assert.ok(fixture);
     const score = scoreRelevanceLocally({ objective: fixture.objective, item: fixture.item });
-    assert.ok(score.probability >= thresholdProfileForEngine(LOCAL_ENGINE_ID).threshold);
+    assert.ok(score.probability >= thresholdProfileForEngine(LOCAL_ENGINE_ID, ACTIVE_PROFILES).threshold);
     assert.equal(fixture.expected, "irrelevant");
   });
 
@@ -131,28 +168,28 @@ describe("local relevance baseline", () => {
 
 describe("engine-specific thresholds (JEV-9)", () => {
   it("resolves the profile for the answering engine", () => {
-    assert.equal(thresholdProfileForEngine(LOCAL_ENGINE_ID).id, "context-relevance/local/v1");
-    assert.equal(thresholdProfileForEngine("jev").id, "context-relevance/jev/v1");
-    assert.throws(() => thresholdProfileForEngine("mystery"), /No relevance threshold profile/);
+    assert.equal(thresholdProfileForEngine(LOCAL_ENGINE_ID, ACTIVE_PROFILES).id, "context-relevance/local/v1");
+    assert.equal(thresholdProfileForEngine("jev", ACTIVE_PROFILES).id, "context-relevance/jev/v1");
+    assert.throws(() => thresholdProfileForEngine("mystery", ACTIVE_PROFILES), /No active relevance threshold profile/);
   });
 
   it("refuses to apply another engine's profile", () => {
     assert.equal(
-      resolveProfileForEngine(LOCAL_ENGINE_ID, "context-relevance/jev/v1").id,
+      resolveProfileForEngine(LOCAL_ENGINE_ID, "context-relevance/jev/v1", ACTIVE_PROFILES).id,
       "context-relevance/local/v1",
     );
     assert.equal(
-      resolveProfileForEngine("jev", "context-relevance/jev/v1").id,
+      resolveProfileForEngine("jev", "context-relevance/jev/v1", ACTIVE_PROFILES).id,
       "context-relevance/jev/v1",
     );
-    assert.equal(tryThresholdProfileForEngine("mystery"), undefined);
-    assert.throws(() => resolveProfileForEngine("mystery", "context-relevance/local/v1"), /No relevance threshold profile/);
+    assert.equal(tryThresholdProfileForEngine("mystery", ACTIVE_PROFILES), undefined);
+    assert.throws(() => resolveProfileForEngine("mystery", "context-relevance/local/v1", ACTIVE_PROFILES), /No active relevance threshold profile/);
   });
 });
 
 describe("deterministic selection", () => {
   const resolveProfile = (engineId: string) =>
-    resolveProfileForEngine(engineId, "context-relevance/local/v1");
+    resolveProfileForEngine(engineId, "context-relevance/local/v1", ACTIVE_PROFILES);
 
   it("ranks by probability desc, stable on ties, then caps", () => {
     const scores: ScoredItem[] = [
@@ -257,7 +294,7 @@ describe("context-relevance shadow runner", () => {
     const journal = createDecisionJournalStore(join(dir, "disabled"));
     const result = await runContextRelevanceShadow(
       { objective: "Fix the flaky provider timeout test", items: ITEMS },
-      { config: DEFAULT_DECISION_CONFIG, registry: createDefaultRegistry(), journal },
+      { config: DEFAULT_DECISION_CONFIG, registry: createDefaultRegistry(), profiles: ACTIVE_PROFILES, journal },
     );
     assert.equal(result.enabled, false);
     assert.deepEqual(result.selection.selectedIds, ["i1", "i2"]);
@@ -271,7 +308,7 @@ describe("context-relevance shadow runner", () => {
     const journal = createDecisionJournalStore(join(dir, "local"));
     const result = await runContextRelevanceShadow(
       { objective: "Fix the flaky provider timeout test", items: ITEMS },
-      { config: relevanceConfig(), registry: createDefaultRegistry(), journal },
+      { config: relevanceConfig(), registry: createDefaultRegistry(), profiles: ACTIVE_PROFILES, journal },
     );
     assert.equal(result.enabled, true);
     assert.equal(result.observations.length, 2);
@@ -297,7 +334,7 @@ describe("context-relevance shadow runner", () => {
     });
     const result = await runContextRelevanceShadow(
       { objective: "Fix the flaky provider timeout test", items: [ITEMS[0]] },
-      { config: jevRelevanceConfig(), registry },
+      { config: jevRelevanceConfig(), registry, profiles: ACTIVE_PROFILES },
     );
     assert.equal(result.observations[0].engineId, LOCAL_ENGINE_ID);
     assert.equal(result.selection.thresholdProfileIds[0], "context-relevance/local/v1");
@@ -332,7 +369,7 @@ describe("context-relevance shadow runner", () => {
     });
     const result = await runContextRelevanceShadow(
       { objective: "Fix the flaky provider timeout test", items: [ITEMS[0]] },
-      { config, registry },
+      { config, registry, profiles: ACTIVE_PROFILES },
     );
     assert.deepEqual(result.unscoredIds, ["i1"]);
     assert.deepEqual(result.selection.selectedIds, ["i1"]);
@@ -343,7 +380,7 @@ describe("context-relevance shadow runner", () => {
   it("maxItems caps the selection after ranking", async () => {
     const result = await runContextRelevanceShadow(
       { objective: "Fix the flaky provider timeout test", items: ITEMS },
-      { config: relevanceConfig(), registry: createDefaultRegistry(), maxItems: 1 },
+      { config: relevanceConfig(), registry: createDefaultRegistry(), profiles: ACTIVE_PROFILES, maxItems: 1 },
     );
     assert.deepEqual(result.selection.selectedIds, ["i1"]);
   });
@@ -364,6 +401,7 @@ describe("selectContextItems integration seam", () => {
     const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
       config: relevanceConfig(),
       registry: createDefaultRegistry(),
+      profiles: ACTIVE_PROFILES,
       mode: "shadow",
     });
     assert.equal(result.mode, "shadow");
@@ -376,6 +414,7 @@ describe("selectContextItems integration seam", () => {
     const result = await selectContextItems(ITEMS, "Fix the flaky provider timeout test", {
       config: relevanceConfig(),
       registry: createDefaultRegistry(),
+      profiles: ACTIVE_PROFILES,
       mode: "active",
     });
     assert.equal(result.mode, "active");

@@ -9,3 +9,4 @@ export * from "./labels.js";
 export * from "./label-store.js";
 export * from "./dataset.js";
 export * from "./reliability.js";
+export * from "./profiles.js";
