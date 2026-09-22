@@ -1,26 +1,46 @@
 /**
- * jev-mapping.ts — Model tier ↔ Jev System One wire mapping (J3).
+ * jev-mapping.ts — Model tier ↔ System One wire mapping.
  *
- * A bounded Choice whose OPTIONS are ALiX compute classes supplied by the
- * caller (enabled canonical tiers). Jev never sees a provider or model ID, and
- * a response that is not one of the offered tiers is rejected, never coerced
- * (JEV-1, JEV-10).
+ * Verified shape: one Choice question keyed by id whose `criteria` map is the
+ * enabled canonical tiers (option -> rubric description). Jev never sees a
+ * provider or model ID, and a response that is not one of the offered tiers is
+ * rejected, never coerced (JEV-1, JEV-10).
  */
 
 import { MalformedResultError } from "../../executors.js";
 import type { ChoiceResult } from "../../contracts.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import type {
+  JevChoiceCriteria,
   JevResponseContext,
   JevSystemOneRequest,
   JevSystemOneResponse,
 } from "../../engines/jev-protocol.js";
-import { JEV_DEFAULT_MODEL, isJevChoiceAnswer } from "../../engines/jev-protocol.js";
+import { JEV_DEFAULT_MODEL, JEV_MAX_CHOICE_OPTIONS, isJevChoiceAnswer } from "../../engines/jev-protocol.js";
 import type { ModelTier } from "../../../config/schema.js";
 import { isModelTier } from "../../../config/schema.js";
 import { readModelTierProjection, type ModelTierProjection } from "./projection.js";
 
 export const JEV_MODEL_TIER_QUESTION_ID = "model-tier";
+
+/** Rubric descriptions separate the compute classes from one another. */
+const TIER_DESCRIPTIONS: Record<ModelTier, string> = {
+  default: "Balanced general-purpose work",
+  thinking: "Deep reasoning, analysis, or planning",
+  coding: "Code generation, edits, and refactors",
+  fast: "Quick, simple lookups or classifications",
+  critic: "Review, verification, or critique of existing work",
+  tiny: "The smallest and cheapest option that can still do the job",
+  image: "Image generation or editing",
+};
+
+function tierCriteria(candidates: readonly ModelTier[]): JevChoiceCriteria {
+  const criteria: JevChoiceCriteria = {};
+  for (const tier of candidates) {
+    criteria[tier] = TIER_DESCRIPTIONS[tier];
+  }
+  return criteria;
+}
 
 export function renderModelTierState(features: ModelTierProjection): string {
   return [
@@ -39,18 +59,20 @@ export function toJevModelTierRequest(
   if (candidates.length === 0) {
     throw new Error("model-tier requires at least one enabled candidate tier");
   }
+  if (candidates.length > JEV_MAX_CHOICE_OPTIONS) {
+    throw new Error(`model-tier has ${candidates.length} candidates, over the ${JEV_MAX_CHOICE_OPTIONS} limit`);
+  }
   const features = readModelTierProjection(sealed.payload);
   return {
-    model: JEV_DEFAULT_MODEL,
     state: renderModelTierState(features),
-    questions: [
-      {
-        id: JEV_MODEL_TIER_QUESTION_ID,
+    model: JEV_DEFAULT_MODEL,
+    questions: {
+      [JEV_MODEL_TIER_QUESTION_ID]: {
         type: "choice",
-        prompt: "Which compute tier should handle this task?",
-        options: candidates,
+        instructions: "Which compute tier should handle this task?",
+        criteria: tierCriteria(candidates),
       },
-    ],
+    },
   };
 }
 
@@ -63,13 +85,8 @@ export function fromJevModelTierResponse(
   ctx: JevResponseContext & { engineId?: string },
   candidates: readonly ModelTier[],
 ): ChoiceResult<ModelTier> {
-  if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
-    throw new MalformedResultError("jev response missing answers array");
-  }
-  const answer = response.answers.find(
-    (item) => item?.id === JEV_MODEL_TIER_QUESTION_ID && isJevChoiceAnswer(item),
-  );
-  if (!answer || !isJevChoiceAnswer(answer)) {
+  const answer = response?.answers?.[JEV_MODEL_TIER_QUESTION_ID];
+  if (!isJevChoiceAnswer(answer)) {
     throw new MalformedResultError(
       `jev response missing choice answer for question ${JEV_MODEL_TIER_QUESTION_ID}`,
     );

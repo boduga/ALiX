@@ -23,7 +23,7 @@
 - `contextRelevance.enabled` absent/false passes the original items through unchanged (existing behavior restored); `selectContextItems` defaults to mode `off` (identity, no engine call).
 - Local baseline emits no confidence; Noul results carry probability only.
 - Shadow results carry `authority: "none"`.
-- Wire shape is `documented-unverified`; remote stays disabled until acknowledged (see `engines/jev.ts`).
+- Wire shape is `verified-against-docs` (see `engines/jev-protocol.ts` for the source links); remote is opt-in via `remote.jev.enabled`.
 
 **Known deferrals:**
 - Task 16's "empirical results" half is unmet: Noul was chosen from the documented primitive contract, not measured SDK behavior. Revisit in J4 with calibration data.

@@ -28,7 +28,7 @@
 - No legacy alias or second model source: resolution reads `models.*` only, never the derived `model`/`subagents` projections.
 - `modelTier.enabled` absent/false keeps the existing routing policy; `selectModelTier` defaults to mode `off`.
 - Shadow results carry `authority: "none"`.
-- Wire shape is `documented-unverified`; remote stays disabled until acknowledged.
+- Wire shape is `verified-against-docs` (see `engines/jev-protocol.ts` for the source links); remote is opt-in via `remote.jev.enabled`.
 
 **Work Guidance:**
 - Classifying a task: label `taskKind: "image"` only when the deliverable IS an image. If the prompt merely mentions images as part of a bigger result (report, mockup, app), keep the composite kind and let the image work be a nested sub-task. An explicit prompt instruction to generate an image wins.

@@ -36,7 +36,7 @@ const VERDICTS = ["supported", "contradicted", "insufficient"] as const;
 function choiceTransport(choice: string): JevTransport {
   return async () => ({
     model: "jev-1.13.0",
-    answers: [{ id: "claim-verdict", choice }],
+    answers: { "claim-verdict": { type: "choice", choice } },
   });
 }
 
@@ -44,7 +44,6 @@ function jevExecutor(transport: JevTransport): DecisionExecutor {
   return createJevExecutor({
     enabled: true,
     apiKey: "k",
-    acknowledgeUnverifiedWireFormat: true,
     transport,
   });
 }
@@ -159,8 +158,8 @@ describe("dry-run harness", () => {
     let transportCalls = 0;
     const observed = jevExecutor(async (request) => {
       transportCalls += 1;
-      assert.ok(request.questions.length > 0);
-      return { model: "jev-1.13.0", answers: [{ id: "claim-verdict", choice: "supported" }] };
+      assert.ok(Object.keys(request.questions).length > 0);
+      return { model: "jev-1.13.0", answers: { "claim-verdict": { type: "choice", choice: "supported" } } };
     });
     const suite = await replaySuite(
       [claimFixture("f1"), claimFixture("f2")],
@@ -324,7 +323,7 @@ describe("promotion regression gate", () => {
 
   it("fails on malformed outcomes and on an empty corpus", async () => {
     const malformed = await replaySuite(fixtures, [
-      jevExecutor(async () => ({ answers: [{ id: "claim-verdict", choice: "maybe" }] })),
+      jevExecutor(async () => ({ answers: { "claim-verdict": { type: "choice", choice: "maybe" } } })),
     ]);
     const result = evaluatePromotionGate({
       fixtures,

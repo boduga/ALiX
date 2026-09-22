@@ -1,15 +1,19 @@
 /**
- * engines/jev.ts — Jev remote adapter (J1).
+ * engines/jev.ts — TypeSafe System One adapter.
  *
  * JEV-7: disabled by default. Registration is explicit; the adapter never
  * reads ambient environment for credentials (store-only: caller supplies
- * apiKey). Provider wire shape is isolated in `jev-protocol.ts` and the
- * per-decision mapping in `decisions/*\/jev-mapping.ts`; execute() rejects
- * unsupported decisions rather than mis-answering them.
+ * apiKey). The wire shape is verified against the official API reference and
+ * SDK types (see `jev-protocol.ts`), and the per-decision mappings live in
+ * `decisions/*\/jev-mapping.ts`.
  *
  * The remote boundary is re-validated here (architecture §6): a caller that
  * bypasses `projectForRemote` cannot cross to Jev with an unsealed or forged
- * projection. Transport failure/malformed response are fallback-eligible.
+ * projection.
+ *
+ * Retry follows the documented guidance (429 Too Many Requests / 529
+ * Overloaded -> exponential backoff), bounded and abort-aware. Everything
+ * else fails closed as an EngineUnavailableError, which is fallback-eligible.
  */
 
 import type { DecisionType } from "../contracts.js";
@@ -50,7 +54,7 @@ import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
-/** Decisions this adapter can answer today (J1 claim, J2 relevance, J3 tier, J6 risk). */
+/** Decisions this adapter can answer (claim, relevance, tier, risk). */
 const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
   "claim-verification",
   "context-relevance",
@@ -90,31 +94,61 @@ const MAPPINGS: Partial<Record<DecisionType, JevDecisionMapping>> = {
   },
 };
 
-export class JevWireFormatUnacknowledgedError extends Error {
-  readonly code = "JEV_WIRE_FORMAT_UNACKNOWLEDGED";
-  constructor() {
-    super(
-      "Jev wire format is documented but not verified against the official SDK; " +
-        "pass acknowledgeUnverifiedWireFormat: true to enable remote",
-    );
-    this.name = "JevWireFormatUnacknowledgedError";
+/** Statuses the API documents as retryable (429 rate limit, 529 overloaded). */
+const RETRYABLE_STATUSES = new Set([429, 529]);
+const MAX_TRANSPORT_ATTEMPTS = 3;
+
+function backoffMs(attempt: number): number {
+  return 250 * 2 ** (attempt - 1);
+}
+
+async function readErrorDetail(response: Response): Promise<string> {
+  try {
+    const text = await response.text();
+    if (text.length === 0) return `HTTP ${response.status}`;
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
+      const detail = parsed.error?.message ?? parsed.message;
+      return detail ? `HTTP ${response.status}: ${detail}` : `HTTP ${response.status}: ${text.slice(0, 200)}`;
+    } catch {
+      return `HTTP ${response.status}: ${text.slice(0, 200)}`;
+    }
+  } catch {
+    return `HTTP ${response.status}`;
   }
 }
 
 export const defaultJevTransport: JevTransport = async (request, { apiKey, timeoutMs, signal }) => {
-  const response = await fetch(JEV_SYSTEMONE_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(request),
-    signal: signal ?? AbortSignal.timeout(timeoutMs),
-  });
-  if (!response.ok) {
-    throw new EngineUnavailableError(JEV_ENGINE_ID, `HTTP ${response.status}`);
+  const effectiveSignal = signal ?? AbortSignal.timeout(timeoutMs);
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= MAX_TRANSPORT_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(JEV_SYSTEMONE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(request),
+        signal: effectiveSignal,
+      });
+    } catch (cause) {
+      throw new EngineUnavailableError(JEV_ENGINE_ID, (cause as Error).message);
+    }
+
+    if (response.ok) {
+      return (await response.json()) as JevSystemOneResponse;
+    }
+
+    const detail = await readErrorDetail(response);
+    lastError = new EngineUnavailableError(JEV_ENGINE_ID, detail);
+    if (!RETRYABLE_STATUSES.has(response.status) || attempt === MAX_TRANSPORT_ATTEMPTS) {
+      throw lastError;
+    }
+    await new Promise((resolve) => setTimeout(resolve, backoffMs(attempt)));
   }
-  return (await response.json()) as JevSystemOneResponse;
+  throw lastError ?? new EngineUnavailableError(JEV_ENGINE_ID, "transport exhausted");
 };
 
 export type JevAdapterOptions = {
@@ -124,21 +158,12 @@ export type JevAdapterOptions = {
   /** Injected transport (tests). Defaults to the fetch-based transport. */
   transport?: JevTransport;
   model?: string;
-  /**
-   * The wire shape in `jev-protocol.ts` is documented, not SDK-verified.
-   * Enabling remote requires this explicit acknowledgement so an unverified
-   * boundary can never be switched on silently.
-   */
-  acknowledgeUnverifiedWireFormat?: boolean;
 };
 
 export function createJevExecutor(
   opts: JevAdapterOptions,
 ): DecisionExecutor & { readonly timeoutMs: number } {
   if (opts.enabled !== true) throw new RemoteEngineNotAllowedError(JEV_ENGINE_ID);
-  if (opts.acknowledgeUnverifiedWireFormat !== true) {
-    throw new JevWireFormatUnacknowledgedError();
-  }
   const apiKey = opts.apiKey;
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const transport = opts.transport ?? defaultJevTransport;

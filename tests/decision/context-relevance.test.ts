@@ -97,7 +97,7 @@ function jevRelevanceConfig(): DecisionConfig {
 function noulTransport(probability: number): JevTransport {
   return async () => ({
     model: "jev-1.13.0",
-    answers: [{ id: JEV_RELEVANCE_QUESTION_ID, probability }],
+    answers: { [JEV_RELEVANCE_QUESTION_ID]: { type: "noul", noul: probability } },
   });
 }
 
@@ -221,17 +221,18 @@ describe("jev relevance mapping", () => {
   it("builds a Noul question with no options", () => {
     const sealed = projectContextRelevance({ objective: "Fix the timeout test", item: { id: "i", text: "timeout test" } });
     const request = toJevRelevanceRequest(sealed);
-    assert.equal(request.questions.length, 1);
-    assert.equal(request.questions[0].type, "noul");
-    assert.equal("options" in request.questions[0], false);
-    assert.match(request.state, /OBJECTIVE:/);
-    assert.match(request.state, /ITEM:/);
+    const question = request.questions[JEV_RELEVANCE_QUESTION_ID];
+    assert.equal(Object.keys(request.questions).length, 1);
+    assert.equal(question.type, "noul");
+    assert.equal("criteria" in question, true);
+    assert.match(String(request.state), /OBJECTIVE:/);
+    assert.match(String(request.state), /ITEM:/);
   });
 
   it("maps a Noul response to NoulResult; malformed is rejected", () => {
     const ctx = { projectionHash: "sha256:x", latencyMs: 42 };
     const ok = fromJevRelevanceResponse(
-      { model: "jev-1.13.0", answers: [{ id: JEV_RELEVANCE_QUESTION_ID, probability: 0.73 }] },
+      { model: "jev-1.13.0", answers: { [JEV_RELEVANCE_QUESTION_ID]: { type: "noul", noul: 0.73 } } },
       ctx,
     );
     assert.equal(ok.kind, "noul");
@@ -239,13 +240,13 @@ describe("jev relevance mapping", () => {
     assert.equal(ok.provenance.remote, true);
     assert.equal("confidence" in ok, false);
 
-    assert.throws(() => fromJevRelevanceResponse({ answers: [] }, ctx), MalformedResultError);
+    assert.throws(() => fromJevRelevanceResponse({ answers: {} }, ctx), MalformedResultError);
     assert.throws(
-      () => fromJevRelevanceResponse({ answers: [{ id: JEV_RELEVANCE_QUESTION_ID, probability: 1.2 }] }, ctx),
+      () => fromJevRelevanceResponse({ answers: { [JEV_RELEVANCE_QUESTION_ID]: { type: "noul", noul: 1.2 } } }, ctx),
       MalformedResultError,
     );
     assert.throws(
-      () => fromJevRelevanceResponse({ answers: [{ id: JEV_RELEVANCE_QUESTION_ID, choice: "supported" }] }, ctx),
+      () => fromJevRelevanceResponse({ answers: { [JEV_RELEVANCE_QUESTION_ID]: { type: "choice", choice: "supported" } } }, ctx),
       MalformedResultError,
     );
   });
@@ -254,7 +255,6 @@ describe("jev relevance mapping", () => {
     const executor = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: noulTransport(0.81),
     });
     const sealed = projectContextRelevance({ objective: "Fix the timeout test", item: { id: "i", text: "timeout test" } });
@@ -268,7 +268,6 @@ describe("jev relevance mapping", () => {
     const executor = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },
@@ -327,7 +326,6 @@ describe("context-relevance shadow runner", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },

@@ -77,7 +77,7 @@ const FEATURES: ModelTierRequestFeatures = {
 function tierTransport(choice: string): JevTransport {
   return async () => ({
     model: "jev-1.13.0",
-    answers: [{ id: JEV_MODEL_TIER_QUESTION_ID, choice }],
+    answers: { [JEV_MODEL_TIER_QUESTION_ID]: { type: "choice", choice } },
   });
 }
 
@@ -231,11 +231,12 @@ describe("jev model-tier mapping", () => {
   it("offers only canonical tier names as options", () => {
     const sealed = projectModelTier(FEATURES);
     const request = toJevModelTierRequest(sealed, ["default", "coding"]);
-    const question = request.questions[0];
+    const question = request.questions[JEV_MODEL_TIER_QUESTION_ID];
     assert.equal(question.type, "choice");
     if (question.type !== "choice") return;
-    assert.deepEqual(question.options, ["default", "coding"]);
-    for (const option of question.options) {
+    const offered = Object.keys(question.criteria);
+    assert.deepEqual(offered, ["default", "coding"]);
+    for (const option of offered) {
       assert.equal(option.includes("/"), false);
       assert.ok(TIER_CANDIDATES.includes(option as never));
     }
@@ -254,15 +255,15 @@ describe("jev model-tier mapping", () => {
   it("JEV-10: rejects a provider/model ID or a non-candidate tier", () => {
     const ctx = { projectionHash: "sha256:x", latencyMs: 5 };
     assert.throws(
-      () => fromJevModelTierResponse({ answers: [{ id: JEV_MODEL_TIER_QUESTION_ID, choice: "openai/gpt-4o" }] }, ctx, ["default"]),
+      () => fromJevModelTierResponse({ answers: { [JEV_MODEL_TIER_QUESTION_ID]: { type: "choice", choice: "openai/gpt-4o" } } }, ctx, ["default"]),
       MalformedResultError,
     );
     assert.throws(
-      () => fromJevModelTierResponse({ answers: [{ id: JEV_MODEL_TIER_QUESTION_ID, choice: "coding" }] }, ctx, ["default"]),
+      () => fromJevModelTierResponse({ answers: { [JEV_MODEL_TIER_QUESTION_ID]: { type: "choice", choice: "coding" } } }, ctx, ["default"]),
       MalformedResultError,
     );
     const ok = fromJevModelTierResponse(
-      { model: "jev-1.13.0", answers: [{ id: JEV_MODEL_TIER_QUESTION_ID, choice: "coding", confidence: 0.8 }] },
+      { model: "jev-1.13.0", answers: { [JEV_MODEL_TIER_QUESTION_ID]: { type: "choice", choice: "coding", confidence: 0.8 } } },
       ctx,
       ["default", "coding"],
     );
@@ -275,7 +276,6 @@ describe("jev model-tier mapping", () => {
     const executor = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: tierTransport("thinking"),
     });
     const sealed = projectModelTier(FEATURES);
@@ -337,10 +337,9 @@ describe("model-tier shadow runner", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async (request) => {
         seen.push(JSON.stringify(request));
-        return { model: "jev-1.13.0", answers: [{ id: JEV_MODEL_TIER_QUESTION_ID, choice: "coding" }] };
+        return { model: "jev-1.13.0", answers: { [JEV_MODEL_TIER_QUESTION_ID]: { type: "choice", choice: "coding" } } };
       },
     });
     const config = alixConfig(undefined, {
@@ -362,7 +361,6 @@ describe("model-tier shadow runner", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },

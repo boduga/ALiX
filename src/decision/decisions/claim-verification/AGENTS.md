@@ -20,7 +20,7 @@
 - Shadow results carry `authority: "none"`; the consumer decides what verification action follows.
 - Baseline and observed outcomes journal separately under the same `projectionHash` — that is the J4 calibration/comparison input.
 - Every attempt is journaled: a failed remote attempt that fell back appears as an explicit `failure` record with its latency.
-- `jev-mapping.ts` wire shape follows the documented System One surface and MUST be verified against the official SDK before enabling remote (plan stop condition). The adapter refuses to enable remote without an explicit `acknowledgeUnverifiedWireFormat` acknowledgement, and re-verifies the sealed projection before transport.
+- `jev-mapping.ts` sends one Choice question keyed by id with `instructions` + `criteria` (option -> rubric description), matching the verified System One shape. The adapter re-verifies the sealed projection before transport (§6).
 
 **Work Guidance:**
 - New decision verdict/field: change `schema.ts` first; the corpus and tests pin the legal space.

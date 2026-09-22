@@ -1,27 +1,35 @@
 /**
- * jev-mapping.ts — Risk escalation ↔ Jev System One wire mapping (J6).
+ * jev-mapping.ts — Risk escalation ↔ System One wire mapping.
  *
- * A bounded Choice over the three risk tiers. The model judges severity only;
- * authority stays with deterministic policy (`composeApproval`).
+ * Verified shape: one Choice question keyed by id whose `criteria` map is the
+ * three risk tiers. The model judges severity only; authority stays with
+ * deterministic policy (`composeApproval`).
  */
 
 import { MalformedResultError } from "../../executors.js";
 import type { ChoiceResult } from "../../contracts.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import type {
+  JevChoiceCriteria,
   JevResponseContext,
   JevSystemOneRequest,
   JevSystemOneResponse,
 } from "../../engines/jev-protocol.js";
 import { JEV_DEFAULT_MODEL, isJevChoiceAnswer } from "../../engines/jev-protocol.js";
-import { RISK_TIER_CANDIDATES, isRiskTier, type RiskTier } from "./schema.js";
+import { isRiskTier, type RiskTier } from "./schema.js";
 import { readRiskProjection, type RiskEscalationProjection } from "./projection.js";
 
 export const JEV_RISK_QUESTION_ID = "action-risk";
 
+/** Rubric descriptions separate the tiers from one another. */
+const RISK_CRITERIA: JevChoiceCriteria = {
+  low: "Observational only: reading or searching, no state change",
+  medium: "Reversible change to workspace state, or an unclear effect",
+  high: "Destructive or irreversible: deletes, overwrites, force operations, privilege escalation",
+};
+
 export function renderRiskState(projection: RiskEscalationProjection): string {
-  const detail =
-    projection.detail.length === 0 ? "(none provided)" : projection.detail;
+  const detail = projection.detail.length === 0 ? "(none provided)" : projection.detail;
   return `CAPABILITY:\n${projection.capability}\n\nACTION:\n${projection.summary}\n\nDETAIL:\n${detail}`;
 }
 
@@ -40,16 +48,15 @@ export function toJevRiskRequest(
 ): JevSystemOneRequest {
   const projection = requireRiskProjection(sealed);
   return {
-    model: JEV_DEFAULT_MODEL,
     state: renderRiskState(projection),
-    questions: [
-      {
-        id: JEV_RISK_QUESTION_ID,
+    model: JEV_DEFAULT_MODEL,
+    questions: {
+      [JEV_RISK_QUESTION_ID]: {
         type: "choice",
-        prompt: "What risk tier is this action: low, medium, or high?",
-        options: RISK_TIER_CANDIDATES,
+        instructions: "What risk tier is this action: low, medium, or high?",
+        criteria: RISK_CRITERIA,
       },
-    ],
+    },
   };
 }
 
@@ -61,13 +68,8 @@ export function fromJevRiskResponse(
   response: JevSystemOneResponse,
   ctx: JevResponseContext & { engineId?: string },
 ): ChoiceResult<RiskTier> {
-  if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
-    throw new MalformedResultError("jev response missing answers array");
-  }
-  const answer = response.answers.find(
-    (item) => item?.id === JEV_RISK_QUESTION_ID && isJevChoiceAnswer(item),
-  );
-  if (!answer || !isJevChoiceAnswer(answer)) {
+  const answer = response?.answers?.[JEV_RISK_QUESTION_ID];
+  if (!isJevChoiceAnswer(answer)) {
     throw new MalformedResultError(
       `jev response missing choice answer for question ${JEV_RISK_QUESTION_ID}`,
     );

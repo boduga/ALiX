@@ -1,10 +1,9 @@
 /**
- * jev-mapping.ts — Context relevance ↔ Jev System One wire mapping (J2).
+ * jev-mapping.ts — Context relevance ↔ System One wire mapping.
  *
- * Uses the Noul primitive: "Is this item relevant to the objective?" returns
- * P(yes) in 0..1 with no separate confidence field (per the System One
- * primitive contract). The consumer applies the threshold in code — the model
- * is never asked to rank a set.
+ * Verified shape: one Noul question keyed by id; the answer is the probability
+ * that the item is relevant, read from `answers[id].noul`. A Noul has no
+ * confidence field — the value is the answer and the certainty together.
  */
 
 import { MalformedResultError } from "../../executors.js";
@@ -37,48 +36,41 @@ export function toJevRelevanceRequest(
 ): JevSystemOneRequest {
   const projection = requireRelevanceProjection(sealed);
   return {
-    model: JEV_DEFAULT_MODEL,
     state: renderRelevanceState(projection.objective, projection.item),
-    questions: [
-      {
-        id: JEV_RELEVANCE_QUESTION_ID,
+    model: JEV_DEFAULT_MODEL,
+    questions: {
+      [JEV_RELEVANCE_QUESTION_ID]: {
         type: "noul",
-        prompt: "Is this item relevant to the objective?",
+        instructions: "Is the item relevant to the objective?",
+        criteria: {
+          true: "The item carries information the objective needs",
+          false: "The item is unrelated to the objective",
+        },
       },
-    ],
+    },
   };
 }
 
 /**
  * Map a Noul response to a native NoulResult. A missing answer or an
- * out-of-range probability is malformed — rejected, never coerced (JEV-1).
+ * out-of-range value is malformed — rejected, never coerced (JEV-1).
  */
 export function fromJevRelevanceResponse(
   response: JevSystemOneResponse,
   ctx: JevResponseContext & { engineId?: string },
 ): NoulResult {
-  if (!response || typeof response !== "object" || !Array.isArray(response.answers)) {
-    throw new MalformedResultError("jev response missing answers array");
-  }
-  const answer = response.answers.find(
-    (item) => item?.id === JEV_RELEVANCE_QUESTION_ID && isJevNoulAnswer(item),
-  );
-  if (!answer || !isJevNoulAnswer(answer)) {
+  const answer = response?.answers?.[JEV_RELEVANCE_QUESTION_ID];
+  if (!isJevNoulAnswer(answer)) {
     throw new MalformedResultError(
       `jev response missing noul answer for question ${JEV_RELEVANCE_QUESTION_ID}`,
     );
   }
-  if (
-    typeof answer.probability !== "number" ||
-    !Number.isFinite(answer.probability) ||
-    answer.probability < 0 ||
-    answer.probability > 1
-  ) {
-    throw new MalformedResultError("jev probability outside 0..1");
+  if (!Number.isFinite(answer.noul) || answer.noul < 0 || answer.noul > 1) {
+    throw new MalformedResultError("jev noul value outside 0..1");
   }
   return {
     kind: "noul",
-    probability: answer.probability,
+    probability: answer.noul,
     provenance: {
       engineId: ctx.engineId ?? "jev",
       ...(response.model !== undefined ? { engineVersion: response.model } : {}),

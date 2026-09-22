@@ -10,8 +10,9 @@ import {
   EngineNotRegisteredError,
   EngineUnavailableError,
   JEV_CLAIM_QUESTION_ID,
+  JEV_WIRE_FORMAT_STATUS,
+  RemoteEngineNotAllowedError,
   JEV_ENGINE_ID,
-  JevWireFormatUnacknowledgedError,
   LOCAL_ENGINE_ID,
   MAX_EVIDENCE_ITEMS,
   MAX_EXCERPT_CHARS,
@@ -53,7 +54,7 @@ function sealedClaim(claim = "Water boils at 100 degrees Celsius at sea level.",
 function okTransport(choice: string, confidence?: number): JevTransport {
   return async () => ({
     model: "jev-1.13.0",
-    answers: [{ id: JEV_CLAIM_QUESTION_ID, choice, ...(confidence !== undefined ? { confidence } : {}) }],
+    answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice, ...(confidence !== undefined ? { confidence } : {}) } },
   });
 }
 
@@ -135,17 +136,19 @@ describe("jev wire mapping", () => {
   it("builds a bounded choice request over the legal verdicts", () => {
     const request = toJevRequest(sealedClaim());
     assert.equal(request.model, "jev-latest");
-    assert.equal(request.questions.length, 1);
-    assert.equal(request.questions[0].type, "choice");
-    assert.deepEqual(request.questions[0].options, [...CLAIM_VERDICTS]);
-    assert.match(request.state, /CLAIM:/);
-    assert.match(request.state, /EVIDENCE:/);
+    const question = request.questions[JEV_CLAIM_QUESTION_ID];
+    assert.equal(Object.keys(request.questions).length, 1);
+    assert.equal(question.type, "choice");
+    if (question.type !== "choice") return;
+    assert.deepEqual(Object.keys(question.criteria), [...CLAIM_VERDICTS]);
+    assert.match(String(request.state), /CLAIM:/);
+    assert.match(String(request.state), /EVIDENCE:/);
   });
 
   it("maps a response to a native ChoiceResult with remote provenance", () => {
     const sealed = sealedClaim();
     const result = fromJevResponse(
-      { model: "jev-1.13.0", answers: [{ id: JEV_CLAIM_QUESTION_ID, choice: "supported", confidence: 0.91 }] },
+      { model: "jev-1.13.0", answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice: "supported", confidence: 0.91 } } },
       { projectionHash: sealed.hash, latencyMs: 120 },
     );
     assert.equal(result.kind, "choice");
@@ -160,13 +163,13 @@ describe("jev wire mapping", () => {
   it("JEV-1: unknown verdict, missing answer, and bad confidence are malformed", () => {
     const ctx = { projectionHash: "sha256:x", latencyMs: 1 };
     assert.throws(
-      () => fromJevResponse({ answers: [{ id: JEV_CLAIM_QUESTION_ID, choice: "maybe" }] }, ctx),
+      () => fromJevResponse({ answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice: "maybe" } } }, ctx),
       MalformedResultError,
     );
-    assert.throws(() => fromJevResponse({ answers: [] }, ctx), MalformedResultError);
+    assert.throws(() => fromJevResponse({ answers: {} }, ctx), MalformedResultError);
     assert.throws(() => fromJevResponse({}, ctx), MalformedResultError);
     assert.throws(
-      () => fromJevResponse({ answers: [{ id: JEV_CLAIM_QUESTION_ID, choice: "supported", confidence: 1.4 }] }, ctx),
+      () => fromJevResponse({ answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice: "supported", confidence: 1.4 } } }, ctx),
       MalformedResultError,
     );
   });
@@ -176,7 +179,7 @@ describe("jev executor", () => {
   it("JEV-7: no key is unavailable (never reads env)", async () => {
     process.env.JEV_API_KEY = "env-should-be-ignored";
     try {
-      const executor = createJevExecutor({ enabled: true, acknowledgeUnverifiedWireFormat: true, transport: okTransport("supported") });
+      const executor = createJevExecutor({ enabled: true, transport: okTransport("supported") });
       await assert.rejects(executor.execute({ decision: "claim-verification", sealed: sealedClaim() }), /api key missing/);
     } finally {
       delete process.env.JEV_API_KEY;
@@ -184,7 +187,7 @@ describe("jev executor", () => {
   });
 
   it("returns a choice through an injected transport", async () => {
-    const executor = createJevExecutor({ enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("contradicted", 0.7) });
+    const executor = createJevExecutor({ enabled: true, apiKey: "k", transport: okTransport("contradicted", 0.7) });
     const outcome = await executor.execute({ decision: "claim-verification", sealed: sealedClaim() });
     assert.equal(outcome.kind, "choice");
     if (outcome.kind !== "choice") return;
@@ -196,7 +199,6 @@ describe("jev executor", () => {
     const failing = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("socket hang up");
       },
@@ -209,8 +211,7 @@ describe("jev executor", () => {
     const malformed = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
-      transport: async () => ({ answers: [{ id: JEV_CLAIM_QUESTION_ID, choice: "maybe" }] }),
+      transport: async () => ({ answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice: "maybe" } } }),
     });
     await assert.rejects(
       malformed.execute({ decision: "claim-verification", sealed: sealedClaim() }),
@@ -219,18 +220,17 @@ describe("jev executor", () => {
   });
 
   it("refuses a decision it has no mapping for", async () => {
-    const executor = createJevExecutor({ enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("supported") });
+    const executor = createJevExecutor({ enabled: true, apiKey: "k", transport: okTransport("supported") });
     await assert.rejects(
       executor.execute({ decision: "not-a-decision" as never, sealed: sealedClaim() }),
       (e: unknown) => e instanceof EngineUnavailableError && /no mapping/.test(e.message),
     );
   });
 
-  it("refuses to enable remote without wire-format acknowledgement", () => {
-    assert.throws(
-      () => createJevExecutor({ enabled: true, apiKey: "k" }),
-      JevWireFormatUnacknowledgedError,
-    );
+  it("the wire shape is verified against the official docs", () => {
+    assert.equal(JEV_WIRE_FORMAT_STATUS, "verified-against-docs");
+    // Remote still requires an explicit opt-in.
+    assert.throws(() => createJevExecutor({ enabled: false }), RemoteEngineNotAllowedError);
   });
 
   it("arch §6: rejects a forged/unsealed projection before transport", async () => {
@@ -238,10 +238,9 @@ describe("jev executor", () => {
     const executor = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         transportCalls += 1;
-        return { answers: [{ id: JEV_CLAIM_QUESTION_ID, choice: "supported" }] };
+        return { answers: { [JEV_CLAIM_QUESTION_ID]: { type: "choice", choice: "supported" } } };
       },
     });
     const forged = {
@@ -266,7 +265,6 @@ describe("fallback and capability enforcement", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("timeout");
       },
@@ -293,7 +291,6 @@ describe("fallback and capability enforcement", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: () => new Promise<never>(() => {}),
     });
     const result = await runClaimVerificationShadow(
@@ -342,7 +339,7 @@ describe("shadow runner", () => {
 
   it("journals observed + baseline under one projection hash, grants no authority", async () => {
     const registry = createDefaultRegistry();
-    registerJevEngine(registry, { enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("contradicted", 0.88) });
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted", 0.88) });
     const journal = createDecisionJournalStore(join(dir, "s1"));
     const result = await runClaimVerificationShadow(
       { claim: "Water boils at 100 degrees Celsius at sea level.", evidence: [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }] },
@@ -381,7 +378,7 @@ describe("shadow runner", () => {
 
   it("agreement is true when observed and baseline match", async () => {
     const registry = createDefaultRegistry();
-    registerJevEngine(registry, { enabled: true, apiKey: "k", acknowledgeUnverifiedWireFormat: true, transport: okTransport("supported") });
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("supported") });
     const result = await runClaimVerificationShadow(
       { claim: "The sky appears blue because of Rayleigh scattering.", evidence: [{ excerpt: "Rayleigh scattering makes the sky appear blue." }] },
       { config: jevConfig(), registry },

@@ -63,7 +63,7 @@ function jevRiskConfig(): DecisionConfig {
 function riskTransport(tier: string, confidence?: number): JevTransport {
   return async () => ({
     model: "jev-1.13.0",
-    answers: [{ id: JEV_RISK_QUESTION_ID, choice: tier, ...(confidence !== undefined ? { confidence } : {}) }],
+    answers: { [JEV_RISK_QUESTION_ID]: { type: "choice", choice: tier, ...(confidence !== undefined ? { confidence } : {}) } },
   });
 }
 
@@ -149,16 +149,18 @@ describe("jev risk mapping", () => {
   it("builds a bounded choice request over the three tiers", () => {
     const request = toJevRiskRequest(projectRiskEscalation(ACTION));
     assert.equal(request.model, "jev-latest");
-    assert.equal(request.questions.length, 1);
-    assert.equal(request.questions[0].type, "choice");
-    assert.deepEqual(request.questions[0].options, ["low", "medium", "high"]);
-    assert.match(request.state, /CAPABILITY:/);
+    const question = request.questions[JEV_RISK_QUESTION_ID];
+    assert.equal(Object.keys(request.questions).length, 1);
+    assert.equal(question.type, "choice");
+    if (question.type !== "choice") return;
+    assert.deepEqual(Object.keys(question.criteria), ["low", "medium", "high"]);
+    assert.match(String(request.state), /CAPABILITY:/);
   });
 
   it("maps a response to a native ChoiceResult with remote provenance", () => {
     const sealed = projectRiskEscalation(ACTION);
     const result = fromJevRiskResponse(
-      { model: "jev-1.13.0", answers: [{ id: JEV_RISK_QUESTION_ID, choice: "high", confidence: 0.94 }] },
+      { model: "jev-1.13.0", answers: { [JEV_RISK_QUESTION_ID]: { type: "choice", choice: "high", confidence: 0.94 } } },
       { projectionHash: sealed.hash, latencyMs: 90 },
     );
     assert.equal(result.kind, "choice");
@@ -171,12 +173,12 @@ describe("jev risk mapping", () => {
   it("JEV-1: unknown tier, missing answer, and bad confidence are malformed", () => {
     const ctx = { projectionHash: "sha256:x", latencyMs: 1 };
     assert.throws(
-      () => fromJevRiskResponse({ answers: [{ id: JEV_RISK_QUESTION_ID, choice: "critical" }] }, ctx),
+      () => fromJevRiskResponse({ answers: { [JEV_RISK_QUESTION_ID]: { type: "choice", choice: "critical" } } }, ctx),
       MalformedResultError,
     );
-    assert.throws(() => fromJevRiskResponse({ answers: [] }, ctx), MalformedResultError);
+    assert.throws(() => fromJevRiskResponse({ answers: {} }, ctx), MalformedResultError);
     assert.throws(
-      () => fromJevRiskResponse({ answers: [{ id: JEV_RISK_QUESTION_ID, choice: "low", confidence: 2 }] }, ctx),
+      () => fromJevRiskResponse({ answers: { [JEV_RISK_QUESTION_ID]: { type: "choice", choice: "low", confidence: 2 } } }, ctx),
       MalformedResultError,
     );
   });
@@ -185,7 +187,6 @@ describe("jev risk mapping", () => {
     const executor = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: riskTransport("medium"),
     });
     const outcome = await executor.execute({ decision: "risk-escalation", sealed: projectRiskEscalation(ACTION) });
@@ -196,7 +197,6 @@ describe("jev risk mapping", () => {
     const failing = createJevExecutor({
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },
@@ -214,7 +214,6 @@ describe("fallback and capability enforcement", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },
@@ -245,7 +244,6 @@ describe("risk-escalation shadow runner", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: riskTransport("high", 0.9),
     });
     const journal = createDecisionJournalStore(join(dir, "s1"));
@@ -288,7 +286,6 @@ describe("risk-escalation shadow runner", () => {
     registerJevEngine(registry, {
       enabled: true,
       apiKey: "k",
-      acknowledgeUnverifiedWireFormat: true,
       transport: async () => {
         throw new Error("offline");
       },
