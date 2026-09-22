@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { EventLog } from "../src/events/event-log.js";
 import {
   createExecutionStateEmitter,
+  emitTurnShadow,
   initExecutionStateEmission,
   reconcileTurnArtifacts,
 } from "../src/run/task-loop/execution-state-phase.js";
@@ -82,5 +83,48 @@ describe("execution-state-phase — session emitter + turn reconcile", () => {
     const log = new EventLog(sessionDir);
     await log.init();
     await expect(reconcileTurnArtifacts({ emitter: null, log, cursor: null })).resolves.toBeUndefined();
+  });
+
+  it("emitTurnShadow records the token delta without sending the prompt", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = createExecutionStateEmitter({ log, sessionId: "s1", storeDir })!;
+    await emitter.bootstrap("find the bug");
+
+    await emitTurnShadow({
+      emitter,
+      log,
+      sessionId: "s1-agent",
+      invocationId: "inv-1",
+      objective: "find the bug",
+      tools: [{ name: "grep.search", description: "search files" }],
+      liveAdmittedTokens: 5000,
+    });
+
+    const shadow = (await log.readAll()).find((e) => e.type === "context.shadow.assembled");
+    expect(shadow).toBeDefined();
+    expect(shadow?.sessionId).toBe("s1-agent");
+    const payload = shadow?.payload as Record<string, unknown>;
+    expect(payload.invocationId).toBe("inv-1");
+    expect(payload.bounded).toBe(true);
+    expect(typeof payload.shadowPromptTokens).toBe("number");
+    expect(payload.shadowPromptTokens as number).toBeLessThan(5000);
+    expect(payload.liveAdmittedTokens).toBe(5000);
+  });
+
+  it("emitTurnShadow no-ops when the emitter holds no state", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = createExecutionStateEmitter({ log, sessionId: "s1", storeDir })!;
+    await emitTurnShadow({
+      emitter,
+      log,
+      sessionId: "s1-agent",
+      invocationId: "inv-1",
+      objective: "obj",
+      tools: [],
+      liveAdmittedTokens: 100,
+    });
+    expect((await log.readAll()).filter((e) => e.type === "context.shadow.assembled")).toHaveLength(0);
   });
 });

@@ -23,6 +23,7 @@
 - C horizon-invariant on state-complete (accuracy 1.0, tokens bounded 10→500), D recovers evidence/history-dependent where C fails (acceptance 2).
 - D context bounded, retrieves only when required — retrieval_precision, unnecessary_escalations measured (acceptance 3).
 - FakeModel isolates substrate — correctness reflects state adequacy, not intelligence (acceptance 4).
+- `session-shadow.ts` and `real-model-harness.ts` measure **model usability**, not substrate perfection: whether a real model can find/copy what's in the assembled context. They cannot prove task success, and thinking-model output budgets / credit-limited samples can understate accuracy. FakeModel remains the substrate ceiling; real-model runs are the usability gate.
 - Deterministic, fail-closed, no LLM, no mutation of authoritative history (EventLog immutable, state disposable); real harness uses file I/O only in `benchmark/real-*` (tmp dirs, atomic EventLog/Store). `session-shadow.ts` reads real session EventLogs but never appends to them.
 - Do NOT touch contract/store/projector/prompt/governor — only harness; real integration reuses `src/runtime/execution-state/*` and `src/runtime/state/*` + `src/events/event-log.ts` + `src/runtime/context/*` without new abstraction.
 

@@ -26,10 +26,12 @@ existing import paths are unchanged.
 - `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
   (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
   `ExecutionStateEmitter`; inert/fail-soft otherwise.
-  `createExecutionStateEmitter` builds the session-level instance and
+  `createExecutionStateEmitter` builds the session-level instance,
   `reconcileTurnArtifacts(emitter, log, cursor)` registers a turn's
-  `artifact.created` events afterwards. `initExecutionStateEmission` accepts
-  an `existing` emitter so the loop and the session caller share one
+  `artifact.created` events afterwards, and `emitTurnShadow` builds the
+  bounded shadow prompt per invocation and records the token delta as
+  `context.shadow.assembled` (never sent). `initExecutionStateEmission`
+  accepts an `existing` emitter so the loop and the session caller share one
   instance (threaded via `TaskLoopDeps.executionState`).
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 

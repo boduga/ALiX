@@ -82,7 +82,6 @@ const patchOnlyGovernor: TransitionGovernor = {
         }
       : { decision: "allow" },
 };
-
 function toProjectorEvents(events: readonly { seq: number; type: string; payload: unknown; id?: string }[]): ProjectorEvent[] {
   return events
     .filter((e) => e.type.startsWith("execution."))
@@ -95,6 +94,13 @@ export type ExecutionStateEmitterOptions = Readonly<{
   executionId: string;
   storeDir?: string;
   store?: ExecutionStateStore;
+  /**
+   * Governance for patch proposals. Defaults to the patch-only tracer
+   * governor (allows state bookkeeping, denies actions). Production wiring
+   * MUST inject the real policy governor here — the default is not an
+   * authorization boundary, it only enforces patch-only shape.
+   */
+  governor?: TransitionGovernor;
 }>;
 
 export class ExecutionStateEmitter {
@@ -131,7 +137,7 @@ export class ExecutionStateEmitter {
 
     this.harness = new StateTransitionHarness({
       store: storeAdapter,
-      governor: patchOnlyGovernor,
+      governor: opts.governor ?? patchOnlyGovernor,
       capabilityResolver: resolver,
       permissionChecker: permission,
       stepExecutor: executor,
@@ -157,9 +163,23 @@ export class ExecutionStateEmitter {
   /**
    * Idempotent genesis: append `execution.created` + `running` and rebuild the
    * snapshot. No-op when a snapshot already exists.
+   *
+   * Genesis is the single documented bootstrap exception to harness-only
+   * mutation: the 10-gate harness cannot create (it requires an existing
+   * state for CAS), so the two genesis events are appended directly — after
+   * validating the same non-empty executionId/objective the projector
+   * requires. Every later mutation goes through `propose`.
    */
   async bootstrap(objective: string): Promise<void> {
     try {
+      if (typeof this.opts.executionId !== "string" || this.opts.executionId.trim().length === 0) {
+        this.lastErrorValue = "bootstrap rejected: executionId must be a non-empty string";
+        return;
+      }
+      if (typeof objective !== "string" || objective.trim().length === 0) {
+        this.lastErrorValue = "bootstrap rejected: objective must be a non-empty string";
+        return;
+      }
       if (this.store.load(this.opts.executionId)) return;
       await this.opts.log.append({
         sessionId: this.opts.sessionId,

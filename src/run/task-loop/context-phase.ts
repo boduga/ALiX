@@ -8,17 +8,84 @@
  */
 
 import type { NormalizedMessage, ToolDef } from "../../providers/types.js";
+import type { DeferredToolEntry } from "../../mcp/tool-deferral.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { TokenizerName } from "../../config/context-limits.js";
 import type { ContextBudget, ContextCategory, TierOrderingConfig } from "../../config/context-budget.js";
 import { ContextBudgetOverflowError, preflight } from "../../config/context-budget.js";
 import { assembleContext } from "../../config/context-assembly.js";
+import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
+import { emitTurnShadow } from "./execution-state-phase.js";
 import { estimateBudgetTokens, ensureEncoder } from "../../utils/tokens.js";
 import { CONTEXT_EVENT_TYPES } from "../../events/types.js";
 import type { StateTelemetry } from "../../observability/state-telemetry.js";
 import { createContextPressureTracker } from "../context-pressure.js";
 import { classifyIrreducibleKind } from "./session-lifecycle.js";
 import { reconstructRequest, toBudgetedItems, classifyCandidateContext } from "./context-helpers.js";
+import {
+  RESEARCH_SUPPLEMENT,
+  MUTATION_SUPPLEMENT,
+  VALIDATION_SUPPLEMENT,
+  renderToolManifest,
+} from "../../agent/system-prompt.js";
+import type { AgentIntent } from "../intent-classifier.js";
+import type { ProgressLedger } from "../progress-ledger.js";
+
+/**
+ * Intent-specific system prompt + wire-tool manifest (#717 extraction).
+ *
+ * The wire-tool set is hoisted so the prompt manifest and the wire payload
+ * agree: pre-§2 the manifest was rendered from the full registry while the
+ * wire admitted only the scoped subset. Reusing `wireTools` makes the
+ * invariant structural. Pure — same output as the inline block.
+ */
+export function buildEffectiveSystemPrompt(args: {
+  systemPrompt: string;
+  currentIntent: AgentIntent | undefined;
+  coreTools: ToolDef[];
+  extendedTools: ToolDef[];
+  reintroducedTools: Array<ToolDef | DeferredToolEntry>;
+}): { wireTools: Array<ToolDef | DeferredToolEntry>; effectiveSystemPrompt: string } {
+  const { systemPrompt, currentIntent, coreTools, extendedTools, reintroducedTools } = args;
+  const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
+    : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
+    : VALIDATION_SUPPLEMENT;
+  const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
+  const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
+  const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}\n\n` +
+    `CURRENT TURN BOUNDARY: The current task is the latest user request. ` +
+    `Earlier completed turns are context only. Do not describe them as work performed in this turn, ` +
+    `and do not include their results in the final summary unless the user explicitly asks for a recap.` +
+    toolManifest;
+  return { wireTools, effectiveSystemPrompt };
+}
+
+/**
+ * Progress-ledger injection (I1 extraction). Renders the ledger and pushes
+ * it into messages BEFORE budget admission so it is token-accounted (Tier 3,
+ * protected). The ledger is a replaceable snapshot — only the latest copy is
+ * kept so iterations do not compound the same progress state. Pure — same
+ * output as the inline block.
+ */
+export function injectProgressLedger(args: {
+  messages: NormalizedMessage[];
+  progressLedger: ProgressLedger;
+  onLedgerUpdate?: (text: string) => void;
+}): NormalizedMessage[] {
+  let messages = args.messages;
+  const ledgerText = args.progressLedger.render(10);
+  if (ledgerText) {
+    messages = messages.filter((message) =>
+      !(message.role === "user" && typeof message.content === "string" && message.content.startsWith("[Progress Ledger]"))
+    );
+    messages.push({
+      role: "user",
+      content: `[Progress Ledger]\n${ledgerText}`,
+    });
+  }
+  if (args.onLedgerUpdate && ledgerText) args.onLedgerUpdate(ledgerText);
+  return messages;
+}
 
 export interface AssembleContextParams {
   effectiveSystemPrompt: string;
@@ -35,6 +102,17 @@ export interface AssembleContextParams {
   iteration: number;
   stateTelemetry: StateTelemetry | null;
   executionId: string;
+  /**
+   * Opt-in shadow state-aware prompt (execution-state emission). When present
+   * and the emitter holds a state, the bounded P+Σ+O+E+Tools prompt is built
+   * alongside the live request and a `context.shadow.assembled` event records
+   * the token delta. The shadow prompt is never sent to the provider.
+   */
+  shadow?: {
+    emitter: ExecutionStateEmitter | null;
+    objective: string;
+    tools: ReadonlyArray<{ name: string; description?: string }>;
+  } | null;
 }
 
 export async function assembleBudgetedContext(p: AssembleContextParams): Promise<{
@@ -132,37 +210,52 @@ export async function assembleBudgetedContext(p: AssembleContextParams): Promise
 	  throw err;
 	}
 
-	// ── T6: emit context.assembled with category breakdown + drop reasons ──
-	{
-	  const admittedByCategory: Record<string, number> = {};
-	  for (const item of assembled.admitted) {
-	    admittedByCategory[item.category] = (admittedByCategory[item.category] ?? 0) + item.tokens;
-	  }
-	  const droppedReasons = assembled.dropped.map((d) => ({
-	    kind: d.item.kind,
-	    reason: d.reason,
-	  }));
-	  await log.append({
-	    sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
-	    payload: {
-	      invocationId,
-	      admittedItems: assembled.admitted.length,
-	      droppedItems: assembled.dropped.length,
-	      admittedTokens: assembled.admittedTokens,
-	      droppedTokens: assembled.droppedTokens,
-	      admittedByCategory,
-	      droppedReasons,
-	    },
-	  });
-	  // #641 — Wire assembled context metadata to observability via StateTelemetry
-	  // (MetricsStore + TelemetryEnvelope). Emits source/selected/evicted/tokens
-	  // per tier plus admitted/dropped totals. Non-blocking, non-fatal.
-	  if (stateTelemetry) {
-	    try {
-	      stateTelemetry.recordAssembledContext(executionId, assembled, { invocationId });
-	    } catch { /* swallow telemetry errors */ }
-	  }
-	}
+  // ── T6: emit context.assembled with category breakdown + drop reasons ──
+  {
+    const admittedByCategory: Record<string, number> = {};
+    for (const item of assembled.admitted) {
+      admittedByCategory[item.category] = (admittedByCategory[item.category] ?? 0) + item.tokens;
+    }
+    const droppedReasons = assembled.dropped.map((d) => ({
+      kind: d.item.kind,
+      reason: d.reason,
+    }));
+    await log.append({
+      sessionId: `${session.sessionId}-agent`, actor: "system", type: CONTEXT_EVENT_TYPES.ASSEMBLED,
+      payload: {
+        invocationId,
+        admittedItems: assembled.admitted.length,
+        droppedItems: assembled.dropped.length,
+        admittedTokens: assembled.admittedTokens,
+        droppedTokens: assembled.droppedTokens,
+        admittedByCategory,
+        droppedReasons,
+      },
+    });
+    // #641 — Wire assembled context metadata to observability via StateTelemetry
+    // (MetricsStore + TelemetryEnvelope). Emits source/selected/evicted/tokens
+    // per tier plus admitted/dropped totals. Non-blocking, non-fatal.
+    if (stateTelemetry) {
+      try {
+        stateTelemetry.recordAssembledContext(executionId, assembled, { invocationId });
+      } catch { /* swallow telemetry errors */ }
+    }
+
+    // ── Opt-in shadow state-aware prompt (execution-state emission) ───
+    // Builds the bounded P+Σ+O+E+Tools prompt alongside the live request and
+    // records the token delta. Never sent to the provider; fail-soft.
+    if (p.shadow?.emitter) {
+      await emitTurnShadow({
+        emitter: p.shadow.emitter,
+        log,
+        sessionId: `${session.sessionId}-agent`,
+        invocationId,
+        objective: p.shadow.objective,
+        tools: p.shadow.tools,
+        liveAdmittedTokens: assembled.admittedTokens,
+      });
+    }
+  }
 
 	// Reconstruct the provider request from admitted items.
 	// MCP tool-schema items (not in contentMap) are silently skipped.

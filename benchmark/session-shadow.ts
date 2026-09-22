@@ -24,7 +24,7 @@
  */
 
 import { EventLog } from "../src/events/event-log.js";
-import type { AlixEvent } from "../src/events/types.js";
+import { payloadString, type AlixEvent } from "../src/events/types.js";
 import {
   project,
   toExecutionState,
@@ -55,16 +55,6 @@ export type SessionBridgeResult = {
   coverage: SessionBridgeCoverage;
 };
 
-function asRecord(v: unknown): Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v)
-    ? (v as Record<string, unknown>)
-    : {};
-}
-
-function nonEmpty(v: unknown): string | undefined {
-  return typeof v === "string" && v.length > 0 ? v : undefined;
-}
-
 /**
  * Candidate, measurement-only mapping from live session events onto the
  * projector vocabulary. Synthesizes `execution.created` (required by
@@ -77,7 +67,9 @@ function nonEmpty(v: unknown): string | undefined {
  *
  * Everything else is ignored (the projector tolerates non-`execution.*`
  * history, but we do not forward it — this is a state-adequacy measurement,
- * not a full history replay). Deterministic and side-effect free.
+ * not a full history replay). Deterministic and side-effect free. Payload
+ * reads use the shared `payloadString` guard; event types dispatch through
+ * the mapper table below.
  */
 export function mapSessionEventsToProjectorHistory(
   events: readonly AlixEvent[],
@@ -113,80 +105,78 @@ export function mapSessionEventsToProjectorHistory(
   }
 
   let statusEmitted = "running";
+  const push = (pe: ProjectorEvent): void => {
+    projectorEvents.push(pe);
+  };
+
+  const completeAction = (e: AlixEvent): void => {
+    const actionId = payloadString(e.payload, "toolCallId");
+    if (!actionId) {
+      coverage.ignoredEvents++;
+      return;
+    }
+    push({ seq: e.seq, type: "execution.action_completed", payload: { actionId } });
+    coverage.completedActions++;
+    coverage.mappedEvents++;
+  };
+
+  const mappers: Record<string, (e: AlixEvent) => void> = {
+    "tool.requested": (e) => {
+      const actionId = payloadString(e.payload, "toolCallId");
+      if (!actionId) {
+        coverage.ignoredEvents++;
+        return;
+      }
+      const kind = payloadString(e.payload, "toolName") ?? "tool";
+      const description = payloadString(e.payload, "capability");
+      push({
+        seq: e.seq,
+        type: "execution.action_proposed",
+        payload: { actionId, kind, ...(description ? { description } : {}) },
+      });
+      coverage.proposedActions++;
+      coverage.mappedEvents++;
+    },
+    "tool.completed": completeAction,
+    "tool.failed": completeAction,
+    "artifact.created": (e) => {
+      const artifactId = payloadString(e.payload, "artifactId");
+      const uri = payloadString(e.payload, "path");
+      if (!artifactId || !uri) {
+        coverage.ignoredEvents++;
+        return;
+      }
+      const kind = payloadString(e.payload, "mimeType");
+      push({
+        seq: e.seq,
+        type: "execution.artifact_registered",
+        payload: { artifactId, uri, ...(kind ? { kind } : {}) },
+      });
+      coverage.artifacts++;
+      coverage.mappedEvents++;
+    },
+    "session.ended": (e) => {
+      if (statusEmitted !== "completed") {
+        push({
+          seq: e.seq,
+          type: "execution.status_changed",
+          payload: { status: "completed" },
+        });
+        statusEmitted = "completed";
+      }
+      coverage.mappedEvents++;
+    },
+  };
 
   for (const e of sorted) {
-    const p = asRecord(e.payload);
     if (e.type.startsWith("execution.")) {
-      projectorEvents.push({ seq: e.seq, type: e.type, payload: e.payload, ...(e.id ? { id: e.id } : {}) });
+      push({ seq: e.seq, type: e.type, payload: e.payload, ...(e.id ? { id: e.id } : {}) });
       coverage.mappedEvents++;
       continue;
     }
-    switch (e.type) {
-      case "tool.requested": {
-        const actionId = nonEmpty(p.toolCallId);
-        if (!actionId) {
-          coverage.ignoredEvents++;
-          break;
-        }
-        const kind = nonEmpty(p.toolName) ?? "tool";
-        const description = nonEmpty(p.capability);
-        projectorEvents.push({
-          seq: e.seq,
-          type: "execution.action_proposed",
-          payload: { actionId, kind, ...(description ? { description } : {}) },
-        });
-        coverage.proposedActions++;
-        coverage.mappedEvents++;
-        break;
-      }
-      case "tool.completed":
-      case "tool.failed": {
-        const actionId = nonEmpty(p.toolCallId);
-        if (!actionId) {
-          coverage.ignoredEvents++;
-          break;
-        }
-        projectorEvents.push({
-          seq: e.seq,
-          type: "execution.action_completed",
-          payload: { actionId },
-        });
-        coverage.completedActions++;
-        coverage.mappedEvents++;
-        break;
-      }
-      case "artifact.created": {
-        const artifactId = nonEmpty(p.artifactId);
-        const uri = nonEmpty(p.path);
-        if (!artifactId || !uri) {
-          coverage.ignoredEvents++;
-          break;
-        }
-        const kind = nonEmpty(p.mimeType);
-        projectorEvents.push({
-          seq: e.seq,
-          type: "execution.artifact_registered",
-          payload: { artifactId, uri, ...(kind ? { kind } : {}) },
-        });
-        coverage.artifacts++;
-        coverage.mappedEvents++;
-        break;
-      }
-      case "session.ended": {
-        if (statusEmitted !== "completed") {
-          projectorEvents.push({
-            seq: e.seq,
-            type: "execution.status_changed",
-            payload: { status: "completed" },
-          });
-          statusEmitted = "completed";
-        }
-        coverage.mappedEvents++;
-        break;
-      }
-      default:
-        coverage.ignoredEvents++;
-    }
+    const map = mappers[e.type];
+    if (map) map(e);
+    else coverage.ignoredEvents++;
   }
 
   return { projectorEvents, coverage };
@@ -226,8 +216,10 @@ export type SessionShadowReport = {
 function readObjective(events: readonly AlixEvent[]): string | undefined {
   for (const e of events) {
     if (e.type !== "user.message") continue;
-    const p = asRecord(e.payload);
-    const text = nonEmpty(p.content) ?? nonEmpty(p.text) ?? nonEmpty(p.message);
+    const text =
+      payloadString(e.payload, "content") ??
+      payloadString(e.payload, "text") ??
+      payloadString(e.payload, "message");
     if (text) return text.length > 2000 ? text.slice(0, 2000) : text;
   }
   return undefined;
@@ -237,10 +229,9 @@ function latestObservation(events: readonly AlixEvent[]): ObservationInput {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.type !== "tool.output" && e.type !== "tool.completed") continue;
-    const p = asRecord(e.payload);
-    const preview = nonEmpty(p.outputPreview);
+    const preview = payloadString(e.payload, "outputPreview");
     if (preview) {
-      return { content: preview, kind: e.type, toolName: nonEmpty(p.toolName) };
+      return { content: preview, kind: e.type, toolName: payloadString(e.payload, "toolName") };
     }
   }
   return null;
@@ -251,14 +242,13 @@ function recentEvidence(events: readonly AlixEvent[], limit = 8): EvidenceInput[
   for (let i = events.length - 1; i >= 0 && out.length < limit; i--) {
     const e = events[i];
     if (e.type !== "tool.output") continue;
-    const p = asRecord(e.payload);
-    const preview = nonEmpty(p.outputPreview);
+    const preview = payloadString(e.payload, "outputPreview");
     if (!preview) continue;
     out.push({
-      id: nonEmpty(p.toolCallId),
+      id: payloadString(e.payload, "toolCallId"),
       content: preview,
       kind: "tool_output",
-      source: nonEmpty(p.toolName),
+      source: payloadString(e.payload, "toolName"),
     });
   }
   return out.reverse();
@@ -269,8 +259,12 @@ function maxAdmittedTokens(events: readonly AlixEvent[]): number | null {
   let max: number | null = null;
   for (const e of events) {
     if (e.type !== "context.assembled") continue;
-    const p = asRecord(e.payload);
-    const admitted = typeof p.admittedTokens === "number" ? p.admittedTokens : undefined;
+    const p = e.payload;
+    const admitted =
+      typeof p === "object" && p !== null && !Array.isArray(p) &&
+      typeof (p as Record<string, unknown>).admittedTokens === "number"
+        ? ((p as Record<string, unknown>).admittedTokens as number)
+        : undefined;
     if (admitted !== undefined && (max === null || admitted > max)) max = admitted;
   }
   return max;

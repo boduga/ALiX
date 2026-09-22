@@ -29,7 +29,6 @@ import { EnhancedVerifier } from "../../verifier/enhanced-verifier.js";
 import { streamToResponse, continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "../helpers.js";
 import "../helpers.js";
 import { createContextPressureTracker } from "../context-pressure.js";
-import { renderToolManifest } from "../../agent/system-prompt.js";
 import "../../session/index.js";
 import { buildRefinePrompt, selectStrategy } from "../../orchestrator/refine-strategies.js";
 import {
@@ -43,7 +42,6 @@ import {
 } from "../event-handlers.js";
 import { ProgressLedger } from "../progress-ledger.js";
 import { IntentClassifier, type AgentIntent } from "../intent-classifier.js";
-import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../../agent/system-prompt.js";
 import type { TokenizerName } from "../../config/context-limits.js";
 import type { ContextBudget, TierOrderingConfig } from "../../config/context-budget.js";
 import { assembleContext } from "../../config/context-assembly.js";
@@ -68,7 +66,7 @@ import { initExecutionStateEmission } from "./execution-state-phase.js";
 import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
 import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
-import { assembleBudgetedContext } from "./context-phase.js";
+import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
 import { CLAIM_TOOL_NAMES, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
@@ -159,12 +157,7 @@ post_task?: { command: string; reason: string }[];
    * Optional; omitted when cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
-  /**
-   * Session-level governed execution-state emitter (option A). When provided
-   * by the caller (agent session), the loop uses it for bootstrap/objective
-   * instead of creating its own — so post-loop reconciliation in the caller
-   * shares the same instance. Optional; null/absent preserves legacy init.
-   */
+  /** Session-level execution-state emitter shared with the caller for post-loop reconcile. Optional. */
   executionState?: ExecutionStateEmitter | null;
 }
 
@@ -216,18 +209,9 @@ onProgress,
   // deps.config is a partial config projection; the resolver only reads `.models`.
   const model = resolveModelConfig(config);
 
-  // ── Governed execution-state emission (opt-in: ALIX_EXECUTION_STATE_EMIT=1) ──
-  // Emits authoritative execution.* transitions (created/running/objective) to
-  // the session EventLog through the StateTransitionHarness. Prefers the
-  // caller-provided session emitter (deps.executionState) so post-loop
-  // reconciliation shares the instance; otherwise creates one. Inert unless
-  // the env flag is set and fail-soft (never throws into the loop).
-  await initExecutionStateEmission({
-    log,
-    sessionId,
-    objective: evidenceTask,
-    existing: deps.executionState ?? undefined,
-  });
+  // Governed execution-state emission (opt-in flag; fail-soft). Prefers the
+  // caller-provided session emitter so post-loop reconcile shares it.
+  const executionState = await initExecutionStateEmission({ log, sessionId, objective: evidenceTask, existing: deps.executionState ?? undefined });
 
   // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
   // Independent of Task 4's deferred §1 factor wiring — we only need to read
@@ -428,42 +412,23 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	const invocationId = `inv-${randomUUID()}`;
 	lastInvocationId = invocationId;
 
-	// Build intent-specific system prompt (moved up — budget assembly needs it).
-	const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
-	  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
-	  : VALIDATION_SUPPLEMENT;
-	// Hoist the wire-tool set so the prompt manifest and the wire payload agree.
-	// Pre-§2 both used the unconstrained `providerTools`; post-§2 the wire is
-	// scoped ([...coreTools, ...extendedTools, ...reintroducedTools]) but the
-	// manifest was still rendered from the full registry — the model saw "you
-	// may call these N tools" in the prompt while the wire admitted only the
-	// scoped subset. Reusing `wireTools` makes the invariant structural.
-	const wireTools = [...coreTools, ...extendedTools, ...reintroducedTools];
-	const toolManifest = wireTools.length > 0 ? `\n\n${renderToolManifest(wireTools)}` : "";
-	const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}\n\n` +
-	  `CURRENT TURN BOUNDARY: The current task is the latest user request. ` +
-	  `Earlier completed turns are context only. Do not describe them as work performed in this turn, ` +
-	  `and do not include their results in the final summary unless the user explicitly asks for a recap.` +
-	  toolManifest;
+  // Build intent-specific system prompt (moved up — budget assembly needs it).
+  const { wireTools, effectiveSystemPrompt } = buildEffectiveSystemPrompt({
+    systemPrompt,
+    currentIntent,
+    coreTools,
+    extendedTools,
+    reintroducedTools,
+  });
 
-	// ── I1: Inject progress ledger BEFORE budget admission so it is
-	// token-accounted (Tier 3, protected). The ledger is rendered and
-	// pushed into messages so classifyCandidateContext picks it up.
-	const ledgerText = progressLedger.render(10);
-	if (ledgerText) {
-	  // The ledger is a replaceable snapshot, not conversational history.
-	  // Keep only the latest copy so each iteration does not compound the
-	  // same progress state in the model context.
-	  messages = messages.filter((message) =>
-	    !(message.role === "user" && typeof message.content === "string" && message.content.startsWith("[Progress Ledger]"))
-	  );
-	  messages.push({
-	    role: "user",
-	    content: `[Progress Ledger]\n${ledgerText}`,
-	  });
-	}
-	// Expose rendered ledger text to the AgentSession for TUI consumption
-	if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
+  // ── I1: Inject progress ledger BEFORE budget admission so it is
+  // token-accounted (Tier 3, protected); see injectProgressLedger.
+  messages = injectProgressLedger({
+    messages,
+    progressLedger,
+    onLedgerUpdate: deps.onLedgerUpdate,
+  });
+
 
 	let assembled: ReturnType<typeof assembleContext>;
 	let admittedSystemPrompt: string;
@@ -482,11 +447,12 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	    invocationId,
 	    contextBudget,
 	    tierOrdering: config.context?.budget?.tierOrdering,
-	    contextPressure,
-	    iteration: i,
-	    stateTelemetry,
-	    executionId,
-	  });
+    contextPressure,
+    iteration: i,
+    stateTelemetry,
+    executionId,
+    shadow: executionState ? { emitter: executionState, objective: evidenceTask, tools: wireTools } : undefined,
+  });
 	  messages = assembledContext.messages;
 	  assembled = assembledContext.assembled;
 	  admittedSystemPrompt = assembledContext.admittedSystemPrompt;

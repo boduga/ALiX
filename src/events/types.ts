@@ -108,6 +108,17 @@ export function assertToolEventCorrelation(
   }
 }
 
+/**
+ * Read a non-empty string field from an untyped event payload. Returns the
+ * value only when present and non-empty; undefined otherwise. Shared guard
+ * for measurement/bridge code that folds live session events.
+ */
+export function payloadString(payload: unknown, key: string): string | undefined {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return undefined;
+  const v = (payload as Record<string, unknown>)[key];
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
 export const TOOL_EVENT_TYPES = {
   REQUESTED: "tool.requested",
   STARTED: "tool.started",
@@ -454,6 +465,9 @@ export const CONTEXT_EVENT_TYPES = {
   IRREDUCIBLE: "context.irreducible",
   // §1 — estimated vs actual token calibration (per model-facing request).
   TOKEN_CALIBRATION: "token.calibration",
+  // Shadow state-aware prompt (opt-in execution-state emission): bounded
+  // P+Σ+O+E+Tools prompt built alongside the live request, never sent.
+  SHADOW_ASSEMBLED: "context.shadow.assembled",
   // §2 — tool-scoping admission-control events
   TOOLING_SCOPE_FALLBACK_FULL: "tooling.scope.fallback_full",
   TOOLING_SCOPE_REINTRODUCED: "tooling.scope.reintroduced",
@@ -495,6 +509,17 @@ export type ContextAssembledPayload = {
   admittedByCategory: Record<string, number>;
   /** Drop reasons for each dropped item (pairing reason with kind). */
   droppedReasons: Array<{ kind: string; reason: string }>;
+};
+
+/** Shadow state-aware prompt vs the live admitted request (opt-in only). */
+export type ContextShadowAssembledPayload = {
+  invocationId: string;
+  /** Bounded P+Σ+O+E+Tools prompt tokens (char/4 estimate). */
+  shadowPromptTokens: number;
+  /** Live admitted prompt tokens for the same invocation. */
+  liveAdmittedTokens: number;
+  /** Whether the shadow prompt stayed within builder caps. */
+  bounded: boolean;
 };
 
 export type ContextPreflightFailedPayload = {

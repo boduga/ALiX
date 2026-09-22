@@ -106,4 +106,28 @@ describe("ExecutionStateEmitter — governed live execution.* emission", () => {
     await emitter.registerArtifact({ artifactId: "a1", uri: "out.md" });
     expect(emitter.getState()?.artifacts).toHaveLength(1);
   });
+
+  it("rejects empty genesis input without touching the log", async () => {
+    const { emitter, log } = await makeEmitter();
+    await emitter.bootstrap("   ");
+    expect(emitter.getState()).toBeNull();
+    expect(emitter.lastError).toMatch(/objective must be a non-empty string/);
+    expect(await log.readAll()).toHaveLength(0);
+  });
+
+  it("accepts an injected governor and surfaces its denial", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = new ExecutionStateEmitter({
+      log,
+      sessionId: "sess-1",
+      executionId: "sess-1",
+      storeDir,
+      governor: { evaluate: () => ({ decision: "deny", reason: "policy forbids" }) },
+    });
+    await emitter.bootstrap("obj");
+    await emitter.setObjective("other");
+    expect(emitter.getState()?.objective).toBe("obj");
+    expect(emitter.lastError).toMatch(/GOVERNANCE_DENIED/);
+  });
 });
