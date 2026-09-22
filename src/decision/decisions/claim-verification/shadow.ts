@@ -11,6 +11,7 @@
  * (hand-off §13.1 — the consumer decides what verification action follows).
  */
 
+import type { RiskContext } from "../../contracts.js";
 import type { DecisionJournalRecord } from "../../journal.js";
 import type { DecisionJournalStore } from "../../journal.js";
 import type { DecisionConfig } from "../../config.js";
@@ -59,6 +60,8 @@ export type ClaimVerificationShadowDeps = {
   compareBaseline?: boolean;
   /** Correlation id from the surrounding execution, when available (§9). */
   executionId?: string;
+  /** Risk context at decision time. */
+  risk?: RiskContext;
 };
 
 function verdictOf(outcome: ExecutorOutcome): ClaimVerdict | undefined {
@@ -83,6 +86,7 @@ function contextFor(
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
     thresholdProfile: deps.config.claimVerification.thresholdProfile,
+    ...(deps.risk !== undefined ? { risk: deps.risk } : {}),
     candidates: CLAIM_VERDICT_CANDIDATES,
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };

@@ -5,7 +5,7 @@
  * drift in provenance, remote/redaction flags, or failure metadata (§9).
  */
 
-import type { DecisionType } from "../../contracts.js";
+import type { DecisionType, RiskContext } from "../../contracts.js";
 import type { RemoteSealedProjection } from "../../boundary.js";
 import type { ExecutorOutcome } from "../../executors.js";
 import type { AttemptRecord } from "../../fallback.js";
@@ -23,6 +23,8 @@ export type JournalContext = {
   /** True when the engine crossed a remote trust boundary. */
   remote: boolean;
   executionId?: string;
+  /** Risk context at decision time (per-risk threshold profiles read this). */
+  risk?: RiskContext;
   /** Profile the consumer applied for this engine. */
   thresholdProfile?: string;
   /** Candidate set for choice outcomes. */
@@ -62,6 +64,7 @@ function baseFields(ctx: JournalContext) {
     projectionHash: ctx.sealed.hash,
     projectorVersion: ctx.sealed.projectorVersion,
     ...(ctx.thresholdProfile !== undefined ? { thresholdProfile: ctx.thresholdProfile } : {}),
+    ...(ctx.risk !== undefined ? { risk: ctx.risk } : {}),
     remote: ctx.remote,
     redactionApplied: ctx.remote,
     ...(ctx.executionId !== undefined ? { executionId: ctx.executionId } : {}),

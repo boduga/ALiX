@@ -10,6 +10,7 @@
  * items pass through unchanged (existing behavior restored).
  */
 
+import type { RiskContext } from "../../contracts.js";
 import type { DecisionJournalRecord } from "../../journal.js";
 import type { DecisionJournalStore } from "../../journal.js";
 import type { DecisionConfig } from "../../config.js";
@@ -33,6 +34,8 @@ export type ContextRelevanceShadowDeps = {
   /** Cap on selected items after ranking. */
   maxItems?: number;
   executionId?: string;
+  /** Risk context at decision time. */
+  risk?: RiskContext;
 };
 
 export type ContextRelevanceItemObservation = {
@@ -69,6 +72,7 @@ function contextFor(
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
     ...(profile !== undefined ? { thresholdProfile: profile.id } : {}),
+    ...(deps.risk !== undefined ? { risk: deps.risk } : {}),
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };
 }

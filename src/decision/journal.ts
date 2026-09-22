@@ -14,8 +14,8 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DecisionType } from "./contracts.js";
-import { outcomeIssue } from "./contracts.js";
+import type { DecisionType, RiskContext } from "./contracts.js";
+import { isRiskContext, outcomeIssue } from "./contracts.js";
 
 /** Uncalibrated operational default. J4 tunes caps from calibration evidence. */
 export const MAX_CANDIDATES = 200;
@@ -44,6 +44,8 @@ export type DecisionJournalRecord = {
   policyVersion?: string;
   /** Relevant state/version identifier for replay grouping (journal §9). */
   stateVersion?: string;
+  /** Risk context AT DECISION TIME — per-risk thresholds cannot be reconstructed later. */
+  risk?: RiskContext;
   latencyMs: number;
   remote: boolean;
   redactionApplied: boolean;
@@ -61,6 +63,8 @@ export type RecordDecisionInput = {
   policyVersion?: string;
   /** Relevant state/version identifier for replay grouping (journal §9). */
   stateVersion?: string;
+  /** Risk context AT DECISION TIME (per-risk threshold profiles read this). */
+  risk?: RiskContext;
   latencyMs: number;
   remote: boolean;
   redactionApplied: boolean;
@@ -131,6 +135,10 @@ export function recordDecision(input: RecordDecisionInput): DecisionJournalRecor
     input.stateVersion !== undefined && typeof input.stateVersion !== "string",
     "stateVersion must be a string when present",
   );
+  throwIf(
+    input.risk !== undefined && !isRiskContext(input.risk),
+    `unknown risk context: ${String(input.risk)}`,
+  );
   validateOutcome(input.outcome);
   const timestamp = input.now ?? Date.now();
   throwIf(!Number.isFinite(timestamp), "timestamp must be finite");
@@ -147,6 +155,7 @@ export function recordDecision(input: RecordDecisionInput): DecisionJournalRecor
     ...(input.thresholdProfile !== undefined ? { thresholdProfile: input.thresholdProfile } : {}),
     ...(input.policyVersion !== undefined ? { policyVersion: input.policyVersion } : {}),
     ...(input.stateVersion !== undefined ? { stateVersion: input.stateVersion } : {}),
+    ...(input.risk !== undefined ? { risk: input.risk } : {}),
     latencyMs: input.latencyMs,
     remote: input.remote,
     redactionApplied: input.redactionApplied,

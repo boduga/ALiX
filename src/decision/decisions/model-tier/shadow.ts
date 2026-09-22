@@ -9,6 +9,7 @@
  * Grants NO execution authority.
  */
 
+import type { RiskContext } from "../../contracts.js";
 import type { DecisionJournalRecord } from "../../journal.js";
 import type { DecisionJournalStore } from "../../journal.js";
 import type { AlixConfig, ModelTier } from "../../../config/schema.js";
@@ -32,6 +33,8 @@ export type ModelTierShadowDeps = {
   journal?: DecisionJournalStore;
   timeoutMs?: number;
   executionId?: string;
+  /** Risk context at decision time. */
+  risk?: RiskContext;
   /**
    * Candidate tiers. Defaults to every enabled tier; a caller applying hard
    * constraints (via `filterTiersByCapability`) passes the filtered set here.
@@ -72,6 +75,7 @@ function contextFor(
     sealed,
     remote: deps.registry.get(engineId)?.remote === true,
     thresholdProfile: decisionConfig.modelTier.thresholdProfile,
+    ...(deps.risk !== undefined ? { risk: deps.risk } : {}),
     candidates,
     ...(deps.executionId !== undefined ? { executionId: deps.executionId } : {}),
   };

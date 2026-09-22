@@ -1,0 +1,31 @@
+# DOX — Calibration (J4)
+
+**Purpose:** Turn journaled decisions into calibration evidence. Labels supply ground truth, the dataset joins them to observations, reliability scores the native result. Evidence only — nothing here changes decision behavior or grants authority.
+
+**Ownership:**
+- `labels.ts` — `DecisionOutcomeLabel` (`correct|incorrect|unknown`) with an optional `errorType` (`false_positive|false_negative|other`, only on `incorrect`), `createOutcomeLabel` validator, `isDecisionOutcomeLabel` structural guard, `indexLabelsByDecisionId` (latest wins).
+- `label-store.ts` — append-only `labels.jsonl` built on the shared `JsonlStore` primitive; validates before persisting, counts malformed lines (storage contract), explicit write errors.
+- `dataset.ts` — `buildCalibrationDataset(records, labels, filters)` joining journal × labels, `exportCalibrationDataset(stores, { outPath })` for a portable artifact; counts every skip (`unlabeled`/`unknownLabel`/`failureOutcome`/`duplicateDecisionId`).
+- `reliability.ts` — `computeReliability(samples, { bins })`: binned accuracy vs mean score, ECE, Brier.
+- `index.ts` — barrel.
+
+**Local Contracts:**
+- A label is ground truth recorded after the fact; it is never inferred from the engine's own output.
+- Labels live in their own store, so the journal stays an observation record and calibration evidence stays attributable and revocable.
+- **Risk context is not a label.** It is captured at decision time on the journal record (`DecisionJournalRecord.risk`) and flows into samples from there — a per-risk threshold profile cannot be reconstructed from an optional, revisable, possibly-absent label.
+- `unknown` means "not judged" and is excluded, never counted as incorrect.
+- The reliability metric follows the native primitive: `noul` → probability, `score` → the rubric score, `choice` → confidence. A report refuses to mix kinds.
+- Reliability refuses invalid semantics rather than guessing: empty samples, mixed kinds, and cross-engine or cross-decision sets all throw (`CalibrationValidationError`). Cross-engine refusal is the JEV-9 "calibration is not transferable" rule.
+- Samples with no native score for their kind are counted in `excludedUnscored`, never treated as 0.
+- **Simplex assumption:** probabilities are treated as a proper simplex over ONE question. The vendor guarantees no structural invariant across complementary questions (its own example sums P and 1-P to 1.19), so this is only sound because each ALiX decision asks exactly one question per call. Do not reuse for a multi-question payload.
+- Store I/O is async and built on `src/storage/jsonl-store.ts` (#712) — no bespoke JSONL parsing.
+
+**Work Guidance:**
+- Label a decision by its `decisionId`; re-labelling is allowed and the latest `observedAt` wins.
+- Calibrate one engine at a time — a report spanning engines is a bug, not a bigger dataset.
+- Threshold changes must cite a dataset and metric (J4b); do not tune by eye.
+
+**Verification:**
+- `tests/decision/calibration.test.ts` — label validation/errorType/structural guard/latest-wins, store round-trip/validation/malformed-counting/I-O failure, dataset join + skip accounting + filters + export artifact, reliability bins/ECE/Brier/overconfidence/per-kind metrics/exclusions and the refusal cases.
+
+**Child DOX Index:** none.

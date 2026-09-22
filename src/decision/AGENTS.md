@@ -18,6 +18,8 @@
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
+- `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability. See its AGENTS.md.
+- Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
 
@@ -53,6 +55,7 @@
 - `tests/decision/claim-verification.test.ts` — J1 decision (schema, projection, baseline, mapping, shadow).
 - `tests/decision/context-relevance.test.ts` — J2 decision (per-item projection, Noul mapping, JEV-9 thresholds, selection, shadow).
 - `tests/decision/model-tier.test.ts` — J3 decision (candidate tiers, feature-only projection, canonical resolution, JEV-10, shadow, selection).
+- `tests/decision/calibration.test.ts` — J4 labels/store/dataset/reliability.
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
@@ -62,3 +65,4 @@
 | `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
+| `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability |
