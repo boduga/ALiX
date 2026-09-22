@@ -11,9 +11,13 @@ import type { EventLog } from "../../events/event-log.js";
 import type { EventLogCursor } from "../../events/event-log.js";
 import { CONTEXT_EVENT_TYPES, payloadString } from "../../events/types.js";
 import { buildExecutionContext } from "../../runtime/context/context-builder.js";
+import type { NormalizedMessage } from "../../providers/types.js";
+import type { AgentIntent } from "../intent-classifier.js";
+import { RESEARCH_SUPPLEMENT } from "../../agent/system-prompt.js";
 import {
   ExecutionStateEmitter,
   isExecutionStateEmitEnabled,
+  isExecutionStateSendEnabled,
 } from "../../runtime/execution-state/execution-state-emitter.js";
 
 /** Session log identity shared by the emitter helpers (log + sessionId travel together). */
@@ -88,8 +92,7 @@ export async function reconcileTurnArtifacts(args: {
  * the token delta against the live admitted request. The shadow prompt is
  * never sent to the provider. Fail-soft — measurement must never break the
  * loop. No-op when the emitter is null or holds no state yet.
- */
-export async function emitTurnShadow(args: {
+ */export async function emitTurnShadow(args: {
   emitter: ExecutionStateEmitter | null;
   log: EventLog;
   sessionId: string;
@@ -128,4 +131,57 @@ export async function emitTurnShadow(args: {
   } catch {
     // Shadow measurement must never break the loop.
   }
+}
+
+/**
+ * Live-send request (opt-in ALIX_EXECUTION_STATE_SEND, research route only).
+ *
+ * Returns the state-built prompt as the provider system prompt plus a minimal
+ * single-message array carrying the current task cue — P+Σ+O+E with no
+ * history (prior user turns ride as bounded top-2 evidence). Null unless the send flag is on, the intent is
+ * research (read-only first), and the emitter holds a state.
+ *
+ * Accuracy bar (process gate, not code): parity ±2pp on the proxy eval and no
+ * route-test regression, else revert. The skill is the static research
+ * supplement (tracer-grade placeholder, not a product prompt).
+ */
+export function buildLiveSendRequest(args: {
+  emitter: ExecutionStateEmitter | null;
+  intent: AgentIntent | undefined;
+  objective: string;
+  tools: ReadonlyArray<{ name: string; description?: string }>;
+  messages: readonly NormalizedMessage[];
+}): { systemPrompt: string; messages: NormalizedMessage[] } | null {
+  if (!isExecutionStateSendEnabled()) return null;
+  if (args.intent !== "research") return null;
+  const state = args.emitter?.getState() ?? null;
+  if (!state) return null;
+  let taskCue = args.objective;
+  const evidence: Array<{ content: string; kind: string }> = [];
+  for (let idx = args.messages.length - 1; idx >= 0; idx--) {
+    const m = args.messages[idx]!;
+    if (m.role !== "user" || typeof m.content !== "string" || m.content.trim().length === 0) continue;
+    if (taskCue === args.objective) {
+      taskCue = m.content;
+      continue;
+    }
+    // Prior user turns become bounded supporting evidence (top-2, latest
+    // first in collection order, reversed to chronological on render).
+    if (evidence.length < 2) evidence.push({ content: m.content, kind: "prior_turn" });
+  }
+  const built = buildExecutionContext(
+    { name: "research", body: RESEARCH_SUPPLEMENT },
+    state,
+    taskCue,
+    evidence.reverse().map((e, i) => ({ id: `prior-${i + 1}`, ...e })),
+    args.tools.map((t) => ({
+      name: t.name,
+      ...(t.description ? { description: t.description } : {}),
+    })),
+    { model: null },
+  );
+  return {
+    systemPrompt: built.prompt,
+    messages: [{ role: "user", content: taskCue }],
+  };
 }

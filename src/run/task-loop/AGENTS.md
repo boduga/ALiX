@@ -28,11 +28,14 @@ existing import paths are unchanged.
   `ExecutionStateEmitter`; inert/fail-soft otherwise.
   `createExecutionStateEmitter` builds the session-level instance,
   `reconcileTurnArtifacts(emitter, log, cursor)` registers a turn's
-  `artifact.created` events afterwards, and `emitTurnShadow` builds the
-  bounded shadow prompt per invocation and records the token delta as
-  `context.shadow.assembled` (never sent). `initExecutionStateEmission`
-  accepts an `existing` emitter so the loop and the session caller share one
-  instance (threaded via `TaskLoopDeps.executionState`).
+  `artifact.created` events afterwards, `emitTurnShadow` builds the bounded
+  shadow prompt per invocation and records the token delta as
+  `context.shadow.assembled` (never sent), and `buildLiveSendRequest`
+  builds the research-only live-send request (state prompt + task cue,
+  top-2 prior turns as evidence) when `ALIX_EXECUTION_STATE_SEND` is on.
+  `initExecutionStateEmission` accepts an `existing` emitter so the loop and
+  the session caller share one instance (threaded via
+  `TaskLoopDeps.executionState`).
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
@@ -56,4 +59,5 @@ existing import paths are unchanged.
   `tests/runtime/parallel-tool-execution.vitest.ts`,
   `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`,
   `tests/execution-state-emitter.vitest.ts` (emitter phase),
-  `tests/execution-state-phase.vitest.ts` (shared instance + turn reconcile).
+  `tests/execution-state-phase.vitest.ts` (shared instance, turn reconcile,
+  shadow emit, live-send request).

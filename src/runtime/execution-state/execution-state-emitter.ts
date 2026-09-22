@@ -39,11 +39,12 @@ import {
   type ExecutionState,
   type ExecutionStatus,
   type StatePatch,
+  validateStatePatch,
 } from "./execution-state.js";
 import {
   StateTransitionHarness,
   type ProposalEvent,
-  type StateTransitionProposal,
+  type StateTransitionResult,
   type TransitionCapabilityResolver,
   type TransitionEventLog,
   type TransitionGovernor,
@@ -62,6 +63,18 @@ const STATUS_CHANGED = EXECUTION_EVENT_TYPES.STATUS_CHANGED;
 /** Opt-in gate. Default off — the emitter is inert unless explicitly enabled. */
 export function isExecutionStateEmitEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env.ALIX_EXECUTION_STATE_EMIT;
+  return raw === "1" || raw === "true";
+}
+
+/**
+ * Live-send gate (default off). When on AND emission is on, the research
+ * route may receive the state-built prompt instead of the transcript.
+ * Separate flag so measurement (EMIT) and behavior change (SEND) flip
+ * independently.
+ */
+export function isExecutionStateSendEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!isExecutionStateEmitEnabled(env)) return false;
+  const raw = env.ALIX_EXECUTION_STATE_SEND;
   return raw === "1" || raw === "true";
 }
 
@@ -204,43 +217,74 @@ export class ExecutionStateEmitter {
     }
   }
 
-  /** Propose a patch-only transition at the current version. Fail-soft. */
-  private async propose(patch: StatePatch): Promise<void> {
+  /**
+   * Model-proposal entry point (step 4): validate a model-supplied patch and
+   * route it through the governed harness. Returns the harness result (or a
+   * rejection envelope when there is no state / the patch is invalid) — the
+   * tool layer renders it. Never throws. Version fields distinguish the two
+   * failure modes: missing state reports null versions, schema failure
+   * reports the current version (CAS semantics preserved).
+   */
+  async proposePatch(patch: StatePatch): Promise<StateTransitionResult> {
     try {
       const current = this.store.load(this.opts.executionId);
       if (!current) {
         this.lastErrorValue = "no ExecutionState (bootstrap not run)";
-        return;
+        return {
+          committed: false,
+          reason: "INVALID_PATCH",
+          detail: "no ExecutionState (bootstrap not run)",
+          currentVersion: null,
+          expectedVersion: null,
+        };
       }
-      const proposal: StateTransitionProposal = {
+      const vr = validateStatePatch(patch);
+      if (!vr.valid) {
+        this.lastErrorValue = `INVALID_PATCH: ${vr.errors.join("; ")}`;
+        return {
+          committed: false,
+          reason: "INVALID_PATCH",
+          detail: vr.errors.join("; "),
+          currentVersion: current.version,
+          expectedVersion: current.version,
+        };
+      }
+      const result = await this.harness.propose({
         executionId: this.opts.executionId,
         baseStateVersion: current.version,
         patch,
-      };
-      const result = await this.harness.propose(proposal);
+      });
       if (!result.committed) {
         this.lastErrorValue = `${result.reason}: ${result.detail}`;
       }
+      return result;
     } catch (err) {
       this.lastErrorValue = err instanceof Error ? err.message : String(err);
+      return {
+        committed: false,
+        reason: "INVALID_PATCH",
+        detail: err instanceof Error ? err.message : String(err),
+        currentVersion: null,
+        expectedVersion: null,
+      };
     }
   }
 
   async setObjective(objective: string): Promise<void> {
     const current = this.getState();
     if (current && current.objective === objective) return;
-    await this.propose({ objective });
+    await this.proposePatch({ objective });
   }
 
   async setStatus(status: ExecutionStatus): Promise<void> {
-    await this.propose({ status });
+    await this.proposePatch({ status });
   }
 
   async registerArtifact(artifact: { artifactId: string; uri: string; kind?: string }): Promise<void> {
     const current = this.getState();
     if (!current) return;
     if (current.artifacts.some((a) => a.artifactId === artifact.artifactId)) return;
-    await this.propose({ artifacts: [...current.artifacts, artifact] });
+    await this.proposePatch({ artifacts: [...current.artifacts, artifact] });
   }
 
   async bindCapability(capability: {
@@ -251,13 +295,13 @@ export class ExecutionStateEmitter {
     const current = this.getState();
     if (!current) return;
     const next = current.activeCapabilities.filter((c) => c.capabilityId !== capability.capabilityId);
-    await this.propose({ activeCapabilities: [...next, capability] });
+    await this.proposePatch({ activeCapabilities: [...next, capability] });
   }
 
   async applyConstraint(constraint: { kind: string; value: string }): Promise<void> {
     const current = this.getState();
     if (!current) return;
     if (current.constraints.some((c) => c.kind === constraint.kind && c.value === constraint.value)) return;
-    await this.propose({ constraints: [...current.constraints, constraint] });
+    await this.proposePatch({ constraints: [...current.constraints, constraint] });
   }
 }

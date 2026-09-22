@@ -15,7 +15,9 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
 - `setup.ts` — module-level `setup*` helpers (session/workflow/resume/memory/
   skills/context/plan/tools/system-prompt/hooks), `resolveExplicitSkills`,
   `buildSkillsSection`, `spliceSkillsSection`, `spliceExplicitIntoFirstTurn`,
-  `createAgentSession`.
+  `createAgentSession`. `setupTools` appends the `execution_state_propose`
+  tool to provider tools only when `ALIX_EXECUTION_STATE_SEND` is on
+  (visibility matches the loop-side interception gate).
 - `state.ts` — `SessionState` (all per-session mutable state, hoisted out of the
   former `build()` closure) + `createSessionState`.
 - `activity.ts` — turn-scoped activity/liveness/phase accessors and operator

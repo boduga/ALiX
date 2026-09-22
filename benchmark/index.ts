@@ -25,3 +25,4 @@ export * from "./harness.js";
 export * from "./mutation-conflict.js";
 export * from "./mutation-conflict-stress.js";
 export * from "./session-shadow.js";
+export * from "./universal-row.js";

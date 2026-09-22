@@ -32,6 +32,10 @@ import { initAgent } from "../agent.js";
 import "../run-root.js";
 import "../../run/task-loop.js";
 import "../../providers/registry.js";
+import {
+  STATE_PROPOSAL_TOOL,
+} from "../../tools/state-proposal-tool.js";
+import { isExecutionStateSendEnabled } from "../../runtime/execution-state/execution-state-emitter.js";
 import "../../runtime/task-router.js";
 import "../../runtime/governed-route-executor.js";
 import "../../runtime/task-router.js";
@@ -515,6 +519,15 @@ export async function setupTools(
   const providerTools = toolFilter
     ? baseTools.filter((t) => toolFilter.has(t.name))
     : baseTools;
+
+  // Model-proposal tool (opt-in execution-state SEND): visible to the model
+  // only when behavior change is enabled, matching the loop-side
+  // interception gate. Writes state only (no file/workspace mutation), so it
+  // is safe on read-only routes; execution is intercepted loop-side and
+  // committed through the governed harness.
+  if (isExecutionStateSendEnabled() && !providerTools.some((t) => t.name === STATE_PROPOSAL_TOOL.name)) {
+    providerTools.push(STATE_PROPOSAL_TOOL);
+  }
 
   const mcpDeferral = ctx.mcpManager?.getDeferral();
   const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];

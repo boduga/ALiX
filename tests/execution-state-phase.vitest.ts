@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventLog } from "../src/events/event-log.js";
 import {
+  buildLiveSendRequest,
   createExecutionStateEmitter,
   emitTurnShadow,
   initExecutionStateEmission,
@@ -25,6 +26,7 @@ describe("execution-state-phase — session emitter + turn reconcile", () => {
 
   afterEach(async () => {
     delete process.env.ALIX_EXECUTION_STATE_EMIT;
+    delete process.env.ALIX_EXECUTION_STATE_SEND;
     await rm(sessionDir, { recursive: true, force: true });
     await rm(storeDir, { recursive: true, force: true });
   });
@@ -126,5 +128,77 @@ describe("execution-state-phase — session emitter + turn reconcile", () => {
       liveAdmittedTokens: 100,
     });
     expect((await log.readAll()).filter((e) => e.type === "context.shadow.assembled")).toHaveLength(0);
+  });
+
+  it("buildLiveSendRequest returns null unless send flag + research + state", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = createExecutionStateEmitter({ log, sessionId: "s1", storeDir })!;
+    const base = {
+      emitter,
+      objective: "obj",
+      tools: [],
+      messages: [{ role: "user" as const, content: "find it" }],
+    };
+    // No state yet
+    process.env.ALIX_EXECUTION_STATE_SEND = "1";
+    expect(buildLiveSendRequest({ ...base, intent: "research" })).toBeNull();
+
+    await emitter.bootstrap("obj");
+    // Wrong intent
+    expect(buildLiveSendRequest({ ...base, intent: "mutation" })).toBeNull();
+    // Flag off
+    delete process.env.ALIX_EXECUTION_STATE_SEND;
+    expect(buildLiveSendRequest({ ...base, intent: "research" })).toBeNull();
+  });
+
+  it("buildLiveSendRequest returns the state prompt plus the task cue", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = createExecutionStateEmitter({ log, sessionId: "s1", storeDir })!;
+    await emitter.bootstrap("find the bug");
+    process.env.ALIX_EXECUTION_STATE_SEND = "1";
+
+    const req = buildLiveSendRequest({
+      emitter,
+      intent: "research",
+      objective: "find the bug",
+      tools: [{ name: "grep.search", description: "search" }],
+      messages: [
+        { role: "user" as const, content: "first question" },
+        { role: "assistant" as const, content: "working on it" },
+        { role: "user" as const, content: "latest question" },
+      ],
+    });
+    expect(req).not.toBeNull();
+    expect(req!.systemPrompt).toContain("find the bug");
+    expect(req!.systemPrompt).toContain("latest question");
+    expect(req!.messages).toHaveLength(1);
+    expect(req!.messages[0]).toMatchObject({ role: "user", content: "latest question" });
+    delete process.env.ALIX_EXECUTION_STATE_SEND;
+  });
+
+  it("buildLiveSendRequest carries prior turns as bounded evidence", async () => {
+    const log = new EventLog(sessionDir);
+    await log.init();
+    const emitter = createExecutionStateEmitter({ log, sessionId: "s1", storeDir })!;
+    await emitter.bootstrap("obj");
+    process.env.ALIX_EXECUTION_STATE_SEND = "1";
+
+    const req = buildLiveSendRequest({
+      emitter,
+      intent: "research",
+      objective: "obj",
+      tools: [],
+      messages: [
+        { role: "user" as const, content: "first turn" },
+        { role: "user" as const, content: "second turn" },
+        { role: "user" as const, content: "cue turn" },
+      ],
+    });
+    expect(req!.systemPrompt).toContain("first turn");
+    expect(req!.systemPrompt).toContain("second turn");
+    expect(req!.systemPrompt).toContain("relevant_evidence");
+    delete process.env.ALIX_EXECUTION_STATE_SEND;
   });
 });

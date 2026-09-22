@@ -62,7 +62,7 @@ import type { CorrelationContext } from "../../runtime/tool-correlation.js";
 import { createCorrelationContext } from "../../runtime/tool-correlation.js";
 import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
-import { initExecutionStateEmission } from "./execution-state-phase.js";
+import { initExecutionStateEmission, buildLiveSendRequest } from "./execution-state-phase.js";
 import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
 import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
@@ -157,7 +157,6 @@ post_task?: { command: string; reason: string }[];
    * Optional; omitted when cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
-  /** Session-level execution-state emitter shared with the caller for post-loop reconcile. Optional. */
   executionState?: ExecutionStateEmitter | null;
 }
 
@@ -458,6 +457,8 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
 	  admittedSystemPrompt = assembledContext.admittedSystemPrompt;
 	}
 
+  const liveSend = buildLiveSendRequest({ emitter: executionState, intent: currentIntent, objective: evidenceTask, tools: wireTools, messages });
+  const modelSystemPrompt = liveSend?.systemPrompt ?? admittedSystemPrompt;
 
 // Run pre_task hooks at the start of each iteration
 const { runHook } = await import("../../hooks/runner.js");
@@ -503,7 +504,7 @@ const runModelTurn = async (
   };
   if (model.streaming && provider.stream) {
     const result = await streamToResponse(provider, {
-      systemPrompt: admittedSystemPrompt,
+      systemPrompt: modelSystemPrompt,
       messages: msgs,
       tools: wireTools,
       maxOutputTokens: contextBudget.requestedMaxOutputTokens,
@@ -521,7 +522,7 @@ const runModelTurn = async (
     };
   } else {
     const completeReq = {
-      systemPrompt: admittedSystemPrompt,
+      systemPrompt: modelSystemPrompt,
       messages: msgs,
       tools: wireTools,
       maxOutputTokens: contextBudget.requestedMaxOutputTokens,
@@ -591,7 +592,7 @@ const runModelTurn = async (
 // design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
 // accepted request, no content"); the first visible chunk moves to STREAMING.
 onProgress?.("model_requested", model.name);
-const generation = await runModelTurn(messages);
+const generation = await runModelTurn(liveSend?.messages ?? messages);
 text = generation.text;
 reasoning = generation.reasoning;
 toolCalls = generation.toolCalls;
@@ -995,6 +996,7 @@ if (toolCalls.length === 0) {
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
     allowedMutationPaths,
+    executionStateEmitter: executionState ?? undefined,
     runId: deps.context?.runId,
     searchCallGuard,
     // Thread the turn's progress sink so the approval wait in

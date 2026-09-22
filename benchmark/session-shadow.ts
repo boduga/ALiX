@@ -25,6 +25,8 @@
 
 import { EventLog } from "../src/events/event-log.js";
 import { payloadString, type AlixEvent } from "../src/events/types.js";
+import type { UniversalBenchmarkRow } from "./universal-row.js";
+import { shadowReportToUniversal } from "./universal-row.js";
 import {
   project,
   toExecutionState,
@@ -211,6 +213,8 @@ export type SessionShadowReport = {
     toolsCount: number;
     historyIncluded: boolean;
   } | null;
+  /** Same measurement as a universal row (harness emission point). */
+  universal: UniversalBenchmarkRow;
 };
 
 function readObjective(events: readonly AlixEvent[]): string | undefined {
@@ -298,7 +302,7 @@ export async function measureSessionShadow(
   try {
     state = toExecutionState(project(projectorEvents));
   } catch (err) {
-    return {
+    const failed: SessionShadowReport = {
       ok: false,
       reason: err instanceof Error ? err.message : String(err),
       sessionId,
@@ -311,7 +315,10 @@ export async function measureSessionShadow(
       ratio: null,
       bounded: false,
       sections: null,
+      universal: null as unknown as UniversalBenchmarkRow,
     };
+    failed.universal = shadowReportToUniversal(failed);
+    return failed;
   }
 
   const built = buildExecutionContext(
@@ -328,7 +335,7 @@ export async function measureSessionShadow(
   const ratio =
     livePromptTokens && livePromptTokens > 0 ? shadowPromptTokens / livePromptTokens : null;
 
-  return {
+  const report: SessionShadowReport = {
     ok: true,
     sessionId,
     executionId: sessionId,
@@ -354,5 +361,8 @@ export async function measureSessionShadow(
       toolsCount: built.metadata.toolsCount,
       historyIncluded: built.metadata.historyIncluded,
     },
+    universal: null as unknown as UniversalBenchmarkRow,
   };
+  report.universal = shadowReportToUniversal(report);
+  return report;
 }
