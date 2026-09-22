@@ -1,0 +1,29 @@
+# DOX — Replay + Regression (J5)
+
+**Purpose:** Evaluate an engine/model/threshold change on stored fixtures BEFORE production activation. Dry-run only: replay admits fixtures and executors, so it cannot execute tools or mutate governance state by construction.
+
+**Ownership:**
+- `fixtures.ts` — `ReplayFixture` (sealed projection + id/decision/candidates/expected), `exportReplayFixture` (re-verifies the seal), `saveReplayFixture`/`loadReplayFixture`/`listReplayFixtures` (atomic, 0o600, validated).
+- `harness.ts` — `replayFixture` (one fixture × one executor, time-bounded, failures become explicit outcomes) + `replaySuite` (keyed by engine id).
+- `cost.ts` — cost model: local = 0; Jev = estimated input tokens (chars/4) × $0.042/MTok, output free. Unknown engines throw rather than price 0. Estimates, not measurements.
+- `compare.ts` — `compareEngineRuns`: agreement, accuracy (caller-supplied `isCorrect`), mean/p95 latency, cost — matched by fixture id, comparing answers not confidences.
+- `gates.ts` — `evaluatePromotionGate`: fail-closed on empty corpus, agreement below floor, accuracy regression beyond allowance, or any malformed candidate outcome. Latency and cost are reported, never gated.
+- `index.ts` — barrel.
+
+**Local Contracts:**
+- Only a verified seal becomes a fixture; forged payloads and corrupt files are rejected (`FixtureValidationError`).
+- The harness signature admits no journal, approval store, or tool surface — a dry run has no channel by which it could mutate runtime state.
+- Agreement compares the ANSWER (choice/score/probability), never confidence, provenance, or latency — two versions may legitimately recalibrate the same answer.
+- Fixtures present on only one side are excluded from `paired` but each side still reports its own run count.
+- Cost is an estimate from fixture content, not a measurement; vendor pricing is a named constant so a pricing change is a one-line reviewable diff.
+- Failure outcomes are first-class comparison data (agreement counts shared failures); transport failure/timeout surfaces as a failure outcome, never a throw.
+
+**Work Guidance:**
+- To evaluate a change: export the fixtures once, replay baseline + candidate, run the gate. Promote only on pass (with the J4 governance approval).
+- Keep fixtures redacted-by-construction: they are sealed projections, never raw state.
+- Record a versioned threshold change by re-running the gate over the same fixture set.
+
+**Verification:**
+- `tests/decision/replay.test.ts` — fixture validation/round-trip/corrupt, dry-run outcomes/timeout/suite, no-mutation proof, agreement/accuracy/latency/cost, cost model, gate pass/fail paths.
+
+**Child DOX Index:** none.

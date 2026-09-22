@@ -57,6 +57,7 @@
 - `tests/decision/model-tier.test.ts` — J3 decision (candidate tiers, feature-only projection, canonical resolution, JEV-10, shadow, selection).
 - `tests/decision/calibration.test.ts` — J4 labels/store/dataset/reliability.
 - `tests/decision/threshold-profiles.test.ts` — J4b versioned profiles, provenance-gated promotion/rollback, scope resolution.
+- `tests/decision/replay.test.ts` — J5 fixtures, dry-run, comparison, cost, promotion gate.
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 
 **Child DOX Index:**
@@ -67,3 +68,4 @@
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
 | `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability, versioned threshold profiles + promotion/rollback |
+| `src/decision/replay/AGENTS.md` | J5 dry-run harness — stored fixtures, comparison, promotion gate |

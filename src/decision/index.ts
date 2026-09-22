@@ -14,3 +14,4 @@ export * from "./decisions/claim-verification/index.js";
 export * from "./decisions/context-relevance/index.js";
 export * from "./decisions/model-tier/index.js";
 export * from "./calibration/index.js";
+export * from "./replay/index.js";
