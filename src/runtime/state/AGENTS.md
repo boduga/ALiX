@@ -4,6 +4,7 @@
 
 **Ownership:**
 - `state-transition.ts` — StateTransitionProposal {executionId, baseStateVersion, patch, action, rationale}, validateStateTransitionProposal, StateTransitionHarness.propose() (schema → version CAS → governor → resolver → permission → apply validate transition not blind patch → StepExecutor narrow → emit events → save CAS), 3 RejectionReason (INVALID_PATCH / STATE_VERSION_CONFLICT / GOVERNANCE_DENIED), ExecutionState never mutated on rejection, version counts only committed, 10 invariant enforcement (INV-1..INV-10), status lifecycle check, observable execution.proposal.rejected, patchAction separate tracks, createInMemoryStore helpers.
+- `policy-governor.ts` — `createPolicyTransitionGovernor`: adapts the real `PolicyGate` to `TransitionGovernor` (patch-only proposals evaluated as synthetic `execution-state.write` capability; allow→allow, deny→deny, ask→escalate, errors fail closed to deny; actions denied). `createPolicyBackedEmitter`: composition-root factory wiring the adapter into an `ExecutionStateEmitter`. Approval-spam caveat: store-backed gates in ask mode create a pending approval per evaluation — use an explicit allow policy or throttling before live wiring.
 - Re-export: `src/runtime/execution-state/state-transition.ts` — alias for canonical path.
 
 **Local Contracts:**
@@ -18,3 +19,4 @@
 **Verification:**
 - `pnpm build && pnpm typecheck` — harness + in-memory store + governor/resolver/permission/executor interfaces compile.
 - Ad-hoc `/tmp/test-harness.mjs` and `/tmp/test-harness-fs.mjs` verified: version precedes governance (governorCalls 0 on conflict), INVALID_PATCH / STATE_VERSION_CONFLICT / GOVERNANCE_DENIED distinct with execCalls 0 and preserved version, lifecycle v17→v18→conflict no mutation, patch omission preserves / null delete validated, committed increments only, patch+action converge on emitted events (objective_set + action_executed), status lifecycle (running→completed allow, completed→running deny), filesystem OCC via ExecutionStateStore.
+- `vitest run tests/runtime/policy-governor.vitest.ts` — policy adapter allow/deny/escalate mapping against a real PolicyGate, patch-only action denial, fail-closed on gate errors and storeless ask, policy-backed emitter end-to-end.

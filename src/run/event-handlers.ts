@@ -22,6 +22,8 @@ import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js
 import type { EventLog } from "../events/event-log.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { AgentProgressKind } from "../agent/agent-liveness.js";
+import type { ExecutionStateEmitter } from "../runtime/execution-state/execution-state-emitter.js";
+import { tryHandleStateProposal } from "../tools/state-proposal-tool.js";
 
 export type EventHandlerDeps = {
   executor: ToolExecutor;
@@ -43,6 +45,12 @@ export type EventHandlerDeps = {
    * cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
+  /**
+   * Session-level governed execution-state emitter (opt-in). When present,
+   * `execution_state_propose` tool calls are routed through the harness
+   * instead of the ToolExecutor. Optional; absent preserves legacy dispatch.
+   */
+  executionStateEmitter?: ExecutionStateEmitter | null;
   /** Exact operator-requested mutation targets for strict single-file tasks. */
   allowedMutationPaths?: readonly string[];
   /**
@@ -342,6 +350,12 @@ export async function handleToolCall(
   error?: { message: string; retryable?: boolean };
 }> {
   const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+
+  // Model-proposal tool (opt-in execution-state emission): route state
+  // patches through the governed harness before the executor or the
+  // unknown-tool guard (the tool is flag-gated, not in the static map).
+  const stateProposal = await tryHandleStateProposal(toolCall, deps.executionStateEmitter ?? null);
+  if (stateProposal) return stateProposal;
 
   // Unknown-tool guard: a model that drifted into a foreign convention (e.g.
   // exec_command) will otherwise hit the executor's terse "no router found"

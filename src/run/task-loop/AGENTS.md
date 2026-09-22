@@ -23,6 +23,19 @@ existing import paths are unchanged.
   (assembly + tool-schema reservation + T6 context events + preflight).
 - `verification-phase.ts` — `runIterationVerification`: end-of-iteration
   verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
+- `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
+  (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
+  `ExecutionStateEmitter`; inert/fail-soft otherwise.
+  `createExecutionStateEmitter` builds the session-level instance,
+  `reconcileTurnArtifacts(emitter, log, cursor)` registers a turn's
+  `artifact.created` events afterwards, `emitTurnShadow` builds the bounded
+  shadow prompt per invocation and records the token delta as
+  `context.shadow.assembled` (never sent), and `buildLiveSendRequest`
+  builds the research-only live-send request (state prompt + task cue,
+  top-2 prior turns as evidence) when `ALIX_EXECUTION_STATE_SEND` is on.
+  `initExecutionStateEmission` accepts an `existing` emitter so the loop and
+  the session caller share one instance (threaded via
+  `TaskLoopDeps.executionState`).
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
@@ -37,8 +50,14 @@ existing import paths are unchanged.
   `grep '^function|^const'` over-reports inner statements as top-level — do not
   slice this file by that grep.
 - Relative imports: `../../` → `src/`, `../` → `src/run/`.
+- Execution-state emission is opt-in and fail-soft: `runTaskLoop` calls
+  `initExecutionStateEmission` once at start; it must never throw into the loop
+  and must not change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
 
 **Verification:**
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,
   `tests/runtime/parallel-tool-execution.vitest.ts`,
-  `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`.
+  `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`,
+  `tests/execution-state-emitter.vitest.ts` (emitter phase),
+  `tests/execution-state-phase.vitest.ts` (shared instance, turn reconcile,
+  shadow emit, live-send request).

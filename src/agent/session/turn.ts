@@ -25,6 +25,10 @@ import type { MutationSessionState } from "../../run.js";
 import "../agent.js";
 import { withTraceRun } from "../run-root.js";
 import { runTaskLoop } from "../../run/task-loop.js";
+import {
+  createExecutionStateEmitter,
+  reconcileTurnArtifacts,
+} from "../../run/task-loop/execution-state-phase.js";
 import { createProvider } from "../../providers/registry.js";
 import { taskRouter } from "../../runtime/task-router.js";
 import { CancellationToken } from "../../runtime/cancellation-token.js";
@@ -661,6 +665,16 @@ export async function processTurnBody(
       });
     }
   };
+  // ── Governed execution-state emission (opt-in: ALIX_EXECUTION_STATE_EMIT=1) ──
+  // Session-level emitter shared with the task loop (passed via TaskLoopDeps)
+  // so the finally-block artifact reconciliation below uses the same
+  // instance. The cursor marks the turn boundary. Inert when unset; the
+  // emitter and reconcile helper are fail-soft and never affect the turn.
+  const turnExecutionState = createExecutionStateEmitter({
+    log: state.ctx.log,
+    sessionId: state.ctx.sessionId,
+  });
+  const turnExecutionCursor = turnExecutionState ? state.ctx.log.getCursor() : null;
   try {
     result = await runTaskLoop({
       config: {
@@ -672,6 +686,10 @@ export async function processTurnBody(
         skills: state.ctx.config.skills,
         context: state.ctx.config.context,
       },
+      // Governed execution-state emission (opt-in): the session-level
+      // emitter is shared with the loop so post-loop artifact
+      // reconciliation below uses the same instance.
+      executionState: turnExecutionState,
       provider: state.ctx.provider,
       providerTools: state.providerTools,
       mcpToolIndex: state.mcpToolIndex,
@@ -879,6 +897,15 @@ export async function processTurnBody(
     state.activeLiveness = undefined;
     state.activeCancel = undefined;
     state.cancelRequestedAt = undefined;
+    // Governed execution-state emission (opt-in): register this turn's
+    // artifacts into the shared ExecutionState. Runs on every exit path
+    // (success / failure / cancel); fail-soft and tool-free, so it never
+    // launches new work after an operator cancel.
+    await reconcileTurnArtifacts({
+      emitter: turnExecutionState,
+      log: state.ctx.log,
+      cursor: turnExecutionCursor,
+    });
   }
 
   // Cumulative file count for the TUI header. sessionState is local to

@@ -62,7 +62,12 @@ Rules:
       },
     ],
     temperature: 0,
-    maxOutputTokens: 128,
+    // Measured output-token usage (seed 42, D_hybrid): non-thinking models are
+    // flat at ~21 tokens across h10..h500 (deepseek-chat); the one thinking
+    // sample needs 652 (gemini-2.5-pro @ h50; truncates at 512). 2048 is ~3x
+    // that sample and 4x the measured need. Raise if truncation recurs for
+    // pro-reasoning models (unmeasured — OpenRouter credits were exhausted).
+    maxOutputTokens: 2048,
   };
 }
 
@@ -82,8 +87,20 @@ async function decideWithProvider(
 ): Promise<{ correct: boolean; text: string; expected: string; question: string }> {
   const { question, expected } = questionFor(point, stateObjective);
   const req = buildRequest(ctx.modelContext, question);
-  const res = await provider.complete(req);
-  const text = (res.text ?? "").trim();
+  let res: Awaited<ReturnType<ModelAdapter["complete"]>>;
+  try {
+    res = await provider.complete(req);
+  } catch (e) {
+    // gpt-5 family rejects temperature 0 (requires 1). Retry once.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/temperature/i.test(msg)) {
+      res = await provider.complete({ ...req, temperature: 1 });
+    } else {
+      throw e;
+    }
+  }
+  // Thinking models may surface the answer in reasoning when text is empty.
+  const text = (res.text ?? "").trim() || ((res as { reasoning?: string }).reasoning ?? "").trim();
   // Also consider toolCalls? For local-llama grammar, text may be in JSON envelope — but provider's fromResponse already unwraps.
   const correct = isCorrect(text, expected);
   return { correct, text, expected, question };
