@@ -65,6 +65,7 @@ import { createCorrelationContext } from "../../runtime/tool-correlation.js";
 import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
 import { initExecutionStateEmission } from "./execution-state-phase.js";
+import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
 import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext } from "./context-phase.js";
@@ -158,6 +159,13 @@ post_task?: { command: string; reason: string }[];
    * Optional; omitted when cancellation is not armed.
    */
   cancelSignal?: AbortSignal;
+  /**
+   * Session-level governed execution-state emitter (option A). When provided
+   * by the caller (agent session), the loop uses it for bootstrap/objective
+   * instead of creating its own — so post-loop reconciliation in the caller
+   * shares the same instance. Optional; null/absent preserves legacy init.
+   */
+  executionState?: ExecutionStateEmitter | null;
 }
 
 /**
@@ -210,9 +218,16 @@ onProgress,
 
   // ── Governed execution-state emission (opt-in: ALIX_EXECUTION_STATE_EMIT=1) ──
   // Emits authoritative execution.* transitions (created/running/objective) to
-  // the session EventLog through the StateTransitionHarness. Inert unless the
-  // env flag is set and fail-soft (never throws into the loop).
-  await initExecutionStateEmission({ log, sessionId, objective: evidenceTask });
+  // the session EventLog through the StateTransitionHarness. Prefers the
+  // caller-provided session emitter (deps.executionState) so post-loop
+  // reconciliation shares the instance; otherwise creates one. Inert unless
+  // the env flag is set and fail-soft (never throws into the loop).
+  await initExecutionStateEmission({
+    log,
+    sessionId,
+    objective: evidenceTask,
+    existing: deps.executionState ?? undefined,
+  });
 
   // ── Task 9 (§6): Load calibration once per run for `context.rot_risk` advisory.
   // Independent of Task 4's deferred §1 factor wiring — we only need to read

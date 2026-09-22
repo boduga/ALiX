@@ -26,6 +26,11 @@ existing import paths are unchanged.
 - `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
   (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
   `ExecutionStateEmitter`; inert/fail-soft otherwise.
+  `createExecutionStateEmitter` builds the session-level instance and
+  `reconcileTurnArtifacts(emitter, log, cursor)` registers a turn's
+  `artifact.created` events afterwards. `initExecutionStateEmission` accepts
+  an `existing` emitter so the loop and the session caller share one
+  instance (threaded via `TaskLoopDeps.executionState`).
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
@@ -48,4 +53,5 @@ existing import paths are unchanged.
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,
   `tests/runtime/parallel-tool-execution.vitest.ts`,
   `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`,
-  `tests/execution-state-emitter.vitest.ts` (emitter phase).
+  `tests/execution-state-emitter.vitest.ts` (emitter phase),
+  `tests/execution-state-phase.vitest.ts` (shared instance + turn reconcile).

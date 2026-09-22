@@ -23,7 +23,11 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   `getActivity`, `cancellationInProgress`, `cancelActiveTurn`.
 - `init.ts` — `initialize` (first-turn setup pipeline P0–P9).
 - `turn.ts` — `processTurn` / `processTurnBody` plus
-  `createFreshSessionState` / `extractToolCallsFromMessages`.
+  `createFreshSessionState` / `extractToolCallsFromMessages`. Owns the
+  session-level governed execution-state emitter (opt-in
+  `ALIX_EXECUTION_STATE_EMIT=1`): creates it pre-loop, passes it into
+  `runTaskLoop` via `TaskLoopDeps.executionState`, and reconciles the turn's
+  artifacts in the `finally` on every exit path (fail-soft, tool-free).
 - `chat.ts` — lightweight chat path: `processChat` / `processChatBody` /
   `runSearch` / `ensureChatProvider`.
 - `resume.ts` — `resumeSession` + `restoreReconstructedPlanTasks`.
