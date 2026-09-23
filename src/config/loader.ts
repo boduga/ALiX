@@ -156,9 +156,17 @@ export function projectConfigDir(cwd: string): string {
   return join(cwd, ".alix");
 }
 
+/**
+ * User (global) config directory. Single source of truth for the location the
+ * loader reads first and `alix config --global` writes.
+ */
+export function userConfigDir(): string {
+  return join(homedir(), ".config", "alix");
+}
+
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
   const warn = options.suppressWarnings ? (_message: string): void => {} : (message: string): void => console.warn(message);
-  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
+  const userConfigPath = join(userConfigDir(), "config.json");
   const projectConfigDirResolved = projectConfigDir(cwd);
   const projectConfigPath = join(projectConfigDirResolved, "config.json");
 
