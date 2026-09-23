@@ -7,10 +7,10 @@
  * requires an explicit approval flag (arch §10).
  */
 
-import { join } from "node:path";
 import {
   CONTEXT_RELEVANCE_PROFILES,
   DEFAULT_DECISION_CONFIG,
+  JEV_KEY_PROVIDER_ID,
   activeProfile,
   computeReliability,
   createDecisionJournalStore,
@@ -21,10 +21,12 @@ import {
   exportCalibrationDataset,
   loadProfileRegistry,
   promoteProfile,
+  resolveDecisionPaths,
   rollbackProfile,
   saveProfileRegistry,
   type CalibrationExport,
   type DecisionConfig,
+  type DecisionPaths,
   type DecisionType,
   type LabelErrorType,
   type OutcomeLabel,
@@ -35,18 +37,12 @@ import {
 import { loadConfig } from "../../../config/loader.js";
 import { getSavedApiKey } from "../../helpers/api-keys.js";
 
-/** Provider id under which the TypeSafe/Jev key is stored (store-only). */
-export const JEV_KEY_PROVIDER_ID = "typesafe";
+export { JEV_KEY_PROVIDER_ID };
 
-export type JevPaths = {
-  dir: string;
-  fixtures: string;
-  profiles: string;
-};
+export type JevPaths = DecisionPaths;
 
 export function resolveJevPaths(cwd: string): JevPaths {
-  const dir = join(cwd, ".alix", "decisions");
-  return { dir, fixtures: join(dir, "fixtures"), profiles: join(dir, "profiles.json") };
+  return resolveDecisionPaths(cwd);
 }
 
 export class JevOperatorError extends Error {

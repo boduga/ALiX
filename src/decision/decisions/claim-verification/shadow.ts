@@ -30,6 +30,7 @@ import { CLAIM_VERDICT_CANDIDATES, isClaimVerdict, type ClaimVerdict } from "./s
 import {
   projectClaimVerification,
   type ClaimVerificationInput,
+  type ClaimVerificationProjection,
 } from "./projection.js";
 
 export type ShadowObservation = {
@@ -42,6 +43,7 @@ export type ShadowObservation = {
 export type ClaimVerificationShadowResult = {
   decision: "claim-verification";
   projectionHash: string;
+  projection: ClaimVerificationProjection;
   observed: ShadowObservation;
   baseline?: ShadowObservation;
   /** Baseline/observed verdict agreement, when both produced a verdict. */
@@ -62,6 +64,8 @@ export type ClaimVerificationShadowDeps = {
   executionId?: string;
   /** Risk context at decision time. */
   risk?: RiskContext;
+  /** Boundary seam for tests; default seals via projectClaimVerification. */
+  project?: (input: ClaimVerificationInput) => RemoteSealedProjection<ClaimVerificationProjection>;
 };
 
 function verdictOf(outcome: ExecutorOutcome): ClaimVerdict | undefined {
@@ -148,7 +152,7 @@ export async function runClaimVerificationShadow(
   input: ClaimVerificationInput,
   deps: ClaimVerificationShadowDeps,
 ): Promise<ClaimVerificationShadowResult> {
-  const sealed = projectClaimVerification(input);
+  const sealed = (deps.project ?? projectClaimVerification)(input);
   const { observation: observed, attempts, primaryId } = await runConfigured(sealed, deps);
 
   const records: DecisionJournalRecord[] = journalAttempts(
@@ -182,6 +186,7 @@ export async function runClaimVerificationShadow(
   return {
     decision: "claim-verification",
     projectionHash: sealed.hash,
+    projection: sealed.payload,
     observed,
     ...(baseline !== undefined ? { baseline } : {}),
     ...(agree !== undefined ? { agree } : {}),
