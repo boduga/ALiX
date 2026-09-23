@@ -485,4 +485,24 @@ describe("selectClaimVerification modes", () => {
     const choiceRecords = journal.readAll().filter((r) => r.outcome.kind === "choice");
     assert.ok(choiceRecords.length <= 1, "no comparable pair when the remote degraded");
   });
+
+  it("shadow mode with compareBaseline: false still returns the local verdict", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "no-baseline"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+      compareBaseline: false,
+    });
+    // The runner skipped the baseline arm; shadow must still compute the
+    // local verdict — never surface the observed (remote) one.
+    assert.equal(selection.shadow?.baseline, undefined);
+    assert.equal(selection.shadow?.observed.verdict, "contradicted");
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.notEqual(selection.verdict, selection.shadow?.observed.verdict);
+  });
 });

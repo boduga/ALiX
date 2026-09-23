@@ -5,7 +5,9 @@
  *  - "baseline" — deterministic local verdict; no engine plan, no journal,
  *    no network. Default, so the tool is useful before any experiment starts.
  *  - "shadow"   — run configured engine + local baseline over one sealed
- *    projection, journal both, return the BASELINE verdict.
+ *    projection, journal both, return the BASELINE verdict. Guard: when the
+ *    runner skipped the baseline (compareBaseline: false), the local verdict
+ *    is computed directly — the observed verdict is never returned.
  *  - "active"   — same observation, return the CONFIGURED engine's verdict.
  *
  * DIVERGENCE (deliberate, spec §10): selectModelTier/selectRiskTier return no
@@ -47,14 +49,12 @@ export async function selectClaimVerification(
   const shadow = await runClaimVerificationShadow(input, deps);
 
   if (mode === "shadow") {
-    const verdict = shadow.baseline?.verdict ?? shadow.observed.verdict;
-    return {
-      mode,
-      ...(verdict !== undefined
-        ? { verdict, engineId: shadow.baseline?.engineId ?? LOCAL_ENGINE_ID }
-        : {}),
-      shadow,
-    };
+    if (shadow.baseline?.verdict !== undefined) {
+      return { mode, verdict: shadow.baseline.verdict, engineId: shadow.baseline.engineId, shadow };
+    }
+    const projection = createClaimVerificationProjector().project(input);
+    const { verdict } = classifyClaimLocally(projection);
+    return { mode, verdict, engineId: LOCAL_ENGINE_ID, shadow };
   }
 
   return {
