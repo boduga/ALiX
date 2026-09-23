@@ -17,9 +17,22 @@ import { computeFingerprint } from "./replan-types.js";
 
 export class ReplanProposalStore {
   private readonly baseDir: string;
+  private readonly now: () => Date;
 
-  constructor(cwd: string) {
+  /**
+   * `opts.now` is a clock seam (same convention as
+   * `scheduled-task-service.ts`). Tests inject a clock so an update's
+   * `updatedAt` is deterministically after the record's `createdAt` instead of
+   * racing millisecond-resolution `toISOString()`.
+   */
+  constructor(cwd: string, opts?: { now?: () => Date }) {
     this.baseDir = join(cwd, ".alix", "coordination", "replans");
+    this.now = opts?.now ?? (() => new Date());
+  }
+
+  /** Current timestamp for a write. */
+  private stamp(): string {
+    return this.now().toISOString();
   }
 
   private runDir(runId: string): string {
@@ -50,7 +63,7 @@ export class ReplanProposalStore {
     const record: ProposalRecord = {
       ...proposal,
       draftFingerprint: proposal.draftFingerprint || computeFingerprint(proposal.draft),
-      updatedAt: new Date().toISOString(),
+      updatedAt: this.stamp(),
     };
 
     const path = this.proposalPath(proposal.runId, proposal.id);
@@ -142,7 +155,7 @@ export class ReplanProposalStore {
     if (!proposal) return null;
 
     proposal.status = status;
-    proposal.updatedAt = new Date().toISOString();
+    proposal.updatedAt = this.stamp();
     if (extra?.error !== undefined) proposal.error = extra.error;
     if (extra?.approvalId !== undefined) proposal.approvalId = extra.approvalId;
 
@@ -169,7 +182,7 @@ export class ReplanProposalStore {
     if (proposal.status !== expectedStatus) return null;
 
     proposal.status = newStatus;
-    proposal.updatedAt = new Date().toISOString();
+    proposal.updatedAt = this.stamp();
     if (extra?.error !== undefined) proposal.error = extra.error;
     if (extra?.approvalId !== undefined) proposal.approvalId = extra.approvalId;
 
@@ -194,7 +207,7 @@ export class ReplanProposalStore {
 
     proposal.impactAnalysis = impactAnalysis;
     proposal.impactFingerprint = computeFingerprint(impactAnalysis);
-    proposal.updatedAt = new Date().toISOString();
+    proposal.updatedAt = this.stamp();
 
     const path = this.proposalPath(runId, proposalId);
     const tmpPath = `${path}.tmp.${randomUUID()}`;
@@ -217,7 +230,7 @@ export class ReplanProposalStore {
     proposal.provider = metadata.provider;
     proposal.model = metadata.model;
     proposal.usage = metadata.usage;
-    proposal.updatedAt = new Date().toISOString();
+    proposal.updatedAt = this.stamp();
 
     const path = this.proposalPath(runId, proposalId);
     const tmpPath = `${path}.tmp.${randomUUID()}`;

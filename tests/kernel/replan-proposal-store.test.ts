@@ -337,15 +337,22 @@ describe("ReplanProposalStore", () => {
 
   describe("updateStatus", () => {
     it("updates status and timestamps", async () => {
-      const record = makeRecord();
-      await store.create(record);
+      // Deterministic clock: the record is created through `createProposalRecord`
+      // (real wall clock) and every store write advances by one second, so the
+      // assertion cannot lose a millisecond-resolution tie on a slow runner.
+      const base = Date.now() + 1_000;
+      let tick = 0;
+      const clocked = new ReplanProposalStore(tmpDir, { now: () => new Date(base + tick++ * 1_000) });
 
-      const updated = await store.updateStatus(record.runId, record.id, "awaiting_approval");
+      const record = makeRecord();
+      await clocked.create(record);
+
+      const updated = await clocked.updateStatus(record.runId, record.id, "awaiting_approval");
       assert.ok(updated);
       assert.equal(updated!.status, "awaiting_approval");
       assert.ok(new Date(updated!.updatedAt) > new Date(record.createdAt));
 
-      const loaded = await store.load(record.runId, record.id);
+      const loaded = await clocked.load(record.runId, record.id);
       assert.equal(loaded!.status, "awaiting_approval");
     });
 

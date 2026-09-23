@@ -18,14 +18,6 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-
-/** Poll until `cond` is true or the budget elapses (load-insensitive). */
-async function waitUntil(cond: () => boolean, timeoutMs = 2000): Promise<void> {
-  const start = Date.now();
-  while (!cond() && Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 20));
-  }
-}
 import { tmpdir } from "node:os";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { CoordinationScheduler } from "../../src/kernel/coordination-scheduler.js";
@@ -130,6 +122,20 @@ function createMinimalScheduler(overrides: {
 
 // ── Tests ───────────────────────────────────────────────────────────────
 
+/**
+ * Poll until `cond` is true or the budget elapses. Load-insensitive: a slow
+ * CI runner waits as long as it needs, instead of losing a fixed 50ms race.
+ */
+async function waitUntil(
+  cond: () => boolean | Promise<boolean>,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const start = Date.now();
+  while (!(await cond()) && Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 describe("CoordinationScheduler replanning integration", () => {
   let cwd: string;
   let store: CoordinationStore;
@@ -194,7 +200,7 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.addWorker(run.id, worker);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    await waitUntil(async () => (await store.load(run.id))!.workers[0].status === "pending");
 
     // Replanner should NOT have been called
     assert.equal(calls.length, 0);
@@ -223,7 +229,7 @@ describe("CoordinationScheduler replanning integration", () => {
 
     // Should not throw — replanner is undefined so no-op
     const tickResult = await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    await waitUntil(async () => (await store.load(run.id))!.workers[0].status === "failed");
 
     assert.equal(tickResult.dispatched.length, 1);
     const loaded = await store.load(run.id);
@@ -251,7 +257,7 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.addWorker(run.id, worker);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    await waitUntil(async () => (await store.load(run.id))!.workers[0].status === "failed");
 
     assert.equal(calls.length, 0);
     const loaded = await store.load(run.id);
@@ -298,7 +304,7 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.addWorker(run.id, worker);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
+    await waitUntil(() => calls.length === 1);
 
     // Replanner was called
     assert.equal(calls.length, 1);
@@ -371,8 +377,8 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.save(run);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
 
+    // Tick returns early for a completed run — no async work to wait for.
     // Tick should return early — worker never dispatched, replanner never called
     assert.equal(calls.length, 0);
     const loaded = await store.load(run.id);
@@ -400,8 +406,8 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.save(run);
 
     await scheduler.tick(run.id);
-    await new Promise(r => setTimeout(r, 50));
 
+    // Tick returns early for a failed run — no async work to wait for.
     assert.equal(calls.length, 0);
     const loaded = await store.load(run.id);
     assert.equal(loaded!.status, "failed");

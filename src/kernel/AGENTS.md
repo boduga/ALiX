@@ -14,6 +14,7 @@
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
 - `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
 - `coordination-resume.ts` — Reclaim dead-owner workers to pending; find Inspector-hosted active runs; `cancelDeadOwnerRuns` finalizes runs whose host died mid-execution (SIGKILL)
+- `replan-proposal-store.ts` — Durable proposal lifecycle (`.alix/coordination/replans/<runId>/<proposalId>.json`, atomic tmp+rename). Takes an optional `{ now }` clock seam so an update's `updatedAt` is deterministically after `createdAt` (millisecond `toISOString()` can tie).
 - `worker-executor.ts` — In-process runTask executor (CLI default)
 
 **Local Contracts:**
@@ -38,3 +39,5 @@
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
+- `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep
+- `tests/kernel/replan-proposal-store.test.ts` — proposal CRUD; timestamp assertions use the injected clock
