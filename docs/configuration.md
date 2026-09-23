@@ -124,6 +124,7 @@ ALiX supports multiple providers. Keyed providers require an API key; keyless lo
 | `ollama` | — (keyless) | Uses local Ollama server |
 | `local-llama` | — (keyless) | Local llama.cpp server; see below |
 | `freellmapi` | `FREELLMAPI_API_KEY` | FreeLLMAPI router (default `http://10.1.1.12:3001`; override via `models.default.freellmapiBaseUrl`); unified `freellmapi-…` key via credential store |
+| `xiaomi-mimo-token-plan` | `XIAOMI_MIMO_TOKEN_PLAN_KEY` | Xiaomi MiMo Token Plan (OpenAI-compatible; default `https://token-plan-sgp.xiaomimimo.com/v1`, override via `models.default.xiaomiMimoBaseUrl`); keys `tp-…` (individual) / `ttp-…` (team) |
 
 Env vars take precedence over config file values. See [Local LLM setup](local-llama-setup.md) for the full local-llama walkthrough.
 

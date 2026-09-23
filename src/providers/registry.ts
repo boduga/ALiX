@@ -21,6 +21,7 @@ const lazyProviders = {
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
   "local-llama": lazy(() => import("./local-llama-provider.js").then(m => m.LocalLlamaProvider)),
   freellmapi: lazy(() => import("./freellmapi-provider.js").then(m => m.FreeLLMAPIProvider)),
+  "xiaomi-mimo-token-plan": lazy(() => import("./xiaomi-mimo-token-plan-provider.js").then(m => m.XiaomiMimoTokenPlanProvider)),
   mock: lazy(() => import("./mock-provider.js").then(m => m.MockProvider)),
   "scripted-mock": lazy(() => import("../evals/providers/scripted-mock-provider.js").then(m => m.ScriptedMockProvider)),
 } as const;
@@ -56,6 +57,8 @@ export type ProviderConfig = {
   ollamaBaseUrl?: string;
   /** Server endpoint for local-llama (ModelConfig.localLlamaBaseUrl). */
   localLlamaBaseUrl?: string;
+  /** Token Plan API root for xiaomi-mimo-token-plan (ModelConfig.xiaomiMimoBaseUrl). */
+  xiaomiMimoBaseUrl?: string;
 };
 
 /** Default total call timeout per provider (ms). Local/hot-swapping providers get headroom. */
@@ -63,6 +66,7 @@ const DEFAULT_TIMEOUT_MS: Record<string, number> = {
   ollama: 300_000,
   "local-llama": 300_000,
   freellmapi: 300_000,
+  "xiaomi-mimo-token-plan": 300_000,
 };
 
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 60_000;
@@ -83,7 +87,7 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
     }
   }
 
-  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}:${config.freellmapiBaseUrl ?? ""}:${config.ollamaBaseUrl ?? ""}:${config.localLlamaBaseUrl ?? ""}`;
+  const key = `${config.provider}:${model ?? ""}:${apiKey ?? ""}:${config.freellmapiBaseUrl ?? ""}:${config.ollamaBaseUrl ?? ""}:${config.localLlamaBaseUrl ?? ""}:${config.xiaomiMimoBaseUrl ?? ""}`;
 
   if (providerCache.has(key)) {
     return providerCache.get(key)!;
@@ -102,7 +106,7 @@ export async function createProvider(config: ProviderConfig, apiKey?: string): P
   const streamIdleTimeoutMs = config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
   // Thread the effective total timeout into the provider so providers that use
   // an inner AbortSignal (e.g. Ollama) enforce the same bound as the wrapper.
-  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama, ...(config.provider === "freellmapi" && config.freellmapiBaseUrl ? { baseUrl: config.freellmapiBaseUrl } : {}), ...(config.provider === "ollama" && config.ollamaBaseUrl ? { baseUrl: config.ollamaBaseUrl } : {}), ...(config.provider === "local-llama" && config.localLlamaBaseUrl ? { baseUrl: config.localLlamaBaseUrl } : {}) });
+  const instance = new ProviderClass({ apiKey, model, timeoutMs, localModelPath: config.localModelPath, localLlama: config.localLlama, ...(config.provider === "freellmapi" && config.freellmapiBaseUrl ? { baseUrl: config.freellmapiBaseUrl } : {}), ...(config.provider === "ollama" && config.ollamaBaseUrl ? { baseUrl: config.ollamaBaseUrl } : {}), ...(config.provider === "local-llama" && config.localLlamaBaseUrl ? { baseUrl: config.localLlamaBaseUrl } : {}), ...(config.provider === "xiaomi-mimo-token-plan" && config.xiaomiMimoBaseUrl ? { baseUrl: config.xiaomiMimoBaseUrl } : {}) });
   const wrapped = withProviderContracts(instance, undefined, timeoutMs, streamIdleTimeoutMs);
   providerCache.set(key, wrapped);
   return wrapped;
@@ -125,5 +129,6 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
     { id: "deepseek", name: "DeepSeek", envKey: "DEEPSEEK_API_KEY" },
     { id: "local-llama", name: "Local Llama.cpp (llama-server)", envKey: "ALIX_LLAMA_BASE_URL" },
     { id: "freellmapi", name: "FreeLLMAPI (local router)", envKey: "FREELLMAPI_API_KEY" },
+    { id: "xiaomi-mimo-token-plan", name: "Xiaomi MiMo (Token Plan)", envKey: "XIAOMI_MIMO_TOKEN_PLAN_KEY" },
   ];
 }

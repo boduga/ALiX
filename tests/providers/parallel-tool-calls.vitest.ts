@@ -197,6 +197,12 @@ describe("parallel-tool-calls catalog hardening (#642)", () => {
       expect(resolveParallelToolCalls({ provider: "grok", model: "grok-2-latest" })).toBe(true);
       expect(resolveParallelToolCalls({ provider: "grokai", model: "unknown" })).toBe(false);
     });
+    it("xiaomi-mimo-token-plan — OpenAI-compat true for concrete model, false for empty", () => {
+      expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "mimo-v2.6-pro" })).toBe(true);
+      expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "mimo-v2.6-flash" })).toBe(true);
+      expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "" })).toBe(false);
+      expect(resolveParallelToolCalls({ provider: "xiaomi-mimo-token-plan", model: "unknown" })).toBe(false);
+    });
   });
 
   // ── fail-closed unknown → false ────────────────────────────────────────

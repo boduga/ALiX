@@ -165,6 +165,13 @@ export function resolveParallelToolCalls(input: ParallelToolCallsInput): boolean
     return false;
   }
 
+  // xiaomi-mimo-token-plan — OpenAI-compatible; the MiMo chat-completions API
+  // exposes `parallel_tool_calls` (on by default in thinking mode). Parallel is
+  // supported for any non-empty concrete model id; empty/unknown fail-closed.
+  if (provider === "xiaomi-mimo-token-plan") {
+    return isGenericOpenAICompatCapableModel(model);
+  }
+
   // OpenAI — gpt-4, gpt-4o, gpt-3.5, o1, o3 families support parallel_tool_calls
   if (provider === "openai") {
     return isOpenAICapableModel(model);

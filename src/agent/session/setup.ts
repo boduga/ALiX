@@ -321,13 +321,13 @@ export async function resolveDirectOutputCeiling(
       chatModel.model ?? "",
       chatApiKey ? { [chatModel.provider]: chatApiKey } : undefined,
     );
-    // DeepSeek accepts output budgets far above the generic 32,768 cap
-    // (verified against api.deepseek.com: 100k–300k `max_tokens` honored;
-    // the model streams reasoning + content inside a single budget, so a
-    // long answer cut at 32k was silently truncated mid-part). Keep the
-    // generic cap for other providers, whose APIs often reject `max_tokens`
-    // above their own much smaller ceiling (e.g. gpt-4o).
-    if (chatModel.provider === "deepseek") {
+    // DeepSeek and Xiaomi MiMo accept output budgets far above the generic
+    // 32,768 cap (DeepSeek: 100k–300k `max_tokens` honored; MiMo: 128K max
+    // output). Both stream reasoning + content inside a single budget, so a
+    // long answer cut at 32k is silently truncated mid-part. Keep the generic
+    // cap for other providers, whose APIs often reject `max_tokens` above
+    // their own much smaller ceiling (e.g. gpt-4o).
+    if (chatModel.provider === "deepseek" || chatModel.provider === "xiaomi-mimo-token-plan") {
       return createContextBudget(descriptor, { outputCap: 131_072 }).requestedMaxOutputTokens;
     }
     return createContextBudget(descriptor).requestedMaxOutputTokens;
@@ -367,12 +367,12 @@ export async function setupContextLimits(
   let tokenizer: TokenizerName;
   let contextWindowTokens: number;
   const budgetOptions: ContextBudgetConfig = budgetConfig ?? {};
-  // DeepSeek accepts output budgets far above the generic 32,768 cap (verified
-  // against api.deepseek.com: 100k–300k `max_tokens` honored; reasoning +
-  // content share the budget, so long answers were silently truncated at 32k).
-  // Only elevate when the user hasn't set their own cap.
+  // DeepSeek and Xiaomi MiMo accept output budgets far above the generic
+  // 32,768 cap (DeepSeek: 100k–300k `max_tokens` honored; MiMo: 128K max
+  // output). Reasoning + content share the budget, so long answers were
+  // silently truncated at 32k. Only elevate when the user hasn't set their cap.
   if (
-    modelConfig.provider === "deepseek" &&
+    (modelConfig.provider === "deepseek" || modelConfig.provider === "xiaomi-mimo-token-plan") &&
     (budgetOptions.outputCap === undefined || budgetOptions.outputCap === DEFAULT_OUTPUT_CAP)
   ) {
     budgetOptions.outputCap = 131_072;

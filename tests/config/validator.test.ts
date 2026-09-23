@@ -193,6 +193,20 @@ describe("validateConfig", () => {
     assert.ok(!result.issues.some(i => i.path === "models.default.freellmapiBaseUrl"));
   });
 
+  it("reports error when xiaomiMimoBaseUrl is not an http(s) URL", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "xiaomi-mimo-token-plan", name: "m", xiaomiMimoBaseUrl: "not-a-url" };
+    const result = validateConfig(config);
+    assert.ok(result.issues.some(i => i.path === "models.default.xiaomiMimoBaseUrl" && i.level === "error"));
+  });
+
+  it("accepts a valid xiaomiMimoBaseUrl", () => {
+    const config = makeValidConfig();
+    config.models!.default = { provider: "xiaomi-mimo-token-plan", name: "m", xiaomiMimoBaseUrl: "https://token-plan-sgp.xiaomimimo.com/v1" };
+    const result = validateConfig(config);
+    assert.ok(!result.issues.some(i => i.path === "models.default.xiaomiMimoBaseUrl"));
+  });
+
   it("reports error when a localLlama knob is an invalid number", () => {
     const config = makeValidConfig();
     config.models!.default = { provider: "local-llama", name: "m", localLlama: { port: 70000 } };
