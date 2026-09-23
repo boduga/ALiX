@@ -28,6 +28,22 @@ export function isRiskContext(value: unknown): value is RiskContext {
   return (RISK_CONTEXTS as readonly unknown[]).includes(value);
 }
 
+/**
+ * Provider-reported token usage for a decision call. Metadata about how the
+ * result was produced, so it rides on provenance rather than on the native
+ * result — the answer itself stays Choice/Score/Noul.
+ */
+export type DecisionUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export function isDecisionUsage(value: unknown): value is DecisionUsage {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return isFiniteNumber(v.inputTokens) && isFiniteNumber(v.outputTokens);
+}
+
 /** Common provenance attached to every decision result. */
 export type DecisionProvenance = {
   engineId: string;
@@ -35,6 +51,8 @@ export type DecisionProvenance = {
   latencyMs: number;
   remote: boolean;
   projectionHash: string;
+  /** Provider-reported usage, when the engine reports it. */
+  usage?: DecisionUsage;
 };
 
 /** Bounded choice over ALiX-supplied candidates. */
@@ -157,6 +175,7 @@ export function validateProvenance(p: unknown): p is DecisionProvenance {
     (v.latencyMs as number) >= 0 &&
     typeof v.remote === "boolean" &&
     typeof v.projectionHash === "string" &&
-    (v.projectionHash as string).length > 0
+    (v.projectionHash as string).length > 0 &&
+    (v.usage === undefined || isDecisionUsage(v.usage))
   );
 }

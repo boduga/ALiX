@@ -9,6 +9,8 @@ import {
   createDecisionJournalStore,
   createJevExecutor,
   createLocalBaselineExecutor,
+  costForRun,
+  costFromUsage,
   estimateFixtureCostUsd,
   estimateInputTokens,
   evaluatePromotionGate,
@@ -260,6 +262,43 @@ describe("cost model", () => {
 
   it("refuses to price an unknown engine", () => {
     assert.throws(() => estimateFixtureCostUsd(claimFixture("f1"), "mystery"), /No cost model/);
+  });
+
+  it("prefers provider-reported usage over the content estimate", () => {
+    const fixture = claimFixture("f1");
+    const estimate = estimateFixtureCostUsd(fixture, "jev");
+    const exact = costFromUsage("jev", { inputTokens: 1_000_000, outputTokens: 0 });
+    assert.ok(Math.abs(exact - 0.042) < 1e-12);
+    assert.notEqual(exact, estimate);
+    // costForRun uses the reported usage when present, the estimate otherwise.
+    assert.equal(costForRun(fixture, "jev", { inputTokens: 1_000_000, outputTokens: 0 }), exact);
+    assert.equal(costForRun(fixture, "jev"), estimate);
+    assert.equal(costFromUsage("local", { inputTokens: 999, outputTokens: 999 }), 0);
+  });
+
+  it("carries reported usage onto the run and into the comparison", async () => {
+    const withUsage = jevExecutor(async () => ({
+      model: "jev-1.13.0",
+      answers: { "claim-verdict": { type: "choice", choice: "supported" } },
+      usage: { input_tokens: 400, output_tokens: 12 },
+    }));
+    const run = await replayFixture(claimFixture("f1"), withUsage);
+    assert.deepEqual(run.usage, { inputTokens: 400, outputTokens: 12 });
+
+    const fixtures = [claimFixture("f1")];
+    const runs = (await replaySuite(fixtures, [withUsage])).jev;
+    const comparison = compareEngineRuns({
+      fixtures,
+      baseline: runs,
+      candidate: runs,
+      baselineEngineId: "jev",
+      candidateEngineId: "jev",
+      isCorrect: isSupported,
+    });
+    assert.equal(comparison.candidate.reportedInputTokens, 400);
+    assert.equal(comparison.candidate.reportedOutputTokens, 12);
+    // 400 input tokens at $0.042/MTok.
+    assert.ok(Math.abs(comparison.candidate.totalCostUsd - (400 / 1_000_000) * 0.042) < 1e-12);
   });
 });
 

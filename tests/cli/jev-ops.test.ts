@@ -34,6 +34,7 @@ import {
 } from "../../src/cli/commands/jev/replay-ops.js";
 import { dispatchJevCommand } from "../../src/cli/commands/jev/main.js";
 import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
+import { _setHomedirOverride } from "../../src/config/loader.js";
 
 let cwd: string;
 let paths: ReturnType<typeof resolveJevPaths>;
@@ -51,8 +52,14 @@ const MODELS = {
 before(() => {
   cwd = mkdtempSync(join(tmpdir(), "alix-jev-cli-"));
   paths = resolveJevPaths(cwd);
+  // Hermetic: `buildStatus` reads the user config, so point the loader at a
+  // sandbox HOME instead of the developer's machine.
+  _setHomedirOverride(join(cwd, "home"));
+  _setUserConfigPathOverride(join(cwd, "home", ".config", "alix", "config.json"));
 });
 after(() => {
+  _setHomedirOverride(undefined);
+  _setUserConfigPathOverride(undefined);
   rmSync(cwd, { recursive: true, force: true });
 });
 

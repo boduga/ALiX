@@ -9,6 +9,7 @@
  * the harness.
  */
 
+import type { DecisionUsage } from "../contracts.js";
 import {
   assertValidOutcome,
   executeWithTimeout,
@@ -24,6 +25,8 @@ export type ReplayRun = {
   engineId: string;
   outcome: ExecutorOutcome;
   latencyMs: number;
+  /** Provider-reported usage, when the engine reported it. */
+  usage?: DecisionUsage;
 };
 
 /**
@@ -62,6 +65,9 @@ export async function replayFixture(
     engineId: executor.engineId,
     outcome,
     latencyMs: Date.now() - started,
+    ...(outcome.kind !== "failure" && outcome.provenance.usage !== undefined
+      ? { usage: outcome.provenance.usage }
+      : {}),
   };
 }
 

@@ -7,10 +7,11 @@
  * legitimately recalibrate the same answer.
  */
 
+import type { DecisionUsage } from "../contracts.js";
 import type { ExecutorOutcome } from "../executors.js";
 import type { ReplayFixture } from "./fixtures.js";
 import type { ReplayRun } from "./harness.js";
-import { estimateFixtureCostUsd } from "./cost.js";
+import { costForRun } from "./cost.js";
 
 export type NormalizedOutcome =
   | { kind: "choice"; choice: unknown }
@@ -55,6 +56,9 @@ export type EngineSideReport = {
   meanLatencyMs: number;
   p95LatencyMs: number;
   totalCostUsd: number;
+  /** Provider-reported input tokens, when every counted run reported usage. */
+  reportedInputTokens?: number;
+  reportedOutputTokens?: number;
 };
 
 export type EngineComparison = {
@@ -72,8 +76,8 @@ export type EngineComparison = {
 export type CompareOptions = {
   /** Correctness predicate; without it, accuracy is omitted for both sides. */
   isCorrect?: (fixtureId: string, outcome: ExecutorOutcome) => boolean;
-  /** Cost model; defaults to the documented vendor estimate. */
-  costOf?: (fixture: ReplayFixture, engineId: string) => number;
+  /** Cost model; defaults to reported usage, falling back to the estimate. */
+  costOf?: (fixture: ReplayFixture, engineId: string, usage?: DecisionUsage) => number;
 };
 
 function sideReport(
@@ -86,10 +90,18 @@ function sideReport(
   const accuracies = isCorrect
     ? runs.map((run) => (isCorrect(run.fixtureId, run.outcome) ? 1 : 0))
     : undefined;
+  const reported = runs.filter((run) => run.usage !== undefined);
+  const reportedTokens = reported.length > 0
+    ? {
+        reportedInputTokens: reported.reduce((sum, run) => sum + (run.usage?.inputTokens ?? 0), 0),
+        reportedOutputTokens: reported.reduce((sum, run) => sum + (run.usage?.outputTokens ?? 0), 0),
+      }
+    : {};
   return {
     engineId,
     runs: runs.length,
     malformed,
+    ...reportedTokens,
     ...(accuracies !== undefined ? { accuracy: mean(accuracies) } : {}),
     meanLatencyMs: mean(runs.map((run) => run.latencyMs)),
     p95LatencyMs: percentile(
@@ -114,7 +126,7 @@ export function compareEngineRuns(input: {
   isCorrect?: CompareOptions["isCorrect"];
   costOf?: CompareOptions["costOf"];
 }): EngineComparison {
-  const costOf = input.costOf ?? estimateFixtureCostUsd;
+  const costOf = input.costOf ?? costForRun;
   const baselineById = new Map(input.baseline.map((run) => [run.fixtureId, run]));
   const candidateById = new Map(input.candidate.map((run) => [run.fixtureId, run]));
 
@@ -128,17 +140,28 @@ export function compareEngineRuns(input: {
     if (sameAnswer(a, b)) agreed += 1;
   }
 
+  const usageById = (runs: readonly ReplayRun[]): Map<string, DecisionUsage> =>
+    new Map(runs.filter((run) => run.usage !== undefined).map((run) => [run.fixtureId, run.usage!]));
+  const baselineUsage = usageById(input.baseline);
+  const candidateUsage = usageById(input.candidate);
+
   const baseline = sideReport(
     input.baselineEngineId,
     input.baseline,
     input.isCorrect,
-    input.fixtures.reduce((sum, fixture) => sum + costOf(fixture, input.baselineEngineId), 0),
+    input.fixtures.reduce(
+      (sum, fixture) => sum + costOf(fixture, input.baselineEngineId, baselineUsage.get(fixture.id)),
+      0,
+    ),
   );
   const candidate = sideReport(
     input.candidateEngineId,
     input.candidate,
     input.isCorrect,
-    input.fixtures.reduce((sum, fixture) => sum + costOf(fixture, input.candidateEngineId), 0),
+    input.fixtures.reduce(
+      (sum, fixture) => sum + costOf(fixture, input.candidateEngineId, candidateUsage.get(fixture.id)),
+      0,
+    ),
   );
 
   return {
