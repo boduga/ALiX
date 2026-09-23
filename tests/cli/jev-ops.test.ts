@@ -816,8 +816,13 @@ describe("jev ops — label-pair (two-stage blind)", () => {
     });
     const chunks: string[] = [];
     const original = process.stdout.write.bind(process.stdout);
-    (process.stdout as unknown as { write: (chunk: unknown) => boolean }).write = (chunk: unknown) => {
-      chunks.push(String(chunk));
+    (process.stdout as unknown as { write: (...args: unknown[]) => boolean }).write = (...args: unknown[]) => {
+      // Forward non-string chunks (node:test binary protocol) so the harness
+      // keeps counting tests; capture only the CLI's own string writes.
+      if (typeof args[0] !== "string") {
+        return (original as unknown as (...a: unknown[]) => boolean)(...args);
+      }
+      chunks.push(args[0]);
       return true;
     };
     try {
