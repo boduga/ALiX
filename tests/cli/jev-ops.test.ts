@@ -321,6 +321,17 @@ describe("jev replay ops — engines and results", () => {
     assert.equal(report.gate?.pass, true);
   });
 
+  it("omits accuracy for a Noul decision (its label is a judgement, not a candidate)", async () => {
+    const noulPaths = resolveJevPaths(join(cwd, "noul"));
+    buildFixtures({ models: MODELS }, noulPaths, "context-relevance");
+    const report = await runReplay(DEFAULT_DECISION_CONFIG, noulPaths, {
+      engineId: "local",
+      decision: "context-relevance",
+    });
+    assert.equal(report.malformed, 0);
+    assert.equal(report.accuracy, undefined);
+  });
+
   it("refuses jev without remote opt-in and without a stored key", async () => {
     await assert.rejects(
       makeExecutor("jev", DEFAULT_DECISION_CONFIG),

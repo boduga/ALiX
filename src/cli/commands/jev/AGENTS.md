@@ -24,6 +24,7 @@
 - The shipped threshold defaults live in code as `shadow` and are shown for orientation only — they are never applied and cannot be promoted (no provenance). Rollback therefore has nothing to restore until two calibrated profiles exist; that is correct, not a gap.
 - Subsystem validation errors (calibration/profile) are presented as single-line operator errors via `asOperatorError`; anything else is a bug and propagates.
 - Fixtures are built from each decision's built-in corpus, so baseline and Jev are compared on identical deterministic inputs. Corpus labels make baseline accuracy high by construction — this is a regression harness, not an unbiased eval set.
+- Accuracy is reported only when a fixture's `expected` is one of its offered candidates (Choice decisions). A Noul decision carries a judgement label, so comparing it to a probability would print a meaningless 0%; accuracy is omitted and agreement/`mean|delta|` carry the signal instead.
 - `model-tier` fixture build fails closed below two enabled tiers: a one-option Choice proves nothing.
 - `replay` on `jev` requires `decision.remote.jev.enabled=true` AND a store-only key at `apiKeys.typesafe`; both are refused with actionable messages.
 - Replay is the J5 dry-run harness: no tools, no governance, no journal writes.

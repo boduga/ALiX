@@ -211,11 +211,21 @@ export type ReplayReport = {
   gate?: ReturnType<typeof evaluatePromotionGate>;
 };
 
-/** Correctness predicate — only meaningful for fixtures whose label is an answer. */
+/**
+ * Correctness predicate — only meaningful when the fixture's expectation IS one
+ * of its offered candidates. A Noul decision (context relevance) has no
+ * candidates and a judgement label, so comparing it to a probability would
+ * report a meaningless 0%; accuracy is omitted for it instead.
+ */
 function correctnessPredicate(
   fixtures: readonly ReplayFixture[],
 ): ((fixtureId: string, outcome: ExecutorOutcome) => boolean) | undefined {
-  const comparable = fixtures.filter((fixture) => typeof fixture.expected === "string");
+  const comparable = fixtures.filter(
+    (fixture) =>
+      Array.isArray(fixture.candidates) &&
+      fixture.candidates.length > 0 &&
+      (fixture.candidates as readonly unknown[]).includes(fixture.expected),
+  );
   if (comparable.length === 0) return undefined;
   const byId = new Map(comparable.map((fixture) => [fixture.id, fixture.expected]));
   return (fixtureId, outcome) => {
