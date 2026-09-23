@@ -28,6 +28,7 @@ import {
   readClaimProjection,
   registerJevEngine,
   runClaimVerificationShadow,
+  selectClaimVerification,
   toJevRequest,
   fromJevResponse,
   type DecisionConfig,
@@ -396,5 +397,92 @@ describe("shadow runner", () => {
       ProjectionRejectedError,
     );
     assert.equal(journal.readAll().length, 0);
+  });
+});
+
+describe("selectClaimVerification modes", () => {
+  let dir: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "cv-select-"));
+  });
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const input = {
+    claim: "Water boils at 100 degrees Celsius at sea level.",
+    evidence: [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }],
+  };
+
+  it("baseline mode: local verdict, no journal records, no shadow observation", async () => {
+    const journal = createDecisionJournalStore(join(dir, "baseline"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry: createDefaultRegistry(),
+      journal,
+      mode: "baseline",
+    });
+    assert.equal(selection.mode, "baseline");
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.equal(selection.shadow, undefined);
+    assert.equal(journal.readAll().length, 0);
+  });
+
+  it("shadow mode returns the BASELINE verdict while journalling both engines", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "shadow"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+    });
+    // The documented divergence (spec §10): shadow DOES return a verdict,
+    // and it is the baseline's — behaviour unchanged, observation added.
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.equal(selection.shadow?.observed.verdict, "contradicted");
+    assert.equal(selection.shadow?.agree, false);
+    const records = journal.readAll();
+    assert.equal(records.length, 2);
+    assert.equal(new Set(records.map((r) => r.projectionHash)).size, 1);
+  });
+
+  it("active mode returns the observed engine's verdict, still journalling both", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "active"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "active",
+    });
+    assert.equal(selection.verdict, "contradicted");
+    assert.equal(selection.engineId, JEV_ENGINE_ID);
+    assert.equal(journal.readAll().length, 2);
+  });
+
+  it("remote outage in shadow: verdict still returned, no usable pair", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, {
+      enabled: true,
+      apiKey: "k",
+      transport: async () => {
+        throw new Error("network down");
+      },
+    });
+    const journal = createDecisionJournalStore(join(dir, "outage"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+    });
+    assert.equal(selection.verdict, "supported");
+    const choiceRecords = journal.readAll().filter((r) => r.outcome.kind === "choice");
+    assert.ok(choiceRecords.length <= 1, "no comparable pair when the remote degraded");
   });
 });

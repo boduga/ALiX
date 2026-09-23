@@ -9,6 +9,7 @@
 - `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial).
 - `jev-mapping.ts` — `toJevRequest` / `fromJevResponse`; unknown verdict → `MalformedResultError`.
 - `shadow.ts` — `runClaimVerificationShadow`: project → run configured route → run local baseline → journal each under one `projectionHash`.
+- `selection-service.ts` — `selectClaimVerification` with `baseline` (local verdict, no plan/journal/network, default) / `shadow` (returns the BASELINE verdict — deliberate divergence, spec §10) / `active` (configured engine's verdict).
 - `index.ts` — barrel.
 
 **Local Contracts:**
