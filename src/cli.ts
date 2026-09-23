@@ -457,6 +457,13 @@ if (command === "decision") {
   process.exit(0);
 }
 
+// ── Jev decision-subsystem command (J4/J5 operator surface) ───────
+if (command === "jev") {
+  const { handleJevCommand } = await import("./cli/commands/jev.js");
+  await handleJevCommand(args);
+  process.exit(0);
+}
+
 // ── Learning command (P8.7) ───────────────────────────────────────
 if (command === "learning") {
   const { handleLearningCommand } = await import("./cli/commands/learning.js");

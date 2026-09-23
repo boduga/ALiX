@@ -1,0 +1,147 @@
+/**
+ * render.ts — Pure formatters for `alix jev` output.
+ *
+ * Separated from the ops so the data layer stays testable without capturing
+ * stdout.
+ */
+
+import type {
+  CalibrationExport,
+  ReliabilityReport,
+  ThresholdProfile,
+} from "../../../decision/index.js";
+import type { JevStatus } from "./ops.js";
+import type { ReplayReport } from "./replay-ops.js";
+
+function pct(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+export function renderStatus(status: JevStatus): string {
+  const lines: string[] = [];
+  lines.push("Decision subsystem");
+  lines.push(`  remote Jev enabled : ${status.remoteJevEnabled}`);
+  lines.push(`  Jev key present    : ${status.keyPresent}`);
+  lines.push(`  journal records    : ${status.journalRecords}`);
+  lines.push(`  outcome labels     : ${status.labels}${status.malformedLabels > 0 ? ` (${status.malformedLabels} malformed)` : ""}`);
+  lines.push(`  threshold profiles : ${status.profiles.length}`);
+  lines.push("");
+  lines.push("Routes");
+  for (const route of status.routes) {
+    lines.push(
+      `  ${route.decision.padEnd(19)} engine=${route.engine.padEnd(16)} fallback=${route.fallback.padEnd(16)} enabled=${route.enabled}`,
+    );
+    lines.push(`  ${"".padEnd(19)} profile=${route.thresholdProfile}`);
+  }
+  if (status.shippedProfiles.length > 0) {
+    lines.push("");
+    lines.push("Shipped defaults (shadow, not promotable)");
+    for (const profile of status.shippedProfiles) {
+      lines.push(`  ${profile.id.padEnd(34)} threshold=${profile.threshold.toFixed(2)}`);
+    }
+  }
+  if (status.profiles.length > 0) {
+    lines.push("");
+    lines.push("Profiles");
+    for (const profile of status.profiles) {
+      const scope = `${profile.decision}/${profile.engineId}${profile.risk !== undefined ? `/${profile.risk}` : ""}`;
+      const provenance = profile.provenance !== undefined
+        ? `provenance=${profile.provenance.metric}=${profile.provenance.value.toFixed(3)} n=${profile.provenance.sampleCount}`
+        : "provenance=none";
+      lines.push(
+        `  ${profile.id.padEnd(34)} ${scope.padEnd(34)} threshold=${profile.threshold.toFixed(2)} ${profile.status.padEnd(8)} ${provenance}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+export function renderDataset(dataset: CalibrationExport): string {
+  const { skipped } = dataset;
+  return [
+    `Calibration dataset (exported ${new Date(dataset.exportedAt).toISOString()})`,
+    `  filters : ${dataset.filters.decision ?? "all decisions"} / ${dataset.filters.engineId ?? "all engines"}`,
+    `  samples : ${dataset.samples.length}`,
+    `  skipped : unlabeled=${skipped.unlabeled} unknown=${skipped.unknownLabel} failure=${skipped.failureOutcome} duplicate=${skipped.duplicateDecisionId}`,
+  ].join("\n");
+}
+
+export function renderReliability(report: ReliabilityReport): string {
+  const lines: string[] = [];
+  lines.push(
+    `Reliability — ${report.decision} / ${report.engineId} (metric=${report.metric})`,
+  );
+  lines.push(`  samples=${report.sampleCount} excludedUnscored=${report.excludedUnscored}`);
+  lines.push(`  ECE=${report.expectedCalibrationError.toFixed(4)} Brier=${report.brierScore.toFixed(4)}`);
+  lines.push("");
+  lines.push("  bin            count  meanScore  accuracy");
+  for (const bin of report.bins) {
+    if (bin.count === 0) continue;
+    lines.push(
+      `  ${bin.from.toFixed(1)}–${bin.to.toFixed(1)}   ${String(bin.count).padStart(5)}  ${bin.meanScore.toFixed(3).padStart(9)}  ${bin.accuracy.toFixed(3).padStart(8)}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+export function renderProfiles(
+  profiles: readonly ThresholdProfile[],
+  shipped: readonly ThresholdProfile[] = [],
+): string {
+  if (profiles.length === 0) {
+    const shippedLines = shipped.map(
+      (profile) => `  ${profile.id}  threshold=${profile.threshold.toFixed(2)}  (shadow, not promotable)`,
+    );
+    return [
+      "No threshold profiles on disk.",
+      ...(shippedLines.length > 0
+        ? ["Shipped defaults (shadow — filtering stays off until a profile is derived and promoted):", ...shippedLines]
+        : []),
+    ].join("\n");
+  }
+  return profiles
+    .map((profile) => {
+      const scope = `${profile.decision}/${profile.engineId}${profile.risk !== undefined ? `/${profile.risk}` : ""}`;
+      const provenance = profile.provenance !== undefined
+        ? `${profile.provenance.metric}=${profile.provenance.value.toFixed(3)} n=${profile.provenance.sampleCount} dataset=${profile.provenance.datasetId}`
+        : "no provenance (not promotable)";
+      return `${profile.id}  [${profile.status}]  ${scope}  threshold=${profile.threshold.toFixed(2)}\n    ${provenance}${profile.approvedBy !== undefined ? ` approvedBy=${profile.approvedBy}` : ""}`;
+    })
+    .join("\n");
+}
+
+export function renderReplay(report: ReplayReport): string {
+  const lines: string[] = [];
+  lines.push(`Replay — ${report.engineId} over ${report.fixtures} fixtures`);
+  lines.push(`  malformed=${report.malformed}`);
+  if (report.accuracy !== undefined) lines.push(`  accuracy=${pct(report.accuracy)}`);
+  const failed = report.runs.filter((run) => run.outcome.kind === "failure");
+  if (failed.length > 0) {
+    lines.push("");
+    lines.push("  failures");
+    for (const run of failed.slice(0, 10)) {
+      lines.push(`    ${run.fixtureId}: ${run.outcome.kind === "failure" ? run.outcome.error : ""}`);
+    }
+  }
+  if (report.comparison !== undefined) {
+    const comparison = report.comparison;
+    lines.push("");
+    lines.push(`Comparison — baseline ${comparison.baseline.engineId} vs candidate ${comparison.candidate.engineId}`);
+    lines.push(`  paired=${comparison.paired} agreement=${pct(comparison.agreement)}`);
+    lines.push(
+      `  baseline  runs=${comparison.baseline.runs} malformed=${comparison.baseline.malformed}${comparison.baseline.accuracy !== undefined ? ` accuracy=${pct(comparison.baseline.accuracy)}` : ""} p95=${comparison.baseline.p95LatencyMs}ms cost=$${comparison.baseline.totalCostUsd.toFixed(6)}`,
+    );
+    lines.push(
+      `  candidate runs=${comparison.candidate.runs} malformed=${comparison.candidate.malformed}${comparison.candidate.accuracy !== undefined ? ` accuracy=${pct(comparison.candidate.accuracy)}` : ""} p95=${comparison.candidate.p95LatencyMs}ms cost=$${comparison.candidate.totalCostUsd.toFixed(6)}`,
+    );
+    lines.push(
+      `  delta     latency=${comparison.latencyDeltaMs.toFixed(0)}ms cost=$${comparison.costDeltaUsd.toFixed(6)}`,
+    );
+  }
+  if (report.gate !== undefined) {
+    lines.push("");
+    lines.push(`Promotion gate: ${report.gate.pass ? "PASS" : "FAIL"}`);
+    for (const reason of report.gate.reasons) lines.push(`  - ${reason}`);
+  }
+  return lines.join("\n");
+}
