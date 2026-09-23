@@ -304,7 +304,14 @@ describe("CoordinationScheduler replanning integration", () => {
     await store.addWorker(run.id, worker);
 
     await scheduler.tick(run.id);
-    await waitUntil(() => calls.length === 1);
+    // Wait for BOTH: the replanner to have been invoked AND the status to have
+    // been restored out of "replanning". The status is not "replanning" before
+    // the replan starts, so waiting on the status alone exits immediately; the
+    // restore lands after the call returns, so waiting on the call alone is
+    // still a race.
+    await waitUntil(
+      async () => calls.length > 0 && (await store.load(run.id))!.status !== "replanning",
+    );
 
     // Replanner was called
     assert.equal(calls.length, 1);
@@ -342,9 +349,13 @@ describe("CoordinationScheduler replanning integration", () => {
 
     // Should not throw — error is caught and logged
     await scheduler.tick(run.id);
-    // Replan is triggered asynchronously after the worker settles; poll
-    // instead of a fixed sleep so the assertion is not load-sensitive.
-    await waitUntil(() => calls.length > 0);
+    // Wait for BOTH the invocation and the restore out of "replanning" (the
+    // status is not "replanning" before the replan starts, so the status alone
+    // exits immediately; the restore lands after the throw, so the call alone
+    // still races).
+    await waitUntil(
+      async () => calls.length > 0 && (await store.load(run.id))!.status !== "replanning",
+    );
 
     // Replanner was called (once)
     assert.equal(calls.length, 1);
