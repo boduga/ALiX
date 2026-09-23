@@ -195,6 +195,30 @@ describe("verify.claim tool", () => {
     assert.match(String(payload.warning), /journal write failed/);
   });
 
+  it("experiment store write failure: verdict + decisionId still returned with a warning", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: EVIDENCE },
+      {
+        cwd,
+        config: configWith("shadow"),
+        registry,
+        journal,
+        experimentStoreDir: storeDir,
+        apiKey: "k",
+        saveExperiment: async () => {
+          throw new Error("disk full");
+        },
+      },
+    );
+    const payload = parseOutput(result);
+    assert.equal(payload.verdict, "supported");
+    assert.ok(typeof payload.decisionId === "string");
+    assert.match(String(payload.warning), /experiment projection write failed: disk full/);
+  });
+
   it("remote outage: tool stays available with the local verdict", async () => {
     const registry = createDefaultRegistry();
     registerJevEngine(registry, {
