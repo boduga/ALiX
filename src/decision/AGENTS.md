@@ -68,7 +68,7 @@
 
 | Path | Scope |
 |------|-------|
-| `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
+| `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner, selection-service, experiment-store |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
 | `src/decision/decisions/risk-escalation/AGENTS.md` | J6 decision — bounded risk tiers, composed approval recommendation, §14 admission review |
