@@ -127,7 +127,12 @@ export function renderReplay(report: ReplayReport): string {
     const comparison = report.comparison;
     lines.push("");
     lines.push(`Comparison — baseline ${comparison.baseline.engineId} vs candidate ${comparison.candidate.engineId}`);
-    lines.push(`  paired=${comparison.paired} agreement=${pct(comparison.agreement)}`);
+    lines.push(
+      `  paired=${comparison.paired} agreement=${pct(comparison.agreement)} (continuous tolerance ±${comparison.continuousTolerance})`,
+    );
+    if (comparison.meanAbsoluteDelta !== undefined) {
+      lines.push(`  mean|delta|=${comparison.meanAbsoluteDelta.toFixed(4)}`);
+    }
     const side = (label: string, report: typeof comparison.baseline): string => {
       const tokens =
         report.reportedInputTokens !== undefined

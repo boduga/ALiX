@@ -217,6 +217,41 @@ describe("engine comparison", () => {
     assert.equal(comparison.candidate.accuracy, 0);
   });
 
+  it("agrees on continuous outcomes within tolerance, not by exact float", () => {
+    const fixtures = [claimFixture("f1"), claimFixture("f2")];
+    const noulRun = (fixtureId: string, probability: number) => ({
+      fixtureId,
+      engineId: "local",
+      outcome: { kind: "noul" as const, probability, provenance: { engineId: "local", latencyMs: 1, remote: false, projectionHash: "sha256:x" } },
+      latencyMs: 1,
+    });
+    // 0.05 apart -> agree; 0.4 apart -> disagree.
+    const baseline = [noulRun("f1", 0.70), noulRun("f2", 0.20)];
+    const candidate = [noulRun("f1", 0.75), noulRun("f2", 0.60)];
+    const comparison = compareEngineRuns({
+      fixtures,
+      baseline,
+      candidate,
+      baselineEngineId: "local",
+      candidateEngineId: "local",
+    });
+    assert.equal(comparison.continuousTolerance, 0.1);
+    assert.equal(comparison.paired, 2);
+    assert.equal(comparison.agreement, 0.5);
+    assert.ok(Math.abs((comparison.meanAbsoluteDelta ?? 0) - 0.225) < 1e-9);
+
+    // A tighter tolerance flips the first pair to disagreement.
+    const tight = compareEngineRuns({
+      fixtures,
+      baseline,
+      candidate,
+      baselineEngineId: "local",
+      candidateEngineId: "local",
+      continuousTolerance: 0.01,
+    });
+    assert.equal(tight.agreement, 0);
+  });
+
   it("excludes unpaired fixtures but still reports each side", async () => {
     const baseline = await replaySuite([fixtures[0]], [createLocalBaselineExecutor()]);
     const candidate = await replaySuite(fixtures, [createLocalBaselineExecutor()]);

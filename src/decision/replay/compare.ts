@@ -33,7 +33,27 @@ export function normalizeOutcome(outcome: ExecutorOutcome): NormalizedOutcome {
   }
 }
 
-function sameAnswer(a: NormalizedOutcome, b: NormalizedOutcome): boolean {
+/**
+ * Default tolerance for continuous outcomes. A Noul probability or a Score
+ * rating is a float: two engines will essentially never produce the same bits,
+ * so exact equality would report 0% agreement for every probabilistic
+ * decision. Discrete outcomes (Choice) still compare exactly.
+ */
+export const DEFAULT_CONTINUOUS_TOLERANCE = 0.1;
+
+/** The continuous value of an outcome, when it has one. */
+function continuousValue(outcome: NormalizedOutcome): number | undefined {
+  if (outcome.kind === "noul") return outcome.probability;
+  if (outcome.kind === "score") return outcome.score;
+  return undefined;
+}
+
+function sameAnswer(a: NormalizedOutcome, b: NormalizedOutcome, tolerance: number): boolean {
+  if (a.kind === b.kind) {
+    const av = continuousValue(a);
+    const bv = continuousValue(b);
+    if (av !== undefined && bv !== undefined) return Math.abs(av - bv) <= tolerance;
+  }
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -71,6 +91,13 @@ export type EngineComparison = {
   latencyDeltaMs: number;
   /** Candidate minus baseline (negative is an improvement). */
   costDeltaUsd: number;
+  /** Agreement tolerance applied to continuous outcomes. */
+  continuousTolerance: number;
+  /**
+   * Mean |candidate - baseline| over paired continuous outcomes. The real
+   * signal when agreement is tolerance-based.
+   */
+  meanAbsoluteDelta?: number;
 };
 
 export type CompareOptions = {
@@ -78,6 +105,8 @@ export type CompareOptions = {
   isCorrect?: (fixtureId: string, outcome: ExecutorOutcome) => boolean;
   /** Cost model; defaults to reported usage, falling back to the estimate. */
   costOf?: (fixture: ReplayFixture, engineId: string, usage?: DecisionUsage) => number;
+  /** Agreement tolerance for continuous outcomes. Default 0.1. */
+  continuousTolerance?: number;
 };
 
 function sideReport(
@@ -125,6 +154,7 @@ export function compareEngineRuns(input: {
   candidateEngineId: string;
   isCorrect?: CompareOptions["isCorrect"];
   costOf?: CompareOptions["costOf"];
+  continuousTolerance?: CompareOptions["continuousTolerance"];
 }): EngineComparison {
   const costOf = input.costOf ?? costForRun;
   const baselineById = new Map(input.baseline.map((run) => [run.fixtureId, run]));
@@ -133,11 +163,18 @@ export function compareEngineRuns(input: {
   const paired = input.fixtures.filter(
     (fixture) => baselineById.has(fixture.id) && candidateById.has(fixture.id),
   );
+  const tolerance = input.continuousTolerance ?? DEFAULT_CONTINUOUS_TOLERANCE;
   let agreed = 0;
+  const deltas: number[] = [];
   for (const fixture of paired) {
     const a = normalizeOutcome(baselineById.get(fixture.id)?.outcome as ExecutorOutcome);
     const b = normalizeOutcome(candidateById.get(fixture.id)?.outcome as ExecutorOutcome);
-    if (sameAnswer(a, b)) agreed += 1;
+    if (sameAnswer(a, b, tolerance)) agreed += 1;
+    if (a.kind === b.kind) {
+      const av = continuousValue(a);
+      const bv = continuousValue(b);
+      if (av !== undefined && bv !== undefined) deltas.push(Math.abs(av - bv));
+    }
   }
 
   const usageById = (runs: readonly ReplayRun[]): Map<string, DecisionUsage> =>
@@ -171,5 +208,9 @@ export function compareEngineRuns(input: {
     candidate,
     latencyDeltaMs: candidate.meanLatencyMs - baseline.meanLatencyMs,
     costDeltaUsd: candidate.totalCostUsd - baseline.totalCostUsd,
+    continuousTolerance: tolerance,
+    ...(deltas.length > 0
+      ? { meanAbsoluteDelta: deltas.reduce((sum, value) => sum + value, 0) / deltas.length }
+      : {}),
   };
 }
