@@ -6,7 +6,8 @@
 - `tiers.ts` — `TIER_CANDIDATES` (= canonical `MODEL_TIER_VALUES`, `image` included), `listEnabledTiers(config)`, `isModelTierValue`, `filterTierCandidates`, `assertEnabledTier`, `filterTiersByCapability` (caller-side hard-constraint filter; intersects with enabled tiers).
 - `projection.ts` — `ModelTierProjection` (taskKind, promptChars, needsTools, needsVision, longContext), projector, `readModelTierProjection`. Provider/model names, prompt text, source and tool output never enter.
 - `local-baseline.ts` — `chooseTierLocally`: task-kind preference order filtered to enabled tiers; image tasks route to `image`; abstains only when nothing enabled fits.
-- `jev-mapping.ts` — `toJevModelTierRequest` / `fromJevModelTierResponse`; options are tier names; a provider/model ID or non-candidate tier is malformed.
+- `jev-mapping.ts` — `toJevModelTierRequest` / `fromJevModelTierResponse`; options are tier names; `TIER_DESCRIPTIONS` is exported so the model-facing rubric is verifiable; a provider/model ID or non-candidate tier is malformed.
+- **The rubric must name every task kind the state can send.** `synthesis` is not a tier, so `thinking` names it explicitly; without that the model must choose between `thinking` and `default` unaided (observed live: `report-with-images` chose `default`). Same class of gap as the risk rubric's public exposure.
 - `resolution.ts` — `resolveTierModel` / `describeCurrentRouting` / `tierMatchesCurrentRouting`, all via `resolveModelConfig` (canonical `models.*`).
 - `corpus.ts` — feature→tier fixtures; `unsatisfiable` marks requests the decision must abstain on.
 - `shadow.ts` — `runModelTierShadow`: run the route, journal every attempt, compare against current routing.
