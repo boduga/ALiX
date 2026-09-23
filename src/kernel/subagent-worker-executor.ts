@@ -69,6 +69,7 @@ export function taskForWorker(
     coordinationRunId: worker.coordinationRunId,
     assignedAgentId: worker.agentId,
     taskLabel: worker.taskLabel,
+    deferTerminalLifecycle: true,
   };
 }
 

@@ -616,7 +616,17 @@ export class ToolExecutor {
     let outputRef: string | undefined;
 
     if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
-      outputRef = await writeOutputToFile(result.output ?? result.content, this.log.sessionDir, toolCallId, this.log);
+      outputRef = await writeOutputToFile(
+        result.output ?? result.content,
+        this.log.sessionDir,
+        toolCallId,
+        this.log,
+        {
+          coordinationRunId: request.coordinationRunId,
+          agentId: request.agentId,
+          taskId: request.taskId,
+        },
+      );
     }
 
     // Build canonical rawOutput and an explicit preview (so the model always sees something)
@@ -798,7 +808,13 @@ function truncateOutput(output: unknown, maxLen = 200): string {
   return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
 }
 
-async function writeOutputToFile(output: unknown, sessionDir: string, toolCallId: string, log: EventLog): Promise<string> {
+async function writeOutputToFile(
+  output: unknown,
+  sessionDir: string,
+  toolCallId: string,
+  log: EventLog,
+  correlation: { coordinationRunId?: string; agentId?: string; taskId?: string } = {},
+): Promise<string> {
   const { join } = await import("node:path");
   const { writeFile, mkdir } = await import("node:fs/promises");
   const { randomUUID } = await import("node:crypto");
@@ -827,6 +843,9 @@ async function writeOutputToFile(output: unknown, sessionDir: string, toolCallId
       mimeType,
       size,
       retention: "session",
+      ...(correlation.coordinationRunId ? { coordinationRunId: correlation.coordinationRunId } : {}),
+      ...(correlation.agentId ? { agentId: correlation.agentId } : {}),
+      ...(correlation.taskId ? { taskId: correlation.taskId } : {}),
     } satisfies ArtifactCreatedPayload,
   });
 

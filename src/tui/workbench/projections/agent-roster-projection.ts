@@ -97,7 +97,7 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
       } else if (['tool.completed', 'tool.failed', 'tool.cancelled'].includes(event.type) && toolCallId === activeTool?.toolCallId) {
         activeTool = undefined;
         if (!terminalStates.has(state) && state !== 'waiting_approval') state = 'thinking';
-      } else if (event.type === 'subagent.result') state = stateOf(p.status, 'failed');
+      } else if (event.type === 'subagent.result' && p.attemptTerminal !== false) state = stateOf(p.status, 'failed');
       else if (event.type === 'agent.completed' || event.type === 'subagent.completed') state = stateOf(p.state ?? p.status, 'completed');
       else if (event.type === 'agent.failed' || event.type === 'subagent.failed') state = 'failed';
       else if (event.type === 'agent.cancelled') state = 'cancelled';

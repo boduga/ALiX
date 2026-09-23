@@ -74,6 +74,16 @@ export function coordinationPresentationMeta(task: SubagentTask): {
   };
 }
 
+function resolvedCredentialPayload(config: AlixConfig | undefined): string | undefined {
+  const apiKeys: Record<string, string> = {};
+  for (const [provider, value] of Object.entries(config?.apiKeys ?? {})) {
+    if (typeof value === "string" && value.length > 0 && !value.startsWith("cred://")) {
+      apiKeys[provider] = value;
+    }
+  }
+  return Object.keys(apiKeys).length > 0 ? JSON.stringify(apiKeys) : undefined;
+}
+
 export class SubagentManager {
   private running = new Map<string, RunningSubagent>();
   private ownershipRegistry = new Map<string, string>(); // path -> subagentId
@@ -154,6 +164,8 @@ export class SubagentManager {
           "--provider", provider,
           "--model", name,
           "--session-mode", sessionMode,
+          ...(task.coordinationRunId ? ["--coordination-run-id", task.coordinationRunId] : []),
+          ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
         ];
 
@@ -172,9 +184,10 @@ export class SubagentManager {
           commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...cliArgs];
         }
 
+        const credentialPayload = task.coordinationRunId ? resolvedCredentialPayload(this.options.config) : undefined;
         const child = spawn(command, commandArgs, {
           cwd: task.cwd,
-          stdio: ["pipe", "pipe", "pipe"] as const,
+          stdio: ["pipe", "pipe", "pipe", "pipe"] as const,
           // Own process group on POSIX so terminateProcessTree can reap the
           // whole tree; the stdin pipe still closes on host death, which
           // the child's watchdog turns into a clean exit.
@@ -196,6 +209,12 @@ export class SubagentManager {
             ...(task.scriptedScenarioJson ? { ALIX_EVAL_SCENARIO: task.scriptedScenarioJson } : {}),
           }),
         }) as ChildProcess;
+
+        const credentialPipe = child.stdio[3];
+        if (credentialPipe && "end" in credentialPipe) {
+          credentialPipe.on("error", () => { /* child may exit before consuming the optional snapshot */ });
+          credentialPipe.end(credentialPayload ?? "{}");
+        }
 
         const running: RunningSubagent = { task, process: child, resolve: resolvePromise, reject, cancelled: false };
         this.running.set(task.id, running);
@@ -246,9 +265,17 @@ export class SubagentManager {
             sessionId: eventSessionId,
             actor: "system",
             type: "subagent.result",
-            payload: { role: task.role, taskId: task.id, status: result.status, findings: result.findings },
+            payload: {
+              role: task.role,
+              taskId: task.id,
+              status: result.status,
+              findings: result.findings,
+              ...coordinationPresentationMeta(task),
+              ...(task.deferTerminalLifecycle ? { attemptTerminal: false } : {}),
+              agentId: task.id,
+            },
           });
-          if (!running.cancelled) {
+          if (!running.cancelled && !task.deferTerminalLifecycle) {
             const terminalType = result.status === "failed" || result.status === "rejected"
               ? "agent.failed"
               : "agent.completed";

@@ -102,6 +102,9 @@ describe("Large Output Artifact", () => {
       toolCallId: `tool_${Date.now()}_abc_artifact`,
       name: "file.read",
       args: { path: "another-large-file.txt" },
+      coordinationRunId: "coord-1",
+      agentId: "worker-1",
+      taskId: "task-1",
     };
 
     await executor.execute(request);
@@ -121,6 +124,9 @@ describe("Large Output Artifact", () => {
     assert.equal(payload.mimeType, "text/plain", "mimeType should be text/plain for string output");
     assert.equal(payload.size, Buffer.byteLength(largeContent, "utf8"), "size should match content byte length");
     assert.equal(payload.retention, "session", "retention should be session");
+    assert.equal(payload.coordinationRunId, "coord-1");
+    assert.equal(payload.agentId, "worker-1");
+    assert.equal(payload.taskId, "task-1");
   });
 
   it("does not create artifact for output below threshold", async () => {

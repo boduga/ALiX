@@ -121,6 +121,31 @@ async function handleCoordinationRun(
   }
 
   const runId = planResult.run.id;
+  if (deps.eventLog) {
+    for (const worker of planResult.run.workers) {
+      const base = {
+        agentId: worker.id,
+        taskId: worker.id,
+        parentAgentId: `session:${planResult.run.sessionId}`,
+        coordinationRunId: runId,
+        assignedAgentId: worker.agentId,
+        taskLabel: worker.taskLabel,
+        ownedPaths: worker.ownershipClaims.map(claim => claim.path),
+      };
+      await deps.eventLog.append({
+        sessionId: planResult.run.sessionId,
+        actor: "coordination",
+        type: "agent.spawned",
+        payload: { ...base, role: "worker", state: worker.dependencies.length > 0 ? "waiting_dependency" : "queued" },
+      });
+      await deps.eventLog.append({
+        sessionId: planResult.run.sessionId,
+        actor: "coordination",
+        type: "agent.task_assigned",
+        payload: { ...base, title: worker.taskLabel, prompt: worker.goalPrompt },
+      });
+    }
+  }
   const policyGate = new PolicyGate(config, { eventLog: deps.eventLog, approvalStore: deps.approvalStore });
   const auth = new ExecutionAuthorization({ policyGate, toolRegistry });
   const registry = new OwnershipRegistry(deps.cwd);
@@ -148,6 +173,7 @@ async function handleCoordinationRun(
       authorization: auth,
       ownershipRegistry: registry,
       executor,
+      eventLog: deps.eventLog,
     },
     { maxConcurrency },
   );

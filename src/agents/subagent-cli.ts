@@ -5,6 +5,7 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
 import { resolvePolicyPath } from "../policy/policy-gate.js";
@@ -41,7 +42,7 @@ import { McpManager } from "../mcp/manager.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { ReliabilityMatrix } from "../config/reliability-matrix.js";
-import { getToolPolicy, filterTools } from "./tool-policy.js";
+import { getToolPolicy, filterTools, WRITE_TOOLS } from "./tool-policy.js";
 import { TOOL_NAME_MAP } from "./tool-name-map.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
@@ -51,6 +52,23 @@ export function appendSubagentResponseText(existing: string, next: string | unde
   const trimmed = next?.trim();
   if (!trimmed) return existing;
   return existing ? `${existing}\n\n${trimmed}` : trimmed;
+}
+
+export function toolsForSubagentIteration<T extends { name: string }>(
+  allowedTools: T[],
+  options: {
+    mode: "read_only" | "write";
+    iteration: number;
+    maxIterations: number;
+    missingOwnedPaths: readonly string[];
+  },
+): T[] {
+  const mutationReserved = options.mode === "write"
+    && options.missingOwnedPaths.length > 0
+    && options.iteration >= options.maxIterations - 1;
+  return mutationReserved
+    ? allowedTools.filter(tool => WRITE_TOOLS.has(tool.name) || tool.name === "alix_done")
+    : allowedTools;
 }
 
 function isToolCallText(text: string): boolean {
@@ -341,6 +359,8 @@ export class SubagentCLI {
         "session-mode": { type: "string" },
         "owned-paths": { type: "string" },
         output: { type: "string" },
+        "coordination-run-id": { type: "string" },
+        "credential-fd": { type: "string" },
       },
       allowPositionals: false,
     });
@@ -355,6 +375,8 @@ export class SubagentCLI {
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
+    const coordinationRunId = args.values["coordination-run-id"];
+    const credentialFd = Number(args.values["credential-fd"]);
 
     if (!taskId || !sessionId || !prompt) {
       console.error("Missing required args: --task-id, --session-id, --prompt");
@@ -364,7 +386,16 @@ export class SubagentCLI {
     // Load config from current working directory (user's project, not ALiX source tree)
     const projectRoot = process.cwd();
     const loadConfig = (await import("../config/loader.js")).loadConfig;
-    const config = await loadConfig(projectRoot) as AlixConfig;
+    let resolvedApiKeys: Record<string, string> | undefined;
+    if (Number.isInteger(credentialFd) && credentialFd >= 3) {
+      const inherited = JSON.parse(readFileSync(credentialFd, "utf8")) as unknown;
+      if (inherited && typeof inherited === "object" && !Array.isArray(inherited)) {
+        resolvedApiKeys = Object.fromEntries(
+          Object.entries(inherited).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        );
+      }
+    }
+    const config = await loadConfig(projectRoot, { resolvedApiKeys }) as AlixConfig;
     // Propagate parent sessionMode so bypass/auto parents don't strand
     // headless children in ask with no approval store (shell.run fail-closed).
     if (sessionMode === "auto" || sessionMode === "ask" || sessionMode === "bypass") {
@@ -545,10 +576,25 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         iterations++;
         invocationId = `inv-${randomUUID()}`;
 
+        const missingOwnedPaths = ownedPaths.filter(path => !progress.successfulPaths.has(path));
+        const mutationReserved = mode === "write" && missingOwnedPaths.length > 0 && iterations >= toolPolicy.maxIterations - 1;
+        if (mutationReserved) {
+          messages.push({
+            role: "user",
+            content: `[Execution budget] Exploration is complete. You MUST now create or patch these owned outputs before calling done: ${missingOwnedPaths.join(", ")}.`,
+          });
+        }
+        const iterationTools = toolsForSubagentIteration(allowedTools, {
+          mode,
+          iteration: iterations,
+          maxIterations: toolPolicy.maxIterations,
+          missingOwnedPaths,
+        });
+
         const resp = await provider.complete({
           systemPrompt,
           messages,
-          tools: allowedTools as ToolDef[],
+          tools: iterationTools as ToolDef[],
         });
 
         text = appendSubagentResponseText(text, resp.text);
@@ -593,6 +639,8 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             name: execName,
             args: toolCall.args,
             agentId: taskId,
+            taskId,
+            ...(coordinationRunId ? { coordinationRunId } : {}),
             executionId,
             invocationId,
           });

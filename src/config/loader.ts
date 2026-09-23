@@ -120,6 +120,13 @@ export type LoadConfigOptions = {
   requireModel?: boolean;
   /** Override the credential store (for testing). When not provided, the default platform store is used. */
   credentialStore?: CredentialStore;
+  /**
+   * Store-resolved API keys inherited from a trusted parent process over a
+   * private IPC channel. This is never populated from ambient environment
+   * variables and exists so spawned workers do not have to reopen a flaky OS
+   * keychain item that the parent already resolved successfully.
+   */
+  resolvedApiKeys?: Readonly<Record<string, string>>;
   /** Enable config trust evaluation (signature verification + anti-rollback). */
   trustEvaluation?: boolean | LoadConfigTrustOptions;
   /** Suppress warning emission at presentation-owned composition roots (for example, the TUI). */
@@ -185,10 +192,11 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   );
 
   if (hasCredentialRefs) {
-    let credentialStore: CredentialStore;
-    if (options.credentialStore) {
-      credentialStore = options.credentialStore;
-    } else {
+    const unresolvedReferenceExists = Object.entries(apiKeys).some(
+      ([provider, value]) => isCredentialReference(value) && !options.resolvedApiKeys?.[provider],
+    );
+    let credentialStore: CredentialStore | undefined = options.credentialStore;
+    if (unresolvedReferenceExists && !credentialStore) {
       try {
         // Honor the active backend selector (issue #350, Phase 2): after
         // `alix credential migrate --to keychain` scrubs the plain-file
@@ -214,7 +222,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     const resolvedApiKeys: Record<string, string> = {};
     for (const [provider, value] of Object.entries(apiKeys)) {
       if (typeof value === "string" && isCredentialReference(value)) {
-        const resolved = resolveCredential(value, credentialStore);
+        const resolved = options.resolvedApiKeys?.[provider] ?? (credentialStore ? resolveCredential(value, credentialStore) : null);
         if (resolved === null) {
           throw new Error(
             `Credential not found for apiKeys.${provider}: ${value}. ` +

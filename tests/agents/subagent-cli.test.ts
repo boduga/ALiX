@@ -1,7 +1,7 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
-import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -393,5 +393,23 @@ test("formatToolLedger: skips zero-count sides", () => {
   assert.equal(
     formatToolLedger(new Map([["web_search", { completed: 1, failed: 0 }]])),
     "web_search 1 completed",
+  );
+});
+
+test("write workers reserve their final two iterations for mutation", () => {
+  const tools = [
+    { name: "alix_file_read" },
+    { name: "alix_shell_run" },
+    { name: "alix_file_create" },
+    { name: "alix_patch_apply" },
+    { name: "alix_done" },
+  ];
+  assert.deepEqual(
+    toolsForSubagentIteration(tools, { mode: "write", iteration: 4, maxIterations: 5, missingOwnedPaths: ["out.md"] }).map(tool => tool.name),
+    ["alix_file_create", "alix_patch_apply", "alix_done"],
+  );
+  assert.equal(
+    toolsForSubagentIteration(tools, { mode: "write", iteration: 4, maxIterations: 5, missingOwnedPaths: [] }).length,
+    tools.length,
   );
 });

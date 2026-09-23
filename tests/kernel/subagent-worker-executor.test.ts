@@ -86,6 +86,7 @@ describe("taskForWorker", () => {
     assert.equal(task.eventSessionId, "sess-1");
     assert.equal(task.assignedAgentId, "alix#1");
     assert.equal(task.taskLabel, "Do");
+    assert.equal(task.deferTerminalLifecycle, true);
   });
 
   it("builds a read-only task without owned paths", () => {

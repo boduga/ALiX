@@ -235,6 +235,15 @@ export class CoordinationScheduler {
     // Step 1: Reconcile
     const recResult = await this.reconcile(runId);
 
+    if (recResult.dependencyBlocked.length > 0) {
+      const reconciled = await this.deps.store.load(runId);
+      for (const workerId of recResult.dependencyBlocked) {
+        const worker = reconciled?.workers.find(candidate => candidate.id === workerId);
+        if (!worker) continue;
+        await this.emitAgentState(reconciled!, worker, "blocked", worker.blockReason ?? "dependency_failed", worker.error);
+      }
+    }
+
     // Step 2: Reload after reconcile
     run = (await this.deps.store.load(runId))!;
     const activeRunning = run.workers.filter(w => w.status === "running").length;
@@ -457,6 +466,7 @@ export class CoordinationScheduler {
           outcome: "success",
           timestamp: new Date().toISOString(),
         });
+        await this.emitAgentState(run, worker, "completed");
       } else {
         // Retryable failure check
         const isRetryable = result.failureKind === "timeout" || result.failureKind === "transient_provider" || result.failureKind === "execution_error";
@@ -508,6 +518,7 @@ export class CoordinationScheduler {
             error: result.error ?? "Execution failed",
             timestamp: new Date().toISOString(),
           });
+          await this.emitAgentState(run, worker, "failed", "execution_failed", result.error ?? "Execution failed");
         }
       }
     } catch (error) {
@@ -568,6 +579,7 @@ export class CoordinationScheduler {
           error: errorMsg,
           timestamp: new Date().toISOString(),
         });
+        await this.emitAgentState(run, worker, "failed", "execution_failed", errorMsg);
       }
     } finally {
       const finalRun = await this.deps.store.load(runId);
@@ -717,6 +729,33 @@ export class CoordinationScheduler {
         payload,
       });
     } catch { /* events are observability, not correctness */ }
+  }
+
+  private async emitAgentState(
+    run: CoordinationRun,
+    worker: WorkerAssignment,
+    state: "blocked" | "completed" | "failed",
+    blockReason?: string,
+    error?: string,
+  ): Promise<void> {
+    if (!this.deps.eventLog) return;
+    try {
+      await this.deps.eventLog.append({
+        sessionId: run.sessionId,
+        actor: "coordination",
+        type: "agent.state_changed",
+        payload: {
+          agentId: worker.id,
+          taskId: worker.id,
+          coordinationRunId: run.id,
+          assignedAgentId: worker.agentId,
+          taskLabel: worker.taskLabel,
+          state,
+          ...(blockReason ? { blockReason } : {}),
+          ...(error ? { error } : {}),
+        },
+      });
+    } catch { /* lifecycle projection is best-effort; the store remains authoritative */ }
   }
 
   // ── Terminal finalization ──────────────────────────────────────────
