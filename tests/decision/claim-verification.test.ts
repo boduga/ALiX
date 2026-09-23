@@ -22,7 +22,9 @@ import {
   classifyClaimLocally,
   createDecisionJournalStore,
   createDefaultRegistry,
+  createExperimentProjectionStore,
   createJevExecutor,
+  experimentStorePath,
   isClaimVerdict,
   projectClaimVerification,
   readClaimProjection,
@@ -504,5 +506,39 @@ describe("selectClaimVerification modes", () => {
     assert.equal(selection.verdict, "supported");
     assert.equal(selection.engineId, LOCAL_ENGINE_ID);
     assert.notEqual(selection.verdict, selection.shadow?.observed.verdict);
+  });
+});
+
+describe("protected experiment projection store", () => {
+  let dir: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "cv-experiments-"));
+  });
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const record = (hash: string) => ({
+    projectionHash: hash,
+    decision: "claim-verification" as const,
+    claim: "Water boils at 100 degrees Celsius at sea level.",
+    evidence: [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }],
+    createdAt: "2026-09-22T00:00:00.000Z",
+  });
+
+  it("resolves ~/.alix/decisions/experiments.jsonl through storeDir, never a bare ~", () => {
+    assert.equal(experimentStorePath("/home/u/.alix"), join("/home/u/.alix", "decisions", "experiments.jsonl"));
+    const real = experimentStorePath();
+    assert.ok(real.endsWith(join(".alix", "decisions", "experiments.jsonl")), real);
+    assert.equal(real.includes("~"), false);
+  });
+
+  it("round-trips a record and answers has/readByHash", async () => {
+    const store = createExperimentProjectionStore(join(dir, ".alix"));
+    assert.equal(await store.has("sha256:a"), false);
+    await store.append(record("sha256:a"));
+    assert.equal(await store.has("sha256:a"), true);
+    assert.equal((await store.readByHash("sha256:a"))?.claim, record("sha256:a").claim);
+    assert.equal(await store.readByHash("sha256:missing"), undefined);
   });
 });

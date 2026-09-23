@@ -13,3 +13,4 @@ export * from "./corpus.js";
 export * from "./jev-mapping.js";
 export * from "./shadow.js";
 export * from "./selection-service.js";
+export * from "./experiment-store.js";
