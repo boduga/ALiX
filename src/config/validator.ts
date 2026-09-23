@@ -5,6 +5,7 @@ import {
   isDiscoveryCapabilityName,
   isModelCapabilityName,
 } from "./schema.js";
+import { DECISION_MODE_VALUES } from "../decision/config.js";
 
 /** Returns true when host resolves to a loopback address. */
 export function isLoopbackHost(host: string): boolean {
@@ -262,6 +263,13 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
       }
       if (route.enabled !== undefined && typeof route.enabled !== "boolean") {
         issues.push({ path: `decision.${key}.enabled`, level: "error", message: `${key}.enabled must be a boolean` });
+      }
+      if (route.mode !== undefined && !(DECISION_MODE_VALUES as readonly unknown[]).includes(route.mode)) {
+        issues.push({
+          path: `decision.${key}.mode`,
+          level: "error",
+          message: `mode must be one of ${DECISION_MODE_VALUES.join("|")}`,
+        });
       }
     }
   }
