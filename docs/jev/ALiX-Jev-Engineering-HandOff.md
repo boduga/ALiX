@@ -1,8 +1,8 @@
 **Context, locked decisions, constraints, implementation boundaries, and
 next actions**
 
-Project: ALiX \| Jev / System One integration \| Status: proposed
-hand-off
+Project: ALiX \| Jev / System One integration \| Status: delivered (J0-J6)
+See ALiX-Jev-Status.md for current state.
 
 Prepared: 20 September 2026
 
