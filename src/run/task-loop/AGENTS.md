@@ -53,6 +53,10 @@ existing import paths are unchanged.
 - Execution-state emission is opt-in and fail-soft: `runTaskLoop` calls
   `initExecutionStateEmission` once at start; it must never throw into the loop
   and must not change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
+- Explicit coordinated-worker objectives require a successful
+  `coordination.run` tool result before completion. A synthesis prompt must
+  never assert that work is complete; missing objective evidence terminates as
+  `completed_unverified` after bounded retries.
 
 **Verification:**
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,

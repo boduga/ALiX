@@ -66,6 +66,8 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   model's index of its own surface — keep `TUI_SLASH_COMMANDS` in sync with
   `parseWorkbenchBuiltinCommand` (pinned by
   `tests/agent/self-capabilities.test.ts`).
+- `completed_unverified` is a failed terminal outcome. Session wrappers must
+  emit failed task/graph/workflow state for it, never completed state.
 
 **Verification:**
 - `tests/agent/*.vitest.ts`, `tests/agent/session-skills.test.ts`,

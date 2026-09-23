@@ -62,6 +62,18 @@ describe('Agent Workbench operator shell', () => {
     expect(frame).not.toContain('tokens 3,918');
   });
 
+  it('fits a wide-character workspace without colliding with state chrome', () => {
+    const snap = { ...snapshot(), cwd: '/workspace/調査調査/ALiX' };
+    const canvas = new TerminalCanvas(52, 20);
+
+    paintOperatorShell({ canvas, width: 52, height: 20, model: projectOperatorShell(snap, createInitialPerTabState()) });
+
+    const header = visible(canvas.renderFrame()).split('\n')[1]!;
+    expect(header).toContain('ALiX');
+    expect(header).toContain('agent · auto · compact');
+    expect(header).toContain('…');
+  });
+
   it('surfaces cancellation while an agent turn is active', () => {
     const snap = snapshot();
     const running = {

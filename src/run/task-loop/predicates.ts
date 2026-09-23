@@ -67,9 +67,12 @@ export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label
 ];
 
 /** Tool-name override map derived from CLAIM_TOOL_MAP for claim-detection re-prompts. */
-export const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`])
-);
+export const CLAIM_TOOL_NAMES: Record<string, string> = {
+  ...Object.fromEntries(
+    CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`]),
+  ),
+  "a successful coordination run with worker outcomes": "alix_coordination_run",
+};
 
 export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
@@ -139,6 +142,7 @@ export type SuccessfulToolEvidence = {
 export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
 export const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
 export const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
+export const COORDINATION_EVIDENCE_GAP = "a successful coordination run with worker outcomes";
 
 /**
  * Bare continuation cues — a turn whose entire message is one of these
@@ -156,7 +160,7 @@ export function isContinuationMessage(text: string): boolean {
   return CONTINUATION_RE.test(text.trim());
 }
 
-export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean } {
+export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean; coordination: boolean } {
   const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
   const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
   const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(task);
@@ -167,7 +171,13 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
     /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(task)
   );
   const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
-  return { mutation, verification };
+  const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
+  const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
+  const coordination = new RegExp(
+    String.raw`\b${coordinationAction}\b.{0,100}\b${coordinationSubject}\b|\b${coordinationSubject}\b.{0,100}\b${coordinationAction}\b`,
+    "i",
+  ).test(task);
+  return { mutation, verification, coordination };
 }
 
 export function objectiveEvidenceGaps(  task: string,
@@ -187,6 +197,9 @@ export function objectiveEvidenceGaps(  task: string,
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
   if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push(VERIFICATION_EVIDENCE_GAP);
+  if (required.coordination && !evidence.some((item) => item.name === "coordination.run")) {
+    gaps.push(COORDINATION_EVIDENCE_GAP);
+  }
   return gaps;
 }
 

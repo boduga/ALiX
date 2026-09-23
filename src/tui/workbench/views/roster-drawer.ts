@@ -70,6 +70,11 @@ export function paintRosterDrawer(input: {
 
   const runLabel = input.selectedRunId ? `RUN ${input.selectedRunId}` : 'RUN all';
   canvas.write(left + 2, top + 2, `\x1b[90m${fit(`${runLabel} · [ ] switch`, inner)}${RESET}`);
+  const hasFooter = bottom >= top + 5;
+  const contentBottom = hasFooter ? bottom - 1 : bottom;
+  if (hasFooter) {
+    canvas.write(left + 2, bottom, `\x1b[90m${fit('↑↓ select · [ ] run · Esc close', inner)}${RESET}`);
+  }
   let row = top + 4;
   if (layout.drawer === 'agents') {
     const agents = visibleForRun(input.agents?.agents ?? [], input.selectedRunId);
@@ -82,34 +87,35 @@ export function paintRosterDrawer(input: {
     const visibleAgents = agents.slice(Math.max(0, input.agentScrollOffset ?? 0));
     if (agents.length === 0) canvas.write(left + 2, row, `\x1b[90mNo subagents${RESET}`);
     for (const agent of visibleAgents) {
-      if (row > bottom - 1) break;
+      if (row > contentBottom) break;
       const active = ['completed', 'partial', 'failed', 'cancelled'].includes(agent.state) ? '○' : '●';
       const selected = agent.agentId === input.selectedAgentId ? '›' : ' ';
+      const showDetails = agent.agentId === input.selectedAgentId;
       canvas.write(left + 2, row++, fit(`${selected}${active} ${agent.role} · ${agent.state}`, inner));
       const coordMeta = formatCoordMeta(agent);
-      if (row <= bottom - 1 && coordMeta) {
+      if (showDetails && row <= contentBottom && coordMeta) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(coordMeta, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
+      if (row <= contentBottom && agent.liveness?.state !== undefined && agent.liveness.state !== 'healthy') {
         const label = agent.liveness.state === 'stalled' ? 'possibly stalled' : 'slow progress';
         canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
       }
-      if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(agent.currentOperation ?? agent.currentTaskId ?? agent.agentId, inner)}${RESET}`);
-      if (row <= bottom - 1 && agent.model) canvas.write(left + 2, row++, `\x1b[90m${fit(`model ${agent.model}`, inner)}${RESET}`);
-      if (row <= bottom - 1 && agent.activeTool) {
+      if (showDetails && row <= contentBottom) canvas.write(left + 2, row++, `\x1b[90m${fit(agent.currentOperation ?? agent.currentTaskId ?? agent.agentId, inner)}${RESET}`);
+      if (showDetails && row <= contentBottom && agent.model) canvas.write(left + 2, row++, `\x1b[90m${fit(`model ${agent.model}`, inner)}${RESET}`);
+      if (showDetails && row <= contentBottom && agent.activeTool) {
         const elapsed = agent.activeTool.elapsedMs >= 1000 ? ` · ${(agent.activeTool.elapsedMs / 1000).toFixed(1)}s` : '';
         canvas.write(left + 2, row++, `\x1b[90m${fit(`tool ${agent.activeTool.toolName}${elapsed}`, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && agent.ownedPaths.length > 0) canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${agent.ownedPaths.join(', ')}`, inner)}${RESET}`);
+      if (showDetails && row <= contentBottom && agent.ownedPaths.length > 0) canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${agent.ownedPaths.join(', ')}`, inner)}${RESET}`);
       const inputTokens = agent.usage.inputTokens;
       const outputTokens = agent.usage.outputTokens;
       const totalTokens = agent.usage.totalTokens ?? (inputTokens !== undefined && outputTokens !== undefined ? inputTokens + outputTokens : undefined);
-      if (row <= bottom - 1 && totalTokens !== undefined) {
+      if (showDetails && row <= contentBottom && totalTokens !== undefined) {
         const context = agent.usage.contextWindowTokens;
         const utilization = context !== undefined && context > 0 ? ` / ${context.toLocaleString('en-US')} (${Math.round(totalTokens / context * 100)}%)` : '';
         canvas.write(left + 2, row++, `\x1b[90m${fit(`tokens ${totalTokens.toLocaleString('en-US')}${utilization}`, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && agent.usage.costUsd !== undefined) {
+      if (showDetails && row <= contentBottom && agent.usage.costUsd !== undefined) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(`cost $${agent.usage.costUsd.toFixed(4)}`, inner)}${RESET}`);
       }
       row++;
@@ -118,25 +124,26 @@ export function paintRosterDrawer(input: {
     const tasks = visibleForRun(input.tasks?.tasks ?? [], input.selectedRunId);
     if (tasks.length === 0) canvas.write(left + 2, row, `\x1b[90mNo delegated tasks${RESET}`);
     for (const task of tasks) {
-      if (row > bottom - 1) break;
+      if (row > contentBottom) break;
       const selected = task.taskId === input.selectedTaskId ? '›' : ' ';
+      const showDetails = task.taskId === input.selectedTaskId;
       canvas.write(left + 2, row++, fit(`${selected}${taskStateGlyph(task.state)} ${task.title}`, inner));
       const owner = task.agentId ? ` · agent ${task.agentId}` : '';
-      if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
+      if (showDetails && row <= contentBottom) canvas.write(left + 2, row++, `\x1b[90m${fit(`${task.state}${owner}`, inner)}${RESET}`);
       const taskCoordMeta = formatCoordMeta(task);
-      if (row <= bottom - 1 && taskCoordMeta) {
+      if (showDetails && row <= contentBottom && taskCoordMeta) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(taskCoordMeta, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && task.currentOperation && task.currentOperation !== task.title) {
+      if (showDetails && row <= contentBottom && task.currentOperation && task.currentOperation !== task.title) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(task.currentOperation, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && task.blockReason) {
+      if (row <= contentBottom && task.blockReason) {
         const label = task.blockReason === 'ownership_conflict' ? 'OWNERSHIP CONFLICT'
           : task.blockReason === 'dependency_failed' ? 'DEPENDENCY BLOCKED'
           : `BLOCKED · ${task.blockReason}`;
         canvas.write(left + 2, row++, `\x1b[33m${fit(`⚠ ${label}`, inner)}${RESET}`);
       }
-      if (row <= bottom - 1 && task.ownedPaths.length > 0) {
+      if (showDetails && row <= contentBottom && task.ownedPaths.length > 0) {
         canvas.write(left + 2, row++, `\x1b[90m${fit(`owns ${task.ownedPaths.join(', ')}`, inner)}${RESET}`);
       }
       row++;
@@ -153,21 +160,21 @@ export function paintRosterDrawer(input: {
     }
     const offset = Math.max(0, input.agentScrollOffset ?? 0);
     for (const item of items.slice(offset)) {
-      if (row > bottom - 1) break;
+      if (row > contentBottom) break;
       const selected = item.id === input.selectedArtifactId ? '›' : ' ';
       const marker = item.status === 'failed' ? '✗' : item.status === 'unavailable' ? '!' : item.kind === 'artifact' ? '◆' : '✓';
       canvas.write(left + 2, row++, fit(`${selected}${marker} ${item.title}`, inner));
       if (item.id !== input.selectedArtifactId) continue;
       const correlation = [item.artifactType ?? item.kind, item.agentId ? `agent ${item.agentId}` : '', item.taskId ? `task ${item.taskId}` : '']
         .filter(Boolean).join(' · ');
-      if (row <= bottom - 1) canvas.write(left + 2, row++, `\x1b[90m${fit(correlation, inner)}${RESET}`);
-      if (row <= bottom - 1 && item.uri) canvas.write(left + 2, row++, `\x1b[90m${fit(item.uri, inner)}${RESET}`);
+      if (row <= contentBottom) canvas.write(left + 2, row++, `\x1b[90m${fit(correlation, inner)}${RESET}`);
+      if (row <= contentBottom && item.uri) canvas.write(left + 2, row++, `\x1b[90m${fit(item.uri, inner)}${RESET}`);
       const metadata = [item.mediaType, item.sizeBytes !== undefined ? formatBytes(item.sizeBytes) : '', item.digest ? `digest ${item.digest.slice(0, 12)}` : '']
         .filter(Boolean).join(' · ');
-      if (row <= bottom - 1 && metadata) canvas.write(left + 2, row++, `\x1b[90m${fit(metadata, inner)}${RESET}`);
-      if (row <= bottom - 1 && item.preview) {
+      if (row <= contentBottom && metadata) canvas.write(left + 2, row++, `\x1b[90m${fit(metadata, inner)}${RESET}`);
+      if (row <= contentBottom && item.preview) {
         for (const line of item.preview.split(/\r?\n/).slice(0, 5)) {
-          if (row > bottom - 1) break;
+          if (row > contentBottom) break;
           canvas.write(left + 2, row++, fit(`  ${line}`, inner));
         }
       }

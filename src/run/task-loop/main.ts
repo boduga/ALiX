@@ -1389,7 +1389,8 @@ if (toolCalls.length === 0) {
         "write a final summary and signal that the task is done.";
     } else {
       rePrompt =
-        "All tasks are complete. Write a concise final summary of what you did and what you found, then signal that the task is done.";
+        "Review the original objective against the tool results. If required work is still missing, call the appropriate tool now. " +
+        "Only when the objective is genuinely complete, write a concise final summary and signal that the task is done.";
     }
     messages.push({
       role: "user",

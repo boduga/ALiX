@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
 import { explicitMutationTargets, isContinuationMessage, objectiveEvidenceRequirements, runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { objectiveEvidenceGaps } from '../../src/run/task-loop/predicates.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -483,28 +484,94 @@ describe('task-loop completion termination', () => {
     description: 'Create a file',
     input_schema: { type: 'object', properties: {} },
   };
+  const coordinationTool: ToolDef = {
+    name: 'alix_coordination_run',
+    description: 'Run coordinated workers',
+    input_schema: { type: 'object', properties: {} },
+  };
 
   it('classifies explicit code-change objectives without treating read-only requests as mutations', () => {
-    expect(objectiveEvidenceRequirements('fix all', 'bugfix')).toEqual({ mutation: true, verification: false });
-    expect(objectiveEvidenceRequirements('review the code and do not modify anything', 'docs')).toEqual({ mutation: false, verification: false });
+    expect(objectiveEvidenceRequirements('fix all', 'bugfix')).toEqual({ mutation: true, verification: false, coordination: false });
+    expect(objectiveEvidenceRequirements('review the code and do not modify anything', 'docs')).toEqual({ mutation: false, verification: false, coordination: false });
     expect(objectiveEvidenceRequirements(
       'Make one harmless improvement to README.md, then run an appropriate verification command.',
       'docs',
-    )).toEqual({ mutation: true, verification: true });
+    )).toEqual({ mutation: true, verification: true, coordination: false });
     // Build/scaffold/generate are deliverable-creation verbs: a no-mutation
     // session must not pass as completed for them.
     expect(objectiveEvidenceRequirements(
       'Build a distributed queue worker system in Python using Redis and PostgreSQL',
       'feature',
-    )).toEqual({ mutation: true, verification: false });
+    )).toEqual({ mutation: true, verification: false, coordination: false });
     expect(objectiveEvidenceRequirements(
       'Generate the implementation for the queue worker',
       'feature',
-    )).toEqual({ mutation: true, verification: false });
+    )).toEqual({ mutation: true, verification: false, coordination: false });
     expect(objectiveEvidenceRequirements(
       'Scaffold a new service in src/',
       'feature',
-    )).toEqual({ mutation: true, verification: false });
+    )).toEqual({ mutation: true, verification: false, coordination: false });
+  });
+
+  it('requires successful coordination evidence for explicit worker-run objectives', () => {
+    const task = 'Use exactly four coordinated workers to create the requested files, then report every worker outcome.';
+    expect(objectiveEvidenceRequirements(task, 'feature')).toEqual({
+      mutation: true,
+      verification: false,
+      coordination: true,
+    });
+    expect(objectiveEvidenceGaps(task, 'feature', [])).toContain(
+      'a successful coordination run with worker outcomes',
+    );
+    expect(objectiveEvidenceGaps(task, 'feature', [
+      { name: 'coordination.run', args: { goal: task }, ordinal: 0 },
+      { name: 'file.create', args: { path: '.tmp/report.md' }, ordinal: 1 },
+    ])).not.toContain('a successful coordination run with worker outcomes');
+  });
+
+  it('does not complete an explicit coordination objective when only read tools ran', async () => {
+    const requests: RecordedRequest[] = [];
+    let iteration = 0;
+    const provider: ModelAdapter & { requests: RecordedRequest[] } = {
+      id: 'mock',
+      capabilities: {
+        provider: 'mock', model: 'mock', inputTokenLimit: 100_000,
+        outputTokenLimit: 16_384, supportsTools: true, supportsStreaming: false,
+        supportsStructuredOutput: false, supportsVision: false, parallelToolCalls: false,
+      },
+      editFormatPreference: 'search_replace',
+      longContextStrategy: 'trimmed_context',
+      requests,
+      async complete(req: NormalizedRequest): Promise<NormalizedResponse> {
+        requests.push({ systemPrompt: req.systemPrompt, messages: [...req.messages], tools: req.tools ? [...req.tools] : undefined });
+        iteration++;
+        if (iteration === 1) return { text: '', toolCalls: [{ name: 'alix_file_read', id: 'read-1', args: { path: 'package.json' } }] };
+        if (iteration === 2) return { text: 'I reviewed the project and the task is complete.', toolCalls: [] };
+        return { text: '', toolCalls: [{ name: 'alix_done', id: `done-${iteration}`, args: {} }] };
+      },
+    };
+    const task = 'Use exactly four coordinated workers to create the requested files and report every worker outcome.';
+    const { deps } = await makeTestDeps({
+      provider,
+      task,
+      providerTools: [readTool, coordinationTool, doneTool],
+      executor: {
+        execute: async ({ name }: { name: string }) => name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: '{}' },
+      } as any,
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed_unverified');
+    expect(result.summary).toContain('a successful coordination run with worker outcomes');
+    const prompts = provider.requests.flatMap((request) => request.messages.map((message) => String(message.content)));
+    expect(prompts.some((prompt) => prompt.includes('a successful coordination run with worker outcomes'))).toBe(true);
+    expect(prompts.some((prompt) => prompt.startsWith('All tasks are complete.'))).toBe(false);
+    const events = await deps.log.readAll();
+    expect(events.some((event) => event.type === 'completion.claim_rejected')).toBe(true);
   });
 
   describe('continuation message detection', () => {

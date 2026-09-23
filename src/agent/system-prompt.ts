@@ -111,6 +111,7 @@ Your changes are written and you are now verifying correctness.
 - Provide a summary of what was tested and the results`;
 
 export const FAILURE_REASONS = new Set<string>([
+  "completed_unverified",
   "max_iterations",
   "max_repairs",
   "rejected_scope_expansion",

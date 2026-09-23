@@ -37,6 +37,7 @@
 - Agent header totals are derived from roster rows on every snapshot. Partial known-cost totals carry an explicit `+` marker; absent cost data produces no cost label rather than `$0`.
 - Workbench approval cards remain visible until the approval projection observes an authoritative terminal event; never remove or label them from key intent alone.
 - On the agent surface, an authoritative approval card replaces its semantic `approval.requested` row in the response stream and remains there until projection observes resolution. Non-agent tabs may use the shared dialog overlay. Compact transcript and footer rendering summarize the operation without repeating its raw target; the card owns the bounded target preview, while detailed mode remains the route to fuller diagnostics.
+- `/diagnostics` (alias `/diag`) opens a read-only, selection-aware failure surface derived from agent, task, and artifact snapshots. It reports failed, blocked, and stalled work and gives CLI-first recovery guidance; painters never execute recovery actions.
 - Workbench conversation rows identify operator and assistant prose explicitly as `YOU` and `ALiX`. While approval is pending, its elapsed wait replaces generic running liveness in the top status line and is repeated in the authoritative card for decision context.
 - A temporarily unavailable approval snapshot preserves the last authoritative pending cards. While a decision is awaiting projection confirmation, duplicate decisions for that approval are suppressed.
 - Below 120 columns, agent and task drawers overlay the work surface. From 120 columns they render beside it; at 160 columns and above the agent roster is persistent by default.
@@ -46,6 +47,9 @@
 - Agent selection filters transcript, tools, approvals, and diagnostics carrying a different authoritative `agentId`; uncorrelated items remain visible so incomplete metadata cannot hide operator actions.
 - Workbench transcript wrapping, composer rows, scroll anchors, and terminal cursor placement derive from the same responsive surface geometry.
 - Workbench frames are row-diffed against the previous frame, and composer cursor math uses grapheme display width rather than UTF-16 length.
+- Canvas cells reserve terminal display columns for complete graphemes, so wide
+  characters and emoji cannot shift adjacent Workbench chrome or split across
+  frame patches. Shared terminal-text helpers live at `src/tui/terminal-text.ts`.
 - Workbench composer insertion, movement, Backspace, and Delete operate on complete Unicode graphemes; its cursor remains a JavaScript string offset positioned at a grapheme boundary. Left/Right move by grapheme, and Home/End move to document boundaries.
 - Bracketed paste inserts one normalized text block at the authoritative Workbench cursor; it never rebuilds composer state from the legacy input-buffer adapter.
 - Runtime collectors coalesce EventLog watch notifications into serialized 20 ms projection samples; the one-second interval remains a recovery/clock fallback.

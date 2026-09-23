@@ -197,6 +197,30 @@ describe("Phase 9 agent activity/liveness observability in processTurn", () => {
     expect(rowsNamed("agent_activity_state").map((r) => r.labels?.state)).toContain("failed");
   });
 
+  it("treats completed_unverified as a failed terminal outcome", async () => {
+    const { createAgentSession } = await import("../../src/agent/session.js");
+    configureSessionMocks();
+    mocks.runTaskLoop.mockResolvedValue({
+      ...completedResult,
+      reason: "completed_unverified",
+      summary: "missing a successful coordination run with worker outcomes",
+    });
+
+    const session = createAgentSession({ cwd: testCwd, task: "", planMode: false });
+    const result = await session.processTurn("run four coordinated workers");
+    expect(result.reason).toBe("completed_unverified");
+    expect(rowsNamed("agent_invocation_failed_total")).toHaveLength(1);
+    expect(rowsNamed("agent_activity_duration_ms")[0]!.labels?.state).toBe("failed");
+    const eventTypes = (mocks.append.mock.calls as unknown as Array<Array<{ type: string }>>)
+      .map(([event]) => event!.type);
+    expect(eventTypes).toContain("task.failed");
+    expect(eventTypes).toContain("graph.failed");
+    expect(eventTypes).toContain("workflow.failed");
+    expect(eventTypes).not.toContain("task.done");
+    expect(eventTypes).not.toContain("graph.completed");
+    expect(eventTypes).not.toContain("workflow.completed");
+  });
+
   it("thrown loop error records exactly one failed counter + failed duration and rejects", async () => {
     const { createAgentSession } = await import("../../src/agent/session.js");
     configureSessionMocks();
