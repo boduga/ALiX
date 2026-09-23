@@ -224,3 +224,4 @@ Default section order:
 | `src/tracing/AGENTS.md` | Langfuse tracing facade — TraceClient, noop client, capture policy, adapter |
 | `benchmark/AGENTS.md` | Benchmark harness history vs summary vs state vs hybrid — deterministic maintenance/reconciliation, FakeModel substrate isolation, 4-group metrics |
 | `docs/superpowers/AGENTS.md` | Implementation specs and plans |
+| `docs/jev/AGENTS.md` | Jev / System One integration docs — design spec, delivery plan, current status |

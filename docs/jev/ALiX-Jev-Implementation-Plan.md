@@ -1,8 +1,8 @@
 **Phased delivery plan with tests, gates, rollback points, and
 acceptance criteria**
 
-Project: ALiX \| Jev / System One integration \| Status: proposed
-hand-off
+Project: ALiX \| Jev / System One integration \| Status: delivered (J0-J6)
+See ALiX-Jev-Status.md for current state.
 
 Prepared: 20 September 2026
 
