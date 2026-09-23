@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -540,5 +540,20 @@ describe("protected experiment projection store", () => {
     assert.equal(await store.has("sha256:a"), true);
     assert.equal((await store.readByHash("sha256:a"))?.claim, record("sha256:a").claim);
     assert.equal(await store.readByHash("sha256:missing"), undefined);
+  });
+
+  it("rejects malformed evidence elements without throwing (line skipped, not typed)", async () => {
+    const store = createExperimentProjectionStore(join(dir, ".alix-pin"));
+    mkdirSync(join(dir, ".alix-pin", "decisions"), { recursive: true });
+    const malformed = {
+      projectionHash: "sha256:pin",
+      decision: "claim-verification",
+      claim: "c",
+      evidence: [null],
+      createdAt: "2026-09-22T00:00:00.000Z",
+    };
+    writeFileSync(store.path, JSON.stringify(malformed) + "\n", "utf-8");
+    assert.equal(await store.has("sha256:pin"), false);
+    assert.equal(await store.readByHash("sha256:pin"), undefined);
   });
 });

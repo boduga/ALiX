@@ -34,13 +34,24 @@ export function experimentStorePath(storeDir?: string): string {
 function isExperimentProjection(value: unknown): value is ClaimVerificationExperimentProjection {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Record<string, unknown>;
-  return (
-    typeof record.projectionHash === "string" &&
-    record.decision === "claim-verification" &&
-    typeof record.claim === "string" &&
-    Array.isArray(record.evidence) &&
-    typeof record.createdAt === "string"
-  );
+  if (
+    !(
+      typeof record.projectionHash === "string" &&
+      record.decision === "claim-verification" &&
+      typeof record.claim === "string" &&
+      Array.isArray(record.evidence) &&
+      typeof record.createdAt === "string"
+    )
+  ) {
+    return false;
+  }
+  return record.evidence.every((item) => {
+    if (typeof item !== "object" || item === null) return false;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.excerpt !== "string") return false;
+    if (entry.source !== undefined && typeof entry.source !== "string") return false;
+    return true;
+  });
 }
 
 export type ExperimentProjectionStore = {
