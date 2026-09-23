@@ -327,7 +327,6 @@ export const BASE_TOOLS: ToolDef[] = [
           items: {
             type: "object",
             properties: {
-              source: { type: "string", description: "Optional provenance label (never a filesystem path)" },
               excerpt: { type: "string", description: "Quoted supporting or contradicting text (max 1200 characters)" },
             },
             required: ["excerpt"],

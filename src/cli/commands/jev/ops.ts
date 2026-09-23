@@ -485,7 +485,10 @@ function experimentPair(
  * Stage 1 — structural validation plus the operator's evidence view (§18.1).
  * The returned type is deliberately projection-only: no verdict crosses this
  * boundary, which is what makes blindness structural rather than cosmetic
- * (§18.2). Verdicts are read only inside commitLabelPair, after truth exists.
+ * (§18.2). experimentPair reads and compares the verdicts during prepare;
+ * blindness holds because this return type excludes them, not because they
+ * are unread — they are read again (and only then revealed) inside
+ * commitLabelPair, after truth exists.
  */
 export async function prepareLabelPair(
   paths: JevPaths,

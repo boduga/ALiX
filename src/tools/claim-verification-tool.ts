@@ -16,6 +16,7 @@ import {
   DEFAULT_DECISION_CONFIG,
   EngineNotRegisteredError,
   JEV_KEY_PROVIDER_ID,
+  JournalWriteError,
   MAX_CLAIM_CHARS,
   MAX_EVIDENCE_ITEMS,
   MAX_EXCERPT_CHARS,
@@ -88,7 +89,7 @@ function validate(args: Record<string, unknown>): ValidateResult {
     }
     const record = item as Record<string, unknown>;
     const excerpt = record.excerpt;
-    if (typeof excerpt !== "string" || excerpt.length === 0) {
+    if (typeof excerpt !== "string" || excerpt.trim().length === 0) {
       return { ok: false, result: error("each evidence item requires a non-empty excerpt string") };
     }
     if (excerpt.length > MAX_EXCERPT_CHARS) {
@@ -121,7 +122,12 @@ function withCapturedJournal(
       try {
         journal.append(record);
       } catch (cause) {
-        warnings.push(`decision journal write failed: ${(cause as Error).message}`);
+        // JournalWriteError already carries the "Decision journal write failed:" prefix.
+        warnings.push(
+          cause instanceof JournalWriteError
+            ? cause.message
+            : `decision journal write failed: ${(cause as Error).message}`,
+        );
       }
     },
   };
@@ -183,8 +189,8 @@ export async function handleClaimVerify(
     });
   } catch (cause) {
     if (cause instanceof ProjectionRejectedError || cause instanceof EngineNotRegisteredError) {
-      // §12 / §13: fail closed for egress, remain useful locally. No seal ⇒
-      // no projectionHash ⇒ no journal record and no experiment record.
+      // §12 / §13: fail closed for egress, remain useful locally. No
+      // evaluation ⇒ no journaled records (sealing precedes engine resolution).
       const plain = createClaimVerificationProjector().project(input);
       const { verdict } = classifyClaimLocally(plain);
       warnings.push(

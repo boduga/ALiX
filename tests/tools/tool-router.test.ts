@@ -10,7 +10,10 @@ import {
   McpToolRouter,
   DelegateToolRouter,
   CompositeToolRouter,
+  ClaimVerificationToolRouter,
 } from "../../src/tools/tool-router.js";
+import { ToolExecutor } from "../../src/tools/executor.js";
+import { EventLog } from "../../src/events/event-log.js";
 import type { ToolResult } from "../../src/tools/types.js";
 
 test("ToolRouter interface exists", () => {
@@ -102,6 +105,43 @@ test("McpToolRouter.canHandle returns false for non-mcp tools", () => {
 test("DelegateToolRouter.canHandle returns true for delegate", () => {
   const router = new DelegateToolRouter();
   assert.strictEqual(router.canHandle("delegate"), true);
+});
+
+test("ClaimVerificationToolRouter.canHandle returns true only for verify.claim", () => {
+  const router = new ClaimVerificationToolRouter("/tmp");
+  assert.strictEqual(router.canHandle("verify.claim"), true);
+  assert.strictEqual(router.canHandle("state.query"), false);
+  assert.strictEqual(router.canHandle("file.read"), false);
+  assert.strictEqual(router.canHandle("shell.run"), false);
+});
+
+test("ToolExecutor composite routes verify.claim (ClaimVerificationToolRouter registered)", async () => {
+  // Registration pin: dispatch through the real ToolExecutor composite, the
+  // same construction sibling executor tests use. A missing router would
+  // surface as "No router found for tool"; a registered router surfaces the
+  // handler's own validation error (empty args fail before any config/journal
+  // I/O), proving the composite contains ClaimVerificationToolRouter.
+  const dir = await mkdtemp(join(tmpdir(), "cv-executor-"));
+  try {
+    const log = new EventLog(dir);
+    await log.init();
+    const config = {
+      version: 1,
+      model: { provider: "mock", name: "test-model" },
+      permissions: { default: "allow", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
+      context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
+      runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] },
+      ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" as const },
+    };
+    const executor = new ToolExecutor(config as never, log, dir);
+    const result = await executor.execute({ toolCallId: "t1", name: "verify.claim", args: {} });
+    assert.strictEqual(result.kind, "error");
+    const message = (result as { message: string }).message;
+    assert.match(message, /non-empty string claim/);
+    assert.doesNotMatch(message, /No router found/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("DelegateToolRouter.canHandle returns false for others", () => {

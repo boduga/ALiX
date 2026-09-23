@@ -194,6 +194,15 @@ export async function dispatchJevCommand(
         );
       }
 
+      // Bare invocation: interactive prompting is TTY-only. Fail fast on a
+      // non-TTY stdin BEFORE prepareLabelPair reads the stores — otherwise a
+      // missing hash would surface only after promptUser hangs on stdin.
+      if (!hasTruth && !process.stdin.isTTY) {
+        throw new JevOperatorError(
+          "interactive truth entry requires a TTY (supply --truth, or --json with --truth)",
+        );
+      }
+
       // Stage 1: structural refusals + the evidence view. No verdict direction.
       const stage = await prepareLabelPair(paths, { projectionHash, ...storeDir });
 

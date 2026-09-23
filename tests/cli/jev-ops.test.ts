@@ -803,6 +803,19 @@ describe("jev ops — label-pair (two-stage blind)", () => {
     );
   });
 
+  it("bare invocation without --truth/--json rejects with a TTY error on non-TTY stdin, before prepare", async () => {
+    const originalIsTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    try {
+      await assert.rejects(
+        dispatchJevCommand(["label-pair", "--projection-hash", "x"], { cwd }),
+        (err: Error) => err instanceof JevOperatorError && /TTY/.test(err.message),
+      );
+    } finally {
+      Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, configurable: true });
+    }
+  });
+
   it("non-interactive --truth through the CLI writes both labels and reveals them", async () => {
     // Seed into cwd so dispatchJevCommand({ cwd }) sees the pair.
     const target = resolveJevPaths(cwd);

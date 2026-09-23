@@ -108,6 +108,54 @@ describe("verify.claim tool", () => {
     assert.match((result as { message: string }).message, new RegExp(String(MAX_EXCERPT_CHARS)));
   });
 
+  it("rejects a whitespace-only excerpt with the non-empty message, writing nothing", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: [{ excerpt: "   " }] },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(result.kind, "error");
+    assert.match((result as { message: string }).message, /non-empty excerpt string/);
+    assert.equal(journal.readAll().length, 0);
+    assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
+  it("rejects evidence that is not an array, writing nothing", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: "not-an-array" },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(result.kind, "error");
+    assert.match((result as { message: string }).message, /evidence must be an array/);
+    assert.equal(journal.readAll().length, 0);
+    assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
+  it("rejects a non-object evidence item, writing nothing", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: [42] },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(result.kind, "error");
+    assert.match((result as { message: string }).message, /each evidence item must be \{ source\?, excerpt \}/);
+    assert.equal(journal.readAll().length, 0);
+    assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
+  it("rejects a non-string excerpt, writing nothing", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: [{ excerpt: 42 }] },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(result.kind, "error");
+    assert.match((result as { message: string }).message, /non-empty excerpt string/);
+    assert.equal(journal.readAll().length, 0);
+    assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
   it("baseline mode: local verdict, no decisionId, no journal, no experiment record", async () => {
     const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
     const result = await handleClaimVerify(

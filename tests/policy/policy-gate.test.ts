@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PolicyGate, type PolicyGateDecision, type ToolPolicyRequest, type CapabilityPolicyRequest } from "../../src/policy/policy-gate.js";
 import type { AlixConfig } from "../../src/config/schema.js";
+import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 
 function makeConfig(overrides?: Partial<AlixConfig>): AlixConfig {
   const base: AlixConfig = {
@@ -182,6 +183,16 @@ describe("PolicyGate", () => {
       requestId: "c2", capability: "shell.run", sessionMode: "ask", source: "graph",
     });
     assert.equal(result.decision, "deny");
+  });
+
+  it("allows the verify.claim capability against DEFAULT_CONFIG (explicit tool allow)", async () => {
+    // Wiring pin: verify.claim must resolve as itself (never tool.invoke,
+    // which would fall through to permissions.default = "ask").
+    const gate = new PolicyGate(DEFAULT_CONFIG);
+    const result = await gate.evaluateCapability({
+      requestId: "c-verify-claim", capability: "verify.claim", sessionMode: "ask", source: "graph",
+    });
+    assert.equal(result.decision, "allow");
   });
 
   // ── Approval lifecycle ──
