@@ -662,6 +662,24 @@ export class StateToolRouter implements ToolRouter {
   }
 }
 
+/**
+ * verify.claim — bounded claim verification over inline evidence (spec
+ * 2026-09-22-claim-verification-shadow-tool-design.md). Pure judgement: no I/O,
+ * no execution authority.
+ */
+export class ClaimVerificationToolRouter implements ToolRouter {
+  constructor(private readonly cwd: string) {}
+
+  canHandle(name: string): boolean {
+    return name === "verify.claim";
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const { handleClaimVerify } = await import("./claim-verification-tool.js");
+    return handleClaimVerify(request.args as Record<string, unknown>, { cwd: this.cwd });
+  }
+}
+
 export class WebToolsRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
   constructor(private readonly allowDomains: string[] = []) {}

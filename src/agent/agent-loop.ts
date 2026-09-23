@@ -364,6 +364,7 @@ async function runTaskCoreImpl(
   readOnlyToolFilter.add("alix_coordination_list");
   readOnlyToolFilter.add("alix_coordination_results");
   readOnlyToolFilter.add("alix_state_query");
+  readOnlyToolFilter.add("alix_verify_claim");
   const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
   const providerTools = toolFilter
     ? baseTools.filter((t) => toolFilter.has(t.name))

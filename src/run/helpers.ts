@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef, ToolParam } from "../providers/types.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
@@ -312,6 +312,30 @@ export const BASE_TOOLS: ToolDef[] = [
       },
       required: ["kind"]
     }
+  },
+  {
+    name: "alix_verify_claim",
+    description: "Verify whether supplied evidence supports a claim: returns supported, contradicted, or insufficient. Pass the claim and short excerpts you already have in context (max 8 excerpts, 1200 chars each) — it fetches nothing, needs no approval, and grants no authority: it is an observation for you to weigh, not a directive.",
+    input_schema: {
+      type: "object",
+      properties: {
+        claim: { type: "string", description: "The claim to check (max 2000 characters)" },
+        evidence: {
+          type: "array",
+          maxItems: 8,
+          description: "Evidence excerpts already in your context (max 8)",
+          items: {
+            type: "object",
+            properties: {
+              source: { type: "string", description: "Optional provenance label (never a filesystem path)" },
+              excerpt: { type: "string", description: "Quoted supporting or contradicting text (max 1200 characters)" },
+            },
+            required: ["excerpt"],
+          },
+        } as ToolParam,
+      },
+      required: ["claim"],
+    },
   },
   {
     name: "alix_web_search",

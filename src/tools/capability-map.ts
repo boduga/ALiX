@@ -39,6 +39,7 @@ const LEGACY_TO_CANONICAL: Record<string, string> = {
   "web.fetch": "web.fetch",
   "mcp.invoke": "mcp.invoke",
   "tool.invoke": "tool.invoke",
+  "verify.claim": "decision.claim-verification",
 };
 
 export function legacyCapabilityToCanonical(legacy: string): string {

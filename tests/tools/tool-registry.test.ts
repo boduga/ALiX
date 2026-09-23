@@ -491,10 +491,10 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 24 tools", () => {
+test("buildDefaultToolIndex registers 25 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 24);
+  assert.strictEqual(all.length, 25);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
@@ -520,6 +520,7 @@ test("buildDefaultToolIndex registers 24 tools", () => {
     "schedule.propose",
     "shell.run",
     "state.query",
+    "verify.claim",
     "web_fetch",
     "web_search",
   ]);
@@ -531,12 +532,12 @@ test("buildDefaultToolIndex indexes all tags", () => {
 
   // Verify all expected tags are present
   const expectedTags = [
-    "agent", "aggregate", "check", "code", "command", "complete", "config", "content", "coordination",
-    "create", "cron", "delete", "delegate", "directory", "done", "edit",
-    "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
+    "agent", "aggregate", "check", "claim", "code", "command", "complete", "config", "content", "coordination",
+    "create", "cron", "decision", "delete", "delegate", "directory", "done", "edit",
+    "evidence", "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
     "grep", "hook", "inspect", "job", "list", "mcp", "modify", "multi-agent", "parallel", "patch",
     "propose", "read", "recurring", "regex", "remove", "results", "run", "runs", "schedule", "search",
-    "self", "self-extend", "shell", "skill", "state", "status", "subtask", "tool", "web", "workers", "write",
+    "self", "self-extend", "shell", "skill", "state", "status", "subtask", "tool", "verify", "web", "workers", "write",
   ];
   for (const tag of expectedTags) {
     assert.ok(tags.includes(tag), `Expected tag "${tag}" to be indexed`);
