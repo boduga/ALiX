@@ -14,6 +14,7 @@ import {
   MAX_SUMMARY_CHARS,
   ProjectionRejectedError,
   RISK_ESCALATION_CORPUS,
+  RISK_CRITERIA,
   RISK_TIER_CANDIDATES,
   buildPlan,
   classifyRiskLocally,
@@ -133,6 +134,21 @@ describe("local risk baseline", () => {
       assert.equal(first.tier, fixture.expected, `${fixture.id}: ${first.reason}`);
       assert.deepEqual(first, second, `${fixture.id} not deterministic`);
     }
+  });
+
+  it("covers irreversible public exposure in the high rubric", () => {
+    // A description gap here is what let publish-package disagree between the
+    // engines: `high` listed only destructive verbs.
+    assert.match(String(RISK_CRITERIA.high), /public exposure/);
+    assert.match(String(RISK_CRITERIA.high), /publish/);
+    assert.equal(
+      classifyRiskLocally({
+        capability: "shell.run",
+        summary: "publish the package to the registry",
+        detail: "",
+      }).tier,
+      "high",
+    );
   });
 
   it("adversarial instruction text cannot clear a destructive action", () => {

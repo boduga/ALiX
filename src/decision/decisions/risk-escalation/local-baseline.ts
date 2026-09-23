@@ -19,9 +19,13 @@ const READ_ONLY_CAPABILITIES = new Set([
   "web.fetch",
 ]);
 
-/** Whole-word destructive markers. */
+/**
+ * Whole-word destructive / irreversible-exposure markers. `publish` is here
+ * rather than in the mutation set because the rubric's `high` covers
+ * irreversible public exposure (a published release cannot be un-seen).
+ */
 const DESTRUCTIVE_RE =
-  /\b(?:rm\s+-rf|mkfs|format|delete|drop|destroy|overwrite|--force|chmod\s+777|\|\s*(?:ba)?sh\b|sudo|passwd|crontab|dd\b)\b/;
+  /\b(?:rm\s+-rf|mkfs|format|delete|drop|destroy|overwrite|--force|chmod\s+777|\|\s*(?:ba)?sh\b|sudo|passwd|crontab|dd\b|publish)\b/;
 
 /** Whole-word mutation markers. */
 const MUTATION_RE =
