@@ -4,7 +4,9 @@
  */
 
 import "node:fs";
-import { loadConfig, projectConfigDir } from "../../config/loader.js";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { loadConfig, projectConfigDir, userConfigDir } from "../../config/loader.js";
 import "../../config/model-resolver.js";
 import "../../index.js";
 import { prompt } from "./prompt.js";
@@ -46,16 +48,56 @@ export async function handleConfigSetKey(_args: string[]): Promise<void> {
   process.exit(0);
 }
 
-export async function handleConfigGet(args: string[]): Promise<void> {
+/**
+ * `--global` (alias `--user`) targets the user config; `--project` (the
+ * default) targets the project config. Project wins at load time, so a project
+ * can override a global default — including pinning a subsystem off.
+ */
+const SCOPE_FLAGS = ["--global", "--user", "--project"];
+
+function resolveConfigScope(rawArgs: string[]): {
+  dir: string;
+  scope: "project" | "user";
+  args: string[];
+} {
+  const global = rawArgs.includes("--global") || rawArgs.includes("--user");
+  const project = rawArgs.includes("--project");
+  if (global && project) {
+    console.error("Use either --global or --project, not both.");
+    process.exit(1);
+  }
+  return {
+    dir: global ? userConfigDir() : projectConfigDir(process.cwd()),
+    scope: global ? "user" : "project",
+    args: rawArgs.filter((arg) => !SCOPE_FLAGS.includes(arg)),
+  };
+}
+
+/** The user config may not exist yet; an empty file is a no-op for the loader. */
+function ensureConfigFile(dir: string): void {
+  const file = join(dir, "config.json");
+  if (existsSync(file)) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, "{}\n", { encoding: "utf8", mode: 0o600 });
+}
+
+export async function handleConfigGet(rawArgs: string[]): Promise<void> {
+  const { dir, scope, args } = resolveConfigScope(rawArgs);
   const path = args[1];
   if (!path) {
-    console.error("Usage: alix config get <path>");
+    console.error("Usage: alix config get <path> [--global|--project]");
     console.error("Example: alix config get model.provider");
     process.exit(1);
   }
-  const config = await loadConfig(process.cwd());
   const { ConfigMutationService } = await import("../../config/mutation.js");
-  const service = new ConfigMutationService(projectConfigDir(process.cwd()));
+  const service = new ConfigMutationService(dir);
+  // --global reads the user file as written; the default reads the effective
+  // merged config (project over user).
+  const config = scope === "user"
+    ? await service.read().catch(() => ({}) as never)
+    // `requireModel: false`: reading a config path is diagnostic and must work
+    // before any model is configured (the loader's documented diagnostic mode).
+    : await loadConfig(process.cwd(), { requireModel: false, suppressWarnings: true });
   const value = service.getValue(config, path);
   if (value === undefined) {
     console.log(`(not set)`);
@@ -67,24 +109,26 @@ export async function handleConfigGet(args: string[]): Promise<void> {
   process.exit(0);
 }
 
-export async function handleConfigSet(args: string[]): Promise<void> {
+export async function handleConfigSet(rawArgs: string[]): Promise<void> {
+  const { dir, scope, args } = resolveConfigScope(rawArgs);
   const path = args[1];
   const valueStr = args[2];
   if (!path || valueStr === undefined) {
-    console.error("Usage: alix config set <path> <value>");
+    console.error("Usage: alix config set <path> <value> [--global|--project]");
     console.error("Example: alix config set permissions.default allow");
+    console.error("Example: alix config set decision.remote.jev.enabled true --global");
     process.exit(1);
   }
   // Parse value: try JSON first, fall back to string
   let value: unknown = valueStr;
   try { value = JSON.parse(valueStr); } catch { /* keep as string */ }
 
-  const alixDir = projectConfigDir(process.cwd());
+  if (scope === "user") ensureConfigFile(dir);
   const { ConfigMutationService } = await import("../../config/mutation.js");
-  const service = new ConfigMutationService(alixDir);
+  const service = new ConfigMutationService(dir);
   try {
     const mutation = await service.set(path, value);
-    console.log(`Set ${path} = ${JSON.stringify(value)}`);
+    console.log(`Set ${path} = ${JSON.stringify(value)} (${scope})`);
     console.log(`(previous: ${mutation.previousValue === undefined ? "not set" : JSON.stringify(mutation.previousValue)})`);
   } catch (err: any) {
     console.error(`Error: ${err.message}`);
@@ -93,19 +137,19 @@ export async function handleConfigSet(args: string[]): Promise<void> {
   process.exit(0);
 }
 
-export async function handleConfigDelete(args: string[]): Promise<void> {
+export async function handleConfigDelete(rawArgs: string[]): Promise<void> {
+  const { dir, scope, args } = resolveConfigScope(rawArgs);
   const path = args[1];
   if (!path) {
-    console.error("Usage: alix config delete <path>");
+    console.error("Usage: alix config delete <path> [--global|--project]");
     console.error("Example: alix config delete logging.level");
     process.exit(1);
   }
-  const alixDir = projectConfigDir(process.cwd());
   const { ConfigMutationService } = await import("../../config/mutation.js");
-  const service = new ConfigMutationService(alixDir);
+  const service = new ConfigMutationService(dir);
   try {
     const mutation = await service.delete(path);
-    console.log(`Deleted ${path}`);
+    console.log(`Deleted ${path} (${scope})`);
     console.log(`(was: ${mutation.previousValue === undefined ? "not set" : JSON.stringify(mutation.previousValue)})`);
   } catch (err: any) {
     console.error(`Error: ${err.message}`);
@@ -114,14 +158,14 @@ export async function handleConfigDelete(args: string[]): Promise<void> {
   process.exit(0);
 }
 
-export async function handleConfigHistory(args: string[]): Promise<void> {
-  const alixDir = projectConfigDir(process.cwd());
+export async function handleConfigHistory(rawArgs: string[]): Promise<void> {
+  const { dir, scope, args } = resolveConfigScope(rawArgs);
   const { ConfigMutationService } = await import("../../config/mutation.js");
-  const service = new ConfigMutationService(alixDir);
+  const service = new ConfigMutationService(dir);
   const json = args.includes("--json");
   const entries = await service.getProvenance();
   if (entries.length === 0) {
-    console.log("No config mutation history.");
+    console.log(`No ${scope} config mutation history.`);
     process.exit(0);
   }
   if (json) {
@@ -141,27 +185,31 @@ export async function handleConfigHistory(args: string[]): Promise<void> {
       console.log(`  hash: ${entry.configHash.slice(0, 12)}...`);
       console.log();
     }
-    console.log(`${entries.length} entries (max 100)`);
+    console.log(`${entries.length} ${scope} entries (max 100)`);
   }
   process.exit(0);
 }
 
-export async function handleConfigProvenance(args: string[]): Promise<void> {
-  const alixDir = projectConfigDir(process.cwd());
+export async function handleConfigProvenance(rawArgs: string[]): Promise<void> {
+  const { dir, scope, args } = resolveConfigScope(rawArgs);
   const { ConfigMutationService } = await import("../../config/mutation.js");
-  const service = new ConfigMutationService(alixDir);
+  const service = new ConfigMutationService(dir);
   const json = args.includes("--json");
   // filter path: first non-flag arg after "provenance"
   const filterPath = args.slice(1).find(a => !a.startsWith("--"));
   const entries = filterPath ? await service.getProvenance(filterPath) : await service.getProvenance();
   if (entries.length === 0) {
-    console.log(filterPath ? `No provenance entries for path "${filterPath}".` : "No provenance entries.");
+    console.log(
+      filterPath
+        ? `No ${scope} provenance entries for path "${filterPath}".`
+        : `No ${scope} provenance entries.`,
+    );
     process.exit(0);
   }
   if (json) {
     console.log(JSON.stringify(entries, null, 2));
   } else {
-    console.log(`Config provenance ${filterPath ? `for "${filterPath}" ` : ""}(${entries.length} entries):\n`);
+    console.log(`Config provenance (${scope}) ${filterPath ? `for "${filterPath}" ` : ""}(${entries.length} entries):\n`);
     for (const entry of entries) {
       const time = new Date(entry.updatedAt).toLocaleString();
       console.log(`v${entry.version}  ${time}  ${entry.updatedBy}`);

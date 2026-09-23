@@ -31,12 +31,33 @@ alix config show
 # Set model
 alix models set-default   # interactive provider + model selection
 
-# Set API key (writes to .alix/config.json)
+# Set API key (writes the user config, ~/.config/alix/config.json)
 alix config set-key <provider> <key>
 
 # Doctor: diagnose config issues
 alix config doctor
 ```
+
+### Reading and writing individual values
+
+```bash
+alix config get <path> [--global|--project]
+alix config set <path> <value> [--global|--project]
+alix config delete <path> [--global|--project]
+alix config history [--global|--project]
+alix config provenance [--global|--project] [<path>]
+```
+
+Two config files are read, and **project wins**:
+
+| Order | File | Use for |
+|-------|------|---------|
+| 1 | `~/.config/alix/config.json` (user) | operator defaults — credentials, `decision.*` opt-ins, model preferences |
+| 2 | `<project>/.alix/config.json` (project) | per-repo overrides, including pinning something **off** |
+
+`--global` (alias `--user`) targets the user config; `--project` (the default) targets the project config. `set --global` creates the user config if it does not exist. A bare `get` reports the **effective** value (project over user over defaults), while `get --global` reports only what the user config explicitly sets.
+
+The split exists so an operator can opt in once while a repository stays able to override — for example enabling remote decision egress globally, then pinning `decision.remote.jev.enabled: false` in a repo that must never send data out.
 
 ## Model tiers
 
