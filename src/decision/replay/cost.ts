@@ -6,6 +6,7 @@
  * pricing change is a one-line, reviewable diff — never a silent drift.
  */
 
+import type { DecisionUsage } from "../contracts.js";
 import type { ReplayFixture } from "./fixtures.js";
 import { JEV_ENGINE_ID } from "../engines/jev.js";
 import { LOCAL_ENGINE_ID } from "../engines/local.js";
@@ -43,4 +44,28 @@ export function estimateSuiteCostUsd(
   engineId: string,
 ): number {
   return fixtures.reduce((sum, fixture) => sum + estimateFixtureCostUsd(fixture, engineId), 0);
+}
+
+/**
+ * Exact cost from provider-reported usage. Preferred over the estimate whenever
+ * the engine reports tokens — the estimate only exists for engines that don't.
+ */
+export function costFromUsage(engineId: string, usage: DecisionUsage): number {
+  if (engineId === LOCAL_ENGINE_ID) return 0;
+  if (engineId === JEV_ENGINE_ID) {
+    return (usage.inputTokens / 1_000_000) * JEV_PRICE_PER_MTOK_USD;
+  }
+  throw new Error(`No cost model for engine: ${engineId}`);
+}
+
+/**
+ * Cost for one replayed call: reported usage when available, else the
+ * fixture-content estimate.
+ */
+export function costForRun(
+  fixture: ReplayFixture,
+  engineId: string,
+  usage?: DecisionUsage,
+): number {
+  return usage !== undefined ? costFromUsage(engineId, usage) : estimateFixtureCostUsd(fixture, engineId);
 }

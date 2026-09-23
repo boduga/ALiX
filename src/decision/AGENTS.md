@@ -3,7 +3,7 @@
 **Purpose:** Bounded probabilistic decision primitive. ALiX owns workflow/governance; Jev answers atomic classification/scoring/bounded-choice only. Local-first; Jev opt-in remote.
 
 **Ownership:**
-- `contracts.ts` — Choice/Score/Noul native result types + provenance + strict validators (no coerce, JEV-1).
+- `contracts.ts` — Choice/Score/Noul native result types + provenance (incl. optional provider `usage`) + strict validators (no coerce, JEV-1).
 - `registry.ts` — DecisionEngine contract + EngineRegistry; local baseline pre-registered; remote resolves only with explicit opt-in.
 - `config.ts` — DecisionConfig skeleton (standalone in J0a; canonical AlixConfig wiring later) + local-first defaults + pure validator.
 - `projector.ts` — Projector contract + projectForRemote (project -> gate -> seal).

@@ -102,6 +102,14 @@ export function fromJevResponse(
       latencyMs: ctx.latencyMs,
       remote: true,
       projectionHash: ctx.projectionHash,
+      ...(response.usage !== undefined
+        ? {
+            usage: {
+              inputTokens: response.usage.input_tokens ?? 0,
+              outputTokens: response.usage.output_tokens ?? 0,
+            },
+          }
+        : {}),
     },
   };
 }

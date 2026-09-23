@@ -84,6 +84,17 @@ describe("System One wire shape (verified against the official docs)", () => {
     assert.equal(result.confidence, 0.81);
     assert.equal(result.provenance.engineVersion, "jev-1.13.0");
     assert.equal(result.provenance.remote, true);
+    // Provider-reported usage rides on provenance, not on the answer.
+    assert.deepEqual(result.provenance.usage, { inputTokens: 318, outputTokens: 34 });
+  });
+
+  it("omits usage when the provider does not report it", () => {
+    const result = fromJevResponse(
+      { model: "jev-1.13.0", answers: { "claim-verdict": { type: "choice", choice: "supported" } } },
+      { projectionHash: "sha256:x", latencyMs: 5 },
+    );
+    assert.equal(result.kind, "choice");
+    assert.equal(result.provenance.usage, undefined);
   });
 
   it("reads a documented Noul response (`noul`, no confidence)", () => {

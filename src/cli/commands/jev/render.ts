@@ -128,12 +128,15 @@ export function renderReplay(report: ReplayReport): string {
     lines.push("");
     lines.push(`Comparison — baseline ${comparison.baseline.engineId} vs candidate ${comparison.candidate.engineId}`);
     lines.push(`  paired=${comparison.paired} agreement=${pct(comparison.agreement)}`);
-    lines.push(
-      `  baseline  runs=${comparison.baseline.runs} malformed=${comparison.baseline.malformed}${comparison.baseline.accuracy !== undefined ? ` accuracy=${pct(comparison.baseline.accuracy)}` : ""} p95=${comparison.baseline.p95LatencyMs}ms cost=$${comparison.baseline.totalCostUsd.toFixed(6)}`,
-    );
-    lines.push(
-      `  candidate runs=${comparison.candidate.runs} malformed=${comparison.candidate.malformed}${comparison.candidate.accuracy !== undefined ? ` accuracy=${pct(comparison.candidate.accuracy)}` : ""} p95=${comparison.candidate.p95LatencyMs}ms cost=$${comparison.candidate.totalCostUsd.toFixed(6)}`,
-    );
+    const side = (label: string, report: typeof comparison.baseline): string => {
+      const tokens =
+        report.reportedInputTokens !== undefined
+          ? ` tokens=${report.reportedInputTokens}/${report.reportedOutputTokens ?? 0}`
+          : " tokens=estimated";
+      return `  ${label} runs=${report.runs} malformed=${report.malformed}${report.accuracy !== undefined ? ` accuracy=${pct(report.accuracy)}` : ""} p95=${report.p95LatencyMs}ms${tokens} cost=$${report.totalCostUsd.toFixed(6)}`;
+    };
+    lines.push(side("baseline ", comparison.baseline));
+    lines.push(side("candidate", comparison.candidate));
     lines.push(
       `  delta     latency=${comparison.latencyDeltaMs.toFixed(0)}ms cost=$${comparison.costDeltaUsd.toFixed(6)}`,
     );

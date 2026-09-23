@@ -16,7 +16,7 @@
 - `reliability --decision <d> --engine <e> [--bins N] [--json]`
 - `profile list | derive --decision <d> --engine <e> --target-accuracy <0..1> --id <id> --dataset-id <id> | promote <id> --approve [--approved-by <who>] | rollback --decision <d> --engine <e> [--risk <r>]`
 - `fixture list | build --decision <d>`
-- `replay --engine local|jev [--compare <engine>] [--gate] [--decision <d>] [--timeout-ms N] [--json]`
+- `replay --engine local|jev [--compare <engine>] [--gate] [--decision <d>] [--timeout-ms N] [--json]` — reports cost from provider-reported tokens when available, else the estimate.
 
 **Local Contracts:**
 - State lives under `.alix/decisions/`: `decisions.jsonl` (journal), `labels.jsonl`, `profiles.json`, `fixtures/*.json`.
