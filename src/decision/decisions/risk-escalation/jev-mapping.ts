@@ -21,11 +21,16 @@ import { readRiskProjection, type RiskEscalationProjection } from "./projection.
 
 export const JEV_RISK_QUESTION_ID = "action-risk";
 
-/** Rubric descriptions separate the tiers from one another. */
-const RISK_CRITERIA: JevChoiceCriteria = {
+/**
+ * Rubric descriptions separate the tiers from one another. Exported so the
+ * decision's contract with the model is verifiable, not buried prose.
+ */
+export const RISK_CRITERIA: JevChoiceCriteria = {
   low: "Observational only: reading or searching, no state change",
   medium: "Reversible change to workspace state, or an unclear effect",
-  high: "Destructive or irreversible: deletes, overwrites, force operations, privilege escalation",
+  high:
+    "Destructive or irreversible: deletes, overwrites, force operations, privilege escalation, " +
+    "or irreversible public exposure such as publishing a release to a shared registry",
 };
 
 export function renderRiskState(projection: RiskEscalationProjection): string {
