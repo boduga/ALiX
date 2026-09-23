@@ -3,7 +3,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -12,7 +12,7 @@ export function findRepoRoot(startDir: string): string {
   let current = startDir;
 
   while (true) {
-    if (existsSync(join(current, "package.json"))) {
+    if (basename(current) !== "dist" && existsSync(join(current, "package.json"))) {
       return current;
     }
 
