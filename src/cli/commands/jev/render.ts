@@ -10,7 +10,12 @@ import type {
   ReliabilityReport,
   ThresholdProfile,
 } from "../../../decision/index.js";
-import type { DisagreementsReport, JevStatus } from "./ops.js";
+import type {
+  DisagreementsReport,
+  JevStatus,
+  LabelPairResult,
+  LabelPairStage,
+} from "./ops.js";
 import type { ReplayReport } from "./replay-ops.js";
 
 function pct(value: number): string {
@@ -201,6 +206,43 @@ export function renderDisagreements(report: DisagreementsReport): string {
   if (report.disagreements > 0 && report.agreements > 0) {
     lines.push("");
     lines.push(`the engines agree on ${report.agreements} of ${report.paired} comparable pairs`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Stage 1 output — claim + evidence only (§18.1). MUST NOT contain verdict
+ * direction: no engine names, no verdict words, no arrows, no "Truth" (§18.2).
+ * tests/cli/jev-ops.test.ts pins these absences.
+ */
+export function renderLabelPairEvidence(stage: LabelPairStage): string {
+  const lines: string[] = [
+    `Evidence for ${stage.projectionHash}`,
+    "",
+    "Claim:",
+    `  ${stage.projection.claim}`,
+    "",
+    "Evidence:",
+  ];
+  if (stage.projection.evidence.length === 0) {
+    lines.push("  (none)");
+  }
+  stage.projection.evidence.forEach((item, index) => {
+    if (item.source !== undefined) lines.push(`  [${index + 1}] ${item.source}`);
+    lines.push(`  [${index + 1}] ${item.excerpt}`);
+  });
+  return lines.join("\n");
+}
+
+/**
+ * Stage 2 output — only ever called AFTER truth is committed (§18: "after truth
+ * is committed, the CLI may reveal truth, verdicts, derived labels").
+ */
+export function renderLabelPairReveal(result: LabelPairResult): string {
+  const lines: string[] = [`Truth: ${result.truth}`, ""];
+  for (const side of result.labels) {
+    const name = side.engineId === "jev" ? "Jev" : "Baseline";
+    lines.push(`${name}:`.padEnd(10) + side.verdict.padEnd(15) + `-> ${side.label}`);
   }
   return lines.join("\n");
 }

@@ -8,6 +8,7 @@
  */
 
 import {
+  CLAIM_VERDICT_CANDIDATES,
   CONTEXT_RELEVANCE_PROFILES,
   DEFAULT_DECISION_CONFIG,
   JEV_ENGINE_ID,
@@ -16,6 +17,7 @@ import {
   activeProfile,
   computeReliability,
   createDecisionJournalStore,
+  createExperimentProjectionStore,
   createOutcomeLabel,
   createOutcomeLabelStore,
   createProfileRegistry,
@@ -28,6 +30,7 @@ import {
   rollbackProfile,
   saveProfileRegistry,
   type CalibrationExport,
+  type ClaimVerificationExperimentProjection,
   type DecisionConfig,
   type DecisionJournalRecord,
   type DecisionPaths,
@@ -425,4 +428,122 @@ export async function buildDisagreements(
     bothWrong,
     pairs,
   };
+}
+
+// ─── Blind ground-truth labelling (two-stage, spec §18) ────────────────
+
+export type LabelPairStage = {
+  projectionHash: string;
+  projection: ClaimVerificationExperimentProjection;
+};
+
+export type LabelPairSide = { engineId: string; decisionId: string; verdict: string; label: OutcomeLabel };
+export type LabelPairResult = {
+  projectionHash: string;
+  truth: string;
+  /** Exactly two sides, fixed order: Jev, then local baseline (plan amendment 2). */
+  labels: LabelPairSide[];
+  projection: ClaimVerificationExperimentProjection;
+};
+
+/**
+ * Shared structural validation: every refusal that reveals no verdict
+ * direction fires here, so neither stage can proceed to a write on bad input.
+ * Throws JevOperatorError; caller surfaces it as an operator error.
+ */
+function experimentPair(
+  records: readonly DecisionJournalRecord[],
+  projectionHash: string,
+): { decision: DecisionType; jev: DecisionJournalRecord; baseline: DecisionJournalRecord } {
+  const group = records.filter((record) => record.projectionHash === projectionHash);
+  if (group.length === 0) {
+    throw new JevOperatorError(`projectionHash unknown: ${projectionHash}`);
+  }
+  const decision = group[0].decision;
+  if (decision !== "claim-verification") {
+    throw new JevOperatorError(
+      `label-pair supports claim-verification only (found ${decision}): other decisions have no protected projection store, so the §18.1 evidence view cannot be shown`,
+    );
+  }
+  const byEngine = groupChoiceByEngine(records, decision).get(projectionHash);
+  const jev = byEngine?.get(JEV_ENGINE_ID);
+  const baseline = byEngine?.get(LOCAL_ENGINE_ID);
+  if (jev === undefined || baseline === undefined) {
+    throw new JevOperatorError(
+      `no valid comparison pair exists for ${projectionHash} — need both ${JEV_ENGINE_ID} and ${LOCAL_ENGINE_ID} choice records`,
+    );
+  }
+  const jevVerdict = String((jev.outcome as { choice: unknown }).choice);
+  const baselineVerdict = String((baseline.outcome as { choice: unknown }).choice);
+  if (jevVerdict === baselineVerdict) {
+    throw new JevOperatorError("pair verdicts agree — use alix jev label for single-record labelling");
+  }
+  return { decision, jev, baseline };
+}
+
+/**
+ * Stage 1 — structural validation plus the operator's evidence view (§18.1).
+ * The returned type is deliberately projection-only: no verdict crosses this
+ * boundary, which is what makes blindness structural rather than cosmetic
+ * (§18.2). Verdicts are read only inside commitLabelPair, after truth exists.
+ */
+export async function prepareLabelPair(
+  paths: JevPaths,
+  input: { projectionHash: string; storeDir?: string },
+): Promise<LabelPairStage> {
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  experimentPair(records, input.projectionHash); // validates; verdicts discarded
+  const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
+  if (projection === undefined) {
+    throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
+  }
+  return { projectionHash: input.projectionHash, projection };
+}
+
+/**
+ * Stage 2 — after truth is entered. Re-runs structural validation (idempotent),
+ * then truth legality and already-labelled refusals, then derives both labels
+ * from `truth` (§18.3) and appends them (§18.4: every refusal fires before the
+ * first append).
+ */
+export async function commitLabelPair(
+  paths: JevPaths,
+  input: { projectionHash: string; truth: string; storeDir?: string },
+): Promise<LabelPairResult> {
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  const { decision, jev, baseline } = experimentPair(records, input.projectionHash);
+
+  if (!(CLAIM_VERDICT_CANDIDATES as readonly string[]).includes(input.truth)) {
+    throw new JevOperatorError(`--truth must be one of ${CLAIM_VERDICT_CANDIDATES.join("|")}`);
+  }
+  const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
+  if (projection === undefined) {
+    throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
+  }
+
+  const labelStore = createOutcomeLabelStore(paths.dir);
+  const existing = indexLabelsByDecisionId((await labelStore.readAll()).labels);
+  for (const record of [jev, baseline]) {
+    if (existing.has(record.decisionId)) {
+      throw new JevOperatorError(`already labelled: ${record.decisionId} — a judgement is never overwritten`);
+    }
+  }
+
+  const labels: LabelPairSide[] = [];
+  for (const record of [jev, baseline]) {
+    const verdict = String((record.outcome as { choice: unknown }).choice);
+    const label = verdict === input.truth ? "correct" : "incorrect";
+    await labelStore.append(
+      createOutcomeLabel({
+        decisionId: record.decisionId,
+        decision,
+        label,
+        note: `truth=${input.truth}`,
+        observedAt: Date.now(),
+      }),
+    );
+    labels.push({ engineId: record.engineId, decisionId: record.decisionId, verdict, label });
+  }
+
+  return { projectionHash: input.projectionHash, truth: input.truth, labels, projection };
 }

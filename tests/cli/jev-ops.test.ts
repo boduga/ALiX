@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   DEFAULT_DECISION_CONFIG,
   createDecisionJournalStore,
+  createExperimentProjectionStore,
   createOutcomeLabelStore,
   createOutcomeLabel,
   recordDecision,
@@ -15,12 +16,14 @@ import {
   JevOperatorError,
   buildDisagreements,
   buildStatus,
+  commitLabelPair,
   deriveProfile,
   exportDataset,
   labelDecision,
   listProfiles,
   loadDecisionConfig,
   parseDecisionType,
+  prepareLabelPair,
   promoteProfileById,
   reliabilityReport,
   resolveJevPaths,
@@ -33,7 +36,11 @@ import {
   makeExecutor,
   runReplay,
 } from "../../src/cli/commands/jev/replay-ops.js";
-import { renderDisagreements } from "../../src/cli/commands/jev/render.js";
+import {
+  renderDisagreements,
+  renderLabelPairEvidence,
+  renderLabelPairReveal,
+} from "../../src/cli/commands/jev/render.js";
 import { dispatchJevCommand } from "../../src/cli/commands/jev/main.js";
 import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
 import { _setHomedirOverride } from "../../src/config/loader.js";
@@ -437,6 +444,9 @@ async function seedClaimPair(
   }
 }
 
+const SUPPORTED_CLAIM = "Water boils at 100 degrees Celsius at sea level.";
+const SUPPORTED_EXCERPT = "At sea level, water boils at 100 degrees Celsius.";
+
 describe("jev ops — disagreements", () => {
   it("reports no disagreement data available when the journal is empty", async () => {
     const target = freshPaths();
@@ -612,5 +622,214 @@ describe("jev ops — disagreements", () => {
     }
     const report = JSON.parse(chunks.join("")) as { decision: string };
     assert.equal(report.decision, "claim-verification");
+  });
+});
+
+describe("jev ops — label-pair (two-stage blind)", () => {
+  /** Journal pair + matching protected projection, both on fresh dirs. */
+  async function seededPair(
+    hash: string,
+    localVerdict: "supported" | "contradicted" | "insufficient",
+    jevVerdict: "supported" | "contradicted" | "insufficient",
+    truth?: "supported" | "contradicted" | "insufficient",
+  ): Promise<{ target: ReturnType<typeof resolveJevPaths>; storeDir: string }> {
+    const target = freshPaths();
+    await seedClaimPair(target, hash, localVerdict, jevVerdict, truth);
+    const storeDir = mkdtempSync(join(tmpdir(), "jev-lp-"));
+    tempDirs.push(storeDir);
+    await createExperimentProjectionStore(storeDir).append({
+      projectionHash: hash,
+      decision: "claim-verification",
+      claim: SUPPORTED_CLAIM,
+      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
+      createdAt: "2026-09-22T00:00:00.000Z",
+    });
+    return { target, storeDir };
+  }
+
+  it("prepare refuses an unknown projectionHash, writing nothing", async () => {
+    const target = freshPaths();
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:nope", storeDir: target.dir }),
+      /projectionHash unknown/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
+  });
+
+  it("prepare refuses non-claim-verification decisions (no protected projection store)", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "context-relevance",
+        engineId: "local",
+        projectionHash: "sha256:noul",
+        outcome: { kind: "noul", probability: 0.9 },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_003_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "context-relevance",
+        engineId: "jev",
+        projectionHash: "sha256:noul",
+        outcome: { kind: "noul", probability: 0.4 },
+        latencyMs: 2,
+        remote: true,
+        redactionApplied: true,
+        now: 1_700_000_003_500,
+      }),
+    );
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:noul", storeDir: target.dir }),
+      /claim-verification only/,
+    );
+  });
+
+  it("prepare refuses a group that lacks Jev or the local baseline", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:one-sided",
+        outcome: { kind: "choice", choice: "supported", candidates: ["supported", "contradicted", "insufficient"] },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_004_000,
+      }),
+    );
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:one-sided", storeDir: target.dir }),
+      /no valid comparison pair/,
+    );
+  });
+
+  it("prepare refuses agreeing verdicts", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:same", "supported", "supported");
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:same", storeDir: target.dir }),
+      /verdicts agree/,
+    );
+  });
+
+  it("prepare refuses when the protected projection is unavailable", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:no-proj", "supported", "insufficient");
+    const storeDir = mkdtempSync(join(tmpdir(), "jev-lp-empty-"));
+    tempDirs.push(storeDir);
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:no-proj", storeDir }),
+      /protected experiment projection unavailable/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
+  });
+
+  it("prepare returns NO verdict direction and the evidence render leaks none", async () => {
+    const { target, storeDir } = await seededPair("sha256:blind", "supported", "insufficient");
+    const stage = await prepareLabelPair(target, { projectionHash: "sha256:blind", storeDir });
+    // Structural blindness: the stage carries the projection and nothing else.
+    assert.deepEqual(Object.keys(stage).sort(), ["projection", "projectionHash"]);
+    assert.equal(stage.projection.claim, SUPPORTED_CLAIM);
+
+    const evidence = renderLabelPairEvidence(stage);
+    assert.match(evidence, /Evidence:/);
+    assert.match(evidence, new RegExp(SUPPORTED_CLAIM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    // No direction may appear before truth is entered (§18.2):
+    assert.doesNotMatch(evidence, /\bJev\b|\bBaseline\b/);
+    assert.doesNotMatch(evidence, /-> /);
+    assert.doesNotMatch(evidence, /\bcorrect\b|\bincorrect\b/);
+    // The reveal has NOT been rendered at this stage at all.
+    assert.equal(evidence.includes("Truth"), false);
+  });
+
+  it("commit refuses an illegal truth, writing nothing", async () => {
+    const { target, storeDir } = await seededPair("sha256:bad", "supported", "insufficient");
+    await assert.rejects(
+      commitLabelPair(target, { projectionHash: "sha256:bad", truth: "maybe", storeDir }),
+      /--truth must be one of/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
+  });
+
+  it("commit refuses an already-labelled pair (a judgement is never overwritten)", async () => {
+    const { target, storeDir } = await seededPair("sha256:done", "supported", "insufficient", "supported");
+    await assert.rejects(
+      commitLabelPair(target, { projectionHash: "sha256:done", truth: "contradicted", storeDir }),
+      /already labelled/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 2);
+  });
+
+  it("commit derives exactly two labels — Jev first, then baseline — and reveals them", async () => {
+    const { target, storeDir } = await seededPair("sha256:truth", "supported", "insufficient");
+    const result = await commitLabelPair(target, { projectionHash: "sha256:truth", truth: "supported", storeDir });
+    assert.equal(result.truth, "supported");
+    assert.deepEqual(
+      result.labels.map((side) => [side.engineId, side.label]),
+      [
+        ["jev", "incorrect"],
+        ["local", "correct"],
+      ],
+    );
+    assert.equal(result.projection.claim, SUPPORTED_CLAIM);
+    const stored = (await createOutcomeLabelStore(target.dir).readAll()).labels;
+    assert.equal(stored.length, 2);
+    assert.ok(stored.every((label) => label.note === "truth=supported"));
+
+    const reveal = renderLabelPairReveal(result);
+    assert.match(reveal, /Truth: supported/);
+    assert.match(reveal, /Jev:\s+insufficient\s+-> incorrect/);
+    assert.match(reveal, /Baseline:\s+supported\s+-> correct/);
+  });
+
+  it("commit derives both-wrong when neither verdict matches truth", async () => {
+    const { target, storeDir } = await seededPair("sha256:bw", "supported", "contradicted");
+    const result = await commitLabelPair(target, { projectionHash: "sha256:bw", truth: "insufficient", storeDir });
+    assert.ok(result.labels.every((side) => side.label === "incorrect"));
+    assert.equal(result.labels.length, 2);
+  });
+
+  it("--json without --truth is a usage error, raised before anything is read", async () => {
+    await assert.rejects(
+      dispatchJevCommand(["label-pair", "--projection-hash", "sha256:anything", "--json"], { cwd }),
+      /--truth is required with --json/,
+    );
+  });
+
+  it("non-interactive --truth through the CLI writes both labels and reveals them", async () => {
+    // Seed into cwd so dispatchJevCommand({ cwd }) sees the pair.
+    const target = resolveJevPaths(cwd);
+    await seedClaimPair(target, "sha256:cli", "supported", "insufficient");
+    await createExperimentProjectionStore(cwd).append({
+      projectionHash: "sha256:cli",
+      decision: "claim-verification",
+      claim: SUPPORTED_CLAIM,
+      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
+      createdAt: "2026-09-22T00:00:00.000Z",
+    });
+    const chunks: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    (process.stdout as unknown as { write: (chunk: unknown) => boolean }).write = (chunk: unknown) => {
+      chunks.push(String(chunk));
+      return true;
+    };
+    try {
+      await dispatchJevCommand(
+        ["label-pair", "--projection-hash", "sha256:cli", "--truth", "supported", "--store-dir", cwd, "--json"],
+        { cwd },
+      );
+    } finally {
+      (process.stdout as unknown as { write: typeof original }).write = original;
+    }
+    const result = JSON.parse(chunks.join("")) as { truth: string; labels: unknown[] };
+    assert.equal(result.truth, "supported");
+    assert.equal(result.labels.length, 2);
   });
 });

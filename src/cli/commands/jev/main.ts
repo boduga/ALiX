@@ -18,20 +18,24 @@
  *   alix jev fixture list
  *   alix jev replay --engine local|jev [--compare <engine>] [--gate] [--decision <d>]
  *   alix jev disagreements [--decision <d>] [--json]
+ *   alix jev label-pair --projection-hash <hash> [--truth <v>] [--store-dir <dir>] [--json]
  */
 
 import { parseKeyValueArgs } from "../../helpers/parse-args.js";
-import { DEFAULT_DECISION_CONFIG } from "../../../decision/index.js";
+import { CLAIM_VERDICT_CANDIDATES, DEFAULT_DECISION_CONFIG } from "../../../decision/index.js";
+import { promptUser } from "../../../run/helpers.js";
 import {
   JevOperatorError,
   buildDisagreements,
   buildStatus,
+  commitLabelPair,
   deriveProfile,
   exportDataset,
   labelDecision,
   listProfiles,
   loadAlixConfig,
   parseDecisionType,
+  prepareLabelPair,
   promoteProfileById,
   reliabilityReport,
   resolveJevPaths,
@@ -40,7 +44,16 @@ import {
   type JevPaths,
 } from "./ops.js";
 import { buildFixtures, loadFixtures, runReplay } from "./replay-ops.js";
-import { renderDataset, renderDisagreements, renderProfiles, renderReliability, renderReplay, renderStatus } from "./render.js";
+import {
+  renderDataset,
+  renderDisagreements,
+  renderLabelPairEvidence,
+  renderLabelPairReveal,
+  renderProfiles,
+  renderReliability,
+  renderReplay,
+  renderStatus,
+} from "./render.js";
 import type { LabelErrorType, OutcomeLabel, RiskContext } from "../../../decision/index.js";
 
 const LABEL_VALUES: readonly OutcomeLabel[] = ["correct", "incorrect", "unknown"];
@@ -168,9 +181,43 @@ export async function dispatchJevCommand(
       return;
     }
 
+    case "label-pair": {
+      const flags = parseKeyValueArgs(rest, ["projection-hash", "truth", "store-dir"], ["json"]);
+      const projectionHash = requireString(flags["projection-hash"], "projection-hash");
+      const storeDir = typeof flags["store-dir"] === "string" ? { storeDir: flags["store-dir"] } : {};
+      const hasTruth = typeof flags.truth === "string" && flags.truth.length > 0;
+
+      // Usage check first: --json is automation, so it must carry truth.
+      if (json && !hasTruth) {
+        throw new JevOperatorError(
+          "--truth is required with --json (interactive prompting is TTY-only; supply truth established independently)",
+        );
+      }
+
+      // Stage 1: structural refusals + the evidence view. No verdict direction.
+      const stage = await prepareLabelPair(paths, { projectionHash, ...storeDir });
+
+      if (hasTruth) {
+        // Non-interactive path: caller already established truth independently.
+        const result = await commitLabelPair(paths, { projectionHash, truth: flags.truth as string, ...storeDir });
+        out(json ? JSON.stringify(result, null, 2) : renderLabelPairReveal(result));
+        return;
+      }
+
+      out(renderLabelPairEvidence(stage));
+      const raw = await promptUser(`Truth [${CLAIM_VERDICT_CANDIDATES.join("|")}]: `);
+      const result = await commitLabelPair(paths, {
+        projectionHash,
+        truth: raw.trim().toLowerCase(),
+        ...storeDir,
+      });
+      out(renderLabelPairReveal(result));
+      return;
+    }
+
     default:
       throw new JevOperatorError(
-        `unknown subcommand: ${subcommand} (expected status, label, dataset, reliability, profile, fixture, replay, disagreements)`,
+        `unknown subcommand: ${subcommand} (expected status, label, dataset, reliability, profile, fixture, replay, disagreements, label-pair)`,
       );
   }
 }
