@@ -87,8 +87,8 @@ It must answer that without:
 
 ### 3.1 Post-review amendments (22 September 2026)
 
-Two decisions above were changed during spec review. They are recorded here so
-the history is explicit rather than silently rewritten:
+Three amendments to the approved design are recorded here so the history is
+explicit rather than silently rewritten:
 
 1. **Default mode `off` → `baseline`** (§6, §6.1, §10.1). The tool remains
    fully functional locally in its default state, so `off` misdescribed the
@@ -98,9 +98,16 @@ the history is explicit rather than silently rewritten:
    promotion** (§19, §20). A single pair could promote or remove an engine on
    luck. The previous rule was too weak for an empirical promotion/removal
    decision.
+3. **`label-pair` scope narrowed to claim-verification only** (§18.5). The
+   protected projection store (§16) exists only for claim-verification
+   (`ClaimVerificationExperimentProjection`), so §18.1's evidence view is
+   impossible for risk-escalation and model-tier. They are refused with an
+   actionable message rather than admitted through a side door; generalise
+   when those decisions gain equivalent evidence-review infrastructure.
+   (Raised during plan review.)
 
-Neither amendment is reverted. The disagreement-driven design, the tie rule
-(§20.6), and `authority: "none"` are unchanged.
+None of these amendments is reverted. The disagreement-driven design, the tie
+rule (§20.6), and `authority: "none"` are unchanged.
 
 ---
 
@@ -1024,7 +1031,11 @@ For agreeing pairs, use the existing single-record labelling workflow if needed.
 
 ### 18.5 Scope
 
-`label-pair` applies to categorical Choice decisions.
+**Amended (§3.1): claim-verification only in this phase.** The §16 store is
+`ClaimVerificationExperimentProjection`, and §18.4 requires that store — so
+risk-escalation and model-tier pairs cannot be judged blindly until they have
+equivalent stores. They are refused with an actionable message rather than
+admitted without an evidence view.
 
 It does not define correctness semantics for Noul/context-relevance pairs.
 

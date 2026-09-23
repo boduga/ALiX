@@ -26,6 +26,10 @@ Values copied verbatim from the spec; every task inherits them.
 - Stage **explicit paths only** — never `git add -u <dir>` (a directory-wide add previously swept unrelated work into a commit).
 - One commit per task. Run `pnpm build` before every test run.
 - Never `git add` a `.js` under `dist/` — build output is gitignored (caught during self-review; stage `.ts` sources and `.ts` tests only).
+- **Preflight first:** create `feat/claim-verification-shadow-tool` before Task 1 — one-commit-per-task only helps if every commit lands on that branch (plan amendment 3).
+- **Experiment pairs are exactly Jev + local baseline** (`JEV_ENGINE_ID` + `LOCAL_ENGINE_ID`). Any third engine may be journaled but never enters `paired`, `disagreementRate`, `bothWrong`, or a `label-pair` write (plan amendment 2).
+- **`label-pair` is claim-verification only** in this phase — other decisions have no protected projection store, so §18.4's projection refusal would fire regardless (plan amendment 4).
+- **Blind labelling is genuinely two-stage:** no verdict direction appears in any output the operator sees before truth is entered. `--truth` exists only as the documented non-interactive path where the caller already established truth independently (plan amendment 1).
 
 ## Verification Commands
 
@@ -70,6 +74,29 @@ pnpm check:dead
 | `tests/cli/jev-ops.test.ts` | disagreements + label-pair | Modify |
 
 Note on capability-map: no source edit is required there — `inferCapability` is *derived* from the registry, so the registry entry in Task 5 supplies the policy key. The test pins that derivation.
+
+---
+
+## Preflight — do this BEFORE Task 1 (plan amendment 3)
+
+Tasks 1–7 each commit; those commits must land on the feature branch, not on
+whatever happened to be checked out when execution started.
+
+- [ ] **Step 0.1: Land the docs first, so the feature branch carries the spec and plan**
+
+Run: `gh pr merge 823 --merge`
+Expected: merged (the spec and plan are approved). Skip only if already merged.
+
+- [ ] **Step 0.2: Create the feature branch**
+
+```bash
+git status --short      # tracked tree must be clean (untracked .tmp/ etc. is fine)
+git fetch origin
+git switch -c feat/claim-verification-shadow-tool origin/main
+git log --oneline -1    # expect the #823 merge commit
+```
+
+Expected: on `feat/claim-verification-shadow-tool`, based on merged `main`.
 
 ---
 
@@ -1231,21 +1258,30 @@ git commit -m "feat(tools): wire alix_verify_claim (manifest, alias, allow, rout
 - Consumes: `createDecisionJournalStore`, `createOutcomeLabelStore`, `indexLabelsByDecisionId`, `JEV_ENGINE_ID`, `LOCAL_ENGINE_ID`, `recordDecision`, `resolveJevPaths`, `parseKeyValueArgs`/`optionalDecision` (main.ts), `JevOperatorError`.
 - Produces: `groupChoiceByEngine(records, decision)`, `buildDisagreements(paths, opts): Promise<DisagreementsReport>`, `renderDisagreements(report): string`. Task 7 reuses `groupChoiceByEngine`.
 
-Grouping rules (spec §15, §17): group all records of a decision by `projectionHash` (`invocations` = every group); within a group keep the **most recent** `outcome.kind === "choice"` record per `engineId`; `paired` = groups with ≥2 such records; `disagreements` = paired groups whose verdicts differ; `disagreement_rate = disagreements / paired` with `paired` as the explicit denominator (never all tool calls).
+Grouping rules (spec §15, §17, plan amendment 2): group all records of a decision by `projectionHash` (`invocations` = every group, including failure-only ones); within a group keep the **most recent** `outcome.kind === "choice"` record per `engineId`; `paired` = groups containing **both** `JEV_ENGINE_ID` and `LOCAL_ENGINE_ID` choice records — a third engine may be journalled but never joins the comparison; `disagreements` = paired groups whose two verdicts differ; `disagreement_rate = disagreements / paired` with `paired` as the explicit denominator (never all tool calls).
 
 - [ ] **Step 1: Write the failing tests**
 
 Append to `tests/cli/jev-ops.test.ts`:
 
 ```ts
-/** Seed one claim-verification group: local + jev choice records (+ optional labels). */
+/** Per-test journal so assertions stay absolute, never cumulative. */
+const tempDirs: string[] = [];
+function freshPaths(): ReturnType<typeof resolveJevPaths> {
+  const dir = mkdtempSync(join(tmpdir(), "jev-dis-"));
+  tempDirs.push(dir);
+  return resolveJevPaths(dir);
+}
+
+/** Seed one claim-verification group into `target`: local + jev choice records (+ optional truth labels). */
 async function seedClaimPair(
+  target: ReturnType<typeof resolveJevPaths>,
   hash: string,
   localVerdict: "supported" | "contradicted" | "insufficient",
   jevVerdict: "supported" | "contradicted" | "insufficient",
   truth?: "supported" | "contradicted" | "insufficient",
-): Promise<{ localId: string; jevId: string }> {
-  const journal = createDecisionJournalStore(paths.dir);
+): Promise<void> {
+  const journal = createDecisionJournalStore(target.dir);
   const candidates = ["supported", "contradicted", "insufficient"];
   const local = recordDecision({
     decision: "claim-verification",
@@ -1270,7 +1306,7 @@ async function seedClaimPair(
   journal.append(local);
   journal.append(jev);
   if (truth !== undefined) {
-    const labelStore = createOutcomeLabelStore(paths.dir);
+    const labelStore = createOutcomeLabelStore(target.dir);
     await labelStore.append(
       createOutcomeLabel({
         decisionId: local.decisionId,
@@ -1290,12 +1326,12 @@ async function seedClaimPair(
       }),
     );
   }
-  return { localId: local.decisionId, jevId: jev.decisionId };
 }
 
 describe("jev ops — disagreements", () => {
   it("reports no disagreement data available when the journal is empty", async () => {
-    const report = await buildDisagreements(paths, {});
+    const target = freshPaths();
+    const report = await buildDisagreements(target, {});
     assert.equal(report.invocations, 0);
     assert.equal(report.paired, 0);
     assert.equal(report.disagreementRate, "n/a");
@@ -1305,8 +1341,9 @@ describe("jev ops — disagreements", () => {
   });
 
   it("tallies a labelled disagreement pair", async () => {
-    await seedClaimPair("sha256:dis-1", "supported", "insufficient", "supported");
-    const report = await buildDisagreements(paths, {});
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:dis-1", "supported", "insufficient", "supported");
+    const report = await buildDisagreements(target, {});
     assert.equal(report.invocations, 1);
     assert.equal(report.paired, 1);
     assert.equal(report.disagreements, 1);
@@ -1321,9 +1358,10 @@ describe("jev ops — disagreements", () => {
   });
 
   it("counts agreement separately and reports the denominator", async () => {
-    await seedClaimPair("sha256:agree-1", "supported", "supported");
-    await seedClaimPair("sha256:dis-2", "contradicted", "supported");
-    const report = await buildDisagreements(paths, {});
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:agree-1", "supported", "supported");
+    await seedClaimPair(target, "sha256:dis-2", "contradicted", "supported");
+    const report = await buildDisagreements(target, {});
     assert.equal(report.paired, 2);
     assert.equal(report.agreements, 1);
     assert.equal(report.disagreements, 1);
@@ -1335,14 +1373,16 @@ describe("jev ops — disagreements", () => {
   });
 
   it("marks both-wrong when neither recorded verdict matches truth", async () => {
-    await seedClaimPair("sha256:both-wrong", "supported", "contradicted", "insufficient");
-    const report = await buildDisagreements(paths, {});
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:both-wrong", "supported", "contradicted", "insufficient");
+    const report = await buildDisagreements(target, {});
     assert.equal(report.bothWrong, 1);
     assert.equal(report.labelled, 1);
   });
 
-  it("ignores failure outcomes when pairing", async () => {
-    const journal = createDecisionJournalStore(paths.dir);
+  it("ignores failure outcomes when pairing but still counts the invocation", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
     journal.append(
       recordDecision({
         decision: "claim-verification",
@@ -1355,14 +1395,17 @@ describe("jev ops — disagreements", () => {
         now: 1_700_000_002_000,
       }),
     );
-    const report = await buildDisagreements(paths, {});
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 1); // spec §17: invocations counts every group
     assert.equal(report.paired, 0);
     assert.equal(report.disagreements, 0);
     assert.match(renderDisagreements(report), /no disagreement data available/);
+    assert.match(renderDisagreements(report), /1 invocation\(s\)/);
   });
 
   it("keeps the most recent choice record per engine", async () => {
-    const journal = createDecisionJournalStore(paths.dir);
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
     const candidates = ["supported", "contradicted", "insufficient"];
     const stale = recordDecision({
       decision: "claim-verification",
@@ -1375,12 +1418,69 @@ describe("jev ops — disagreements", () => {
       now: 1_600_000_000_000,
     });
     journal.append(stale);
-    await seedClaimPair("sha256:latest", "supported", "insufficient");
-    const report = await buildDisagreements(paths, {});
+    await seedClaimPair(target, "sha256:latest", "supported", "insufficient");
+    const report = await buildDisagreements(target, {});
     // The newer "supported" record won, so verdicts still differ (supported vs insufficient)
     // and the stale "contradicted" never produced a third engine.
     assert.equal(report.paired, 1);
     assert.equal(report.disagreements, 1);
+  });
+
+  it("pairs only Jev + local — a third engine never changes the denominator", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:third", "supported", "insufficient");
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-engine",
+        projectionHash: "sha256:third",
+        outcome: { kind: "choice", choice: "contradicted", candidates: ["supported", "contradicted", "insufficient"] },
+        latencyMs: 3,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_004_000,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    const pair = report.pairs.find((p) => p.projectionHash === "sha256:third");
+    assert.equal(report.paired, 1); // still exactly one experiment pair
+    assert.equal(report.disagreements, 1);
+    assert.deepEqual(pair?.sides.map((side) => side.engineId), ["jev", "local"]);
+  });
+
+  it("does not pair a group that lacks Jev or the local baseline", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-a",
+        projectionHash: "sha256:no-experiment-pair",
+        outcome: { kind: "choice", choice: "supported", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_005_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-b",
+        projectionHash: "sha256:no-experiment-pair",
+        outcome: { kind: "choice", choice: "contradicted", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_005_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 1);
+    assert.equal(report.paired, 0); // neither engine is Jev or the baseline
+    assert.equal(report.disagreements, 0);
   });
 
   it("dispatches through the CLI (hermetic cwd, captured stdout)", async () => {
@@ -1401,7 +1501,7 @@ describe("jev ops — disagreements", () => {
 });
 ```
 
-Add to that file's `src/cli/commands/jev/ops.js` import list: `buildDisagreements`; from `render.js`: `renderDisagreements`. (Existing imports already include `createOutcomeLabelStore`, `recordDecision`, `createOutcomeLabel`, `dispatchJevCommand`.)
+Add to that file's `src/cli/commands/jev/ops.js` import list: `buildDisagreements`; from `render.js`: `renderDisagreements`. (Existing imports already include `createOutcomeLabelStore`, `recordDecision`, `createOutcomeLabel`, `dispatchJevCommand`.) Also extend the file's existing `after()` hook to clean the fresh journals: `for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });`
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1424,7 +1524,8 @@ export type DisagreementSide = {
 
 export type DisagreementPair = {
   projectionHash: string;
-  sides: DisagreementSide[]; // jev first, then baseline, then others
+  /** Exactly two sides: Jev, then local baseline (plan amendment 2). */
+  sides: DisagreementSide[];
 };
 
 export type DisagreementsReport = {
@@ -1459,13 +1560,15 @@ export function groupChoiceByEngine(
   }
   return groups;
 }
+```
 
-function engineRank(engineId: string): number {
-  if (engineId === JEV_ENGINE_ID) return 0;
-  if (engineId === LOCAL_ENGINE_ID) return 1;
-  return 2;
-}
+`groupChoiceByEngine` groups **every** engine (it is a journal view). The
+experiment comparison that consumes it must then pick exactly
+`JEV_ENGINE_ID` + `LOCAL_ENGINE_ID` — see Step 3. Do not "generalise" the
+consumer: a third engine would silently change the denominator and could
+produce a three-label write in `label-pair` (plan amendment 2).
 
+```ts
 export async function buildDisagreements(
   paths: JevPaths,
   opts: { decision?: DecisionType },
@@ -1491,19 +1594,22 @@ export async function buildDisagreements(
   let bothWrong = 0;
 
   for (const [projectionHash, byEngine] of groups) {
-    if (byEngine.size < 2) continue;
+    // The experiment is Jev vs the local baseline ONLY (plan amendment 2).
+    // A group that lacks either — or that has a third engine instead of one
+    // of them — is not a comparable experiment pair. Third-engine records
+    // stay journalled; they never enter the denominator or the tallies.
+    const jevRecord = byEngine.get(JEV_ENGINE_ID);
+    const baselineRecord = byEngine.get(LOCAL_ENGINE_ID);
+    if (jevRecord === undefined || baselineRecord === undefined) continue;
     paired += 1;
-    const sides: DisagreementSide[] = [...byEngine.entries()]
-      .map(([engineId, record]) => ({
-        engineId,
-        decisionId: record.decisionId,
-        verdict: String((record.outcome as { choice: unknown }).choice),
-        label: labels.get(record.decisionId)?.label,
-      }))
-      .sort((a, b) => engineRank(a.engineId) - engineRank(b.engineId));
+    const sides: DisagreementSide[] = [jevRecord, baselineRecord].map((record) => ({
+      engineId: record.engineId,
+      decisionId: record.decisionId,
+      verdict: String((record.outcome as { choice: unknown }).choice),
+      label: labels.get(record.decisionId)?.label,
+    }));
 
-    const distinct = new Set(sides.map((side) => side.verdict));
-    if (distinct.size < 2) continue; // agreement
+    if (sides[0].verdict === sides[1].verdict) continue; // agreement
 
     disagreements += 1;
     pairs.push({ projectionHash, sides });
@@ -1511,10 +1617,8 @@ export async function buildDisagreements(
     const allLabelled = sides.every((side) => side.label !== undefined);
     if (!allLabelled) continue;
     labelled += 1;
-    const jev = sides.find((side) => side.engineId === JEV_ENGINE_ID);
-    const baseline = sides.find((side) => side.engineId === LOCAL_ENGINE_ID);
-    if (jev?.label === "correct") jevCorrect += 1;
-    if (baseline?.label === "correct") baselineCorrect += 1;
+    if (sides[0].label === "correct") jevCorrect += 1;
+    if (sides[1].label === "correct") baselineCorrect += 1;
     if (sides.every((side) => side.label === "incorrect")) bothWrong += 1;
   }
 
@@ -1640,115 +1744,82 @@ git commit -m "feat(jev-cli): disagreements view with pairing, rate and tallies"
 
 ---
 
-### Task 7: `alix jev label-pair` (blind ground-truth labelling)
+### Task 7: `alix jev label-pair` (two-stage blind ground-truth labelling)
 
 **Files:**
 - Modify: `src/cli/commands/jev/ops.ts`, `src/cli/commands/jev/render.ts`, `src/cli/commands/jev/main.ts`
 - Test: `tests/cli/jev-ops.test.ts`
 
 **Interfaces:**
-- Consumes: `groupChoiceByEngine` (Task 6), `createExperimentProjectionStore`/`ClaimVerificationExperimentProjection` (Task 3), `createOutcomeLabel`/`createOutcomeLabelStore`/`indexLabelsByDecisionId`, `CLAIM_VERDICT_CANDIDATES`, `RISK_TIER_CANDIDATES`, `MODEL_TIER_VALUES`, `JevOperatorError`.
-- Produces: `labelPair(paths, { projectionHash, truth, storeDir? }): Promise<LabelPairResult>` (throws `JevOperatorError` on any refusal, writing nothing), `renderLabelPair(result): string`, CLI subcommand `label-pair`.
+- Consumes: `groupChoiceByEngine` (Task 6), `createExperimentProjectionStore`/`ClaimVerificationExperimentProjection` (Task 3), `createOutcomeLabel`/`createOutcomeLabelStore`/`indexLabelsByDecisionId`, `CLAIM_VERDICT_CANDIDATES`, `JEV_ENGINE_ID`, `LOCAL_ENGINE_ID`, `JevOperatorError`, `promptUser` (from `../../../run/helpers.js`).
+- Produces: `LabelPairStage`, `prepareLabelPair(paths, {projectionHash, storeDir?}): Promise<LabelPairStage>` (structural refusals only, **returns no verdicts**), `commitLabelPair(paths, {projectionHash, truth, storeDir?}): Promise<LabelPairResult>` (truth-legality + already-labelled refusals, derives and appends exactly two labels in fixed order Jev→baseline), `renderLabelPairEvidence(stage)`, `renderLabelPairReveal(result)`, CLI subcommand `label-pair`.
 
-Ordering is the contract: **every refusal fires before any label is appended** (a judgement is never silently overwritten). Blindness (§18.1–18.2) is structural: the evidence view renders from the experiment store *before* the reveal block, and the projection's existence is itself a refusal condition.
+**Two-stage contract (plan amendment 1 — blindness must be structural, not cosmetic):**
 
-Scope note (spec §18.5 says "categorical Choice decisions"): truth validation supports all three Choice decisions via `TRUTH_CANDIDATES`; Noul (context-relevance) is refused with an actionable message.
+```text
+Stage 1  prepare  → structural refusals (no direction revealed)
+         renderLabelPairEvidence → Claim + Evidence only
+         prompt `Truth [supported|contradicted|insufficient]: `   (interactive)
+Stage 2  commit   → truth legality + already-labelled refusals → derive → append 2 labels
+         renderLabelPairReveal → Truth, then Jev/Baseline verdicts
+```
+
+- Interactive default: no `--truth` → stage 1 output, prompt, stage 2.
+- Non-interactive: `--truth <v>` — documented as the path where the caller already
+  established truth independently; stage 1 still runs (structural refusals fire
+  first), then commit, then reveal.
+- `--json` **without** `--truth` is a usage error (interactive prompting is TTY-only).
+- Refusal ordering: every refusal fires before any label is appended — a
+  judgement is never silently overwritten.
+
+**Scope (plan amendment 4):** claim-verification **only** in this phase. Other
+decisions have no protected projection store (§16 is `ClaimVerificationExperimentProjection`),
+so §18.1's evidence view is impossible for them — they are refused with an
+actionable message rather than admitted through a side door. Generalise when
+those decisions gain equivalent evidence-review infrastructure.
+
+**Pairing (plan amendment 2):** exactly `JEV_ENGINE_ID` + `LOCAL_ENGINE_ID`,
+in that fixed order. A third engine is never labelled and never counted.
 
 - [ ] **Step 1: Write the failing tests**
 
 Append to `tests/cli/jev-ops.test.ts`:
 
 ```ts
-describe("jev ops — label-pair", () => {
-  it("refuses an unknown projectionHash, writing nothing", async () => {
+describe("jev ops — label-pair (two-stage blind)", () => {
+  /** Journal pair + matching protected projection, both on fresh dirs. */
+  async function seededPair(
+    hash: string,
+    localVerdict: "supported" | "contradicted" | "insufficient",
+    jevVerdict: "supported" | "contradicted" | "insufficient",
+    truth?: "supported" | "contradicted" | "insufficient",
+  ): Promise<{ target: ReturnType<typeof resolveJevPaths>; storeDir: string }> {
+    const target = freshPaths();
+    await seedClaimPair(target, hash, localVerdict, jevVerdict, truth);
+    const storeDir = mkdtempSync(join(tmpdir(), "jev-lp-"));
+    tempDirs.push(storeDir);
+    await createExperimentProjectionStore(storeDir).append({
+      projectionHash: hash,
+      decision: "claim-verification",
+      claim: SUPPORTED_CLAIM,
+      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
+      createdAt: "2026-09-22T00:00:00.000Z",
+    });
+    return { target, storeDir };
+  }
+
+  it("prepare refuses an unknown projectionHash, writing nothing", async () => {
+    const target = freshPaths();
     await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:nope", truth: "supported", storeDir: cwd }),
+      prepareLabelPair(target, { projectionHash: "sha256:nope", storeDir: target.dir }),
       /projectionHash unknown/,
     );
-    assert.equal((await createOutcomeLabelStore(paths.dir).readAll()).labels.length, 0);
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
   });
 
-  it("refuses a pair whose verdicts agree", async () => {
-    await seedClaimPair("sha256:same", "supported", "supported");
-    await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:same", truth: "supported", storeDir: cwd }),
-      /verdicts agree/,
-    );
-  });
-
-  it("refuses an illegal truth", async () => {
-    await seedClaimPair("sha256:bad-truth", "supported", "insufficient");
-    await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:bad-truth", truth: "maybe", storeDir: cwd }),
-      /--truth must be one of/,
-    );
-  });
-
-  it("refuses when the protected experiment projection is unavailable (blindness precondition)", async () => {
-    await seedClaimPair("sha256:no-projection", "supported", "insufficient");
-    await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:no-projection", truth: "supported", storeDir: cwd }),
-      /protected experiment projection unavailable/,
-    );
-    assert.equal((await createOutcomeLabelStore(paths.dir).readAll()).labels.length, 0);
-  });
-
-  it("refuses a second truth for an already-labelled pair", async () => {
-    await seedClaimPair("sha256:done", "supported", "insufficient", "supported");
-    await createExperimentProjectionStore(cwd).append({
-      projectionHash: "sha256:done",
-      decision: "claim-verification",
-      claim: SUPPORTED_CLAIM,
-      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
-      createdAt: "2026-09-22T00:00:00.000Z",
-    });
-    await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:done", truth: "contradicted", storeDir: cwd }),
-      /already labelled/,
-    );
-    assert.equal((await createOutcomeLabelStore(paths.dir).readAll()).labels.length, 2);
-  });
-
-  it("writes both labels from one truth, deriving each engine's judgement", async () => {
-    await seedClaimPair("sha256:truth", "supported", "insufficient");
-    await createExperimentProjectionStore(cwd).append({
-      projectionHash: "sha256:truth",
-      decision: "claim-verification",
-      claim: SUPPORTED_CLAIM,
-      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
-      createdAt: "2026-09-22T00:00:00.000Z",
-    });
-    const result = await labelPair(paths, { projectionHash: "sha256:truth", truth: "supported", storeDir: cwd });
-    assert.equal(result.truth, "supported");
-    assert.equal(result.labels.length, 2);
-    assert.deepEqual(
-      result.labels.map((side) => [side.engineId, side.label]),
-      [
-        ["jev", "incorrect"],
-        ["local", "correct"],
-      ],
-    );
-    assert.equal(result.projection.claim, SUPPORTED_CLAIM);
-    const stored = (await createOutcomeLabelStore(paths.dir).readAll()).labels;
-    assert.equal(stored.length, 2);
-    assert.ok(stored.every((label) => label.note === "truth=supported"));
-  });
-
-  it("derives both-wrong when neither verdict matches truth", async () => {
-    await seedClaimPair("sha256:bw", "supported", "contradicted");
-    await createExperimentProjectionStore(cwd).append({
-      projectionHash: "sha256:bw",
-      decision: "claim-verification",
-      claim: SUPPORTED_CLAIM,
-      evidence: [{ excerpt: SUPPORTED_EXCERPT }],
-      createdAt: "2026-09-22T00:00:00.000Z",
-    });
-    const result = await labelPair(paths, { projectionHash: "sha256:bw", truth: "insufficient", storeDir: cwd });
-    assert.ok(result.labels.every((side) => side.label === "incorrect"));
-  });
-
-  it("refuses Noul decisions with an actionable message", async () => {
-    const journal = createDecisionJournalStore(paths.dir);
+  it("prepare refuses non-claim-verification decisions (no protected projection store)", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
     journal.append(
       recordDecision({
         decision: "context-relevance",
@@ -1774,26 +1845,153 @@ describe("jev ops — label-pair", () => {
       }),
     );
     await assert.rejects(
-      labelPair(paths, { projectionHash: "sha256:noul", truth: "supported", storeDir: cwd }),
-      /categorical Choice/,
+      prepareLabelPair(target, { projectionHash: "sha256:noul", storeDir: target.dir }),
+      /claim-verification only/,
     );
   });
 
-  it("renders the evidence view before the reveal", async () => {
-    await seedClaimPair("sha256:render", "supported", "insufficient");
+  it("prepare refuses a group that lacks Jev or the local baseline", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:one-sided",
+        outcome: { kind: "choice", choice: "supported", candidates: ["supported", "contradicted", "insufficient"] },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_004_000,
+      }),
+    );
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:one-sided", storeDir: target.dir }),
+      /no valid comparison pair/,
+    );
+  });
+
+  it("prepare refuses agreeing verdicts", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:same", "supported", "supported");
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:same", storeDir: target.dir }),
+      /verdicts agree/,
+    );
+  });
+
+  it("prepare refuses when the protected projection is unavailable", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:no-proj", "supported", "insufficient");
+    const storeDir = mkdtempSync(join(tmpdir(), "jev-lp-empty-"));
+    tempDirs.push(storeDir);
+    await assert.rejects(
+      prepareLabelPair(target, { projectionHash: "sha256:no-proj", storeDir }),
+      /protected experiment projection unavailable/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
+  });
+
+  it("prepare returns NO verdict direction and the evidence render leaks none", async () => {
+    const { target, storeDir } = await seededPair("sha256:blind", "supported", "insufficient");
+    const stage = await prepareLabelPair(target, { projectionHash: "sha256:blind", storeDir });
+    // Structural blindness: the stage carries the projection and nothing else.
+    assert.deepEqual(Object.keys(stage).sort(), ["projection", "projectionHash"]);
+    assert.equal(stage.projection.claim, SUPPORTED_CLAIM);
+
+    const evidence = renderLabelPairEvidence(stage);
+    assert.match(evidence, /Evidence:/);
+    assert.match(evidence, new RegExp(SUPPORTED_CLAIM.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    // No direction may appear before truth is entered (§18.2):
+    assert.doesNotMatch(evidence, /\bJev\b|\bBaseline\b/);
+    assert.doesNotMatch(evidence, /-> /);
+    assert.doesNotMatch(evidence, /\bcorrect\b|\bincorrect\b/);
+    // The reveal has NOT been rendered at this stage at all.
+    assert.equal(evidence.includes("Truth"), false);
+  });
+
+  it("commit refuses an illegal truth, writing nothing", async () => {
+    const { target, storeDir } = await seededPair("sha256:bad", "supported", "insufficient");
+    await assert.rejects(
+      commitLabelPair(target, { projectionHash: "sha256:bad", truth: "maybe", storeDir }),
+      /--truth must be one of/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 0);
+  });
+
+  it("commit refuses an already-labelled pair (a judgement is never overwritten)", async () => {
+    const { target, storeDir } = await seededPair("sha256:done", "supported", "insufficient", "supported");
+    await assert.rejects(
+      commitLabelPair(target, { projectionHash: "sha256:done", truth: "contradicted", storeDir }),
+      /already labelled/,
+    );
+    assert.equal((await createOutcomeLabelStore(target.dir).readAll()).labels.length, 2);
+  });
+
+  it("commit derives exactly two labels — Jev first, then baseline — and reveals them", async () => {
+    const { target, storeDir } = await seededPair("sha256:truth", "supported", "insufficient");
+    const result = await commitLabelPair(target, { projectionHash: "sha256:truth", truth: "supported", storeDir });
+    assert.equal(result.truth, "supported");
+    assert.deepEqual(
+      result.labels.map((side) => [side.engineId, side.label]),
+      [
+        ["jev", "incorrect"],
+        ["local", "correct"],
+      ],
+    );
+    assert.equal(result.projection.claim, SUPPORTED_CLAIM);
+    const stored = (await createOutcomeLabelStore(target.dir).readAll()).labels;
+    assert.equal(stored.length, 2);
+    assert.ok(stored.every((label) => label.note === "truth=supported"));
+
+    const reveal = renderLabelPairReveal(result);
+    assert.match(reveal, /Truth: supported/);
+    assert.match(reveal, /Jev:\s+insufficient\s+-> incorrect/);
+    assert.match(reveal, /Baseline:\s+supported\s+-> correct/);
+  });
+
+  it("commit derives both-wrong when neither verdict matches truth", async () => {
+    const { target, storeDir } = await seededPair("sha256:bw", "supported", "contradicted");
+    const result = await commitLabelPair(target, { projectionHash: "sha256:bw", truth: "insufficient", storeDir });
+    assert.ok(result.labels.every((side) => side.label === "incorrect"));
+    assert.equal(result.labels.length, 2);
+  });
+
+  it("--json without --truth is a usage error, raised before anything is read", async () => {
+    await assert.rejects(
+      dispatchJevCommand(["label-pair", "--projection-hash", "sha256:anything", "--json"], { cwd }),
+      /--truth is required with --json/,
+    );
+  });
+
+  it("non-interactive --truth through the CLI writes both labels and reveals them", async () => {
+    // Seed into cwd so dispatchJevCommand({ cwd }) sees the pair.
+    const target = resolveJevPaths(cwd);
+    await seedClaimPair(target, "sha256:cli", "supported", "insufficient");
     await createExperimentProjectionStore(cwd).append({
-      projectionHash: "sha256:render",
+      projectionHash: "sha256:cli",
       decision: "claim-verification",
       claim: SUPPORTED_CLAIM,
       evidence: [{ excerpt: SUPPORTED_EXCERPT }],
       createdAt: "2026-09-22T00:00:00.000Z",
     });
-    const result = await labelPair(paths, { projectionHash: "sha256:render", truth: "supported", storeDir: cwd });
-    const text = renderLabelPair(result);
-    const evidenceAt = text.indexOf("Evidence:");
-    const truthAt = text.indexOf("Truth: supported");
-    assert.ok(evidenceAt >= 0 && truthAt > evidenceAt, "evidence must be shown before the truth reveal");
-    assert.match(text, /jev \(.+\): insufficient -> incorrect/);
+    const chunks: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    (process.stdout as unknown as { write: (chunk: unknown) => boolean }).write = (chunk: unknown) => {
+      chunks.push(String(chunk));
+      return true;
+    };
+    try {
+      await dispatchJevCommand(
+        ["label-pair", "--projection-hash", "sha256:cli", "--truth", "supported", "--store-dir", cwd, "--json"],
+        { cwd },
+      );
+    } finally {
+      (process.stdout as unknown as { write: typeof original }).write = original;
+    }
+    const result = JSON.parse(chunks.join("")) as { truth: string; labels: unknown[] };
+    assert.equal(result.truth, "supported");
+    assert.equal(result.labels.length, 2);
   });
 });
 ```
@@ -1805,70 +2003,104 @@ const SUPPORTED_CLAIM = "Water boils at 100 degrees Celsius at sea level.";
 const SUPPORTED_EXCERPT = "At sea level, water boils at 100 degrees Celsius.";
 ```
 
-Add to imports: `labelPair` (ops), `renderLabelPair` (render), `createExperimentProjectionStore` (decision barrel).
+Add to imports: `prepareLabelPair`, `commitLabelPair` (ops), `renderLabelPairEvidence`, `renderLabelPairReveal` (render), `createExperimentProjectionStore` (decision barrel).
 
 - [ ] **Step 2: Run to verify failure**
 
 Run: `pnpm build && node --test dist/tests/cli/jev-ops.test.js`
-Expected: FAIL — `labelPair is not a function`.
+Expected: FAIL — `prepareLabelPair is not a function`.
 
 - [ ] **Step 3: Implement ops**
 
 Append to `src/cli/commands/jev/ops.ts`:
 
 ```ts
-// ─── Blind ground-truth labelling ─────────────────────────────────────
+// ─── Blind ground-truth labelling (two-stage, spec §18) ────────────────
 
-const TRUTH_CANDIDATES: Partial<Record<DecisionType, readonly string[]>> = {
-  "claim-verification": CLAIM_VERDICT_CANDIDATES,
-  "risk-escalation": RISK_TIER_CANDIDATES,
-  "model-tier": MODEL_TIER_VALUES,
+export type LabelPairStage = {
+  projectionHash: string;
+  projection: ClaimVerificationExperimentProjection;
 };
 
 export type LabelPairSide = { engineId: string; decisionId: string; verdict: string; label: OutcomeLabel };
 export type LabelPairResult = {
   projectionHash: string;
   truth: string;
-  labels: LabelPairSide[]; // jev first, then baseline
+  /** Exactly two sides, fixed order: Jev, then local baseline (plan amendment 2). */
+  labels: LabelPairSide[];
   projection: ClaimVerificationExperimentProjection;
 };
 
 /**
- * Spec §18: one operator-supplied truth, two derived labels. Every refusal
- * fires before the first append — a judgement is never silently overwritten.
- * The projection must exist because the operator judged from it (§18.1/18.4).
+ * Shared structural validation: every refusal that reveals no verdict
+ * direction fires here, so neither stage can proceed to a write on bad input.
+ * Throws JevOperatorError; caller surfaces it as an operator error.
  */
-export async function labelPair(
+function experimentPair(
+  records: readonly DecisionJournalRecord[],
+  projectionHash: string,
+): { decision: DecisionType; jev: DecisionJournalRecord; baseline: DecisionJournalRecord } {
+  const group = records.filter((record) => record.projectionHash === projectionHash);
+  if (group.length === 0) {
+    throw new JevOperatorError(`projectionHash unknown: ${projectionHash}`);
+  }
+  const decision = group[0].decision;
+  if (decision !== "claim-verification") {
+    throw new JevOperatorError(
+      `label-pair supports claim-verification only (found ${decision}): other decisions have no protected projection store, so the §18.1 evidence view cannot be shown`,
+    );
+  }
+  const byEngine = groupChoiceByEngine(records, decision).get(projectionHash);
+  const jev = byEngine?.get(JEV_ENGINE_ID);
+  const baseline = byEngine?.get(LOCAL_ENGINE_ID);
+  if (jev === undefined || baseline === undefined) {
+    throw new JevOperatorError(
+      `no valid comparison pair exists for ${projectionHash} — need both ${JEV_ENGINE_ID} and ${LOCAL_ENGINE_ID} choice records`,
+    );
+  }
+  const jevVerdict = String((jev.outcome as { choice: unknown }).choice);
+  const baselineVerdict = String((baseline.outcome as { choice: unknown }).choice);
+  if (jevVerdict === baselineVerdict) {
+    throw new JevOperatorError("pair verdicts agree — use alix jev label for single-record labelling");
+  }
+  return { decision, jev, baseline };
+}
+
+/**
+ * Stage 1 — structural validation plus the operator's evidence view (§18.1).
+ * The returned type is deliberately projection-only: no verdict crosses this
+ * boundary, which is what makes blindness structural rather than cosmetic
+ * (§18.2). Verdicts are read only inside commitLabelPair, after truth exists.
+ */
+export async function prepareLabelPair(
+  paths: JevPaths,
+  input: { projectionHash: string; storeDir?: string },
+): Promise<LabelPairStage> {
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  experimentPair(records, input.projectionHash); // validates; verdicts discarded
+  const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
+  if (projection === undefined) {
+    throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
+  }
+  return { projectionHash: input.projectionHash, projection };
+}
+
+/**
+ * Stage 2 — after truth is entered. Re-runs structural validation (idempotent),
+ * then truth legality and already-labelled refusals, then derives both labels
+ * from `truth` (§18.3) and appends them (§18.4: every refusal fires before the
+ * first append).
+ */
+export async function commitLabelPair(
   paths: JevPaths,
   input: { projectionHash: string; truth: string; storeDir?: string },
 ): Promise<LabelPairResult> {
   const records = createDecisionJournalStore(paths.dir).readAll();
-  const groups = new Map<string, typeof records>();
-  for (const record of records) {
-    const group = groups.get(record.projectionHash) ?? [];
-    group.push(record);
-    groups.set(record.projectionHash, group);
-  }
-  const group = groups.get(input.projectionHash);
-  if (group === undefined) throw new JevOperatorError(`projectionHash unknown: ${input.projectionHash}`);
+  const { decision, jev, baseline } = experimentPair(records, input.projectionHash);
 
-  const decision = group[0].decision;
-  const candidates = TRUTH_CANDIDATES[decision];
-  if (candidates === undefined) {
-    throw new JevOperatorError(
-      `label-pair requires a categorical Choice decision (found ${decision}); label it with alix jev label instead`,
-    );
+  if (!(CLAIM_VERDICT_CANDIDATES as readonly string[]).includes(input.truth)) {
+    throw new JevOperatorError(`--truth must be one of ${CLAIM_VERDICT_CANDIDATES.join("|")}`);
   }
-
-  const byEngine = groupChoiceByEngine(records, decision).get(input.projectionHash);
-  const sides = [...(byEngine?.entries() ?? [])];
-  if (sides.length < 2) throw new JevOperatorError(`no valid comparison pair exists for ${input.projectionHash}`);
-  const verdicts = new Set(sides.map(([, record]) => String((record.outcome as { choice: unknown }).choice)));
-  if (verdicts.size < 2) throw new JevOperatorError("pair verdicts agree — use alix jev label for single-record labelling");
-  if (!(candidates as readonly string[]).includes(input.truth)) {
-    throw new JevOperatorError(`--truth must be one of ${candidates.join("|")}`);
-  }
-
   const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
   if (projection === undefined) {
     throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
@@ -1876,17 +2108,14 @@ export async function labelPair(
 
   const labelStore = createOutcomeLabelStore(paths.dir);
   const existing = indexLabelsByDecisionId((await labelStore.readAll()).labels);
-  const ordered = sides
-    .map(([engineId, record]) => ({ engineId, record }))
-    .sort((a, b) => (a.engineId === JEV_ENGINE_ID ? 0 : b.engineId === JEV_ENGINE_ID ? 1 : 0));
-  for (const { record } of ordered) {
+  for (const record of [jev, baseline]) {
     if (existing.has(record.decisionId)) {
       throw new JevOperatorError(`already labelled: ${record.decisionId} — a judgement is never overwritten`);
     }
   }
 
   const labels: LabelPairSide[] = [];
-  for (const { engineId, record } of ordered) {
+  for (const record of [jev, baseline]) {
     const verdict = String((record.outcome as { choice: unknown }).choice);
     const label = verdict === input.truth ? "correct" : "incorrect";
     await labelStore.append(
@@ -1898,61 +2127,101 @@ export async function labelPair(
         observedAt: Date.now(),
       }),
     );
-    labels.push({ engineId, decisionId: record.decisionId, verdict, label });
+    labels.push({ engineId: record.engineId, decisionId: record.decisionId, verdict, label });
   }
 
   return { projectionHash: input.projectionHash, truth: input.truth, labels, projection };
 }
 ```
 
-Add imports as needed: `CLAIM_VERDICT_CANDIDATES`, `RISK_TIER_CANDIDATES`, `MODEL_TIER_VALUES`, `ClaimVerificationExperimentProjection`, `createExperimentProjectionStore`.
+Add imports as needed: `CLAIM_VERDICT_CANDIDATES` (drop any `RISK_TIER_CANDIDATES`/`MODEL_TIER_VALUES` plan — they are out of scope, plan amendment 4), `ClaimVerificationExperimentProjection`, `createExperimentProjectionStore`, `JEV_ENGINE_ID`, `LOCAL_ENGINE_ID` (the last two are already imported for Task 6).
 
 - [ ] **Step 4: Implement render**
 
 Append to `src/cli/commands/jev/render.ts`:
 
 ```ts
-/** §18.1–18.2: evidence first (before truth entry), reveal after. */
-export function renderLabelPair(result: LabelPairResult): string {
-  const lines: string[] = [`Evidence for ${result.projectionHash}`, "", "Claim:", `  ${result.projection.claim}`, "", "Evidence:"];
-  if (result.projection.evidence.length === 0) {
+/**
+ * Stage 1 output — claim + evidence only (§18.1). MUST NOT contain verdict
+ * direction: no engine names, no verdict words, no arrows, no "Truth" (§18.2).
+ * tests/cli/jev-ops.test.ts pins these absences.
+ */
+export function renderLabelPairEvidence(stage: LabelPairStage): string {
+  const lines: string[] = [
+    `Evidence for ${stage.projectionHash}`,
+    "",
+    "Claim:",
+    `  ${stage.projection.claim}`,
+    "",
+    "Evidence:",
+  ];
+  if (stage.projection.evidence.length === 0) {
     lines.push("  (none)");
   }
-  result.projection.evidence.forEach((item, index) => {
+  stage.projection.evidence.forEach((item, index) => {
     if (item.source !== undefined) lines.push(`  [${index + 1}] ${item.source}`);
     lines.push(`  [${index + 1}] ${item.excerpt}`);
   });
-  lines.push("");
-  lines.push(`Truth: ${result.truth}`);
-  lines.push("");
+  return lines.join("\n");
+}
+
+/**
+ * Stage 2 output — only ever called AFTER truth is committed (§18: "after truth
+ * is committed, the CLI may reveal truth, verdicts, derived labels").
+ */
+export function renderLabelPairReveal(result: LabelPairResult): string {
+  const lines: string[] = [`Truth: ${result.truth}`, ""];
   for (const side of result.labels) {
-    const label = side.engineId === "jev" ? "jev" : side.engineId === "local" ? "baseline" : side.engineId;
-    lines.push(`  ${label} (${side.decisionId}): ${side.verdict} -> ${side.label}`);
+    const name = side.engineId === "jev" ? "Jev" : "Baseline";
+    lines.push(`${name}:`.padEnd(10) + side.verdict.padEnd(15) + `-> ${side.label}`);
   }
   return lines.join("\n");
 }
 ```
 
-Add `LabelPairResult` to `render.ts`'s `./ops.js` imports.
+Add `LabelPairStage`, `LabelPairResult` to `render.ts`'s `./ops.js` imports.
 
-- [ ] **Step 5: Implement dispatch**
+- [ ] **Step 5: Implement dispatch (two-stage)**
 
 In `src/cli/commands/jev/main.ts`, add before `default:`:
 
 ```ts
     case "label-pair": {
       const flags = parseKeyValueArgs(rest, ["projection-hash", "truth", "store-dir"], ["json"]);
-      const result = await labelPair(paths, {
-        projectionHash: requireString(flags["projection-hash"], "projection-hash"),
-        truth: requireString(flags.truth, "truth"),
-        ...(typeof flags["store-dir"] === "string" ? { storeDir: flags["store-dir"] } : {}),
+      const projectionHash = requireString(flags["projection-hash"], "projection-hash");
+      const storeDir = typeof flags["store-dir"] === "string" ? { storeDir: flags["store-dir"] } : {};
+      const hasTruth = typeof flags.truth === "string" && flags.truth.length > 0;
+
+      // Usage check first: --json is automation, so it must carry truth.
+      if (json && !hasTruth) {
+        throw new JevOperatorError(
+          "--truth is required with --json (interactive prompting is TTY-only; supply truth established independently)",
+        );
+      }
+
+      // Stage 1: structural refusals + the evidence view. No verdict direction.
+      const stage = await prepareLabelPair(paths, { projectionHash, ...storeDir });
+
+      if (hasTruth) {
+        // Non-interactive path: caller already established truth independently.
+        const result = await commitLabelPair(paths, { projectionHash, truth: flags.truth as string, ...storeDir });
+        out(json ? JSON.stringify(result, null, 2) : renderLabelPairReveal(result));
+        return;
+      }
+
+      out(renderLabelPairEvidence(stage));
+      const raw = await promptUser(`Truth [${CLAIM_VERDICT_CANDIDATES.join("|")}]: `);
+      const result = await commitLabelPair(paths, {
+        projectionHash,
+        truth: raw.trim().toLowerCase(),
+        ...storeDir,
       });
-      out(json ? JSON.stringify(result, null, 2) : renderLabelPair(result));
+      out(renderLabelPairReveal(result));
       return;
     }
 ```
 
-Add `labelPair` to the ops import, `renderLabelPair` to the render import, and extend the unknown-subcommand list with `label-pair`.
+Add imports: `prepareLabelPair`, `commitLabelPair` (ops), `renderLabelPairEvidence`, `renderLabelPairReveal` (render), `CLAIM_VERDICT_CANDIDATES` (decision barrel — main.ts already imports decision types), `promptUser` from `../../../run/helpers.js`. Extend the unknown-subcommand list with `label-pair`.
 
 - [ ] **Step 6: Run to verify pass**
 
@@ -2022,17 +2291,27 @@ git commit -m "docs(dox): record selection service, experiment store, jev subcom
 
 Run the `gitnexus_detect_changes` tool with `scope: "unstaged"` (and `staged` when staged). Expect low risk, decision/tools/CLI symbols only, no `policy`/`providers`/`kernel` symbols. **A "No changes detected" result for a brand-new untracked file means the file is not staged — confirm with `git status`.**
 
-- [ ] **Step 6: Open the PR (explicit paths only)**
+- [ ] **Step 6: Push the eight commits and open the PR (plan amendment 3)**
+
+The branch exists from Preflight Step 0.2 and every task already committed to
+it — so **no** `git add <every file>` and **no** `git commit --amend`: one
+commit per task stands exactly as written in Tasks 1–8.
 
 ```bash
-git checkout -b feat/claim-verification-shadow-tool
-git add <every file touched by Tasks 1–8>   # never `git add -u <dir>`
-git commit --amend --no-edit                 # only if still on one commit
+git log --oneline origin/main..HEAD   # expect 8 commits, one per task
+git status --short                    # nothing unstaged
 git push -u origin feat/claim-verification-shadow-tool
 gh pr create --base main --head feat/claim-verification-shadow-tool \
   --title "feat(tools): alix_verify_claim — claim-verification primitive with Jev shadow experiment" \
-  --body-file <body citing the spec>
+  --body "$(printf '%s\n' \
+    'Implements docs/superpowers/specs/2026-09-22-claim-verification-shadow-tool-design.md (approved; amendments in §3.1) via docs/superpowers/plans/2026-09-22-claim-verification-shadow-tool.md (8 tasks, one commit each).' \
+    '' \
+    'Adds selectClaimVerification (baseline|shadow|active), the protected experiment projection store at ~/.alix/decisions/experiments.jsonl, the verify.claim tool with its full seven-edit wiring, `alix jev disagreements`, and two-stage blind `alix jev label-pair` (claim-verification only).' \
+    '' \
+    'Verification: pnpm build; decision/config/cli/policy/tools suites; typecheck:unused; check:dead — all green. detect_changes reviewed before the PR.')"
 ```
+
+Expected: PR opened with 8 commits, CI running.
 
 ---
 
@@ -2052,6 +2331,9 @@ gh pr create --base main --head feat/claim-verification-shadow-tool \
 | §15 pairing rules | 6 (`groupChoiceByEngine`, most-recent-per-engine test) |
 | §16 + §16.4 store | 3 (+4 writes it) |
 | §17 disagreements CLI + §17.2 rate/denominator | 6 |
+| §18 blind labelling — genuinely **two-stage** (evidence+prompt before commit), refusals, derivation | 7 (amendment 1) |
+| §18.5 scope narrowed to claim-verification (no protected store for other decisions yet) | 7 (amendment 4) |
+| Plan amendments 1–4 (two-stage blindness; Jev+local-only pairing; branch preflight; claim-only scope) | Preflight, 6, 7 |
 | §18 blind labelling, refusals, derivation, scope | 7 |
 | §19/§20 metrics + gate (informational) | 6 footer |
 | §22/§23 failure + security matrix | 4, 5 (tests), inherited |
