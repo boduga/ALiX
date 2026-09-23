@@ -23,10 +23,20 @@ import { readModelTierProjection, type ModelTierProjection } from "./projection.
 
 export const JEV_MODEL_TIER_QUESTION_ID = "model-tier";
 
-/** Rubric descriptions separate the compute classes from one another. */
-const TIER_DESCRIPTIONS: Record<ModelTier, string> = {
+/**
+ * Rubric descriptions separate the compute classes from one another. Exported
+ * so the decision's contract with the model is verifiable, not buried prose.
+ *
+ * `thinking` names `synthesis` explicitly: a composite deliverable (a report
+ * with images) is sent as `TASK KIND: synthesis`, and a rubric that only says
+ * "reasoning, analysis, or planning" leaves the model to choose between this
+ * and "balanced general-purpose work" unaided.
+ */
+export const TIER_DESCRIPTIONS: Record<ModelTier, string> = {
   default: "Balanced general-purpose work",
-  thinking: "Deep reasoning, analysis, or planning",
+  thinking:
+    "Deep reasoning, analysis, synthesis, or planning, including composite " +
+    "deliverables that combine several kinds of work",
   coding: "Code generation, edits, and refactors",
   fast: "Quick, simple lookups or classifications",
   critic: "Review, verification, or critique of existing work",

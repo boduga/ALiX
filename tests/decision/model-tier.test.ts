@@ -9,6 +9,7 @@ import {
   LOCAL_ENGINE_ID,
   MalformedResultError,
   MODEL_TIER_CORPUS,
+  TIER_DESCRIPTIONS,
   TIER_CANDIDATES,
   assertEnabledTier,
   chooseTierLocally,
@@ -241,6 +242,27 @@ describe("jev model-tier mapping", () => {
       assert.ok(TIER_CANDIDATES.includes(option as never));
     }
     assert.equal(JSON.stringify(request).includes("openai"), false);
+  });
+
+  it("names synthesis in the thinking rubric (composite deliverables)", () => {
+    // The state sends `TASK KIND: synthesis` for a report-with-images, but
+    // synthesis is not itself a tier. If no tier description names it, the
+    // model is left choosing between "thinking" and "default" unaided — which
+    // is how the live replay disagreed on report-with-images.
+    assert.match(TIER_DESCRIPTIONS.thinking, /synthesis/);
+    const sealed = projectModelTier({ ...FEATURES, taskKind: "synthesis" });
+    const request = toJevModelTierRequest(sealed, ["default", "thinking"]);
+    const question = request.questions[JEV_MODEL_TIER_QUESTION_ID];
+    if (question.type !== "choice") throw new Error("expected a choice question");
+    assert.match(String(question.criteria.thinking), /synthesis/);
+    assert.match(String(request.state), /TASK KIND: synthesis/);
+    assert.equal(
+      chooseTierLocally(
+        { ...FEATURES, taskKind: "synthesis" },
+        ["default", "thinking"],
+      ).tier,
+      "thinking",
+    );
   });
 
   it("renders image input as a hint, not a gate", () => {
