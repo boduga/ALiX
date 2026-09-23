@@ -10,7 +10,9 @@
 import {
   CONTEXT_RELEVANCE_PROFILES,
   DEFAULT_DECISION_CONFIG,
+  JEV_ENGINE_ID,
   JEV_KEY_PROVIDER_ID,
+  LOCAL_ENGINE_ID,
   activeProfile,
   computeReliability,
   createDecisionJournalStore,
@@ -19,6 +21,7 @@ import {
   createProfileRegistry,
   deriveThresholdProfile,
   exportCalibrationDataset,
+  indexLabelsByDecisionId,
   loadProfileRegistry,
   promoteProfile,
   resolveDecisionPaths,
@@ -26,6 +29,7 @@ import {
   saveProfileRegistry,
   type CalibrationExport,
   type DecisionConfig,
+  type DecisionJournalRecord,
   type DecisionPaths,
   type DecisionType,
   type LabelErrorType,
@@ -304,4 +308,121 @@ export function activeProfileFor(
   scope: { decision: DecisionType; engineId: string; risk?: RiskContext },
 ): ThresholdProfile | undefined {
   return activeProfile(loadProfileRegistry(paths.profiles), scope);
+}
+
+// ─── Disagreements ────────────────────────────────────────────────────
+
+export type DisagreementSide = {
+  engineId: string;
+  decisionId: string;
+  verdict: string;
+  label?: OutcomeLabel;
+};
+
+export type DisagreementPair = {
+  projectionHash: string;
+  /** Exactly two sides: Jev, then local baseline (plan amendment 2). */
+  sides: DisagreementSide[];
+};
+
+export type DisagreementsReport = {
+  decision: DecisionType;
+  invocations: number;
+  paired: number;
+  agreements: number;
+  disagreements: number;
+  disagreementRate: string; // "27.5%" or "n/a"
+  labelled: number;
+  unlabelled: number;
+  jevCorrect: number;
+  baselineCorrect: number;
+  bothWrong: number;
+  pairs: DisagreementPair[];
+};
+
+/** projectionHash -> engineId -> most recent Choice record (spec §15). */
+export function groupChoiceByEngine(
+  records: readonly DecisionJournalRecord[],
+  decision: DecisionType,
+): Map<string, Map<string, DecisionJournalRecord>> {
+  const groups = new Map<string, Map<string, DecisionJournalRecord>>();
+  for (const record of records) {
+    if (record.decision !== decision || record.outcome.kind !== "choice") continue;
+    const byEngine = groups.get(record.projectionHash) ?? new Map<string, DecisionJournalRecord>();
+    const previous = byEngine.get(record.engineId);
+    if (previous === undefined || record.timestamp >= previous.timestamp) {
+      byEngine.set(record.engineId, record);
+    }
+    groups.set(record.projectionHash, byEngine);
+  }
+  return groups;
+}
+
+export async function buildDisagreements(
+  paths: JevPaths,
+  opts: { decision?: DecisionType },
+): Promise<DisagreementsReport> {
+  const decision = opts.decision ?? "claim-verification";
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  // invocations = EVERY group of this decision (spec §17 shows invocations=42,
+  // paired=40) — failure-only groups count as invocations but can never pair.
+  const invocations = new Set(
+    records.filter((record) => record.decision === decision).map((record) => record.projectionHash),
+  ).size;
+  const groups = groupChoiceByEngine(records, decision);
+  const labels = indexLabelsByDecisionId(
+    (await createOutcomeLabelStore(paths.dir).readAll()).labels,
+  );
+
+  let paired = 0;
+  let disagreements = 0;
+  const pairs: DisagreementPair[] = [];
+  let labelled = 0;
+  let jevCorrect = 0;
+  let baselineCorrect = 0;
+  let bothWrong = 0;
+
+  for (const [projectionHash, byEngine] of groups) {
+    // The experiment is Jev vs the local baseline ONLY (plan amendment 2).
+    // A group that lacks either — or that has a third engine instead of one
+    // of them — is not a comparable experiment pair. Third-engine records
+    // stay journalled; they never enter the denominator or the tallies.
+    const jevRecord = byEngine.get(JEV_ENGINE_ID);
+    const baselineRecord = byEngine.get(LOCAL_ENGINE_ID);
+    if (jevRecord === undefined || baselineRecord === undefined) continue;
+    paired += 1;
+    const sides: DisagreementSide[] = [jevRecord, baselineRecord].map((record) => ({
+      engineId: record.engineId,
+      decisionId: record.decisionId,
+      verdict: String((record.outcome as { choice: unknown }).choice),
+      label: labels.get(record.decisionId)?.label,
+    }));
+
+    if (sides[0].verdict === sides[1].verdict) continue; // agreement
+
+    disagreements += 1;
+    pairs.push({ projectionHash, sides });
+
+    const allLabelled = sides.every((side) => side.label !== undefined);
+    if (!allLabelled) continue;
+    labelled += 1;
+    if (sides[0].label === "correct") jevCorrect += 1;
+    if (sides[1].label === "correct") baselineCorrect += 1;
+    if (sides.every((side) => side.label === "incorrect")) bothWrong += 1;
+  }
+
+  return {
+    decision,
+    invocations,
+    paired,
+    agreements: paired - disagreements,
+    disagreements,
+    disagreementRate: paired > 0 ? `${((disagreements / paired) * 100).toFixed(1)}%` : "n/a",
+    labelled,
+    unlabelled: disagreements - labelled,
+    jevCorrect,
+    baselineCorrect,
+    bothWrong,
+    pairs,
+  };
 }

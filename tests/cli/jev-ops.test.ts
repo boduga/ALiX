@@ -13,6 +13,7 @@ import {
 import {
   JEV_KEY_PROVIDER_ID,
   JevOperatorError,
+  buildDisagreements,
   buildStatus,
   deriveProfile,
   exportDataset,
@@ -32,6 +33,7 @@ import {
   makeExecutor,
   runReplay,
 } from "../../src/cli/commands/jev/replay-ops.js";
+import { renderDisagreements } from "../../src/cli/commands/jev/render.js";
 import { dispatchJevCommand } from "../../src/cli/commands/jev/main.js";
 import { _setUserConfigPathOverride } from "../../src/cli/helpers/api-keys.js";
 import { _setHomedirOverride } from "../../src/config/loader.js";
@@ -61,6 +63,7 @@ after(() => {
   _setHomedirOverride(undefined);
   _setUserConfigPathOverride(undefined);
   rmSync(cwd, { recursive: true, force: true });
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
 /** Hermetic user config so key lookups never touch the real one. */
@@ -368,5 +371,246 @@ describe("jev dispatcher", () => {
       dispatchJevCommand(["reliability", "--decision", "model-tier"]),
       /--engine is required/,
     );
+  });
+});
+
+/** Per-test journal so assertions stay absolute, never cumulative. */
+const tempDirs: string[] = [];
+function freshPaths(): ReturnType<typeof resolveJevPaths> {
+  const dir = mkdtempSync(join(tmpdir(), "jev-dis-"));
+  tempDirs.push(dir);
+  return resolveJevPaths(dir);
+}
+
+/** Seed one claim-verification group into `target`: local + jev choice records (+ optional truth labels). */
+async function seedClaimPair(
+  target: ReturnType<typeof resolveJevPaths>,
+  hash: string,
+  localVerdict: "supported" | "contradicted" | "insufficient",
+  jevVerdict: "supported" | "contradicted" | "insufficient",
+  truth?: "supported" | "contradicted" | "insufficient",
+): Promise<void> {
+  const journal = createDecisionJournalStore(target.dir);
+  const candidates = ["supported", "contradicted", "insufficient"];
+  const local = recordDecision({
+    decision: "claim-verification",
+    engineId: "local",
+    projectionHash: hash,
+    outcome: { kind: "choice", choice: localVerdict, candidates },
+    latencyMs: 1,
+    remote: false,
+    redactionApplied: false,
+    now: 1_700_000_000_000,
+  });
+  const jev = recordDecision({
+    decision: "claim-verification",
+    engineId: "jev",
+    projectionHash: hash,
+    outcome: { kind: "choice", choice: jevVerdict, candidates, confidence: 0.8 },
+    latencyMs: 12,
+    remote: true,
+    redactionApplied: true,
+    now: 1_700_000_000_500,
+  });
+  journal.append(local);
+  journal.append(jev);
+  if (truth !== undefined) {
+    const labelStore = createOutcomeLabelStore(target.dir);
+    await labelStore.append(
+      createOutcomeLabel({
+        decisionId: local.decisionId,
+        decision: "claim-verification",
+        label: localVerdict === truth ? "correct" : "incorrect",
+        note: `truth=${truth}`,
+        observedAt: 1_700_000_001_000,
+      }),
+    );
+    await labelStore.append(
+      createOutcomeLabel({
+        decisionId: jev.decisionId,
+        decision: "claim-verification",
+        label: jevVerdict === truth ? "correct" : "incorrect",
+        note: `truth=${truth}`,
+        observedAt: 1_700_000_001_500,
+      }),
+    );
+  }
+}
+
+describe("jev ops — disagreements", () => {
+  it("reports no disagreement data available when the journal is empty", async () => {
+    const target = freshPaths();
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 0);
+    assert.equal(report.paired, 0);
+    assert.equal(report.disagreementRate, "n/a");
+    const text = renderDisagreements(report);
+    assert.match(text, /no disagreement data available/);
+    assert.doesNotMatch(text, /the engines always agree/);
+  });
+
+  it("tallies a labelled disagreement pair", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:dis-1", "supported", "insufficient", "supported");
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 1);
+    assert.equal(report.paired, 1);
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.agreements, 0);
+    assert.equal(report.disagreementRate, "100.0%");
+    assert.equal(report.labelled, 1);
+    assert.equal(report.unlabelled, 0);
+    assert.equal(report.baselineCorrect, 1);
+    assert.equal(report.jevCorrect, 0);
+    assert.equal(report.bothWrong, 0);
+    assert.match(renderDisagreements(report), /PAIR sha256:dis-1/);
+  });
+
+  it("counts agreement separately and reports the denominator", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:agree-1", "supported", "supported");
+    await seedClaimPair(target, "sha256:dis-2", "contradicted", "supported");
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.paired, 2);
+    assert.equal(report.agreements, 1);
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.disagreementRate, "50.0%");
+    const text = renderDisagreements(report);
+    assert.match(text, /paired=2/);
+    assert.match(text, /comparable_pairs=2/);
+    assert.match(text, /the engines agree on 1/);
+  });
+
+  it("marks both-wrong when neither recorded verdict matches truth", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:both-wrong", "supported", "contradicted", "insufficient");
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.bothWrong, 1);
+    assert.equal(report.labelled, 1);
+  });
+
+  it("ignores failure outcomes when pairing but still counts the invocation", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "jev",
+        projectionHash: "sha256:only-failure",
+        outcome: { kind: "failure", error: "timeout" },
+        latencyMs: 30_000,
+        remote: true,
+        redactionApplied: false,
+        now: 1_700_000_002_000,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 1); // spec §17: invocations counts every group
+    assert.equal(report.paired, 0);
+    assert.equal(report.disagreements, 0);
+    assert.match(renderDisagreements(report), /no disagreement data available/);
+    assert.match(renderDisagreements(report), /1 invocation\(s\)/);
+  });
+
+  it("keeps the most recent choice record per engine", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    const stale = recordDecision({
+      decision: "claim-verification",
+      engineId: "local",
+      projectionHash: "sha256:latest",
+      outcome: { kind: "choice", choice: "contradicted", candidates },
+      latencyMs: 1,
+      remote: false,
+      redactionApplied: false,
+      now: 1_600_000_000_000,
+    });
+    journal.append(stale);
+    await seedClaimPair(target, "sha256:latest", "supported", "insufficient");
+    const report = await buildDisagreements(target, {});
+    // The newer "supported" record won, so verdicts still differ (supported vs insufficient)
+    // and the stale "contradicted" never produced a third engine.
+    assert.equal(report.paired, 1);
+    assert.equal(report.disagreements, 1);
+  });
+
+  it("pairs only Jev + local — a third engine never changes the denominator", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:third", "supported", "insufficient");
+    const journal = createDecisionJournalStore(target.dir);
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-engine",
+        projectionHash: "sha256:third",
+        outcome: { kind: "choice", choice: "contradicted", candidates: ["supported", "contradicted", "insufficient"] },
+        latencyMs: 3,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_004_000,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    const pair = report.pairs.find((p) => p.projectionHash === "sha256:third");
+    assert.equal(report.paired, 1); // still exactly one experiment pair
+    assert.equal(report.disagreements, 1);
+    assert.deepEqual(pair?.sides.map((side) => side.engineId), ["jev", "local"]);
+  });
+
+  it("does not pair a group that lacks Jev or the local baseline", async () => {
+    const target = freshPaths();
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-a",
+        projectionHash: "sha256:no-experiment-pair",
+        outcome: { kind: "choice", choice: "supported", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_005_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "other-b",
+        projectionHash: "sha256:no-experiment-pair",
+        outcome: { kind: "choice", choice: "contradicted", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_700_000_005_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.invocations, 1);
+    assert.equal(report.paired, 0); // neither engine is Jev or the baseline
+    assert.equal(report.disagreements, 0);
+  });
+
+  it("dispatches through the CLI (hermetic cwd, captured stdout)", async () => {
+    const chunks: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    (process.stdout as unknown as { write: (...args: unknown[]) => boolean }).write = (...args: unknown[]) => {
+      // Under `node --test` the runner streams its binary event protocol through
+      // process.stdout.write too — forward those Buffers so the harness keeps
+      // counting tests; capture only the CLI's own string writes.
+      if (typeof args[0] !== "string") {
+        return (original as unknown as (...a: unknown[]) => boolean)(...args);
+      }
+      chunks.push(args[0]);
+      return true;
+    };
+    try {
+      await dispatchJevCommand(["disagreements", "--json"], { cwd });
+    } finally {
+      (process.stdout as unknown as { write: typeof original }).write = original;
+    }
+    const report = JSON.parse(chunks.join("")) as { decision: string };
+    assert.equal(report.decision, "claim-verification");
   });
 });

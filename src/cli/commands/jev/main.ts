@@ -17,12 +17,14 @@
  *   alix jev fixture build --decision <d>
  *   alix jev fixture list
  *   alix jev replay --engine local|jev [--compare <engine>] [--gate] [--decision <d>]
+ *   alix jev disagreements [--decision <d>] [--json]
  */
 
 import { parseKeyValueArgs } from "../../helpers/parse-args.js";
 import { DEFAULT_DECISION_CONFIG } from "../../../decision/index.js";
 import {
   JevOperatorError,
+  buildDisagreements,
   buildStatus,
   deriveProfile,
   exportDataset,
@@ -38,7 +40,7 @@ import {
   type JevPaths,
 } from "./ops.js";
 import { buildFixtures, loadFixtures, runReplay } from "./replay-ops.js";
-import { renderDataset, renderProfiles, renderReliability, renderReplay, renderStatus } from "./render.js";
+import { renderDataset, renderDisagreements, renderProfiles, renderReliability, renderReplay, renderStatus } from "./render.js";
 import type { LabelErrorType, OutcomeLabel, RiskContext } from "../../../decision/index.js";
 
 const LABEL_VALUES: readonly OutcomeLabel[] = ["correct", "incorrect", "unknown"];
@@ -61,8 +63,11 @@ function optionalDecision(value: string | boolean | undefined): ReturnType<typeo
 }
 
 /** Dispatch only — throws JevOperatorError on usage errors (testable). */
-export async function dispatchJevCommand(args: string[]): Promise<void> {
-  const paths = resolveJevPaths(process.cwd());
+export async function dispatchJevCommand(
+  args: string[],
+  opts?: { cwd?: string },
+): Promise<void> {
+  const paths = resolveJevPaths(opts?.cwd ?? process.cwd());
   const subcommand = args[0] ?? "status";
   const rest = args.slice(1);
   const json = rest.includes("--json");
@@ -151,9 +156,21 @@ export async function dispatchJevCommand(args: string[]): Promise<void> {
       return;
     }
 
+    case "disagreements": {
+      const flags = parseKeyValueArgs(rest, ["decision"], ["json"]);
+      const report = await buildDisagreements(
+        paths,
+        optionalDecision(flags.decision) !== undefined
+          ? { decision: optionalDecision(flags.decision)! }
+          : {},
+      );
+      out(json ? JSON.stringify(report, null, 2) : renderDisagreements(report));
+      return;
+    }
+
     default:
       throw new JevOperatorError(
-        `unknown subcommand: ${subcommand} (expected status, label, dataset, reliability, profile, fixture, replay)`,
+        `unknown subcommand: ${subcommand} (expected status, label, dataset, reliability, profile, fixture, replay, disagreements)`,
       );
   }
 }

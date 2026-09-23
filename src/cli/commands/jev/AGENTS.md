@@ -4,9 +4,9 @@
 
 **Ownership:**
 - `main.ts` — `dispatchJevCommand` (throws `JevOperatorError` on usage errors, testable) and `handleJevCommand` (prints one line and exits 1 on operator errors).
-- `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback; `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
+- `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback, disagreements (`groupChoiceByEngine`/`buildDisagreements`); `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
 - `replay-ops.ts` — corpus → fixtures, `makeExecutor` (local | jev), `runReplay` (with optional compare + gate).
-- `render.ts` — pure formatters (status, dataset, reliability bins, profiles, replay).
+- `render.ts` — pure formatters (status, dataset, reliability bins, profiles, replay, disagreements).
 - `../../../cli/commands/jev.ts` — barrel re-exporting `handleJevCommand`.
 
 **Commands:**
@@ -17,6 +17,7 @@
 - `profile list | derive --decision <d> --engine <e> --target-accuracy <0..1> --id <id> --dataset-id <id> | promote <id> --approve [--approved-by <who>] | rollback --decision <d> --engine <e> [--risk <r>]`
 - `fixture list | build --decision <d>`
 - `replay --engine local|jev [--compare <engine>] [--gate] [--decision <d>] [--timeout-ms N] [--json]` — reports cost from provider-reported tokens when available, else the estimate.
+- `disagreements [--decision <d>] [--json]` — Jev-vs-baseline disagreement view over the decision journal (pairing, rate, tallies).
 
 **Local Contracts:**
 - State lives under `.alix/decisions/`: `decisions.jsonl` (journal), `labels.jsonl`, `profiles.json`, `fixtures/*.json`.
@@ -28,6 +29,7 @@
 - `model-tier` fixture build fails closed below two enabled tiers: a one-option Choice proves nothing.
 - `replay` on `jev` requires `decision.remote.jev.enabled=true` AND a store-only key at `apiKeys.typesafe`; both are refused with actionable messages.
 - Replay is the J5 dry-run harness: no tools, no governance, no journal writes.
+- `disagreements` pairs exactly `JEV_ENGINE_ID` + `LOCAL_ENGINE_ID` choice records per `projectionHash` (most recent per engine wins); a third journalled engine never joins `paired`, the rate, or the sides (fixed order: Jev, then baseline). `invocations` counts every `projectionHash` group for the decision, including failure-only groups, so it can exceed `paired`. `disagreement_rate = disagreements / paired` with `paired` as the explicit denominator; rate is `n/a` and the render says "no disagreement data available" when `paired` is 0.
 - Namespace: `alix jev`, never `alix decision` (that is the governance-lens CLI — see `../decision/AGENTS.md`).
 
 **Work Guidance:**
@@ -36,7 +38,7 @@
 - Never make a command mutate runtime behavior beyond the approved profile lifecycle.
 
 **Verification:**
-- `tests/cli/jev-ops.test.ts` — status, labels, dataset skip accounting, reliability (+ no-samples refusal), profile derive/promote/rollback and the approval gate, fixture building for all four decisions, replay accuracy/compare/gate, engine key+opt-in refusal, dispatcher usage errors.
+- `tests/cli/jev-ops.test.ts` — status, labels, dataset skip accounting, reliability (+ no-samples refusal), profile derive/promote/rollback and the approval gate, fixture building for all four decisions, replay accuracy/compare/gate, engine key+opt-in refusal, disagreements (pairing/rate/tallies, hermetic dispatch), dispatcher usage errors.
 - CLI smoke: `node dist/src/cli.js jev status`, `... jev fixture build --decision claim-verification`, `... jev replay --engine local --compare local --gate`.
 
 **Child DOX Index:** none.
