@@ -8,8 +8,9 @@
 - `local-baseline.ts` — deterministic rule baseline (`classifyClaimLocally`): term overlap + whole-word negation + numeric mismatch; conservative `insufficient`.
 - `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial).
 - `jev-mapping.ts` — `toJevRequest` / `fromJevResponse`; unknown verdict → `MalformedResultError`.
-- `shadow.ts` — `runClaimVerificationShadow`: project → run configured route → run local baseline → journal each under one `projectionHash`.
+- `shadow.ts` — `runClaimVerificationShadow`: project → run configured route → run local baseline → journal each under one `projectionHash`. Result carries the sealed `projection` (claim + evidence) alongside `projectionHash`; accepts an optional `project` seam that overrides the default `projectClaimVerification` seal (test/boundary injection).
 - `selection-service.ts` — `selectClaimVerification` with `baseline` (local verdict, no plan/journal/network, default) / `shadow` (returns the BASELINE verdict — deliberate divergence, spec §10) / `active` (configured engine's verdict).
+- `experiment-store.ts` — `createExperimentProjectionStore`: protected projection store at `~/.alix/decisions/experiments.jsonl` (`storeDir ?? join(homedir(), ".alix")` + shared `JsonlStore`). The journal keeps only `projectionHash`; this store keeps the sealed projection an operator judges from (§16).
 - `index.ts` — barrel.
 
 **Local Contracts:**
@@ -22,6 +23,9 @@
 - Baseline and observed outcomes journal separately under the same `projectionHash` — that is the J4 calibration/comparison input.
 - Every attempt is journaled: a failed remote attempt that fell back appears as an explicit `failure` record with its latency.
 - `jev-mapping.ts` sends one Choice question keyed by id with `instructions` + `criteria` (option -> rubric description), matching the verified System One shape. The adapter re-verifies the sealed projection before transport (§6).
+- Mode default is `baseline`, renamed from the original `off` (§3.1): the tool stays useful locally before any experiment starts.
+- The model-facing payload is exactly `{verdict, engine, decisionId?, authority:"none", warning?}` — never `agree`, the baseline's competing verdict, latency, or the experiment tally (§8.3).
+- Boundary rejection (`ProjectionRejectedError`) degrades to a local verdict + `warning` and writes no record: no seal ⇒ no hash ⇒ no journal/experiment entry (§12).
 
 **Work Guidance:**
 - New decision verdict/field: change `schema.ts` first; the corpus and tests pin the legal space.

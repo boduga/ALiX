@@ -3,7 +3,7 @@
 **Purpose:** Operator surface for the decision subsystem (J4/J5). Read-only inspection, outcome labelling, calibration, threshold-profile lifecycle, and offline replay. This is the only way to operate the subsystem today — nothing is wired into the agent runtime.
 
 **Ownership:**
-- `main.ts` — `dispatchJevCommand` (throws `JevOperatorError` on usage errors, testable) and `handleJevCommand` (prints one line and exits 1 on operator errors).
+- `main.ts` — `dispatchJevCommand(args, opts?)` (optional `{ cwd }` overrides state-path resolution, defaults to `process.cwd()`; throws `JevOperatorError` on usage errors, testable) and `handleJevCommand` (prints one line and exits 1 on operator errors).
 - `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback, disagreements (`groupChoiceByEngine`/`buildDisagreements`), two-stage blind label-pair (`prepareLabelPair`/`commitLabelPair`); `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
 - `replay-ops.ts` — corpus → fixtures, `makeExecutor` (local | jev), `runReplay` (with optional compare + gate).
 - `render.ts` — pure formatters (status, dataset, reliability bins, profiles, replay, disagreements, label-pair evidence/reveal).

@@ -13,8 +13,9 @@
 - `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
 - `engines/local.ts` — LocalBaselineExecutor (claim classifier + relevance scorer, unsupported elsewhere, no confidence).
 - `engines/jev-protocol.ts` — System One wire types (Choice + Noul), verified against the official API reference + SDK types (source links in the header); injectable `JevTransport` (neutral: no decisions/engines imports).
-- `engines/jev.ts` — Jev adapter: fetch transport with bounded 429/529 retry, per-decision mapping table, capability declaration, store-only key, disabled by default.
-- `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
+- `engines/jev.ts` — Jev adapter: fetch transport with bounded 429/529 retry, per-decision mapping table, capability declaration, store-only key (`JEV_KEY_PROVIDER_ID`, re-exported by `cli/commands/jev/ops.ts`), disabled by default.
+- `paths.ts` — decision-owned state paths (`resolveDecisionPaths`); tools import this instead of `src/cli/commands/*`.
+- `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow/selection-service/experiment-store); see its AGENTS.md.
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
