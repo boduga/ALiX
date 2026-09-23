@@ -3,6 +3,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { DEFAULT_XIAOMI_MIMO_BASE_URL } from "./specs/xiaomi-mimo-token-plan-spec.js";
+
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
  * Consolidated from src/cli.ts to avoid duplication.
@@ -31,6 +33,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: "ollama", name: "Ollama", env: "OLLAMA_API_KEY", hint: "(local, may be empty)" },
   { id: "local-llama", name: "Local Llama.cpp", env: "ALIX_LLAMA_BASE_URL", hint: "(local, no API key)" },
   { id: "freellmapi", name: "FreeLLMAPI", env: "FREELLMAPI_API_KEY", hint: "freellmapi-..." },
+  { id: "xiaomi-mimo-token-plan", name: "Xiaomi MiMo (Token Plan)", env: "XIAOMI_MIMO_TOKEN_PLAN_KEY", hint: "tp-..." },
   { id: "perplexity", name: "Perplexity", env: "PERPLEXITY_API_KEY", hint: "pplx-..." },
   { id: "minimax", name: "MiniMax", env: "MINIMAX_API_KEY", hint: "..." },
   { id: "minimax-token-plan", name: "MiniMax (Token Plan)", env: "MINIMAX_TOKEN_PLAN_KEY", hint: "sk-cp-..." },
@@ -197,6 +200,15 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
       const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
       return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
     }
+    case "xiaomi-mimo-token-plan": {
+      const response = await fetch(`${DEFAULT_XIAOMI_MIMO_BASE_URL}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
+    }
     default:
       throw new Error(`Unknown provider: ${providerId}`);
   }
@@ -309,6 +321,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   grokai: "grok-2-latest",
   deepseek: "deepseek-chat",
   freellmapi: "nvidia/nemotron-3-super-120b-a12b:free",
+  "xiaomi-mimo-token-plan": "mimo-v2.6-pro",
 };
 
 /**

@@ -306,6 +306,9 @@ function pushLocalLlamaIssues(
   if (model.freellmapiBaseUrl !== undefined && !isValidHttpUrl(model.freellmapiBaseUrl)) {
     issues.push({ path: `${path}.freellmapiBaseUrl`, level: "error", message: "freellmapiBaseUrl must be a valid http(s) URL" });
   }
+  if (model.xiaomiMimoBaseUrl !== undefined && !isValidHttpUrl(model.xiaomiMimoBaseUrl)) {
+    issues.push({ path: `${path}.xiaomiMimoBaseUrl`, level: "error", message: "xiaomiMimoBaseUrl must be a valid http(s) URL" });
+  }
   if (!ll) return;
 
   for (const [knob, type, check] of [

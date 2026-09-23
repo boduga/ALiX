@@ -20,6 +20,7 @@ import { zhipuaiSpec } from "../../src/providers/specs/zhipuai-spec.js";
 import { grokaiSpec } from "../../src/providers/specs/grokai-spec.js";
 import { openrouterSpec } from "../../src/providers/specs/openrouter-spec.js";
 import { localLlamaSpec } from "../../src/providers/specs/local-llama-spec.js";
+import { xiaomiMimoTokenPlanSpec } from "../../src/providers/specs/xiaomi-mimo-token-plan-spec.js";
 import type { ProviderSpec } from "../../src/providers/spec-types.js";
 import type { StreamChunk } from "../../src/providers/types.js";
 
@@ -37,6 +38,7 @@ const STREAMING_SPECS: [string, ProviderSpec][] = [
   ["grokai", grokaiSpec],
   ["openrouter", openrouterSpec],
   ["local-llama", localLlamaSpec],
+  ["xiaomi-mimo-token-plan", xiaomiMimoTokenPlanSpec],
 ];
 
 /** Lines that every openai-compat spec should parse as text_delta */
@@ -192,6 +194,7 @@ const SPEC_CASES: Record<string, ChunkTestCase[]> = {
   grokai: openaiTestCases(),
   openrouter: openaiTestCases(),
   "local-llama": localLlamaTestCases(),
+  "xiaomi-mimo-token-plan": openaiTestCases(),
 };
 
 // ── Boundary / edge-case lines shared by all specs ───────────────────────
@@ -242,6 +245,7 @@ describe("streaming regression", () => {
       ["openai", openaiSpec], ["deepseek", deepseekSpec], ["groq", groqSpec],
       ["perplexity", perplexitySpec], ["minimax", minimaxSpec], ["zhipuai", zhipuaiSpec],
       ["grokai", grokaiSpec], ["openrouter", openrouterSpec], ["local-llama", localLlamaSpec],
+      ["xiaomi-mimo-token-plan", xiaomiMimoTokenPlanSpec],
     ];
     for (const [, spec] of openaiCompat) {
       const chunk = spec.fromStreamChunk(OPENAI_DELTA_LINE);
@@ -255,6 +259,7 @@ describe("streaming regression", () => {
       ["openai", openaiSpec], ["deepseek", deepseekSpec], ["groq", groqSpec],
       ["perplexity", perplexitySpec], ["minimax", minimaxSpec], ["zhipuai", zhipuaiSpec],
       ["grokai", grokaiSpec], ["openrouter", openrouterSpec], ["local-llama", localLlamaSpec],
+      ["xiaomi-mimo-token-plan", xiaomiMimoTokenPlanSpec],
     ];
     for (const [, spec] of openaiCompat) {
       const chunk = spec.fromStreamChunk(OPENAI_DONE_LINE);

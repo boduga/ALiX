@@ -146,6 +146,13 @@ export type ModelConfig = {
    * full `/v1/chat/completions` endpoint.
    */
   localLlamaBaseUrl?: string;
+  /**
+   * API root for the xiaomi-mimo-token-plan provider (default
+   * https://token-plan-sgp.xiaomimimo.com/v1). Token Plan subscriptions expose
+   * a region/account-exclusive root ending in `/v1`; the chat endpoint is
+   * `${xiaomiMimoBaseUrl}/chat/completions`.
+   */
+  xiaomiMimoBaseUrl?: string;
   routing?: {
     freeFallback?: boolean;
     fallbacks?: Array<{

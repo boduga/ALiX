@@ -13,6 +13,7 @@ import { zhipuaiSpec } from "./specs/zhipuai-spec.js";
 import { grokaiSpec } from "./specs/grokai-spec.js";
 import { openrouterSpec } from "./specs/openrouter-spec.js";
 import { freellmapiSpec } from "./specs/freellmapi-spec.js";
+import { xiaomiMimoTokenPlanSpec } from "./specs/xiaomi-mimo-token-plan-spec.js";
 import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
@@ -34,6 +35,7 @@ export const SPECS = new Map<string, ProviderSpec>([
   ["openrouter", openrouterSpec],
   ["local-llama", localLlamaSpec],
   ["freellmapi", freellmapiSpec],
+  ["xiaomi-mimo-token-plan", xiaomiMimoTokenPlanSpec],
 ]);
 
 export const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -52,6 +54,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
   mock: "",
   "local-llama": "",
   freellmapi: "FREELLMAPI_API_KEY",
+  "xiaomi-mimo-token-plan": "XIAOMI_MIMO_TOKEN_PLAN_KEY",
 };
 
 let _fetch: typeof fetch = globalThis.fetch;
