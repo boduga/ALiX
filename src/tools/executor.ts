@@ -27,6 +27,7 @@ import {
   SelfExtendToolRouter,
   ScheduleToolRouter,
   StateToolRouter,
+  ClaimVerificationToolRouter,
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
@@ -143,6 +144,7 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new ScheduleToolRouter(() => this.sessionId()),
       new StateToolRouter(this.root),
+      new ClaimVerificationToolRouter(this.root),
       new WebToolsRouter(config.permissions?.allowNetworkDomains ?? []),
     ]);
     this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());

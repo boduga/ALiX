@@ -7,24 +7,33 @@
  * requires an explicit approval flag (arch §10).
  */
 
-import { join } from "node:path";
 import {
+  CLAIM_VERDICT_CANDIDATES,
   CONTEXT_RELEVANCE_PROFILES,
   DEFAULT_DECISION_CONFIG,
+  JEV_ENGINE_ID,
+  JEV_KEY_PROVIDER_ID,
+  LOCAL_ENGINE_ID,
   activeProfile,
   computeReliability,
   createDecisionJournalStore,
+  createExperimentProjectionStore,
   createOutcomeLabel,
   createOutcomeLabelStore,
   createProfileRegistry,
   deriveThresholdProfile,
   exportCalibrationDataset,
+  indexLabelsByDecisionId,
   loadProfileRegistry,
   promoteProfile,
+  resolveDecisionPaths,
   rollbackProfile,
   saveProfileRegistry,
   type CalibrationExport,
+  type ClaimVerificationExperimentProjection,
   type DecisionConfig,
+  type DecisionJournalRecord,
+  type DecisionPaths,
   type DecisionType,
   type LabelErrorType,
   type OutcomeLabel,
@@ -35,18 +44,12 @@ import {
 import { loadConfig } from "../../../config/loader.js";
 import { getSavedApiKey } from "../../helpers/api-keys.js";
 
-/** Provider id under which the TypeSafe/Jev key is stored (store-only). */
-export const JEV_KEY_PROVIDER_ID = "typesafe";
+export { JEV_KEY_PROVIDER_ID };
 
-export type JevPaths = {
-  dir: string;
-  fixtures: string;
-  profiles: string;
-};
+export type JevPaths = DecisionPaths;
 
 export function resolveJevPaths(cwd: string): JevPaths {
-  const dir = join(cwd, ".alix", "decisions");
-  return { dir, fixtures: join(dir, "fixtures"), profiles: join(dir, "profiles.json") };
+  return resolveDecisionPaths(cwd);
 }
 
 export class JevOperatorError extends Error {
@@ -308,4 +311,242 @@ export function activeProfileFor(
   scope: { decision: DecisionType; engineId: string; risk?: RiskContext },
 ): ThresholdProfile | undefined {
   return activeProfile(loadProfileRegistry(paths.profiles), scope);
+}
+
+// ─── Disagreements ────────────────────────────────────────────────────
+
+export type DisagreementSide = {
+  engineId: string;
+  decisionId: string;
+  verdict: string;
+  label?: OutcomeLabel;
+};
+
+export type DisagreementPair = {
+  projectionHash: string;
+  /** Exactly two sides: Jev, then local baseline (plan amendment 2). */
+  sides: DisagreementSide[];
+};
+
+export type DisagreementsReport = {
+  decision: DecisionType;
+  invocations: number;
+  paired: number;
+  agreements: number;
+  disagreements: number;
+  disagreementRate: string; // "27.5%" or "n/a"
+  labelled: number;
+  unlabelled: number;
+  jevCorrect: number;
+  baselineCorrect: number;
+  bothWrong: number;
+  pairs: DisagreementPair[];
+};
+
+/** projectionHash -> engineId -> most recent Choice record (spec §15). */
+export function groupChoiceByEngine(
+  records: readonly DecisionJournalRecord[],
+  decision: DecisionType,
+): Map<string, Map<string, DecisionJournalRecord>> {
+  const groups = new Map<string, Map<string, DecisionJournalRecord>>();
+  for (const record of records) {
+    if (record.decision !== decision || record.outcome.kind !== "choice") continue;
+    const byEngine = groups.get(record.projectionHash) ?? new Map<string, DecisionJournalRecord>();
+    const previous = byEngine.get(record.engineId);
+    if (previous === undefined || record.timestamp >= previous.timestamp) {
+      byEngine.set(record.engineId, record);
+    }
+    groups.set(record.projectionHash, byEngine);
+  }
+  return groups;
+}
+
+export async function buildDisagreements(
+  paths: JevPaths,
+  opts: { decision?: DecisionType },
+): Promise<DisagreementsReport> {
+  const decision = opts.decision ?? "claim-verification";
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  // invocations = EVERY group of this decision (spec §17 shows invocations=42,
+  // paired=40) — failure-only groups count as invocations but can never pair.
+  const invocations = new Set(
+    records.filter((record) => record.decision === decision).map((record) => record.projectionHash),
+  ).size;
+  const groups = groupChoiceByEngine(records, decision);
+  const labels = indexLabelsByDecisionId(
+    (await createOutcomeLabelStore(paths.dir).readAll()).labels,
+  );
+
+  let paired = 0;
+  let disagreements = 0;
+  const pairs: DisagreementPair[] = [];
+  let labelled = 0;
+  let jevCorrect = 0;
+  let baselineCorrect = 0;
+  let bothWrong = 0;
+
+  for (const [projectionHash, byEngine] of groups) {
+    // The experiment is Jev vs the local baseline ONLY (plan amendment 2).
+    // A group that lacks either — or that has a third engine instead of one
+    // of them — is not a comparable experiment pair. Third-engine records
+    // stay journalled; they never enter the denominator or the tallies.
+    const jevRecord = byEngine.get(JEV_ENGINE_ID);
+    const baselineRecord = byEngine.get(LOCAL_ENGINE_ID);
+    if (jevRecord === undefined || baselineRecord === undefined) continue;
+    paired += 1;
+    const sides: DisagreementSide[] = [jevRecord, baselineRecord].map((record) => ({
+      engineId: record.engineId,
+      decisionId: record.decisionId,
+      verdict: String((record.outcome as { choice: unknown }).choice),
+      label: labels.get(record.decisionId)?.label,
+    }));
+
+    if (sides[0].verdict === sides[1].verdict) continue; // agreement
+
+    disagreements += 1;
+    pairs.push({ projectionHash, sides });
+
+    const allLabelled = sides.every((side) => side.label !== undefined);
+    if (!allLabelled) continue;
+    labelled += 1;
+    if (sides[0].label === "correct") jevCorrect += 1;
+    if (sides[1].label === "correct") baselineCorrect += 1;
+    if (sides.every((side) => side.label === "incorrect")) bothWrong += 1;
+  }
+
+  return {
+    decision,
+    invocations,
+    paired,
+    agreements: paired - disagreements,
+    disagreements,
+    disagreementRate: paired > 0 ? `${((disagreements / paired) * 100).toFixed(1)}%` : "n/a",
+    labelled,
+    unlabelled: disagreements - labelled,
+    jevCorrect,
+    baselineCorrect,
+    bothWrong,
+    pairs,
+  };
+}
+
+// ─── Blind ground-truth labelling (two-stage, spec §18) ────────────────
+
+export type LabelPairStage = {
+  projectionHash: string;
+  projection: ClaimVerificationExperimentProjection;
+};
+
+export type LabelPairSide = { engineId: string; decisionId: string; verdict: string; label: OutcomeLabel };
+export type LabelPairResult = {
+  projectionHash: string;
+  truth: string;
+  /** Exactly two sides, fixed order: Jev, then local baseline (plan amendment 2). */
+  labels: LabelPairSide[];
+  projection: ClaimVerificationExperimentProjection;
+};
+
+/**
+ * Shared structural validation: every refusal that reveals no verdict
+ * direction fires here, so neither stage can proceed to a write on bad input.
+ * Throws JevOperatorError; caller surfaces it as an operator error.
+ */
+function experimentPair(
+  records: readonly DecisionJournalRecord[],
+  projectionHash: string,
+): { decision: DecisionType; jev: DecisionJournalRecord; baseline: DecisionJournalRecord } {
+  const group = records.filter((record) => record.projectionHash === projectionHash);
+  if (group.length === 0) {
+    throw new JevOperatorError(`projectionHash unknown: ${projectionHash}`);
+  }
+  const decision = group[0].decision;
+  if (decision !== "claim-verification") {
+    throw new JevOperatorError(
+      `label-pair supports claim-verification only (found ${decision}): other decisions have no protected projection store, so the §18.1 evidence view cannot be shown`,
+    );
+  }
+  const byEngine = groupChoiceByEngine(records, decision).get(projectionHash);
+  const jev = byEngine?.get(JEV_ENGINE_ID);
+  const baseline = byEngine?.get(LOCAL_ENGINE_ID);
+  if (jev === undefined || baseline === undefined) {
+    throw new JevOperatorError(
+      `no valid comparison pair exists for ${projectionHash} — need both ${JEV_ENGINE_ID} and ${LOCAL_ENGINE_ID} choice records`,
+    );
+  }
+  const jevVerdict = String((jev.outcome as { choice: unknown }).choice);
+  const baselineVerdict = String((baseline.outcome as { choice: unknown }).choice);
+  if (jevVerdict === baselineVerdict) {
+    throw new JevOperatorError("pair verdicts agree — use alix jev label for single-record labelling");
+  }
+  return { decision, jev, baseline };
+}
+
+/**
+ * Stage 1 — structural validation plus the operator's evidence view (§18.1).
+ * The returned type is deliberately projection-only: no verdict crosses this
+ * boundary, which is what makes blindness structural rather than cosmetic
+ * (§18.2). experimentPair reads and compares the verdicts during prepare;
+ * blindness holds because this return type excludes them, not because they
+ * are unread — they are read again (and only then revealed) inside
+ * commitLabelPair, after truth exists.
+ */
+export async function prepareLabelPair(
+  paths: JevPaths,
+  input: { projectionHash: string; storeDir?: string },
+): Promise<LabelPairStage> {
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  experimentPair(records, input.projectionHash); // validates; verdicts discarded
+  const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
+  if (projection === undefined) {
+    throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
+  }
+  return { projectionHash: input.projectionHash, projection };
+}
+
+/**
+ * Stage 2 — after truth is entered. Re-runs structural validation (idempotent),
+ * then truth legality and already-labelled refusals, then derives both labels
+ * from `truth` (§18.3) and appends them (§18.4: every refusal fires before the
+ * first append).
+ */
+export async function commitLabelPair(
+  paths: JevPaths,
+  input: { projectionHash: string; truth: string; storeDir?: string },
+): Promise<LabelPairResult> {
+  const records = createDecisionJournalStore(paths.dir).readAll();
+  const { decision, jev, baseline } = experimentPair(records, input.projectionHash);
+
+  if (!(CLAIM_VERDICT_CANDIDATES as readonly string[]).includes(input.truth)) {
+    throw new JevOperatorError(`--truth must be one of ${CLAIM_VERDICT_CANDIDATES.join("|")}`);
+  }
+  const projection = await createExperimentProjectionStore(input.storeDir).readByHash(input.projectionHash);
+  if (projection === undefined) {
+    throw new JevOperatorError(`protected experiment projection unavailable for ${input.projectionHash}`);
+  }
+
+  const labelStore = createOutcomeLabelStore(paths.dir);
+  const existing = indexLabelsByDecisionId((await labelStore.readAll()).labels);
+  for (const record of [jev, baseline]) {
+    if (existing.has(record.decisionId)) {
+      throw new JevOperatorError(`already labelled: ${record.decisionId} — a judgement is never overwritten`);
+    }
+  }
+
+  const labels: LabelPairSide[] = [];
+  for (const record of [jev, baseline]) {
+    const verdict = String((record.outcome as { choice: unknown }).choice);
+    const label = verdict === input.truth ? "correct" : "incorrect";
+    await labelStore.append(
+      createOutcomeLabel({
+        decisionId: record.decisionId,
+        decision,
+        label,
+        note: `truth=${input.truth}`,
+        observedAt: Date.now(),
+      }),
+    );
+    labels.push({ engineId: record.engineId, decisionId: record.decisionId, verdict, label });
+  }
+
+  return { projectionHash: input.projectionHash, truth: input.truth, labels, projection };
 }

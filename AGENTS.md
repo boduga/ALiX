@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **ALiX** (37187 symbols, 86595 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **ALiX** (38672 symbols, 90629 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -217,7 +217,7 @@ Default section order:
 | `src/cli/commands/adaptation/AGENTS.md` | Adaptation CLI handlers — shared/appliers/renderers/handlers/main submodules |
 | `src/cli/commands/governance/AGENTS.md` | Governance CLI handlers — shared/evolution/status/lifecycle/investigation/analytics/inbox/actions/execution/workbench/readiness/handoff/intelligence/audit/audit-insights/main submodules |
 | `src/cli/commands/decision/AGENTS.md` | Decision CLI handlers — shared/context-risk/queue-brief/review/outcome/intent/main submodules |
-| `src/cli/commands/jev/AGENTS.md` | `alix jev` — decision-subsystem operator surface (status, labels, calibration, profiles, replay) |
+| `src/cli/commands/jev/AGENTS.md` | `alix jev` — decision-subsystem operator surface (status, labels, calibration, profiles, replay, disagreements, label-pair) |
 | `src/decision/AGENTS.md` | Bounded probabilistic decisions (Jev System One) — contracts, engine registry, config, four decisions, calibration, replay |
 | `src/providers/AGENTS.md` | Model adapters & routing — registry, specs, free-model resolver, capacity-aware routing, OpenRouter access classification |
 | `src/tui/AGENTS.md` | Interactive terminal UI — projections, Workbench transcript, views, input, layout, rendering |

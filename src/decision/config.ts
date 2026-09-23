@@ -9,6 +9,11 @@
 
 import type { DecisionType } from "./contracts.js";
 
+/** Claim-verification experiment seam (spec §6). Original draft said "off";
+ *  renamed to "baseline" because the tool stays functional locally (§3.1). */
+export const DECISION_MODE_VALUES = ["baseline", "shadow", "active"] as const;
+export type DecisionMode = (typeof DECISION_MODE_VALUES)[number];
+
 export type DecisionRoutePolicy = {
   engine: string;
   fallback: string;
@@ -18,6 +23,7 @@ export type DecisionRoutePolicy = {
    * the consumer keeps its existing behavior (J2 exit criterion).
    */
   enabled?: boolean;
+  mode?: DecisionMode;
 };
 
 export type DecisionConfig = {
@@ -41,6 +47,7 @@ export const DEFAULT_DECISION_CONFIG: DecisionConfig = {
     engine: "local",
     fallback: "local",
     thresholdProfile: "claim-verification/local/v1",
+    mode: "baseline",
   },
   contextRelevance: {
     engine: "local",

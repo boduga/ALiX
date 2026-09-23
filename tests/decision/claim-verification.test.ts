@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,12 +22,15 @@ import {
   classifyClaimLocally,
   createDecisionJournalStore,
   createDefaultRegistry,
+  createExperimentProjectionStore,
   createJevExecutor,
+  experimentStorePath,
   isClaimVerdict,
   projectClaimVerification,
   readClaimProjection,
   registerJevEngine,
   runClaimVerificationShadow,
+  selectClaimVerification,
   toJevRequest,
   fromJevResponse,
   type DecisionConfig,
@@ -396,5 +399,161 @@ describe("shadow runner", () => {
       ProjectionRejectedError,
     );
     assert.equal(journal.readAll().length, 0);
+  });
+});
+
+describe("selectClaimVerification modes", () => {
+  let dir: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "cv-select-"));
+  });
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const input = {
+    claim: "Water boils at 100 degrees Celsius at sea level.",
+    evidence: [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }],
+  };
+
+  it("baseline mode: local verdict, no journal records, no shadow observation", async () => {
+    const journal = createDecisionJournalStore(join(dir, "baseline"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry: createDefaultRegistry(),
+      journal,
+      mode: "baseline",
+    });
+    assert.equal(selection.mode, "baseline");
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.equal(selection.shadow, undefined);
+    assert.equal(journal.readAll().length, 0);
+  });
+
+  it("shadow mode returns the BASELINE verdict while journalling both engines", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "shadow"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+    });
+    // The documented divergence (spec §10): shadow DOES return a verdict,
+    // and it is the baseline's — behaviour unchanged, observation added.
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.equal(selection.shadow?.observed.verdict, "contradicted");
+    assert.equal(selection.shadow?.agree, false);
+    const records = journal.readAll();
+    assert.equal(records.length, 2);
+    assert.equal(new Set(records.map((r) => r.projectionHash)).size, 1);
+  });
+
+  it("active mode returns the observed engine's verdict, still journalling both", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "active"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "active",
+    });
+    assert.equal(selection.verdict, "contradicted");
+    assert.equal(selection.engineId, JEV_ENGINE_ID);
+    assert.equal(journal.readAll().length, 2);
+  });
+
+  it("remote outage in shadow: verdict still returned, no usable pair", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, {
+      enabled: true,
+      apiKey: "k",
+      transport: async () => {
+        throw new Error("network down");
+      },
+    });
+    const journal = createDecisionJournalStore(join(dir, "outage"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+    });
+    assert.equal(selection.verdict, "supported");
+    const choiceRecords = journal.readAll().filter((r) => r.outcome.kind === "choice");
+    assert.ok(choiceRecords.length <= 1, "no comparable pair when the remote degraded");
+  });
+
+  it("shadow mode with compareBaseline: false still returns the local verdict", async () => {
+    const registry = createDefaultRegistry();
+    registerJevEngine(registry, { enabled: true, apiKey: "k", transport: okTransport("contradicted") });
+    const journal = createDecisionJournalStore(join(dir, "no-baseline"));
+    const selection = await selectClaimVerification(input, {
+      config: jevConfig(),
+      registry,
+      journal,
+      mode: "shadow",
+      compareBaseline: false,
+    });
+    // The runner skipped the baseline arm; shadow must still compute the
+    // local verdict — never surface the observed (remote) one.
+    assert.equal(selection.shadow?.baseline, undefined);
+    assert.equal(selection.shadow?.observed.verdict, "contradicted");
+    assert.equal(selection.verdict, "supported");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.notEqual(selection.verdict, selection.shadow?.observed.verdict);
+  });
+});
+
+describe("protected experiment projection store", () => {
+  let dir: string;
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), "cv-experiments-"));
+  });
+  after(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const record = (hash: string) => ({
+    projectionHash: hash,
+    decision: "claim-verification" as const,
+    claim: "Water boils at 100 degrees Celsius at sea level.",
+    evidence: [{ excerpt: "At sea level, water boils at 100 degrees Celsius." }],
+    createdAt: "2026-09-22T00:00:00.000Z",
+  });
+
+  it("resolves ~/.alix/decisions/experiments.jsonl through storeDir, never a bare ~", () => {
+    assert.equal(experimentStorePath("/home/u/.alix"), join("/home/u/.alix", "decisions", "experiments.jsonl"));
+    const real = experimentStorePath();
+    assert.ok(real.endsWith(join(".alix", "decisions", "experiments.jsonl")), real);
+    assert.equal(real.includes("~"), false);
+  });
+
+  it("round-trips a record and answers has/readByHash", async () => {
+    const store = createExperimentProjectionStore(join(dir, ".alix"));
+    assert.equal(await store.has("sha256:a"), false);
+    await store.append(record("sha256:a"));
+    assert.equal(await store.has("sha256:a"), true);
+    assert.equal((await store.readByHash("sha256:a"))?.claim, record("sha256:a").claim);
+    assert.equal(await store.readByHash("sha256:missing"), undefined);
+  });
+
+  it("rejects malformed evidence elements without throwing (line skipped, not typed)", async () => {
+    const store = createExperimentProjectionStore(join(dir, ".alix-pin"));
+    mkdirSync(join(dir, ".alix-pin", "decisions"), { recursive: true });
+    const malformed = {
+      projectionHash: "sha256:pin",
+      decision: "claim-verification",
+      claim: "c",
+      evidence: [null],
+      createdAt: "2026-09-22T00:00:00.000Z",
+    };
+    writeFileSync(store.path, JSON.stringify(malformed) + "\n", "utf-8");
+    assert.equal(await store.has("sha256:pin"), false);
+    assert.equal(await store.readByHash("sha256:pin"), undefined);
   });
 });

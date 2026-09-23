@@ -1,6 +1,6 @@
 # Claim-Verification Shadow Tool Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Status:** implemented on branch `feat/claim-verification-shadow-tool` (8 tasks complete; final review fixes applied; PR pending at write time)
 
 **Spec:** `docs/superpowers/specs/2026-09-22-claim-verification-shadow-tool-design.md` (approved; amendments §3.1)
 
@@ -40,6 +40,7 @@ node --test dist/tests/decision/claim-verification.test.js
 node --test dist/tests/tools/capability-map.test.js dist/tests/tools/tool-registry.test.js
 node --test dist/tests/tools/claim-verification-tool.test.js
 node --test dist/tests/cli/jev-ops.test.js
+pnpm test:vitest tests/tools/tool-contract.vitest.ts tests/tools/taxonomy-sentinel.vitest.ts
 pnpm typecheck:unused
 pnpm check:dead
 ```

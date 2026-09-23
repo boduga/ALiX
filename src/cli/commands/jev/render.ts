@@ -10,7 +10,12 @@ import type {
   ReliabilityReport,
   ThresholdProfile,
 } from "../../../decision/index.js";
-import type { JevStatus } from "./ops.js";
+import type {
+  DisagreementsReport,
+  JevStatus,
+  LabelPairResult,
+  LabelPairStage,
+} from "./ops.js";
 import type { ReplayReport } from "./replay-ops.js";
 
 function pct(value: number): string {
@@ -150,6 +155,94 @@ export function renderReplay(report: ReplayReport): string {
     lines.push("");
     lines.push(`Promotion gate: ${report.gate.pass ? "PASS" : "FAIL"}`);
     for (const reason of report.gate.reasons) lines.push(`  - ${reason}`);
+  }
+  return lines.join("\n");
+}
+
+export function renderDisagreements(report: DisagreementsReport): string {
+  const lines: string[] = [`Disagreements — ${report.decision}`];
+  if (report.paired === 0) {
+    lines.push("  no disagreement data available");
+    if (report.invocations > 0) {
+      lines.push(`  (${report.invocations} invocation(s) produced no comparable pair — engine not remote, remote disabled, or attempts failed)`);
+    }
+    return lines.join("\n");
+  }
+
+  for (const pair of report.pairs) {
+    lines.push("");
+    lines.push(`PAIR ${pair.projectionHash}`);
+    lines.push("");
+    for (const side of pair.sides) {
+      const label = side.engineId === "jev" ? "Jev" : side.engineId === "local" ? "Baseline" : side.engineId;
+      lines.push(`${label}:`);
+      lines.push(`  verdict: ${side.verdict}`);
+      lines.push(`  decision: ${side.decisionId}`);
+      lines.push("");
+    }
+    const allLabelled = pair.sides.every((side) => side.label !== undefined);
+    if (allLabelled) {
+      lines.push("labels:");
+      for (const side of pair.sides) lines.push(`  ${side.engineId}: ${side.label}`);
+    } else {
+      lines.push("label: unlabelled");
+    }
+  }
+
+  lines.push("");
+  lines.push(`invocations=${report.invocations}`);
+  lines.push(`paired=${report.paired}`);
+  lines.push(`comparable_pairs=${report.paired}`);
+  lines.push(`agreements=${report.agreements}`);
+  lines.push(`disagreements=${report.disagreements}`);
+  lines.push(`disagreement_rate=${report.disagreementRate}`);
+  lines.push("");
+  lines.push(`labelled=${report.labelled}`);
+  lines.push(`unlabelled=${report.unlabelled}`);
+  lines.push("");
+  lines.push(`jev_correct=${report.jevCorrect}`);
+  lines.push(`baseline_correct=${report.baselineCorrect}`);
+  lines.push(`both_wrong=${report.bothWrong}`);
+  if (report.disagreements > 0 && report.agreements > 0) {
+    lines.push("");
+    lines.push(`the engines agree on ${report.agreements} of ${report.paired} comparable pairs`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Stage 1 output — claim + evidence only (§18.1). MUST NOT contain verdict
+ * direction: no engine names, no verdict words, no arrows, no "Truth" (§18.2).
+ * tests/cli/jev-ops.test.ts pins these absences.
+ */
+export function renderLabelPairEvidence(stage: LabelPairStage): string {
+  const lines: string[] = [
+    `Evidence for ${stage.projectionHash}`,
+    "",
+    "Claim:",
+    `  ${stage.projection.claim}`,
+    "",
+    "Evidence:",
+  ];
+  if (stage.projection.evidence.length === 0) {
+    lines.push("  (none)");
+  }
+  stage.projection.evidence.forEach((item, index) => {
+    if (item.source !== undefined) lines.push(`  [${index + 1}] ${item.source}`);
+    lines.push(`  [${index + 1}] ${item.excerpt}`);
+  });
+  return lines.join("\n");
+}
+
+/**
+ * Stage 2 output — only ever called AFTER truth is committed (§18: "after truth
+ * is committed, the CLI may reveal truth, verdicts, derived labels").
+ */
+export function renderLabelPairReveal(result: LabelPairResult): string {
+  const lines: string[] = [`Truth: ${result.truth}`, ""];
+  for (const side of result.labels) {
+    const name = side.engineId === "jev" ? "Jev" : "Baseline";
+    lines.push(`${name}:`.padEnd(10) + side.verdict.padEnd(15) + `-> ${side.label}`);
   }
   return lines.join("\n");
 }

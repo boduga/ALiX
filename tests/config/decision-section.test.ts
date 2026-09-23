@@ -56,4 +56,26 @@ describe("decision config section", () => {
     assert.ok(result.issues.some((i) => i.path === "decision.remote.jev.enabled"));
     assert.ok(result.issues.some((i) => i.path === "decision.claimVerification.engine"));
   });
+
+  it("claimVerification.mode defaults to baseline and accepts a valid mode", () => {
+    assert.equal(DEFAULT_DECISION_CONFIG.claimVerification.mode, "baseline");
+    const merged = mergeConfig(DEFAULT_CONFIG, {
+      models: { default: { provider: "test", name: "test-model" } },
+      decision: {
+        claimVerification: { engine: "jev", fallback: "local", thresholdProfile: "t/v1", mode: "shadow" },
+      },
+    });
+    assert.equal(merged.decision?.claimVerification?.mode, "shadow");
+    assert.equal(validateConfig(merged).valid, true);
+  });
+
+  it("rejects an unknown claimVerification.mode with its path", () => {
+    const bad = {
+      ...MINIMAL_CONFIG,
+      decision: { claimVerification: { mode: "enabled" } },
+    } as unknown as AlixConfig;
+    const result = validateConfig(bad);
+    assert.equal(result.valid, false);
+    assert.ok(result.issues.some((i) => i.path === "decision.claimVerification.mode"));
+  });
 });

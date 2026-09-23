@@ -54,6 +54,9 @@ import { filterTierCandidates } from "../decisions/model-tier/tiers.js";
 
 export const JEV_ENGINE_ID = "jev";
 
+/** Provider id under which the TypeSafe/Jev key is stored (store-only). */
+export const JEV_KEY_PROVIDER_ID = "typesafe";
+
 /** Decisions this adapter can answer (claim, relevance, tier, risk). */
 const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
   "claim-verification",

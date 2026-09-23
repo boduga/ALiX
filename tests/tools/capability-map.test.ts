@@ -3,6 +3,9 @@ import assert from "node:assert";
 import { inferCapability, canonicalCapabilityOf, isReadonlyCapability, requiresApproval, legacyCapabilityToCanonical } from "../../src/tools/capability-map.js";
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import { hashArgs } from "../../src/tools/executor.js";
+import { BASE_TOOLS } from "../../src/run/helpers.js";
+import { TOOL_NAME_MAP } from "../../src/agents/tool-name-map.js";
+import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 
 describe("Capability Map", () => {
   it("infers policy keys from registry tool names", () => {
@@ -49,6 +52,34 @@ describe("Capability Map", () => {
     assert.ok(requiresApproval("shell.exec"));
     assert.ok(!requiresApproval("filesystem.read"));
     assert.ok(!requiresApproval("web.search"));
+  });
+});
+
+describe("verify.claim wiring (spec §7.1 approval trap)", () => {
+  it("resolves its own policy key — never tool.invoke", () => {
+    assert.equal(inferCapability("verify.claim"), "verify.claim");
+    assert.notEqual(inferCapability("verify.claim"), "tool.invoke");
+    assert.equal(canonicalCapabilityOf("verify.claim"), "decision.claim-verification");
+  });
+
+  it("is allowed without an approval prompt", () => {
+    assert.equal(DEFAULT_CONFIG.permissions.tools["verify.claim"], "allow");
+  });
+
+  it("is read-only and non-mutating in the registry", () => {
+    const entry = buildDefaultToolIndex().registry.lookup("verify.claim");
+    assert.ok(entry, "registry entry missing — inferCapability would fall back to tool.invoke");
+    assert.equal(entry.risk, "low");
+    assert.equal(entry.mutates, false);
+    assert.equal(entry.policyKey, "verify.claim");
+    assert.equal(entry.domain, "decision");
+  });
+
+  it("reaches the model: manifest entry + alias", () => {
+    const manifest = BASE_TOOLS.find((tool) => tool.name === "alix_verify_claim");
+    assert.ok(manifest, "alix_verify_claim missing from BASE_TOOLS");
+    assert.deepEqual(manifest.input_schema.required, ["claim"]);
+    assert.equal(TOOL_NAME_MAP.alix_verify_claim, "verify.claim");
   });
 });
 

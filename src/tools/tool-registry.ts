@@ -24,7 +24,7 @@ export type CapabilityRisk = "low" | "medium" | "high" | "critical";
 
 export type ToolDomain =
   | "filesystem" | "shell" | "network" | "code" | "search"
-  | "agent" | "memory" | "policy" | "system" | "mcp";
+  | "agent" | "memory" | "policy" | "system" | "mcp" | "decision";
 
 export type ToolCapability = {
   /** Tool name exposed to the model (e.g. "file.read", "mcp.github.repos.list"). */
@@ -373,6 +373,17 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       mutates: false,
       alwaysInclude: false,
       tags: ["state", "read", "self"],
+    },
+    {
+      name: "verify.claim",
+      capabilityId: "decision.claim-verification",
+      policyKey: "verify.claim",
+      description: "Verify whether evidence supports a claim (supported/contradicted/insufficient)",
+      risk: "low",
+      domain: "decision",
+      mutates: false,
+      alwaysInclude: true,
+      tags: ["claim", "verify", "evidence", "decision", "read"],
     },
     {
       name: "web_search",

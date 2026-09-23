@@ -18,7 +18,8 @@ export const DEFAULT_CONFIG: AlixConfig = {
       "file.search": "allow",
       "file.write": "ask",
       "shell.run": "ask",
-      "git.diff": "allow"
+      "git.diff": "allow",
+      "verify.claim": "allow"
     },
     protectedPaths: [".git/**", ".env", ".env.*", "secrets/**"],
     allowNetworkDomains: [],

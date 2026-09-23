@@ -13,8 +13,9 @@
 - `fallback.ts` — Execution plan + executeWithFallback (timeout/malformed/unavailable -> fallback or explicit failure).
 - `engines/local.ts` — LocalBaselineExecutor (claim classifier + relevance scorer, unsupported elsewhere, no confidence).
 - `engines/jev-protocol.ts` — System One wire types (Choice + Noul), verified against the official API reference + SDK types (source links in the header); injectable `JevTransport` (neutral: no decisions/engines imports).
-- `engines/jev.ts` — Jev adapter: fetch transport with bounded 429/529 retry, per-decision mapping table, capability declaration, store-only key, disabled by default.
-- `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow); see its AGENTS.md.
+- `engines/jev.ts` — Jev adapter: fetch transport with bounded 429/529 retry, per-decision mapping table, capability declaration, store-only key (`JEV_KEY_PROVIDER_ID`, re-exported by `cli/commands/jev/ops.ts`), disabled by default.
+- `paths.ts` — decision-owned state paths (`resolveDecisionPaths`); tools import this instead of `src/cli/commands/*`.
+- `decisions/claim-verification/` — first decision (schema/projection/baseline/corpus/mapping/shadow/selection-service/experiment-store); see its AGENTS.md.
 - `decisions/context-relevance/` — second decision (per-item Noul scoring, engine-specific thresholds, `selectContextItems` off/shadow/active seam); see its AGENTS.md.
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
@@ -67,7 +68,7 @@
 
 | Path | Scope |
 |------|-------|
-| `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner |
+| `src/decision/decisions/claim-verification/AGENTS.md` | First decision — verdict schema, projection, local baseline, corpus, Jev mapping, shadow runner, selection-service, experiment-store |
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
 | `src/decision/decisions/risk-escalation/AGENTS.md` | J6 decision — bounded risk tiers, composed approval recommendation, §14 admission review |
