@@ -103,7 +103,11 @@ export function loadReplayFixture(path: string): ReplayFixture {
   return parsed as ReplayFixture;
 }
 
-/** Load every `.json` fixture in a directory (sorted by filename). */
+/**
+ * Load every `.json` fixture in a directory (sorted by filename). A missing
+ * directory means "no fixtures yet" (empty), matching the label store's ENOENT
+ * handling; any other read failure is surfaced.
+ */
 export function listReplayFixtures(dir: string): ReplayFixture[] {
   let names: string[];
   try {
@@ -111,6 +115,7 @@ export function listReplayFixtures(dir: string): ReplayFixture[] {
       .filter((name) => name.endsWith(".json"))
       .sort();
   } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw new FixtureValidationError(
       `cannot list fixtures in ${dir}: ${(cause as Error).message}`,
     );
