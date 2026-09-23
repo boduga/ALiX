@@ -174,6 +174,32 @@ describe("verify.claim tool", () => {
     assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
   });
 
+  it("unregistered non-jev engine: catch arm degrades to local + warning, no journal, no experiment record", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const config = configWith("shadow");
+    const result = await handleClaimVerify(
+      { claim: SUPPORTED, evidence: EVIDENCE },
+      {
+        cwd,
+        config: {
+          ...config,
+          claimVerification: { ...config.claimVerification, engine: "ghost-engine" },
+        },
+        registry: createDefaultRegistry(),
+        journal,
+        experimentStoreDir: storeDir,
+      },
+    );
+    const payload = parseOutput(result);
+    assert.equal(payload.verdict, "supported");
+    assert.equal(payload.engine, "local");
+    assert.equal(payload.authority, "none");
+    assert.match(String(payload.warning), /remote engine unavailable/);
+    assert.equal(payload.decisionId, undefined);
+    assert.equal(journal.readAll().length, 0);
+    assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
   it("journal write failure: verdict still returned with a warning", async () => {
     const journal = {
       append() {
