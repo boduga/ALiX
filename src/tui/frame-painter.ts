@@ -150,7 +150,19 @@ export class FramePainter {
     const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const workbench = this.deps.workbenchState?.();
-      paintWorkbenchDiagnosticOverlay(rect, workbench?.overlayStack[workbench.overlayStack.length - 1], s.lastSnapshot.runtime?.diffs);
+      paintWorkbenchDiagnosticOverlay(
+        rect,
+        workbench?.overlayStack[workbench.overlayStack.length - 1],
+        s.lastSnapshot.runtime?.diffs,
+        {
+          agents: s.lastSnapshot.runtime?.agents,
+          tasks: s.lastSnapshot.runtime?.tasks,
+          artifacts: s.lastSnapshot.runtime?.artifacts,
+          selectedRunId: workbench?.selectedRunId,
+          selectedAgentId: workbench?.selectedAgentId,
+          selectedTaskId: workbench?.selectedTaskId,
+        },
+      );
     }
     if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
       paintWorkbenchApprovalDialog(
