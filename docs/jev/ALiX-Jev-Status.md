@@ -71,18 +71,22 @@ Live replays (`alix jev replay --engine jev`):
 |----------|--------|
 | claim-verification (Choice) | 8/8, accuracy 100%, agreement 100%, p95 593ms |
 | context-relevance (Noul) | agreement 40% (±0.1), mean &#124;delta&#124; 0.2060 |
-| risk-escalation (Choice) | 6/7 before #819 — see §6; re-confirm after the rubric fix |
-| model-tier (Choice) | **not run** — blocked on config, see §4 |
+| risk-escalation (Choice) | 7/7, accuracy 100%, agreement 100% (after #819) |
+| model-tier (Choice) | 10/10, accuracy 100%, agreement 100% (after the `synthesis` rubric fix) |
 
-Three of four mappings are confirmed against the real API. The fourth is
-blocked on configuration, not code.
+All four mappings are confirmed against the real API. Two of the four needed a
+rubric sharpening on first live contact — see §6, which is the most useful
+thing this exercise produced.
 
 ## 4. What is deliberately not done
 
 - **Runtime wiring of any kind.** See §1 and §5.
-- **Model-tier live verification.** `alix jev fixture build --decision model-tier`
-  fails closed with `model-tier fixtures need at least two enabled tiers (found
-  1: default)`. Enable a second canonical tier under `models.*` to proceed.
+- **Model-tier needs at least two enabled tiers to exercise.** `alix jev fixture
+  build --decision model-tier` fails closed with `model-tier fixtures need at
+  least two enabled tiers (found 1: default)`. The corpus expects `coding`,
+  `thinking`, `fast`, `critic`, and `image`, so configure those first — the
+  project config (`.alix/config.json`, gitignored) is the non-invasive place to
+  do it. This is a configuration prerequisite, not a code gap.
 - **Profile promotion has never run for real.** Shipped profiles are `shadow`
   and are correctly refused by promotion (they have no provenance), and
   rollback has nothing to restore until two calibrated profiles exist. Both
@@ -115,6 +119,15 @@ CRITICAL, and neither has the evidence the plan requires.
 
 ## 6. Caveats — do not over-claim these
 
+- **The dominant failure mode is the rubric, not the model.** Two of the four
+  decisions disagreed with their baseline on first live contact, and both were
+  description gaps in the rubric sent to Jev rather than model error: the risk
+  `high` description omitted irreversible public exposure, and the model-tier
+  `thinking` description never named `synthesis` even though the state sends
+  `TASK KIND: synthesis`. Naming the missing case in the description resolved
+  both (7/7 and 10/10, 100% agreement). Treat the rubric as the contract it is —
+  an option description that does not cover the case it is applied to will be
+  guessed at, and the guess is invisible until a fixture catches it.
 - **Fixture metrics are circular.** The local baseline scores 7/7 on
   risk-escalation because the labels were written to match the baseline. A
   fixture comparison can validate plumbing; it cannot establish that Jev is
