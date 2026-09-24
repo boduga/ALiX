@@ -1,6 +1,6 @@
 # Claim-Verification Shadow Tool Implementation Plan
 
-**Status:** implemented on branch `feat/claim-verification-shadow-tool` (8 tasks complete; final review fixes applied; PR pending at write time)
+**Status:** shipped — merged as PR #824 (8 tasks, 15 commits; final review fixes applied)
 
 **Spec:** `docs/superpowers/specs/2026-09-22-claim-verification-shadow-tool-design.md` (approved; amendments §3.1)
 

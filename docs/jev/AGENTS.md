@@ -16,7 +16,7 @@ the code).
 | `ALiX-Jev-Engineering-HandOff.md` | Context, locked decisions, constraints, implementation boundaries. |
 | `ALiX-Jev-Implementation-Plan.md` | Phases J0–J6, tasks, exit criteria, PR strategy, stop conditions. |
 | `ALiX-Jev-J0-Integration-Points.md` | The read-only inventory of classifier/routing/governance seams. |
-| `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the open wiring decision, caveats. |
+| `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the shipped wiring decision and how to activate it, caveats. |
 
 ## Local Contracts
 
@@ -62,9 +62,12 @@ alix jev replay --engine local --compare local
 grep -rn 'from "[^"]*decision/' src/agent src/runtime src/policy src/providers src/kernel
 ```
 
-`alix jev status` reporting `journal records: 0` while the remote engine is
-enabled is the live confirmation of the "no runtime wiring" claim. If the grep
-returns an import, status §1 is stale and must be corrected.
+`journal records: 0` means the tool is **wired but not activated (or not yet
+used) here** — default `mode: "baseline"` journals nothing; a non-zero count
+means experiment pairs are accumulating and §5 of the status doc owns the gate.
+The grep must stay empty: `src/tools` reaches `src/decision` through the tool
+handler by design, but agent/runtime/policy/providers/kernel never import it.
+If the grep returns an import, status §1 is stale and must be corrected.
 
 ## Child DOX Index
 
