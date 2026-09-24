@@ -163,6 +163,12 @@ describe("plan-phase", () => {
     assert.equal(isClaimVerificationTask("verify the claim that caches improve latency"), true);
     assert.equal(isClaimVerificationTask("run claim-verification on this pair"), true);
     assert.equal(isClaimVerificationTask("does this evidence support the hypothesis"), true);
+    assert.equal(
+      isClaimVerificationTask("Evidence: the integration tests pass.\n\nClaim: the bug is fixed"),
+      true,
+    );
+    assert.equal(isClaimVerificationTask("Fix the crash. Evidence: see stack trace below."), false);
+    assert.equal(isClaimVerificationTask("add evidence: coverage numbers to the PR description"), false);
     assert.equal(isClaimVerificationTask("fix the null pointer in user.ts"), false);
     assert.equal(isClaimVerificationTask("verify the fix and clean up dead code"), false);
     assert.equal(isClaimVerificationTask("refactor the login flow"), false);
