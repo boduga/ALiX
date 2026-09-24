@@ -156,6 +156,11 @@ Default section order:
   the existing content is byte-identical (success), and still errors on
   differing content — so a resumed retry that finds its output already
   written succeeds instead of failing a non-idempotent create.
+- **Single-output write workers recover omitted create paths (durable).** When
+  a write worker owns exactly one path and emits `file.create` with valid
+  content but no path, the subagent boundary supplies that sole owned path.
+  Explicit paths, multiple owned paths, read-only workers, and malformed calls
+  are never rewritten.
 - **Coordination hosts partition by `hostKind` (durable).** `web`/`inspector`
   runs are hosted by the Inspector server (startup reclaim of dead-owner
   workers, resume under the run's persisted `sessionMode`/`maxConcurrency`,
