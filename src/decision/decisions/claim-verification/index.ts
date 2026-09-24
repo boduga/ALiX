@@ -11,6 +11,7 @@ export * from "./projection.js";
 export * from "./local-baseline.js";
 export * from "./thresholds.js";
 export * from "./corpus.js";
+export * from "./accuracy-sweep.js";
 export * from "./jev-mapping.js";
 export * from "./shadow.js";
 export * from "./selection-service.js";

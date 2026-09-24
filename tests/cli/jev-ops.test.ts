@@ -267,6 +267,87 @@ describe("jev ops — threshold profiles", () => {
   });
 });
 
+describe("jev ops — claim-local accuracy-sweep derive", () => {
+  it("derives a shadow profile when scoreless local samples make reliability refuse", async () => {
+    const sweepPaths = resolveJevPaths(join(cwd, "sweep"));
+    const journal = createDecisionJournalStore(sweepPaths.dir);
+    const record = recordDecision({
+      decision: "claim-verification",
+      engineId: "local",
+      projectionHash: "sha256:sweep-1",
+      // Local baseline Choice: no confidence (JEV-9) — reliability refuses it.
+      outcome: { kind: "choice", choice: "supported", candidates: ["supported"] },
+      latencyMs: 1,
+      remote: false,
+      redactionApplied: false,
+      now: 1_700_000_000_000,
+    });
+    journal.append(record);
+    await createOutcomeLabelStore(sweepPaths.dir).append(
+      createOutcomeLabel({
+        decisionId: record.decisionId,
+        decision: "claim-verification",
+        label: "correct",
+        observedAt: 1_700_000_000_001,
+      }),
+    );
+
+    const derived = await deriveProfile(sweepPaths, {
+      decision: "claim-verification",
+      engineId: "local",
+      targetAccuracy: 0.8,
+      id: "claim-verification/local/v2",
+      datasetId: "corpus/local-accuracy",
+      now: 1_800_000_000_000,
+    });
+    assert.equal(derived.status, "shadow");
+    assert.ok(Math.abs(derived.threshold - 0.1) < 1e-9, `threshold ${derived.threshold} ≈ 0.1`);
+    assert.equal(derived.provenance?.metric, "accuracy");
+    assert.equal(derived.provenance?.value, 1);
+    assert.equal(derived.provenance?.sampleCount, 8);
+    assert.equal(derived.provenance?.datasetId, "corpus/local-accuracy");
+    assert.ok(listProfiles(sweepPaths).some((profile) => profile.id === "claim-verification/local/v2"));
+  });
+
+  it("derives from an empty journal too — the sweep needs no samples", async () => {
+    const empty = resolveJevPaths(join(cwd, "sweep-empty"));
+    const derived = await deriveProfile(empty, {
+      decision: "claim-verification",
+      engineId: "local",
+      targetAccuracy: 0.5,
+      id: "claim-verification/local/v2",
+      datasetId: "corpus/local-accuracy",
+    });
+    assert.equal(derived.threshold, 0);
+    assert.equal(derived.provenance?.sampleCount, 8);
+    assert.equal(derived.provenance?.metric, "accuracy");
+  });
+
+  it("non-sweep decisions keep the reliability refusal", async () => {
+    const noSamples = resolveJevPaths(join(cwd, "sweep-nosamples"));
+    await assert.rejects(
+      deriveProfile(noSamples, {
+        decision: "model-tier",
+        engineId: "local",
+        targetAccuracy: 0.8,
+        id: "model-tier/local/v2",
+        datasetId: "x",
+      }),
+      (error: unknown) =>
+        error instanceof JevOperatorError && /no samples/.test(error.message),
+    );
+  });
+
+  it("the reliability command still refuses scoreless claim-local samples", async () => {
+    const sweepPaths = resolveJevPaths(join(cwd, "sweep"));
+    await assert.rejects(
+      reliabilityReport(sweepPaths, { decision: "claim-verification", engineId: "local" }),
+      (error: unknown) =>
+        error instanceof JevOperatorError && /native score/.test(error.message),
+    );
+  });
+});
+
 describe("jev replay ops — fixtures", () => {
   it("builds fixtures from every decision's corpus", () => {
     const claim = buildFixtures({ models: MODELS }, paths, "claim-verification");

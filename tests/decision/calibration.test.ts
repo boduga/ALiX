@@ -13,9 +13,12 @@ import {
   createOutcomeLabel,
   createOutcomeLabelStore,
   exportCalibrationDataset,
+  hasNativeScore,
   indexLabelsByDecisionId,
   isDecisionOutcomeLabel,
   recordDecision,
+  sweepAccuracy,
+  type AccuracySweepCase,
   type CalibrationSample,
   type DecisionJournalRecord,
   type DecisionOutcomeLabel,
@@ -316,5 +319,89 @@ describe("reliability", () => {
       /multiple decisions/,
     );
     assert.throws(() => computeReliability([sample({ correct: true })]), /carry a native score/);
+  });
+});
+
+describe("accuracy sweep", () => {
+  const correct: AccuracySweepCase = {
+    id: "always",
+    expected: "supported",
+    verdictAt: () => "supported",
+  };
+  const wrong: AccuracySweepCase = {
+    id: "never",
+    expected: "supported",
+    verdictAt: () => "insufficient",
+  };
+
+  it("selects the lowest grid point meeting the target and records the full curve", () => {
+    const flip: AccuracySweepCase = {
+      id: "flip",
+      expected: "supported",
+      verdictAt: (threshold) => (threshold >= 0.5 ? "supported" : "insufficient"),
+    };
+    const result = sweepAccuracy([flip], { targetAccuracy: 1 });
+    assert.equal(result.threshold, 0.5);
+    assert.equal(result.accuracy, 1);
+    assert.equal(result.sampleCount, 1);
+    assert.equal(result.points.length, 11);
+    assert.equal(result.points[0].threshold, 0);
+    assert.equal(result.points[10].threshold, 1);
+    assert.equal(result.points[4].accuracy, 0);
+    assert.equal(result.points[5].accuracy, 1);
+  });
+
+  it("falls fully closed with the accuracy measured at 1 when nothing meets the target", () => {
+    const result = sweepAccuracy([wrong], { targetAccuracy: 0.5 });
+    assert.equal(result.threshold, 1);
+    assert.equal(result.accuracy, 0);
+    assert.equal(result.points[result.points.length - 1].accuracy, 0);
+  });
+
+  it("bins=1 collapses the grid to {0, 1}", () => {
+    const result = sweepAccuracy([correct], { targetAccuracy: 1, bins: 1 });
+    assert.deepEqual(
+      result.points.map((point) => point.threshold),
+      [0, 1],
+    );
+    assert.equal(result.threshold, 0);
+    assert.equal(result.accuracy, 1);
+  });
+
+  it("refuses empty cases, bad bins, and a target outside (0, 1]", () => {
+    assert.throws(() => sweepAccuracy([], { targetAccuracy: 0.8 }), /no cases to accuracy-sweep/);
+    assert.throws(() => sweepAccuracy([correct], { targetAccuracy: 0.8, bins: 0 }), /bins/);
+    assert.throws(() => sweepAccuracy([correct], { targetAccuracy: 0.8, bins: 1.5 }), /bins/);
+    assert.throws(() => sweepAccuracy([correct], { targetAccuracy: 0 }), /targetAccuracy/);
+    assert.throws(() => sweepAccuracy([correct], { targetAccuracy: 1.01 }), /targetAccuracy/);
+    assert.throws(
+      () => sweepAccuracy([correct], { targetAccuracy: Number.NaN }),
+      /targetAccuracy/,
+    );
+  });
+});
+
+describe("hasNativeScore", () => {
+  it("mirrors the report's per-kind native score field", () => {
+    assert.equal(hasNativeScore(sample({ correct: true, confidence: 0.5 })), true);
+    assert.equal(hasNativeScore(sample({ correct: true })), false);
+    assert.equal(
+      hasNativeScore(
+        sample({ correct: true, kind: "noul", probability: 0.5, decision: "context-relevance" }),
+      ),
+      true,
+    );
+    assert.equal(
+      hasNativeScore(sample({ correct: true, kind: "noul", decision: "context-relevance" })),
+      false,
+    );
+    assert.equal(
+      hasNativeScore(sample({ correct: true, kind: "score", score: 0.3, decision: "model-tier" })),
+      true,
+    );
+    assert.equal(
+      hasNativeScore(sample({ correct: true, kind: "score", decision: "model-tier" })),
+      false,
+    );
   });
 });

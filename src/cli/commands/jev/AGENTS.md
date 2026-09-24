@@ -4,7 +4,7 @@
 
 **Ownership:**
 - `main.ts` — `dispatchJevCommand(args, opts?)` (optional `{ cwd }` overrides state-path resolution, defaults to `process.cwd()`; throws `JevOperatorError` on usage errors, testable) and `handleJevCommand` (prints one line and exits 1 on operator errors).
-- `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback, disagreements (`groupChoiceByEngine`/`buildDisagreements`), two-stage blind label-pair (`prepareLabelPair`/`commitLabelPair`); `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
+- `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback (derive dispatches accuracy-sweep vs reliability), disagreements (`groupChoiceByEngine`/`buildDisagreements`), two-stage blind label-pair (`prepareLabelPair`/`commitLabelPair`); `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
 - `replay-ops.ts` — corpus → fixtures, `makeExecutor` (local | jev), `runReplay` (with optional compare + gate).
 - `render.ts` — pure formatters (status, dataset, reliability bins, profiles, replay, disagreements, label-pair evidence/reveal).
 - `../../../cli/commands/jev.ts` — barrel re-exporting `handleJevCommand`.
@@ -23,6 +23,7 @@
 **Local Contracts:**
 - State lives under `.alix/decisions/`: `decisions.jsonl` (journal), `labels.jsonl`, `profiles.json`, `fixtures/*.json`.
 - Everything is read-only except `profile derive` (writes a shadow profile) and `profile promote` / `rollback`. **Promotion requires `--approve`** and records `--approved-by`: it changes which items get selected, so it is a governance action (arch §10), not a config edit.
+- **`profile derive` dispatch.** Export the dataset once, then: when a registered accuracy-sweep path exists for the (decision, engine) pair — today `claim-verification`+`local` only — AND none of the samples carries a native score (or the journal is empty), derive via the sweep (corpus cases, accuracy provenance, works with zero samples). Otherwise derive via `computeReliability` + `deriveThresholdProfile`, keeping the exact existing error surfaces (`asOperatorError`: "no samples…", "…carry a native score"). `computeReliability` itself is unchanged, and the `reliability` command still refuses scoreless samples — that refusal is semantically correct for a scored report. JEV-9: no other engine ever takes the sweep path.
 - The shipped threshold defaults live in code as `shadow` and are shown for orientation only — they are never applied and cannot be promoted (no provenance). Rollback therefore has nothing to restore until two calibrated profiles exist; that is correct, not a gap.
 - Subsystem validation errors (calibration/profile) are presented as single-line operator errors via `asOperatorError`; anything else is a bug and propagates.
 - Fixtures are built from each decision's built-in corpus, so baseline and Jev are compared on identical deterministic inputs. Corpus labels make baseline accuracy high by construction — this is a regression harness, not an unbiased eval set.
@@ -41,7 +42,7 @@
 - Never make a command mutate runtime behavior beyond the approved profile lifecycle.
 
 **Verification:**
-- `tests/cli/jev-ops.test.ts` — status, labels, dataset skip accounting, reliability (+ no-samples refusal), profile derive/promote/rollback and the approval gate, fixture building for all four decisions, replay accuracy/compare/gate, engine key+opt-in refusal, disagreements (pairing/rate/tallies, hermetic dispatch), label-pair (structural refusals, blindness pins, derivation order, CLI `--truth`), dispatcher usage errors.
+- `tests/cli/jev-ops.test.ts` — status, labels, dataset skip accounting, reliability (+ no-samples refusal), profile derive/promote/rollback and the approval gate (incl. claim-local accuracy-sweep derive: scoreless samples and empty journal succeed; non-sweep decisions keep the reliability refusal; `reliability` still refuses scoreless claim-local), fixture building for all four decisions, replay accuracy/compare/gate, engine key+opt-in refusal, disagreements (pairing/rate/tallies, hermetic dispatch), label-pair (structural refusals, blindness pins, derivation order, CLI `--truth`), dispatcher usage errors.
 - CLI smoke: `node dist/src/cli.js jev status`, `... jev fixture build --decision claim-verification`, `... jev replay --engine local --compare local --gate`.
 
 **Child DOX Index:** none.
