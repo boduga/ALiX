@@ -86,6 +86,92 @@ export function inferOwnershipScopes(node: TaskNode, mutationClass: MutationClas
   return ["**"];
 }
 
+function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Map<string, string>; errors: string[] } {
+  const rawPaths = [...goal.matchAll(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)/gi)].map(match => match[1]);
+  const paths = new Map<string, string>();
+  const errors: string[] = [];
+  const countWords: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  };
+  const countToken = goal.match(/\bexactly\s+(\d+|[a-z]+)\s+workers?\b/i)?.[1].toLowerCase();
+  const statedCount = countToken === undefined ? undefined : /^\d+$/.test(countToken)
+    ? Number(countToken) : countWords[countToken];
+  if (countToken !== undefined && (!statedCount || !Number.isSafeInteger(statedCount))) {
+    errors.push(`Cannot parse explicit worker count: ${countToken}`);
+  }
+
+  const headers = [...goal.matchAll(/^\s*Worker\s+(\d+)\b/gim)];
+  const sections = headers.map((header, index) => ({
+    number: Number(header[1]),
+    text: goal.slice(header.index, headers[index + 1]?.index ?? goal.length),
+  }));
+  const sectionNumbers = new Set(sections.map(section => section.number));
+  if (sectionNumbers.size !== sections.length) errors.push("Explicit worker numbers are duplicated");
+  const expectedCount = statedCount ?? (sections.length > 0 && rawPaths.length === sections.length ? sections.length : undefined);
+  if (expectedCount !== undefined && nodes.length !== expectedCount) {
+    errors.push(`Expected ${expectedCount} workers, planner returned ${nodes.length}`);
+  }
+  if (statedCount !== undefined && sections.length > 0 && sections.length !== statedCount) {
+    errors.push(`Expected ${statedCount} worker sections, found ${sections.length}`);
+  }
+  if (rawPaths.length === 0) {
+    if (sections.some(section => /\bdepends?\s+on\s+workers?\b/i.test(section.text))) {
+      errors.push("Cannot verify explicit worker dependencies without mappable ownership paths");
+    }
+    return { paths, errors };
+  }
+
+  const ownedPaths = rawPaths.map(raw => extractGoalPaths(raw)[0]);
+  if (ownedPaths.some(path => !path)) {
+    return { paths, errors: [...errors, "Explicit ownership contains an invalid path"] };
+  }
+
+  const used = new Set<string>();
+  for (const node of nodes) {
+    const output = node.goal.match(/\b(?:create|write|edit|update|modify)\s+(?:the\s+)?(?:file\s+)?[`"']?([^\s`"',;:()]+)/i)?.[1];
+    const outputName = output?.split("/").at(-1)?.replace(/[.!?]+$/, "");
+    const matches = ownedPaths.filter(path => path?.split("/").at(-1) === outputName);
+    if (!isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] })) {
+      if (matches.length > 0) errors.push(`Explicit ownership requires a write worker for node ${node.id}`);
+      continue;
+    }
+    if (matches.length !== 1 || used.has(matches[0])) {
+      errors.push(`Cannot uniquely match explicit ownership for node ${node.id}`);
+      continue;
+    }
+    paths.set(node.id, matches[0]);
+    used.add(matches[0]);
+  }
+  if (used.size !== ownedPaths.length) errors.push("Explicit ownership paths do not match planned workers");
+
+  const nodeIdByWorkerNumber = new Map<number, string>();
+  for (const section of sections) {
+    const rawPath = section.text.match(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)/i)?.[1];
+    if (!rawPath) continue;
+    const path = extractGoalPaths(rawPath)[0];
+    const matchedNode = [...paths].find(([, ownedPath]) => ownedPath === path)?.[0];
+    if (matchedNode) nodeIdByWorkerNumber.set(section.number, matchedNode);
+  }
+  for (const section of sections) {
+    const dependencyText = section.text.match(/\bdepends?\s+on\s+workers?\s+([^.;\n]+)/i)?.[1];
+    if (!dependencyText) continue;
+    const nodeId = nodeIdByWorkerNumber.get(section.number);
+    if (!nodeId) {
+      errors.push(`Cannot match explicit dependencies for worker ${section.number}`);
+      continue;
+    }
+    const node = nodes.find(candidate => candidate.id === nodeId)!;
+    for (const dependencyNumber of [...dependencyText.matchAll(/\b\d+\b/g)].map(match => Number(match[0]))) {
+      const dependencyNodeId = nodeIdByWorkerNumber.get(dependencyNumber);
+      if (!dependencyNodeId || !node.dependencies.includes(dependencyNodeId)) {
+        errors.push(`Worker ${section.number} is missing dependency on worker ${dependencyNumber}`);
+      }
+    }
+  }
+  return { paths, errors };
+}
+
 function claimsOverlap(
   left: readonly { path: string; recursive: boolean }[],
   right: readonly { path: string; recursive: boolean }[],
@@ -250,6 +336,14 @@ export class CoordinationPlanner {
       );
     }
 
+    const explicitOwnership = explicitOwnershipForNodes(goal, planResult.graph.nodes);
+    if (explicitOwnership.errors.length > 0) {
+      return this.persistBlockedDiagnostic({
+        goal, coordinatorAgentId, sessionId, graph: planResult.graph,
+        errors: explicitOwnership.errors, graphSafeToPersist: true,
+      });
+    }
+
     const absoluteGraphPath = await persistGraph(planResult.graph, this.cwd);
     const taskGraphRef = relative(this.cwd, absoluteGraphPath).replaceAll("\\", "/");
 
@@ -285,7 +379,10 @@ export class CoordinationPlanner {
       // nothing, so the planner never over-reserves `**` for a node that
       // cannot write.
       const writer = isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] });
-      const ownershipScopes = writer ? inferOwnershipScopes(node, mutationClass) : [];
+      const explicitPath = explicitOwnership.paths.get(node.id);
+      const ownershipScopes = writer
+        ? explicitPath ? [explicitPath] : inferOwnershipScopes(node, mutationClass)
+        : [];
       const claimResult = compileOwnershipClaims(ownershipScopes);
       const agentId = pool.length > 0 ? pool[workers.length % pool.length] : defaultLabel(workers.length);
 
@@ -294,7 +391,7 @@ export class CoordinationPlanner {
         coordinationRunId: run.id,
         agentId,
         taskLabel: node.title,
-        goalPrompt: node.goal,
+        goalPrompt: explicitPath ? `${node.goal}\nOutput path: ${explicitPath}` : node.goal,
         dependencies: [],
         ownershipScopes,
         sourceNodeId: node.id,

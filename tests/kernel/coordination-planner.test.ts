@@ -291,6 +291,176 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(result.run!.workers.map(worker => worker.dependencies), [[], []]);
   });
 
+  it("preserves explicit root ownership when model shortens four worker goals", async () => {
+    const base = ".tmp/workbench-e2e-manual-20260923";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create project.md by reading package.json and README.md" }),
+      makeNode("n2", [], { goal: "Create tui.md summarizing src/tui/workbench/" }),
+      makeNode("n3", [], { goal: "Create tests.md summarizing tests/tui/workbench/" }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: "Read project.md, tui.md, tests.md, then create final-report.md" }),
+    ]);
+    const goal = [
+      `Worker 1: Create project.md. Own ONLY: ${base}/project.md`,
+      `Worker 2: Create tui.md. Own ONLY: ${base}/tui.md`,
+      `Worker 3: Create tests.md. Own ONLY: ${base}/tests.md`,
+      `Worker 4: Create final-report.md. Own ONLY: ${base}/final-report.md`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/tui.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    const [first, second, third, fourth] = result.run!.workers;
+    assert.deepEqual([first.dependencies, second.dependencies, third.dependencies], [[], [], []]);
+    assert.deepEqual(fourth.dependencies, [first.id, second.id, third.id]);
+  });
+
+  it("preserves natural-language ownership and dependencies from a four-worker request", async () => {
+    const base = ".tmp/workbench-e2e-manual-20260923";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create project.md from package.json and README.md", domain: "docs" }),
+      makeNode("n2", [], { goal: "Create tui.md summarizing src/tui/workbench/", domain: "docs" }),
+      makeNode("n3", [], { goal: "Create tests.md summarizing tests/tui/workbench/", domain: "docs" }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: "Create final-report.md", domain: "docs" }),
+    ]);
+    const goal = [
+      "Use exactly four workers.",
+      `Worker 1 — owns ONLY ${base}/project.md`,
+      `Worker 2 — owns ONLY ${base}/tui.md`,
+      `Worker 3 — owns ONLY ${base}/tests.md`,
+      `Worker 4 — depends on Workers 1, 2, and 3; owns ONLY ${base}/final-report.md`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/tui.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    const workers = result.run!.workers;
+    assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(w => w.id));
+  });
+
+  it("blocks a two-worker request when the model adds a third worker", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create first.md" }),
+      makeNode("n2", [], { goal: "Create second.md" }),
+      makeNode("n3", [], { goal: "Create extra.md" }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Create first.md. Own only .tmp/first.md",
+      "Worker 2: Create second.md. Own only .tmp/second.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+    assert.match(result.errors.join("; "), /two|2|count/i);
+  });
+
+  it("accepts a two-worker request with its stated ownership and dependency", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create first.md" }),
+      makeNode("n2", ["n1"], { goal: "Create second.md" }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Create first.md. Own only .tmp/first.md",
+      "Worker 2: Depend on Worker 1. Create second.md. Own only .tmp/second.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [[".tmp/first.md"], [".tmp/second.md"]]);
+    assert.deepEqual(result.run!.workers[1].dependencies, [result.run!.workers[0].id]);
+  });
+
+  it("allows an unowned read-only worker beside an explicitly owned writer", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Inspect package.json", requiredCapabilities: ["file.read"] }),
+      makeNode("n2", [], { goal: "Create report.md" }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Inspect package.json.",
+      "Worker 2: Create report.md. Own only .tmp/report.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.run!.workers.map(w => w.ownershipScopes), [[], [".tmp/report.md"]]);
+  });
+
+  it("matches an explicit output when a node goal ends with sentence punctuation", async () => {
+    const graph = makeGraph([makeNode("n1", [], { goal: "Create report.md." })]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan("Worker 1: Create report.md. Own only .tmp/report.md", "coordinator", "session-1");
+
+    assert.equal(result.valid, true);
+    assert.deepEqual(result.run!.workers[0].ownershipScopes, [".tmp/report.md"]);
+  });
+
+  it("blocks dispatch when a stated dependency is absent from the graph", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create first.md" }),
+      makeNode("n2", [], { goal: "Create second.md" }),
+    ]);
+    const goal = [
+      "Worker 1: Create first.md. Own ONLY: .tmp/first.md",
+      "Worker 2: Depend on Worker 1. Create second.md. Own ONLY: .tmp/second.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+    assert.match(result.errors.join("; "), /depend/i);
+  });
+
+  it("blocks an explicit dependency that cannot be mapped to worker nodes", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Inspect package.json", requiredCapabilities: ["file.read"] }),
+      makeNode("n2", [], { goal: "Summarize findings", requiredCapabilities: ["file.read"] }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Inspect package.json.",
+      "Worker 2: Depend on Worker 1. Summarize findings.",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+    assert.match(result.errors.join("; "), /depend/i);
+  });
+
+  it("blocks a read-only worker assigned an explicit output", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create report.md", requiredCapabilities: ["filesystem.read"] }),
+    ]);
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan("Worker 1: Create report.md. Own ONLY: .tmp/report.md", "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+  });
+
   it("serializes vague writers with overlapping ownership in deterministic plan order", async () => {
     const graph = makeGraph([
       makeNode("a", [], { goal: "Improve validation", requiredCapabilities: ["filesystem.write"] }),

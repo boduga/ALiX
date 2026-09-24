@@ -20,6 +20,8 @@
 **Local Contracts:**
 - GraphExecutor runs nodes sequentially, stops on first failure.
 - Coordination planning preserves truthful ownership: parallel writers with explicit disjoint paths remain concurrent, while vague writers with overlapping inferred claims are deterministically ordered by dependency rather than assigned fabricated scopes.
+- Before dispatch, coordination planning checks stated worker counts, `own only`/`owns only` output paths, and dependencies against the model graph. Explicit outputs override domain inference and enter task instructions; mismatches or unmappable dependencies block planning. Unstated constraints keep normal planning behavior.
+- A coordination subagent's `partial` result is an execution failure, eligible for bounded retry. Only a `success` result completes a worker and contributes to a successful aggregate.
 - Graph strategy is inferred from dependency shape (`>=2` dependency-free roots → `hybrid`, else `sequential`), never from a model-supplied `strategy` label.
 - Coordination workers are ordered by `serializeOverlappingWriters`: any two writers whose ownership claims overlap (a vague `**` claim overlaps all) get a dependency edge; disjoint writers and read-only workers stay parallel.
 - Coordination plans publish queued/dependency-waiting canonical `agent.*` lifecycle rows before dispatch. Retry-attempt results are non-terminal presentation facts; only scheduler exhaustion/completion publishes terminal worker state, and dependency failure publishes an explicit blocked state.
