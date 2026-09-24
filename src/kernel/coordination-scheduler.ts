@@ -433,9 +433,49 @@ export class CoordinationScheduler {
 
   // ── Worker execution ───────────────────────────────────────────────
 
+  /**
+   * Bounded retry for a worker patch. A silent null (transient store read
+   * failure under lock) or throw would leave the worker stuck in `running`
+   * after its execution settled, orphaning it and idle-stopping runUntilIdle.
+   */
+  private async patchWorkerWithRetry(
+    runId: string,
+    workerId: string,
+    patch: Record<string, unknown>,
+    attempts = 3,
+  ): Promise<boolean> {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const run = await this.deps.store.patchWorker(runId, workerId, patch);
+        if (run) return true;
+      } catch (err) {
+        if (i === attempts - 1) {
+          console.error(`coordination: patchWorker failed for worker ${workerId} after ${attempts} attempts:`, err);
+        }
+      }
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, i === 0 ? 25 : 50));
+      }
+    }
+    console.error(`coordination: patchWorker returned null for worker ${workerId} after ${attempts} attempts`);
+    return false;
+  }
+
   private async executeWorker(runId: string, workerId: string, signal: AbortSignal): Promise<void> {
-    const run = await this.deps.store.load(runId);
-    if (!run) return;
+    const run = await this.deps.store.loadWithRetry(runId);
+    if (!run) {
+      // Orphan guard: execution never started but tick already dispatched this
+      // worker as running — fail it so runUntilIdle does not idle-stop with a
+      // permanently running worker.
+      await this.patchWorkerWithRetry(runId, workerId, {
+        status: "failed",
+        blockReason: "execution_failed",
+        failureKind: "execution_error",
+        error: "Coordination run state unreadable at execution start",
+        completedAt: new Date().toISOString(),
+      });
+      return;
+    }
     const worker = run.workers.find(w => w.id === workerId);
     if (!worker) return;
 
@@ -454,7 +494,7 @@ export class CoordinationScheduler {
 
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
-        await this.deps.store.patchWorker(runId, workerId, {
+        await this.patchWorkerWithRetry(runId, workerId, {
           status: "completed", completedAt: new Date().toISOString(), resultRef,
         });
         this.emit("coordination.worker.completed", {
@@ -480,7 +520,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            await this.deps.store.patchWorker(runId, workerId, {
+            await this.patchWorkerWithRetry(runId, workerId, {
               status: "pending", blockReason: undefined, failureKind: result.failureKind,
               error: result.error,
               resultRef: failureRef,
@@ -494,7 +534,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            await this.deps.store.patchWorker(runId, workerId, {
+            await this.patchWorkerWithRetry(runId, workerId, {
               status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
               error: result.error ?? "Execution failed",
               resultRef: failureRef,
@@ -527,7 +567,7 @@ export class CoordinationScheduler {
       const isAbort = error instanceof Error && (error.name === "AbortError" || errorMsg.includes("abort"));
       if (isAbort) {
         try {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "failed", blockReason: "cancelled", failureKind: "cancelled",
             error: "Worker cancelled by scheduler shutdown",
             completedAt: new Date().toISOString(),
@@ -547,7 +587,7 @@ export class CoordinationScheduler {
           failureKind: "execution_error",
         });
         if (isRetryable) {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "pending",
             blockReason: undefined,
             failureKind: "execution_error",
@@ -555,7 +595,7 @@ export class CoordinationScheduler {
             resultRef: failureRef,
           });
         } else {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
             error: errorMsg,
             resultRef: failureRef,
@@ -586,7 +626,7 @@ export class CoordinationScheduler {
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
         await releaseWorkerOwnership(this.deps.ownershipRegistry, finalWorker.leaseIds);
-        await this.deps.store.patchWorker(runId, workerId, { leaseIds: [] });
+        await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });
       }
       // Check if run is now terminal
       if (finalRun?.status === "completed" || finalRun?.status === "failed") {

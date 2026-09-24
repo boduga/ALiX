@@ -90,6 +90,23 @@ export class CoordinationStore {
     }
   }
 
+  /**
+   * Load with bounded retries for transient read failures (Windows Defender
+   * EBUSY on tmp+rename churn, partial reads). Missing files fail fast.
+   * Returns null after exhausting attempts.
+   */
+  async loadWithRetry(runId: string, attempts = 3): Promise<CoordinationRun | null> {
+    if (!existsSync(this.runPath(runId))) return null;
+    for (let i = 0; i < attempts; i++) {
+      const run = await this.load(runId);
+      if (run) return run;
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, i === 0 ? 25 : 50));
+      }
+    }
+    return null;
+  }
+
   /** List all coordination runs, newest first. */
   async list(): Promise<CoordinationRun[]> {
     if (!existsSync(this.baseDir)) return [];
@@ -194,7 +211,7 @@ export class CoordinationStore {
     const acquired = await lock.acquire();
     if (!acquired) return null;
     try {
-      const run = await this.load(runId);
+      const run = await this.loadWithRetry(runId);
       if (!run) return null;
       await mutate(run);
       run.status = recomputeRunStatus(run);

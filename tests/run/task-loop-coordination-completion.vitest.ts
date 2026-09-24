@@ -316,7 +316,9 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     expect(ended.every((e) => (e.payload as { reason?: string }).reason !== 'completed')).toBe(true);
   });
 
-  it('Path B: verification passing cannot complete while the last coordination.run failed', async () => {
+  // POSIX-only: the verifier spawns /bin/sh; on win32 discovery returns
+  // not_run and Path B is unreachable (deterministic failure).
+  it.skipIf(process.platform === 'win32')('Path B: verification passing cannot complete while the last coordination.run failed', async () => {
     const tmpCwd = mkdtempSync(join(tmpdir(), 'alix-coord-pathb-'));
     writeFileSync(
       join(tmpCwd, 'package.json'),

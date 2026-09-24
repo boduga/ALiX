@@ -396,6 +396,44 @@ describe("CoordinationScheduler", () => {
     assert.ok(result.durationMs >= 0);
   });
 
+  it("runUntilIdle still completes when the first terminal completed patch is a transient null", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "flaky patch", coordinatorAgentId: "alix" });
+    await store.save(run);
+
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "flaky", goalPrompt: "do",
+      requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3,
+    });
+    await store.addWorker(run.id, worker);
+
+    // Simulate a transient store-read failure on the first completed-status
+    // patch (Windows Defender EBUSY shape): patchWorker returns null once,
+    // then the real implementation runs on retry.
+    const originalPatchWorker = store.patchWorker.bind(store);
+    let flakyCalls = 0;
+    store.patchWorker = async (runId: string, workerId: string, patch: Record<string, unknown>) => {
+      if (patch.status === "completed" && flakyCalls === 0) {
+        flakyCalls++;
+        return null;
+      }
+      return originalPatchWorker(runId, workerId, patch);
+    };
+
+    try {
+      const result = await scheduler.runUntilIdle(run.id, { pollIntervalMs: 10, timeoutMs: 5000 });
+
+      assert.equal(result.finalStatus, "completed");
+      assert.equal(result.stopReason, "completed");
+      assert.ok(flakyCalls >= 1, "flaky null path was exercised");
+
+      const stored = await store.load(run.id);
+      const storedWorker = stored!.workers.find(w => w.id === worker.id)!;
+      assert.equal(storedWorker.status, "completed");
+    } finally {
+      store.patchWorker = originalPatchWorker;
+    }
+  });
+
   it("runUntilIdle stops when approval is required", async () => {
     const sched = createScheduler({ authorization: approvalRequiredAuth() });
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "idle approval", coordinatorAgentId: "alix" });
