@@ -143,6 +143,8 @@ export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.d
 export const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
 export const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 export const COORDINATION_EVIDENCE_GAP = "a successful coordination run with worker outcomes";
+/** Exec name of the coordination tool (provider-facing `alix_coordination_run`). */
+export const COORDINATION_RUN_TOOL_NAME = "coordination.run";
 
 /**
  * Bare continuation cues — a turn whose entire message is one of these
@@ -180,9 +182,11 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
   return { mutation, verification, coordination };
 }
 
-export function objectiveEvidenceGaps(  task: string,
+export function objectiveEvidenceGaps(
+  task: string,
   taskType: string,
   evidence: ReadonlyArray<SuccessfulToolEvidence>,
+  opts?: { coordinationRunFailed?: boolean },
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
@@ -197,10 +201,67 @@ export function objectiveEvidenceGaps(  task: string,
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
   if (required.verification && (mutationOrdinal < 0 || !verifiedAfterMutation)) gaps.push(VERIFICATION_EVIDENCE_GAP);
-  if (required.coordination && !evidence.some((item) => item.name === "coordination.run")) {
+  // A failed last-attempt coordination.run blocks completion regardless of
+  // whether the objective text matches the coordination regex: the model
+  // volunteered coordination, it failed, so the success evidence is missing
+  // until a later attempt clears the flag (durability contract).
+  if (
+    opts?.coordinationRunFailed ||
+    (required.coordination && !evidence.some((item) => item.name === COORDINATION_RUN_TOOL_NAME))
+  ) {
     gaps.push(COORDINATION_EVIDENCE_GAP);
   }
   return gaps;
+}
+
+/**
+ * Builds the bounded re-prompt for an untrustworthy prose completion claim
+ * (Path A of the task loop). Escalates with each attempt: evidence-gap
+ * instruction first, then client-error-echo correction, then hard tool
+ * demands; the soft-claim nudge only applies when nothing else is wrong.
+ */
+export function buildUnconfirmedDonePrompt(input: {
+  unsubstantiated: string[];
+  evidenceGaps: string[];
+  errorEchoDone: boolean;
+  attempt: number;
+}): string {
+  const { unsubstantiated, evidenceGaps, errorEchoDone, attempt } = input;
+  const missingToolLines = [...unsubstantiated, ...evidenceGaps]
+    .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
+    .join("\n");
+
+  if (evidenceGaps.length > 0) {
+    return (
+      `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
+      `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`
+    );
+  }
+  if (errorEchoDone && unsubstantiated.length === 0) {
+    return (
+      `Your last tool call returned an HTTP/client error, and you declared the task done without writing or verifying the deliverable. ` +
+      `A tool error is not a completed outcome. Retry with corrected parameters/headers, complete the actual work, ` +
+      `and confirm the deliverable exists before saying done.`
+    );
+  }
+  if (attempt >= 2) {
+    return (
+      `You keep saying you are done without having actually called the required tools. ` +
+      `Call these tools now:\n${missingToolLines}\n\n` +
+      `Do NOT call done until every one of these tools has returned a result.`
+    );
+  }
+  if (attempt >= 1) {
+    return (
+      `Your summary claims you completed the following, but no matching tool call was made:\n${missingToolLines}\n\n` +
+      `Call these tools now using their \`alix_\` names, or call \`done\` only if you genuinely cannot proceed.`
+    );
+  }
+  return (
+    `Your summary claims you did the following, but no matching tool call was made: ${unsubstantiated.join(", ")}. ` +
+    `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
+    `Either call the remaining tools now, or call the \`done\` tool explicitly once everything is genuinely finished.`
+  );
 }
 
 export function missingEvidenceSummary(gaps: string[], text: string): string {
@@ -208,6 +269,29 @@ export function missingEvidenceSummary(gaps: string[], text: string): string {
   const lastResponse = text.trim();
   return `Task could not be verified as complete: missing ${detail}.` +
     (lastResponse ? ` Last model response: ${lastResponse}` : "");
+}
+
+/**
+ * End-of-iteration synthesis re-prompt: nudges a model that ran tools but
+ * produced only a short opening line. Detects the file.*-only rut and
+ * suggests broader tool categories; otherwise restates the completion rule.
+ */
+export function buildSynthesisReprompt(usedTools: ReadonlySet<string>): string {
+  const usedList = [...usedTools];
+  const stuckOn = usedList.filter((t) => t.startsWith("file."));
+  if (stuckOn.length === usedList.length && usedList.length > 0 && usedList.length < 5) {
+    return (
+      "You have only used file search tools so far (" + usedList.join(", ") + "). " +
+      "The user's request may require other tools. Available tool categories include: " +
+      "shell.run, notification.send, user.send_file, monitor, findings.report, ask_user. " +
+      "Try using a different tool to make progress. If you truly have nothing left to do, " +
+      "write a final summary and signal that the task is done."
+    );
+  }
+  return (
+    "Review the original objective against the tool results. If required work is still missing, call the appropriate tool now. " +
+    "Only when the objective is genuinely complete, write a concise final summary and signal that the task is done."
+  );
 }
 
 /**
