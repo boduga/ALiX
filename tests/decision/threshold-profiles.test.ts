@@ -13,6 +13,7 @@ import {
   createCalibrationProvenance,
   createProfileRegistry,
   deriveThresholdProfile,
+  deriveThresholdProfileFromAccuracySweep,
   loadProfileRegistry,
   profileById,
   promoteProfile,
@@ -247,6 +248,50 @@ describe("profile persistence", () => {
     const suggestion = suggestThreshold(report, { targetAccuracy: 0.9 });
     assert.equal(suggestion.threshold, 1);
     assert.equal(suggestion.coverage, 0);
+  });
+});
+
+describe("accuracy-sweep profile derivation", () => {
+  it("derives a shadow profile with accuracy provenance from a sweep", () => {
+    const derived = deriveThresholdProfileFromAccuracySweep({
+      sweep: { threshold: 0.1, accuracy: 1, sampleCount: 8 },
+      datasetId: "corpus/local-accuracy",
+      id: "claim-verification/local/v2",
+      decision: "claim-verification",
+      engineId: LOCAL_ENGINE_ID,
+      computedAt: 5,
+    });
+    assert.equal(derived.status, "shadow");
+    assert.equal(derived.threshold, 0.1);
+    assert.equal(derived.decision, "claim-verification");
+    assert.equal(derived.provenance?.metric, "accuracy");
+    assert.equal(derived.provenance?.value, 1);
+    assert.equal(derived.provenance?.sampleCount, 8);
+    assert.equal(derived.provenance?.datasetId, "corpus/local-accuracy");
+    assert.equal(derived.provenance?.computedAt, 5);
+  });
+
+  it("keeps risk scope and rejects a sweep threshold outside 0..1", () => {
+    const scoped = deriveThresholdProfileFromAccuracySweep({
+      sweep: { threshold: 0.3, accuracy: 0.9, sampleCount: 4 },
+      datasetId: "d",
+      id: "claim-verification/local/v3",
+      decision: "claim-verification",
+      engineId: LOCAL_ENGINE_ID,
+      risk: "high",
+    });
+    assert.equal(scoped.risk, "high");
+    assert.throws(
+      () =>
+        deriveThresholdProfileFromAccuracySweep({
+          sweep: { threshold: 1.4, accuracy: 1, sampleCount: 4 },
+          datasetId: "d",
+          id: "bad",
+          decision: "claim-verification",
+          engineId: LOCAL_ENGINE_ID,
+        }),
+      /outside 0..1/,
+    );
   });
 });
 

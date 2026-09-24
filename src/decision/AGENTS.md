@@ -20,7 +20,7 @@
 - `decisions/model-tier/` — third decision (bounded Choice over enabled canonical tiers, resolved via `models.*`); see its AGENTS.md.
 - `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
-- `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability. See its AGENTS.md.
+- `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability, accuracy sweep (scoreless engines), versioned threshold profiles. See its AGENTS.md.
 - Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
@@ -72,5 +72,5 @@
 | `src/decision/decisions/context-relevance/AGENTS.md` | Second decision — per-item Noul scoring, engine-specific thresholds, deterministic selection, shadow runner |
 | `src/decision/decisions/model-tier/AGENTS.md` | Third decision — canonical tier candidates, feature-only projection, `models.*` resolution, shadow runner |
 | `src/decision/decisions/risk-escalation/AGENTS.md` | J6 decision — bounded risk tiers, composed approval recommendation, §14 admission review |
-| `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability, versioned threshold profiles + promotion/rollback |
+| `src/decision/calibration/AGENTS.md` | J4 evidence pipeline — outcome labels, dataset join, reliability, accuracy sweep, versioned threshold profiles + promotion/rollback |
 | `src/decision/replay/AGENTS.md` | J5 dry-run harness — stored fixtures, comparison, promotion gate |

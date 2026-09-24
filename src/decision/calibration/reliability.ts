@@ -76,6 +76,14 @@ function nativeScoreOf(
   }
 }
 
+/**
+ * Whether the sample carries a native score for its kind. Missing is missing —
+ * never treated as 0 (same rule the report applies when excluding samples).
+ */
+export function hasNativeScore(sample: CalibrationSample): boolean {
+  return nativeScoreOf(sample, METRIC_BY_KIND[sample.kind]) !== undefined;
+}
+
 type Scorable = { score: number; correct: boolean };
 
 function scorableSamples(samples: readonly CalibrationSample[]): {

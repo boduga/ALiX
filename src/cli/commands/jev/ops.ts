@@ -22,13 +22,17 @@ import {
   createOutcomeLabelStore,
   createProfileRegistry,
   deriveThresholdProfile,
+  deriveThresholdProfileFromAccuracySweep,
   exportCalibrationDataset,
+  hasNativeScore,
   indexLabelsByDecisionId,
   loadProfileRegistry,
   promoteProfile,
   resolveDecisionPaths,
   rollbackProfile,
   saveProfileRegistry,
+  sweepLocalClaimThreshold,
+  type AccuracySweepResult,
   type CalibrationExport,
   type ClaimVerificationExperimentProjection,
   type DecisionConfig,
@@ -229,6 +233,23 @@ export function shippedProfiles(decision: DecisionType): readonly ThresholdProfi
   return decision === "context-relevance" ? CONTEXT_RELEVANCE_PROFILES.profiles : [];
 }
 
+/**
+ * Registered accuracy-sweep paths for engines with no native score. Only
+ * claim-verification/local qualifies today: its threshold is the classifier's
+ * support-overlap parameter, and the baseline never emits confidence (JEV-9),
+ * so `computeReliability` would refuse every sample.
+ */
+function accuracySweepFor(
+  decision: DecisionType,
+  engineId: string,
+  opts: { targetAccuracy: number; bins?: number },
+): AccuracySweepResult | undefined {
+  if (decision === "claim-verification" && engineId === LOCAL_ENGINE_ID) {
+    return sweepLocalClaimThreshold(opts);
+  }
+  return undefined;
+}
+
 export async function deriveProfile(
   paths: JevPaths,
   opts: {
@@ -241,20 +262,41 @@ export async function deriveProfile(
     now?: number;
   },
 ): Promise<ThresholdProfile> {
-  const report = await reliabilityReport(paths, {
+  const dataset = await exportDataset(paths, {
     decision: opts.decision,
     engineId: opts.engineId,
   });
-  const derived = deriveThresholdProfile({
-    report,
-    datasetId: opts.datasetId,
-    id: opts.id,
-    decision: opts.decision,
-    engineId: opts.engineId,
+  const sweep = accuracySweepFor(opts.decision, opts.engineId, {
     targetAccuracy: opts.targetAccuracy,
-    ...(opts.risk !== undefined ? { risk: opts.risk } : {}),
-    ...(opts.now !== undefined ? { computedAt: opts.now } : {}),
   });
+  let derived: ThresholdProfile;
+  if (sweep !== undefined && !dataset.samples.some(hasNativeScore)) {
+    derived = deriveThresholdProfileFromAccuracySweep({
+      sweep,
+      datasetId: opts.datasetId,
+      id: opts.id,
+      decision: opts.decision,
+      engineId: opts.engineId,
+      ...(opts.risk !== undefined ? { risk: opts.risk } : {}),
+      ...(opts.now !== undefined ? { computedAt: opts.now } : {}),
+    });
+  } else {
+    try {
+      const report = computeReliability(dataset.samples);
+      derived = deriveThresholdProfile({
+        report,
+        datasetId: opts.datasetId,
+        id: opts.id,
+        decision: opts.decision,
+        engineId: opts.engineId,
+        targetAccuracy: opts.targetAccuracy,
+        ...(opts.risk !== undefined ? { risk: opts.risk } : {}),
+        ...(opts.now !== undefined ? { computedAt: opts.now } : {}),
+      });
+    } catch (error) {
+      asOperatorError(error);
+    }
+  }
   const registry = createProfileRegistry([
     ...listProfiles(paths).filter((profile) => profile.id !== derived.id),
     derived,

@@ -360,6 +360,43 @@ export function deriveThresholdProfile(input: {
 }
 
 /**
+ * Derive a versioned, provenance-bearing shadow profile from an accuracy
+ * sweep — the path for engines with no native score (e.g. the local claim
+ * baseline), where `computeReliability` refuses the samples. Provenance
+ * records metric `accuracy` at the swept threshold; promotion is still
+ * approval-gated exactly like the reliability-derived path.
+ */
+export function deriveThresholdProfileFromAccuracySweep(input: {
+  sweep: { threshold: number; accuracy: number; sampleCount: number };
+  datasetId: string;
+  id: string;
+  decision: DecisionType;
+  engineId: string;
+  risk?: RiskContext;
+  computedAt?: number;
+}): ThresholdProfile {
+  rejectWhen(
+    input.sweep.threshold < 0 || input.sweep.threshold > 1,
+    `threshold outside 0..1: ${String(input.sweep.threshold)}`,
+  );
+  return {
+    id: input.id,
+    decision: input.decision,
+    engineId: input.engineId,
+    ...(input.risk !== undefined ? { risk: input.risk } : {}),
+    threshold: input.sweep.threshold,
+    status: "shadow",
+    provenance: createCalibrationProvenance({
+      datasetId: input.datasetId,
+      sampleCount: input.sweep.sampleCount,
+      metric: "accuracy",
+      value: input.sweep.accuracy,
+      ...(input.computedAt !== undefined ? { computedAt: input.computedAt } : {}),
+    }),
+  };
+}
+
+/**
  * Roll back to the most recently retired profile for the scope. Fails closed
  * when nothing is active or there is nothing to restore.
  */

@@ -7,7 +7,8 @@
 - `projection.ts` — `ClaimVerificationProjection` (claim + bounded evidence excerpts), projector, `readClaimProjection` (lenient read for local engines).
 - `local-baseline.ts` — deterministic rule baseline (`classifyClaimLocally`): term overlap + whole-word negation + numeric mismatch; conservative `insufficient`; optional `supportOverlapThreshold` override (default `SUPPORT_OVERLAP_THRESHOLD` = 0.5).
 - `thresholds.ts` — `resolveLocalClaimThreshold(config, profiles)`: configured route profile when it is the ACTIVE local claim profile → the scope's active local claim profile → default 0.5; a foreign engine's profile is never applied (JEV-9). Pure — the caller loads the registry; an unreadable/invalid registry degrades to an empty one (the default), never a foreign number.
-- `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial).
+- `corpus.ts` — labeled fixture corpus (supported/contradicted/insufficient + adversarial); `expected` is the ground truth the local accuracy sweep measures against.
+- `accuracy-sweep.ts` — `sweepLocalClaimThreshold({ targetAccuracy, bins? })`: maps the corpus to `sweepAccuracy` cases whose `verdictAt` re-runs `classifyClaimLocally` at each `supportOverlapThreshold` grid point. The only registered local sweep path today (`jev ops` dispatches claim-verification+local here when samples carry no native score).
 - `jev-mapping.ts` — `toJevRequest` / `fromJevResponse`; unknown verdict → `MalformedResultError`.
 - `shadow.ts` — `runClaimVerificationShadow`: project → run configured route → run local baseline → journal each under one `projectionHash`. Result carries the sealed `projection` (claim + evidence) alongside `projectionHash`; accepts an optional `project` seam that overrides the default `projectClaimVerification` seal (test/boundary injection).
 - `selection-service.ts` — `selectClaimVerification` with `baseline` (local verdict, no plan/journal/network, default) / `shadow` (returns the BASELINE verdict — deliberate divergence, spec §10) / `active` (configured engine's verdict). Accepts an optional `claimThreshold` bound into its direct `classifyClaimLocally` calls.
@@ -21,6 +22,7 @@
 - Adversarial instruction text inside evidence is data, never authority.
 - Local baseline emits no confidence (uncalibrated, JEV-9).
 - The local support-overlap threshold resolves configured-active-local → own active profile → 0.5 default; Jev (or any foreign) calibration is never applied (JEV-9). The consumer resolves it once per call (`resolveLocalClaimThreshold`) and passes it into the local executor/classifier; an invalid profile registry degrades to the default for local availability, never fail-closed into a foreign threshold.
+- **Local calibration is corpus accuracy, not reliability.** The baseline emits no confidence, so `computeReliability` refuses its samples; the sweep measures accuracy by re-classifying the corpus at each threshold (`supportOverlapThreshold` is the knob). Corpus `expected` labels are the ground truth — journal labels keep only a `correct` boolean, so an incorrect ternary verdict is not reconstructable from them. Selection: lowest grid point meeting the target, else threshold 1 with the accuracy measured at 1.
 - Shadow results carry `authority: "none"`; the consumer decides what verification action follows.
 - Baseline and observed outcomes journal separately under the same `projectionHash` — that is the J4 calibration/comparison input.
 - Every attempt is journaled: a failed remote attempt that fell back appears as an explicit `failure` record with its latency.
@@ -36,6 +38,6 @@
 - Never widen the projection to carry raw payloads — add a bounded field instead.
 
 **Verification:**
-- `tests/decision/claim-verification.test.ts` — schema, projection bounds/redaction, baseline corpus + adversarial, Jev mapping, executor failure classes, fallback + capability enforcement, shadow journaling/agreement/authority, threshold-profile wiring (override flips a borderline verdict; resolver order incl. JEV-9 foreign-profile refusal).
+- `tests/decision/claim-verification.test.ts` — schema, projection bounds/redaction, baseline corpus + adversarial, local accuracy sweep (target selection, grid floor, bins=1 fully-closed fallback), Jev mapping, executor failure classes, fallback + capability enforcement, shadow journaling/agreement/authority, threshold-profile wiring (override flips a borderline verdict; resolver order incl. JEV-9 foreign-profile refusal).
 
 **Child DOX Index:** none.

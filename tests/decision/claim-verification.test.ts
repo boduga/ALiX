@@ -35,6 +35,7 @@ import {
   resolveLocalClaimThreshold,
   runClaimVerificationShadow,
   selectClaimVerification,
+  sweepLocalClaimThreshold,
   toJevRequest,
   fromJevResponse,
   type DecisionConfig,
@@ -158,6 +159,41 @@ describe("local baseline", () => {
       }).verdict,
       "supported",
     );
+  });
+});
+
+describe("local accuracy sweep", () => {
+  it("target 0.8 selects the lowest support-overlap threshold meeting it on the corpus", () => {
+    const result = sweepLocalClaimThreshold({ targetAccuracy: 0.8 });
+    assert.equal(result.sampleCount, CLAIM_VERIFICATION_CORPUS.length);
+    assert.equal(result.sampleCount, 8);
+    assert.ok(Math.abs(result.threshold - 0.1) < 1e-9, `threshold ${result.threshold} ≈ 0.1`);
+    assert.equal(result.accuracy, 1);
+    assert.equal(result.points.length, 11);
+    assert.equal(result.points[0].threshold, 0);
+    assert.equal(result.points[10].threshold, 1);
+    assert.ok(
+      Math.abs(result.points[0].accuracy - 0.625) < 1e-9,
+      `t=0 accuracy ${result.points[0].accuracy} ≈ 0.625`,
+    );
+    assert.equal(result.points[1].accuracy, 1);
+  });
+
+  it("target 0.5 selects the grid floor (measured 0.625 ≥ 0.5)", () => {
+    const result = sweepLocalClaimThreshold({ targetAccuracy: 0.5 });
+    assert.equal(result.threshold, 0);
+    assert.ok(Math.abs(result.accuracy - 0.625) < 1e-9);
+    assert.equal(result.sampleCount, 8);
+  });
+
+  it("bins=1 falls fully closed with the accuracy measured at 1 when no grid point meets the target", () => {
+    const result = sweepLocalClaimThreshold({ targetAccuracy: 0.8, bins: 1 });
+    assert.deepEqual(
+      result.points.map((point) => point.threshold),
+      [0, 1],
+    );
+    assert.equal(result.threshold, 1);
+    assert.ok(Math.abs(result.accuracy - 0.5) < 1e-9, `measured accuracy at 1 is ${result.accuracy}`);
   });
 });
 
