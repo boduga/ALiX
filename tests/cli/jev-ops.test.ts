@@ -81,7 +81,7 @@ function withUserConfig(apiKeys: Record<string, string>): void {
 }
 
 /** Seed `count` labelled context-relevance decisions. */
-function seed(count: number, correctFrom: number, target: ReturnType<typeof resolveJevPaths> = paths): void {
+async function seed(count: number, correctFrom: number, target: ReturnType<typeof resolveJevPaths> = paths): Promise<void> {
   const journal = createDecisionJournalStore(target.dir);
   for (let i = 0; i < count; i += 1) {
     const probability = 0.95 - i * 0.05;
@@ -96,7 +96,7 @@ function seed(count: number, correctFrom: number, target: ReturnType<typeof reso
       now: 1_700_000_000_000 + i,
     });
     journal.append(record);
-    void createOutcomeLabelStore(target.dir).append(
+    await createOutcomeLabelStore(target.dir).append(
       createOutcomeLabel({
         decisionId: record.decisionId,
         decision: "context-relevance",
@@ -164,8 +164,8 @@ describe("jev ops — labels", () => {
 });
 
 describe("jev ops — calibration", () => {
-  before(() => {
-    seed(10, 6);
+  before(async () => {
+    await seed(10, 6);
   });
 
   it("exports a dataset with skip accounting", async () => {
@@ -199,9 +199,9 @@ describe("jev ops — calibration", () => {
 describe("jev ops — threshold profiles", () => {
   let profilePaths: ReturnType<typeof resolveJevPaths>;
 
-  before(() => {
+  before(async () => {
     profilePaths = resolveJevPaths(join(cwd, "profiles"));
-    seed(10, 8, profilePaths);
+    await seed(10, 8, profilePaths);
   });
 
   it("derives a shadow profile with provenance and persists it", async () => {
