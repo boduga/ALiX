@@ -144,6 +144,22 @@ export function inferSingleOwnedPatchPath(
 }
 
 /**
+ * Supply the sole owned output path when a write worker emits file.create
+ * with content but omits its required path. Ambiguous and malformed calls are
+ * left untouched so the tool boundary can reject them normally.
+ */
+export function inferSingleOwnedCreatePath(
+  args: Record<string, unknown>,
+  opts: { mode: "read_only" | "write"; ownedPaths?: string[] },
+): void {
+  if (opts.mode !== "write") return;
+  if (!opts.ownedPaths || opts.ownedPaths.length !== 1) return;
+  if (typeof args.content !== "string") return;
+  if (typeof args.path === "string" && args.path.length > 0) return;
+  args.path = opts.ownedPaths[0];
+}
+
+/**
  * Parent-liveness watchdog.
  *
  * The parent holds our stdin pipe open for the life of this subagent. If
@@ -632,6 +648,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // happen to expose format + patchText args are never rewritten.
           if (shouldInferPatchPath(execName, toolCall.args as Record<string, unknown>, { mode, ownedPaths })) {
             inferSingleOwnedPatchPath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          }
+          if (execName === "file.create") {
+            inferSingleOwnedCreatePath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
           }
 
           const execResult = await executor.execute({
