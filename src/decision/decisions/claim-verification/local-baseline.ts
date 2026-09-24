@@ -24,13 +24,22 @@ export type LocalClaimVerdict = {
   reason: string;
 };
 
+export type LocalClassifyOptions = {
+  /** Claim-term overlap required for "evidence bears on it"
+   *  (default `SUPPORT_OVERLAP_THRESHOLD`). Wired from the active
+   *  local threshold profile — see `resolveLocalClaimThreshold`. */
+  supportOverlapThreshold?: number;
+};
+
 /**
  * Deterministic classification. No I/O, no model, no network.
  * Same projection always yields the same verdict.
  */
 export function classifyClaimLocally(
   projection: ClaimVerificationProjection,
+  opts?: LocalClassifyOptions,
 ): LocalClaimVerdict {
+  const supportOverlapThreshold = opts?.supportOverlapThreshold ?? SUPPORT_OVERLAP_THRESHOLD;
   const claimWords = new Set(contentWords(projection.claim));
   if (claimWords.size === 0) {
     return { verdict: "insufficient", reason: "claim has no content words" };
@@ -45,7 +54,7 @@ export function classifyClaimLocally(
   const overlap = [...claimWords].filter((word) => evidenceWords.has(word));
   const overlapRatio = overlap.length / claimWords.size;
 
-  if (overlapRatio < SUPPORT_OVERLAP_THRESHOLD) {
+  if (overlapRatio < supportOverlapThreshold) {
     return {
       verdict: "insufficient",
       reason: `claim-term overlap ${Math.round(overlapRatio * 100)}% below threshold`,

@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -170,6 +170,61 @@ describe("verify.claim tool", () => {
     assert.equal(payload.warning, undefined);
     assert.equal(journal.readAll().length, 0);
     assert.equal(await createExperimentProjectionStore(storeDir).has("anything"), false);
+  });
+
+  // Overlap exactly 0.5: default (0.5) passes → supported; a tuned 0.61 refuses.
+  const borderline = {
+    claim: "alpha beta gamma delta",
+    evidence: [{ excerpt: "alpha beta" }],
+  };
+
+  function writeProfiles(body: string): void {
+    const dir = join(cwd, ".alix", "decisions");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "profiles.json"), body, "utf-8");
+  }
+
+  it("baseline mode applies the active local threshold profile from profiles.json (no registry dep)", async () => {
+    writeProfiles(
+      JSON.stringify({
+        profiles: [
+          {
+            id: "claim-verification/local/v1",
+            decision: "claim-verification",
+            engineId: "local",
+            threshold: 0.61,
+            status: "active",
+            provenance: { datasetId: "d", sampleCount: 4, metric: "accuracy", value: 0.8, computedAt: 1 },
+          },
+        ],
+      }),
+    );
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: borderline.claim, evidence: borderline.evidence },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(parseOutput(result).verdict, "insufficient");
+    assert.equal(parseOutput(result).engine, "local");
+  });
+
+  it("baseline mode without profiles.json keeps the default threshold", async () => {
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: borderline.claim, evidence: borderline.evidence },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(parseOutput(result).verdict, "supported");
+  });
+
+  it("invalid profiles.json degrades to the default threshold, never fails the tool", async () => {
+    writeProfiles("not-json{{{");
+    const journal = createDecisionJournalStore(join(cwd, ".alix", "decisions"));
+    const result = await handleClaimVerify(
+      { claim: borderline.claim, evidence: borderline.evidence },
+      { cwd, config: configWith("baseline"), journal, experimentStoreDir: storeDir },
+    );
+    assert.equal(parseOutput(result).verdict, "supported");
   });
 
   it("shadow mode: payload carries only {verdict, engine, decisionId, authority}", async () => {

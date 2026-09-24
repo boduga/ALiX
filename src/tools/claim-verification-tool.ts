@@ -26,8 +26,11 @@ import {
   createDecisionJournalStore,
   createDefaultRegistry,
   createExperimentProjectionStore,
+  createProfileRegistry,
+  loadProfileRegistry,
   registerJevEngine,
   resolveDecisionPaths,
+  resolveLocalClaimThreshold,
   selectClaimVerification,
   type ClaimVerificationExperimentProjection,
   type ClaimVerificationInput,
@@ -35,6 +38,7 @@ import {
   type DecisionConfig,
   type DecisionJournalStore,
   type EngineRegistry,
+  type ProfileRegistry,
   type RemoteSealedProjection,
 } from "../decision/index.js";
 
@@ -148,9 +152,19 @@ export async function handleClaimVerify(
   const journal = deps.journal ?? createDecisionJournalStore(paths.dir);
   const warnings: string[] = [];
 
+  // Active local support-overlap threshold. An unreadable/invalid registry
+  // degrades to the default (local availability), never a foreign threshold.
+  let profiles: ProfileRegistry;
+  try {
+    profiles = loadProfileRegistry(paths.profiles);
+  } catch {
+    profiles = createProfileRegistry();
+  }
+  const claimThreshold = resolveLocalClaimThreshold(config, profiles);
+
   let registry = deps.registry;
   if (registry === undefined) {
-    registry = createDefaultRegistry();
+    registry = createDefaultRegistry({ claimThreshold });
     if (config.remote?.jev?.enabled === true && config.claimVerification?.engine === "jev") {
       const key = deps.apiKey === undefined ? await getSavedApiKey(JEV_KEY_PROVIDER_ID) : deps.apiKey;
       // Register even without a key: the executor then fails "api key missing"
@@ -167,6 +181,7 @@ export async function handleClaimVerify(
       registry,
       journal,
       mode,
+      claimThreshold,
     });
     return {
       kind: "success",
@@ -185,6 +200,7 @@ export async function handleClaimVerify(
       registry,
       journal: journalStore,
       mode,
+      claimThreshold,
       ...(deps.project !== undefined ? { project: deps.project } : {}),
     });
   } catch (cause) {
@@ -192,7 +208,7 @@ export async function handleClaimVerify(
       // §12 / §13: fail closed for egress, remain useful locally. No
       // evaluation ⇒ no journaled records (sealing precedes engine resolution).
       const plain = createClaimVerificationProjector().project(input);
-      const { verdict } = classifyClaimLocally(plain);
+      const { verdict } = classifyClaimLocally(plain, { supportOverlapThreshold: claimThreshold });
       warnings.push(
         cause instanceof ProjectionRejectedError
           ? `remote verification skipped: ${cause.reason}`
