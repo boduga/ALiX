@@ -28,7 +28,7 @@
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.
 - Rerun attempts append to `.alix/graphs/<graphId>.runs.json`.
-- Terminal worker status patches (`completed`/`failed`/`pending` from `executeWorker`) go through bounded `patchWorkerWithRetry`; `updateRun` retries transient in-lock loads via `loadWithRetry` (3×, 25/50ms). A silent null from a transient read (e.g. Windows Defender EBUSY) must not orphan a worker as `running` and idle-stop `runUntilIdle`.
+- Terminal worker status patches (`completed`/`failed`/`pending` from `executeWorker`) go through bounded `patchWorkerWithRetry` (5 attempts, 50/100/200/400ms); `updateRun` retries transient in-lock loads via `loadWithRetry` (3×, 25/50ms) and all atomic writes go through `writeAtomic` (tmp+rename with EPERM/EACCES/EBUSY rename retry). A silent null from a transient read (e.g. Windows Defender EBUSY) must not orphan a worker as `running` and idle-stop `runUntilIdle`.
 
 **Work Guidance:**
 - Before modifying `graph-executor.ts`, understand the full enforcement flow: CapabilityResolver → RuntimeGate → ApprovalStore → runTask.

@@ -66,14 +66,32 @@ export class CoordinationStore {
     }
   }
 
+  /**
+   * Atomic tmp+rename write with retry for Windows transient rename failures
+   * (EPERM/EACCES/EBUSY when Defender or a concurrent reader holds the dest).
+   */
+  private async writeAtomic(path: string, data: string): Promise<void> {
+    const tmpPath = `${path}.tmp.${randomUUID()}`;
+    await writeFile(tmpPath, data, "utf-8");
+    const delays = [50, 100, 200, 400];
+    for (let i = 0; ; i++) {
+      try {
+        await renameFile(tmpPath, path);
+        return;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        const retryable = code === "EPERM" || code === "EACCES" || code === "EBUSY";
+        if (!retryable || i >= delays.length) throw err;
+        await new Promise(resolve => setTimeout(resolve, delays[i]));
+      }
+    }
+  }
+
   /** Save a coordination run (atomic write via tmp + rename). */
   async save(run: CoordinationRun): Promise<void> {
     await this.ensureDir();
     run.updatedAt = new Date().toISOString();
-    const path = this.runPath(run.id);
-    const tmpPath = `${path}.tmp.${randomUUID()}`;
-    await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-    await renameFile(tmpPath, path);
+    await this.writeAtomic(this.runPath(run.id), JSON.stringify(run, null, 2));
   }
 
   /** Load a coordination run by ID. */
@@ -216,10 +234,7 @@ export class CoordinationStore {
       await mutate(run);
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
-      const path = this.runPath(runId);
-      const tmpPath = `${path}.tmp.${randomUUID()}`;
-      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-      await renameFile(tmpPath, path);
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
       return run;
     } finally {
       lock.release();
@@ -256,10 +271,7 @@ export class CoordinationStore {
       await mutate(run);
       run.planRevision += 1;
       run.updatedAt = new Date().toISOString();
-      const path = this.runPath(runId);
-      const tmpPath = `${path}.tmp.${randomUUID()}`;
-      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-      await renameFile(tmpPath, path);
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
       return run;
     } finally {
       lock.release();

@@ -442,8 +442,9 @@ export class CoordinationScheduler {
     runId: string,
     workerId: string,
     patch: Record<string, unknown>,
-    attempts = 3,
+    attempts = 5,
   ): Promise<boolean> {
+    const delays = [50, 100, 200, 400];
     for (let i = 0; i < attempts; i++) {
       try {
         const run = await this.deps.store.patchWorker(runId, workerId, patch);
@@ -454,7 +455,7 @@ export class CoordinationScheduler {
         }
       }
       if (i < attempts - 1) {
-        await new Promise(resolve => setTimeout(resolve, i === 0 ? 25 : 50));
+        await new Promise(resolve => setTimeout(resolve, delays[Math.min(i, delays.length - 1)]));
       }
     }
     console.error(`coordination: patchWorker returned null for worker ${workerId} after ${attempts} attempts`);
