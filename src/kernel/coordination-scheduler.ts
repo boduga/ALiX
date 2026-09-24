@@ -235,6 +235,15 @@ export class CoordinationScheduler {
     // Step 1: Reconcile
     const recResult = await this.reconcile(runId);
 
+    if (recResult.dependencyBlocked.length > 0) {
+      const reconciled = await this.deps.store.load(runId);
+      for (const workerId of recResult.dependencyBlocked) {
+        const worker = reconciled?.workers.find(candidate => candidate.id === workerId);
+        if (!worker) continue;
+        await this.emitAgentState(reconciled!, worker, "blocked", worker.blockReason ?? "dependency_failed", worker.error);
+      }
+    }
+
     // Step 2: Reload after reconcile
     run = (await this.deps.store.load(runId))!;
     const activeRunning = run.workers.filter(w => w.status === "running").length;
@@ -424,9 +433,50 @@ export class CoordinationScheduler {
 
   // ── Worker execution ───────────────────────────────────────────────
 
+  /**
+   * Bounded retry for a worker patch. A silent null (transient store read
+   * failure under lock) or throw would leave the worker stuck in `running`
+   * after its execution settled, orphaning it and idle-stopping runUntilIdle.
+   */
+  private async patchWorkerWithRetry(
+    runId: string,
+    workerId: string,
+    patch: Record<string, unknown>,
+    attempts = 5,
+  ): Promise<boolean> {
+    const delays = [50, 100, 200, 400];
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const run = await this.deps.store.patchWorker(runId, workerId, patch);
+        if (run) return true;
+      } catch (err) {
+        if (i === attempts - 1) {
+          console.error(`coordination: patchWorker failed for worker ${workerId} after ${attempts} attempts:`, err);
+        }
+      }
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, delays[Math.min(i, delays.length - 1)]));
+      }
+    }
+    console.error(`coordination: patchWorker returned null for worker ${workerId} after ${attempts} attempts`);
+    return false;
+  }
+
   private async executeWorker(runId: string, workerId: string, signal: AbortSignal): Promise<void> {
-    const run = await this.deps.store.load(runId);
-    if (!run) return;
+    const run = await this.deps.store.loadWithRetry(runId);
+    if (!run) {
+      // Orphan guard: execution never started but tick already dispatched this
+      // worker as running — fail it so runUntilIdle does not idle-stop with a
+      // permanently running worker.
+      await this.patchWorkerWithRetry(runId, workerId, {
+        status: "failed",
+        blockReason: "execution_failed",
+        failureKind: "execution_error",
+        error: "Coordination run state unreadable at execution start",
+        completedAt: new Date().toISOString(),
+      });
+      return;
+    }
     const worker = run.workers.find(w => w.id === workerId);
     if (!worker) return;
 
@@ -445,7 +495,7 @@ export class CoordinationScheduler {
 
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
-        await this.deps.store.patchWorker(runId, workerId, {
+        await this.patchWorkerWithRetry(runId, workerId, {
           status: "completed", completedAt: new Date().toISOString(), resultRef,
         });
         this.emit("coordination.worker.completed", {
@@ -457,6 +507,7 @@ export class CoordinationScheduler {
           outcome: "success",
           timestamp: new Date().toISOString(),
         });
+        await this.emitAgentState(run, worker, "completed");
       } else {
         // Retryable failure check
         const isRetryable = result.failureKind === "timeout" || result.failureKind === "transient_provider" || result.failureKind === "execution_error";
@@ -470,7 +521,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            await this.deps.store.patchWorker(runId, workerId, {
+            await this.patchWorkerWithRetry(runId, workerId, {
               status: "pending", blockReason: undefined, failureKind: result.failureKind,
               error: result.error,
               resultRef: failureRef,
@@ -484,7 +535,7 @@ export class CoordinationScheduler {
               error: result.error,
               failureKind: result.failureKind ?? "execution_error",
             });
-            await this.deps.store.patchWorker(runId, workerId, {
+            await this.patchWorkerWithRetry(runId, workerId, {
               status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
               error: result.error ?? "Execution failed",
               resultRef: failureRef,
@@ -508,6 +559,7 @@ export class CoordinationScheduler {
             error: result.error ?? "Execution failed",
             timestamp: new Date().toISOString(),
           });
+          await this.emitAgentState(run, worker, "failed", "execution_failed", result.error ?? "Execution failed");
         }
       }
     } catch (error) {
@@ -516,7 +568,7 @@ export class CoordinationScheduler {
       const isAbort = error instanceof Error && (error.name === "AbortError" || errorMsg.includes("abort"));
       if (isAbort) {
         try {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "failed", blockReason: "cancelled", failureKind: "cancelled",
             error: "Worker cancelled by scheduler shutdown",
             completedAt: new Date().toISOString(),
@@ -536,7 +588,7 @@ export class CoordinationScheduler {
           failureKind: "execution_error",
         });
         if (isRetryable) {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "pending",
             blockReason: undefined,
             failureKind: "execution_error",
@@ -544,7 +596,7 @@ export class CoordinationScheduler {
             resultRef: failureRef,
           });
         } else {
-          await this.deps.store.patchWorker(runId, workerId, {
+          await this.patchWorkerWithRetry(runId, workerId, {
             status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
             error: errorMsg,
             resultRef: failureRef,
@@ -568,13 +620,14 @@ export class CoordinationScheduler {
           error: errorMsg,
           timestamp: new Date().toISOString(),
         });
+        await this.emitAgentState(run, worker, "failed", "execution_failed", errorMsg);
       }
     } finally {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
         await releaseWorkerOwnership(this.deps.ownershipRegistry, finalWorker.leaseIds);
-        await this.deps.store.patchWorker(runId, workerId, { leaseIds: [] });
+        await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });
       }
       // Check if run is now terminal
       if (finalRun?.status === "completed" || finalRun?.status === "failed") {
@@ -717,6 +770,33 @@ export class CoordinationScheduler {
         payload,
       });
     } catch { /* events are observability, not correctness */ }
+  }
+
+  private async emitAgentState(
+    run: CoordinationRun,
+    worker: WorkerAssignment,
+    state: "blocked" | "completed" | "failed",
+    blockReason?: string,
+    error?: string,
+  ): Promise<void> {
+    if (!this.deps.eventLog) return;
+    try {
+      await this.deps.eventLog.append({
+        sessionId: run.sessionId,
+        actor: "coordination",
+        type: "agent.state_changed",
+        payload: {
+          agentId: worker.id,
+          taskId: worker.id,
+          coordinationRunId: run.id,
+          assignedAgentId: worker.agentId,
+          taskLabel: worker.taskLabel,
+          state,
+          ...(blockReason ? { blockReason } : {}),
+          ...(error ? { error } : {}),
+        },
+      });
+    } catch { /* lifecycle projection is best-effort; the store remains authoritative */ }
   }
 
   // ── Terminal finalization ──────────────────────────────────────────

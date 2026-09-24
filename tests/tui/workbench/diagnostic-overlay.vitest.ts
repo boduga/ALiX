@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
-import { paintWorkbenchDiagnosticOverlay } from '../../../src/tui/workbench/views/diagnostic-overlay.js';
+import { buildWorkbenchDiagnosticLines, paintWorkbenchDiagnosticOverlay } from '../../../src/tui/workbench/views/diagnostic-overlay.js';
 
 describe('Workbench diagnostic overlays', () => {
   it('renders projected patch activity for in-session review', () => {
@@ -26,6 +26,44 @@ describe('Workbench diagnostic overlays', () => {
     );
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('Ctrl+R artifacts');
-    expect(frame).toContain('/agents · /tasks · /artifacts · /diff · /review · /help');
+    expect(frame).toContain('/diagnostics · /diff · /review · /help');
+  });
+
+  it('correlates failures to the selected run and gives CLI-first recovery guidance', () => {
+    const lines = buildWorkbenchDiagnosticLines({
+      selectedRunId: 'run-1',
+      agents: { agents: [
+        { agentId: 'agent-1', coordinationRunId: 'run-1', role: 'worker', state: 'failed', ownedPaths: [], startedAt: 1, lastProgressAt: 2, usage: {} },
+        { agentId: 'agent-2', coordinationRunId: 'run-2', role: 'worker', state: 'failed', ownedPaths: [], startedAt: 1, lastProgressAt: 2, usage: {} },
+      ], active: 0, totals: { agents: 2, running: 0, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 } },
+      tasks: { tasks: [
+        { taskId: 'task-1', coordinationRunId: 'run-1', title: 'Merge report', state: 'blocked', blockReason: 'dependency_failed', ownedPaths: [], createdAt: 1, updatedAt: 2 },
+      ], queued: 0, running: 0, blocked: 1 },
+    });
+    expect(lines.join('\n')).toContain('2 issues · run run-1');
+    expect(lines.join('\n')).not.toContain('agent-2');
+    expect(lines.join('\n')).toContain('Repair or replace the failed dependency');
+    expect(lines.join('\n')).toContain('alix coordination resume run-1');
+  });
+
+  it('renders a healthy aggregate without inventing recovery work', () => {
+    expect(buildWorkbenchDiagnosticLines({}).join('\n')).toContain('0 issues · all runs and agents');
+  });
+
+  it('truncates wide diagnostic text to terminal display width', () => {
+    const canvas = new TerminalCanvas(34, 18);
+    paintWorkbenchDiagnosticOverlay(
+      { canvas, width: 34, height: 18, headerH: 3, footerH: 5 },
+      'diagnostics',
+      null,
+      {
+        tasks: { queued: 0, running: 0, blocked: 0, tasks: [{
+          taskId: 'task-wide', title: '調査調査調査調査調査調査', state: 'failed',
+          ownedPaths: [], createdAt: 1, updatedAt: 2,
+        }] },
+      },
+    );
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('✗ task failed · 調査調査…');
   });
 });

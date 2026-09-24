@@ -377,6 +377,10 @@ describe("withProviderContracts", () => {
     );
   });
 
+  // -----------------------------------------------------------------------
+  // Output ceiling clamp (fail-closed max_tokens)
+  // -----------------------------------------------------------------------
+
   it("stream stalling between chunks throws SideEffectTimeoutError", async () => {
     const adapter = createFakeAdapter({
       stream: async function* (): AsyncGenerator<StreamChunk> {
@@ -399,5 +403,142 @@ describe("withProviderContracts", () => {
       (err: unknown) =>
         err instanceof Error && err.message.includes("stream.idle"),
     );
+  });
+
+  it("complete clamps maxOutputTokens above the adapter limit", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      complete: async (request: NormalizedRequest) => {
+        seen = request;
+        return { text: "ok", toolCalls: [] };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await wrapped.complete({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+      maxOutputTokens: 25600,
+    });
+
+    assert.strictEqual(seen?.maxOutputTokens, 1000);
+  });
+
+  it("complete leaves maxOutputTokens under the limit untouched", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      complete: async (request: NormalizedRequest) => {
+        seen = request;
+        return { text: "ok", toolCalls: [] };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await wrapped.complete({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+      maxOutputTokens: 512,
+    });
+
+    assert.strictEqual(seen?.maxOutputTokens, 512);
+  });
+
+  it("complete does not add maxOutputTokens when unset", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      complete: async (request: NormalizedRequest) => {
+        seen = request;
+        return { text: "ok", toolCalls: [] };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await wrapped.complete({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+    });
+
+    assert.strictEqual("maxOutputTokens" in (seen as object), false);
+  });
+
+  it("complete treats limit 0 as unknown and does not clamp", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      capabilities: {
+        provider: "test",
+        model: "test-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 0,
+        supportsTools: true,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+        parallelToolCalls: false,
+      },
+      complete: async (request: NormalizedRequest) => {
+        seen = request;
+        return { text: "ok", toolCalls: [] };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await wrapped.complete({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+      maxOutputTokens: 25600,
+    });
+
+    assert.strictEqual(seen?.maxOutputTokens, 25600);
+  });
+
+  it("complete exempts deepseek (verified large-budget behavior)", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      capabilities: {
+        provider: "deepseek",
+        model: "deepseek-chat",
+        inputTokenLimit: 64000,
+        outputTokenLimit: 8192,
+        supportsTools: true,
+        supportsStreaming: true,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+        parallelToolCalls: false,
+      },
+      complete: async (request: NormalizedRequest) => {
+        seen = request;
+        return { text: "ok", toolCalls: [] };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await wrapped.complete({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+      maxOutputTokens: 131072,
+    });
+
+    assert.strictEqual(seen?.maxOutputTokens, 131072);
+  });
+
+  it("stream clamps maxOutputTokens above the adapter limit", async () => {
+    let seen: NormalizedRequest | undefined;
+    const adapter = createFakeAdapter({
+      stream: async function* (request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+        seen = request;
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    for await (const _chunk of wrapped.stream!({
+      systemPrompt: "X",
+      messages: [{ role: "user" as const, content: "Hi" }],
+      maxOutputTokens: 25600,
+    })) {
+      // drain
+    }
+
+    assert.strictEqual(seen?.maxOutputTokens, 1000);
   });
 });

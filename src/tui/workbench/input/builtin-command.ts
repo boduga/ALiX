@@ -11,6 +11,9 @@ export function parseWorkbenchBuiltinCommand(text: string): WorkbenchBuiltinComm
       return { type: 'overlay.open', overlay: 'diff' };
     case '/review':
       return { type: 'overlay.open', overlay: 'review' };
+    case '/diagnostics':
+    case '/diag':
+      return { type: 'overlay.open', overlay: 'diagnostics' };
     case '/help':
     case '/?':
       return { type: 'overlay.open', overlay: 'help' };

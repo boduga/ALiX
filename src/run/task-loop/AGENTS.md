@@ -10,12 +10,13 @@ existing import paths are unchanged.
   overflow classification/summaries, `getHistoricalSuggestions`,
   `persistSessionState`, `RESEARCH_LIMITS`.
 - `predicates.ts` — completion/evidence predicates and pure helpers:
-  `emitAgent`, `buildShedToolRetryMessage`, `explicitMutationTargets`,
+  `emitAgent`, `buildShedToolRetryMessage`, `buildUnconfirmedDonePrompt`,
+  `buildSynthesisReprompt`, `explicitMutationTargets`,
   `isContinuationMessage`, `objectiveEvidenceRequirements`,
   `objectiveEvidenceGaps`, `missingEvidenceSummary`,
   `lastToolResultShowsClientError`, `latestToolFailure`,
-  `durableCompletionSummary`, `claimsArtifactWritten`, `extractErrors`, and
-  their constants/types.
+  `durableCompletionSummary`, `claimsArtifactWritten`, `extractErrors`,
+  `COORDINATION_RUN_TOOL_NAME` and their constants/types.
 - `context-helpers.ts` — context assembly helpers: `classifyMessageToCategory`,
   `classifyCandidateContext`, `reconstructRequest`, `sourceIndexOf`,
   `toBudgetedItems`, `evaluatePattern`.
@@ -53,6 +54,20 @@ existing import paths are unchanged.
 - Execution-state emission is opt-in and fail-soft: `runTaskLoop` calls
   `initExecutionStateEmission` once at start; it must never throw into the loop
   and must not change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
+- Explicit coordinated-worker objectives require a successful
+  `coordination.run` tool result before completion. A synthesis prompt must
+  never assert that work is complete; missing objective evidence terminates as
+  `completed_unverified` after bounded retries.
+- The last-attempt `coordination.run` outcome gates completion INDEPENDENTLY
+  of objective-text matching: `runTaskLoop` tracks a per-invocation
+  `coordinationRunFailed` flag (set on error, cleared by a later success) and
+  every completed-status emission consults it — Path A trust gate and
+  trackCompleted via `objectiveEvidenceGaps(..., { coordinationRunFailed })`,
+  verification-pass Path B via an explicit bounded-retry gate
+  (`source: "coordination_failed"`), shell-complete and research-limit
+  returns via a conditional `completed_unverified` reason. A failed run must
+  never surface `task.done` / `graph.completed` / `workflow.completed` /
+  `session.ended: completed`.
 
 **Verification:**
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,

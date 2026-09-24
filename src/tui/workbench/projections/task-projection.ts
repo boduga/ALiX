@@ -82,7 +82,7 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
           ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((value): value is string => typeof value === 'string') : previous.ownedPaths,
           updatedAt: at,
         });
-      } else if (event.type === 'subagent.result') {
+      } else if (event.type === 'subagent.result' && p.attemptTerminal !== false) {
         this.byId.set(id, { ...previous, state: terminal(p.status), blockReason: undefined, updatedAt: at });
       } else if (event.type === 'agent.completed' || event.type === 'subagent.completed') {
         this.byId.set(id, { ...previous, state: terminal(p.state ?? p.status ?? 'completed'), blockReason: undefined, updatedAt: at });

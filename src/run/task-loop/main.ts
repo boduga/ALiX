@@ -68,7 +68,7 @@ import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -361,6 +361,13 @@ let explicitDoneCalled = false;
 // honestly instead of silently accepted as "completed").
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
+// Last-attempt outcome of `coordination.run` this run: set true when the most
+// recent executed call errored, cleared by a later success. Gates every
+// completed-status emission (Path A trust, verification-pass Path B,
+// trackCompleted, shell-complete, research limits) so a failed coordination
+// run can never surface task.done / graph.completed / workflow.completed /
+// session.ended:completed (durability contract). In-process, per-invocation.
+let coordinationRunFailed = false;
 
 // Truncation continuation: when a provider stops mid-answer at the output
 // budget (finish_reason=length), keep generating until the answer completes.
@@ -785,13 +792,13 @@ if (toolCalls.length === 0) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
       if (i >= limits.maxIterations) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
     }
     if (modelSaysDone) {
@@ -832,7 +839,7 @@ if (toolCalls.length === 0) {
         !explicitDoneCalled &&
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
-      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence);
+      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
         evidenceGaps.length === 0;
@@ -846,42 +853,12 @@ if (toolCalls.length === 0) {
 
         // Build a targeted re-prompt: list the missing tool calls with their
         // exact alix_ names so the model has no ambiguity about what to invoke.
-        const missingToolLines = [...unsubstantiated, ...evidenceGaps]
-          .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
-          .join("\n");
-
-        let content: string;
-        if (evidenceGaps.length > 0) {
-          content =
-            `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
-            `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`;
-        } else if (errorEchoDone && unsubstantiated.length === 0) {
-          // The last tool call failed (HTTP/client error) and no deliverable
-          // was produced. There are no invented claims to list — the problem
-          // is ending on the error itself.
-          content =
-            `Your last tool call returned an HTTP/client error, and you declared the task done without writing or verifying the deliverable. ` +
-            `A tool error is not a completed outcome. Retry with corrected parameters/headers, complete the actual work, ` +
-            `and confirm the deliverable exists before saying done.`;
-        } else if (unconfirmedDoneAttempts >= 2) {
-          // Third attempt: no more done-escape. Force the model to actually
-          // make these tool calls or the session labels itself unverified.
-          content =
-            `You keep saying you are done without having actually called the required tools. ` +
-            `Call these tools now:\n${missingToolLines}\n\n` +
-            `Do NOT call done until every one of these tools has returned a result.`;
-        } else if (unconfirmedDoneAttempts >= 1) {
-          // Second attempt: hint, but leave done open as last resort.
-          content =
-            `Your summary claims you completed the following, but no matching tool call was made:\n${missingToolLines}\n\n` +
-            `Call these tools now using their \`alix_\` names, or call \`done\` only if you genuinely cannot proceed.`;
-        } else {
-          // First attempt: soft nudge.
-          content =
-            `Your summary claims you did the following, but no matching tool call was made: ${unsubstantiated.join(", ")}. ` +
-            `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
-            `Either call the remaining tools now, or call the \`done\` tool explicitly once everything is genuinely finished.`;
-        }
+        const content = buildUnconfirmedDonePrompt({
+          unsubstantiated,
+          evidenceGaps,
+          errorEchoDone,
+          attempt: unconfirmedDoneAttempts,
+        });
 
         messages.push({ role: "user", content });
         continue;
@@ -915,6 +892,31 @@ if (toolCalls.length === 0) {
     const allPassed = verResults.every((vr) => vr.result.status === "passed");
 
     if (allPassed && modelSaysDone) {
+      if (coordinationRunFailed) {
+        // Verification passed, but the last coordination.run failed — the
+        // completed-status contract still applies here: bounded retry, then
+        // an honest completed_unverified terminal (never session.ended:completed).
+        if (unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
+          unconfirmedDoneAttempts++;
+          await log.append({
+            ...session, actor: "system", type: "completion.claim_rejected",
+            payload: { unsubstantiatedClaims: [], objectiveEvidenceGaps: [COORDINATION_EVIDENCE_GAP], attempt: unconfirmedDoneAttempts, source: "coordination_failed" },
+          });
+          messages.push({
+            role: "user",
+            content:
+              `Your last \`coordination.run\` call failed, so the task cannot be marked complete despite passing verification. ` +
+              `Retry \`alix_coordination_run\` with a corrected plan until it succeeds (or, if coordination is no longer needed, ` +
+              `do not claim a coordination run succeeded), then confirm completion.`,
+          });
+          continue;
+        }
+        await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
+        const coordinationFailureSummary = `Task could not be verified as complete: ${COORDINATION_EVIDENCE_GAP} (the last coordination.run failed).`;
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed_unverified", summary: coordinationFailureSummary, objectiveEvidenceGaps: [COORDINATION_EVIDENCE_GAP], ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
+        await evaluatePattern(log, session, sessionDir, taskType);
+        return { sessionId, summary: coordinationFailureSummary, streamed: model.streaming, reason: "completed_unverified", contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+      }
       // Success — verification passed and model signals done
       await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
       await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
@@ -1056,6 +1058,9 @@ if (toolCalls.length === 0) {
       }
     }
 
+    if (resolveToolExecutionName(toolCall.name, selectedTools) === COORDINATION_RUN_TOOL_NAME) {
+      coordinationRunFailed = Boolean(toolResult.error);
+    }
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
       const execName = resolveToolExecutionName(toolCall.name, selectedTools);
@@ -1323,7 +1328,7 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence);
+    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
     if ((unsubstantiated.length > 0 || evidenceGaps.length > 0) && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
       unconfirmedDoneAttempts++;
       await log.append({
@@ -1374,26 +1379,9 @@ if (toolCalls.length === 0) {
     m.role === "user" && typeof m.content === "string" && m.content.startsWith("<tool_result"),
   );
   if (hasToolMessages && text.length < SHORT_SYNTHESIS_THRESHOLD && i < maxIterations - 1) {
-    // Check if the model has been repeating the same tools and suggest
-    // alternatives when appropriate.
-    const usedList = [...usedTools];
-    const stuckOn = usedList.filter(t => t.startsWith("file."));
-    let rePrompt: string;
-    if (stuckOn.length === usedList.length && usedList.length > 0 && usedList.length < 5) {
-      // Only file.* tools used — suggest broadening
-      rePrompt =
-        "You have only used file search tools so far (" + usedList.join(", ") + "). " +
-        "The user's request may require other tools. Available tool categories include: " +
-        "shell.run, notification.send, user.send_file, monitor, findings.report, ask_user. " +
-        "Try using a different tool to make progress. If you truly have nothing left to do, " +
-        "write a final summary and signal that the task is done.";
-    } else {
-      rePrompt =
-        "All tasks are complete. Write a concise final summary of what you did and what you found, then signal that the task is done.";
-    }
     messages.push({
       role: "user",
-      content: rePrompt,
+      content: buildSynthesisReprompt(usedTools),
     });
     synthesisRequested = true;
     continue;
@@ -1404,7 +1392,7 @@ if (toolCalls.length === 0) {
       session, log, memoryStore, sessionDir,
       taskType, sessionId, shellOutput || text,
       model.streaming ?? false,
-      "session.ended", "completed",
+      "session.ended", coordinationRunFailed ? "completed_unverified" : "completed",
       contextPressure.snapshot(),
       { threshold: contextRotThreshold, contextBudget, lastInvocationId },
     );

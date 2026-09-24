@@ -83,6 +83,7 @@ describe('Workbench responsive drawer', () => {
           currentOperation: 'Rendering task cards', ownedPaths: ['src/tui'], createdAt: 1, updatedAt: 2,
         }],
       },
+      selectedTaskId: 'task-1',
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('TASKS  1 running · 1 queued · 0 blocked');
@@ -125,6 +126,36 @@ describe('Workbench responsive drawer', () => {
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).not.toContain('first · thinking');
     expect(frame).toContain('›● second · thinking');
+  });
+
+  it('keeps all four workers visible while expanding only the selected worker', () => {
+    const canvas = new TerminalCanvas(72, 20);
+    const agents = Array.from({ length: 4 }, (_, index) => ({
+      agentId: `worker-${index + 1}`,
+      role: `worker-${index + 1}`,
+      state: 'thinking' as const,
+      currentOperation: `operation-${index + 1}`,
+      model: 'test-model',
+      ownedPaths: [`tmp/worker-${index + 1}`],
+      startedAt: 1,
+      lastProgressAt: 2,
+      usage: {},
+    }));
+    paintRosterDrawer({
+      canvas,
+      terminalColumns: 72,
+      top: 3,
+      bottom: 18,
+      layout: resolveWorkbenchLayout(72, 'agents'),
+      agents: { active: 4, totals: { agents: 4, running: 4, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 }, agents },
+      tasks: null,
+      selectedAgentId: 'worker-2',
+    });
+    const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
+    for (let index = 1; index <= 4; index++) expect(frame).toContain(`worker-${index} · thinking`);
+    expect(frame).toContain('operation-2');
+    expect(frame).not.toContain('operation-1');
+    expect(frame).toContain('↑↓ select · [ ] run · Esc close');
   });
 
   it('filters by run, exposes aggregate selection, and collapses the roster', () => {

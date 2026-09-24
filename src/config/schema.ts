@@ -417,6 +417,8 @@ export type SubagentTask = {
   coordinationRunId?: string; // optional operator-facing correlation metadata
   assignedAgentId?: string; // planner-assigned agent label; not the execution identity
   taskLabel?: string; // concise operator-facing task title
+  /** Coordination retries are terminal only when the scheduler exhausts them. */
+  deferTerminalLifecycle?: boolean;
 };
 
 export type SubagentResult = {

@@ -1,6 +1,7 @@
 import type { TerminalCanvas } from '../../canvas.js';
 import { RESET } from '../../ansi-constants.js';
 import type { OperatorShellSnapshot } from '../model/operator-shell.js';
+import { displayWidth, graphemes, graphemeWidth } from '../render/terminal-text.js';
 
 export interface PaintOperatorShellInput {
   readonly canvas: TerminalCanvas;
@@ -11,9 +12,17 @@ export interface PaintOperatorShellInput {
 
 function fitEnd(value: string, width: number): string {
   if (width <= 0) return '';
-  if (value.length <= width) return value;
+  if (displayWidth(value) <= width) return value;
   if (width === 1) return '…';
-  return `…${value.slice(-(width - 1))}`;
+  const suffix: string[] = [];
+  let used = 0;
+  for (const grapheme of [...graphemes(value)].reverse()) {
+    const next = graphemeWidth(grapheme);
+    if (used + next > width - 1) break;
+    suffix.unshift(grapheme);
+    used += next;
+  }
+  return `…${suffix.join('')}`;
 }
 
 function clearRow(canvas: TerminalCanvas, row: number, width: number): void {
@@ -34,12 +43,13 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
 
   const hint = 'Tab views  ·  Ctrl+O details  ·  ? help';
   canvas.write(1, 0, `\x1b[90mworkbench${RESET}`);
-  if (width >= hint.length + 14) {
-    canvas.write(width - hint.length - 1, 0, `\x1b[90m${hint}${RESET}`);
+  const hintWidth = displayWidth(hint);
+  if (width >= hintWidth + 14) {
+    canvas.write(width - hintWidth - 1, 0, `\x1b[90m${hint}${RESET}`);
   }
 
   const state = `agent · ${model.mode} · ${model.transcriptMode}`;
-  const stateStart = Math.max(1, width - state.length - 1);
+  const stateStart = Math.max(1, width - displayWidth(state) - 1);
   const workspaceBudget = Math.max(0, stateStart - 9);
   const workspace = fitEnd(model.workspace, workspaceBudget);
   const modeColor = model.mode === 'bypass' ? '\x1b[31m' : model.mode === 'ask' ? '\x1b[32m' : '\x1b[33m';
@@ -64,7 +74,8 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
     }
   }
   const counters = counterParts.join(' · ');
-  const counterStart = Math.max(1, width - counters.length - 1);
+  const countersWidth = displayWidth(counters);
+  const counterStart = Math.max(1, width - countersWidth - 1);
   let operator = model.running ? 'Esc cancel' : '↑↓ scroll';
   if (model.queuedMessages > 0) {
     operator += ` · ${model.queuedMessages} queued`;
@@ -73,7 +84,7 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
     const prefix = model.approval.count > 1 ? `${model.approval.count} approvals` : '1 approval';
     operator = `⏸ ${prefix} · ${model.approval.toolName} · a approve · d deny`;
   }
-  const canShareFooter = operator.length + counters.length + 4 <= width;
+  const canShareFooter = displayWidth(operator) + countersWidth + 4 <= width;
   const operatorBudget = Math.max(0, canShareFooter ? counterStart - 3 : width - 2);
   const operatorText = fitEnd(operator, operatorBudget);
 

@@ -33,6 +33,9 @@ export type ToolCallRequest = {
    * runId → no tool span (never invented, never a throw).
    */
   runId?: string;
+  /** Optional coordination correlation for worker-owned tool artifacts. */
+  coordinationRunId?: string;
+  taskId?: string;
 } & Partial<CorrelationContext>;
 
 export interface FindingReport {

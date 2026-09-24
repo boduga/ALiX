@@ -13,6 +13,7 @@
 
 import { createCell, type CanvasCell } from "./canvas-cell.js";
 import { RESET, ANSI_REGEX } from "./ansi-constants.js";
+import { graphemes, graphemeWidth } from "./terminal-text.js";
 
 export function writeRowsToCanvas(
   c: TerminalCanvas,
@@ -92,10 +93,22 @@ export class TerminalCanvas {
         }
       }
 
-      // Regular visible character.
-      this.buffer[y][currentX] = createCell(text[i]!, activeAnsi);
-      currentX++;
-      i++;
+      const grapheme = graphemes(text.slice(i))[0];
+      if (!grapheme) break;
+      const span = Math.max(0, graphemeWidth(grapheme));
+      i += grapheme.length;
+      if (span === 0) continue;
+      if (currentX < 0) {
+        currentX += span;
+        continue;
+      }
+      if (currentX + span > this.width) break;
+      for (let offset = 0; offset < span; offset++) {
+        this.buffer[y][currentX + offset] = offset === 0
+          ? createCell(grapheme, activeAnsi, span)
+          : createCell('', activeAnsi, 0, true);
+      }
+      currentX += span;
     }
   }
 

@@ -66,14 +66,32 @@ export class CoordinationStore {
     }
   }
 
+  /**
+   * Atomic tmp+rename write with retry for Windows transient rename failures
+   * (EPERM/EACCES/EBUSY when Defender or a concurrent reader holds the dest).
+   */
+  private async writeAtomic(path: string, data: string): Promise<void> {
+    const tmpPath = `${path}.tmp.${randomUUID()}`;
+    await writeFile(tmpPath, data, "utf-8");
+    const delays = [50, 100, 200, 400];
+    for (let i = 0; ; i++) {
+      try {
+        await renameFile(tmpPath, path);
+        return;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        const retryable = code === "EPERM" || code === "EACCES" || code === "EBUSY";
+        if (!retryable || i >= delays.length) throw err;
+        await new Promise(resolve => setTimeout(resolve, delays[i]));
+      }
+    }
+  }
+
   /** Save a coordination run (atomic write via tmp + rename). */
   async save(run: CoordinationRun): Promise<void> {
     await this.ensureDir();
     run.updatedAt = new Date().toISOString();
-    const path = this.runPath(run.id);
-    const tmpPath = `${path}.tmp.${randomUUID()}`;
-    await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-    await renameFile(tmpPath, path);
+    await this.writeAtomic(this.runPath(run.id), JSON.stringify(run, null, 2));
   }
 
   /** Load a coordination run by ID. */
@@ -88,6 +106,23 @@ export class CoordinationStore {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Load with bounded retries for transient read failures (Windows Defender
+   * EBUSY on tmp+rename churn, partial reads). Missing files fail fast.
+   * Returns null after exhausting attempts.
+   */
+  async loadWithRetry(runId: string, attempts = 3): Promise<CoordinationRun | null> {
+    if (!existsSync(this.runPath(runId))) return null;
+    for (let i = 0; i < attempts; i++) {
+      const run = await this.load(runId);
+      if (run) return run;
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, i === 0 ? 25 : 50));
+      }
+    }
+    return null;
   }
 
   /** List all coordination runs, newest first. */
@@ -194,15 +229,12 @@ export class CoordinationStore {
     const acquired = await lock.acquire();
     if (!acquired) return null;
     try {
-      const run = await this.load(runId);
+      const run = await this.loadWithRetry(runId);
       if (!run) return null;
       await mutate(run);
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
-      const path = this.runPath(runId);
-      const tmpPath = `${path}.tmp.${randomUUID()}`;
-      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-      await renameFile(tmpPath, path);
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
       return run;
     } finally {
       lock.release();
@@ -239,10 +271,7 @@ export class CoordinationStore {
       await mutate(run);
       run.planRevision += 1;
       run.updatedAt = new Date().toISOString();
-      const path = this.runPath(runId);
-      const tmpPath = `${path}.tmp.${randomUUID()}`;
-      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
-      await renameFile(tmpPath, path);
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
       return run;
     } finally {
       lock.release();

@@ -245,6 +245,27 @@ test("spawned subagent inherits the secret-service bus address but not ambient s
   }
 });
 
+test("coordination worker inherits store-resolved API keys over private fd 3", async () => {
+  const manager = new SubagentManager({
+    sessionId: "s1",
+    config: {
+      subagents: TEST_SUBAGENT_CFG,
+      apiKeys: { deepseek: "resolved-parent-secret" },
+    } as unknown as AlixConfig,
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `const fs = require("node:fs"); const inherited = JSON.parse(fs.readFileSync(3, "utf8")); console.log(JSON.stringify({ id: "credential-pipe", role: "worker", status: "success", findings: [inherited.deepseek], events: [] }));`],
+    },
+  });
+  const result = await manager.spawn(makeTask({
+    id: "credential-pipe",
+    role: "worker",
+    mode: "write",
+    coordinationRunId: "coord-1",
+  }));
+  assert.deepEqual(result.findings, ["resolved-parent-secret"]);
+});
+
 test("spawnMany runs specs in parallel and aligns results to input order", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",

@@ -23,7 +23,7 @@ describe("Suite D: Init", () => {
     }
   });
 
-  // ── D.1b: Init in Git repo creates proper config ──────────────
+  // ── D.1b: Init writes canonical config (§7.2/§7.4) ─────────────
   it("D.1b: init creates valid JSON config", () => {
     const { path, cleanup } = tempDir("alix-init-");
     try {
@@ -31,7 +31,8 @@ describe("Suite D: Init", () => {
       const configPath = join(path, ".alix", "config.json");
       assert.equal(existsSync(configPath), true);
       const config = JSON.parse(readFileSync(configPath, "utf8"));
-      assert.ok(config.model, "config should have model");
+      assert.ok(config.models?.default, "config should have models.default");
+      assert.equal(config.model, undefined, "disk must contain no top-level model projection");
       assert.ok(config.permissions, "config should have permissions");
       assert.ok(config.context, "config should have context");
       assert.equal(config.version, 1, "config version should be 1");

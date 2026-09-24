@@ -629,6 +629,9 @@ export type ArtifactCreatedPayload = {
   mimeType: string;
   size: number;
   retention: "session";
+  coordinationRunId?: string;
+  agentId?: string;
+  taskId?: string;
 };
 
 export const ARTIFACT_EVENT_TYPES = {

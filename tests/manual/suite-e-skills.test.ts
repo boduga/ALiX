@@ -40,7 +40,7 @@ describe("Suite E: Skills installer — GitHub URL sources", () => {
   it("E.1: installs brand-guidelines from a tree URL (anthropics/skills)", () => {
     const d = tempDir();
     try {
-      const r = installSkill(d.path, ["--from", "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines"]);
+      const r = installSkill(d.path, ["--from", "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines", "--force"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
       assert.match(r.stdout, /Installed: brand-guidelines/);
       assertInstalled(d.path, "brand-guidelines", "tree URL");
@@ -51,7 +51,7 @@ describe("Suite E: Skills installer — GitHub URL sources", () => {
   it("E.2: installs brand-guidelines from a raw.githubusercontent.com URL", () => {
     const d = tempDir();
     try {
-      const r = installSkill(d.path, ["--from", "https://raw.githubusercontent.com/anthropics/skills/main/skills/brand-guidelines/SKILL.md"]);
+      const r = installSkill(d.path, ["--from", "https://raw.githubusercontent.com/anthropics/skills/main/skills/brand-guidelines/SKILL.md", "--force"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
       assert.match(r.stdout, /Installed: brand-guidelines/);
       assertInstalled(d.path, "brand-guidelines", "raw URL");
@@ -62,7 +62,7 @@ describe("Suite E: Skills installer — GitHub URL sources", () => {
   it("E.3: installs langfuse from repo-root URL + name (langfuse/skills)", () => {
     const d = tempDir();
     try {
-      const r = installSkill(d.path, ["langfuse", "--from", "https://github.com/langfuse/skills"]);
+      const r = installSkill(d.path, ["langfuse", "--from", "https://github.com/langfuse/skills", "--force"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
       assert.match(r.stdout, /Installed: langfuse/);
       assertInstalled(d.path, "langfuse", "langfuse/skills repo-root URL");
@@ -88,7 +88,7 @@ describe("Suite E: Skills installer — GitHub URL sources", () => {
     try {
       // No --from: resolves against the default marketplaces (anthropics/skills)
       // via HEAD/skills/brand-guidelines/SKILL.md.
-      const r = installSkill(d.path, ["brand-guidelines"]);
+      const r = installSkill(d.path, ["brand-guidelines", "--force"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
       assert.match(r.stdout, /Installed: brand-guidelines/);
       assertInstalled(d.path, "brand-guidelines", "marketplace auto-resolve");

@@ -119,6 +119,11 @@ export async function handleSecurityDoctor(args: string[]): Promise<void> {
   process.exit(0);
 }
 
+export async function handleSecurityGate(args: string[]): Promise<void> {
+  const { handleSecurityGate } = await import("./security.js");
+  await handleSecurityGate(args.slice(1));
+}
+
 export async function handleSecurityConfigKeygen(_args: string[]): Promise<void> {
   const { ConfigSigner } = await import("../../config/signing.js");
   try {

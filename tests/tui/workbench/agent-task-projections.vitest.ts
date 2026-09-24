@@ -11,6 +11,19 @@ function event(seq: number, type: string, payload: Record<string, unknown>): Ali
 }
 
 describe('Workbench agent and task projections', () => {
+  it('keeps retry attempts non-terminal until scheduler lifecycle arrives', () => {
+    const agents = new AgentRosterProjection();
+    const tasks = new TaskProjection();
+    const events = [
+      event(1, 'agent.spawned', { agentId: 'worker-1', taskId: 'worker-1', state: 'thinking' }),
+      event(2, 'agent.task_assigned', { agentId: 'worker-1', taskId: 'worker-1', title: 'Write output' }),
+      event(3, 'subagent.result', { agentId: 'worker-1', taskId: 'worker-1', status: 'failed', attemptTerminal: false }),
+    ];
+    agents.update(events);
+    tasks.update(events);
+    expect(agents.snapshot().agents[0]?.state).not.toBe('failed');
+    expect(tasks.snapshot().tasks[0]?.state).not.toBe('failed');
+  });
   it('preserves a partial terminal state carried by agent.completed', () => {
     const agents = new AgentRosterProjection();
     const tasks = new TaskProjection();
