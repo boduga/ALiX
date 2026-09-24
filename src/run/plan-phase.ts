@@ -302,6 +302,8 @@ export function summarisePlan(planContent: string): string {
  */
 /** Sentinel a no-changes plan must contain; presence → plan discarded. */
 const NO_CHANGES_PLAN_MARKER = "No file changes required";
+/** Exact body line the plan prompt orders for the no-changes branch. */
+const NO_CHANGES_PLAN_LINE = `${NO_CHANGES_PLAN_MARKER} \u2014 answer directly.`;
 
 async function generatePlan(
   ctx: AgentContext,
@@ -337,7 +339,7 @@ function buildPlanSystemPrompt(_task: string, bundle: ContextBundle): string {
     "If NOT (question, claim verification, analysis, look-up): output exactly this and nothing else:",
     "",
     "## Summary",
-    NO_CHANGES_PLAN_MARKER + " — answer directly.",
+    NO_CHANGES_PLAN_LINE,
     "",
     "If it DOES require file changes, generate a structured plan in markdown with these sections:",
     "",
