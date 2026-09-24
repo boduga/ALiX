@@ -8,7 +8,11 @@
 
 import type { DecisionType } from "./contracts.js";
 import type { DecisionExecutor } from "./executors.js";
-import { createLocalBaselineExecutor, localEngineMeta } from "./engines/local.js";
+import {
+  createLocalBaselineExecutor,
+  localEngineMeta,
+  type LocalBaselineExecutorOptions,
+} from "./engines/local.js";
 
 export type DecisionEngineCapability = "choice" | "score" | "noul";
 
@@ -99,9 +103,13 @@ export function createEngineRegistry(): EngineRegistry {
   };
 }
 
-/** Default registry: local baseline only. Jev registered only when opted in. */
-export function createDefaultRegistry(): EngineRegistry {
+/** Default registry: local baseline only. Jev registered only when opted in.
+ *  `claimThreshold` (the active local claim profile) is bound into the local
+ *  executor; absent keeps the uncalibrated default (JEV-9). */
+export function createDefaultRegistry(
+  opts?: Pick<LocalBaselineExecutorOptions, "claimThreshold">,
+): EngineRegistry {
   const registry = createEngineRegistry();
-  registry.register(localEngineMeta(createLocalBaselineExecutor()));
+  registry.register(localEngineMeta(createLocalBaselineExecutor(opts)));
   return registry;
 }

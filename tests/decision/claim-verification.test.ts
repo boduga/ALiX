@@ -18,17 +18,21 @@ import {
   MAX_EXCERPT_CHARS,
   MalformedResultError,
   ProjectionRejectedError,
+  SUPPORT_OVERLAP_THRESHOLD,
   buildPlan,
   classifyClaimLocally,
+  createCalibrationProvenance,
   createDecisionJournalStore,
   createDefaultRegistry,
   createExperimentProjectionStore,
   createJevExecutor,
+  createProfileRegistry,
   experimentStorePath,
   isClaimVerdict,
   projectClaimVerification,
   readClaimProjection,
   registerJevEngine,
+  resolveLocalClaimThreshold,
   runClaimVerificationShadow,
   selectClaimVerification,
   toJevRequest,
@@ -132,6 +136,173 @@ describe("local baseline", () => {
     });
     assert.equal(verdict.verdict, "contradicted");
     assert.doesNotMatch(verdict.reason, /ignore all previous/i);
+  });
+
+  it("supportOverlapThreshold override flips a borderline verdict; default unchanged", () => {
+    // 2/4 claim terms → overlap exactly 0.5: passes the default (strict <).
+    const borderline = { claim: "alpha beta gamma delta", evidence: ["alpha beta"] };
+    assert.equal(SUPPORT_OVERLAP_THRESHOLD, 0.5);
+    assert.equal(classifyClaimLocally(borderline).verdict, "supported");
+    assert.equal(
+      classifyClaimLocally(borderline, { supportOverlapThreshold: 0.61 }).verdict,
+      "insufficient",
+    );
+    assert.equal(
+      classifyClaimLocally(borderline, { supportOverlapThreshold: 0.4 }).verdict,
+      "supported",
+    );
+    // A higher threshold never turns a passing verdict into a contradiction.
+    assert.equal(
+      classifyClaimLocally({ claim: "alpha beta gamma", evidence: ["alpha beta gamma"] }, {
+        supportOverlapThreshold: 1,
+      }).verdict,
+      "supported",
+    );
+  });
+});
+
+describe("resolveLocalClaimThreshold", () => {
+  const provenance = createCalibrationProvenance({
+    datasetId: "dataset/1",
+    sampleCount: 4,
+    metric: "accuracy",
+    value: 0.8,
+    computedAt: 1,
+  });
+
+  it("defaults to 0.5 with no registry or no applicable profile", () => {
+    assert.equal(resolveLocalClaimThreshold(DEFAULT_DECISION_CONFIG), SUPPORT_OVERLAP_THRESHOLD);
+    assert.equal(
+      resolveLocalClaimThreshold(DEFAULT_DECISION_CONFIG, createProfileRegistry()),
+      SUPPORT_OVERLAP_THRESHOLD,
+    );
+  });
+
+  it("configured route profile wins when it is the active local claim profile", () => {
+    const registry = createProfileRegistry([
+      {
+        id: "claim-verification/local/v1",
+        decision: "claim-verification",
+        engineId: "local",
+        threshold: 0.61,
+        status: "active",
+        provenance,
+      },
+    ]);
+    assert.equal(resolveLocalClaimThreshold(DEFAULT_DECISION_CONFIG, registry), 0.61);
+  });
+
+  it("falls back to the scope's active local profile when the configured id is absent or shadow", () => {
+    const registry = createProfileRegistry([
+      {
+        id: "claim-verification/local/v1",
+        decision: "claim-verification",
+        engineId: "local",
+        threshold: 0.7,
+        status: "shadow",
+        provenance,
+      },
+      {
+        id: "claim-verification/local/v2",
+        decision: "claim-verification",
+        engineId: "local",
+        threshold: 0.61,
+        status: "active",
+        provenance,
+      },
+    ]);
+    // Configured id points at the shadow profile → active scope profile wins.
+    assert.equal(resolveLocalClaimThreshold(DEFAULT_DECISION_CONFIG, registry), 0.61);
+    // Configured id unknown → same fallback.
+    const unknownId: DecisionConfig = {
+      ...DEFAULT_DECISION_CONFIG,
+      claimVerification: { ...DEFAULT_DECISION_CONFIG.claimVerification, thresholdProfile: "claim-verification/local/v9" },
+    };
+    assert.equal(resolveLocalClaimThreshold(unknownId, registry), 0.61);
+  });
+
+  it("JEV-9: a foreign (jev) profile is never applied to the local baseline", () => {
+    const registry = createProfileRegistry([
+      {
+        id: "claim-verification/jev/v1",
+        decision: "claim-verification",
+        engineId: "jev",
+        threshold: 0.9,
+        status: "active",
+        provenance,
+      },
+    ]);
+    // Configured route id points at the active jev profile → still 0.5.
+    const configured: DecisionConfig = {
+      ...DEFAULT_DECISION_CONFIG,
+      claimVerification: { ...DEFAULT_DECISION_CONFIG.claimVerification, thresholdProfile: "claim-verification/jev/v1" },
+    };
+    assert.equal(resolveLocalClaimThreshold(configured, registry), SUPPORT_OVERLAP_THRESHOLD);
+    // Active local + active jev: the local profile applies, never the jev one.
+    const both = createProfileRegistry([
+      ...registry.profiles,
+      {
+        id: "claim-verification/local/v2",
+        decision: "claim-verification",
+        engineId: "local",
+        threshold: 0.61,
+        status: "active",
+        provenance,
+      },
+    ]);
+    assert.equal(resolveLocalClaimThreshold(configured, both), 0.61);
+  });
+});
+
+describe("threshold-profile wiring", () => {
+  // Overlap exactly 0.5: default passes, 0.61 refuses.
+  const borderlineInput = {
+    claim: "alpha beta gamma delta",
+    evidence: [{ excerpt: "alpha beta" }],
+  };
+
+  it("createDefaultRegistry({ claimThreshold }) binds the local executor", async () => {
+    const sealed = projectClaimVerification(borderlineInput);
+
+    const tunedEngine = createDefaultRegistry({ claimThreshold: 0.61 }).resolve({
+      engineId: LOCAL_ENGINE_ID,
+      allowRemote: false,
+      decision: "claim-verification",
+    });
+    assert.ok(tunedEngine.executor);
+    const tunedOutcome = await tunedEngine.executor.execute({
+      decision: "claim-verification",
+      sealed,
+    });
+    assert.equal(tunedOutcome.kind, "choice");
+    if (tunedOutcome.kind === "choice") assert.equal(tunedOutcome.choice, "insufficient");
+
+    const plainEngine = createDefaultRegistry().resolve({
+      engineId: LOCAL_ENGINE_ID,
+      allowRemote: false,
+      decision: "claim-verification",
+    });
+    assert.ok(plainEngine.executor);
+    const plainOutcome = await plainEngine.executor.execute({
+      decision: "claim-verification",
+      sealed,
+    });
+    assert.equal(plainOutcome.kind, "choice");
+    if (plainOutcome.kind === "choice") assert.equal(plainOutcome.choice, "supported");
+  });
+
+  it("selectClaimVerification applies claimThreshold in baseline mode", async () => {
+    const journal = createDecisionJournalStore(join(tmpdir(), `cv-threshold-${Date.now()}`));
+    const selection = await selectClaimVerification(borderlineInput, {
+      config: DEFAULT_DECISION_CONFIG,
+      registry: createDefaultRegistry(),
+      journal,
+      mode: "baseline",
+      claimThreshold: 0.61,
+    });
+    assert.equal(selection.verdict, "insufficient");
+    assert.equal(selection.engineId, LOCAL_ENGINE_ID);
+    assert.equal(journal.readAll().length, 0);
   });
 });
 
