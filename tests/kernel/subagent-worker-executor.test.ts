@@ -109,6 +109,18 @@ describe("SubagentWorkerExecutor", () => {
     assert.match(result.summary ?? "", /done/);
   });
 
+  it("does not mark an incomplete write worker successful", async () => {
+    const partialChild = `console.log(JSON.stringify({ status: "partial", error: "delegated objective incomplete", findings: [{ type: "summary", content: "Changed: src/project.md" }], events: [] }));`;
+    const executor = new SubagentWorkerExecutor({ manager: managerWith(partialChild) });
+    const result = await executor.execute(
+      worker({ id: "partial-write", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/workbench/project.md"] }),
+      { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
+      new AbortController().signal,
+    );
+    assert.equal(result.outcome, "failure");
+    assert.match(result.error ?? "", /delegated objective incomplete/);
+  });
+
   it("runs two workers in parallel through one manager", async () => {
     const delayed = `await new Promise(r => setTimeout(r, 400)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`;
     const executor = new SubagentWorkerExecutor({ manager: managerWith(delayed) });
