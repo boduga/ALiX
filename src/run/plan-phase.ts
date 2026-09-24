@@ -22,7 +22,7 @@ import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { prompt } from "../cli/commands/prompt.js";
-import { isReadOnlyTask, isShellTask } from "../task-classifier.js";
+import { isReadOnlyTask, isShellTask, isClaimVerificationTask } from "../task-classifier.js";
 import {
   parsePlanTasks,
   buildPlanTaskList,
@@ -154,8 +154,11 @@ export async function runPlanPhase(
   const sidecarFs = opts?.sidecarFs ?? defaultSidecarFs;
   const context = opts?.context;
 
-  // Skip plan generation for read-only / shell tasks — no model call wasted.
-  if (isReadOnlyTask(task) || isShellTask(task)) {
+  // Skip plan generation for read-only / shell / claim-verification tasks —
+  // no model call wasted, and a fabricated "modify N files" plan for an
+  // inline judgment ask is pure transcript noise (user-reported: Great Wall
+  // claim ask rendered a 6-item modify/create plan after the verdict).
+  if (isReadOnlyTask(task) || isShellTask(task) || isClaimVerificationTask(task)) {
     return { action: "approved", planContent: "" };
   }
 
@@ -172,6 +175,12 @@ export async function runPlanPhase(
   const planContent = planFilePath
     ? await readFile(planFilePath, "utf-8")
     : await generatePlan(ctx, bundle, task, context);
+
+  // No-changes sentinel: the plan prompt's question/verification branch —
+  // normalize to "no plan" so nothing is persisted and nothing renders.
+  if (planContent.includes(NO_CHANGES_PLAN_MARKER)) {
+    return { action: "approved", planContent: "" };
+  }
 
   // 2. Save plan to disk
   const projectRoot = (ctx.config as any).projectRoot ?? process.cwd();
@@ -291,6 +300,9 @@ export function summarisePlan(planContent: string): string {
  * Call the model with context but NO tools to generate a plan.
  * The model outputs a structured markdown plan.
  */
+/** Sentinel a no-changes plan must contain; presence → plan discarded. */
+const NO_CHANGES_PLAN_MARKER = "No file changes required";
+
 async function generatePlan(
   ctx: AgentContext,
   bundle: ContextBundle,
@@ -321,7 +333,13 @@ async function generatePlan(
 function buildPlanSystemPrompt(_task: string, bundle: ContextBundle): string {
   const lines: string[] = [
     "You are a software engineer planning a task. Do NOT write code or execute anything.",
-    "Generate a structured plan in markdown with these sections:",
+    "First decide: does this task require changing files?",
+    "If NOT (question, claim verification, analysis, look-up): output exactly this and nothing else:",
+    "",
+    "## Summary",
+    NO_CHANGES_PLAN_MARKER + " — answer directly.",
+    "",
+    "If it DOES require file changes, generate a structured plan in markdown with these sections:",
     "",
     "## Summary",
     "One-line description of what needs to be done.",
