@@ -20,6 +20,12 @@ describe("self capabilities", () => {
     }
   });
 
+  it("anchors the claim-verification tool so models can find it", () => {
+    const text = renderSelfCapabilitySection();
+    assert.match(text, /alix_verify_claim/);
+    assert.match(text, /do not web-search or web-fetch/);
+  });
+
   it("lists skill slash names when provided", () => {
     const text = renderSelfCapabilitySection({ skills: ["/tdd", "/diagnose"] });
     assert.match(text, /Skill slash commands/);
