@@ -5,7 +5,7 @@ import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./s
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
@@ -190,24 +190,47 @@ export class FileToolRouter implements ToolRouter {
         if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
-        if (existsSync(resolvedPath)) {
-          // Idempotent create: a resumed/retried worker that already wrote
-          // the exact same content reports success instead of failing on a
-          // non-idempotent "already exists". Differing content still errors
-          // so a create never silently clobbers an existing file.
-          const existing = await readFileFs(resolvedPath, "utf8");
-          if (existing === content) {
+        await mkdir(dirname(resolvedPath), { recursive: true });
+        try {
+          // Exclusive creation closes the exists-check/write race: this call
+          // can never overwrite a file created by another worker.
+          await writeFile(resolvedPath, content, { encoding: "utf8", flag: "wx" });
+        } catch (err) {
+          if (!(err instanceof Error && "code" in err && err.code === "EEXIST")) throw err;
+
+          try {
+            const existingEntry = await lstat(resolvedPath);
+            if (!existingEntry.isFile() || existingEntry.isSymbolicLink()) {
+              return {
+                kind: "error",
+                message: `Path already exists and is not a regular file: ${path}`,
+                retryable: false,
+              };
+            }
+            const existing = await readFileFs(resolvedPath, "utf8");
+            if (existing === content) {
+              return {
+                kind: "success",
+                outcome: "already_exists_identical",
+                changed: false,
+                output: `File already exists with identical content: ${path}`,
+                createdPath: path,
+                changedFiles: [],
+              };
+            }
             return {
-              kind: "success",
-              output: `File already exists with identical content: ${path}`,
-              createdPath: path,
-              changedFiles: [path],
+              kind: "error",
+              message: `File already exists with different content: ${path}`,
+              retryable: false,
+            };
+          } catch (compareError) {
+            return {
+              kind: "error",
+              message: `Could not safely compare existing file ${path}: ${compareError instanceof Error ? compareError.message : String(compareError)}`,
+              retryable: false,
             };
           }
-          return { kind: "error", message: "File already exists", retryable: false };
         }
-        await mkdir(dirname(resolvedPath), { recursive: true });
-        await writeFile(resolvedPath, content, "utf8");
         if (this.eventLog) {
           await this.eventLog.append({
             sessionId: this.sessionId ?? "unknown",
@@ -218,6 +241,8 @@ export class FileToolRouter implements ToolRouter {
         }
         return {
           kind: "success",
+          outcome: "created",
+          changed: true,
           output: `File created: ${path}`,
           createdPath: path,
           changedFiles: [path],
