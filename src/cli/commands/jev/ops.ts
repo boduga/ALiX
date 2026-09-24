@@ -361,6 +361,34 @@ export function groupChoiceByEngine(
   return groups;
 }
 
+/**
+ * Label for one side of a pair: its own record's label, else inherit from an
+ * older record for the SAME engine whose verdict is unchanged. Re-verifying an
+ * identical claim journals newer records (recency then selects them); a
+ * judgement made on an earlier run still counts as long as the verdict it
+ * judged is the verdict being reported. A flipped verdict never inherits —
+ * the old label judged a verdict that is no longer on screen.
+ */
+function labelForSide(
+  engineRecords: readonly DecisionJournalRecord[] | undefined,
+  newest: DecisionJournalRecord,
+  labels: Map<string, { label: OutcomeLabel }>,
+): OutcomeLabel | undefined {
+  const own = labels.get(newest.decisionId);
+  if (own !== undefined) return own.label;
+  const verdictOf = (r: DecisionJournalRecord) => String((r.outcome as { choice: unknown }).choice);
+  const current = verdictOf(newest);
+  const ordered = engineRecords ?? [newest];
+  for (let i = ordered.length - 1; i >= 0; i -= 1) {
+    const older = ordered[i];
+    if (older.decisionId === newest.decisionId) continue;
+    if (verdictOf(older) !== current) continue;
+    const inherited = labels.get(older.decisionId);
+    if (inherited !== undefined) return inherited.label;
+  }
+  return undefined;
+}
+
 export async function buildDisagreements(
   paths: JevPaths,
   opts: { decision?: DecisionType },
@@ -376,6 +404,17 @@ export async function buildDisagreements(
   const labels = indexLabelsByDecisionId(
     (await createOutcomeLabelStore(paths.dir).readAll()).labels,
   );
+  // Every choice record per engine, not just the newest — label inheritance
+  // needs the history when a claim is re-verified (see labelForSide).
+  const choiceByEngine = new Map<string, Map<string, DecisionJournalRecord[]>>();
+  for (const record of records) {
+    if (record.decision !== decision || record.outcome.kind !== "choice") continue;
+    const perEngine = choiceByEngine.get(record.projectionHash) ?? new Map<string, DecisionJournalRecord[]>();
+    const list = perEngine.get(record.engineId) ?? [];
+    list.push(record);
+    perEngine.set(record.engineId, list);
+    choiceByEngine.set(record.projectionHash, perEngine);
+  }
 
   let paired = 0;
   let disagreements = 0;
@@ -394,11 +433,12 @@ export async function buildDisagreements(
     const baselineRecord = byEngine.get(LOCAL_ENGINE_ID);
     if (jevRecord === undefined || baselineRecord === undefined) continue;
     paired += 1;
+    const engineHistory = choiceByEngine.get(projectionHash);
     const sides: DisagreementSide[] = [jevRecord, baselineRecord].map((record) => ({
       engineId: record.engineId,
       decisionId: record.decisionId,
       verdict: String((record.outcome as { choice: unknown }).choice),
-      label: labels.get(record.decisionId)?.label,
+      label: labelForSide(engineHistory?.get(record.engineId), record, labels),
     }));
 
     if (sides[0].verdict === sides[1].verdict) continue; // agreement

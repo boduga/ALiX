@@ -851,3 +851,79 @@ describe("jev ops — label-pair (two-stage blind)", () => {
     assert.equal(result.labels.length, 2);
   });
 });
+
+describe("label survival across re-verification", () => {
+  it("a re-verified identical claim does not orphan its judgement", async () => {
+    const target = freshPaths();
+    // First run: disagreement judged truth=supported (jev supported=correct).
+    await seedClaimPair(target, "sha256:reverify", "insufficient", "supported", "supported");
+    // Re-run: newer records, SAME verdicts, no labels on them.
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "jev",
+        projectionHash: "sha256:reverify",
+        outcome: { kind: "choice", choice: "supported", candidates },
+        latencyMs: 10,
+        remote: true,
+        redactionApplied: true,
+        now: 1_900_000_000_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:reverify",
+        outcome: { kind: "choice", choice: "insufficient", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_900_000_000_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.labelled, 1, "judgement must survive the re-run");
+    assert.equal(report.unlabelled, 0);
+    assert.equal(report.jevCorrect, 1);
+    assert.equal(report.baselineCorrect, 0);
+  });
+
+  it("a re-run whose verdict CHANGED does not inherit the old judgement", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:flip", "insufficient", "supported", "supported");
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "jev",
+        projectionHash: "sha256:flip",
+        outcome: { kind: "choice", choice: "contradicted", candidates },
+        latencyMs: 10,
+        remote: true,
+        redactionApplied: true,
+        now: 1_900_000_000_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:flip",
+        outcome: { kind: "choice", choice: "insufficient", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_900_000_000_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.labelled, 0, "verdict changed — old judgement must not transfer");
+    assert.equal(report.unlabelled, 1);
+  });
+});
