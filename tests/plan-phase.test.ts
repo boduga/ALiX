@@ -139,6 +139,64 @@ describe("plan-phase", () => {
     assert.equal(isShellTask("pwd"), true);
   });
 
+  it("claim verification task skips plan generation (approved, empty plan)", async () => {
+    // Regression: the Great Wall claim ask generated a fabricated 6-item
+    // modify/create plan that rendered after the verdict — pure noise.
+    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const mockCtx: any = { sessionId: "claim-skip", config: {}, log: { append: async () => {} } };
+    const mockBundle: any = { primaryFiles: [], tests: [], supportingFiles: [] };
+    const result = await runPlanPhase(
+      mockCtx,
+      mockBundle,
+      "Claim: The Great Wall of China is visible from lower Earth orbit.\n\nEvidence: Astronauts photographed it with telephoto lenses.\n\nVerify the claim against the evidence.",
+      undefined,
+      { approvalMode: "deferred" },
+    );
+    assert.equal(result.action, "approved");
+    assert.equal(result.planContent, "");
+    assert.equal((result as any).planTasks, undefined);
+  });
+
+  it("isClaimVerificationTask matches claim asks and rejects write asks", async () => {
+    const { isClaimVerificationTask } = await import("../src/task-classifier.js");
+    assert.equal(isClaimVerificationTask("Claim: the moon is made of cheese. Evidence: trust me"), true);
+    assert.equal(isClaimVerificationTask("verify the claim that caches improve latency"), true);
+    assert.equal(isClaimVerificationTask("run claim-verification on this pair"), true);
+    assert.equal(isClaimVerificationTask("does this evidence support the hypothesis"), true);
+    assert.equal(isClaimVerificationTask("fix the null pointer in user.ts"), false);
+    assert.equal(isClaimVerificationTask("verify the fix and clean up dead code"), false);
+    assert.equal(isClaimVerificationTask("refactor the login flow"), false);
+  });
+
+  it("no-changes sentinel plan normalizes to empty planContent (nothing persisted)", async () => {
+    // Independent of the classifier: any generated/loaded plan carrying the
+    // sentinel is discarded before disk write or timeline emission.
+    const { runPlanPhase } = await import("../src/run/plan-phase.js");
+    const testDir = join(process.cwd(), ".test-tmp", "plan-phase-nochanges");
+    await mkdir(testDir, { recursive: true });
+    const planPath = join(testDir, "no-changes.md");
+    await writeFile(planPath, "## Summary\nNo file changes required — answer directly.\n");
+    const mockCtx: any = { sessionId: "nochanges-sess", config: { projectRoot: testDir }, log: { append: async () => {} } };
+    const mockBundle: any = { primaryFiles: [], tests: [], supportingFiles: [] };
+    try {
+      const result = await runPlanPhase(
+        mockCtx,
+        mockBundle,
+        "add a new dashboard panel widget",
+        planPath,
+        { approvalMode: "deferred" },
+      );
+      assert.equal(result.action, "approved");
+      assert.equal(result.planContent, "");
+      assert.ok(
+        !existsSync(join(testDir, ".alix", "plans", "nochanges-sess.md")),
+        "plan file must not be written for no-changes plans",
+      );
+    } finally {
+      await rm(testDir, { recursive: true, force: true });
+    }
+  });
+
   it("persistPlanTaskSidecar: write failure is non-fatal (warning only)", async () => {
     // Direct unit test of the sidecar helper with an injected writer
     // that always throws. This is the "warning only" contract.
