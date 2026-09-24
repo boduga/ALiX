@@ -78,10 +78,13 @@ export const SYSTEM_PROMPT_BASE =
   "thin, ask for what you need instead of asserting it was remembered.\n\n" +
 
   "### Response Style\n" +
+  "Lead with the result itself, not the process that produced it. " +
   "Match the length of your answer to the question. A one-line factual question " +
-  "(is X installed, what version is Y, where is Z) gets a one-line answer — no " +
-  "tables, no headers, no recap of the steps you took. Reserve structure (tables, " +
-  "sections, action summaries) for genuinely complex results.";
+  "(is X installed, what version is Y, where is Z, does this evidence support X) " +
+  "gets a one-line answer — no tables, no headers, no recap of the steps you took. " +
+  "Reserve structure (tables, sections, action summaries) for genuinely complex results. " +
+  "Never read raw payload fields back to the user — ids, hashes, JSON, engine names, " +
+  "authority flags: translate their meaning into plain language or leave them out.";
 
 export const RESEARCH_SUPPLEMENT =
 `## Research Phase

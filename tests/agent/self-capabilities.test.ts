@@ -46,6 +46,8 @@ describe("self capabilities", () => {
   it("is injected into the assembled system prompt", async () => {
     const prompt = await setupSystemPrompt(process.cwd(), { shellTask: false, matchedSkills: [] });
     assert.match(prompt, /## Your Capabilities/);
+    assert.match(prompt, /Never read raw payload fields/);
+    assert.match(prompt, /Lead with the result itself/);
     assert.match(prompt, /alix coordination/);
     assert.match(prompt, /\/agents/);
     assert.match(prompt, /\/artifacts/);
