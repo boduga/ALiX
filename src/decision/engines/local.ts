@@ -26,8 +26,15 @@ import { readRiskProjection } from "../decisions/risk-escalation/projection.js";
 
 export const LOCAL_ENGINE_ID = "local";
 
-function claimChoice(input: ExecuteInput, started: number): ExecutorOutcome {
-  const { verdict } = classifyClaimLocally(readClaimProjection(input.sealed.payload));
+function claimChoice(
+  input: ExecuteInput,
+  started: number,
+  claimThreshold?: number,
+): ExecutorOutcome {
+  const { verdict } = classifyClaimLocally(
+    readClaimProjection(input.sealed.payload),
+    claimThreshold !== undefined ? { supportOverlapThreshold: claimThreshold } : undefined,
+  );
   if (input.candidates !== undefined && !input.candidates.includes(verdict)) {
     return { kind: "failure", error: "candidate set incompatible with local baseline" };
   }
@@ -95,19 +102,24 @@ function riskChoice(input: ExecuteInput, started: number): ExecutorOutcome {
   };
 }
 
-/** Exhaustive dispatch: adding a DecisionType without a baseline fails compile. */
-const BASELINE: Record<DecisionType, (input: ExecuteInput, started: number) => ExecutorOutcome> = {
-  "claim-verification": claimChoice,
-  "context-relevance": relevanceNoul,
-  "model-tier": modelTierChoice,
-  "risk-escalation": riskChoice,
+export type LocalBaselineExecutorOptions = {
+  /** Claim support-overlap threshold (the active local profile); absent = default. */
+  claimThreshold?: number;
 };
 
-export function createLocalBaselineExecutor(): DecisionExecutor {
+export function createLocalBaselineExecutor(opts?: LocalBaselineExecutorOptions): DecisionExecutor {
+  const claimThreshold = opts?.claimThreshold;
+  // Exhaustive dispatch: adding a DecisionType without a baseline fails compile.
+  const baseline: Record<DecisionType, (input: ExecuteInput, started: number) => ExecutorOutcome> = {
+    "claim-verification": (input, started) => claimChoice(input, started, claimThreshold),
+    "context-relevance": relevanceNoul,
+    "model-tier": modelTierChoice,
+    "risk-escalation": riskChoice,
+  };
   return {
     engineId: LOCAL_ENGINE_ID,
     async execute(input: ExecuteInput): Promise<ExecutorOutcome> {
-      return BASELINE[input.decision](input, Date.now());
+      return baseline[input.decision](input, Date.now());
     },
   };
 }

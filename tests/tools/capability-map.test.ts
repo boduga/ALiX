@@ -79,6 +79,8 @@ describe("verify.claim wiring (spec §7.1 approval trap)", () => {
     const manifest = BASE_TOOLS.find((tool) => tool.name === "alix_verify_claim");
     assert.ok(manifest, "alix_verify_claim missing from BASE_TOOLS");
     assert.deepEqual(manifest.input_schema.required, ["claim"]);
+    assert.match(manifest.description, /ONE line/);
+    assert.match(manifest.description, /do not echo the payload/);
     assert.equal(TOOL_NAME_MAP.alix_verify_claim, "verify.claim");
   });
 });

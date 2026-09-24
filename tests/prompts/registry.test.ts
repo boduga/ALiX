@@ -45,7 +45,7 @@ describe("prompt registry", () => {
   // update the hash below.
   it("prompt texts match snapshot hashes", () => {
     const snapshot: Record<string, string> = {
-      "agent.system-base": "61a5d38de5ca1ebc",
+      "agent.system-base": "730e16e94342f43b",
       "agent.research-supplement": "b874aa6c71159b03",
       "agent.execution-supplement": "7b62665ebcd35a95",
       "agent.verification-supplement": "f104d69cfdfe3fa3",

@@ -129,6 +129,35 @@ export function isShellTask(prompt: string): boolean {
  * Returns true if the task prompt describes a read-only operation
  * (research, question, docs review) that doesn't need a plan prompt.
  */
+/**
+ * True when the prompt is an inline claim/evidence verification ask
+ * ("Claim: ... Evidence: ...", "verify the claim ...", claim + evidence:
+ * section in either order) — a judgment request that never needs a
+ * file-modification plan.
+ *
+ * Deliberately NOT folded into `isReadOnlyTask`: that predicate also gates
+ * tool filtering and the read-only mode prompt (agent-loop readOnly), and
+ * those must not swallow the `verify.claim` capability or forbid legitimate
+ * follow-up edits. This predicate only exempts plan generation.
+ */
+const CLAIM_VERIFICATION_PATTERNS = [
+  /^\s*\bclaim:/i,
+  /\bverify (?:the |this |a |an |my |given |provided |supplied )*claim\b/i,
+  /\bclaim[- ]verif(?:ication|y|ied)\b/i,
+  /\bdoes (?:this|the|these|that|given) evidence\b/i,
+  // Judgment asks that paste an explicit `evidence:` section TOGETHER with
+  // claim language (either order; both required). A bare `evidence:` must
+  // never skip plan generation — "Fix the crash. Evidence: see stack trace"
+  // is a write task and keeps its plan gate. Also: no \b after `:`, which
+  // cannot match before whitespace by boundary rules.
+  /(?=[\s\S]*\bclaim\b)[\s\S]*\bevidenc(?:e|es)\s*:/i,
+];
+
+export function isClaimVerificationTask(prompt: string): boolean {
+  const stripped = prompt.replace(/^['"]|['"]$/g, "");
+  return CLAIM_VERIFICATION_PATTERNS.some((p) => p.test(stripped));
+}
+
 export function isReadOnlyTask(prompt: string): boolean {
   // Strip surrounding quotes so 'ls' and "ls" match patterns
   const stripped = prompt.replace(/^['"]|['"]$/g, "");

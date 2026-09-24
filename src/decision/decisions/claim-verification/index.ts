@@ -9,6 +9,7 @@
 export * from "./schema.js";
 export * from "./projection.js";
 export * from "./local-baseline.js";
+export * from "./thresholds.js";
 export * from "./corpus.js";
 export * from "./jev-mapping.js";
 export * from "./shadow.js";

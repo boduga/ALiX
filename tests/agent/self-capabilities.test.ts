@@ -20,6 +20,12 @@ describe("self capabilities", () => {
     }
   });
 
+  it("anchors the claim-verification tool so models can find it", () => {
+    const text = renderSelfCapabilitySection();
+    assert.match(text, /alix_verify_claim/);
+    assert.match(text, /do not web-search or web-fetch/);
+  });
+
   it("lists skill slash names when provided", () => {
     const text = renderSelfCapabilitySection({ skills: ["/tdd", "/diagnose"] });
     assert.match(text, /Skill slash commands/);
@@ -40,6 +46,8 @@ describe("self capabilities", () => {
   it("is injected into the assembled system prompt", async () => {
     const prompt = await setupSystemPrompt(process.cwd(), { shellTask: false, matchedSkills: [] });
     assert.match(prompt, /## Your Capabilities/);
+    assert.match(prompt, /Never read raw payload fields/);
+    assert.match(prompt, /Lead with the result itself/);
     assert.match(prompt, /alix coordination/);
     assert.match(prompt, /\/agents/);
     assert.match(prompt, /\/artifacts/);

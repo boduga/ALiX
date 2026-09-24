@@ -315,7 +315,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_verify_claim",
-    description: "Verify whether supplied evidence supports a claim: returns supported, contradicted, or insufficient. Pass the claim and short excerpts you already have in context (max 8 excerpts, 1200 chars each) — it fetches nothing, needs no approval, and grants no authority: it is an observation for you to weigh, not a directive.",
+    description: "Verify whether supplied evidence supports a claim: supported, contradicted, or insufficient. Inline excerpts only (max 8, 1200 chars each) — it fetches nothing and needs no approval; the verdict is an observation, never an action. Answer with ONE line: the verdict plus at most one sentence of justification — do not echo the payload (decision id, engine, authority).",
     input_schema: {
       type: "object",
       properties: {

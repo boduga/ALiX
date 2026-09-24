@@ -37,12 +37,18 @@ export type ClaimSelection = {
 
 export async function selectClaimVerification(
   input: ClaimVerificationInput,
-  deps: ClaimVerificationShadowDeps & { mode?: ClaimSelectionMode },
+  deps: ClaimVerificationShadowDeps & {
+    mode?: ClaimSelectionMode;
+    /** Active local support-overlap threshold; absent = default (JEV-9). */
+    claimThreshold?: number;
+  },
 ): Promise<ClaimSelection> {
   const mode = deps.mode ?? "baseline";
+  const classifyOpts =
+    deps.claimThreshold !== undefined ? { supportOverlapThreshold: deps.claimThreshold } : undefined;
   if (mode === "baseline") {
     const projection = createClaimVerificationProjector().project(input);
-    const { verdict } = classifyClaimLocally(projection);
+    const { verdict } = classifyClaimLocally(projection, classifyOpts);
     return { mode, verdict, engineId: LOCAL_ENGINE_ID };
   }
 
@@ -53,7 +59,7 @@ export async function selectClaimVerification(
       return { mode, verdict: shadow.baseline.verdict, engineId: shadow.baseline.engineId, shadow };
     }
     const projection = createClaimVerificationProjector().project(input);
-    const { verdict } = classifyClaimLocally(projection);
+    const { verdict } = classifyClaimLocally(projection, classifyOpts);
     return { mode, verdict, engineId: LOCAL_ENGINE_ID, shadow };
   }
 

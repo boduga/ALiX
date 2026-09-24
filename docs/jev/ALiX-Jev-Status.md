@@ -1,6 +1,6 @@
 # Jev Integration — Status and Handover
 
-Status: **delivered as a library and operator surface; not wired into the runtime.**
+Status: **library + operator surface delivered; claim-verification runtime wiring shipped (#824) in default-off (`baseline`) mode.**
 
 Prepared: 22 September 2026. Supersedes the "proposed" status on
 `ALiX-Jev-Implementation-Plan.md`; the Architecture Design and Engineering
@@ -8,7 +8,7 @@ Hand-Off remain the design spec.
 
 This note is the single place to look for "where did the Jev work land".
 It records what is done, what has been verified against the live API, what is
-deliberately not done, and the one decision that remains open.
+deliberately not done, and the shipped wiring decision (§5).
 
 ## 1. Headline
 
@@ -17,17 +17,18 @@ The decision subsystem is a complete, operable library: four decisions, two
 engines each (deterministic local baseline + Jev), a redaction boundary, a
 journal, calibration, replay, and an `alix jev` operator CLI.
 
-**No runtime module imports it.** The only non-`src/decision` importers are
-`src/config/schema.ts`, `src/config/loader.ts`, and `src/config/defaults.ts`,
-which merely carry the config block. Nothing in `src/agent`, `src/runtime`,
-`src/policy`, `src/providers`, or `src/kernel` calls a decision. So the shadow
-adapters exist and are tested, but **no live path exercises them** — there are
-no production journal records yet, and the calibration loop has only turned on
-fixtures.
+**One runtime path exists, deliberately default-off.** PR #824 added the
+`alix_verify_claim` tool: `src/tools/claim-verification-tool.ts` reaches
+`src/decision/` through the lazily-loaded router, but `src/agent`,
+`src/runtime`, `src/policy`, `src/providers`, and `src/kernel` still never
+import a decision (the import-specific grep in this folder's `AGENTS.md` stays
+empty). With the default `mode: "baseline"` the tool runs the local baseline as
+a pure function — no engine plan, no journal write, no network — so a stock
+install behaves exactly as the library-only era did. `journal records: 0`
+therefore means **"wired, not activated or not yet used"**, not "unwired".
 
-That is a deliberate stopping point, not an unfinished one. The plan gates
-runtime wiring on evidence; wiring is therefore the next decision, not the
-next task (see §5).
+Activation is one config flip (§5). Until it happens *and* real tool calls
+land, the calibration loop still runs on fixture evidence alone.
 
 ## 2. What landed
 
@@ -48,6 +49,7 @@ next task (see §5).
 | — | `alix jev` operator surface | #815 |
 | — | Cost from provider-reported usage; replay comparison semantics | #817, #818 |
 | — | Risk rubric: irreversible public exposure | #819 |
+| — | **Runtime wiring**: `alix_verify_claim` tool, selection service, experiment store, `disagreements` + two-stage `label-pair` CLI | #824 |
 
 ## 3. Verified against the live API
 
@@ -80,7 +82,14 @@ thing this exercise produced.
 
 ## 4. What is deliberately not done
 
-- **Runtime wiring of any kind.** See §1 and §5.
+- **Activation of context-relevance filtering and model-tier routing.** Both
+  stay CRITICAL seams without the evidence the plan requires (§5). Claim-
+  verification is the only wired decision (#824), and only in default-off mode.
+- **The claim-verification experiment has not started collecting.** Default is
+  `mode: "baseline"` (local, no journal, no network). Flipping to `shadow` +
+  `engine: "jev"` starts pair collection; the gate (≥30 comparable pairs, ≥10
+  labelled disagreements, ≥70% Jev win rate) is untouched — no live records
+  exist at the time of writing.
 - **Model-tier needs at least two enabled tiers to exercise.** `alix jev fixture
   build --decision model-tier` fails closed with `model-tier fixtures need at
   least two enabled tiers (found 1: default)`. The corpus expects `coding`,
@@ -95,24 +104,40 @@ thing this exercise produced.
   parallel-task classification are unimplemented by choice. Risk escalation was
   admitted because it can only escalate, never waive.
 
-## 5. The open decision: where does judgement enter ALiX?
+## 5. Decision made: where judgement enters ALiX (shipped, #824)
 
-Wiring is a product decision about where a probabilistic judgement enters the
-system, and the candidate seams are not equivalent:
+Wiring was a product decision about where a probabilistic judgement enters the
+system; the candidate seams were not equivalent:
 
 | Seam | Shape | Blast radius |
 |------|-------|--------------|
-| **New additive tool** (e.g. `alix_verify_claim`) | model calls it; no existing path changes | **low — additive by construction** |
+| **New additive tool** (`alix_verify_claim`) | model calls it; no existing path changes | **low — additive by construction** |
 | Verifier / verification pipeline | observes existing findings | medium — another subsystem's hot path |
 | Context builder | sits inside prompt assembly | medium — its DOX forbids adding logic there |
 | Routing / PolicyGate (model-tier, risk-escalation) | changes what runs or what is allowed | **CRITICAL** |
 
-The recommendation on file: start with an **additive tool** for
-claim-verification. It changes no existing path, inherits policy/approval like
-any other tool, and shadow mode means it journals the observation while
-returning the deterministic baseline's verdict — so agent behavior is unchanged
-until deliberately flipped. That is the only option where "reversible" is true
-by construction rather than by care.
+**Decision (22 September 2026): the additive tool — shipped as PR #824.**
+`alix_verify_claim` (internal `verify.claim`) landed with its manifest entry,
+policy key `verify.claim` → `allow`, read-only-filter membership,
+`selectClaimVerification` (`baseline | shadow | active`), the protected
+experiment store, and the `alix jev disagreements` / `alix jev label-pair`
+operator loop. It changes no pre-existing path: in `shadow` it journals Jev
+beside the local baseline while still returning the baseline verdict, so agent
+behaviour is unchanged until deliberately flipped.
+
+**Activation (deliberate, not yet done):**
+
+```bash
+alix config set decision.claimVerification.engine jev --global
+alix config set decision.claimVerification.mode shadow --global
+```
+
+After that, each real `alix_verify_claim` call journals a Jev+local pair under
+one `projectionHash` (journal is project-scoped; projections are user-scoped —
+run `alix jev disagreements` from the project where pairs accumulated). The
+gate is then computable from that CLI: tally first, blind-label at ≥10
+disagreements, promote or remove at ≥30 pairs. Anyone who never flips the
+config keeps `baseline`: local only, no journal, no network.
 
 Do not activate context-relevance filtering or model-tier routing yet. Both are
 CRITICAL, and neither has the evidence the plan requires.
