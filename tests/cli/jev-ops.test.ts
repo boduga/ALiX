@@ -81,7 +81,7 @@ function withUserConfig(apiKeys: Record<string, string>): void {
 }
 
 /** Seed `count` labelled context-relevance decisions. */
-function seed(count: number, correctFrom: number, target: ReturnType<typeof resolveJevPaths> = paths): void {
+async function seed(count: number, correctFrom: number, target: ReturnType<typeof resolveJevPaths> = paths): Promise<void> {
   const journal = createDecisionJournalStore(target.dir);
   for (let i = 0; i < count; i += 1) {
     const probability = 0.95 - i * 0.05;
@@ -96,7 +96,7 @@ function seed(count: number, correctFrom: number, target: ReturnType<typeof reso
       now: 1_700_000_000_000 + i,
     });
     journal.append(record);
-    void createOutcomeLabelStore(target.dir).append(
+    await createOutcomeLabelStore(target.dir).append(
       createOutcomeLabel({
         decisionId: record.decisionId,
         decision: "context-relevance",
@@ -164,8 +164,8 @@ describe("jev ops — labels", () => {
 });
 
 describe("jev ops — calibration", () => {
-  before(() => {
-    seed(10, 6);
+  before(async () => {
+    await seed(10, 6);
   });
 
   it("exports a dataset with skip accounting", async () => {
@@ -199,9 +199,9 @@ describe("jev ops — calibration", () => {
 describe("jev ops — threshold profiles", () => {
   let profilePaths: ReturnType<typeof resolveJevPaths>;
 
-  before(() => {
+  before(async () => {
     profilePaths = resolveJevPaths(join(cwd, "profiles"));
-    seed(10, 8, profilePaths);
+    await seed(10, 8, profilePaths);
   });
 
   it("derives a shadow profile with provenance and persists it", async () => {
@@ -849,5 +849,81 @@ describe("jev ops — label-pair (two-stage blind)", () => {
     const result = JSON.parse(chunks.join("")) as { truth: string; labels: unknown[] };
     assert.equal(result.truth, "supported");
     assert.equal(result.labels.length, 2);
+  });
+});
+
+describe("label survival across re-verification", () => {
+  it("a re-verified identical claim does not orphan its judgement", async () => {
+    const target = freshPaths();
+    // First run: disagreement judged truth=supported (jev supported=correct).
+    await seedClaimPair(target, "sha256:reverify", "insufficient", "supported", "supported");
+    // Re-run: newer records, SAME verdicts, no labels on them.
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "jev",
+        projectionHash: "sha256:reverify",
+        outcome: { kind: "choice", choice: "supported", candidates },
+        latencyMs: 10,
+        remote: true,
+        redactionApplied: true,
+        now: 1_900_000_000_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:reverify",
+        outcome: { kind: "choice", choice: "insufficient", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_900_000_000_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.labelled, 1, "judgement must survive the re-run");
+    assert.equal(report.unlabelled, 0);
+    assert.equal(report.jevCorrect, 1);
+    assert.equal(report.baselineCorrect, 0);
+  });
+
+  it("a re-run whose verdict CHANGED does not inherit the old judgement", async () => {
+    const target = freshPaths();
+    await seedClaimPair(target, "sha256:flip", "insufficient", "supported", "supported");
+    const journal = createDecisionJournalStore(target.dir);
+    const candidates = ["supported", "contradicted", "insufficient"];
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "jev",
+        projectionHash: "sha256:flip",
+        outcome: { kind: "choice", choice: "contradicted", candidates },
+        latencyMs: 10,
+        remote: true,
+        redactionApplied: true,
+        now: 1_900_000_000_000,
+      }),
+    );
+    journal.append(
+      recordDecision({
+        decision: "claim-verification",
+        engineId: "local",
+        projectionHash: "sha256:flip",
+        outcome: { kind: "choice", choice: "insufficient", candidates },
+        latencyMs: 1,
+        remote: false,
+        redactionApplied: false,
+        now: 1_900_000_000_500,
+      }),
+    );
+    const report = await buildDisagreements(target, {});
+    assert.equal(report.disagreements, 1);
+    assert.equal(report.labelled, 0, "verdict changed — old judgement must not transfer");
+    assert.equal(report.unlabelled, 1);
   });
 });
