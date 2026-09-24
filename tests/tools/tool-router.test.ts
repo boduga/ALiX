@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFile, mkdir, rm, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm, mkdtemp, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -261,6 +261,10 @@ test("FileToolRouter.execute handles file.create", async () => {
     args: { path: "new-file.txt", content: "new content" },
   });
   assert.strictEqual(result.kind, "success");
+  if (result.kind === "success") {
+    assert.strictEqual(result.outcome, "created");
+    assert.strictEqual(result.changed, true);
+  }
   assert.strictEqual(result.createdPath, "new-file.txt");
   // Verify file was created
   const readResult = await router.execute({
@@ -559,6 +563,11 @@ test("file.create is idempotent for identical content", async () => {
   });
   assert.strictEqual(result.kind, "success");
   assert.match(result.output ?? "", /identical content/);
+  if (result.kind === "success") {
+    assert.strictEqual(result.outcome, "already_exists_identical");
+    assert.strictEqual(result.changed, false);
+    assert.deepStrictEqual(result.changedFiles, []);
+  }
   await rm(`/tmp/${path}`, { force: true });
 });
 
@@ -574,4 +583,39 @@ test("file.create still rejects differing content on an existing file", async ()
   assert.strictEqual(result.kind, "error");
   assert.match(result.message ?? "", /already exists/);
   await rm(`/tmp/${path}`, { force: true });
+});
+
+test("file.create is race-safe when workers concurrently create identical content", async () => {
+  const router = new FileToolRouter("/tmp");
+  const path = `concurrent-idempotent-create-${process.pid}-${Date.now()}.txt`;
+  const request = {
+    toolCallId: "race",
+    name: "file.create",
+    args: { path, content: "same" },
+  };
+
+  const results = await Promise.all([router.execute(request), router.execute(request)]);
+
+  assert.ok(results.every((result) => result.kind === "success"));
+  assert.strictEqual(results.filter((result) => result.kind === "success" && result.changed === true).length, 1);
+  assert.strictEqual(results.filter((result) => result.kind === "success" && result.changed === false).length, 1);
+  assert.strictEqual(await readFile(`/tmp/${path}`, "utf8"), "same");
+  await rm(`/tmp/${path}`, { force: true });
+});
+
+test("file.create rejects an existing symlink without following it", async () => {
+  if (process.platform === "win32") return;
+  const root = await mkdtemp(join(tmpdir(), "alix-file-create-symlink-"));
+  await writeFile(join(root, "target.txt"), "same");
+  await symlink("target.txt", join(root, "link.txt"));
+
+  const result = await new FileToolRouter(root).execute({
+    toolCallId: "symlink",
+    name: "file.create",
+    args: { path: "link.txt", content: "same" },
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.match(result.message ?? "", /not a regular file/);
+  await rm(root, { recursive: true, force: true });
 });
