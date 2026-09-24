@@ -1,7 +1,7 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
-import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedCreatePath, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -295,6 +295,34 @@ describe("shouldInferPatchPath (call-site tool-name guard)", () => {
   it("returns false for patch.apply on a multi-owned-path worker", () => {
     const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
     assert.equal(shouldInferPatchPath("patch.apply", args, { mode: "write", ownedPaths: ["a.ts", "b.ts"] }), false);
+  });
+});
+
+describe("inferSingleOwnedCreatePath", () => {
+  it("supplies the sole owned path when file.create content has no path", () => {
+    const args: Record<string, unknown> = { content: "# Report\n" };
+    inferSingleOwnedCreatePath(args, { mode: "write", ownedPaths: [".tmp/report.md"] });
+    assert.equal(args.path, ".tmp/report.md");
+  });
+
+  it("preserves an explicit path", () => {
+    const args: Record<string, unknown> = { path: ".tmp/explicit.md", content: "x" };
+    inferSingleOwnedCreatePath(args, { mode: "write", ownedPaths: [".tmp/owned.md"] });
+    assert.equal(args.path, ".tmp/explicit.md");
+  });
+
+  it("fails closed for ambiguous, read-only, or malformed calls", () => {
+    const ambiguous: Record<string, unknown> = { content: "x" };
+    inferSingleOwnedCreatePath(ambiguous, { mode: "write", ownedPaths: ["a.md", "b.md"] });
+    assert.equal(ambiguous.path, undefined);
+
+    const readOnly: Record<string, unknown> = { content: "x" };
+    inferSingleOwnedCreatePath(readOnly, { mode: "read_only", ownedPaths: ["a.md"] });
+    assert.equal(readOnly.path, undefined);
+
+    const malformed: Record<string, unknown> = {};
+    inferSingleOwnedCreatePath(malformed, { mode: "write", ownedPaths: ["a.md"] });
+    assert.equal(malformed.path, undefined);
   });
 });
 
