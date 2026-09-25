@@ -167,7 +167,10 @@ Default section order:
   `file.read`, `shell.run`, and so on). Unknown names are never guessed. A
   dependent worker receives full workspace-relative input paths from direct
   producers with explicit file outputs; bare filenames in task prose do not
-  define a working directory or confer path authority.
+  define a working directory or confer path authority. At the subagent read
+  boundary, a bare filename resolves to a declared input path only when the
+  basename has one unique match; explicit paths and ambiguous names stay as
+  supplied and still pass workspace containment checks.
 - **Coordination hosts partition by `hostKind` (durable).** `web`/`inspector`
   runs are hosted by the Inspector server (startup reclaim of dead-owner
   workers, resume under the run's persisted `sessionMode`/`maxConcurrency`,

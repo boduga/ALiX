@@ -409,6 +409,7 @@ export type SubagentTask = {
   prompt: string;
   mode: "read_only" | "write";
   ownedPaths?: string[];
+  inputPaths?: string[]; // explicit producer files this worker may read by basename
   expectedOutput?: string;
   contextBundle?: string; // serialized context from ContextCompiler
   eventSessionId?: string; // parent runtime session for lifecycle projection

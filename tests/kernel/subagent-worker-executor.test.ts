@@ -73,14 +73,17 @@ describe("ownedPathsForWorker", () => {
 
 describe("taskForWorker", () => {
   it("builds a write task with owned paths", () => {
+    const assignment = worker({ id: "w1", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/a.txt"] });
+    assignment.inputPaths = [".tmp/source.txt"];
     const task = taskForWorker(
-      worker({ id: "w1", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/a.txt"] }),
+      assignment,
       "sess-1",
       "/tmp",
     );
     assert.equal(task.role, "worker");
     assert.equal(task.mode, "write");
     assert.deepEqual(task.ownedPaths, [".tmp/a.txt"]);
+    assert.deepEqual((task as unknown as { inputPaths?: string[] }).inputPaths, [".tmp/source.txt"]);
     assert.ok(task.prompt.includes(".tmp/a.txt"));
     assert.equal(task.coordinationRunId, "coord_test");
     assert.equal(task.eventSessionId, "sess-1");

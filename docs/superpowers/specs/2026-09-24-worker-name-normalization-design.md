@@ -25,3 +25,7 @@ This change normalizes names at the worker boundary and paths in coordination ha
 ## 2026-09-24 amendment: offered-tool gate
 
 Alias resolution must also check the canonical name against tools offered in the current worker iteration. This prevents a guessed alias from bypassing role restrictions or the write-only final phase. Limit new unprefixed aliases to file, search, shell, and patch operations; do not introduce coordination, scheduling, state, or verification aliases.
+
+## 2026-09-24 amendment: structured input paths
+
+The prompt manifest alone cannot prevent a model from calling `file.read` with a basename. Persist the same paths in `WorkerAssignment.inputPaths`, pass them to the subagent process, and expand a bare read/exists path only when its basename uniquely identifies one declared input. Explicit paths and ambiguous basenames remain unchanged. The normal workspace path resolver still checks the resulting path.

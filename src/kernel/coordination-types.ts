@@ -150,6 +150,9 @@ export interface WorkerAssignment {
   /** Detailed goal prompt — what the worker should accomplish */
   goalPrompt: string;
 
+  /** Explicit file outputs of direct graph dependencies, for read-path resolution. */
+  inputPaths?: string[];
+
   /** IDs of other WorkerAssignments that must complete first */
   dependencies: string[];
 

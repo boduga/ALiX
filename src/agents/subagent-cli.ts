@@ -3,7 +3,7 @@
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
-import { resolve } from "path";
+import { basename, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -77,6 +77,13 @@ export function resolveOfferedToolName(name: string, offeredTools: ReadonlyArray
   return offeredTools.some(tool => (TOOL_NAME_MAP[tool.name] ?? tool.name) === canonical)
     ? canonical
     : null;
+}
+
+/** Expand a bare filename only when it names exactly one declared producer file. */
+export function resolveWorkerInputPath(path: string, inputPaths: readonly string[]): string {
+  if (!path || path === "." || path === ".." || path.includes("/") || path.includes("\\")) return path;
+  const matches = [...new Set(inputPaths.filter(input => basename(input) === path))];
+  return matches.length === 1 ? matches[0] : path;
 }
 
 function isToolCallText(text: string): boolean {
@@ -382,6 +389,7 @@ export class SubagentCLI {
         "session-id": { type: "string" },
         "session-mode": { type: "string" },
         "owned-paths": { type: "string" },
+        "input-paths": { type: "string" },
         output: { type: "string" },
         "coordination-run-id": { type: "string" },
         "credential-fd": { type: "string" },
@@ -396,6 +404,11 @@ export class SubagentCLI {
     const sessionId = args.values["session-id"];
     const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
+    let inputPaths: string[] = [];
+    try {
+      const parsed: unknown = JSON.parse(args.values["input-paths"] ?? "[]");
+      if (Array.isArray(parsed) && parsed.every(path => typeof path === "string")) inputPaths = parsed;
+    } catch { /* Invalid input manifest leaves reads unchanged. */ }
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
@@ -667,6 +680,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           }
           if (execName === "file.create") {
             inferSingleOwnedCreatePath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          }
+          if ((execName === "file.read" || execName === "file.exists") && typeof toolCall.args.path === "string") {
+            toolCall.args.path = resolveWorkerInputPath(toolCall.args.path, inputPaths);
           }
 
           const execResult = await executor.execute({

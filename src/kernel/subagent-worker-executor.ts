@@ -62,6 +62,7 @@ export function taskForWorker(
     mode,
     prompt,
     ownedPaths,
+    inputPaths: worker.inputPaths,
     contextBundle: sessionId,
     eventSessionId: sessionId,
     cwd,

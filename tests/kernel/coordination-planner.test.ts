@@ -317,6 +317,13 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual([first.dependencies, second.dependencies, third.dependencies], [[], [], []]);
     assert.deepEqual(fourth.dependencies, [first.id, second.id, third.id]);
     assert.match(fourth.goalPrompt, /Input paths:\n- \.tmp\/workbench-e2e-manual-20260923\/project\.md\n- \.tmp\/workbench-e2e-manual-20260923\/tui\.md\n- \.tmp\/workbench-e2e-manual-20260923\/tests\.md/);
+    assert.deepEqual((fourth as unknown as { inputPaths?: string[] }).inputPaths, [
+      `${base}/project.md`, `${base}/tui.md`, `${base}/tests.md`,
+    ]);
+    const stored = await store.load(result.run!.id);
+    assert.deepEqual(stored!.workers[3].inputPaths, [
+      `${base}/project.md`, `${base}/tui.md`, `${base}/tests.md`,
+    ]);
   });
 
   it("preserves natural-language ownership and dependencies from a four-worker request", async () => {

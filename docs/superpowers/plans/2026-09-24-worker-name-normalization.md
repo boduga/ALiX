@@ -4,7 +4,7 @@
 
 **Goal:** Eliminate the tool-name and dependency-path mistakes observed in the four-worker coordination session.
 
-**Status:** Implemented and verified locally on 2026-09-24 (136 focused tests, build, unused-code typecheck, and GitNexus change review).
+**Status:** Implemented and verified locally on 2026-09-24 (153 affected tests, build, unused-code typecheck, and GitNexus change review).
 
 **Spec:** `2026-09-24-worker-name-normalization-design.md`
 
@@ -53,3 +53,16 @@
 - [x] Run `pnpm build` and `pnpm typecheck:unused`.
 - [x] Run GitNexus `detect_changes()` and inspect changed scope.
 - [x] Re-check the DOX chain and git status before closeout.
+
+### Task 4: Structured path handoff amendment
+
+**Files:** `src/kernel/coordination-types.ts`, `src/kernel/coordination-planner.ts`, `src/kernel/subagent-worker-executor.ts`, `src/config/schema.ts`, `src/agents/subagent-manager.ts`, `src/agents/subagent-cli.ts`, matching tests and DOX contracts.
+
+**Interfaces:** `WorkerAssignment.inputPaths` persists producer file paths; `SubagentTask.inputPaths` carries them into the child process; `resolveWorkerInputPath(path, inputPaths)` expands only unique bare filenames before read/exists execution.
+
+- [x] Write failing planner, worker-task, and path-resolution tests; verify expected failures.
+- [x] Persist direct producer files in the worker assignment and carry them to the subagent task and CLI.
+- [x] Normalize unique bare read paths before executor dispatch; leave explicit and ambiguous paths unchanged.
+- [x] Verify the input manifest survives the coordination store reload.
+- [x] Rebuild and run affected tests and unused-code typecheck.
+- [x] Run GitNexus change detection and check the final diff.

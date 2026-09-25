@@ -420,6 +420,7 @@ export class CoordinationPlanner {
         .map(dependencyId => explicitOwnership.paths.get(dependencyId))
         .filter((path): path is string => path !== undefined))];
       if (inputPaths.length > 0) {
+        workers[index].inputPaths = inputPaths;
         workers[index].goalPrompt += `\nInput paths:\n${inputPaths.map(path => `- ${path}`).join("\n")}`;
       }
     }

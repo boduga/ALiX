@@ -24,6 +24,16 @@ test("worker tool aliases execute only when their canonical tool was offered", (
   assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
 });
 
+test("worker reads resolve only unique declared input basenames", () => {
+  const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveWorkerInputPath as
+    ((path: string, inputs: string[]) => string) | undefined;
+  assert.equal(typeof resolve, "function");
+  assert.equal(resolve!("tui.md", [".tmp/run/tui.md"]), ".tmp/run/tui.md");
+  assert.equal(resolve!("./tui.md", [".tmp/run/tui.md"]), "./tui.md");
+  assert.equal(resolve!("tui.md", [".tmp/a/tui.md", ".tmp/b/tui.md"]), "tui.md");
+  assert.equal(resolve!("other.md", [".tmp/run/tui.md"]), "other.md");
+});
+
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
     assert.equal(typeof SubagentCLI.main, "function");
