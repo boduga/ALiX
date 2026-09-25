@@ -48,7 +48,6 @@ import "../../skills/dispatcher.js";
 import "../../skills/lifecycle.js";
 import "../../mcp/tool-selector.js";
 import { ToolDiscovery } from "../../mcp/tool-discovery.js";
-import "../../agents/tool-name-map.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
 import type { PlanTask } from "../../planning/plan-task.js";
 import "../system-prompt.js";

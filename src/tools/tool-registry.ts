@@ -27,7 +27,7 @@ export type ToolDomain =
   | "agent" | "memory" | "policy" | "system" | "mcp" | "decision";
 
 export type ToolCapability = {
-  /** Tool name exposed to the model (e.g. "file.read", "mcp.github.repos.list"). */
+  /** Internal executor name; model-facing names live in the tool manifest or MCP handle index. */
   name: string;
   /** Canonical capability id (e.g. "filesystem.write"). Shared across tools that mutate the same underlying capability. */
   capabilityId: string;

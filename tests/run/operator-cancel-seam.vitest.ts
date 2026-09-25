@@ -31,6 +31,7 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
   const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
   const { createContextBudget } = await import("../../src/config/context-budget.js");
   const { ToolExecutor } = await import("../../src/tools/executor.js");
+  const { BASE_TOOLS } = await import("../../src/run/helpers.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-seam-"));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-seam");
@@ -70,7 +71,7 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
       model: "mock",
       inputTokenLimit: 100_000,
       outputTokenLimit: 16_384,
-      supportsTools: false,
+      supportsTools: true,
       supportsStreaming: streaming,
       supportsStructuredOutput: false,
       supportsVision: false,
@@ -98,7 +99,7 @@ async function buildHarness(opts?: { streaming?: boolean }): Promise<{
   const deps: TaskLoopDeps = {
     config: { models: { default: { provider: "mock", name: "mock", streaming } }, permissions: {}, context: {} } as any,
     provider,
-    providerTools: [],
+    providerTools: BASE_TOOLS,
     mcpToolIndex: [],
     messages: [{ role: "user", content: "do the thing" }],
     sessionState: {
@@ -262,6 +263,7 @@ async function buildToolHarness(): Promise<{
   const { TaskStateMachine, RunLimiter } = await import("../../src/autonomy/state-machine.js");
   const { createContextBudget } = await import("../../src/config/context-budget.js");
   const { ToolExecutor } = await import("../../src/tools/executor.js");
+  const { BASE_TOOLS } = await import("../../src/run/helpers.js");
 
   const tmpRoot = mkdtempSync(join(tmpdir(), "operator-cancel-tool-"));
   const sessionDir = join(tmpRoot, ".alix", "sessions", "cancel-tool");
@@ -287,7 +289,7 @@ async function buildToolHarness(): Promise<{
     return {
       config: { models: { default: { provider: "mock", name: "mock", streaming: false } }, permissions: {}, context: {} } as any,
       provider,
-      providerTools: [],
+      providerTools: BASE_TOOLS,
       mcpToolIndex: [],
       messages: [{ role: "user", content: "run the command" }],
       sessionState: {
@@ -331,7 +333,7 @@ function toolProvider(responses: ToolProviderResponse[], calls?: () => void): Mo
       model: "mock",
       inputTokenLimit: 100_000,
       outputTokenLimit: 16_384,
-      supportsTools: false,
+      supportsTools: true,
       supportsStreaming: false,
       supportsStructuredOutput: false,
       supportsVision: false,

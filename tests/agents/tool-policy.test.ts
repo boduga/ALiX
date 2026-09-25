@@ -58,7 +58,7 @@ test("filterTools includes write tools for worker role", () => {
 
 test("filterTools blocks MCP tools for read-only roles", () => {
   const tools: ToolDef[] = [
-    { name: "mcp_github_search", description: "github", input_schema: { type: "object", properties: {} } },
+    { name: "mcp__opaque_github_search", description: "github", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
@@ -74,22 +74,22 @@ test("filterTools always allows alix_done", () => {
   assert.equal(filtered.length, 1);
 });
 
-test("filterTools allows mcp_search_tools only when MCP tools allowed", () => {
-  const tools = [{ name: "mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } }];
+test("filterTools allows alix_mcp_search_tools only when MCP tools allowed", () => {
+  const tools = [{ name: "alix_mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } }];
   const explorerPolicy = getToolPolicy("explorer");
   const workerPolicy = getToolPolicy("worker");
   assert.equal(filterTools(tools, explorerPolicy).length, 0, "blocked for explorer");
   assert.equal(filterTools(tools, workerPolicy).length, 1, "allowed for worker");
 });
 
-test("filterTools allows git and shell tools for read-only roles", () => {
+test("filterTools drops phantom git tools and keeps shell for read-only roles", () => {
   const tools: ToolDef[] = [
     { name: "alix_git_status", description: "", input_schema: { type: "object", properties: {} } },
     { name: "alix_shell_run", description: "", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
-  assert.equal(filtered.length, 2);
+  assert.deepEqual(filtered.map(tool => tool.name), ["alix_shell_run"]);
 });
 
 test("getToolPolicy returns research access for researcher role", () => {

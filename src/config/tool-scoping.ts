@@ -15,8 +15,13 @@ export const CORE_TOOL_NAMES: ReadonlySet<string> = new Set([
   "alix_shell_run",
   "alix_file_read",
   "alix_patch_apply",
-  "alix_patch_create",
   "alix_done",
+  "alix_collaboration_publish_finding",
+  "alix_collaboration_publish_artifact",
+  "alix_collaboration_query_findings",
+  "alix_collaboration_get_dependency_results",
+  "alix_collaboration_report_conflict",
+  "alix_collaboration_list_conflicts",
 ]);
 
 export type ScopedTools = {
@@ -68,7 +73,7 @@ export function scopeToolsByTask(
   const all: (ToolDef | DeferredToolEntry)[] = [...tools, ...mcpTools];
   for (const t of mcpTools) {
     if (!CORE_TOOL_NAMES.has(t.name)) {
-      const signals = toolSignals(t.description, t.name, t.serverName);
+      const signals = toolSignals(t.description, t.searchName ?? t.name, t.serverName);
       const matches = taskTokens.some((token) => signals.has(token));
       if (matches) {
         extended.push({

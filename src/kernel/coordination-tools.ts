@@ -11,7 +11,7 @@
  * - `coordination.results` — aggregate result summary (read-only).
  *
  * Executor names use dots (`coordination.run`); model names use the
- * `alix_coordination_*` aliases (TOOL_NAME_MAP). Policy keys/capabilities
+ * `alix_coordination_*` model names (tool manifest). Policy keys/capabilities
  * come from the registry entries in tool-registry.ts.
  */
 

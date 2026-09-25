@@ -18,7 +18,7 @@ removes it.
 
 Wiring: `schedule.propose` is a registry capability (`src/tools/tool-registry.ts`),
 handled by `ScheduleToolRouter` (`src/tools/tool-router.ts`), exposed to the model
-as `alix_schedule_propose` (`src/run/helpers.ts` BASE_TOOLS + `src/agents/tool-name-map.ts`),
+as `alix_schedule_propose` (`src/run/helpers.ts` BASE_TOOLS + `src/agents/tool-manifest.ts`),
 and gated by the default `permissions.default: "ask"` (plus a hard deny when
 `ALIX_SCHEDULED_RUN=1`). The daemon starts `ScheduledTaskService` on listen
 (`src/daemon/daemon-server.ts`); `alix schedule {list|show|run-now|revoke}`

@@ -21,17 +21,12 @@ This matrix maps every NL-testable surface → prompt battery → expected obser
    
 TUI tab order (Ctrl+digit = ESC+digit): dashboard(1) chat(2) agent(3) daemon(4) approvals(5) runtime(6) sops(7) policy(8) capabilities(9) evolution(0). Enter submits the input buffer.  
 - **Chat tab** → processChat: lightweight NL text-in/text-out,  **no tool loop**.  
-- **Agent tab** → processTurn: full agent loop,  **tool-call capable** (the 16 alix_* tools).  
+- **Agent tab** → processTurn: full agent loop, **tool-call capable** (canonical `alix_*` built-ins and discovered `mcp__*` handles).
 - For tool-surface tests, use the **Agent tab**; for pure conversation, use  **Chat tab**.  
 ![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAnEAAAACCAYAAAA3pIp+AAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAA7EAAAOxAGVKw4bAAAANUlEQVR4nO3OQQmAABRAsSd4EKxgBjP+Asa0hxW8ibAl2DIzR3UFAMBf3Gu1VefXEwAAXtsfSqwDVbgKngwAAAAASUVORK5CYII=)  
 **2. NL surfaces under test**  
-**2a. Canonical 16-tool surface (**alix_* ** aliases → executor)**  
-Source: src/agents/tool-name-map.ts + src/tools/tool-registry.ts.  
-file.read, file.create, file.delete, file.exists, dir.search, shell.run, patch.apply,  
-   
- done, delegate, web_search, web_fetch, create_skill, list_extensions,  
-   
- inspect_extension, create_hook, mcp_search_tools (+ runtime mcp.*).  
+**2a. Canonical built-in tool surface**
+Source: `src/agents/tool-manifest.ts`; model calls use exact `alix_*` names. Discovered MCP tools use opaque, registered `mcp__*` handles. Worker-only collaboration tools use `alix_collaboration_*`.
 **2b. Canonical intents (8)**  
 Source: docs/intent-contracts/canonical-taxonomy.md.  
 workspace_state · workspace_mutation · shell_execution · read_only_analysis · planning ·  
@@ -60,7 +55,7 @@ Capabilities tab (capabilities-view.ts), Evolution tab (evolution-view.ts), Appr
 | A1 | "List the files in src/ and tell me what each top-level module does" | dir.search/file.read calls; summary maps modules |   
 | A2 | "Read src/agents/delegate-tool.ts and summarize how it resolves roles" | file.read; accurate role resolution walkthrough |   
 | A3 | "What changed between HEAD and HEAD~1?" | shell.run git + file reads; commits listed |   
-| **A4 | "Search for where the canonical 16-tool surface is defined" | dir.search → tool-name-map.ts / tool-registry.ts |   
+| **A4 | "Search for where the canonical tool surface is defined" | dir.search → tool-manifest.ts / tool-registry.ts |
 | A5 | "Explain the architecture of this project in three paragraphs" | read-only; **no** mutation tools |   
 | A6 | "How does the A9 risk forecast correlate evidence?" | read-only; cites src/evolution/forecast/* |   
    
@@ -184,7 +179,8 @@ ALIX_TUI_STUB_AGENT=1 alix tui swaps the runtime for the legacy echo stub — va
 | | |  
 |-|-|  
 | **Surface** | **Source of truth** |   
-| 16 tools | src/agents/tool-name-map.ts, src/tools/tool-registry.ts |   
+| Built-in and worker tool names | src/agents/tool-manifest.ts, src/agents/tool-name-resolver.ts |
+| Dynamic MCP handles | src/mcp/tool-deferral.ts, src/mcp/tool-discovery.ts |
 | 8 intents | docs/intent-contracts/canonical-taxonomy.md |   
 | Delegate roles | src/agents/agent-registry.ts, src/config/schema.ts:215 |   
 | Worker policy / Matrix-G | src/agents/tool-policy.ts, src/agents/subagent-cli.ts |   

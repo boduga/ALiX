@@ -22,7 +22,7 @@ CLI: `src/cli/commands/evals.ts` (`alix evals run [--suite behavioral] [--driver
 
 ## Local Contracts
 
-- **Wire tool names:** provider emits `alix_file_create` / `alix_file_delete` / `alix_patch_apply`, mapped by `src/agents/tool-name-map.ts` to `file.create` / `file.delete` / `patch.apply`.
+- **Wire tool names:** provider emits canonical `alix_file_create` / `alix_file_delete` / `alix_patch_apply`; `src/agents/tool-manifest.ts` maps them to internal executor IDs `file.create` / `file.delete` / `patch.apply`.
 - **Registry-mode provider caching:** `src/providers/registry.ts` keeps a never-cleared `providerCache`. So the scripted provider (constructed without an explicit scenario) reads steps lazily from the carrier on each `complete()`/`stream()` — never from constructor state. Never pass `{steps}` when registering providers.
 - **Delegation transport:** scenario is serialized into the subagent child env as `ALIX_EVAL_SCENARIO` via `SubagentTask.scriptedScenarioJson`; `SubagentManager.spawn` injects it. The child's registry-mode provider hydrates from env on first access. In-process main-loop cases instead call `setScriptedScenario(...)` / `clearScriptedScenario(...)` around `runTask`.
 - **Tools auto-approval** (main-loop mutation) requires BOTH `permissions.default: "allow"` in `.alix/config.json` AND `sessionMode: "bypass"` in run opts. `installEvalConfig` sets the former; the main-loop driver sets the latter.

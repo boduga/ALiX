@@ -4,7 +4,7 @@
 /**
  * Model-proposal tool contract (residual step 4).
  *
- * `execution_state_propose` lets the model emit a `StatePatch` for the
+ * `alix_execution_state_propose` lets the model emit a `StatePatch` for the
  * governed execution state — the paper's (R_t, ΔΣ_t) write path. The handler
  * validates the patch shape and routes it through the emitter's
  * `proposePatch` (10-gate harness: schema → version CAS → governor → apply →
@@ -37,7 +37,7 @@ import {
   isExecutionStateSendEnabled,
 } from "../runtime/execution-state/execution-state-emitter.js";
 
-export const STATE_PROPOSAL_TOOL_NAME = "execution_state_propose" as const;
+export const STATE_PROPOSAL_TOOL_NAME = "alix_execution_state_propose" as const;
 
 export const STATE_PROPOSAL_TOOL: ToolDef = {
   name: STATE_PROPOSAL_TOOL_NAME,

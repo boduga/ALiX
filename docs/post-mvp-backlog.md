@@ -136,7 +136,7 @@ What: Load tools lazily, expose only task-relevant capabilities. MCP tools flood
 
 Current state: All items implemented:
 - ✅ `ToolSelector` — select tools per task based on intent + keyword overlap scoring + token budget
-- ✅ `ToolDiscovery` meta-tool — `mcp_search_tools` lets agent search catalog mid-session
+- ✅ `ToolDiscovery` meta-tool — `alix_mcp_search_tools` lets agent search catalog mid-session
 - ✅ Schema cache with TTL + LRU eviction (`SchemaCache` with `ttlMs` and `maxSize` options)
 - ✅ Tool provenance tracking — `_usedTools` and `_discoveredTools` tracked in event log
 - ✅ **Semantic scoring** — n-gram Jaccard similarity in `ToolSelector.select()`
@@ -179,7 +179,7 @@ Current state: All components implemented ✅
 - ✅ MergeCoordinator — merges findings, detects conflicts
 - ✅ ResultContractValidator — validates subagent output format
 - ✅ tool-policy.ts — role-based tool restrictions (read-only vs write)
-- ✅ tool-name-map.ts — model to executor name mapping
+- ✅ `tool-manifest.ts` + exact resolver — canonical model names map to internal executor IDs
 - ✅ ContextCompiler integration — injects context bundle into subagent prompt
 
 **Dependencies:** P0.1 ✅ P1.1 ✅

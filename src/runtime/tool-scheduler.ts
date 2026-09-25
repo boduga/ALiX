@@ -33,7 +33,7 @@
 
 import type { ToolCall } from "../providers/types.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
-import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
 
 // ─── ToolConcurrency (authoritative metadata) ───────────────────────
 
@@ -50,8 +50,9 @@ export type ToolConcurrency = "safe" | "exclusive";
  * parallel even if both list files — exclusive forces serial).
  */
 function resolveCanonicalName(name: string): string {
-  // Alias (alix_*) → executor name; MCP dynamic names stay as-is
-  return TOOL_NAME_MAP[name] ?? name;
+  return Object.hasOwn(ALIX_BUILTIN_EXECUTORS, name)
+    ? ALIX_BUILTIN_EXECUTORS[name as keyof typeof ALIX_BUILTIN_EXECUTORS]
+    : name;
 }
 
 let _registry: ReturnType<typeof buildDefaultToolIndex>["registry"] | null = null;

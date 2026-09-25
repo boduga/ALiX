@@ -1,11 +1,13 @@
 import type { McpToolRegistry } from "./registry.js";
 import type { ToolDef } from "../providers/types.js";
+import { createHash } from "node:crypto";
 import { InMemoryCacheManager, type CacheManager } from "../utils/cache-manager.js";
 import { searchTools, type SearchResult } from "./tool-search.js";
 
 export interface DeferredToolEntry {
-  name: string;       // mcp_github_repos_list — what the model uses
+  name: string;       // mcp__<opaque hash> — what the model uses
   execName: string;  // mcp.github.repos.list — internal executor name
+  searchName?: string; // readable discovery text; never executable
   serverName: string;
   toolName: string;
   description: string;
@@ -36,14 +38,19 @@ export class McpToolDeferral {
    */
   buildIndex(): DeferredToolEntry[] {
     if (this._index) return this._index;
-    this._index = this.registry.listTools().map(tool => ({
+    const entries = this.registry.listTools().map(tool => ({
       name: mcpToolName(tool.serverName, tool.toolName),
       execName: mcpToolExecName(tool.serverName, tool.toolName),
+      searchName: `${tool.serverName}_${tool.toolName.replace(/\./g, "_")}`,
       serverName: tool.serverName,
       toolName: tool.toolName,
       description: tool.description ?? "",
       input_schema: { type: "object" as const, properties: {} },
     }));
+    if (new Set(entries.map(entry => entry.name)).size !== entries.length) {
+      throw new Error("MCP tool handle collision or duplicate registration");
+    }
+    this._index = entries;
     return this._index;
   }
 
@@ -79,7 +86,11 @@ export class McpToolDeferral {
    * Returns top matches from the deferred index.
    */
   search(query: string, limit = 3): SearchResult<DeferredToolEntry>[] {
-    const results = searchTools(query, this.buildIndex()).slice(0, limit);
+    const index = this.buildIndex();
+    const exact = index.find(entry => entry.name === query);
+    const results = exact
+      ? [{ item: exact, score: 100 }]
+      : searchTools(query, index, { nameField: "searchName" }).slice(0, limit);
     for (const r of results) {
       this._discoveredTools.add(r.item.name);
     }
@@ -90,7 +101,9 @@ export class McpToolDeferral {
    * Clear schema cache for a server (called when server reconnects with new schemas).
    */
   clearServerCache(serverName: string): void {
-    this.cache.invalidate(`mcp_${serverName}_`);
+    for (const entry of this._index ?? []) {
+      if (entry.serverName === serverName) this.cache.invalidate(entry.name);
+    }
     this._index = null;
   }
 
@@ -99,16 +112,13 @@ export class McpToolDeferral {
 
   private findEntry(name: string): DeferredToolEntry | undefined {
     const idx = this.buildIndex();
-    return idx.find(e =>
-      e.name === name ||
-      e.execName === name ||
-      `${e.serverName}/${e.toolName}` === name
-    );
+    return idx.find(e => e.name === name);
   }
 }
 
 function mcpToolName(serverName: string, toolName: string): string {
-  return "mcp_" + serverName + "_" + toolName.replace(/\./g, "_");
+  const digest = createHash("sha256").update(JSON.stringify([serverName, toolName])).digest("base64url");
+  return `mcp__${digest}`;
 }
 
 function mcpToolExecName(serverName: string, toolName: string): string {

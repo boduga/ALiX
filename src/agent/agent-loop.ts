@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { initAgent } from "./agent.js";
 import { buildToolsForProvider, buildContextBundleEventPayload, renderContextBundleForPrompt } from "./messages.js";
 import type { StreamHandler } from "./stream.js";
+import type { ToolDef } from "../providers/types.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
@@ -13,7 +14,6 @@ import { READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
-import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import "../providers/types.js";
 import { getEncoding, type TokenizerName } from "../config/context-limits.js";
 import { ensureEncoder } from "../utils/tokens.js";
@@ -354,6 +354,13 @@ async function runTaskCoreImpl(
   }
 
   const baseTools = buildToolsForProvider(ctx.provider);
+  const boundTools = opts?.boundTools ?? [];
+  const boundToolDefs: ToolDef[] = boundTools.map(({ definition }) => ({
+    name: definition.name,
+    description: definition.description,
+    input_schema: definition.inputSchema as ToolDef["input_schema"],
+  }));
+  const availableTools = [...baseTools, ...boundToolDefs];
   // Filter tools based on execution mode:
   //   --read-only:  exclude alix_shell_run, include alix_delegate
   //   shell task:   only READ_ONLY_TOOL_NAMES (includes shell_run)
@@ -367,8 +374,8 @@ async function runTaskCoreImpl(
   readOnlyToolFilter.add("alix_verify_claim");
   const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
   const providerTools = toolFilter
-    ? baseTools.filter((t) => toolFilter.has(t.name))
-    : baseTools;
+    ? availableTools.filter((t) => toolFilter.has(t.name) || boundToolDefs.includes(t))
+    : availableTools;
 
   // Setup MCP tool index
   const mcpDeferral = ctx.mcpManager?.getDeferral();
@@ -376,9 +383,6 @@ async function runTaskCoreImpl(
   const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
   const selectedTools = toolSelector.select(task);
   const mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
-  for (const entry of selectedTools) {
-    TOOL_NAME_MAP[entry.name] = entry.execName;
-  }
   await ctx.log.append({ sessionId: ctx.sessionId, actor: "system", type: "mcp.tools_selected", payload: { total: mcpToolIndex.length, selected: selectedTools.length, taskPreview: task.slice(0, 100) } });
 
   // Session state for mutations
@@ -484,6 +488,7 @@ ${approvedPlanContent}`);
     },
     provider: ctx.provider,
     providerTools,
+    boundTools,
     mcpToolIndex,
     messages: (ctx as any)._resumedMessages ?? opts?.messages ?? [{ role: "user" as const, content: task }],
     sessionState,

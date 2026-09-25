@@ -2,23 +2,15 @@ import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
 import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedCreatePath, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
-import { TOOL_NAME_MAP } from "../../src/agents/tool-name-map.js";
 import * as subagentCliModule from "../../src/agents/subagent-cli.js";
 
-test("unprefixed underscore tool names resolve to the same executor names as model tools", () => {
-  assert.equal(TOOL_NAME_MAP.file_create, "file.create");
-  assert.equal(TOOL_NAME_MAP.file_read, "file.read");
-  assert.equal(TOOL_NAME_MAP.shell_run, "shell.run");
-  assert.equal(TOOL_NAME_MAP.patch_apply, "patch.apply");
-  assert.equal(TOOL_NAME_MAP.file_create, TOOL_NAME_MAP.alix_file_create);
-  assert.equal(TOOL_NAME_MAP.unsupported_create, undefined);
-});
-
-test("worker tool aliases execute only when their canonical tool was offered", () => {
+test("worker executes only exact offered canonical names", () => {
   const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveOfferedToolName as
     ((name: string, tools: Array<{ name: string }>) => string | null) | undefined;
   assert.equal(typeof resolve, "function");
-  assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), "file.create");
+  assert.equal(resolve!("alix_file_create", [{ name: "alix_file_create" }]), "file.create");
+  assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), null);
+  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("file_create", [{ name: "alix_file_read" }]), null);
   assert.equal(resolve!("alix_shell_run", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
@@ -296,7 +288,7 @@ describe("inferSingleOwnedPatchPath", () => {
 describe("shouldInferPatchPath (call-site tool-name guard)", () => {
   it("returns false for a non-patch.apply tool whose args carry format + patchText (never rewritten)", () => {
     const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
-    assert.equal(shouldInferPatchPath("mcp_custom_write", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
+    assert.equal(shouldInferPatchPath("mcp__opaque_custom_write", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
     assert.equal(args.patchText, "old\n---\nnew");
   });
 

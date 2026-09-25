@@ -20,7 +20,6 @@ export {
   promptUser,
   saveDecisionsToMemory,
   streamToResponse,
-  resolveMcpTool,
   patchFormatDescription,
   patchTextDescription,
   BASE_TOOLS,

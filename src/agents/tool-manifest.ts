@@ -1,0 +1,37 @@
+/** Model-callable built-ins and their existing internal executor IDs. */
+export const ALIX_BUILTIN_EXECUTORS = {
+  alix_file_read: "file.read",
+  alix_file_create: "file.create",
+  alix_file_delete: "file.delete",
+  alix_file_exists: "file.exists",
+  alix_grep_search: "grep.search",
+  alix_glob_match: "glob.match",
+  alix_shell_run: "shell.run",
+  alix_patch_apply: "patch.apply",
+  alix_done: "done",
+  alix_schedule_propose: "schedule.propose",
+  alix_delegate: "delegate",
+  alix_coordination_run: "coordination.run",
+  alix_coordination_status: "coordination.status",
+  alix_coordination_list: "coordination.list",
+  alix_coordination_results: "coordination.results",
+  alix_state_query: "state.query",
+  alix_verify_claim: "verify.claim",
+  alix_web_search: "web_search",
+  alix_web_fetch: "web_fetch",
+  alix_create_hook: "create_hook",
+  alix_create_skill: "create_skill",
+  alix_list_extensions: "list_extensions",
+  alix_inspect_extension: "inspect_extension",
+  alix_mcp_search_tools: "mcp_search_tools",
+  alix_execution_state_propose: "alix_execution_state_propose",
+  alix_collaboration_publish_finding: "collaboration.publish_finding",
+  alix_collaboration_publish_artifact: "collaboration.publish_artifact",
+  alix_collaboration_query_findings: "collaboration.query_findings",
+  alix_collaboration_get_dependency_results: "collaboration.get_dependency_results",
+  alix_collaboration_report_conflict: "collaboration.report_conflict",
+  alix_collaboration_list_conflicts: "collaboration.list_conflicts",
+} as const;
+
+export const ALIX_CANONICAL_BUILTIN_TOOLS = Object.keys(ALIX_BUILTIN_EXECUTORS) as Array<keyof typeof ALIX_BUILTIN_EXECUTORS>;
+export type AlixBuiltinToolName = keyof typeof ALIX_BUILTIN_EXECUTORS;

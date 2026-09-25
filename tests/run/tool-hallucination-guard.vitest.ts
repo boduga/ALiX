@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToolManifest } from "../../src/agent/system-prompt.js";
-import { handleToolCall } from "../../src/run/event-handlers.js";
+import { handleMcpToolSearch, handleToolCall } from "../../src/run/event-handlers.js";
+import { BASE_TOOLS } from "../../src/run/helpers.js";
 import type { EventHandlerDeps } from "../../src/run/event-handlers.js";
 import type { ToolDef } from "../../src/providers/types.js";
 
@@ -75,6 +76,20 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(executor.execute).not.toHaveBeenCalled();
   });
 
+  it.each(["file.read", "file_read", "alix_dir_search", "mcp.github.repos.list"])(
+    "rejects legacy name %s before dispatch",
+    async (name) => {
+      const executor = { execute: vi.fn() };
+      const deps = makeDeps(executor);
+      deps.selectedTools = [{ name: "mcp__a1b2", execName: "mcp.github.repos.list" }];
+      deps.mcpToolIndex = [{ name: "mcp__a1b2", execName: "mcp.github.repos.list", serverName: "github", toolName: "repos.list", description: "List repos" }];
+      const result = await handleToolCall({ id: "legacy", name, args: {} }, deps, [], []);
+      expect(result.message?.content).toContain(`Unknown tool "${name}"`);
+      expect(result.message?.content).toContain("mcp__a1b2");
+      expect(executor.execute).not.toHaveBeenCalled();
+    },
+  );
+
   it("does NOT reject a real alix_* tool and routes it to the executor", async () => {
     const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", output: "ok" }) };
     const result = await handleToolCall(
@@ -91,6 +106,20 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(result.message?.content).toContain(
       '<tool_result id="call-2" invocationId="inv-test" executionId="exec-test">\nok\n</tool_result>',
     );
+  });
+
+  it("dispatches canonical offered collaboration tools through their bound handler", async () => {
+    const executor = { execute: vi.fn() };
+    const handler = vi.fn().mockResolvedValue(JSON.stringify({ findingId: "finding-1" }));
+    const name = "alix_collaboration_publish_finding";
+    const deps = Object.assign(makeDeps(executor), {
+      offeredTools: [{ name }],
+      boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+    });
+    const result = await handleToolCall({ id: "collab-1", name, args: { title: "Fact" } }, deps, [], []);
+    expect(handler).toHaveBeenCalledWith({ title: "Fact" });
+    expect(executor.execute).not.toHaveBeenCalled();
+    expect(result.message?.content).toContain('{"findingId":"finding-1"}');
   });
 
   it("short-circuits repeated identical read-only search calls", async () => {
@@ -163,5 +192,21 @@ describe("handleToolCall unknown-tool guard", () => {
       [],
     );
     expect(executor.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MCP search tool", () => {
+  it("is offered under the alix namespace", () => {
+    expect(BASE_TOOLS.some(tool => tool.name === "alix_mcp_search_tools")).toBe(true);
+  });
+
+  it("does not service a search call omitted from this turn's offered tools", async () => {
+    const deps = {
+      offeredTools: [{ name: "alix_file_read" }],
+      mcpDiscovery: { search: vi.fn() },
+    } as unknown as EventHandlerDeps;
+    const result = await handleMcpToolSearch({ id: "hidden", name: "alix_mcp_search_tools", args: { query: "repo" } }, deps);
+    expect(result.handled).toBe(false);
+    expect(deps.mcpDiscovery?.search).not.toHaveBeenCalled();
   });
 });

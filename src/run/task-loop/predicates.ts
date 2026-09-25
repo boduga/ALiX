@@ -29,7 +29,7 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import { TOOL_NAME_MAP } from "../../agents/tool-name-map.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../../agents/tool-manifest.js";
 
 export function emitAgent(
   log: EventLog,
@@ -78,7 +78,7 @@ export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
 
 export function isCompletionTool(toolName: string): boolean {
-  return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
+  return toolName === "alix_done" || toolName === "done";
 }
 
 export function resolveToolExecutionName(
@@ -86,8 +86,9 @@ export function resolveToolExecutionName(
   selectedTools: ReadonlyArray<{ name: string; execName: string }>,
 ): string {
   return selectedTools.find((tool) => tool.name === toolName)?.execName
-    ?? TOOL_NAME_MAP[toolName]
-    ?? toolName;
+    ?? (Object.hasOwn(ALIX_BUILTIN_EXECUTORS, toolName)
+      ? ALIX_BUILTIN_EXECUTORS[toolName as keyof typeof ALIX_BUILTIN_EXECUTORS]
+      : toolName);
 }
 
 /**

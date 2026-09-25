@@ -4,7 +4,7 @@ import { inferCapability, canonicalCapabilityOf, isReadonlyCapability, requiresA
 import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import { hashArgs } from "../../src/tools/executor.js";
 import { BASE_TOOLS } from "../../src/run/helpers.js";
-import { TOOL_NAME_MAP } from "../../src/agents/tool-name-map.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 
 describe("Capability Map", () => {
@@ -75,13 +75,13 @@ describe("verify.claim wiring (spec §7.1 approval trap)", () => {
     assert.equal(entry.domain, "decision");
   });
 
-  it("reaches the model: manifest entry + alias", () => {
+  it("reaches the model: manifest entry + exact execution mapping", () => {
     const manifest = BASE_TOOLS.find((tool) => tool.name === "alix_verify_claim");
     assert.ok(manifest, "alix_verify_claim missing from BASE_TOOLS");
     assert.deepEqual(manifest.input_schema.required, ["claim"]);
     assert.match(manifest.description, /ONE line/);
     assert.match(manifest.description, /do not echo the payload/);
-    assert.equal(TOOL_NAME_MAP.alix_verify_claim, "verify.claim");
+    assert.equal(ALIX_BUILTIN_EXECUTORS.alix_verify_claim, "verify.claim");
   });
 });
 

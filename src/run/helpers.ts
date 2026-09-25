@@ -2,7 +2,6 @@ import { createInterface } from "node:readline";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, StreamChunk, ToolCall, TokenUsage, ToolDef, ToolParam } from "../providers/types.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
-import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
 import { type StreamHandler } from "../agent/stream.js";
 import "../agent/mutations.js";
@@ -20,20 +19,6 @@ import {
  * Resolve a tool name that may be misspelled or unknown.
  * Uses fuzzy search to find the closest match in the MCP tool index.
  */
-export function resolveMcpTool(
-  mcpName: string,
-  deferral: { search: (name: string, limit: number) => { item: { execName: string }; score: number }[] }
-): string | null {
-  if (TOOL_NAME_MAP[mcpName]) return TOOL_NAME_MAP[mcpName];
-  const matches = deferral.search(mcpName, 1);
-  if (matches.length > 0 && matches[0].score >= 40) {
-    const execName = matches[0].item.execName;
-    TOOL_NAME_MAP[mcpName] = execName;
-    return execName;
-  }
-  return null;
-}
-
 type SessionState = {
   created: Set<string>;
   deleted: Set<string>;
@@ -337,6 +322,15 @@ export const BASE_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "alix_mcp_search_tools",
+    description: "Find registered MCP tools by server, capability, or task. Returned names use the mcp__ namespace; invoke only an exact returned name.",
+    input_schema: {
+      type: "object",
+      properties: { query: { type: "string", description: "Tool or capability to find" } },
+      required: ["query"],
+    },
+  },
+  {
     name: "alix_web_search",
     description: "Search the public WEB for current information (news, recent data, facts beyond the model's cutoff). This does NOT search the local workspace — for local code/text use alix_grep_search, for local filenames use alix_glob_match. Requires a configured Brave API key.",
     input_schema: {
@@ -374,6 +368,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "alix_shell_run",
   "alix_file_exists",
   "alix_done",
+  "alix_mcp_search_tools",
   "alix_web_search",
   "alix_web_fetch",
 ]);

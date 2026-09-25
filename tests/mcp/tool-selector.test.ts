@@ -1,11 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { ToolSelector } from "../../src/mcp/tool-selector.js";
 import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
 
 function makeTool(name: string, description: string, server = "test-server"): DeferredToolEntry {
+  const handle = createHash("sha256").update(JSON.stringify([server, name])).digest("base64url");
   return {
-    name: `mcp_${server}_${name.replace(/\./g, "_")}`,
+    name: `mcp__${handle}`,
+    searchName: `${server}_${name.replace(/\./g, "_")}`,
     execName: `mcp.${server}.${name}`,
     serverName: server,
     toolName: name,
@@ -39,9 +42,8 @@ describe("ToolSelector", () => {
     const selected = selector.select("list GitHub repositories and issues");
     assert.ok(selected.length < tools.length, "should filter");
     assert.ok(selected.every(t => t.serverName === "test-server"), "all same server");
-    const names = selected.map(t => t.name);
-    assert.ok(names.includes("mcp_test-server_repos_list"), "should include repos.list");
-    assert.ok(names.includes("mcp_test-server_issues_list"), "should include issues.list");
+    assert.ok(selected.some(t => t.toolName === "repos.list"), "should include repos.list");
+    assert.ok(selected.some(t => t.toolName === "issues.list"), "should include issues.list");
   });
 
   it("respects maxTools limit", () => {
@@ -62,14 +64,12 @@ describe("ToolSelector", () => {
   it("always includes a safe fallback tool (filesystem.read) when no match", () => {
     const selector = new ToolSelector(tools, { maxTools: 3, tokenBudget: 50000 });
     const selected = selector.select("random gibberish xyz123");
-    const names = selected.map(t => t.name);
-    assert.ok(names.includes("mcp_test-server_filesystem_read"), "should include filesystem.read as fallback");
+    assert.ok(selected.some(t => t.toolName === "filesystem.read"), "should include filesystem.read as fallback");
   });
 
   it("includes tools matching task keywords in name or description", () => {
     const selector = new ToolSelector(tools, { maxTools: 10, tokenBudget: 50000 });
     const selected = selector.select("calendar scheduling meeting");
-    const names = selected.map(t => t.name);
-    assert.ok(names.some(n => n.includes("calendar")), "should include calendar tools");
+    assert.ok(selected.some(t => t.toolName.includes("calendar")), "should include calendar tools");
   });
 });

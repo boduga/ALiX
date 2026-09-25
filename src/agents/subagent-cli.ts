@@ -41,9 +41,10 @@ import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../mcp/manager.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
+import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import { ReliabilityMatrix } from "../config/reliability-matrix.js";
 import { getToolPolicy, filterTools, WRITE_TOOLS } from "./tool-policy.js";
-import { TOOL_NAME_MAP } from "./tool-name-map.js";
+import { resolveExecutableToolName, ToolNotFoundError } from "./tool-name-resolver.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
 import { ROLE_INSTRUCTIONS } from "./agent-registry.js";
@@ -72,11 +73,21 @@ export function toolsForSubagentIteration<T extends { name: string }>(
 }
 
 /** Resolve a model spelling only when that executor tool was offered now. */
-export function resolveOfferedToolName(name: string, offeredTools: ReadonlyArray<{ name: string }>): string | null {
-  const canonical = TOOL_NAME_MAP[name] ?? name;
-  return offeredTools.some(tool => (TOOL_NAME_MAP[tool.name] ?? tool.name) === canonical)
-    ? canonical
-    : null;
+export function resolveOfferedToolName(
+  name: string,
+  offeredTools: ReadonlyArray<{ name: string }>,
+  mcpTools: ReadonlyArray<{ name: string; execName: string }> = [],
+): string | null {
+  const offered = offeredTools.map(tool => ({
+    name: tool.name,
+    execName: mcpTools.find(entry => entry.name === tool.name)?.execName,
+  }));
+  try {
+    return resolveExecutableToolName(name, offered);
+  } catch (error) {
+    if (error instanceof ToolNotFoundError) return null;
+    throw error;
+  }
 }
 
 /** Expand a bare filename only when it names exactly one declared producer file. */
@@ -472,13 +483,14 @@ export class SubagentCLI {
     let mcpManager: McpManager | null = null;
     let mcpDiscovery: ToolDiscovery | null = null;
     let selectedTools: ToolDef[] = [];
+    let mcpToolIndex: DeferredToolEntry[] = [];
 
     try {
       mcpManager = new McpManager(config);
       await mcpManager.initialize();
 
       const mcpDeferral = mcpManager.getDeferral();
-      const mcpToolIndex = mcpDeferral.buildIndex();
+      mcpToolIndex = mcpDeferral.buildIndex();
 
       // Resolve tool selector options from config
       const toolConfig = config.toolConfig;
@@ -520,10 +532,6 @@ export class SubagentCLI {
       selectedTools = toolSelector.select(prompt) as ToolDef[];
       mcpDiscovery = new ToolDiscovery(mcpToolIndex);
 
-      // Register MCP tool name mappings
-      for (const entry of selectedTools) {
-        TOOL_NAME_MAP[entry.name] = entry.name;
-      }
     } catch (err) {
       // MCP init failed — continue without tools (non-fatal)
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
@@ -644,7 +652,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
         // Execute each tool call
         for (const toolCall of toolCalls) {
-          const execName = resolveOfferedToolName(toolCall.name, iterationTools);
+          const execName = resolveOfferedToolName(toolCall.name, iterationTools, mcpToolIndex);
           if (!execName) {
             recordLedger(toolCall.name, false);
             messages.push({

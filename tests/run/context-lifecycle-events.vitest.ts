@@ -186,7 +186,7 @@ describe('context lifecycle events — integration', () => {
     // a run with MCP tools must report a HIGHER candidateTokens than the
     // identical run without; pre-fix (emit before unshift) both were equal.
     const mcpToolIndex: DeferredToolEntry[] = [
-      { name: 'mcp_github_repos_list', execName: 'mcp.github.repos.list', serverName: 'github', toolName: 'repos_list', description: 'List repositories' },
+      { name: 'mcp__a1b2', searchName: 'github_repos_list', execName: 'mcp.github.repos.list', serverName: 'github', toolName: 'repos_list', description: 'List repositories' },
     ];
     const candidateTokens = (events: Awaited<ReturnType<EventLog['readAll']>>) =>
       (events.find((e) => e.type === 'context.snapshot.created')!.payload as any).candidateTokens as number;

@@ -63,26 +63,33 @@ export function getToolPolicy(role: SubagentRole): ToolPolicy {
 // Built-in read-only tool names (alix_* model names)
 const READ_ONLY_TOOLS = new Set([
   "alix_file_read",
-  "alix_file_list",
-  "alix_file_search",
-  "alix_file_view",
-  "alix_file_view_tree",
-  "alix_git_status",
-  "alix_git_diff",
-  "alix_git_log",
-  "alix_git_search",
-  "alix_mcp_list",
+  "alix_file_exists",
+  "alix_grep_search",
+  "alix_glob_match",
+  "alix_shell_run",
+  "alix_coordination_status",
+  "alix_coordination_list",
+  "alix_coordination_results",
+  "alix_state_query",
+  "alix_verify_claim",
+  "alix_web_search",
+  "alix_web_fetch",
+  "alix_list_extensions",
+  "alix_inspect_extension",
   "alix_done",
-  "mcp_search_tools",
 ]);
 
 // Built-in write tool names
 export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   "alix_file_create",
   "alix_file_delete",
-  "alix_file_exists",
-  "alix_patch_preview",
   "alix_patch_apply",
+  "alix_schedule_propose",
+  "alix_delegate",
+  "alix_coordination_run",
+  "alix_create_hook",
+  "alix_create_skill",
+  "alix_execution_state_propose",
 ]);
 
 export function filterTools(tools: Array<{ name: string; description?: string }>, policy: ToolPolicy): Array<{ name: string; description?: string }> {
@@ -90,11 +97,10 @@ export function filterTools(tools: Array<{ name: string; description?: string }>
     // done is always allowed
     if (tool.name === "alix_done") return true;
 
-    // mcp_search_tools only allowed when MCP tools are permitted
-    if (tool.name === "mcp_search_tools") return policy.allowMcpTools;
+    if (tool.name === "alix_mcp_search_tools") return policy.allowMcpTools;
 
     // MCP tools
-    if (tool.name.startsWith("mcp_") || tool.name.startsWith("mcp.")) {
+    if (tool.name.startsWith("mcp__")) {
       if (!policy.allowMcpTools) return false;
       return true;
     }
@@ -106,7 +112,6 @@ export function filterTools(tools: Array<{ name: string; description?: string }>
     if (WRITE_TOOLS.has(tool.name)) {
       return policy.allowedCategories.includes("write");
     }
-    // Unknown tool: default to allowed (don't block)
-    return true;
+    return false;
   });
 }

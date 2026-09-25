@@ -34,7 +34,6 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import "../../agents/tool-name-map.js";
 
 
 // Helper functions used by the task loop

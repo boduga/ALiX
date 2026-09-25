@@ -1,13 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { ToolDiscovery } from "../../src/mcp/tool-discovery.js";
 import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
 
 function makeTool(name: string, description: string): DeferredToolEntry {
+  const handle = createHash("sha256").update(JSON.stringify(["github", name])).digest("base64url");
   return {
-    name: `mcp_srv_${name.replace(/\./g, "_")}`,
-    execName: `mcp.srv.${name}`,
-    serverName: "srv",
+    name: `mcp__${handle}`,
+    searchName: `github_${name.replace(/\./g, "_")}`,
+    execName: `mcp.github.${name}`,
+    serverName: "github",
     toolName: name,
     description,
     input_schema: { type: "object" as const, properties: {} },
@@ -28,6 +31,8 @@ describe("ToolDiscovery", () => {
     assert.ok(result.kind === "success");
     assert.ok(result.output!.includes("repos"));
     assert.ok(!result.output!.includes("filesystem"));
+    assert.ok(result.output!.includes(tools[0]!.name));
+    assert.ok(!result.output!.includes("Use as: mcp.github."));
   });
 
   it("returns all tools when query is empty", async () => {

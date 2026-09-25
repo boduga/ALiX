@@ -14,7 +14,7 @@ export class ToolDiscovery {
       };
     }
 
-    const matches = searchTools(query, this.allTools).slice(0, 10);
+    const matches = searchTools(query, this.allTools, { nameField: "searchName" }).slice(0, 10);
 
     if (matches.length === 0) {
       return {
@@ -23,9 +23,7 @@ export class ToolDiscovery {
       };
     }
 
-    const lines = matches.map(m =>
-      `  - ${m.item.name}: ${m.item.description}\n    Use as: ${m.item.execName}`
-    );
+    const lines = matches.map(m => `  - ${m.item.name}: ${m.item.description}`);
     return {
       kind: "success",
       output: `Found ${matches.length} tool(s) matching "${query}":\n${lines.join("\n")}\n\nThese tools are now available for use.`,

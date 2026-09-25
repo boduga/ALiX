@@ -64,7 +64,6 @@ import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
 import { initExecutionStateEmission, buildLiveSendRequest } from "./execution-state-phase.js";
 import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
-import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
@@ -90,6 +89,7 @@ context?: {
   };
   provider: ModelAdapter;
   providerTools: ToolDef[];
+  boundTools?: import("../../tools/collaboration-tools.js").BoundTool[];
   mcpToolIndex: DeferredToolEntry[];
   messages: NormalizedMessage[];
   sessionState: MutationSessionState;
@@ -170,6 +170,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 config,
 provider,
 providerTools,
+boundTools,
 mcpToolIndex,
 sessionState,
 stateMachine,
@@ -996,6 +997,8 @@ if (toolCalls.length === 0) {
     log,
     selectedTools,
     mcpToolIndex,
+    offeredTools: wireTools,
+    boundTools,
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
