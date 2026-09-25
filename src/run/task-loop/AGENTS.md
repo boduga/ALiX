@@ -58,6 +58,10 @@ existing import paths are unchanged.
   `coordination.run` tool result before completion. A synthesis prompt must
   never assert that work is complete; missing objective evidence terminates as
   `completed_unverified` after bounded retries.
+- Final prose that promises another agent action (for example, "Next, I'm
+  surfacing...") is a continuation, not a completion. The task loop re-prompts
+  within its existing bound and records `completed_unverified` if the promise
+  persists.
 - The last-attempt `coordination.run` outcome gates completion INDEPENDENTLY
   of objective-text matching: `runTaskLoop` tracks a per-invocation
   `coordinationRunFailed` flag (set on error, cleared by a later success) and

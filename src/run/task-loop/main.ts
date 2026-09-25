@@ -68,7 +68,7 @@ import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -840,25 +840,27 @@ if (toolCalls.length === 0) {
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
       const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+      const pendingAction = hasPendingAgentAction(text);
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
-        evidenceGaps.length === 0;
+        evidenceGaps.length === 0 && !pendingAction;
 
       if (!trustworthy && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
         unconfirmedDoneAttempts++;
         await log.append({
           ...session, actor: "system", type: "completion.claim_rejected",
-          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
+          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(pendingAction ? { reason: "pending_action" } : errorEchoDone ? { reason: "client_error_echo" } : {}) },
         });
 
-        // Build a targeted re-prompt: list the missing tool calls with their
-        // exact alix_ names so the model has no ambiguity about what to invoke.
-        const content = buildUnconfirmedDonePrompt({
-          unsubstantiated,
-          evidenceGaps,
-          errorEchoDone,
-          attempt: unconfirmedDoneAttempts,
-        });
+        // Re-prompt on missing evidence or a promise of future work.
+        const content = pendingAction
+          ? "Your response promises another action, so it is not a final answer. Finish that action, then report the outcome without future-work promises."
+          : buildUnconfirmedDonePrompt({
+              unsubstantiated,
+              evidenceGaps,
+              errorEchoDone,
+              attempt: unconfirmedDoneAttempts,
+            });
 
         messages.push({ role: "user", content });
         continue;

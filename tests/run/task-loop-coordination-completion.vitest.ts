@@ -227,6 +227,51 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
 });
 
 describe('runTaskLoop coordination-failure completion gate', () => {
+  it('continues after a successful run when final prose promises another agent action', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'draft report' } }] },
+      { text: "The run completed. Next, I'm surfacing the files as artifacts, then I'll write the final summary." },
+      { text: 'Run completed. Four files verified: project.md, tui.md, tests.md, final-report.md.' },
+    ]);
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: 'Run four coordinated workers to draft a report and surface the results.',
+      taskType: 'docs',
+      providerTools: [coordinationTool, doneTool],
+      executor: makeExecutor(['success']),
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toContain('Four files verified');
+    expect(result.summary).not.toContain("Next, I'm surfacing");
+    expect(provider.requests).toHaveLength(3);
+    const events = await log.readAll();
+    expect(events.some((event) => event.type === 'completion.claim_rejected')).toBe(true);
+  });
+
+  it('accepts a completed report that merely offers future help', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'draft report' } }] },
+      { text: "Run completed. Four files verified. Next, I'm available if you need changes." },
+    ]);
+    const { deps } = await makeTestDeps({
+      provider,
+      task: 'Run four coordinated workers to draft a report and surface the results.',
+      taskType: 'docs',
+      providerTools: [coordinationTool, doneTool],
+      executor: makeExecutor(['success']),
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed');
+    expect(provider.requests).toHaveLength(2);
+  });
+
   it('Path A: blocks completed after a failed coordination.run when objective text does not require coordination', async () => {
     const provider = createScriptedProvider([
       { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'summarize' } }] },

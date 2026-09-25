@@ -133,6 +133,12 @@ export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>):
   return unsubstantiated;
 }
 
+/** First-person future work means the model has not supplied a final answer. */
+export function hasPendingAgentAction(text: string): boolean {
+  return /\bI(?:['’]m| am)\s+(?:surfacing|registering|writing|creating|sending|verifying|checking|reporting|summarizing|running|reading|adding|updating|finishing|publishing|committing|pushing|listing|showing|reviewing)\b/i.test(text) ||
+    /\bI(?:['’]ll| will)\s+(?:surface|register|write|create|send|verify|check|report|summari[sz]e|run|read|add|update|finish|publish|commit|push|list|show|review)\b/i.test(text);
+}
+
 export type SuccessfulToolEvidence = {
   name: string;
   args: Record<string, unknown>;
