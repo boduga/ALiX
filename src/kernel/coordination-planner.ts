@@ -86,8 +86,32 @@ export function inferOwnershipScopes(node: TaskNode, mutationClass: MutationClas
   return ["**"];
 }
 
+function isOutputPathMention(goal: string, ownedPath: string): boolean {
+  const basename = ownedPath.split("/").at(-1) ?? ownedPath;
+  const pathPattern = [...new Set([ownedPath, basename])]
+    .map(path => path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const suffix = `(?=$|[\\s).,;:!?\\x60\\\"'])`;
+  const quotedPath = `[\\x60\\\"']?(?:${pathPattern})${suffix}`;
+  const destination = new RegExp(
+    `\\b(?:to|into|at|as)\\s+(?:(?:the|a|an)\\s+)?(?:(?:output|final)\\s+)?(?:file\\s+)?${quotedPath}`,
+    "i",
+  );
+  const direct = new RegExp(
+    `\\b(?:create|write|edit|update|modify|save|generate|produce)\\s+(?:(?:the|a|an)\\s+)?(?:(?:new|output|final)\\s+)?(?:file\\s+)?${quotedPath}`,
+    "i",
+  );
+  return destination.test(goal) || direct.test(goal);
+}
+
+function explicitOwnedPath(text: string): string | undefined {
+  const match = text.match(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/i);
+  return match?.[1] ?? match?.[2];
+}
+
 function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Map<string, string>; errors: string[] } {
-  const rawPaths = [...goal.matchAll(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)/gi)].map(match => match[1]);
+  const rawPaths = [...goal.matchAll(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/gi)]
+    .map(match => match[1] ?? match[2]);
   const paths = new Map<string, string>();
   const errors: string[] = [];
   const countWords: Record<string, number> = {
@@ -101,7 +125,7 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
     errors.push(`Cannot parse explicit worker count: ${countToken}`);
   }
 
-  const headers = [...goal.matchAll(/^\s*Worker\s+(\d+)\b/gim)];
+  const headers = [...goal.matchAll(/^\s*(?:\d+\.\s*)?Worker\s+(\d+)\b/gim)];
   const sections = headers.map((header, index) => ({
     number: Number(header[1]),
     text: goal.slice(header.index, headers[index + 1]?.index ?? goal.length),
@@ -115,8 +139,12 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
   if (statedCount !== undefined && sections.length > 0 && sections.length !== statedCount) {
     errors.push(`Expected ${statedCount} worker sections, found ${sections.length}`);
   }
+  const dependencyTextForSection = (text: string): string | undefined =>
+    text.match(/\bdepends?\s+on\s+workers?\s+([^.;\n]+)/i)?.[1]
+      ?? text.match(/\bdependencies\s*:\s*workers?\s+([^.;\n]+)/i)?.[1];
+
   if (rawPaths.length === 0) {
-    if (sections.some(section => /\bdepends?\s+on\s+workers?\b/i.test(section.text))) {
+    if (sections.some(section => dependencyTextForSection(section.text) !== undefined)) {
       errors.push("Cannot verify explicit worker dependencies without mappable ownership paths");
     }
     return { paths, errors };
@@ -129,9 +157,7 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
 
   const used = new Set<string>();
   for (const node of nodes) {
-    const output = node.goal.match(/\b(?:create|write|edit|update|modify)\s+(?:the\s+)?(?:file\s+)?[`"']?([^\s`"',;:()]+)/i)?.[1];
-    const outputName = output?.split("/").at(-1)?.replace(/[.!?]+$/, "");
-    const matches = ownedPaths.filter(path => path?.split("/").at(-1) === outputName);
+    const matches = ownedPaths.filter(path => isOutputPathMention(node.goal ?? "", path));
     if (!isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] })) {
       if (matches.length > 0) errors.push(`Explicit ownership requires a write worker for node ${node.id}`);
       continue;
@@ -147,14 +173,14 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
 
   const nodeIdByWorkerNumber = new Map<number, string>();
   for (const section of sections) {
-    const rawPath = section.text.match(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)/i)?.[1];
+    const rawPath = explicitOwnedPath(section.text);
     if (!rawPath) continue;
     const path = extractGoalPaths(rawPath)[0];
     const matchedNode = [...paths].find(([, ownedPath]) => ownedPath === path)?.[0];
     if (matchedNode) nodeIdByWorkerNumber.set(section.number, matchedNode);
   }
   for (const section of sections) {
-    const dependencyText = section.text.match(/\bdepends?\s+on\s+workers?\s+([^.;\n]+)/i)?.[1];
+    const dependencyText = dependencyTextForSection(section.text);
     if (!dependencyText) continue;
     const nodeId = nodeIdByWorkerNumber.get(section.number);
     if (!nodeId) {
