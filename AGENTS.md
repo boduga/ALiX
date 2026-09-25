@@ -161,6 +161,13 @@ Default section order:
   content but no path, the subagent boundary supplies that sole owned path.
   Explicit paths, multiple owned paths, read-only workers, and malformed calls
   are never rewritten.
+- **Worker names use canonical execution forms (durable).** The worker boundary
+  resolves documented `alix_*` tool names and explicit unprefixed underscore
+  aliases to the existing canonical executor names (`file.create`,
+  `file.read`, `shell.run`, and so on). Unknown names are never guessed. A
+  dependent worker receives full workspace-relative input paths from direct
+  producers with explicit file outputs; bare filenames in task prose do not
+  define a working directory or confer path authority.
 - **Coordination hosts partition by `hostKind` (durable).** `web`/`inspector`
   runs are hosted by the Inspector server (startup reclaim of dead-owner
   workers, resume under the run's persisted `sessionMode`/`maxConcurrency`,

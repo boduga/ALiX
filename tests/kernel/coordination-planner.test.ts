@@ -316,6 +316,7 @@ describe("CoordinationPlanner", () => {
     const [first, second, third, fourth] = result.run!.workers;
     assert.deepEqual([first.dependencies, second.dependencies, third.dependencies], [[], [], []]);
     assert.deepEqual(fourth.dependencies, [first.id, second.id, third.id]);
+    assert.match(fourth.goalPrompt, /Input paths:\n- \.tmp\/workbench-e2e-manual-20260923\/project\.md\n- \.tmp\/workbench-e2e-manual-20260923\/tui\.md\n- \.tmp\/workbench-e2e-manual-20260923\/tests\.md/);
   });
 
   it("preserves natural-language ownership and dependencies from a four-worker request", async () => {
@@ -471,6 +472,7 @@ describe("CoordinationPlanner", () => {
     const [first, second] = result.run!.workers;
     assert.deepEqual(first.dependencies, []);
     assert.deepEqual(second.dependencies, [first.id]);
+    assert.ok(!second.goalPrompt.includes("Input paths:"), "ordering dependencies must not invent input files");
   });
 
   it("does not serialize vague read-only workers", async () => {

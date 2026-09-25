@@ -71,6 +71,14 @@ export function toolsForSubagentIteration<T extends { name: string }>(
     : allowedTools;
 }
 
+/** Resolve a model spelling only when that executor tool was offered now. */
+export function resolveOfferedToolName(name: string, offeredTools: ReadonlyArray<{ name: string }>): string | null {
+  const canonical = TOOL_NAME_MAP[name] ?? name;
+  return offeredTools.some(tool => (TOOL_NAME_MAP[tool.name] ?? tool.name) === canonical)
+    ? canonical
+    : null;
+}
+
 function isToolCallText(text: string): boolean {
   return /["']name["']\s*:\s*["'](?:alix_|mcp_|file\.|dir\.|shell\.|patch\.|done|delegate)/.test(text) ||
     /["']parameters["']\s*:/.test(text) ||
@@ -623,7 +631,15 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
         // Execute each tool call
         for (const toolCall of toolCalls) {
-          const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+          const execName = resolveOfferedToolName(toolCall.name, iterationTools);
+          if (!execName) {
+            recordLedger(toolCall.name, false);
+            messages.push({
+              role: "user",
+              content: `<tool_result id="${toolCall.id}" invocationId="${invocationId}" executionId="${executionId}">\nTool "${toolCall.name}" is not available for this iteration.\n</tool_result>`,
+            });
+            continue;
+          }
 
           // Handle mcp_search_tools specially
           if (execName === "mcp_search_tools") {

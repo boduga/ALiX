@@ -18,6 +18,17 @@
 export type ToolNameMap = Record<string, string>;
 
 export const TOOL_NAME_MAP: ToolNameMap = {
+  // Unprefixed model spellings stay explicit so unknown
+  // tool names cannot silently acquire executor privileges.
+  file_read:              "file.read",
+  file_create:            "file.create",
+  file_delete:            "file.delete",
+  file_exists:            "file.exists",
+  dir_search:             "dir.search",
+  grep_search:            "grep.search",
+  glob_match:             "glob.match",
+  shell_run:              "shell.run",
+  patch_apply:            "patch.apply",
   alix_file_read:         "file.read",
   alix_file_create:       "file.create",
   alix_file_delete:       "file.delete",

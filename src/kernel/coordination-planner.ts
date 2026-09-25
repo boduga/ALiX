@@ -416,6 +416,12 @@ export class CoordinationPlanner {
         }
         workers[index].dependencies.push(dependencyWorkerId);
       }
+      const inputPaths = [...new Set(node.dependencies
+        .map(dependencyId => explicitOwnership.paths.get(dependencyId))
+        .filter((path): path is string => path !== undefined))];
+      if (inputPaths.length > 0) {
+        workers[index].goalPrompt += `\nInput paths:\n${inputPaths.map(path => `- ${path}`).join("\n")}`;
+      }
     }
 
     serializeOverlappingWriters(workers);
