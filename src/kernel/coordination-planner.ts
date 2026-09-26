@@ -104,14 +104,37 @@ function isOutputPathMention(goal: string, ownedPath: string): boolean {
   return destination.test(goal) || direct.test(goal);
 }
 
-function explicitOwnedPath(text: string): string | undefined {
-  const match = text.match(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/i);
-  return match?.[1] ?? match?.[2];
+/** Ownership clause: `owns only <path>`, `owned path only <path>`, `exclusive owned path: <path>`. */
+const OWNERSHIP_CLAUSE =
+  /\b(?:owns?\s+only|owned\s+path\s+only)\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/gi;
+
+/**
+ * Drop the quoting and sentence punctuation a capture absorbs from prose:
+ * "…/project.md.", "`…/project.md`". Only the token itself is a path.
+ */
+function trimOwnedToken(token: string): string {
+  return token.replace(/^[`"']+/, "").replace(/[.,;:)\"'`]+$/, "");
+}
+
+/**
+ * A captured token is an ownership claim only when it is shaped like a
+ * workspace path — a slash or a file extension. Prose can follow the clause
+ * ("each worker owns ONLY its one file"); reading that as a malformed
+ * declaration would block a goal whose real paths are perfectly explicit.
+ */
+function isOwnedPathToken(token: string): boolean {
+  return token.includes("/") || /\.[a-z0-9]{1,5}$/i.test(token);
+}
+
+/** Declared ownership paths in `text`, in order, with prose captures dropped. */
+function ownedPathTokens(text: string): string[] {
+  return [...text.matchAll(OWNERSHIP_CLAUSE)]
+    .map(match => trimOwnedToken(match[1] ?? match[2]))
+    .filter(isOwnedPathToken);
 }
 
 function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Map<string, string>; errors: string[] } {
-  const rawPaths = [...goal.matchAll(/\bowns?\s+only\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/gi)]
-    .map(match => match[1] ?? match[2]);
+  const rawPaths = ownedPathTokens(goal);
   const paths = new Map<string, string>();
   const errors: string[] = [];
   const countWords: Record<string, number> = {
@@ -125,9 +148,13 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
     errors.push(`Cannot parse explicit worker count: ${countToken}`);
   }
 
-  const headers = [...goal.matchAll(/^\s*(?:\d+\.\s*)?Worker\s+(\d+)\b/gim)];
+  // Worker sections may be numbered by a list marker, by digits after
+  // "Worker", or by neither when the model writes `Worker "Name"` entries;
+  // the list position supplies the number in that last case so declared
+  // dependencies stay verifiable for named worker lists too.
+  const headers = [...goal.matchAll(/^[ \t]*(?:(\d+)\s*[.)]\s*)?Worker\b\s*(\d+)?/gim)];
   const sections = headers.map((header, index) => ({
-    number: Number(header[1]),
+    number: Number(header[1] ?? header[2] ?? index + 1),
     text: goal.slice(header.index, headers[index + 1]?.index ?? goal.length),
   }));
   const sectionNumbers = new Set(sections.map(section => section.number));
@@ -152,7 +179,8 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
 
   const ownedPaths = rawPaths.map(raw => extractGoalPaths(raw)[0]);
   if (ownedPaths.some(path => !path)) {
-    return { paths, errors: [...errors, "Explicit ownership contains an invalid path"] };
+    const invalid = rawPaths.find(raw => !extractGoalPaths(raw)[0])!;
+    return { paths, errors: [...errors, `Explicit ownership contains an invalid path: ${invalid}`] };
   }
 
   const used = new Set<string>();
@@ -173,7 +201,7 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
 
   const nodeIdByWorkerNumber = new Map<number, string>();
   for (const section of sections) {
-    const rawPath = explicitOwnedPath(section.text);
+    const rawPath = ownedPathTokens(section.text)[0];
     if (!rawPath) continue;
     const path = extractGoalPaths(rawPath)[0];
     const matchedNode = [...paths].find(([, ownedPath]) => ownedPath === path)?.[0];

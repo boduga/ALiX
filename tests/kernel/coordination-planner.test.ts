@@ -380,6 +380,39 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
   });
 
+  it("ignores prose after an ownership clause and still maps named worker sections", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Inspect the repository's package.json and write a short project summary containing name, purpose, and dependencies to ${base}/project.md.` }),
+      makeNode("n2", [], { goal: `Inspect src/tui/workbench and its subdirectories, then write an architecture summary to ${base}/workbench.md.` }),
+      makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md.` }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: `Read project.md, workbench.md, and tests.md, combine them into ${base}/final-report.md, and verify that all four files exist.`, domain: "docs" }),
+    ]);
+    const goal = [
+      `Run exactly four coordinated workers writing into ${base}/, with disjoint single-file ownership and one dependency.`,
+      "",
+      "Deliverables and ownership (each worker owns ONLY its one file):",
+      `1. Worker “Project summary” — owns only ${base}/project.md. Inspect the repository's package.json and write a short summary.`,
+      `2. Worker “Workbench summary” — owns only ${base}/workbench.md. Inspect src/tui/workbench and summarize its architecture.`,
+      `3. Worker “Workbench tests” — owns only ${base}/tests.md. Inspect tests/tui/workbench and summarize its coverage.`,
+      `4. Worker “Final report” — owns only ${base}/final-report.md. DEPENDS ON workers 1, 2, and 3. Read their outputs and combine them.`,
+      "",
+      "Execution constraints:",
+      "- Workers 1, 2, and 3 must run in parallel.",
+      "- Worker 4 must start only after workers 1, 2, and 3 complete successfully.",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    assert.deepEqual(workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
+  });
+
   it("treats exclusive owned-path wording as an exact write boundary", async () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
@@ -394,6 +427,33 @@ describe("CoordinationPlanner", () => {
       `Worker 2 — name Workbench summary. Exclusive owned path: ${base}/workbench.md.`,
       `Worker 3 — name Workbench tests. Exclusive owned path: ${base}/tests.md.`,
       `Worker 4 — name Final report. Dependencies: Workers 1, 2, and 3. Exclusive owned path: ${base}/final-report.md.`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    assert.deepEqual(workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
+  });
+
+  it("maps owned path only wording with an explicit dependency edge", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Read package.json and write a project summary to ${base}/project.md`, domain: "docs" }),
+      makeNode("n2", [], { goal: `Read src/tui/workbench and write an architecture summary to ${base}/workbench.md`, domain: "docs" }),
+      makeNode("n3", [], { goal: `Read tests/tui/workbench and write a coverage summary to ${base}/tests.md`, domain: "docs" }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then write ${base}/final-report.md`, domain: "docs" }),
+    ]);
+    const goal = [
+      "Populate the directory using exactly four workers.",
+      `Worker 1 — owned path ONLY ${base}/project.md.`,
+      `Worker 2 — owned path ONLY ${base}/workbench.md.`,
+      `Worker 3 — owned path ONLY ${base}/tests.md.`,
+      `Worker 4 — owned path ONLY ${base}/final-report.md. It DEPENDS ON workers 1, 2, and 3.`,
     ].join("\n");
     const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
 
