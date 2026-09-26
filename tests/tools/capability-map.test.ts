@@ -188,3 +188,19 @@ describe("hashArgs", () => {
     assert.match(h, /^[0-9a-f]{64}$/);
   });
 });
+
+describe("first-party state reads are approval-free by default", () => {
+  it("allows the read-only coordination and state readers", () => {
+    // These tools read ALiX's own state that raw file/shell access cannot
+    // reach (`.alix/**` is a sensitive path), so approval-gating them only
+    // strands the caller on blocked reads.
+    assert.equal(DEFAULT_CONFIG.permissions.tools["coordination.read"], "allow");
+    assert.equal(DEFAULT_CONFIG.permissions.tools["state.read"], "allow");
+  });
+
+  it("keeps every writer approval-gated", () => {
+    for (const capability of ["file.write", "shell.run", "coordination.run"]) {
+      assert.notEqual(DEFAULT_CONFIG.permissions.tools[capability], "allow");
+    }
+  });
+});

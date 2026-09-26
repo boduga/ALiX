@@ -85,9 +85,17 @@ describe("coordination chat tools", () => {
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "goal", coordinatorAgentId: "alix" });
     run.status = "failed";
     run.workers = [
-      createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "Do A", goalPrompt: "do a", status: "completed" }),
-      createWorkerAssignment({ coordinationRunId: run.id, agentId: "a", taskLabel: "Do B", goalPrompt: "do b", status: "failed", error: "boom" }),
+      createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "alix#1", taskLabel: "Do A", goalPrompt: "do a",
+        status: "completed", ownershipScopes: [".tmp/a.md"], planOrder: 0,
+        resultRef: ".alix/coordination/results/worker_a.json",
+      }),
+      createWorkerAssignment({
+        coordinationRunId: run.id, agentId: "alix#2", taskLabel: "Do B", goalPrompt: "do b",
+        status: "failed", error: "boom", attempt: 2, maxAttempts: 3,
+      }),
     ];
+    run.workers[1].dependencies = [run.workers[0].id];
     await store.save(run);
 
     const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
@@ -95,6 +103,33 @@ describe("coordination chat tools", () => {
     assert.equal(result.kind, "success");
     assert.match(result.output ?? "", /1 completed, 1 failed/);
     assert.match(result.output ?? "", /boom/);
+  });
+
+  it("status answers per-worker identity questions without reading .alix paths", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "goal", coordinatorAgentId: "alix" });
+    const first = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "alix#1", taskLabel: "Project summary", goalPrompt: "do a",
+      status: "completed", ownershipScopes: [".tmp/workbench-runtime-test/project.md"],
+      planOrder: 0, resultRef: ".alix/coordination/results/worker_a.json",
+    });
+    const second = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "alix#2", taskLabel: "Final report", goalPrompt: "do b",
+      status: "completed", ownershipScopes: [".tmp/workbench-runtime-test/final-report.md"],
+      planOrder: 1, dependencies: [first.id],
+    });
+    run.workers = [first, second];
+    run.status = "completed";
+    await store.save(run);
+
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store });
+    const result = await handlers[COORDINATION_STATUS_TOOL]({ runId: run.id });
+
+    assert.equal(result.kind, "success");
+    const output = result.output ?? "";
+    assert.match(output, /Workers \(2\):/);
+    // Worker id, label, agent, status, attempt/maxAttempts, order, deps, scope, result ref.
+    assert.match(output, new RegExp(`${first.id} \\| Project summary \\| agent alix#1 \\| status completed \\| attempt 0/3 \\| order 0 \\| deps - \\| writes \\.tmp/workbench-runtime-test/project\\.md \\| result \\.alix/coordination/results/worker_a\\.json`));
+    assert.match(output, new RegExp(`${second.id} \\| Final report \\| agent alix#2 \\| status completed \\| attempt 0/3 \\| order 1 \\| deps ${first.id}`));
   });
 
   it("status errors on unknown run id", async () => {

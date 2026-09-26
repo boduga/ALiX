@@ -252,7 +252,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_coordination_status",
-    description: "Show the state of a coordination run: status, workers by status, block reasons, and failed-worker errors.",
+    description: "Show the state of a coordination run: status, workers by status, block reasons, failed-worker errors, and per-worker rows (id, task id, agent, attempt, dependencies, owned scope, result reference). Read-only. Read run state with this tool — `.alix/coordination/**` is a sensitive path that file.read/shell.run cannot open.",
     input_schema: {
       type: "object",
       properties: {
@@ -263,7 +263,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_coordination_list",
-    description: "List recent coordination runs (id, status, goal, worker count), newest first. Use this to find the latest run id before calling coordination.status/results.",
+    description: "List recent coordination runs (id, status, goal, worker count), newest first. Use this to find the latest run id before calling coordination.status/results. Read-only.",
     input_schema: {
       type: "object",
       properties: {
@@ -273,7 +273,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_coordination_results",
-    description: "Show the aggregate results of a coordination run (per-worker outcomes and result summary).",
+    description: "Show the aggregate results of a coordination run (per-worker outcomes and result summary). Read-only. Prefer this over reading the aggregate file directly — `.alix/coordination/**` is a sensitive path that file.read/shell.run cannot open.",
     input_schema: {
       type: "object",
       properties: {

@@ -36,6 +36,9 @@ export const COORDINATION_RESULTS_TOOL = "coordination.results";
 
 export const MAX_COORDINATION_TOOL_CONCURRENCY = 8;
 
+/** Bounded per-worker rows in `coordination.status` output. */
+const MAX_STATUS_WORKER_ROWS = 20;
+
 export type CoordinationToolDeps = {
   cwd: string;
   config: AlixConfig;
@@ -248,6 +251,25 @@ async function handleCoordinationStatus(
   }
   if (run.aggregateResultRef) lines.push(`Aggregate: ${run.aggregateResultRef}`);
   if (run.outcome) lines.push(`Outcome: ${run.outcome}`);
+  // Per-worker identity is what callers ask for by name (worker id, task id,
+  // dependencies, scope, attempt, retry count, result reference). Answering it
+  // here keeps that read inside this tool instead of sending the caller to
+  // `.alix/coordination/**` — a sensitive path that raw file/shell access
+  // cannot open.
+  if (run.workers.length > 0) {
+    lines.push(`Workers (${run.workers.length}):`);
+    for (const w of run.workers.slice(0, MAX_STATUS_WORKER_ROWS)) {
+      const deps = w.dependencies.length > 0 ? w.dependencies.join(", ") : "-";
+      const scope = (w.ownershipScopes ?? []).join(", ") || "-";
+      lines.push(
+        `- ${w.id} | ${w.taskLabel} | agent ${w.agentId} | status ${w.status} | attempt ${w.attempt}/${w.maxAttempts}` +
+        `${w.planOrder === undefined ? "" : ` | order ${w.planOrder}`} | deps ${deps} | writes ${scope}` +
+        `${w.resultRef ? ` | result ${w.resultRef}` : ""}`,
+      );
+    }
+    const hidden = run.workers.length - MAX_STATUS_WORKER_ROWS;
+    if (hidden > 0) lines.push(`- ... ${hidden} more worker(s)`);
+  }
   return { kind: "success", output: lines.join("\n") };
 }
 
