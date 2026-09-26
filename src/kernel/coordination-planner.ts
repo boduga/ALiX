@@ -151,9 +151,39 @@ function resolveOwnedPath(token: string, nodeGoals: readonly string[]): string {
   return new Set(named).size === 1 ? named[0] : token;
 }
 
-function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Map<string, string>; errors: string[] } {
+/**
+ * Directory prep and verification are steps, not workers. A write node that
+ * claims no declared output is auxiliary when every file it names is already
+ * declared and it works inside a directory the declared paths live in. A
+ * writer naming an undeclared file — or referencing no declared location at
+ * all — is the planner inventing work, which stays fail-closed.
+ */
+function isAuxiliaryWriter(goalText: string, ownedPaths: readonly string[]): boolean {
+  const declared = new Set(ownedPaths);
+  const declaredBasenames = new Set(ownedPaths.map(path => path.split("/").at(-1) ?? path));
+  const mentioned = goalText.match(/[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,5}/g) ?? [];
+  if (mentioned.some(token => !declared.has(token) && !declaredBasenames.has(token))) return false;
+  return declaredDirectories(ownedPaths).some(dir => goalText.includes(dir));
+}
+
+/** Directories the declared owned paths live in, longest first, deduped. */
+function declaredDirectories(ownedPaths: readonly string[]): string[] {
+  const dirs = new Set<string>();
+  for (const path of ownedPaths) {
+    const dir = path.split("/").slice(0, -1).join("/");
+    if (dir.length > 0) dirs.add(dir);
+  }
+  return [...dirs].sort((left, right) => right.length - left.length);
+}
+
+function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): {
+  paths: Map<string, string>;
+  auxiliaryScopes: Map<string, string[]>;
+  errors: string[];
+} {
   const rawPaths = ownedPathTokens(goal);
   const paths = new Map<string, string>();
+  const auxiliaryScopes = new Map<string, string[]>();
   const errors: string[] = [];
   const countWords: Record<string, number> = {
     one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
@@ -178,7 +208,12 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
   const sectionNumbers = new Set(sections.map(section => section.number));
   if (sectionNumbers.size !== sections.length) errors.push("Explicit worker numbers are duplicated");
   const expectedCount = statedCount ?? (sections.length > 0 && rawPaths.length === sections.length ? sections.length : undefined);
-  if (expectedCount !== undefined && nodes.length !== expectedCount) {
+  // A goal that declares owned paths defines its workers by those paths: the
+  // 1:1 ownership mapping below is the count check, and auxiliary nodes
+  // (directory prep, verification) are not workers that write files. Without
+  // declared paths there is nothing to map, so the raw node count is the only
+  // available signal.
+  if (expectedCount !== undefined && rawPaths.length === 0 && nodes.length !== expectedCount) {
     errors.push(`Expected ${expectedCount} workers, planner returned ${nodes.length}`);
   }
   if (statedCount !== undefined && sections.length > 0 && sections.length !== statedCount) {
@@ -192,21 +227,43 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
     if (sections.some(section => dependencyTextForSection(section.text) !== undefined)) {
       errors.push("Cannot verify explicit worker dependencies without mappable ownership paths");
     }
-    return { paths, errors };
+    return { paths, auxiliaryScopes, errors };
   }
 
   const nodeGoals = nodes.map(node => node.goal ?? "");
   const ownedPaths = rawPaths.map(raw => resolveOwnedPath(raw, nodeGoals));
   const unresolved = ownedPaths.findIndex(path => !path);
   if (unresolved !== -1) {
-    return { paths, errors: [...errors, `Explicit ownership contains an invalid path: ${rawPaths[unresolved]}`] };
+    return {
+      paths,
+      auxiliaryScopes,
+      errors: [...errors, `Explicit ownership contains an invalid path: ${rawPaths[unresolved]}`],
+    };
   }
 
   const used = new Set<string>();
   for (const node of nodes) {
-    const matches = ownedPaths.filter(path => isOutputPathMention(node.goal ?? "", path));
-    if (!isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] })) {
-      if (matches.length > 0) errors.push(`Explicit ownership requires a write worker for node ${node.id}`);
+    const nodeGoal = node.goal ?? "";
+    const writeWorker = isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] });
+    const matches = ownedPaths.filter(path => isOutputPathMention(nodeGoal, path));
+    if (matches.length === 0) {
+      // A node claiming no declared output is auxiliary work (prep, verify,
+      // reads). Only a writer that steps outside the declared ownership is
+      // the planner inventing a worker, and that stays fail-closed.
+      if (writeWorker && !isAuxiliaryWriter(nodeGoal, ownedPaths)) {
+        errors.push(
+          `Cannot verify explicit worker count: node ${node.id} is an extra writer with no declared owned path`,
+        );
+      } else if (writeWorker) {
+        // Prep work mutates a directory the declared paths live in; scope it
+        // there instead of falling back to broad domain defaults.
+        const dirs = declaredDirectories(ownedPaths).filter(dir => nodeGoal.includes(dir));
+        if (dirs.length > 0) auxiliaryScopes.set(node.id, dirs);
+      }
+      continue;
+    }
+    if (!writeWorker) {
+      errors.push(`Explicit ownership requires a write worker for node ${node.id}`);
       continue;
     }
     if (matches.length !== 1 || used.has(matches[0])) {
@@ -242,7 +299,7 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
       }
     }
   }
-  return { paths, errors };
+  return { paths, auxiliaryScopes, errors };
 }
 
 function claimsOverlap(
@@ -453,8 +510,10 @@ export class CoordinationPlanner {
       // cannot write.
       const writer = isWriteWorker({ requiredCapabilities: node.requiredCapabilities ?? [] });
       const explicitPath = explicitOwnership.paths.get(node.id);
+      const auxiliaryScope = explicitOwnership.auxiliaryScopes.get(node.id);
       const ownershipScopes = writer
-        ? explicitPath ? [explicitPath] : inferOwnershipScopes(node, mutationClass)
+        ? explicitPath ? [explicitPath]
+          : auxiliaryScope ?? inferOwnershipScopes(node, mutationClass)
         : [];
       const claimResult = compileOwnershipClaims(ownershipScopes);
       const agentId = pool.length > 0 ? pool[workers.length % pool.length] : defaultLabel(workers.length);

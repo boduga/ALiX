@@ -12,6 +12,7 @@ import {
 } from "../../src/kernel/coordination-tools.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { buildErrorMessage } from "../../src/run.js";
 import type { AlixConfig } from "../../src/config/schema.js";
 
 function testConfig(): AlixConfig {
@@ -79,6 +80,30 @@ describe("coordination chat tools", () => {
     assert.equal(result.kind, "success");
     assert.equal(plannedSessionId, "tui-session-1");
     assert.equal((await store.list())[0]?.sessionId, "tui-session-1");
+  });
+
+  it("reports a rejected plan as retryable with recovery steps", async () => {
+    const planner = {
+      plan: async () => ({
+        valid: false,
+        errors: ["Cannot verify explicit worker count: node n3 is an extra writer with no declared owned path"],
+        graph: undefined,
+        run: undefined,
+      }),
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "coordinate wrongly" });
+
+    assert.equal(result.kind, "error");
+    assert.match(result.message ?? "", /Coordination plan failed/);
+    assert.equal(result.retryable, true);
+    assert.match(result.hint ?? "", /exactly one owned path/);
+    assert.match(result.hint ?? "", /auxiliary steps/);
+    // The rendered message must invite a corrected retry, not forbid it.
+    const rendered = buildErrorMessage(result as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+    assert.ok(rendered.includes("Hint:"), rendered);
+    assert.ok(!rendered.includes("do not retry"), rendered);
   });
 
   it("status reports workers by status and failures", async () => {

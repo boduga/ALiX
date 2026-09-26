@@ -39,6 +39,14 @@ export const MAX_COORDINATION_TOOL_CONCURRENCY = 8;
 /** Bounded per-worker rows in `coordination.status` output. */
 const MAX_STATUS_WORKER_ROWS = 20;
 
+/**
+ * A rejected plan is fixable — the goal text is the caller's own input — so
+ * the failure carries the recovery steps instead of a "do not retry" verdict.
+ */
+const PLAN_FAILURE_HINT =
+  "Fix the goal text and call again: give each worker exactly one owned path, keep owners disjoint, "
+  + "and note that auxiliary steps (creating the directory, verifying outputs) do not count toward the stated worker count.";
+
 export type CoordinationToolDeps = {
   cwd: string;
   config: AlixConfig;
@@ -112,14 +120,16 @@ async function handleCoordinationRun(
     return {
       kind: "error",
       message: `Coordination plan failed: ${err instanceof Error ? err.message : String(err)}`,
-      retryable: false,
+      hint: PLAN_FAILURE_HINT,
+      retryable: true,
     };
   }
   if (!planResult.valid || !planResult.run) {
     return {
       kind: "error",
       message: `Coordination plan failed: ${planResult.errors.join("; ") || "unknown error"}`,
-      retryable: false,
+      hint: PLAN_FAILURE_HINT,
+      retryable: true,
     };
   }
 

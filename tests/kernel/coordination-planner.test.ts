@@ -440,6 +440,67 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
   });
 
+  it("plans directory prep and verification beside exactly four owned writers", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Create the directory ${base}/ if it does not already exist`, requiredCapabilities: ["shell.run"], domain: "infra" }),
+      makeNode("n2", ["n1"], { goal: `Inspect package.json and write a short project summary to ${base}/project.md, owning only that file` }),
+      makeNode("n3", ["n1"], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md, owning only that file` }),
+      makeNode("n4", ["n1"], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md, owning only that file` }),
+      makeNode("n5", ["n2", "n3", "n4"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md and combine them into ${base}/final-report.md, owning only that file`, domain: "docs" }),
+      makeNode("n6", ["n5"], { goal: `Verify that ${base}/project.md, ${base}/workbench.md, ${base}/tests.md, and ${base}/final-report.md all exist`, requiredCapabilities: ["file.exists"], domain: "infra" }),
+    ]);
+    const goal = [
+      `Create \`${base}/\`.`,
+      "",
+      "Launch exactly four coordinated workers:",
+      `1. Worker “Project summary” — Own only \`${base}/project.md\``,
+      `2. Worker “Workbench summary” — Own only \`${base}/workbench.md\``,
+      `3. Worker “Workbench tests” — Own only \`${base}/tests.md\``,
+      `4. Worker “Final report” — Own only \`${base}/final-report.md\` — Depend on workers 1, 2, and 3.`,
+      "",
+      "Verify all four files exist before claiming success.",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    assert.equal(workers.length, 6);
+    // The four declared paths stay with the four workers the goal names…
+    assert.deepEqual(workers.slice(1, 5).map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    // …directory prep is scoped to the directory it creates, not to broad
+    // domain defaults, and verification (read-only) claims nothing.
+    assert.deepEqual(workers[0].ownershipScopes, [base]);
+    assert.deepEqual(workers[5].ownershipScopes, []);
+    const finalReport = workers[4];
+    assert.deepEqual(finalReport.dependencies, workers.slice(1, 4).map(worker => worker.id));
+  });
+
+  it("blocks an extra writer that names an undeclared output", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create first.md" }),
+      makeNode("n2", [], { goal: "Create second.md" }),
+      makeNode("n3", [], { goal: "Create extra.md" }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Create first.md. Own only .tmp/first.md",
+      "Worker 2: Create second.md. Own only .tmp/second.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+    assert.match(result.errors.join("; "), /Cannot verify explicit worker count/);
+    assert.match(result.errors.join("; "), /n3/);
+  });
+
   it("resolves a bare-filename claim against the node goal that names it", async () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([

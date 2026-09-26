@@ -224,7 +224,7 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_coordination_run",
-    description: "Start a multi-worker coordination run for parallel work. Plans the goal into workers with disjoint ownership and dispatches them via the coordination scheduler (up to maxConcurrency in parallel), waiting until idle. Use for independent parallel tasks instead of sequential delegate calls. Returns the run id, final status, and per-worker outcomes.",
+    description: "Start a multi-worker coordination run for parallel work. Plans the goal into workers with disjoint ownership and dispatches them via the coordination scheduler (up to maxConcurrency in parallel), waiting until idle. Use for independent parallel tasks instead of sequential delegate calls. Returns the run id, final status, and per-worker outcomes. A rejected plan is fixable: adjust the goal (one owned path per worker, auxiliary steps like directory prep or verification are not workers) and call again.",
     input_schema: {
       type: "object",
       properties: {
