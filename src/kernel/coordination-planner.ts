@@ -104,9 +104,25 @@ function isOutputPathMention(goal: string, ownedPath: string): boolean {
   return destination.test(goal) || direct.test(goal);
 }
 
-/** Ownership clause: `owns only <path>`, `owned path only <path>`, `exclusive owned path: <path>`. */
+/**
+ * Ownership clause: `owns only <path>`, `owned path only <path>`,
+ * `exclusive owned path: <path>`. The capture is the clause *tail*, not one
+ * token — models write "owns only the file `X`" as often as "owns only `X`".
+ */
 const OWNERSHIP_CLAUSE =
-  /\b(?:owns?\s+only|owned\s+path\s+only)\b\s*:?\s*([^\s,;]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\s,;]+)/gi;
+  /\b(?:owns?\s+only|owned\s+path\s+only)\b\s*:?\s*([^\n]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\n]+)/gi;
+
+/** Where a clause stops naming its path: sentence end, semicolon, dash, paren. */
+const CLAUSE_BOUNDARY = /[.;](?=\s|$)|[—–]|\)/;
+
+/** Words that can sit between the clause and the path without being one. */
+const OWNERSHIP_FILLER = new Set([
+  "the", "a", "an", "its", "it", "their", "own", "one", "single", "exclusive",
+  "file", "files", "path", "paths", "output", "outputs", "only", "each",
+  "that", "which", "creates", "create", "writes", "write", "edits", "edit",
+  "updates", "update", "modifies", "modify", "saves", "save", "generates",
+  "generate", "produces", "produce",
+]);
 
 /**
  * Drop the quoting and sentence punctuation a capture absorbs from prose:
@@ -126,11 +142,54 @@ function isOwnedPathToken(token: string): boolean {
   return token.includes("/") || /\.[a-z0-9]{1,5}$/i.test(token);
 }
 
-/** Declared ownership paths in `text`, in order, with prose captures dropped. */
-function ownedPathTokens(text: string): string[] {
+/** Clause tails in `text`, cut at the boundary where the path naming stops. */
+function ownershipClauseTails(text: string): string[] {
   return [...text.matchAll(OWNERSHIP_CLAUSE)]
-    .map(match => trimOwnedToken(match[1] ?? match[2]))
-    .filter(isOwnedPathToken);
+    .map((match) => {
+      const tail = (match[1] ?? match[2]).trim();
+      const boundary = tail.search(CLAUSE_BOUNDARY);
+      return (boundary === -1 ? tail : tail.slice(0, boundary)).trim();
+    })
+    .filter(tail => tail.length > 0);
+}
+
+/**
+ * The path a clause names. A quoted or directory-bearing token resolves
+ * through the goal-path extractor; otherwise the last word is taken when it
+ * is shaped like a filename, which covers bare `owns only project.md`.
+ * One clause names one path — trailing prose after it is not an ownership
+ * list ("owns only X and must not write Y" claims X).
+ */
+function ownedPathsInClause(tail: string): string[] {
+  const direct = extractGoalPaths(tail);
+  if (direct.length > 0) return [direct[0]];
+  const last = trimOwnedToken(tail.split(/\s+/).at(-1) ?? "");
+  return isOwnedPathToken(last) ? [last] : [];
+}
+
+/** Declared ownership paths in `text`, in order, with prose clauses dropped. */
+function ownedPathTokens(text: string): string[] {
+  const paths = new Set<string>();
+  for (const tail of ownershipClauseTails(text)) {
+    for (const path of ownedPathsInClause(tail)) paths.add(path);
+  }
+  return [...paths];
+}
+
+/**
+ * The first ownership clause that names nothing we can resolve while still
+ * carrying a concrete word ("owns only whatever it needs"). Collective prose
+ * ("each worker owns ONLY its one file") reduces to filler words and is
+ * ignored; a clause that meant to name a path must not vanish silently.
+ */
+function unresolvedOwnershipClause(text: string): string | undefined {
+  return ownershipClauseTails(text).find((tail) => {
+    if (ownedPathsInClause(tail).length > 0) return false;
+    return tail
+      .split(/\s+/)
+      .map(trimOwnedToken)
+      .some(token => token.length > 0 && !OWNERSHIP_FILLER.has(token.toLowerCase()));
+  });
 }
 
 /**
@@ -185,6 +244,13 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): {
   const paths = new Map<string, string>();
   const auxiliaryScopes = new Map<string, string[]>();
   const errors: string[] = [];
+  // A clause that names no workspace path must not vanish silently: dropping it
+  // switches off declared-ownership validation and lets workers fall back to
+  // inferred scopes that can claim their own inputs.
+  const unresolvedClause = unresolvedOwnershipClause(goal);
+  if (unresolvedClause) {
+    errors.push(`Explicit ownership clause names no workspace path: "${unresolvedClause}"`);
+  }
   const countWords: Record<string, number> = {
     one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
     seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,

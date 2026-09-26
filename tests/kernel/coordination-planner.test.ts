@@ -440,6 +440,55 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
   });
 
+  it("parses `owns only the file X` without claiming inputs named later in the sentence", async () => {
+    const base = ".tmp/ownership-clause";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Create the directory ${base}/ if it does not exist`, requiredCapabilities: ["shell.run"], domain: "infra" }),
+      makeNode("n2", ["n1"], { goal: `Read CONTEXT.md and write a short glossary of domain terms to ${base}/notes.md.` }),
+      makeNode("n3", ["n1"], { goal: `Read docs/post-mvp-backlog.md and write the open risks to ${base}/risks.md.` }),
+      makeNode("n4", ["n2", "n3"], { goal: `Read ${base}/notes.md and ${base}/risks.md and combine them into ${base}/merged.md.`, domain: "docs" }),
+    ]);
+    const goal = [
+      "Run a four-worker ownership probe.",
+      `1. Worker "Prep" — directory-prep step: create the directory \`${base}/\` only; owns no file. Runs first.`,
+      `2. Worker "Notes" — owns only the file \`${base}/notes.md\`; read CONTEXT.md and write a short glossary of domain terms.`,
+      `3. Worker "Risks" — owns only the file \`${base}/risks.md\`; read \`docs/post-mvp-backlog.md\` and list the open risks.`,
+      `4. Worker "Merge" — owns only the file \`${base}/merged.md\`; depends on Workers 2 and 3; combine their two files.`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    // Each writer owns exactly its output: the inputs read earlier in the same
+    // sentence (CONTEXT.md, docs/post-mvp-backlog.md) are not ownership claims.
+    assert.deepEqual(workers.slice(1).map(worker => worker.ownershipScopes), [
+      [`${base}/notes.md`], [`${base}/risks.md`], [`${base}/merged.md`],
+    ]);
+    assert.deepEqual(workers[0].ownershipScopes, [base]);
+  });
+
+  it("blocks an ownership clause that names no workspace path", async () => {
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: "Create first.md" }),
+      makeNode("n2", [], { goal: "Create second.md" }),
+    ]);
+    const goal = [
+      "Use exactly two workers.",
+      "Worker 1: Create first.md. Owns only whatever it needs",
+      "Worker 2: Create second.md. Own only .tmp/second.md",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, false);
+    assert.equal(result.run?.status, "blocked");
+    assert.match(result.errors.join("; "), /names no workspace path/);
+    assert.match(result.errors.join("; "), /whatever it needs/);
+  });
+
   it("plans directory prep and verification beside exactly four owned writers", async () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
