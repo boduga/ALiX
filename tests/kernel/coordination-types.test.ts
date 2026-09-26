@@ -586,4 +586,21 @@ describe("CoordinationRun revision lineage", () => {
     });
     assert.equal(run.revisionHistory, undefined);
   });
+
+  it("keeps resultRef and inputPaths supplied at creation", () => {
+    // Both fields are declared on WorkerAssignment and settable at creation;
+    // dropping them here silently loses a worker's result reference and the
+    // structured input manifest its consumer depends on.
+    const w = createWorkerAssignment({
+      coordinationRunId: "coord_1",
+      agentId: "alix#1",
+      taskLabel: "Final report",
+      goalPrompt: "combine the inputs",
+      inputPaths: [".tmp/run/project.md", ".tmp/run/tests.md"],
+      resultRef: ".alix/coordination/results/worker_1.json",
+    });
+
+    assert.deepEqual(w.inputPaths, [".tmp/run/project.md", ".tmp/run/tests.md"]);
+    assert.equal(w.resultRef, ".alix/coordination/results/worker_1.json");
+  });
 });

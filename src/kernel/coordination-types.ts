@@ -301,6 +301,7 @@ export function createWorkerAssignment(opts: {
   agentId: string;
   taskLabel: string;
   goalPrompt: string;
+  inputPaths?: string[];
   dependencies?: string[];
   ownershipScopes?: string[];
   status?: WorkerStatus;
@@ -339,10 +340,12 @@ export function createWorkerAssignment(opts: {
     agentId: opts.agentId,
     taskLabel: opts.taskLabel,
     goalPrompt: opts.goalPrompt,
+    inputPaths: opts.inputPaths,
     dependencies: opts.dependencies ?? [],
     ownershipScopes: opts.ownershipScopes ?? [],
     status: opts.status ?? "pending",
     error: opts.error,
+    resultRef: opts.resultRef,
     sourceNodeId: opts.sourceNodeId,
     requiredCapabilities: opts.requiredCapabilities ?? [],
     riskLevel: opts.riskLevel,
