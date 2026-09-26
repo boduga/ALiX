@@ -94,7 +94,7 @@ function isOutputPathMention(goal: string, ownedPath: string): boolean {
   const suffix = `(?=$|[\\s).,;:!?\\x60\\\"'])`;
   const quotedPath = `[\\x60\\\"']?(?:${pathPattern})${suffix}`;
   const destination = new RegExp(
-    `\\b(?:to|into|at|as)\\s+(?:(?:the|a|an)\\s+)?(?:(?:output|final)\\s+)?(?:file\\s+)?${quotedPath}`,
+    `\\b(?:to|into|at|as|in)\\s+(?:(?:the|a|an)\\s+)?(?:(?:output|final)\\s+)?(?:file\\s+)?${quotedPath}`,
     "i",
   );
   const direct = new RegExp(
@@ -131,6 +131,24 @@ function ownedPathTokens(text: string): string[] {
   return [...text.matchAll(OWNERSHIP_CLAUSE)]
     .map(match => trimOwnedToken(match[1] ?? match[2]))
     .filter(isOwnedPathToken);
+}
+
+/**
+ * Resolve a declared ownership token to a workspace-relative path.
+ *
+ * A token that carries its own directory resolves from itself. A bare
+ * filename ("project.md") leans on the planned node goals: when exactly one
+ * node names that basename, its full path is the claim, so the worker is
+ * scoped to the directory the plan actually writes into — never to a
+ * same-named file at the workspace root. Zero or several candidates leave
+ * the literal token, which still has to survive unique-match validation.
+ */
+function resolveOwnedPath(token: string, nodeGoals: readonly string[]): string {
+  if (token.includes("/")) return extractGoalPaths(token)[0] ?? "";
+  const named = nodeGoals
+    .flatMap(nodeGoal => extractGoalPaths(nodeGoal))
+    .filter(path => path.split("/").at(-1) === token);
+  return new Set(named).size === 1 ? named[0] : token;
 }
 
 function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Map<string, string>; errors: string[] } {
@@ -177,10 +195,11 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
     return { paths, errors };
   }
 
-  const ownedPaths = rawPaths.map(raw => extractGoalPaths(raw)[0]);
-  if (ownedPaths.some(path => !path)) {
-    const invalid = rawPaths.find(raw => !extractGoalPaths(raw)[0])!;
-    return { paths, errors: [...errors, `Explicit ownership contains an invalid path: ${invalid}`] };
+  const nodeGoals = nodes.map(node => node.goal ?? "");
+  const ownedPaths = rawPaths.map(raw => resolveOwnedPath(raw, nodeGoals));
+  const unresolved = ownedPaths.findIndex(path => !path);
+  if (unresolved !== -1) {
+    return { paths, errors: [...errors, `Explicit ownership contains an invalid path: ${rawPaths[unresolved]}`] };
   }
 
   const used = new Set<string>();
@@ -203,7 +222,7 @@ function explicitOwnershipForNodes(goal: string, nodes: TaskNode[]): { paths: Ma
   for (const section of sections) {
     const rawPath = ownedPathTokens(section.text)[0];
     if (!rawPath) continue;
-    const path = extractGoalPaths(rawPath)[0];
+    const path = resolveOwnedPath(rawPath, nodeGoals);
     const matchedNode = [...paths].find(([, ownedPath]) => ownedPath === path)?.[0];
     if (matchedNode) nodeIdByWorkerNumber.set(section.number, matchedNode);
   }

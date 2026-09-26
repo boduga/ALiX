@@ -413,6 +413,60 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
   });
 
+  it("matches an output stated with the preposition in", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Read package.json at the repo root and write a project summary into ${base}/project.md` }),
+      makeNode("n2", [], { goal: `Inspect src/tui/workbench and summarize its architecture into ${base}/workbench.md` }),
+      makeNode("n3", [], { goal: `Inspect tests/tui/workbench and summarize its coverage into ${base}/tests.md` }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, then combine them into a final report in ${base}/final-report.md`, domain: "docs" }),
+    ]);
+    const goal = [
+      `Create exactly four coordinated workers that each write one file under ${base}/.`,
+      `Worker 1 — name "Project summary" — owns ONLY ${base}/project.md.`,
+      `Worker 2 — name "Workbench summary" — owns ONLY ${base}/workbench.md.`,
+      `Worker 3 — name "Workbench tests" — owns ONLY ${base}/tests.md.`,
+      `Worker 4 — name "Final report" — owns ONLY ${base}/final-report.md. This worker DEPENDS ON workers 1, 2, and 3.`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    assert.deepEqual(workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
+  });
+
+  it("resolves a bare-filename claim against the node goal that names it", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Read package.json and write ${base}/project.md with a short project summary.` }),
+      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write ${base}/workbench.md summarizing its architecture.` }),
+      makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write ${base}/tests.md summarizing its coverage.` }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, workbench.md, and tests.md and combine them into ${base}/final-report.md.`, domain: "docs" }),
+    ]);
+    const goal = [
+      `Produce four markdown files inside ${base}/ using four coordinated workers with disjoint ownership.`,
+      "Worker 1 (Project summary): writes project.md — read package.json and write a short project summary. Owns only project.md.",
+      "Worker 2 (Workbench summary): writes workbench.md — inspect src/tui/workbench and summarize its architecture. Owns only workbench.md.",
+      "Worker 3 (Workbench tests): writes tests.md — inspect tests/tui/workbench and summarize its coverage. Owns only tests.md.",
+      "Worker 4 (Final report): writes final-report.md — depends on Worker 1, Worker 2 and Worker 3; read their three output files and combine them. Owns only final-report.md.",
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    const workers = result.run!.workers;
+    assert.deepEqual(workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+    assert.deepEqual(workers[3].dependencies, workers.slice(0, 3).map(worker => worker.id));
+  });
+
   it("treats exclusive owned-path wording as an exact write boundary", async () => {
     const base = ".tmp/workbench-runtime-test";
     const graph = makeGraph([
