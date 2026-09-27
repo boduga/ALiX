@@ -26,6 +26,11 @@
 - `index.ts` — barrel.
 
 **Local Contracts:**
+- Decision boundary vs tool selection: `context-relevance` answers whether a
+  context item should be *included* for reasoning; choosing which already-
+  applicable tool or resource to act on next belongs to tool selection, not to
+  `context-relevance`. Keep that split so the context decision does not become a
+  catch-all for selection questions.
 - Choice/Score/Noul never flattened to {value, confidence}. Noul = probability.
 - Unknown choice rejected, never coerced to executable action.
 - Remote engine resolution fails closed without `allowRemote`.
