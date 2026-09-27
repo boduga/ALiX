@@ -15,6 +15,7 @@ function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>
     argsSignature: 'file.read:{"path":"a.ts"}',
     seenSignatures: new Map(),
     executorSuccess: true,
+    hasContent: true,
     ...overrides,
   });
 }
@@ -28,30 +29,37 @@ describe('buildSelectionObservation', () => {
     expect(observation.invocationId).toBe('inv-1');
   });
 
-  it('labels a first successful call useful', () => {
+  it('separates mechanical outcome, selection outcome, and evidence contribution', () => {
     const observation = observe();
-    expect(observation.repeatCount).toBe(1);
-    expect(observation.newEvidence).toBe(true);
-    expect(observation.usefulness).toBe('useful');
+    expect(observation.execution.status).toBe('success');
+    expect(observation.selection).toEqual({ outcome: 'novel', repeatCount: 1 });
+    expect(observation.evidence.contribution).toBe('contributed');
   });
 
-  it('labels a repeated identical call redundant, not useful', () => {
+  it('labels a repeated identical call redundant without claiming contribution', () => {
     const seen = new Map<string, number>();
     observe({ seenSignatures: seen });
     const second = observe({ seenSignatures: seen });
-    expect(second.repeatCount).toBe(2);
-    expect(second.newEvidence).toBe(false);
-    expect(second.usefulness).toBe('redundant');
+    expect(second.selection).toEqual({ outcome: 'redundant', repeatCount: 2 });
+    expect(second.execution.status).toBe('success');
+    // Repeat is a selection property, not an evidence claim.
+    expect(second.evidence.contribution).toBe('contributed');
   });
 
-  it('labels a repaired call separately from a useful one', () => {
-    expect(observe({ repaired: true }).usefulness).toBe('repaired');
+  it('reports a repaired call as a repaired execution, not a success', () => {
+    expect(observe({ repaired: true }).execution.status).toBe('repaired');
   });
 
-  it('labels a failed call failed even when it was also a repeat', () => {
+  it('reports failures and provable no-ops as no evidence contribution', () => {
     const seen = new Map<string, number>([['file.read:{"path":"a.ts"}', 1]]);
     const observation = observe({ seenSignatures: seen, executorSuccess: false });
-    expect(observation.usefulness).toBe('failed');
-    expect(observation.newEvidence).toBe(false);
+    expect(observation.execution.status).toBe('failed');
+    expect(observation.evidence.contribution).toBe('none');
+
+    expect(observe({ noOp: true }).evidence.contribution).toBe('none');
+  });
+
+  it('says unknown when a successful call carried no content to judge', () => {
+    expect(observe({ hasContent: false }).evidence.contribution).toBe('unknown');
   });
 });

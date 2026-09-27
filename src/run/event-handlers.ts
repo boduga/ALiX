@@ -552,8 +552,11 @@ export async function handleToolCall(
   return {
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
-    ...(execResult.kind === "success" && (execResult.changed === true || (execResult.changedFiles?.length ?? 0) > 0)
-      ? { changed: true, changedFiles: execResult.changedFiles ?? [] }
+    // `changed` is reported for every success, including `false`: the selection
+    // observation needs to distinguish a provable no-op (identical create) from
+    // a result that simply carried no change flag.
+    ...(execResult.kind === "success"
+      ? { changed: execResult.changed === true, changedFiles: execResult.changedFiles ?? [] }
       : {}),
   };
 }

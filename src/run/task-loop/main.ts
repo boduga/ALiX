@@ -68,7 +68,7 @@ import type { ExecutionStateEmitter } from "../../runtime/execution-state/execut
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName, toolResultBody } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -1110,6 +1110,9 @@ if (toolCalls.length === 0) {
       // Shadow observation (T0-b): what was offered, what was chosen, and how
       // useful the executed choice turned out to be. No behavior depends on it.
       const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const body = toolResultBody(
+        typeof toolResult.message?.content === "string" ? toolResult.message.content : undefined,
+      );
       const observation = buildSelectionObservation({
         iteration: i,
         invocationId,
@@ -1119,8 +1122,10 @@ if (toolCalls.length === 0) {
         argsSignature: `${execName}:${hashArgs(toolCall.args)}`,
         seenSignatures: selectionSignatures,
         executorSuccess: !toolResult.error,
-        repaired: typeof toolResult.message?.content === "string"
-          && toolResult.message.content.includes("[Tool Repair Hint]"),
+        repaired: body.includes("[Tool Repair Hint]"),
+        // A create that found identical content is a provable no-op.
+        noOp: toolResult.changed === false && /identical content/i.test(body),
+        hasContent: body.length > 0,
       });
       await log.append({
         ...session,

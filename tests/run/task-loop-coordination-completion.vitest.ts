@@ -364,7 +364,14 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     const observed = events.find((event) => event.type === 'tool.selection.observed');
     expect(observed).toBeDefined();
     expect((observed?.payload as { chosen?: string })?.chosen).toBe('alix_file_create');
-    expect((observed?.payload as { usefulness?: string })?.usefulness).toBe('useful');
+    const payload = observed?.payload as {
+      execution?: { status?: string };
+      selection?: { outcome?: string };
+      evidence?: { contribution?: string };
+    };
+    expect(payload.execution?.status).toBe('success');
+    expect(payload.selection?.outcome).toBe('novel');
+    expect(payload.evidence?.contribution).toBe('contributed');
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {

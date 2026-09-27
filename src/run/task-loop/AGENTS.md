@@ -71,8 +71,13 @@ existing import paths are unchanged.
   dominate the answer or match it exactly).
 - Tool-selection shadow instrumentation (T0-b): every executed call appends a
   `tool.selection.observed` event (`buildSelectionObservation`) recording the
-  offered surface, the chosen name, the resolved executor, repeat count, and
-  `usefulness` (`useful` | `repaired` | `redundant` | `failed`). Nothing reads
+  offered surface, the chosen name, the resolved executor, and three *separate*
+  signals — `selection.outcome` (`novel` | `redundant` by executor+args
+  signature), `execution.status` (`success` | `repaired` | `failed`), and
+  `evidence.contribution` (`contributed` | `none` | `unknown`). Keeping them
+  apart is deliberate: a novel successful call is not automatically useful, and
+  `contributed` here only means "returned content, not a provable no-op" — real
+  contribution is a labelling step over recorded traces. Nothing reads
   it — the deterministic gates decide as before. It scores the choice that RAN;
   ranking an alternative selector needs replay over recorded state
   (`src/decision/replay/*`, `src/runtime/replay-executor.ts`), and the

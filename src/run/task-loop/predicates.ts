@@ -410,7 +410,15 @@ export function buildUnconfirmedDonePrompt(input: {
  *   subset is not tracked separately yet; adding it is what makes a scoping
  *   mistake distinguishable from a ranking mistake.
  */
-export type SelectionUsefulness = "useful" | "repaired" | "redundant" | "failed";
+export type ExecutionOutcome = "success" | "failed" | "repaired";
+export type SelectionOutcome = "novel" | "redundant";
+/**
+ * Mechanical signal only. `contributed` means the call returned content and was
+ * not a provable no-op — NOT that it helped satisfy the objective. Deriving
+ * real contribution (closed an evidence gap, unblocked a later step) is a
+ * labelling step over recorded traces, not something the loop can assert.
+ */
+export type EvidenceContribution = "contributed" | "none" | "unknown";
 
 export type SelectionObservation = {
   iteration: number;
@@ -421,14 +429,17 @@ export type SelectionObservation = {
   chosen: string;
   /** Executor the chosen name resolved to. */
   executor: string;
-  /** How many times this exact executor+args call has been seen this turn. */
-  repeatCount: number;
-  executorSuccess: boolean;
-  /** First success for this call signature. */
-  newEvidence: boolean;
-  /** The tool-repair layer had to rewrite the call. */
-  repaired: boolean;
-  usefulness: SelectionUsefulness;
+  selection: {
+    outcome: SelectionOutcome;
+    /** How many times this exact executor+args call has been seen this turn. */
+    repeatCount: number;
+  };
+  execution: {
+    status: ExecutionOutcome;
+  };
+  evidence: {
+    contribution: EvidenceContribution;
+  };
 };
 
 export function buildSelectionObservation(input: {
@@ -441,29 +452,29 @@ export function buildSelectionObservation(input: {
   seenSignatures: Map<string, number>;
   executorSuccess: boolean;
   repaired?: boolean;
+  /** Provable no-op: the call succeeded without doing or reporting anything. */
+  noOp?: boolean;
+  /** The result carried content (any rendered body). */
+  hasContent?: boolean;
 }): SelectionObservation {
   const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
   input.seenSignatures.set(input.argsSignature, repeatCount);
-  const redundant = repeatCount > 1;
   const repaired = input.repaired === true;
-  const usefulness: SelectionUsefulness = !input.executorSuccess
-    ? "failed"
-    : redundant
-      ? "redundant"
-      : repaired
-        ? "repaired"
-        : "useful";
+  const status: ExecutionOutcome = !input.executorSuccess ? "failed" : repaired ? "repaired" : "success";
+  const contribution: EvidenceContribution = !input.executorSuccess || input.noOp === true
+    ? "none"
+    : input.hasContent === true
+      ? "contributed"
+      : "unknown";
   return {
     iteration: input.iteration,
     ...(input.invocationId ? { invocationId: input.invocationId } : {}),
     offered: [...input.offered],
     chosen: input.chosen,
     executor: input.executor,
-    repeatCount,
-    executorSuccess: input.executorSuccess,
-    newEvidence: input.executorSuccess && !redundant,
-    repaired,
-    usefulness,
+    selection: { outcome: repeatCount > 1 ? "redundant" : "novel", repeatCount },
+    execution: { status },
+    evidence: { contribution },
   };
 }
 
@@ -577,7 +588,7 @@ export function claimsArtifactWritten(
 }
 
 /** Strip the `<tool_result …>` envelope the loop wraps results in. */
-function toolResultBody(content: string | undefined): string {
+export function toolResultBody(content: string | undefined): string {
   return (content ?? "")
     .replace(/<\/?tool_result[^>]*>/g, "")
     .replace(/^\s*\[Tool Result\]\s*/i, "")
