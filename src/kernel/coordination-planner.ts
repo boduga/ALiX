@@ -105,15 +105,27 @@ function isOutputPathMention(goal: string, ownedPath: string): boolean {
 }
 
 /**
- * Ownership clause: `owns only <path>`, `owned path only <path>`,
- * `exclusive owned path: <path>`. The capture is the clause *tail*, not one
- * token — models write "owns only the file `X`" as often as "owns only `X`".
+ * Ownership clauses the operator or model writes deliberately:
+ * `owns only <path>`, `owned path only <path>`, `exclusive owned path: <path>`.
+ * The capture is the clause *tail*, not one token — models write "owns only
+ * the file `X`" as often as "owns only `X`".
  */
-const OWNERSHIP_CLAUSE =
-  /\b(?:owns?\s+only|owned\s+path\s+only)\b\s*:?\s*([^\n]+)|\bexclusive\s+owned\s+path\b\s*:?\s*([^\n]+)/gi;
+const OWNERSHIP_CLAUSE_TAIL = String.raw`([^\n;—–)]+?)(?=[.;]\s|$|[;\n—–)])`;
+const OWNERSHIP_CLAUSE_STRICT = new RegExp(
+  String.raw`\b(?:owns?\s+only|owned\s+path\s+only|exclusive\s+owned\s+path)\b\s*:?\s*${OWNERSHIP_CLAUSE_TAIL}`,
+  "gi",
+);
 
-/** Where a clause stops naming its path: sentence end, semicolon, dash, paren. */
-const CLAUSE_BOUNDARY = /[.;](?=\s|$)|[—–]|\)/;
+/**
+ * Looser markers models also emit — `Owned path: <path>`, `owns <path>`,
+ * `ownership: <path>`. Those clauses only ever *add* declared paths; they are
+ * not held to the strict "names no workspace path" verdict, so ordinary prose
+ * ("each worker owns exactly one file path") cannot block a plan.
+ */
+const OWNERSHIP_CLAUSE_LOOSE = new RegExp(
+  String.raw`\b(?:exclusive\s+owned|ownership|owned|owns?)\b\s*(?:only\s+)?(?:paths?|files?|outputs?)?\s*:?\s*${OWNERSHIP_CLAUSE_TAIL}`,
+  "gi",
+);
 
 /** Words that can sit between the clause and the path without being one. */
 const OWNERSHIP_FILLER = new Set([
@@ -121,7 +133,8 @@ const OWNERSHIP_FILLER = new Set([
   "file", "files", "path", "paths", "output", "outputs", "only", "each",
   "that", "which", "creates", "create", "writes", "write", "edits", "edit",
   "updates", "update", "modifies", "modify", "saves", "save", "generates",
-  "generate", "produces", "produce",
+  "generate", "produces", "produce", "exactly", "just", "distinct", "disjoint",
+  "separate", "respective", "corresponding", "is", "are",
 ]);
 
 /**
@@ -142,15 +155,17 @@ function isOwnedPathToken(token: string): boolean {
   return token.includes("/") || /\.[a-z0-9]{1,5}$/i.test(token);
 }
 
-/** Clause tails in `text`, cut at the boundary where the path naming stops. */
-function ownershipClauseTails(text: string): string[] {
-  return [...text.matchAll(OWNERSHIP_CLAUSE)]
-    .map((match) => {
-      const tail = (match[1] ?? match[2]).trim();
-      const boundary = tail.search(CLAUSE_BOUNDARY);
-      return (boundary === -1 ? tail : tail.slice(0, boundary)).trim();
-    })
+function clauseTailsFor(text: string, pattern: RegExp): string[] {
+  return [...text.matchAll(pattern)]
+    .map((match) => (match[1] ?? "").trim())
     .filter(tail => tail.length > 0);
+}
+
+/** Every clause tail in `text`, strict markers first. */
+function ownershipClauseTails(text: string): string[] {
+  const strict = clauseTailsFor(text, OWNERSHIP_CLAUSE_STRICT);
+  const loose = clauseTailsFor(text, OWNERSHIP_CLAUSE_LOOSE);
+  return [...strict, ...loose.filter(tail => !strict.includes(tail))];
 }
 
 /**
@@ -162,7 +177,9 @@ function ownershipClauseTails(text: string): string[] {
  */
 function ownedPathsInClause(tail: string): string[] {
   const direct = extractGoalPaths(tail);
-  if (direct.length > 0) return [direct[0]];
+  // Prefer a file-shaped path: a clause often names its inputs in the same
+  // breath ("own only out/a.md — inspect src/tui").
+  if (direct.length > 0) return [direct.find(path => /\.[a-z0-9]{1,5}$/i.test(path)) ?? direct[0]];
   const last = trimOwnedToken(tail.split(/\s+/).at(-1) ?? "");
   return isOwnedPathToken(last) ? [last] : [];
 }
@@ -183,7 +200,7 @@ function ownedPathTokens(text: string): string[] {
  * ignored; a clause that meant to name a path must not vanish silently.
  */
 function unresolvedOwnershipClause(text: string): string | undefined {
-  return ownershipClauseTails(text).find((tail) => {
+  return clauseTailsFor(text, OWNERSHIP_CLAUSE_STRICT).find((tail) => {
     if (ownedPathsInClause(tail).length > 0) return false;
     return tail
       .split(/\s+/)

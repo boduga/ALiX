@@ -469,6 +469,59 @@ describe("CoordinationPlanner", () => {
     assert.deepEqual(workers[0].ownershipScopes, [base]);
   });
 
+  it("parses several ownership clauses on one paragraph line", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Inspect package.json in the repo root and write a short project summary to ${base}/project.md.` }),
+      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md.` }),
+      makeNode("n3", [], { goal: `Inspect tests/tui/workbench and write a coverage summary to ${base}/tests.md.` }),
+      makeNode("n4", ["n1", "n2", "n3"], { goal: `Read ${base}/project.md, ${base}/workbench.md, and ${base}/tests.md, combine them into ${base}/final-report.md.`, domain: "docs" }),
+    ]);
+    // One paragraph, four clauses: a clause capture that runs to end-of-line
+    // would swallow workers 2-4 and reject them as extra writers.
+    const goal = [
+      `Produce four markdown deliverables under the directory ${base}/. Launch exactly four workers with disjoint single-file ownership.`,
+      `Worker 1 "Project summary": own only ${base}/project.md — inspect package.json in the repo root and write a short project summary.`,
+      `Worker 2 "Workbench summary": own only ${base}/workbench.md — inspect src/tui/workbench and summarize its architecture.`,
+      `Worker 3 "Workbench tests": own only ${base}/tests.md — inspect tests/tui/workbench and summarize its coverage.`,
+      `Worker 4 "Final report": own only ${base}/final-report.md — DEPEND on workers 1, 2 and 3, then combine them into a final report.`,
+    ].join(" ");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    assert.deepEqual(result.run!.workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/tests.md`], [`${base}/final-report.md`],
+    ]);
+  });
+
+  it("accepts `Owned path:` and bare `owns` ownership markers", async () => {
+    const base = ".tmp/workbench-runtime-test";
+    const graph = makeGraph([
+      makeNode("n1", [], { goal: `Inspect package.json and write a short project summary to ${base}/project.md` }),
+      makeNode("n2", [], { goal: `Inspect src/tui/workbench and write an architecture summary to ${base}/workbench.md` }),
+      makeNode("n3", ["n1", "n2"], { goal: `Read ${base}/project.md and ${base}/workbench.md and combine them into ${base}/final-report.md`, domain: "docs" }),
+    ]);
+    const goal = [
+      "Launch exactly three workers. Each worker owns exactly one file path; owners are disjoint.",
+      "",
+      `Worker 1 name "Project summary". Owned path: \`${base}/project.md\`. Task: inspect package.json and write a short project summary into its owned path.`,
+      "",
+      `Worker 2 name "Workbench summary". Owned path: \`${base}/workbench.md\`. Task: inspect src/tui/workbench and summarize its architecture.`,
+      "",
+      `Worker 3 name "Final report" owns ${base}/final-report.md: depends on workers 1 and 2 and combines their outputs.`,
+    ].join("\n");
+    const planner = new CoordinationPlanner(cwd, {}, { store, planner: makeMockPlanner(graph), toolRegistry: registry });
+
+    const result = await planner.plan(goal, "coordinator", "session-1");
+
+    assert.equal(result.valid, true, result.errors.join("; "));
+    assert.deepEqual(result.run!.workers.map(worker => worker.ownershipScopes), [
+      [`${base}/project.md`], [`${base}/workbench.md`], [`${base}/final-report.md`],
+    ]);
+  });
+
   it("blocks an ownership clause that names no workspace path", async () => {
     const graph = makeGraph([
       makeNode("n1", [], { goal: "Create first.md" }),
