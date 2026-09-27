@@ -66,10 +66,16 @@ export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label
     // either traps the turn: the re-prompt names the tool, the model explains
     // the flag, and the explanation re-arms the detector until the bounded
     // attempts run out and the turn ends completed_unverified.
+    //
+    // Deliberately first-person only: third-person subjects ("The coordinator
+    // scheduled four workers", "the scheduler dispatched tasks") are how
+    // coordination prose reads, and matching them re-arms the same trap. The
+    // apostrophe accepts both ASCII and typographic forms, and the object list
+    // covers non-"job" scheduling targets (a meeting, a review, a report).
     keywords: new RegExp(
-      String.raw`\bI(?:'ve| have| had|'ll| will)?\s+(?:just\s+|already\s+)?` +
+      String.raw`\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?` +
       String.raw`(?:schedul\w*|set\s*up|creat\w*|add\w*|propos\w*|enabl\w*|configur\w*)\b` +
-      String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic)\b`,
+      String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic|meeting|review|report|digest|export|publish|notification)\b`,
       "i",
     ),
     toolPrefix: "schedule.",

@@ -35,8 +35,22 @@ describe('findUnsubstantiatedClaims scheduling entry', () => {
       'I scheduled a nightly job to refresh the report.',
       "I've set up a cron job for the export.",
       'I will create a recurring task that runs each morning.',
+      'I scheduled a meeting with the team.',      // non-"job" object
+      'I’ve set up a cron job for the digest.',    // typographic apostrophe
     ]) {
       expect(findUnsubstantiatedClaims(text, new Set())).toContain(LABEL);
+    }
+  });
+
+  it('never flags third-person coordination prose (the trap this entry caused)', () => {
+    for (const text of [
+      'The coordinator scheduled four workers.',
+      'The scheduler dispatched three workers in parallel and one after its dependencies.',
+      'Workers were scheduled in parallel; worker 4 ran last.',
+      'I scheduled the four workers: three in parallel, then the aggregator.',
+      'We scheduled a nightly job.',
+    ]) {
+      expect(findUnsubstantiatedClaims(text, new Set())).not.toContain(LABEL);
     }
   });
 
