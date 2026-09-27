@@ -360,6 +360,11 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     const events = await log.readAll();
     const rejections = events.filter((event) => event.type === 'completion.claim_rejected');
     expect(rejections.some((event) => (event.payload as { reason?: string })?.reason === 'tool_result_echo')).toBe(true);
+    // The shadow selection observation rides along with every executed call.
+    const observed = events.find((event) => event.type === 'tool.selection.observed');
+    expect(observed).toBeDefined();
+    expect((observed?.payload as { chosen?: string })?.chosen).toBe('alix_file_create');
+    expect((observed?.payload as { usefulness?: string })?.usefulness).toBe('useful');
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {

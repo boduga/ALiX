@@ -48,7 +48,8 @@ import { assembleContext } from "../../config/context-assembly.js";
 import { MetricsStore } from "../../observability/metrics-store.js";
 import { createMetricRegistry } from "../../observability/metric-registry.js";
 import { StateTelemetry } from "../../observability/state-telemetry.js";
-import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../../events/types.js";
+import { CONTEXT_EVENT_TYPES, TOOL_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../../events/types.js";
+import { hashArgs } from "../../tools/executor.js";
 import { loadCalibration, type ContextRotThreshold } from "../../config/calibration-store.js";
 import { resolveModelConfig } from "../../config/model-resolver.js";
 import type { ModelsConfig } from "../../config/schema.js";
@@ -67,7 +68,7 @@ import type { ExecutionStateEmitter } from "../../runtime/execution-state/execut
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -351,6 +352,9 @@ const usedTools = new Set<string>();
 const searchCallGuard = new Map<string, number>();
 const successfulToolEvidence: SuccessfulToolEvidence[] = [];
 let toolEvidenceOrdinal = 0;
+// Shadow selection instrumentation: executor+args signature -> how many times
+// this turn has seen it. Feeds `tool.selection.observed`; never a gate.
+const selectionSignatures = new Map<string, number>();
 
 // True only when the model has made a genuine structured "done"-style tool
 // call (toolResult.completed). Prose that merely contains the word "done"
@@ -1101,6 +1105,29 @@ if (toolCalls.length === 0) {
         ...(toolResult.changed === true || changedFiles.length > 0 ? { mutated: true } : {}),
       });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
+    }
+    {
+      // Shadow observation (T0-b): what was offered, what was chosen, and how
+      // useful the executed choice turned out to be. No behavior depends on it.
+      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const observation = buildSelectionObservation({
+        iteration: i,
+        invocationId,
+        offered: providerTools.map((tool) => tool.name),
+        chosen: toolCall.name,
+        executor: execName,
+        argsSignature: `${execName}:${hashArgs(toolCall.args)}`,
+        seenSignatures: selectionSignatures,
+        executorSuccess: !toolResult.error,
+        repaired: typeof toolResult.message?.content === "string"
+          && toolResult.message.content.includes("[Tool Repair Hint]"),
+      });
+      await log.append({
+        ...session,
+        actor: "system",
+        type: TOOL_EVENT_TYPES.SELECTION_OBSERVED,
+        payload: observation,
+      });
     }
     if (toolResult.completed) {
       trackCompleted = true;

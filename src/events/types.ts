@@ -125,6 +125,8 @@ export const TOOL_EVENT_TYPES = {
   OUTPUT: "tool.output",
   COMPLETED: "tool.completed",
   FAILED: "tool.failed",
+  /** Shadow tool-selection observation — instrumentation only, never a gate. */
+  SELECTION_OBSERVED: "tool.selection.observed",
 } as const;
 
 export type PatchProposalPayload = {

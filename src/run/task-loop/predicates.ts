@@ -395,6 +395,78 @@ export function buildUnconfirmedDonePrompt(input: {
   );
 }
 
+/**
+ * Shadow tool-selection observation. Instrumentation only — no gate reads it,
+ * and the loop's deterministic checks decide exactly as before. It records what
+ * the model had to choose from and what it chose, with the usefulness labels a
+ * later comparison needs.
+ *
+ * Honest limits, deliberate in the shape:
+ * - It scores the choice that RAN. A shadow alternative that was never executed
+ *   has no outcome here, so shadow data alone cannot rank selectors — comparing
+ *   an alternative selector requires replaying recorded state (see
+ *   `src/decision/replay/*` and `src/runtime/replay-executor.ts`).
+ * - `offered` is the per-turn model-facing surface. The capability-applicable
+ *   subset is not tracked separately yet; adding it is what makes a scoping
+ *   mistake distinguishable from a ranking mistake.
+ */
+export type SelectionUsefulness = "useful" | "repaired" | "redundant" | "failed";
+
+export type SelectionObservation = {
+  iteration: number;
+  invocationId?: string;
+  /** Model-facing names offered this iteration. */
+  offered: string[];
+  /** Model-facing name the model called. */
+  chosen: string;
+  /** Executor the chosen name resolved to. */
+  executor: string;
+  /** How many times this exact executor+args call has been seen this turn. */
+  repeatCount: number;
+  executorSuccess: boolean;
+  /** First success for this call signature. */
+  newEvidence: boolean;
+  /** The tool-repair layer had to rewrite the call. */
+  repaired: boolean;
+  usefulness: SelectionUsefulness;
+};
+
+export function buildSelectionObservation(input: {
+  iteration: number;
+  invocationId?: string;
+  offered: readonly string[];
+  chosen: string;
+  executor: string;
+  argsSignature: string;
+  seenSignatures: Map<string, number>;
+  executorSuccess: boolean;
+  repaired?: boolean;
+}): SelectionObservation {
+  const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
+  input.seenSignatures.set(input.argsSignature, repeatCount);
+  const redundant = repeatCount > 1;
+  const repaired = input.repaired === true;
+  const usefulness: SelectionUsefulness = !input.executorSuccess
+    ? "failed"
+    : redundant
+      ? "redundant"
+      : repaired
+        ? "repaired"
+        : "useful";
+  return {
+    iteration: input.iteration,
+    ...(input.invocationId ? { invocationId: input.invocationId } : {}),
+    offered: [...input.offered],
+    chosen: input.chosen,
+    executor: input.executor,
+    repeatCount,
+    executorSuccess: input.executorSuccess,
+    newEvidence: input.executorSuccess && !redundant,
+    repaired,
+    usefulness,
+  };
+}
+
 export function missingEvidenceSummary(gaps: string[], text: string): string {
   const detail = gaps.join(" and ");
   const lastResponse = text.trim();
