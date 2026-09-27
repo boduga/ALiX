@@ -58,6 +58,17 @@ existing import paths are unchanged.
   `coordination.run` tool result before completion. A synthesis prompt must
   never assert that work is complete; missing objective evidence terminates as
   `completed_unverified` after bounded retries.
+- Objective requirement detection scans a tool-name-normalized view of the
+  task: exact model-facing names carry their action, and `\brun\b`/`\bverify\b`
+  cannot match across the underscore of `alix_coordination_run` /
+  `alix_verify_claim`. A successful `verify.claim` call counts as verification
+  evidence after the mutation, alongside a shell command matching
+  `VERIFICATION_COMMAND_RE`.
+- A final answer that repeats the last tool result is not a synthesis: the loop
+  re-prompts once (bounded) and otherwise terminates `completed_unverified`
+  with `reason: "tool_result_echo"` recorded on `completion.claim_rejected`.
+  Quoting a short result inside real prose stays accepted (the echo must
+  dominate the answer or match it exactly).
 - Final prose that promises another agent action (for example, "Next, I'm
   surfacing...") is a continuation, not a completion. The task loop re-prompts
   within its existing bound and records `completed_unverified` if the promise

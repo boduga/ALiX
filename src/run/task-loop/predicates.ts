@@ -209,22 +209,28 @@ export function isContinuationMessage(text: string): boolean {
 }
 
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean; coordination: boolean } {
-  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
+  // Model-facing tool names carry the action ("alix_coordination_run",
+  // "alix_verify_claim", "alix_file_create"), and `\brun\b`/`\bverify\b`/
+  // `\bcreate\b` cannot match across the underscore. Scan a name-normalized
+  // view so an objective that names tools exactly still registers its
+  // requirements.
+  const named = task.replace(/[_.]/g, " ");
+  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(named);
   const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
-  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(task);
+  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(named);
   const mutation = !readOnlyInstruction && (
     (mutationTaskType && explicitMutationVerb) ||
-    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(task) ||
-    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
-    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(task)
+    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(named) ||
+    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(named) ||
+    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(named)
   );
-  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
+  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
   const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
   const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
   const coordination = new RegExp(
     String.raw`\b${coordinationAction}\b.{0,100}\b${coordinationSubject}\b|\b${coordinationSubject}\b.{0,100}\b${coordinationAction}\b`,
     "i",
-  ).test(task);
+  ).test(named);
   return { mutation, verification, coordination };
 }
 
@@ -243,9 +249,14 @@ export function objectiveEvidenceGaps(
     .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
   const verifiedAfterMutation = evidence.some((item) =>
     item.ordinal > mutationOrdinal &&
-    item.name === "shell.run" &&
-    typeof item.args.command === "string" &&
-    VERIFICATION_COMMAND_RE.test(item.args.command)
+    (
+      // A verification tool call is verification evidence in its own right;
+      // only shell-based checks have to look like a build/test command.
+      item.name === "verify.claim" ||
+      (item.name === "shell.run" &&
+        typeof item.args.command === "string" &&
+        VERIFICATION_COMMAND_RE.test(item.args.command))
+    )
   );
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
@@ -273,9 +284,10 @@ export function buildUnconfirmedDonePrompt(input: {
   unsubstantiated: string[];
   evidenceGaps: string[];
   errorEchoDone: boolean;
+  toolEchoDone?: boolean;
   attempt: number;
 }): string {
-  const { unsubstantiated, evidenceGaps, errorEchoDone, attempt } = input;
+  const { unsubstantiated, evidenceGaps, errorEchoDone, toolEchoDone = false, attempt } = input;
   const missingToolLines = [...unsubstantiated, ...evidenceGaps]
     .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
     .join("\n");
@@ -291,6 +303,13 @@ export function buildUnconfirmedDonePrompt(input: {
       `Your last tool call returned an HTTP/client error, and you declared the task done without writing or verifying the deliverable. ` +
       `A tool error is not a completed outcome. Retry with corrected parameters/headers, complete the actual work, ` +
       `and confirm the deliverable exists before saying done.`
+    );
+  }
+  if (toolEchoDone && unsubstantiated.length === 0) {
+    return (
+      `Your reply repeated a tool result instead of answering. Write the actual completion summary: ` +
+      `what you did, what you verified, and the outcome, in prose — never the raw tool output. ` +
+      `If any requested step is still unfinished, do it now instead of summarising.`
     );
   }
   if (attempt >= 2) {
@@ -420,6 +439,32 @@ export function claimsArtifactWritten(
 ): boolean {
   const changed = typeof changedFiles === "number" ? changedFiles : changedFiles.size;
   return changed > 0 || ARTIFACT_WRITE_RE.test(text);
+}
+
+/** Strip the `<tool_result …>` envelope the loop wraps results in. */
+function toolResultBody(content: string | undefined): string {
+  return (content ?? "")
+    .replace(/<\/?tool_result[^>]*>/g, "")
+    .replace(/^\s*\[Tool Result\]\s*/i, "")
+    .trim();
+}
+
+/**
+ * True when a "final answer" is the last tool result repeated back. Weak models
+ * end turns this way ("310 .tmp/out/notes.md"), which reads as a completion
+ * summary while saying nothing about the work — and it satisfies the claim and
+ * evidence checks, because an echo makes no claims and the requirement scan
+ * cannot see that the objective's steps were skipped.
+ */
+export function isToolResultEcho(text: string, lastToolResult: string | undefined): boolean {
+  const answer = toolResultBody(text);
+  if (answer.length < 8) return false; // short prose is not an echo
+  const result = toolResultBody(lastToolResult);
+  if (result.length === 0 || result.length > 200) return false;
+  if (answer === result) return true;
+  // Quoting a short result inside real prose is normal ("the heading is
+  // `# ALiX`"), so an embedded result only counts when it dominates the answer.
+  return answer.includes(result) && result.length / answer.length >= 0.6;
 }
 
 export function extractErrors(output: string): string[] {

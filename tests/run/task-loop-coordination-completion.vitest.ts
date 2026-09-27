@@ -21,7 +21,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { EventLog } from '../../src/events/event-log.js';
 import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
-import { COORDINATION_EVIDENCE_GAP, objectiveEvidenceGaps } from '../../src/run/task-loop/predicates.js';
+import {
+  COORDINATION_EVIDENCE_GAP,
+  VERIFICATION_EVIDENCE_GAP,
+  isToolResultEcho,
+  objectiveEvidenceGaps,
+  objectiveEvidenceRequirements,
+} from '../../src/run/task-loop/predicates.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -212,6 +218,77 @@ describe('objectiveEvidenceGaps accepts delegated workspace mutation', () => {
   });
 });
 
+/**
+ * Live failure (session 1790494937761): a 16-step probe named its tools in
+ * exact model-facing form ("alix_coordination_run, exactly two workers",
+ * "alix_verify_claim"). The detectors scanned with \b, which cannot match
+ * across the underscore, so one file.create satisfied every detected
+ * requirement and the turn closed "completed" with a tool-output echo.
+ */
+describe('requirement detection reads exact tool names', () => {
+  const PROBE_TASK = [
+    'Naming-cutover probe. Work entirely inside `.tmp/name-cutover-probe/`.',
+    '1. alix_file_create → `.tmp/name-cutover-probe/notes.md` with a 3-line summary.',
+    '7. alix_patch_apply → search_replace in notes.md: "summary" → "overview".',
+    'PART 3 — coordination through exact worker names:',
+    '11. alix_coordination_run, exactly two workers, both under `.tmp/name-cutover-probe/`.',
+    '16. alix_verify_claim claim="notes.md exists in .tmp/name-cutover-probe/".',
+  ].join('\n');
+
+  it('sees coordination and verification behind underscore-joined tool names', () => {
+    const required = objectiveEvidenceRequirements(PROBE_TASK, 'feature');
+    expect(required.mutation).toBe(true);
+    expect(required.coordination).toBe(true);
+    expect(required.verification).toBe(true);
+  });
+
+  it('reports the missing coordination run and verification for that objective', () => {
+    const gaps = objectiveEvidenceGaps(PROBE_TASK, 'feature', [
+      { name: 'file.create', args: { path: '.tmp/name-cutover-probe/notes.md' }, ordinal: 0 },
+    ]);
+    expect(gaps).toContain(COORDINATION_EVIDENCE_GAP);
+    expect(gaps).toContain(VERIFICATION_EVIDENCE_GAP);
+  });
+
+  it('accepts a verification tool call as verification evidence', () => {
+    const task = 'Create the file .tmp/out/report.md and verify the file exists.';
+    const withTool = objectiveEvidenceGaps(task, 'feature', [
+      { name: 'file.create', args: { path: '.tmp/out/report.md' }, ordinal: 0 },
+      { name: 'verify.claim', args: { claim: 'report.md exists' }, ordinal: 1 },
+    ]);
+    expect(withTool).not.toContain(VERIFICATION_EVIDENCE_GAP);
+    const withoutTool = objectiveEvidenceGaps(task, 'feature', [
+      { name: 'file.create', args: { path: '.tmp/out/report.md' }, ordinal: 0 },
+    ]);
+    expect(withoutTool).toContain(VERIFICATION_EVIDENCE_GAP);
+  });
+
+  it('does not invent requirements for ordinary prose objectives', () => {
+    const required = objectiveEvidenceRequirements('Prepare the release notes summary.', 'docs');
+    expect(required.coordination).toBe(false);
+    expect(required.verification).toBe(false);
+  });
+});
+
+describe('tool-result echo detection', () => {
+  it('flags a final answer that repeats the last tool result', () => {
+    expect(isToolResultEcho(
+      '310 .tmp/name-cutover-probe/notes.md',
+      '<tool_result id="c1">310 .tmp/name-cutover-probe/notes.md</tool_result>',
+    )).toBe(true);
+  });
+
+  it('flags an answer that embeds a short result verbatim', () => {
+    expect(isToolResultEcho('Answer: 310 .tmp/out/notes.md', '310 .tmp/out/notes.md')).toBe(true);
+  });
+
+  it('does not flag real prose, short replies, or an empty result', () => {
+    expect(isToolResultEcho('Created notes.md and verified all four steps ran.', 'file created')).toBe(false);
+    expect(isToolResultEcho('ok', 'file created')).toBe(false);
+    expect(isToolResultEcho('any answer', undefined)).toBe(false);
+  });
+});
+
 describe('objectiveEvidenceGaps coordination-failure flag', () => {
   it('forces the coordination gap when the last coordination.run failed, regardless of objective text', () => {
     const gaps = objectiveEvidenceGaps(NO_COORD_TASK, 'docs', [], { coordinationRunFailed: true });
@@ -252,6 +329,39 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
 });
 
 describe('runTaskLoop coordination-failure completion gate', () => {
+  it('does not accept an echoed tool result as a completion summary', async () => {
+    const ECHO = '310 .tmp/out/notes.md';
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_file_create', id: 'c1', args: { path: '.tmp/out/notes.md', content: 'x' } }] },
+      { text: ECHO },
+      { text: ECHO },
+    ]);
+    const echoExecutor = {
+      execute: async ({ name }: { name: string }) =>
+        name === 'file.create'
+          ? { kind: 'success' as const, output: ECHO, changed: true, changedFiles: ['.tmp/out/notes.md'] }
+          : { kind: 'success' as const, output: 'ok', completed: name === 'done' },
+    } as unknown as TaskLoopDeps['executor'];
+    const { deps, log } = await makeTestDeps({
+      provider,
+      task: 'Create the file .tmp/out/notes.md and report its size.',
+      taskType: 'feature',
+      providerTools: [
+        { name: 'alix_file_create', description: 'Create a file', input_schema: { type: 'object', properties: {} } },
+        doneTool,
+      ],
+      executor: echoExecutor,
+      maxIterations: 5,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed_unverified');
+    const events = await log.readAll();
+    const rejections = events.filter((event) => event.type === 'completion.claim_rejected');
+    expect(rejections.some((event) => (event.payload as { reason?: string })?.reason === 'tool_result_echo')).toBe(true);
+  });
+
   it('continues after a successful run when final prose promises another agent action', async () => {
     const provider = createScriptedProvider([
       { toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'draft report' } }] },
