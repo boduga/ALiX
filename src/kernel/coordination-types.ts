@@ -23,6 +23,7 @@ export type CoordinationRunStatus =
   | "replanning"   // coordinator is re-planning after a worker completed/failed
   | "running"      // one or more workers active
   | "blocked"      // all workers blocked or pending
+  | "cancelled"    // operator cancelled the run: terminal, never resumed
   | "completed"    // all workers completed successfully
   | "failed";      // one or more workers failed and cannot proceed
 
@@ -412,6 +413,10 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
   // The scheduler sets "replanning" before invoking replan() and expects
   // status to stay "replanning" until replan() completes.
   if (run.status === "replanning") return "replanning";
+  // Cancellation is an explicit terminal outcome. Without this guard an
+  // all-cancelled run recomputes to "blocked" — not terminal — so a cancelled
+  // run would stay in the active set and could be resumed by a host sweep.
+  if (run.status === "cancelled") return "cancelled";
 
   const allCompleted = run.workers.every(w => w.status === "completed");
   if (allCompleted && run.workers.length > 0) return "completed";

@@ -125,7 +125,7 @@ async function handleRun(args: string[]): Promise<void> {
   // not linger `running` forever (Ctrl+C is handled by the signal handler
   // below; this covers SIGKILL/crash).
   const { cancelDeadOwnerRuns } = await import("../../kernel/coordination-resume.js");
-  const abandoned = await cancelDeadOwnerRuns(store, ["cli"]);
+  const abandoned = await cancelDeadOwnerRuns(store, ["cli"], new OwnershipRegistry(cwd));
   if (abandoned.length > 0) {
     console.log(`Finalized ${abandoned.length} abandoned run(s) from a dead CLI host.`);
   }

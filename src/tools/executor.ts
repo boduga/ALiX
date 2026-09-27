@@ -121,7 +121,10 @@ export class ToolExecutor {
     private root: string,
     private mcpManager?: McpManager,
     editFormatPolicy?: EditFormatPolicy,
-    extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
+    extraHandlers?: Record<
+      string,
+      (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>
+    >,
     checkpointManager?: CheckpointManager,
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate

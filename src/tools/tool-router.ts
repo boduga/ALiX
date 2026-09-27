@@ -14,6 +14,7 @@ import { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
 import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
 import { measurePhase } from "../runtime/timing-events.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
@@ -606,7 +607,12 @@ export class McpToolRouter implements ToolRouter {
 }
 
 export class DelegateToolRouter implements ToolRouter {
-  constructor(private handlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>) {}
+  constructor(
+    private handlers?: Record<
+      string,
+      (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>
+    >,
+  ) {}
 
   canHandle(name: string): boolean {
     if (name === "delegate") return true;
@@ -619,8 +625,12 @@ export class DelegateToolRouter implements ToolRouter {
       return { kind: "error", message: "Delegate handler not initialized", retryable: false };
     }
     try {
-      return await handler(request.args);
+      // The request carries the operator-cancel signal; an interruptible
+      // handler (coordination.run) maps an abort onto its own cancel path.
+      return await handler(request.args, request);
     } catch (e: unknown) {
+      // A cancellation is not a tool failure — it must keep unwinding.
+      if (isCancellationError(e)) throw e;
       return { kind: "error", message: e instanceof Error ? e.message : String(e) };
     }
   }

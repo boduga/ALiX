@@ -82,6 +82,40 @@ describe("coordination chat tools", () => {
     assert.equal((await store.list())[0]?.sessionId, "tui-session-1");
   });
 
+  it("cancels the run when the operator aborts the turn", async () => {
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        await store.save(run);
+        const queued = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "queued",
+          goalPrompt: "do", status: "pending", requiredCapabilities: ["filesystem.write"],
+        });
+        await store.addWorker(run.id, queued);
+        return { valid: true, errors: [], run: { ...run, workers: [queued] } };
+      },
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner });
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+      () => handlers[COORDINATION_RUN_TOOL](
+        { goal: "coordinate" },
+        { toolCallId: "call-1", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as any,
+      ),
+      (error: Error) => error.name === "ExecutionCancelledError",
+    );
+
+    // The run must not linger "running"/"blocked" with workers holding leases:
+    // cancellation is terminal and the resume sweeps treat blocked as active.
+    const runs = await store.list();
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, "cancelled");
+    assert.equal(runs[0].workers[0].status, "cancelled");
+  });
+
   it("reports a rejected plan as retryable with recovery steps", async () => {
     const planner = {
       plan: async () => ({

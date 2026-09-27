@@ -28,6 +28,9 @@ import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 import { PolicyGate } from "../policy/policy-gate.js";
 import type { CoordinationWorkerExecutor } from "./worker-executor.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
+import type { ToolCallRequest } from "../tools/types.js";
+import { ExecutionCancelledError } from "../runtime/cancellation-token.js";
+import { cancelDeadOwnerRuns } from "./coordination-resume.js";
 
 export const COORDINATION_RUN_TOOL = "coordination.run";
 export const COORDINATION_STATUS_TOOL = "coordination.status";
@@ -62,9 +65,9 @@ export type CoordinationToolDeps = {
 /** ExtraHandlers record for ToolExecutor (mirrors the `delegate` wiring). */
 export function createCoordinationHandlers(
   deps: CoordinationToolDeps,
-): Record<string, (args: Record<string, unknown>) => Promise<ToolResult>> {
+): Record<string, (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>> {
   return {
-    [COORDINATION_RUN_TOOL]: (args) => handleCoordinationRun(deps, args),
+    [COORDINATION_RUN_TOOL]: (args, request) => handleCoordinationRun(deps, args, request),
     [COORDINATION_STATUS_TOOL]: (args) => handleCoordinationStatus(deps, args),
     [COORDINATION_LIST_TOOL]: (args) => handleCoordinationList(deps, args),
     [COORDINATION_RESULTS_TOOL]: (args) => handleCoordinationResults(deps, args),
@@ -82,6 +85,7 @@ function effectiveSessionMode(
 async function handleCoordinationRun(
   deps: CoordinationToolDeps,
   args: Record<string, unknown>,
+  request?: ToolCallRequest,
 ): Promise<ToolResult> {
   const goal = typeof args.goal === "string" ? args.goal.trim() : "";
   if (!goal) {
@@ -99,6 +103,9 @@ async function handleCoordinationRun(
   };
 
   const store = deps.store ?? new CoordinationStore(deps.cwd);
+  // Self-heal before planning: a run whose host died mid-execution holds
+  // leases that would otherwise block this run's claims until the TTL.
+  await cancelDeadOwnerRuns(store, ["cli"], new OwnershipRegistry(deps.cwd));
   const toolRegistry = buildDefaultToolIndex().registry;
   const agentPool = Array.isArray(args.agentPool)
     ? (args.agentPool as unknown[]).filter((a): a is string => typeof a === "string" && a.length > 0)
@@ -191,7 +198,25 @@ async function handleCoordinationRun(
     { maxConcurrency },
   );
 
-  const result = await scheduler.runUntilIdle(runId);
+  // Operator cancellation is a terminal outcome, not a failure: an abort must
+  // finalize the run this turn started — workers cancelled, leases released,
+  // run and graph marked cancelled — instead of leaving it running for a later
+  // sweep to collide with.
+  const signal = request?.signal;
+  const cancelRun = (): Promise<void> => scheduler.cancelRun(runId);
+  const onAbort = (): void => { void cancelRun(); };
+  if (signal?.aborted) {
+    await cancelRun();
+    throw new ExecutionCancelledError("cancelled by operator");
+  }
+  signal?.addEventListener("abort", onAbort, { once: true });
+  let result;
+  try {
+    result = await scheduler.runUntilIdle(runId);
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
+  if (signal?.aborted) throw new ExecutionCancelledError("cancelled by operator");
   const run = await store.load(runId);
   const lines = [
     `Coordination run: ${runId}`,
