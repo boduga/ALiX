@@ -39,6 +39,12 @@ export type ToolSelectionScope = {
   deterministicRanking: Array<{ tool: string; score: number }>;
   /** Model-facing names the loop actually called on this surface, in order. */
   actualChoices: string[];
+  /** Recorded scoping provenance for the frozen surface, when present. */
+  scoping?: {
+    admitted: Array<{ tool: string; reasons: string[] }>;
+    fallbackFull: boolean;
+    excluded?: Array<{ tool: string; reasons: string[] }>;
+  };
 };
 
 export type ToolSelectionScoreRequest = {
@@ -194,6 +200,11 @@ type RecordedObservation = {
   chosen?: string;
   requirementCandidates?: Array<{ tool: string; reasons: string[] }>;
   ranking?: { deterministic?: Array<{ tool: string; score: number }> };
+  scoping?: {
+    admitted?: Array<{ tool: string; reasons: string[] }>;
+    fallbackFull?: boolean;
+    excluded?: Array<{ tool: string; reasons: string[] }>;
+  };
 };
 
 /**
@@ -220,6 +231,15 @@ export function extractToolSelectionScopes(
         requirementCandidates: payload.requirementCandidates ?? [],
         deterministicRanking: payload.ranking?.deterministic ?? [],
         actualChoices: [],
+        ...(payload.scoping?.admitted
+          ? {
+              scoping: {
+                admitted: payload.scoping.admitted,
+                fallbackFull: payload.scoping.fallbackFull ?? false,
+                ...(payload.scoping.excluded ? { excluded: payload.scoping.excluded } : {}),
+              },
+            }
+          : {}),
       };
       byScope.set(scopeId, scope);
     }
