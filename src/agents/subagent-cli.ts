@@ -655,9 +655,18 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           const execName = resolveOfferedToolName(toolCall.name, iterationTools, mcpToolIndex);
           if (!execName) {
             recordLedger(toolCall.name, false);
+            // A write worker's final iterations reserve their tool budget for
+            // mutation, so a read retried there comes back unavailable. Point
+            // at the two calls that can still finish the work.
+            const unwritten = mode === "write"
+              ? ownedPaths.filter(path => !progress.successfulPaths.has(path))
+              : [];
+            const nudge = unwritten.length > 0
+              ? `\nThis iteration is reserved for your owned output. Write ${unwritten.map(path => `\`${path}\``).join(", ")} with alix_file_create, or call alix_done if it is already written.`
+              : "";
             messages.push({
               role: "user",
-              content: `<tool_result id="${toolCall.id}" invocationId="${invocationId}" executionId="${executionId}">\nTool "${toolCall.name}" is not available for this iteration.\n</tool_result>`,
+              content: `<tool_result id="${toolCall.id}" invocationId="${invocationId}" executionId="${executionId}">\nTool "${toolCall.name}" is not available for this iteration.${nudge}\n</tool_result>`,
             });
             continue;
           }
