@@ -5,6 +5,21 @@ they are test defects or product defects. Append entries; do not rewrite
 history. An entry with one occurrence is a *watch* item, not a licence to ignore
 a red gate — re-run and confirm before concluding anything.
 
+## Triage checklist
+
+"Passes standalone" is evidence, not exoneration: a leftover *global* resource
+can make an unrelated suite fail. Before filing an entry as a flake, walk this
+list:
+
+1. Re-run the failing file standalone, then the full suite again.
+2. Inspect shared counters / module-level mutable state (call counters, caches).
+3. Inspect temp directories and files — global namespaces like
+   `os.tmpdir()` plus a shared prefix are a classic cross-suite collision.
+4. Inspect stray processes, ports, and sockets left by earlier runs.
+5. Inspect environment mutation (env vars set by a test and not restored).
+
+Record which of these were checked and what they showed.
+
 ## Governance report — "store isolation — no .alix/ files created in cwd"
 
 - **Test:** `tests/governance/governance-report.test.ts` → `store isolation — no .alix/ files created in cwd` (spawns the CLI; 10 000 ms per-test timeout)
