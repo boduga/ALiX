@@ -9,6 +9,7 @@ import {
   extractToolSelectionScopes,
   replayToolSelection,
   toolSelectionDomain,
+  TOOL_SELECTION_EXPERIMENT,
   type ToolSelectionScope,
   type ToolSelectionSelector,
 } from '../../src/decision/tool-selection-replay.js';
@@ -143,7 +144,7 @@ describe('createEngineToolSelector', () => {
       },
     };
     const selector = createEngineToolSelector(executor as never, {
-      decision: 'context-relevance',
+      subject: { kind: 'experiment', experimentId: TOOL_SELECTION_EXPERIMENT },
       projectorVersion: 'test-1',
     });
 
@@ -157,6 +158,8 @@ describe('createEngineToolSelector', () => {
 
     expect(result).toEqual({ score: 0.7 });
     expect((seen[0] as { sealed?: string }).sealed).toBe('remote');
+    // The seal identifies the experiment, not a runtime decision.
+    expect((seen[0] as { decision?: string }).decision).toBe(`experiment:${TOOL_SELECTION_EXPERIMENT}`);
   });
 
   it('refuses a choice-shaped answer instead of coercing it into a score', async () => {
@@ -167,7 +170,7 @@ describe('createEngineToolSelector', () => {
       },
     };
     const selector = createEngineToolSelector(executor as never, {
-      decision: 'context-relevance',
+      subject: { kind: 'experiment', experimentId: TOOL_SELECTION_EXPERIMENT },
       projectorVersion: 'test-1',
     });
 

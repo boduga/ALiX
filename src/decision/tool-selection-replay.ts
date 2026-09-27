@@ -19,7 +19,7 @@
  */
 
 import type { DecisionType } from "./contracts.js";
-import { sealForRemote } from "./boundary.js";
+import { sealForRemote, type RemoteDecisionSubject } from "./boundary.js";
 import { executeWithTimeout, type DecisionExecutor } from "./executors.js";
 import { DEFAULT_REPLAY_TIMEOUT_MS } from "./replay/harness.js";
 
@@ -55,6 +55,22 @@ export type ToolSelectionSelector = {
   remote?: boolean;
   score(request: ToolSelectionScoreRequest): Promise<{ score: number } | { error: string }>;
 };
+
+/**
+ * Identity of a selector's subject. A runtime decision is a supported
+ * `DecisionType`; an offline experiment is identified only by its experiment id
+ * and never becomes one. This is the promotion boundary: using a decision
+ * engine is not the same as becoming a supported decision surface.
+ */
+export type DecisionSubject =
+  | { kind: "runtime"; decision: DecisionType }
+  | { kind: "experiment"; experimentId: string };
+
+export const TOOL_SELECTION_EXPERIMENT = "tool-selection-replay";
+
+export function decisionSubjectString(subject: DecisionSubject): RemoteDecisionSubject {
+  return subject.kind === "runtime" ? subject.decision : `experiment:${subject.experimentId}`;
+}
 
 export type ToolSelectionReplay = {
   scopeId: string;
@@ -213,10 +229,11 @@ export function extractToolSelectionScopes(
 }
 
 /**
- * Adapt a decision engine executor into a per-candidate selector. The decision
- * type is supplied by the caller: no `DecisionType` represents tool selection
- * yet, and inventing one here would promote the experiment into a supported
- * decision surface (T4 decides that).
+ * Adapt a decision engine executor into a per-candidate selector. The subject
+ * is supplied by the caller — a runtime `DecisionType` or an offline
+ * experiment id. No `DecisionType` represents tool selection yet, and the
+ * experiment must not be smuggled through an unrelated runtime decision just to
+ * reach an engine.
  *
  * Only bounded `score` results are accepted. A Choice/Noul answer cannot rank a
  * set without ordering artifacts, so it invalidates the replay instead of being
@@ -224,13 +241,13 @@ export function extractToolSelectionScopes(
  */
 export function createEngineToolSelector(
   executor: DecisionExecutor,
-  options: { decision: DecisionType; projectorVersion: string; timeoutMs?: number },
+  options: { subject: DecisionSubject; projectorVersion: string; timeoutMs?: number },
 ): ToolSelectionSelector {
   return {
     id: executor.engineId,
     remote: true,
     async score(request) {
-      const sealed = sealForRemote(options.decision, options.projectorVersion, {
+      const sealed = sealForRemote(decisionSubjectString(options.subject), options.projectorVersion, {
         scopeId: request.scopeId,
         iteration: request.iteration,
         tool: request.tool,
@@ -239,7 +256,7 @@ export function createEngineToolSelector(
       });
       const outcome = await executeWithTimeout(
         executor,
-        { decision: options.decision, sealed, candidates: [request.tool] },
+        { decision: sealed.decision, sealed, candidates: [request.tool] },
         options.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS,
       );
       if (outcome.kind === "failure") return { error: outcome.error };

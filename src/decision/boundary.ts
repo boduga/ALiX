@@ -90,9 +90,17 @@ export class ProjectionRejectedError extends Error {
 }
 
 /** Sealed projection. Only values produced by sealForRemote carry the brand. */
+/**
+ * What a sealed projection is about: a runtime decision, or an offline
+ * experiment that uses a decision engine without becoming a runtime
+ * `DecisionType`. Experiments carry an `experiment:` prefix so a seal can never
+ * masquerade as a supported runtime decision.
+ */
+export type RemoteDecisionSubject = DecisionType | `experiment:${string}`;
+
 export type RemoteSealedProjection<T = unknown> = {
   readonly sealed: "remote";
-  decision: DecisionType;
+  decision: RemoteDecisionSubject;
   projectorVersion: string;
   payload: Readonly<T>;
   hash: string;
@@ -195,7 +203,7 @@ export function inspectRemoteProjection(payload: unknown): string[] {
  * Projection validation failure never reaches remote transport.
  */
 export function sealForRemote<T>(
-  decision: DecisionType,
+  decision: RemoteDecisionSubject,
   projectorVersion: string,
   payload: T,
   opts?: { now?: number },

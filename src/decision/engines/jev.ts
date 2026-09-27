@@ -179,10 +179,13 @@ export function createJevExecutor(
       if (!verifySealedProjection(input.sealed)) {
         throw new ProjectionRejectedError("sealed projection failed verification");
       }
-      const mapping = MAPPINGS[input.decision];
+      const mapping = (MAPPINGS as Record<string, JevDecisionMapping | undefined>)[input.decision];
       if (!mapping) {
         throw new EngineUnavailableError(
           JEV_ENGINE_ID,
+          // Experiment subjects carry no runtime mapping by design: an offline
+          // experiment needs its own mapping (a deliberate T4 step), never a
+          // borrowed runtime decision.
           `no mapping for decision ${input.decision}`,
         );
       }
