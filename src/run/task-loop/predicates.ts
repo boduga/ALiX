@@ -470,6 +470,12 @@ export type SelectionObservation = {
   chosen: string;
   /** Executor the chosen name resolved to. */
   executor: string;
+  /**
+   * Canonical argument signature (the same `hashArgs` the loop uses for
+   * evidence signatures). Recorded so a replay corpus can key external
+   * recorded responses without re-serializing arguments from the trace.
+   */
+  argsSignature: string;
   selection: {
     outcome: SelectionOutcome;
     /** How many times this exact executor+args call has been seen this turn. */
@@ -544,6 +550,7 @@ export function buildSelectionObservation(input: {
     offered: [...input.offered],
     chosen: input.chosen,
     executor: input.executor,
+    argsSignature: input.argsSignature,
     selection: { outcome: repeatCount > 1 ? "redundant" : "novel", repeatCount },
     execution: { status },
     evidence: { contribution },
