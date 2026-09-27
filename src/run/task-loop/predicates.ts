@@ -58,7 +58,23 @@ export function buildShedToolRetryMessage(toolCall: ToolCall): string {
 // uncontested, which is the failure mode we're closing.
 
 export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: string }> = [
-  { keywords: /\bschedul(e|ed|ing)\b|\brecurring\b|\bcron\b/i, toolPrefix: "schedule.", label: "scheduling a job" },
+  {
+    // A scheduling *claim* is a first-person action naming a job-like object:
+    // "I scheduled a nightly job". Bare scheduling vocabulary must not count —
+    // "Scheduling: workers 1-3 ran in parallel" describes the coordination
+    // scheduler, and "no scheduling was requested" denies the claim. Flagging
+    // either traps the turn: the re-prompt names the tool, the model explains
+    // the flag, and the explanation re-arms the detector until the bounded
+    // attempts run out and the turn ends completed_unverified.
+    keywords: new RegExp(
+      String.raw`\bI(?:'ve| have| had|'ll| will)?\s+(?:just\s+|already\s+)?` +
+      String.raw`(?:schedul\w*|set\s*up|creat\w*|add\w*|propos\w*|enabl\w*|configur\w*)\b` +
+      String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic)\b`,
+      "i",
+    ),
+    toolPrefix: "schedule.",
+    label: "scheduling a job",
+  },
   { keywords: /\bsent?\b.*\bnotification\b|\bnotifi(ed|cation)\b/i, toolPrefix: "notification.", label: "sending a notification" },
   { keywords: /\bsent?\b.*\bfile\b/i, toolPrefix: "user.send_file", label: "sending a file to the user" },
   { keywords: /\badded\b.*\bregistrat|\bregister(ed|ing)\b/i, toolPrefix: "file.edit", label: "editing/registering files" },
@@ -122,10 +138,20 @@ export function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
  */
 
 export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string[] {
+  // `usedTools` holds the names the model called (`alix_shell_run`), while the
+  // map is keyed by executor ids (`shell.run`). Resolve both directions —
+  // without this, every mapped keyword reads as unsubstantiated no matter what
+  // ran, and the re-prompt can never be satisfied.
+  const called = new Set<string>();
+  for (const name of usedTools) {
+    called.add(name);
+    const execName = ALIX_BUILTIN_EXECUTORS[name as keyof typeof ALIX_BUILTIN_EXECUTORS];
+    if (execName) called.add(execName);
+  }
   const unsubstantiated: string[] = [];
   for (const { keywords, toolPrefix, label } of CLAIM_TOOL_MAP) {
     if (keywords.test(text)) {
-      const wasCalled = [...usedTools].some((t) => t.startsWith(toolPrefix));
+      const wasCalled = [...called].some((t) => t.startsWith(toolPrefix));
       if (!wasCalled) {
         unsubstantiated.push(label);
       }
