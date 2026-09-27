@@ -489,6 +489,17 @@ export type SelectionObservation = {
     /** Debug-only: exclusions can explode, so they are opt-in. */
     excluded?: Array<{ tool: string; reasons: string[] }>;
   };
+  /**
+   * Deterministic orderings, recorded as the production layer produced them.
+   * `deterministic` is the scoper's relevance ranking of the admitted surface
+   * (native semantics: overlapping-token count, 0 for core membership).
+   * `mcpSelector` carries the MCP selector's own scores when the MCP path ran —
+   * a different scale, deliberately not interleaved with `deterministic`.
+   */
+  ranking: {
+    deterministic: Array<{ tool: string; score: number }>;
+    mcpSelector?: Array<{ tool: string; score: number }>;
+  };
 };
 
 export function buildSelectionObservation(input: {
@@ -510,6 +521,10 @@ export function buildSelectionObservation(input: {
     admitted: Array<{ tool: string; reasons: string[] }>;
     fallbackFull: boolean;
     excluded?: Array<{ tool: string; reasons: string[] }>;
+  };
+  ranking?: {
+    deterministic?: Array<{ tool: string; score: number }>;
+    mcpSelector?: Array<{ tool: string; score: number }>;
   };
 }): SelectionObservation {
   const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
@@ -542,6 +557,10 @@ export function buildSelectionObservation(input: {
       fallbackFull: input.scoping?.fallbackFull ?? false,
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
     },
+    ranking: {
+      deterministic: input.ranking?.deterministic ?? [],
+      ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
+    },
   };
 }
 
@@ -557,6 +576,20 @@ export function unexplainedRequirementCandidates(observation: SelectionObservati
     .filter(candidate => !observation.offered.includes(candidate.tool))
     .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.tool === candidate.tool))
     .map(candidate => candidate.tool);
+}
+
+/**
+ * The deterministic ranking may only rank tools that were actually offered —
+ * ranking a tool the model could not call would make the replay baseline
+ * describe a surface that never existed. Scoped to the deterministic
+ * (scoper) ranking: `mcpSelector` legitimately ranks MCP handles the selector
+ * then truncates away, which is a different question from a builtin that was
+ * ranked but never offered.
+ */
+export function rankingOutsideOffered(observation: SelectionObservation): string[] {
+  return observation.ranking.deterministic
+    .map(entry => entry.tool)
+    .filter(tool => !observation.offered.includes(tool));
 }
 
 export function missingEvidenceSummary(gaps: string[], text: string): string {

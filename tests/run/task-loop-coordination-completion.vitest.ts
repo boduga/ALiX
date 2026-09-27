@@ -380,6 +380,16 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     };
     expect(provenance.requirementCandidates?.some(entry => entry.tool === 'alix_file_create')).toBe(true);
     expect((provenance.scoping?.admitted ?? []).length).toBeGreaterThan(0);
+    // The deterministic ranking is recorded from the scoper, and every ranked
+    // tool is one the model could actually call.
+    const ranked = (observed?.payload as {
+      ranking?: { deterministic?: Array<{ tool: string; score: number }> };
+      offered?: string[];
+    });
+    expect((ranked.ranking?.deterministic ?? []).length).toBeGreaterThan(0);
+    for (const entry of ranked.ranking?.deterministic ?? []) {
+      expect(ranked.offered).toContain(entry.tool);
+    }
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {

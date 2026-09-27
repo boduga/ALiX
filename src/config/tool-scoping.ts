@@ -48,6 +48,14 @@ export type ScopingProvenance = {
   admitted: ScopingDisposition[];
   excluded: ScopingDisposition[];
   fallbackFull: boolean;
+  /**
+   * The scoper's own relevance ordering of the admitted surface — the
+   * deterministic baseline a selector comparison needs. Native semantics: the
+   * score is the number of overlapping task tokens (0 for core tools admitted
+   * on membership rather than relevance). Only admitted tools appear, so
+   * `set(ranking) ⊆ set(offered)`.
+   */
+  ranking: Array<{ tool: string; score: number }>;
 };
 
 export type ScopedTools = {
@@ -82,6 +90,7 @@ export function scopeToolsByTask(
   const extended: ToolDef[] = [];
   const admitted: ScopingDisposition[] = [];
   const excluded: ScopingDisposition[] = [];
+  const scores = new Map<string, number>();
 
   const taskTokens = tokens(task);
 
@@ -90,12 +99,14 @@ export function scopeToolsByTask(
     if (CORE_TOOL_NAMES.has(t.name)) {
       core.push(t);
       admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.CORE] });
+      scores.set(t.name, taskTokens.filter((token) => toolSignals(t.description, t.name).has(token)).length);
     } else {
       const signals = toolSignals(t.description, t.name);
-      const matches = taskTokens.some((token) => signals.has(token));
-      if (matches) {
+      const score = taskTokens.filter((token) => signals.has(token)).length;
+      if (score > 0) {
         extended.push(t);
         admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.RELEVANCE_MATCH] });
+        scores.set(t.name, score);
       } else {
         excluded.push({ tool: t.name, reasons: [SCOPING_REASONS.NOT_RELEVANT] });
       }
@@ -107,14 +118,15 @@ export function scopeToolsByTask(
   for (const t of mcpTools) {
     if (!CORE_TOOL_NAMES.has(t.name)) {
       const signals = toolSignals(t.description, t.searchName ?? t.name, t.serverName);
-      const matches = taskTokens.some((token) => signals.has(token));
-      if (matches) {
+      const score = taskTokens.filter((token) => signals.has(token)).length;
+      if (score > 0) {
         extended.push({
           name: t.name,
           description: t.description,
           input_schema: (t.input_schema ?? { type: "object", properties: {} }) as ToolDef["input_schema"],
         });
         admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.RELEVANCE_MATCH] });
+        scores.set(t.name, score);
       } else {
         excluded.push({ tool: t.name, reasons: [SCOPING_REASONS.NOT_RELEVANT] });
       }
@@ -137,14 +149,33 @@ export function scopeToolsByTask(
         fallbackAdmitted.push({ tool: t.name, reasons: [SCOPING_REASONS.FALLBACK_FULL] });
       }
     }
+    const fallbackRanking = fallbackAdmitted.map((entry) => ({ tool: entry.tool, score: 0 }));
     return {
       core,
       extended: extendedFallback,
       fallbackFull: true,
       // Everything non-core is admitted in this branch, so nothing is excluded.
-      provenance: { admitted: [...admitted, ...fallbackAdmitted], excluded: [], fallbackFull: true },
+      provenance: {
+        admitted: [...admitted, ...fallbackAdmitted],
+        excluded: [],
+        fallbackFull: true,
+        ranking: [...rankingFrom(scores), ...fallbackRanking],
+      },
     };
   }
 
-  return { core, extended, fallbackFull: false, provenance: { admitted, excluded, fallbackFull: false } };
+  return {
+    core,
+    extended,
+    fallbackFull: false,
+    provenance: { admitted, excluded, fallbackFull: false, ranking: rankingFrom(scores) },
+  };
+}
+
+/** Admission order, then score descending — stable for equal scores. */
+function rankingFrom(scores: Map<string, number>): Array<{ tool: string; score: number }> {
+  return [...scores.entries()]
+    .map(([tool, score], index) => ({ tool, score, index }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map(({ tool, score }) => ({ tool, score }));
 }

@@ -6,7 +6,7 @@ import type { ToolDef } from "../providers/types.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
-import { ToolSelector } from "../mcp/tool-selector.js";
+import { createToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
 import { runPlanPhase } from "../run/plan-phase.js";
@@ -380,7 +380,7 @@ async function runTaskCoreImpl(
   // Setup MCP tool index
   const mcpDeferral = ctx.mcpManager?.getDeferral();
   const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
-  const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
+  const toolSelector = createToolSelector(mcpToolIndex);
   const selectedTools = toolSelector.select(task);
   const mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
   await ctx.log.append({ sessionId: ctx.sessionId, actor: "system", type: "mcp.tools_selected", payload: { total: mcpToolIndex.length, selected: selectedTools.length, taskPreview: task.slice(0, 100) } });

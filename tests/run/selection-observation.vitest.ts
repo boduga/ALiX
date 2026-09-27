@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRequirementCandidates,
   buildSelectionObservation,
+  rankingOutsideOffered,
   unexplainedRequirementCandidates,
 } from '../../src/run/task-loop/predicates.js';
 
@@ -132,5 +133,41 @@ describe('requirement-closing tools cannot vanish without provenance', () => {
     expect(unexplainedRequirementCandidates(observation)).toEqual([]);
     expect(observation.scoping.admitted.find(entry => entry.tool === 'alix_coordination_run')?.reasons)
       .toEqual(['relevance_match', 'requirement:coordination']);
+  });
+});
+
+describe('recorded deterministic ranking', () => {
+  it('carries the production ordering and scores', () => {
+    const observation = observe({
+      ranking: {
+        deterministic: [
+          { tool: 'alix_grep_search', score: 3 },
+          { tool: 'alix_file_read', score: 0 },
+        ],
+        mcpSelector: [{ tool: 'mcp__abc', score: 7 }],
+      },
+    });
+    expect(observation.ranking.deterministic).toEqual([
+      { tool: 'alix_grep_search', score: 3 },
+      { tool: 'alix_file_read', score: 0 },
+    ]);
+    // MCP scores come from a different scorer and are never interleaved.
+    expect(observation.ranking.mcpSelector).toEqual([{ tool: 'mcp__abc', score: 7 }]);
+    // The subset invariant applies to the deterministic ranking only: MCP
+    // entries beyond the offered surface are expected (selector truncation) and
+    // are a separate question from a builtin ranked but never offered.
+    expect(rankingOutsideOffered(observation)).toEqual([]);
+  });
+
+  it('defaults to an empty ranking when the caller records none', () => {
+    expect(observe().ranking).toEqual({ deterministic: [] });
+  });
+
+  it('flags a tool ranked but never offered (the replay baseline must describe a real surface)', () => {
+    const observation = observe({
+      offered: ['alix_file_read'],
+      ranking: { deterministic: [{ tool: 'alix_grep_search', score: 2 }] },
+    });
+    expect(rankingOutsideOffered(observation)).toEqual(['alix_grep_search']);
   });
 });

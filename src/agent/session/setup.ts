@@ -64,7 +64,7 @@ import { ensureEncoder } from "../../utils/tokens.js";
 import { DEFAULT_FACTORY_CONFIG } from "../../skills/dispatcher.js";
 import { evictIfNeeded } from "../../skills/lifecycle.js";
 import type { SkillEntry } from "../../skills/catalog.js";
-import { ToolSelector } from "../../mcp/tool-selector.js";
+import { createToolSelector } from "../../mcp/tool-selector.js";
 import { ToolDiscovery } from "../../mcp/tool-discovery.js";
 import { READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
@@ -530,10 +530,7 @@ export async function setupTools(
 
   const mcpDeferral = ctx.mcpManager?.getDeferral();
   const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
-  const toolSelector = new ToolSelector(mcpToolIndex, {
-    maxTools: 20,
-    tokenBudget: 3000,
-  });
+  const toolSelector = createToolSelector(mcpToolIndex);
   const selectedTools = toolSelector.select(task);
   const mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
 

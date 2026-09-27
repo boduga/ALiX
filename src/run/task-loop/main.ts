@@ -239,6 +239,10 @@ onProgress,
     objectiveEvidenceRequirements(evidenceTask, evidenceTaskType),
   );
   const selectionDebug = process.env.ALIX_TOOL_SELECTION_DEBUG === "1";
+  // Deterministic orderings for the shadow trace, taken from the layers that
+  // own them: the scoper's relevance ranking, and the MCP selector's scores.
+  const { createToolSelector } = await import("../../mcp/tool-selector.js");
+  const mcpSelectorRanking = mcpToolIndex.length > 0 ? createToolSelector(mcpToolIndex).rank(task) : [];
   // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
   // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
   const scopedOutNames = new Set(
@@ -1144,6 +1148,10 @@ if (toolCalls.length === 0) {
           // Exclusions are debug-only: they answer "why wasn't the
           // requirement-closing tool offered?" and can grow unbounded.
           ...(selectionDebug ? { excluded: scopingProvenance.excluded } : {}),
+        },
+        ranking: {
+          deterministic: scopingProvenance.ranking,
+          ...(mcpSelectorRanking.length > 0 ? { mcpSelector: mcpSelectorRanking } : {}),
         },
       });
       await log.append({
