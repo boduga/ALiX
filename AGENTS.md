@@ -155,9 +155,21 @@ Default section order:
   encodes a dead `<kind>-<pid>` is reset to `pending` with `attempt++`
   (bounded by `maxAttempts`) so a restarted host resumes it; an owner that
   cannot be proven dead is never stolen. `file.create` is idempotent when
-  the existing content is byte-identical (success), and still errors on
-  differing content — so a resumed retry that finds its output already
-  written succeeds instead of failing a non-idempotent create.
+  the existing content is byte-identical (success); differing content is an
+  error UNLESS the target is inside the caller's `ownedPaths`, where the
+  worker overwrites its own declared output (policy already authorizes an
+  owned write, and `file.create` is the only creation tool — without this a
+  re-run of the same goal in the same workspace fails structurally). A
+  resumed retry that finds its output already written still succeeds instead
+  of failing a non-idempotent create.
+- **Operator cancellation finalizes the coordination run (durable).** An
+  aborted `coordination.run` call cancels its run through the scheduler
+  (`cancelled` run status, cancelled workers, released ownership leases,
+  TaskGraph marked `cancelled`) and unwinds as an `ExecutionCancelledError`,
+  never as a tool failure. `cancelDeadOwnerRuns` releases the dead host's
+  leases — detaching `leaseIds` alone leaves active records that block every
+  later run in the workspace until the TTL expires — and `coordination.run`
+  sweeps dead-owner `cli` runs before planning.
 - **Single-output write workers recover omitted create paths (durable).** When
   a write worker owns exactly one path and emits `file.create` with valid
   content but no path, the subagent boundary supplies that sole owned path.

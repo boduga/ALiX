@@ -585,6 +585,44 @@ test("file.create still rejects differing content on an existing file", async ()
   await rm(`/tmp/${path}`, { force: true });
 });
 
+test("file.create overwrites the caller's own owned output", async () => {
+  const router = new FileToolRouter("/tmp");
+  const path = `owned-rewrite-${process.pid}.txt`;
+  await writeFile(`/tmp/${path}`, "first pass");
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path, content: "second pass" },
+    ownedPaths: [path],
+  });
+
+  assert.strictEqual(result.kind, "success");
+  if (result.kind === "success") {
+    assert.strictEqual(result.outcome, "overwritten");
+    assert.strictEqual(result.changed, true);
+  }
+  assert.strictEqual(await readFile(`/tmp/${path}`, "utf8"), "second pass");
+  await rm(`/tmp/${path}`, { force: true });
+});
+
+test("file.create refuses to overwrite a path the caller does not own", async () => {
+  const router = new FileToolRouter("/tmp");
+  const path = `unowned-rewrite-${process.pid}.txt`;
+  await writeFile(`/tmp/${path}`, "original");
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path, content: "different" },
+    ownedPaths: [`other-${process.pid}.txt`],
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(await readFile(`/tmp/${path}`, "utf8"), "original");
+  await rm(`/tmp/${path}`, { force: true });
+});
+
 test("file.create is race-safe when workers concurrently create identical content", async () => {
   const router = new FileToolRouter("/tmp");
   const path = `concurrent-idempotent-create-${process.pid}-${Date.now()}.txt`;

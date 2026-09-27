@@ -27,6 +27,12 @@ export type ToolCallRequest = {
   /** Runtime-derived exact targets for strict single-file mutation tasks. */
   allowedMutationPaths?: readonly string[];
   /**
+   * Owned paths granted to a headless write worker. Policy already treats a
+   * write scoped entirely to these as authorized; routers use the same list to
+   * let the worker rewrite its own output instead of failing on exists.
+   */
+  ownedPaths?: readonly string[];
+  /**
    * Authoritative ALiX run id for the enclosing execution (design §21, R2).
    * Threaded from run roots through the task-loop / event-handlers so the
    * tool executor can resolve the parent run for a tool span. Absent/unknown

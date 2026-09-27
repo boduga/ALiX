@@ -4,7 +4,7 @@ import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
@@ -128,6 +128,22 @@ export class FileToolRouter implements ToolRouter {
     return null;
   }
 
+  /**
+   * True when the resolved target sits inside one of the caller's owned paths.
+   * Owned paths are the worker's authorization, so a worker may replace the
+   * file it owns — matching policy, which already treats an owned write as
+   * authorized. Glob entries are reduced to their literal directory prefix.
+   */
+  private isOwnedWriteTarget(request: ToolCallRequest, resolvedPath: string): boolean {
+    const owned = request.ownedPaths ?? [];
+    return owned.some((entry) => {
+      const literal = String(entry).replace(/\/\*\*$/, "").replace(/\/+$/, "");
+      if (literal.length === 0 || literal === ".") return false;
+      const resolvedOwned = resolve(this.root, literal);
+      return resolvedPath === resolvedOwned || resolvedPath.startsWith(resolvedOwned + sep);
+    });
+  }
+
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
   }
@@ -192,6 +208,7 @@ export class FileToolRouter implements ToolRouter {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
+        let overwritten = false;
         try {
           // Exclusive creation closes the exists-check/write race: this call
           // can never overwrite a file created by another worker.
@@ -219,11 +236,19 @@ export class FileToolRouter implements ToolRouter {
                 changedFiles: [],
               };
             }
-            return {
-              kind: "error",
-              message: `File already exists with different content: ${path}`,
-              retryable: false,
-            };
+            if (!this.isOwnedWriteTarget(request, resolvedPath)) {
+              return {
+                kind: "error",
+                message: `File already exists with different content: ${path}`,
+                retryable: false,
+              };
+            }
+            // The worker owns this path: rewriting its own output is the whole
+            // point of ownership. Without this, re-running the same goal in the
+            // same workspace fails structurally (`file.create` is the only
+            // creation tool, and it refuses differing content).
+            await writeFile(resolvedPath, content, { encoding: "utf8" });
+            overwritten = true;
           } catch (compareError) {
             return {
               kind: "error",
@@ -242,9 +267,9 @@ export class FileToolRouter implements ToolRouter {
         }
         return {
           kind: "success",
-          outcome: "created",
+          outcome: overwritten ? "overwritten" : "created",
           changed: true,
-          output: `File created: ${path}`,
+          output: `${overwritten ? "File overwritten (owned path)" : "File created"}: ${path}`,
           createdPath: path,
           changedFiles: [path],
         };
