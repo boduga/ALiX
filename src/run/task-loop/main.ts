@@ -71,6 +71,10 @@ import { runIterationVerification } from "./verification-phase.js";
 import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildRequirementCandidates, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName, toolResultBody } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
+// Process-local sequence for frozen candidate surfaces (`scopeId`). One per run
+// today; replay joins selectors to scopes on the id, never on the iteration.
+let selectionScopeSequence = 0;
+
 export interface TaskLoopDeps {
   config: {
     // The loop resolves the effective model from the canonical `models`
@@ -243,6 +247,9 @@ onProgress,
   // own them: the scoper's relevance ranking, and the MCP selector's scores.
   const { createToolSelector } = await import("../../mcp/tool-selector.js");
   const mcpSelectorRanking = mcpToolIndex.length > 0 ? createToolSelector(mcpToolIndex).rank(task) : [];
+  // The candidate surface is frozen here, once, so the scope id is minted here:
+  // replay joins selectors to scopes on this id, not on the iteration number.
+  const scopeId = `scope_${++selectionScopeSequence}`;
   // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
   // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
   const scopedOutNames = new Set(
@@ -1129,6 +1136,7 @@ if (toolCalls.length === 0) {
         typeof toolResult.message?.content === "string" ? toolResult.message.content : undefined,
       );
       const observation = buildSelectionObservation({
+        scopeId,
         iteration: i,
         invocationId,
         offered: providerTools.map((tool) => tool.name),

@@ -17,3 +17,4 @@ export * from "./decisions/model-tier/index.js";
 export * from "./decisions/risk-escalation/index.js";
 export * from "./calibration/index.js";
 export * from "./replay/index.js";
+export * from "./tool-selection-replay.js";

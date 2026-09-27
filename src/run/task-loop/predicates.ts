@@ -462,6 +462,11 @@ export function buildRequirementCandidates(required: {
 }
 
 export type SelectionObservation = {
+  /**
+   * Frozen-candidate-surface id. Replay joins scopes to selector results on
+   * this, never on the assumption that iteration and scope are one-to-one.
+   */
+  scopeId: string;
   iteration: number;
   invocationId?: string;
   /** Model-facing names offered this iteration. */
@@ -503,6 +508,7 @@ export type SelectionObservation = {
 };
 
 export function buildSelectionObservation(input: {
+  scopeId: string;
   iteration: number;
   invocationId?: string;
   offered: readonly string[];
@@ -537,6 +543,7 @@ export function buildSelectionObservation(input: {
       ? "contributed"
       : "unknown";
   return {
+    scopeId: input.scopeId,
     iteration: input.iteration,
     ...(input.invocationId ? { invocationId: input.invocationId } : {}),
     offered: [...input.offered],

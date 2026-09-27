@@ -12,6 +12,7 @@ import {
 
 function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>[0]> = {}) {
   return buildSelectionObservation({
+    scopeId: 'scope_1',
     iteration: 0,
     invocationId: 'inv-1',
     offered: ['alix_file_read', 'alix_grep_search', 'alix_shell_run'],
@@ -28,6 +29,8 @@ function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>
 describe('buildSelectionObservation', () => {
   it('records the offered surface, the choice, and the executor', () => {
     const observation = observe();
+    // Replay joins scopes to selector results on scopeId, not on iteration.
+    expect(observation.scopeId).toBe('scope_1');
     expect(observation.offered).toEqual(['alix_file_read', 'alix_grep_search', 'alix_shell_run']);
     expect(observation.chosen).toBe('alix_file_read');
     expect(observation.executor).toBe('file.read');

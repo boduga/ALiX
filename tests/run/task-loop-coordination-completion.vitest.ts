@@ -28,6 +28,7 @@ import {
   objectiveEvidenceGaps,
   objectiveEvidenceRequirements,
 } from '../../src/run/task-loop/predicates.js';
+import { extractToolSelectionScopes, replayToolSelection } from '../../src/decision/tool-selection-replay.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -390,6 +391,23 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     for (const entry of ranked.ranking?.deterministic ?? []) {
       expect(ranked.offered).toContain(entry.tool);
     }
+
+    // T2-c acceptance: the recorded trace reconstructs the frozen scope and can
+    // be replayed against another selector without touching runtime state.
+    const scopes = extractToolSelectionScopes(events);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0].scopeId).toMatch(/^scope_\d+$/);
+    expect(scopes[0].offered.length).toBeGreaterThan(0);
+    expect(scopes[0].actualChoices[0]).toBe('alix_file_create');
+    const replay = await replayToolSelection(scopes[0], {
+      id: 'stub-selector',
+      async score(request) {
+        return { score: request.tool === 'alix_file_create' ? 1 : 0 };
+      },
+    });
+    expect(replay.candidateSetPreserved).toBe(true);
+    expect(replay.actualChoice).toBe('alix_file_create');
+    expect(replay.domains[0].ranking[0]).toBe('alix_file_create');
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {
