@@ -751,7 +751,7 @@ if (toolCalls.length === 0) {
           `and wait for the result before continuing. Do not invent tool names.`
         : "No tool calls were detected in your last response. To proceed, you must invoke a tool using the proper tool-use format. " +
           "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
-          "Use the `done` tool when the task is complete.",
+          "Use the `alix_done` tool when the task is complete.",
     });
     noToolNudges++;
     continue;
@@ -1333,7 +1333,7 @@ if (toolCalls.length === 0) {
       messages.push({
         role: "user",
         content:
-          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call done again.",
+          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call `alix_done` again.",
       });
       continue;
     }

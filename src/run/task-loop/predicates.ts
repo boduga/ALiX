@@ -283,7 +283,7 @@ export function buildUnconfirmedDonePrompt(input: {
   if (evidenceGaps.length > 0) {
     return (
       `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
-      `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`
+      `Perform those actions now. Do not call \`alix_done\` or describe the task as complete until the tools succeed.`
     );
   }
   if (errorEchoDone && unsubstantiated.length === 0) {
@@ -297,19 +297,19 @@ export function buildUnconfirmedDonePrompt(input: {
     return (
       `You keep saying you are done without having actually called the required tools. ` +
       `Call these tools now:\n${missingToolLines}\n\n` +
-      `Do NOT call done until every one of these tools has returned a result.`
+      `Do NOT call \`alix_done\` until every one of these tools has returned a result.`
     );
   }
   if (attempt >= 1) {
     return (
       `Your summary claims you completed the following, but no matching tool call was made:\n${missingToolLines}\n\n` +
-      `Call these tools now using their \`alix_\` names, or call \`done\` only if you genuinely cannot proceed.`
+      `Call these tools now using their \`alix_\` names, or call \`alix_done\` only if you genuinely cannot proceed.`
     );
   }
   return (
     `Your summary claims you did the following, but no matching tool call was made: ${unsubstantiated.join(", ")}. ` +
     `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
-    `Either call the remaining tools now, or call the \`done\` tool explicitly once everything is genuinely finished.`
+    `Either call the remaining tools now, or call the \`alix_done\` tool explicitly once everything is genuinely finished.`
   );
 }
 

@@ -363,7 +363,7 @@ async function runTaskCoreImpl(
   const availableTools = [...baseTools, ...boundToolDefs];
   // Filter tools based on execution mode:
   //   --read-only:  exclude alix_shell_run, include alix_delegate
-  //   shell task:   only READ_ONLY_TOOL_NAMES (includes shell_run)
+  //   shell task:   only READ_ONLY_TOOL_NAMES (includes alix_shell_run)
   //   default:      all tools
   const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
   readOnlyToolFilter.add("alix_delegate");

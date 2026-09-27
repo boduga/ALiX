@@ -626,7 +626,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         if (mutationReserved) {
           messages.push({
             role: "user",
-            content: `[Execution budget] Exploration is complete. You MUST now create or patch these owned outputs before calling done: ${missingOwnedPaths.join(", ")}.`,
+            content: `[Execution budget] Exploration is complete. You MUST now create or patch these owned outputs before calling alix_done: ${missingOwnedPaths.join(", ")}.`,
           });
         }
         const iterationTools = toolsForSubagentIteration(allowedTools, {

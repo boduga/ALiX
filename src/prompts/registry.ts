@@ -38,11 +38,11 @@ function entry(id: string, version: string, source: string, text: string): Promp
 }
 
 export const PROMPT_REGISTRY: PromptEntry[] = [
-  entry("agent.system-base", "1.3.0", "src/agent/system-prompt.ts", SYSTEM_PROMPT_BASE),
+  entry("agent.system-base", "1.3.1", "src/agent/system-prompt.ts", SYSTEM_PROMPT_BASE),
   entry("agent.research-supplement", "1.0.0", "src/agent/system-prompt.ts", RESEARCH_SUPPLEMENT),
   entry("agent.execution-supplement", "1.0.0", "src/agent/system-prompt.ts", MUTATION_SUPPLEMENT),
   entry("agent.verification-supplement", "1.0.0", "src/agent/system-prompt.ts", VALIDATION_SUPPLEMENT),
-  entry("agent.shell-task", "1.0.0", "src/agent/system-prompt.ts", SHELL_TASK_PROMPT),
+  entry("agent.shell-task", "1.0.1", "src/agent/system-prompt.ts", SHELL_TASK_PROMPT),
   entry("agent.read-only-mode", "1.0.0", "src/agent/system-prompt.ts", READ_ONLY_MODE_PROMPT),
   entry("subagent.explorer", "1.2.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.explorer),
   entry("subagent.reviewer", "1.1.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.reviewer),

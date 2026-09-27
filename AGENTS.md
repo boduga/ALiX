@@ -178,9 +178,10 @@ Default section order:
   Explicit paths, multiple owned paths, read-only workers, and malformed calls
   are never rewritten.
 - **Worker names use canonical execution forms (durable).** The worker boundary
-  resolves documented `alix_*` tool names and explicit unprefixed underscore
-  aliases to the existing canonical executor names (`file.create`,
-  `file.read`, `shell.run`, and so on). Unknown names are never guessed. A
+  resolves only the exact `alix_*` names offered in the current turn to their
+  existing canonical executor names (`file.create`, `file.read`, `shell.run`,
+  and so on). Unprefixed underscore aliases (`file_create`), executor IDs
+  (`file.read`), and unknown names are rejected — never guessed. A
   dependent worker receives full workspace-relative input paths from direct
   producers with explicit file outputs; bare filenames in task prose do not
   define a working directory or confer path authority. At the subagent read
