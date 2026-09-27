@@ -334,6 +334,10 @@ export async function handleToolCall(
   completed?: boolean;
   summary?: string;
   error?: { message: string; retryable?: boolean };
+  /** Propagated from a successful result so completion evidence can record
+   *  what the call changed (e.g. a coordination run's worker-written files). */
+  changed?: boolean;
+  changedFiles?: string[];
 }> {
   const visibleTools = deps.offeredTools ?? [...BASE_TOOLS, ...deps.selectedTools];
   const offered = visibleTools.map((tool) => ({
@@ -548,6 +552,9 @@ export async function handleToolCall(
   return {
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
+    ...(execResult.kind === "success" && (execResult.changed === true || (execResult.changedFiles?.length ?? 0) > 0)
+      ? { changed: true, changedFiles: execResult.changedFiles ?? [] }
+      : {}),
   };
 }
 

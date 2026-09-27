@@ -140,6 +140,48 @@ describe("coordination chat tools", () => {
     assert.ok(!rendered.includes("do not retry"), rendered);
   });
 
+  it("reports its completed workers' owned outputs as changed files", async () => {
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        const writer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "writer", goalPrompt: "write",
+          status: "completed", ownershipScopes: [".tmp/out/a.md"],
+        });
+        await store.addWorker(run.id, writer);
+        await store.patchWorker(run.id, writer.id, { status: "completed" });
+        return { valid: true, errors: [], run: { ...run, workers: [writer] } };
+      },
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
+
+    // The coordinator never mutates anything itself; this is the executed
+    // evidence its workers produced, and the completion gate consumes it.
+    assert.equal(result.kind, "success");
+    assert.equal(result.changed, true);
+    assert.deepEqual(result.changedFiles, [".tmp/out/a.md"]);
+  });
+
+  it("claims no changed files when no worker completed", async () => {
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        return { valid: true, errors: [], run };
+      },
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "nothing to do" });
+
+    assert.equal(result.kind, "success");
+    assert.equal(result.changed, undefined);
+    assert.equal(result.changedFiles, undefined);
+  });
+
   it("status reports workers by status and failures", async () => {
     const run = createCoordinationRun({ sessionId: "s1", rootGoal: "goal", coordinatorAgentId: "alix" });
     run.status = "failed";

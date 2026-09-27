@@ -144,6 +144,13 @@ export type SuccessfulToolEvidence = {
   name: string;
   args: Record<string, unknown>;
   ordinal: number;
+  /**
+   * The call reported a workspace change (`changed` / `changedFiles`). Set by
+   * the task loop for every successful call; used to accept a delegated
+   * coordination run as mutation evidence, since a coordinator that follows
+   * "do not perform the workers' tasks" never mutates anything itself.
+   */
+  mutated?: boolean;
 };
 
 export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
@@ -197,7 +204,10 @@ export function objectiveEvidenceGaps(
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
-    .filter((item) => MUTATION_TOOL_NAMES.has(item.name))
+    .filter((item) =>
+      MUTATION_TOOL_NAMES.has(item.name)
+      || (item.name === COORDINATION_RUN_TOOL_NAME && item.mutated === true),
+    )
     .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
   const verifiedAfterMutation = evidence.some((item) =>
     item.ordinal > mutationOrdinal &&

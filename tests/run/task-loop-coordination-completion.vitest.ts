@@ -187,6 +187,31 @@ async function makeTestDeps(overrides: {
 
 const NO_COORD_TASK = 'Prepare the release notes summary.';
 
+describe('objectiveEvidenceGaps accepts delegated workspace mutation', () => {
+  const DELEGATED_TASK = 'Create the file .tmp/out/project.md with four coordinated workers.';
+
+  it('accepts a coordination run that reported worker-written files as the mutation', () => {
+    const gaps = objectiveEvidenceGaps(DELEGATED_TASK, 'feature', [
+      { name: 'coordination.run', args: { goal: 'write files' }, ordinal: 0, mutated: true },
+    ]);
+    expect(gaps).not.toContain('a successful workspace mutation');
+  });
+
+  it('still requires a mutation when the coordination call changed nothing', () => {
+    const gaps = objectiveEvidenceGaps(DELEGATED_TASK, 'feature', [
+      { name: 'coordination.run', args: { goal: 'inspect only' }, ordinal: 0 },
+    ]);
+    expect(gaps).toContain('a successful workspace mutation');
+  });
+
+  it('keeps a parent-side mutation sufficient on its own', () => {
+    const gaps = objectiveEvidenceGaps(DELEGATED_TASK, 'feature', [
+      { name: 'file.create', args: { path: '.tmp/out/project.md' }, ordinal: 0 },
+    ]);
+    expect(gaps).not.toContain('a successful workspace mutation');
+  });
+});
+
 describe('objectiveEvidenceGaps coordination-failure flag', () => {
   it('forces the coordination gap when the last coordination.run failed, regardless of objective text', () => {
     const gaps = objectiveEvidenceGaps(NO_COORD_TASK, 'docs', [], { coordinationRunFailed: true });

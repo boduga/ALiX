@@ -1069,7 +1069,16 @@ if (toolCalls.length === 0) {
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
       const execName = resolveToolExecutionName(toolCall.name, selectedTools);
-      successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
+      const changedFiles = toolResult.changedFiles ?? [];
+      successfulToolEvidence.push({
+        name: execName,
+        args: toolCall.args,
+        ordinal: toolEvidenceOrdinal++,
+        // Record what the call actually changed, so a delegated coordination
+        // run whose workers wrote files can satisfy the mutation requirement
+        // the coordinator itself cannot meet.
+        ...(toolResult.changed === true || changedFiles.length > 0 ? { mutated: true } : {}),
+      });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
     if (toolResult.completed) {
