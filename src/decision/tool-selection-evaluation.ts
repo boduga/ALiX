@@ -15,7 +15,11 @@
  * data only; it never ranks selectors.
  */
 
-import type { EvidenceContribution, ExecutionOutcome, SelectionOutcome } from "../run/task-loop/predicates.js";
+import type {
+  EvidenceContribution,
+  ExecutionOutcome,
+  SelectionOutcome,
+} from "./selection-outcome.js";
 import type { ToolSelectionDomain, ToolSelectionScope } from "./tool-selection-replay.js";
 import { toolSelectionDomain } from "./tool-selection-replay.js";
 

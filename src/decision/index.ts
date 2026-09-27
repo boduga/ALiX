@@ -19,3 +19,4 @@ export * from "./calibration/index.js";
 export * from "./replay/index.js";
 export * from "./tool-selection-replay.js";
 export * from "./tool-selection-evaluation.js";
+export * from "./selection-outcome.js";

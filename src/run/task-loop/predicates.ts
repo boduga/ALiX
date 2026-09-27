@@ -30,6 +30,11 @@ import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
 import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
+import type {
+  EvidenceContribution,
+  ExecutionOutcome,
+  SelectionOutcome,
+} from "../../decision/selection-outcome.js";
 
 export function emitAgent(
   log: EventLog,
@@ -410,16 +415,6 @@ export function buildUnconfirmedDonePrompt(input: {
  *   subset is not tracked separately yet; adding it is what makes a scoping
  *   mistake distinguishable from a ranking mistake.
  */
-export type ExecutionOutcome = "success" | "failed" | "repaired";
-export type SelectionOutcome = "novel" | "redundant";
-/**
- * Mechanical signal only. `contributed` means the call returned content and was
- * not a provable no-op — NOT that it helped satisfy the objective. Deriving
- * real contribution (closed an evidence gap, unblocked a later step) is a
- * labelling step over recorded traces, not something the loop can assert.
- */
-export type EvidenceContribution = "contributed" | "none" | "unknown";
-
 export type RequirementClass = "mutation" | "verification" | "coordination";
 
 /** A tool that could close a currently detected objective requirement. */
