@@ -25,12 +25,14 @@ Record which of these were checked and what they showed.
 - **Test:** `tests/governance/governance-report.test.ts` → `store isolation — no .alix/ files created in cwd` (spawns the CLI; 10 000 ms per-test timeout)
 - **Symptom:** `AssertionError: Expected exit 0, got 1` after ~10 014 ms — a timeout, not a wrong result
 - **Frequency:** 1 of ~6 full parallel runs; one standalone run failed the same subtest, the next standalone run passed
+- **Recurrence (2026-09-27, T2-f gates):** `pnpm test:node` → 8200 pass / 2 fail, both from this file (`--json mode returns parseable JSON`, `--output writes file to requested path`), each `Expected exit 0, got 1` at ~10 012–10 014 ms — the same spawn-budget timeout, different subtests
 - **Parallel-only:** No — seen in a parallel full run *and* standalone, so treat it as load/timing sensitive rather than concurrency-specific
 - **First observed:** 2026-09-27, during the tool-selection T2-d cleanup change set (tree at `38390f67`)
 - **Standalone result:** `node --test --test-concurrency=1 dist/tests/governance/governance-report.test.js` → suite passes (~15 s and ~44 s for the two top-level cases)
 - **Suspected cause:** a fixed 10 s child-process timeout on a spawned CLI under heavy load; child startup plus work exceeds the budget before a result is written
-- **Proposed fix (not applied):** raise that spawn timeout or make it load-aware, and/or mark the case parallel-unsafe. A fixed short timeout on a spawned process is a false-failure generator.
-- **Status:** open — watch for recurrence in `pnpm test:node`
+- **Measured cost of a spawn:** ~5.4 s standalone (`node --test --test-concurrency=1`, 18/18 pass), ~5.7–8.5 s inside `pnpm test:node`; the 10 s budget sits inside the load-induced spread
+- **Fix applied:** the spawn budgets in `tests/governance/governance-report.test.ts` are now named constants — 20 s for the compiled `bin/alix.js` spawns, 30 s for the `npx tsx` spawns, with the two `describe` budgets raised to 300 s so the per-case budgets cannot outlive their suite. No assertion changed; a wrong result still fails, only the false-failure window moved.
+- **Status:** resolved — a fixed short timeout on a spawned process is a false-failure generator; if this test times out again, treat it as a real hang and investigate the spawned CLI, not the budget
 
 ## Observability telemetry + skills factory trace
 
