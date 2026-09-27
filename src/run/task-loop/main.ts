@@ -68,7 +68,7 @@ import type { ExecutionStateEmitter } from "../../runtime/execution-state/execut
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName, toolResultBody } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildRequirementCandidates, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName, toolResultBody } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -227,7 +227,18 @@ onProgress,
   // Full registry — every tool the model COULD name (provider + MCP). Consumed
   // by Task 8's shed-tool handler to re-admit a scoped-out schema on call.
   const fullToolRegistry = [...providerTools, ...mcpToolIndex];
-  const { core: coreTools, extended: extendedTools, fallbackFull } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  const {
+    core: coreTools,
+    extended: extendedTools,
+    fallbackFull,
+    provenance: scopingProvenance,
+  } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  // Requirement-derived candidates for the shadow observation: what ALiX
+  // believed this objective required, distinct from what the scoper offered.
+  const requirementCandidatesForTurn = buildRequirementCandidates(
+    objectiveEvidenceRequirements(evidenceTask, evidenceTaskType),
+  );
+  const selectionDebug = process.env.ALIX_TOOL_SELECTION_DEBUG === "1";
   // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
   // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
   const scopedOutNames = new Set(
@@ -1126,6 +1137,14 @@ if (toolCalls.length === 0) {
         // A create that found identical content is a provable no-op.
         noOp: toolResult.changed === false && /identical content/i.test(body),
         hasContent: body.length > 0,
+        requirementCandidates: requirementCandidatesForTurn,
+        scoping: {
+          admitted: scopingProvenance.admitted,
+          fallbackFull: scopingProvenance.fallbackFull,
+          // Exclusions are debug-only: they answer "why wasn't the
+          // requirement-closing tool offered?" and can grow unbounded.
+          ...(selectionDebug ? { excluded: scopingProvenance.excluded } : {}),
+        },
       });
       await log.append({
         ...session,

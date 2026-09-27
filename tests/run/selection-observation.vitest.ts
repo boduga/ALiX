@@ -3,7 +3,11 @@
  * pin the labels a later selector comparison depends on.
  */
 import { describe, it, expect } from 'vitest';
-import { buildSelectionObservation } from '../../src/run/task-loop/predicates.js';
+import {
+  buildRequirementCandidates,
+  buildSelectionObservation,
+  unexplainedRequirementCandidates,
+} from '../../src/run/task-loop/predicates.js';
 
 function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>[0]> = {}) {
   return buildSelectionObservation({
@@ -61,5 +65,72 @@ describe('buildSelectionObservation', () => {
 
   it('says unknown when a successful call carried no content to judge', () => {
     expect(observe({ hasContent: false }).evidence.contribution).toBe('unknown');
+  });
+});
+
+describe('buildRequirementCandidates', () => {
+  it('maps each detected requirement to the tools that could close it', () => {
+    const candidates = buildRequirementCandidates({ mutation: true, verification: true, coordination: true });
+    const byTool = new Map(candidates.map(candidate => [candidate.tool, candidate.reasons]));
+    expect(byTool.get('alix_file_create')).toEqual(['requirement:mutation']);
+    expect(byTool.get('alix_patch_apply')).toEqual(['requirement:mutation']);
+    expect(byTool.get('alix_file_delete')).toEqual(['requirement:mutation']);
+    expect(byTool.get('alix_verify_claim')).toEqual(['requirement:verification']);
+    expect(byTool.get('alix_shell_run')).toEqual(['requirement:verification']);
+    expect(byTool.get('alix_coordination_run')).toEqual(['requirement:coordination']);
+  });
+
+  it('returns nothing when no requirement was detected', () => {
+    expect(buildRequirementCandidates({ mutation: false, verification: false, coordination: false })).toEqual([]);
+  });
+
+  it('merges reasons when one tool closes two requirements', () => {
+    // shell.run is the default verification command; a mutation+verification
+    // objective must not duplicate the entry.
+    const candidates = buildRequirementCandidates({ mutation: true, verification: true, coordination: false });
+    expect(candidates.filter(candidate => candidate.tool === 'alix_shell_run')).toHaveLength(1);
+  });
+});
+
+describe('requirement-closing tools cannot vanish without provenance', () => {
+  const requirementCandidates = buildRequirementCandidates({ mutation: false, verification: false, coordination: true });
+
+  it('reports a candidate missing from the offered surface with no recorded exclusion', () => {
+    const observation = observe({
+      offered: ['alix_file_read', 'alix_shell_run'],
+      requirementCandidates,
+      scoping: { admitted: [{ tool: 'alix_file_read', reasons: ['core'] }], fallbackFull: false },
+    });
+    expect(unexplainedRequirementCandidates(observation)).toEqual(['alix_coordination_run']);
+  });
+
+  it('accepts a documented exclusion (debug mode) as provenance', () => {
+    const observation = observe({
+      offered: ['alix_file_read'],
+      requirementCandidates,
+      scoping: {
+        admitted: [{ tool: 'alix_file_read', reasons: ['core'] }],
+        fallbackFull: false,
+        excluded: [{ tool: 'alix_coordination_run', reasons: ['not_relevant'] }],
+      },
+    });
+    expect(unexplainedRequirementCandidates(observation)).toEqual([]);
+  });
+
+  it('accepts an offered candidate, and merges requirement reasons into scoping', () => {
+    const observation = observe({
+      offered: ['alix_file_read', 'alix_coordination_run'],
+      requirementCandidates,
+      scoping: {
+        admitted: [
+          { tool: 'alix_file_read', reasons: ['core'] },
+          { tool: 'alix_coordination_run', reasons: ['relevance_match'] },
+        ],
+        fallbackFull: false,
+      },
+    });
+    expect(unexplainedRequirementCandidates(observation)).toEqual([]);
+    expect(observation.scoping.admitted.find(entry => entry.tool === 'alix_coordination_run')?.reasons)
+      .toEqual(['relevance_match', 'requirement:coordination']);
   });
 });

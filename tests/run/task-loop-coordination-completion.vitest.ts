@@ -372,6 +372,14 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     expect(payload.execution?.status).toBe('success');
     expect(payload.selection?.outcome).toBe('novel');
     expect(payload.evidence?.contribution).toBe('contributed');
+    // Requirement candidates and scoping provenance ride along: this objective
+    // asks for a file, so the mutation-closing tool must be identifiable.
+    const provenance = observed?.payload as {
+      requirementCandidates?: Array<{ tool: string; reasons: string[] }>;
+      scoping?: { admitted?: Array<{ tool: string; reasons: string[] }>; fallbackFull?: boolean };
+    };
+    expect(provenance.requirementCandidates?.some(entry => entry.tool === 'alix_file_create')).toBe(true);
+    expect((provenance.scoping?.admitted ?? []).length).toBeGreaterThan(0);
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {

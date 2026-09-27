@@ -42,6 +42,42 @@ describe("CORE_TOOL_NAMES", () => {
   });
 });
 
+describe("scopeToolsByTask provenance", () => {
+  const relevanceTool = tool("alix_coordination_run", "Run coordinated workers toward a goal");
+  const irrelevantTool = tool("alix_web_search", "Search the public web");
+
+  it("records why each tool was admitted, with stable machine-readable reasons", () => {
+    const scoped = scopeToolsByTask(
+      [tool("alix_file_read", "Read a file"), relevanceTool, irrelevantTool],
+      [],
+      "Run four coordinated workers",
+    );
+    const admitted = new Map(scoped.provenance.admitted.map((entry) => [entry.tool, entry.reasons]));
+    expect(admitted.get("alix_file_read")).toEqual(["core"]);
+    expect(admitted.get("alix_coordination_run")).toEqual(["relevance_match"]);
+    expect(scoped.provenance.excluded).toEqual([{ tool: "alix_web_search", reasons: ["not_relevant"] }]);
+    expect(scoped.provenance.fallbackFull).toBe(false);
+  });
+
+  it("marks every non-core admission as fallback_full and excludes nothing", () => {
+    const scoped = scopeToolsByTask(
+      [tool("alix_file_read", "Read a file"), tool("alix_web_search", "Search the public web")],
+      [],
+      "zzz",
+    );
+    expect(scoped.provenance.fallbackFull).toBe(true);
+    expect(scoped.provenance.admitted.find((entry) => entry.tool === "alix_web_search")?.reasons)
+      .toEqual(["fallback_full"]);
+    expect(scoped.provenance.excluded).toEqual([]);
+  });
+
+  it("keeps provenance in step with the returned partitions", () => {
+    const scoped = scopeToolsByTask([tool("alix_file_read", "Read a file"), relevanceTool], [], "coordinated workers");
+    const admittedNames = scoped.provenance.admitted.map((entry) => entry.tool).sort();
+    expect(admittedNames).toEqual([...scoped.core, ...scoped.extended].map((entry) => entry.name).sort());
+  });
+});
+
 describe("scopeToolsByTask", () => {
   it("returns core tools regardless of task", () => {
     const result = scopeToolsByTask(

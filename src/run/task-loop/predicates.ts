@@ -420,6 +420,47 @@ export type SelectionOutcome = "novel" | "redundant";
  */
 export type EvidenceContribution = "contributed" | "none" | "unknown";
 
+export type RequirementClass = "mutation" | "verification" | "coordination";
+
+/** A tool that could close a currently detected objective requirement. */
+export type RequirementCandidate = { tool: AlixBuiltinToolName; reasons: string[] };
+
+/**
+ * Requirement-derived candidates, straight from `objectiveEvidenceRequirements`.
+ * Called *candidates*, never "applicable": ALiX has no general-purpose notion of
+ * applicability, only "these tools could close a requirement we actually
+ * detected". Deliberately not intent-derived — that would add a new semantic
+ * authority before there is evidence it is needed.
+ */
+export function buildRequirementCandidates(required: {
+  mutation: boolean;
+  verification: boolean;
+  coordination: boolean;
+}): RequirementCandidate[] {
+  const candidates: RequirementCandidate[] = [];
+  const add = (tool: AlixBuiltinToolName, reason: `requirement:${RequirementClass}`): void => {
+    const existing = candidates.find(candidate => candidate.tool === tool);
+    if (existing) {
+      if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
+      return;
+    }
+    candidates.push({ tool, reasons: [reason] });
+  };
+  if (required.mutation) {
+    add("alix_file_create", "requirement:mutation");
+    add("alix_patch_apply", "requirement:mutation");
+    add("alix_file_delete", "requirement:mutation");
+  }
+  if (required.verification) {
+    add("alix_verify_claim", "requirement:verification");
+    add("alix_shell_run", "requirement:verification");
+  }
+  if (required.coordination) {
+    add("alix_coordination_run", "requirement:coordination");
+  }
+  return candidates;
+}
+
 export type SelectionObservation = {
   iteration: number;
   invocationId?: string;
@@ -440,6 +481,14 @@ export type SelectionObservation = {
   evidence: {
     contribution: EvidenceContribution;
   };
+  /** Tools that could close a detected requirement (never "applicable"). */
+  requirementCandidates: RequirementCandidate[];
+  scoping: {
+    admitted: Array<{ tool: string; reasons: string[] }>;
+    fallbackFull: boolean;
+    /** Debug-only: exclusions can explode, so they are opt-in. */
+    excluded?: Array<{ tool: string; reasons: string[] }>;
+  };
 };
 
 export function buildSelectionObservation(input: {
@@ -456,6 +505,12 @@ export function buildSelectionObservation(input: {
   noOp?: boolean;
   /** The result carried content (any rendered body). */
   hasContent?: boolean;
+  requirementCandidates?: RequirementCandidate[];
+  scoping?: {
+    admitted: Array<{ tool: string; reasons: string[] }>;
+    fallbackFull: boolean;
+    excluded?: Array<{ tool: string; reasons: string[] }>;
+  };
 }): SelectionObservation {
   const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
   input.seenSignatures.set(input.argsSignature, repeatCount);
@@ -475,7 +530,33 @@ export function buildSelectionObservation(input: {
     selection: { outcome: repeatCount > 1 ? "redundant" : "novel", repeatCount },
     execution: { status },
     evidence: { contribution },
+    requirementCandidates: input.requirementCandidates ?? [],
+    scoping: {
+      // Requirement reasons are merged in here: the scoper is requirement-blind
+      // by design, and this keeps one place that knows why a tool was admitted.
+      admitted: (input.scoping?.admitted ?? []).map((entry) => {
+        const requirement = (input.requirementCandidates ?? []).find(candidate => candidate.tool === entry.tool);
+        if (!requirement) return entry;
+        return { tool: entry.tool, reasons: [...new Set([...entry.reasons, ...requirement.reasons])] };
+      }),
+      fallbackFull: input.scoping?.fallbackFull ?? false,
+      ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
+    },
   };
+}
+
+/**
+ * A tool that could close a detected requirement must not disappear from the
+ * offered surface without recorded scoping provenance. Returns the unexplained
+ * tools — empty is the invariant holding. Replay and the regression test both
+ * use this; a requirement-closing tool that vanished silently is a scoping
+ * failure, while one that was offered and not chosen is a selection question.
+ */
+export function unexplainedRequirementCandidates(observation: SelectionObservation): string[] {
+  return observation.requirementCandidates
+    .filter(candidate => !observation.offered.includes(candidate.tool))
+    .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.tool === candidate.tool))
+    .map(candidate => candidate.tool);
 }
 
 export function missingEvidenceSummary(gaps: string[], text: string): string {
