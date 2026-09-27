@@ -9,7 +9,13 @@
  * that rebuttal re-armed the detector until the attempts ran out.
  */
 import { describe, it, expect } from 'vitest';
-import { findUnsubstantiatedClaims } from '../../src/run/task-loop/predicates.js';
+import {
+  CLAIM_TOOL_MAP,
+  CLAIM_TOOL_NAMES,
+  buildUnconfirmedDonePrompt,
+  findUnsubstantiatedClaims,
+} from '../../src/run/task-loop/predicates.js';
+import { ALIX_CANONICAL_BUILTIN_TOOLS } from '../../src/agents/tool-manifest.js';
 
 const LABEL = 'scheduling a job';
 
@@ -65,5 +71,88 @@ describe('findUnsubstantiatedClaims scheduling entry', () => {
     const text = 'I compiled the project and the build passed.';
     expect(findUnsubstantiatedClaims(text, new Set())).toContain('verifying compilation');
     expect(findUnsubstantiatedClaims(text, new Set(['alix_shell_run']))).not.toContain('verifying compilation');
+  });
+});
+
+/**
+ * The harness must never instruct the model to call a tool that does not
+ * exist. `CLAIM_TOOL_NAMES` used to be derived by string-munging the claim
+ * prefix, which produced `alix_schedule_`, `alix_file_edit`, `alix_monitor`,
+ * `alix_notification_` and `alix_user_send_file` — instructions the model
+ * could never satisfy (live: session 1790519787172, where the coordinator
+ * replied "`alix_file_edit` was never required").
+ */
+describe('claim mappings name real tools only', () => {
+  const manifest = new Set<string>(ALIX_CANONICAL_BUILTIN_TOOLS);
+
+  it('every claim-to-tool mapping resolves to a manifest name', () => {
+    for (const [label, tool] of Object.entries(CLAIM_TOOL_NAMES)) {
+      expect(manifest.has(tool), `${label} -> ${tool} is not in the tool manifest`).toBe(true);
+    }
+  });
+
+  it('labels without a tool ask for the claim to be withdrawn, never a phantom call', () => {
+    const toolLess = CLAIM_TOOL_MAP.filter(entry => !entry.tool).map(entry => entry.label);
+    expect(toolLess.length).toBeGreaterThan(0);
+    const prompt = buildUnconfirmedDonePrompt({
+      unsubstantiated: toolLess,
+      evidenceGaps: [],
+      errorEchoDone: false,
+      attempt: 1,
+    });
+    for (const label of toolLess) {
+      expect(prompt).toContain(`${label} (no matching tool exists in this build — remove that claim)`);
+    }
+  });
+
+  it('no harness-authored re-prompt text names a tool outside the manifest', () => {
+    for (const attempt of [0, 1, 2]) {
+      const prompt = buildUnconfirmedDonePrompt({
+        unsubstantiated: [...CLAIM_TOOL_MAP.map(entry => entry.label), 'a successful coordination run with worker outcomes'],
+        evidenceGaps: [],
+        errorEchoDone: false,
+        attempt,
+      });
+      const named = prompt.match(/alix_[a-z0-9_]{2,}/g) ?? [];
+      for (const token of named) {
+        expect(manifest.has(token), `re-prompt (attempt ${attempt}) names unknown tool ${token}`).toBe(true);
+      }
+    }
+  });
+});
+
+/**
+ * Operator reporting vocabulary is not a claim. The operator's own prompt asks
+ * for "every worker ID, task ID, … and registered artifact", so the summary
+ * repeats it — the old bare `\bregister(ed|ing)\b` keyword flagged that.
+ */
+describe('claim keywords require a first-person action with an object', () => {
+  it('ignores operator/coordination reporting vocabulary', () => {
+    for (const text of [
+      'Registered artifacts (all present, sizes): project.md, workbench.md.',
+      'The scheduler dispatched the workers; monitoring is not part of this objective.',
+      'The report was sent to the operator with the file list attached.',
+    ]) {
+      expect(findUnsubstantiatedClaims(text, new Set())).toEqual([]);
+    }
+  });
+
+  it('flags first-person claims for tools that exist', () => {
+    expect(findUnsubstantiatedClaims('I registered the tool card in the registry.', new Set()))
+      .toContain('editing/registering files');
+    expect(findUnsubstantiatedClaims('I registered the tool card in the registry.', new Set(['alix_patch_apply'])))
+      .not.toContain('editing/registering files');
+    expect(findUnsubstantiatedClaims('I compiled the project and the build passed.', new Set()))
+      .toContain('verifying compilation');
+  });
+
+  it('flags first-person claims with no tool in this build', () => {
+    for (const [text, label] of [
+      ['I sent the operator a notification about the run.', 'sending a notification'],
+      ['I uploaded the artifact to the user.', 'sending a file to the user'],
+      ['I set up monitoring for the daemon.', 'setting up monitoring'],
+    ] as const) {
+      expect(findUnsubstantiatedClaims(text, new Set())).toContain(label);
+    }
   });
 });

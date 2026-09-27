@@ -29,7 +29,7 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import { ALIX_BUILTIN_EXECUTORS } from "../../agents/tool-manifest.js";
+import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
 
 export function emitAgent(
   log: EventLog,
@@ -57,7 +57,25 @@ export function buildShedToolRetryMessage(toolCall: ToolCall): string {
 // but false negatives let a hallucinated "I did X" claim slip through
 // uncontested, which is the failure mode we're closing.
 
-export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: string }> = [
+/**
+ * A claim entry declares:
+ * - `keywords` — a first-person action naming its object ("I scheduled a
+ *   nightly job"). Bare vocabulary must not match: coordination prose
+ *   ("Scheduling: workers ran in parallel"), denials, and the operator's own
+ *   reporting vocabulary ("report the registered artifact") are not claims,
+ *   and flagging them traps the turn in a re-prompt loop.
+ * - `excusedBy` — executor prefixes that make the claim substantiated.
+ * - `tool` — the model-facing name to record the claim against, when a tool
+ *   for it exists in this build. Deriving this by string-munging the prefix
+ *   produced phantom names (`alix_schedule_`, `alix_file_edit`), so it is
+ *   explicit here and pinned by `taxonomy-sentinel.vitest.ts`.
+ */
+export const CLAIM_TOOL_MAP: Array<{
+  keywords: RegExp;
+  excusedBy: string[];
+  tool?: AlixBuiltinToolName;
+  label: string;
+}> = [
   {
     // A scheduling *claim* is a first-person action naming a job-like object:
     // "I scheduled a nightly job". Bare scheduling vocabulary must not count —
@@ -78,23 +96,61 @@ export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label
       String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic|meeting|review|report|digest|export|publish|notification)\b`,
       "i",
     ),
-    toolPrefix: "schedule.",
+    excusedBy: ["schedule.propose"],
+    tool: "alix_schedule_propose",
     label: "scheduling a job",
   },
-  { keywords: /\bsent?\b.*\bnotification\b|\bnotifi(ed|cation)\b/i, toolPrefix: "notification.", label: "sending a notification" },
-  { keywords: /\bsent?\b.*\bfile\b/i, toolPrefix: "user.send_file", label: "sending a file to the user" },
-  { keywords: /\badded\b.*\bregistrat|\bregister(ed|ing)\b/i, toolPrefix: "file.edit", label: "editing/registering files" },
-  { keywords: /\bverified\b.*\bcompil|\bcompil(ed|ation)\b.*\bpass/i, toolPrefix: "shell.run", label: "verifying compilation" },
-  { keywords: /\bset\s?up\b.*\bmonitor|\bmonitor(ing)?\b/i, toolPrefix: "monitor", label: "setting up monitoring" },
+  {
+    // No notification tool exists in this build, so the only remedy is to drop
+    // the claim — the re-prompt says exactly that (never a phantom tool name).
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:sent|send|notified|notify|alerted|alert)\b[^.!?]{0,60}\b(?:notification|notifications|alert|alerts|message|email|slack|webhook)\b/i,
+    excusedBy: [],
+    label: "sending a notification",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:sent|send|uploaded|upload|shared|share|attached|attach)\b[^.!?]{0,60}\b(?:file|files|attachment|attachments|artifact|artifacts)\b/i,
+    excusedBy: [],
+    label: "sending a file to the user",
+  },
+  {
+    // "registered/edited a file" — a first-person action with a file object.
+    // The previous bare `\bregister(ed|ing)\b` matched the operator's own
+    // reporting requirement ("report … registered artifact").
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:registered|registering|register|edited|editing|edit|added|adding|add|updated|updating|update|modified|modifying|modify)\b[^.!?]{0,60}\b(?:file|files|card|cards|tool|tools|registry)\b/i,
+    excusedBy: ["patch.apply", "file.create"],
+    tool: "alix_patch_apply",
+    label: "editing/registering files",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:verified|verifying|verify|compiled|compiling|compile|ran|run)\b[^.!?]{0,60}\b(?:build|compilation|tests?|typecheck|suite|tsc)\b/i,
+    excusedBy: ["shell.run"],
+    tool: "alix_shell_run",
+    label: "verifying compilation",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:set\s*up|configured|configuring|configure|enabled|enabling|enable|added|adding|add)\b[^.!?]{0,60}\bmonitor(?:ing|s)?\b/i,
+    excusedBy: [],
+    label: "setting up monitoring",
+  },
 ];
 
-/** Tool-name override map derived from CLAIM_TOOL_MAP for claim-detection re-prompts. */
+/**
+ * Model-facing tool name for a claim label, when one exists. Labels without a
+ * tool are instructed to drop the claim instead — a phantom name here is a
+ * harness-authored hallucination the model can never satisfy.
+ */
 export const CLAIM_TOOL_NAMES: Record<string, string> = {
   ...Object.fromEntries(
-    CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`]),
+    CLAIM_TOOL_MAP.filter(item => item.tool).map(item => [item.label, item.tool as string]),
   ),
   "a successful coordination run with worker outcomes": "alix_coordination_run",
 };
+
+/** Every label the claim map can report (tool-backed or not). */
+const CLAIM_TOOL_LABELS: ReadonlySet<string> = new Set<string>([
+  ...CLAIM_TOOL_MAP.map(item => item.label),
+  "a successful coordination run with worker outcomes",
+]);
 
 export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
@@ -155,9 +211,9 @@ export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>):
     if (execName) called.add(execName);
   }
   const unsubstantiated: string[] = [];
-  for (const { keywords, toolPrefix, label } of CLAIM_TOOL_MAP) {
+  for (const { keywords, excusedBy, label } of CLAIM_TOOL_MAP) {
     if (keywords.test(text)) {
-      const wasCalled = [...called].some((t) => t.startsWith(toolPrefix));
+      const wasCalled = excusedBy.length > 0 && [...called].some((t) => excusedBy.some((prefix) => t.startsWith(prefix)));
       if (!wasCalled) {
         unsubstantiated.push(label);
       }
@@ -289,7 +345,15 @@ export function buildUnconfirmedDonePrompt(input: {
 }): string {
   const { unsubstantiated, evidenceGaps, errorEchoDone, toolEchoDone = false, attempt } = input;
   const missingToolLines = [...unsubstantiated, ...evidenceGaps]
-    .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
+    .map((c) => {
+      const tool = CLAIM_TOOL_NAMES[c];
+      if (tool) return `  - ${tool}`;
+      // A label with no tool must ask for the claim to be dropped, never name a
+      // tool that does not exist — a phantom instruction cannot be satisfied.
+      return CLAIM_TOOL_LABELS.has(c)
+        ? `  - ${c} (no matching tool exists in this build — remove that claim)`
+        : `  - ${c}`;
+    })
     .join("\n");
 
   if (evidenceGaps.length > 0) {
@@ -314,21 +378,20 @@ export function buildUnconfirmedDonePrompt(input: {
   }
   if (attempt >= 2) {
     return (
-      `You keep saying you are done without having actually called the required tools. ` +
-      `Call these tools now:\n${missingToolLines}\n\n` +
-      `Do NOT call \`alix_done\` until every one of these tools has returned a result.`
+      `You keep saying you are done without having completed the work:\n${missingToolLines}\n\n` +
+      `Do NOT call \`alix_done\` until each item is either executed or withdrawn.`
     );
   }
   if (attempt >= 1) {
     return (
       `Your summary claims you completed the following, but no matching tool call was made:\n${missingToolLines}\n\n` +
-      `Call these tools now using their \`alix_\` names, or call \`alix_done\` only if you genuinely cannot proceed.`
+      `Call the listed tools now using their \`alix_\` names, or withdraw a claim that no tool can substantiate.`
     );
   }
   return (
     `Your summary claims you did the following, but no matching tool call was made: ${unsubstantiated.join(", ")}. ` +
     `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
-    `Either call the remaining tools now, or call the \`alix_done\` tool explicitly once everything is genuinely finished.`
+    `Either call the remaining tools now, or withdraw a claim that no tool in this build can substantiate.`
   );
 }
 
