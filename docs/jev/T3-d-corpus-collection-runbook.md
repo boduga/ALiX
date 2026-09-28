@@ -151,8 +151,10 @@ node bin/alix.js run "<prompt from the matrix>" --read-only --mode bypass --no-s
   2>&1 | tee .tmp/t3d/logs/<taskId>.log
 
 # 3. Capture the session id from the run output (`Session: <id>`) and confirm
-#    the session produced a scope.
-SESSION=$(grep -m1 '^Session: ' .tmp/t3d/logs/<taskId>.log | awk '{print $2}')
+#    the session produced a scope. The line is not always at the start of a
+#    line — it follows the streamed summary without a newline — so match the id
+#    shape rather than anchored text.
+SESSION=$(grep -oE 'Session: [0-9a-f-]{36}' .tmp/t3d/logs/<taskId>.log | tail -1 | awk '{print $2}')
 echo "$SESSION"
 grep -c 'tool.selection.observed' .alix/sessions/"$SESSION"/events.jsonl
 

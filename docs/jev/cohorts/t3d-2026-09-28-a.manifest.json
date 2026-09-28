@@ -1,0 +1,74 @@
+{
+  "c71381fd-36b0-4f4f-b1df-9123fa9dbbec": {
+    "taskId": "r1",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "9a9192cb-75cf-4400-915c-bf8a460e158f": {
+    "taskId": "r2",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "ef9c1fe1-c5a6-4202-a1ad-bf6a12f5ad21": {
+    "taskId": "r3",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "0875362d-d5a7-4dc3-a518-f065b4d3ba2d": {
+    "taskId": "r4",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "87c7e7e5-b1e5-4486-897f-11fecaff1e55": {
+    "taskId": "r5",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "9676319a-b1da-4741-9508-3dc466119a5b": {
+    "taskId": "r6",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "7a4ce1c1-cce9-4ecd-8359-1d3ab7eddf02": {
+    "taskId": "r7",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "16e20197-e4e9-4bab-a26e-96a4c3be2ef6": {
+    "taskId": "r8",
+    "family": "read/search",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  }
+}
