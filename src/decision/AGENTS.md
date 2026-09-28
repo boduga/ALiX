@@ -48,6 +48,12 @@
   An offline experiment uses the sealed `experiment:<id>` subject
   (`RemoteDecisionSubject`) so it can call an engine without becoming a
   supported decision surface.
+- An engine never borrows a runtime mapping for an `experiment:` subject: the
+  Jev adapter takes experiment mappings only through `experimentMappings`
+  (`experiment:<id>` → mapping, keyed by experiment id) and still fails closed
+  for an experiment with nothing registered. `TOOL_SELECTION_JEV_MAPPING` is the
+  tool-selection experiment's mapping; `createJevToolSelectionScorer` composes
+  adapter + mapping + scorer in one call and touches no route table.
 - A tool-selection selector scores ONE candidate at a time. ALiX owns candidate
   enumeration, identity, complete-set validation, sorting and tie-breaking;
   `set(ranking) == set(offered)` or the replay attempt is invalid.

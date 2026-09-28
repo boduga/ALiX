@@ -9,13 +9,21 @@ import {
   assertNoPostSelectionFields,
   createJevExperimentScorer,
   projectToolSelectionCandidate,
+  TOOL_SELECTION_JEV_MAPPING,
+  TOOL_SELECTION_JEV_QUESTION_ID,
+  createJevToolSelectionScorer,
+  readToolSelectionProjection,
+  renderToolSelectionState,
   type ExperimentScoreRecord,
+  type ToolSelectionProjection,
 } from '../../src/decision/tool-selection-experiment.js';
 import {
   TOOL_SELECTION_EXPERIMENT,
   replayToolSelection,
   type ToolSelectionScope,
 } from '../../src/decision/tool-selection-replay.js';
+import { sealForRemote } from '../../src/decision/boundary.js';
+import { createJevExecutor } from '../../src/decision/engines/jev.js';
 
 const scope: ToolSelectionScope = {
   scopeId: 'scope_7',
@@ -86,6 +94,39 @@ describe('projectToolSelectionCandidate', () => {
     // The scope's own post-selection values must not survive projection either.
     expect(serialized.includes('alix_file_read"')).toBe(true); // offered tool name only
     expect(projection.offeredTools).not.toContain('3');
+  });
+
+  it('projects only the frozen surface, so an opaque MCP handle cannot reach the boundary', () => {
+    // Real trace shape: `offered` holds the builtin surface while `admitted`
+    // also lists opaque MCP model handles, which the remote boundary's secret
+    // gate rejects as handle-shaped strings.
+    const opaqueHandle = 'mcp___bweCunehzWnFt6ZAhWZ2DBiXNGCFabYg8-2NQ3vj5w';
+    const withHandles: ToolSelectionScope = {
+      ...scope,
+      scoping: {
+        admitted: [...(scope.scoping?.admitted ?? []), { tool: opaqueHandle, reasons: ['relevance_match'] }],
+        fallbackFull: false,
+      },
+    };
+    const projection = projectToolSelectionCandidate({ scope: withHandles, tool: 'alix_file_read' });
+    expect(projection.scoping?.admitted).toEqual(['alix_file_read', 'alix_shell_run']);
+    expect(JSON.stringify(projection).includes(opaqueHandle)).toBe(false);
+
+    // The load-bearing consequence: the payload clears the remote gate.
+    expect(() =>
+      sealForRemote(
+        `experiment:${TOOL_SELECTION_EXPERIMENT}`,
+        TOOL_SELECTION_PROJECTOR_VERSION,
+        projection,
+      ),
+    ).not.toThrow();
+    // The gate itself is real: a payload that *did* carry the handle is refused.
+    expect(() =>
+      sealForRemote(`experiment:${TOOL_SELECTION_EXPERIMENT}`, TOOL_SELECTION_PROJECTOR_VERSION, {
+        ...projection,
+        scoping: { fallbackFull: false, admitted: [opaqueHandle] },
+      }),
+    ).toThrow(/contains secret material/);
   });
 
   it('rejects a projection that has been contaminated', () => {
@@ -196,5 +237,133 @@ describe('createJevExperimentScorer', () => {
     expect(replay.domains[0].ranking).toEqual(['alix_grep_search', 'alix_shell_run', 'alix_file_read']);
     // ALiX scores every offered candidate; the selector never sees the set.
     expect(onScore).toHaveBeenCalledTimes(3);
+  });
+});
+
+/** A sealed projection for one candidate, as the scorer would build it. */
+function sealCandidate(tool: string, projectorVersion = TOOL_SELECTION_PROJECTOR_VERSION) {
+  const projection = projectToolSelectionCandidate({ scope, tool, objective: 'Verify the three files exist', projectorVersion });
+  return sealForRemote(`experiment:${TOOL_SELECTION_EXPERIMENT}`, projectorVersion, projection);
+}
+
+describe('TOOL_SELECTION_JEV_MAPPING', () => {
+  it('asks one Noul question keyed by the candidate, from the sealed payload', () => {
+    const request = TOOL_SELECTION_JEV_MAPPING.toRequest(sealCandidate('alix_grep_search') as never);
+    const question = request.questions[TOOL_SELECTION_JEV_QUESTION_ID];
+    const state = String(request.state ?? '');
+    expect(question?.type).toBe('noul');
+    expect(state).toContain('alix_grep_search');
+    expect(state).toContain('Verify the three files exist');
+    // Selection-time state only: no outcome or ranking reaches the wire.
+    for (const leaked of ['actualChoice', 'deterministicRanking', 'success']) {
+      expect(state.includes(leaked), `state leaked ${leaked}`).toBe(false);
+    }
+  });
+
+  it('maps a Noul answer to a bounded score and refuses malformed answers', () => {
+    const ctx = { projectionHash: 'sha256:test', latencyMs: 3 };
+    const scored = TOOL_SELECTION_JEV_MAPPING.fromResponse(
+      { model: 'jev-test', answers: { [TOOL_SELECTION_JEV_QUESTION_ID]: { type: 'noul', noul: 0.8 } } },
+      ctx,
+    ) as { kind: string; score: number; provenance: { engineId: string; projectionHash: string } };
+    expect(scored.kind).toBe('score');
+    expect(scored.score).toBe(0.8);
+    expect(scored.provenance.engineId).toBe('jev');
+    expect(scored.provenance.projectionHash).toBe('sha256:test');
+
+    expect(() =>
+      TOOL_SELECTION_JEV_MAPPING.fromResponse(
+        { answers: { [TOOL_SELECTION_JEV_QUESTION_ID]: { type: 'choice', choice: 'x' } as never } },
+        ctx,
+      ),
+    ).toThrow(/missing noul answer/);
+    expect(() =>
+      TOOL_SELECTION_JEV_MAPPING.fromResponse(
+        { answers: { [TOOL_SELECTION_JEV_QUESTION_ID]: { type: 'noul', noul: 1.4 } } },
+        ctx,
+      ),
+    ).toThrow(/noul outside 0\.\.1/);
+    expect(() => TOOL_SELECTION_JEV_MAPPING.fromResponse({}, ctx)).toThrow(/missing noul answer/);
+  });
+
+  it('refuses a payload from another experiment or another projector version', () => {
+    const projection: ToolSelectionProjection = projectToolSelectionCandidate({ scope, tool: 'alix_file_read' });
+    expect(() => readToolSelectionProjection({ ...projection, experiment: 'other-experiment' } as never))
+      .toThrow(/not tool-selection-replay/);
+    expect(() => readToolSelectionProjection({ ...projection, projectorVersion: 'tool-selection/v2' } as never))
+      .toThrow(/not tool-selection\/v1/);
+    expect(() => readToolSelectionProjection({ ...projection, candidate: {} } as never))
+      .toThrow(/missing a candidate tool/);
+  });
+
+  it('renders every offered tool so the question is a comparison, not a lone candidate', () => {
+    const rendered = renderToolSelectionState(projectToolSelectionCandidate({ scope, tool: 'alix_shell_run' }));
+    for (const tool of scope.offered) expect(rendered).toContain(tool);
+    expect(rendered).toContain('requirement:verification');
+  });
+});
+
+describe('createJevToolSelectionScorer', () => {
+  const noulTransport = (noul: number) => async () => ({
+    model: 'jev-test',
+    answers: { [TOOL_SELECTION_JEV_QUESTION_ID]: { type: 'noul' as const, noul } },
+  });
+
+  it('scores through the real adapter with the experiment mapping registered', async () => {
+    const selector = createJevToolSelectionScorer({
+      apiKey: 'test-key',
+      scope,
+      transport: noulTransport(0.75),
+    });
+    const result = await selector.score({
+      scopeId: 'scope_7',
+      iteration: 7,
+      tool: 'alix_grep_search',
+      domain: 'builtin',
+      requirementCandidates: [],
+    });
+    expect(result).toEqual({ score: 0.75 });
+    expect(selector.id).toBe(`jev:${TOOL_SELECTION_EXPERIMENT}`);
+  });
+
+  it('leaves a bare experiment subject failing closed when nothing is registered', async () => {
+    const executor = createJevExecutor({
+      enabled: true,
+      apiKey: 'test-key',
+      transport: noulTransport(0.9),
+    });
+    await expect(
+      executor.execute({
+        decision: `experiment:${TOOL_SELECTION_EXPERIMENT}`,
+        sealed: sealCandidate('alix_file_read') as never,
+        candidates: ['alix_file_read'],
+      }),
+    ).rejects.toThrow(/no experiment mapping registered/);
+  });
+
+  it('keeps the experiment mapping out of the runtime decision table', async () => {
+    const seen: Array<Record<string, unknown>> = [];
+    const executor = createJevExecutor({
+      enabled: true,
+      apiKey: 'test-key',
+      transport: async (request) => {
+        seen.push(request.questions as Record<string, unknown>);
+        return {
+          model: 'jev-test',
+          answers: {
+            'claim-verdict': { type: 'choice' as const, choice: 'supported' },
+            [TOOL_SELECTION_JEV_QUESTION_ID]: { type: 'noul' as const, noul: 0.9 },
+          },
+        };
+      },
+      experimentMappings: { [TOOL_SELECTION_EXPERIMENT]: TOOL_SELECTION_JEV_MAPPING },
+    });
+    // A runtime decision still answers its own question, never the experiment's.
+    await executor.execute({
+      decision: 'claim-verification',
+      sealed: sealForRemote('claim-verification', 'v1', { claim: 'the file exists', evidence: [] }) as never,
+      candidates: [],
+    });
+    expect(Object.keys(seen[0] ?? {})).toEqual(['claim-verdict']);
   });
 });
