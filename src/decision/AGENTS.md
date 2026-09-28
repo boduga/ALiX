@@ -71,6 +71,11 @@
   `scoperTop`, native token-overlap scores). Never present it as the
   deterministic selection baseline: T3 must compare against the component that
   actually influences next-tool choice, or it compares two different questions.
+- T3 comparison policy (decided): the BASELINE is what the model actually
+  selected — the component that really influences next-tool choice today. The
+  scoper ordering and the per-domain MCP selector ordering are context only, and
+  builtin/MCP values are never compared on one scale. Any alternative ordering
+  comes from the opt-in offline scorer, one candidate at a time.
 - A failed candidate invalidates the WHOLE replay attempt: no domain keeps a
   usable ordering (`selectorRanking: []`, every domain
   `candidateSetPreserved: false`), so a partial ordering is never read as a
