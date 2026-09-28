@@ -35,6 +35,11 @@ import type {
   ExecutionOutcome,
   SelectionOutcome,
 } from "../../decision/selection-outcome.js";
+import {
+  builtinCandidateId,
+  type FrozenToolCandidate,
+  type LocalToolBinding,
+} from "../../decision/tool-selection-candidates.js";
 
 export function emitAgent(
   log: EventLog,
@@ -464,10 +469,19 @@ export type SelectionObservation = {
   scopeId: string;
   iteration: number;
   invocationId?: string;
-  /** Model-facing names offered this iteration. */
+  /**
+   * The frozen surface: sanitized candidate descriptors, in offered order.
+   * Identity is `candidateId`; an MCP candidate never carries its opaque handle.
+   */
+  candidates: FrozenToolCandidate[];
+  /** Candidate ids offered this iteration, in the same order as `candidates`. */
   offered: string[];
-  /** Model-facing name the model called. */
+  /** LOCAL ONLY: candidateId -> model/executor names. Never projected. */
+  candidateBindings?: LocalToolBinding[];
+  /** Model-facing name the model called (local-only detail). */
   chosen: string;
+  /** Frozen candidate id the model called. */
+  chosenCandidateId: string;
   /** Executor the chosen name resolved to. */
   executor: string;
   /**
@@ -487,13 +501,16 @@ export type SelectionObservation = {
   evidence: {
     contribution: EvidenceContribution;
   };
-  /** Tools that could close a detected requirement (never "applicable"). */
-  requirementCandidates: RequirementCandidate[];
+  /**
+   * Tools that could close a detected requirement (never "applicable"),
+   * recorded by frozen candidate id so it can be checked against `offered`.
+   */
+  requirementCandidates: Array<{ candidateId: string; reasons: string[] }>;
   scoping: {
-    admitted: Array<{ tool: string; reasons: string[] }>;
+    admitted: Array<{ candidateId: string; reasons: string[] }>;
     fallbackFull: boolean;
     /** Debug-only: exclusions can explode, so they are opt-in. */
-    excluded?: Array<{ tool: string; reasons: string[] }>;
+    excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
   /**
    * Deterministic orderings, recorded as the production layer produced them.
@@ -503,8 +520,8 @@ export type SelectionObservation = {
    * a different scale, deliberately not interleaved with `deterministic`.
    */
   ranking: {
-    deterministic: Array<{ tool: string; score: number }>;
-    mcpSelector?: Array<{ tool: string; score: number }>;
+    deterministic: Array<{ candidateId: string; score: number }>;
+    mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
 };
 
@@ -512,8 +529,12 @@ export function buildSelectionObservation(input: {
   scopeId: string;
   iteration: number;
   invocationId?: string;
-  offered: readonly string[];
+  /** Sanitized frozen surface (builtin tools + genuinely offered MCP entries). */
+  candidates: readonly FrozenToolCandidate[];
+  /** LOCAL ONLY bindings for those candidates. */
+  candidateBindings?: readonly LocalToolBinding[];
   chosen: string;
+  chosenCandidateId: string;
   executor: string;
   argsSignature: string;
   seenSignatures: Map<string, number>;
@@ -525,13 +546,13 @@ export function buildSelectionObservation(input: {
   hasContent?: boolean;
   requirementCandidates?: RequirementCandidate[];
   scoping?: {
-    admitted: Array<{ tool: string; reasons: string[] }>;
+    admitted: Array<{ candidateId: string; reasons: string[] }>;
     fallbackFull: boolean;
-    excluded?: Array<{ tool: string; reasons: string[] }>;
+    excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
   ranking?: {
-    deterministic?: Array<{ tool: string; score: number }>;
-    mcpSelector?: Array<{ tool: string; score: number }>;
+    deterministic?: Array<{ candidateId: string; score: number }>;
+    mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
 }): SelectionObservation {
   const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
@@ -547,21 +568,34 @@ export function buildSelectionObservation(input: {
     scopeId: input.scopeId,
     iteration: input.iteration,
     ...(input.invocationId ? { invocationId: input.invocationId } : {}),
-    offered: [...input.offered],
+    candidates: [...input.candidates],
+    offered: input.candidates.map(candidate => candidate.candidateId),
+    ...(input.candidateBindings ? { candidateBindings: [...input.candidateBindings] } : {}),
     chosen: input.chosen,
+    chosenCandidateId: input.chosenCandidateId,
     executor: input.executor,
     argsSignature: input.argsSignature,
     selection: { outcome: repeatCount > 1 ? "redundant" : "novel", repeatCount },
     execution: { status },
     evidence: { contribution },
-    requirementCandidates: input.requirementCandidates ?? [],
+    // Requirement candidates are built from builtin tool names; the frozen
+    // surface is keyed by candidate id, so convert once, here.
+    requirementCandidates: (input.requirementCandidates ?? []).map(candidate => ({
+      candidateId: builtinCandidateId(candidate.tool),
+      reasons: [...candidate.reasons],
+    })),
     scoping: {
       // Requirement reasons are merged in here: the scoper is requirement-blind
       // by design, and this keeps one place that knows why a tool was admitted.
       admitted: (input.scoping?.admitted ?? []).map((entry) => {
-        const requirement = (input.requirementCandidates ?? []).find(candidate => candidate.tool === entry.tool);
+        const requirement = (input.requirementCandidates ?? []).find(
+          candidate => builtinCandidateId(candidate.tool) === entry.candidateId,
+        );
         if (!requirement) return entry;
-        return { tool: entry.tool, reasons: [...new Set([...entry.reasons, ...requirement.reasons])] };
+        return {
+          candidateId: entry.candidateId,
+          reasons: [...new Set([...entry.reasons, ...requirement.reasons])],
+        };
       }),
       fallbackFull: input.scoping?.fallbackFull ?? false,
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
@@ -582,9 +616,9 @@ export function buildSelectionObservation(input: {
  */
 export function unexplainedRequirementCandidates(observation: SelectionObservation): string[] {
   return observation.requirementCandidates
-    .filter(candidate => !observation.offered.includes(candidate.tool))
-    .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.tool === candidate.tool))
-    .map(candidate => candidate.tool);
+    .filter(candidate => !observation.offered.includes(candidate.candidateId))
+    .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.candidateId === candidate.candidateId))
+    .map(candidate => candidate.candidateId);
 }
 
 /**
@@ -597,8 +631,8 @@ export function unexplainedRequirementCandidates(observation: SelectionObservati
  */
 export function rankingOutsideOffered(observation: SelectionObservation): string[] {
   return observation.ranking.deterministic
-    .map(entry => entry.tool)
-    .filter(tool => !observation.offered.includes(tool));
+    .map(entry => entry.candidateId)
+    .filter(candidateId => !observation.offered.includes(candidateId));
 }
 
 export function missingEvidenceSummary(gaps: string[], text: string): string {

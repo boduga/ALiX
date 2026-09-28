@@ -16,16 +16,29 @@ import {
   replayToolInIsolation,
 } from '../../src/decision/tool-selection-snapshot.js';
 import type { ToolSelectionScope } from '../../src/decision/tool-selection-replay.js';
+import {
+  builtinCandidateId,
+  freezeToolCandidates,
+} from '../../src/decision/tool-selection-candidates.js';
 
 const run = promisify(execFile);
+
+const frozen = freezeToolCandidates({
+  builtin: [
+    { name: 'alix_file_read', description: 'Read a file' },
+    { name: 'alix_grep_search', description: 'Search file contents' },
+  ],
+});
 
 const scope: ToolSelectionScope = {
   scopeId: 'scope_7',
   iteration: 7,
-  offered: ['alix_file_read', 'alix_grep_search'],
+  candidates: frozen.candidates,
+  bindings: frozen.bindings,
+  offered: frozen.candidates.map(candidate => candidate.candidateId),
   requirementCandidates: [],
-  deterministicRanking: [{ tool: 'alix_file_read', score: 1 }],
-  actualChoices: ['alix_grep_search'],
+  deterministicRanking: [{ candidateId: builtinCandidateId('alix_file_read'), score: 1 }],
+  actualCandidateIds: [builtinCandidateId('alix_grep_search')],
 };
 
 async function makeGitWorkspace(options: { dirty?: boolean } = {}): Promise<string> {
@@ -179,14 +192,24 @@ describe('createSnapshotReplayRunner', () => {
     const source = await makeGitWorkspace();
     const runner = createSnapshotReplayRunner({
       sourceRoot: source,
+      // LOCAL ONLY: candidate identity -> executable machinery.
+      toolFor: (candidateId) => candidateId.replace(/^builtin:/, ''),
       execute: async ({ root }) => {
         expect(readFileSync(join(root, 'PROJECT.md'), 'utf8')).toContain('original content');
         return { outcome: okOutcome };
       },
     });
 
-    const first = await runner({ scopeId: 'scope_7', tool: 'alix_file_read', domain: 'builtin' });
-    const second = await runner({ scopeId: 'scope_7', tool: 'alix_grep_search', domain: 'builtin' });
+    const first = await runner({
+      scopeId: 'scope_7',
+      candidateId: builtinCandidateId('alix_file_read'),
+      domain: 'builtin',
+    });
+    const second = await runner({
+      scopeId: 'scope_7',
+      candidateId: builtinCandidateId('alix_grep_search'),
+      domain: 'builtin',
+    });
 
     expect(first).toMatchObject({ outcome: okOutcome });
     expect(second).toMatchObject({ outcome: okOutcome });
@@ -201,12 +224,17 @@ describe('createSnapshotReplayRunner', () => {
     const source = await makeGitWorkspace();
     const runner = createSnapshotReplayRunner({
       sourceRoot: source,
+      toolFor: (candidateId) => candidateId.replace(/^builtin:/, ''),
       execute: async () => {
         throw new Error('must not run');
       },
     });
 
-    const result = await runner({ scopeId: 'scope_7', tool: 'alix_patch_apply', domain: 'builtin' });
+    const result = await runner({
+      scopeId: 'scope_7',
+      candidateId: builtinCandidateId('alix_patch_apply'),
+      domain: 'builtin',
+    });
 
     expect(result).toEqual({ error: 'mutating tool: requires an isolated snapshot plus a mutation policy' });
     rmSync(source, { recursive: true, force: true });

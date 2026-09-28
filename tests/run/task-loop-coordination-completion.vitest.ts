@@ -29,6 +29,7 @@ import {
   objectiveEvidenceRequirements,
 } from '../../src/run/task-loop/predicates.js';
 import { extractToolSelectionScopes, replayToolSelection } from '../../src/decision/tool-selection-replay.js';
+import { builtinCandidateId } from '../../src/decision/tool-selection-candidates.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -376,20 +377,22 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     // Requirement candidates and scoping provenance ride along: this objective
     // asks for a file, so the mutation-closing tool must be identifiable.
     const provenance = observed?.payload as {
-      requirementCandidates?: Array<{ tool: string; reasons: string[] }>;
-      scoping?: { admitted?: Array<{ tool: string; reasons: string[] }>; fallbackFull?: boolean };
+      requirementCandidates?: Array<{ candidateId: string; reasons: string[] }>;
+      scoping?: { admitted?: Array<{ candidateId: string; reasons: string[] }>; fallbackFull?: boolean };
     };
-    expect(provenance.requirementCandidates?.some(entry => entry.tool === 'alix_file_create')).toBe(true);
+    expect(
+      provenance.requirementCandidates?.some(entry => entry.candidateId === builtinCandidateId('alix_file_create')),
+    ).toBe(true);
     expect((provenance.scoping?.admitted ?? []).length).toBeGreaterThan(0);
     // The deterministic ranking is recorded from the scoper, and every ranked
     // tool is one the model could actually call.
     const ranked = (observed?.payload as {
-      ranking?: { deterministic?: Array<{ tool: string; score: number }> };
+      ranking?: { deterministic?: Array<{ candidateId: string; score: number }> };
       offered?: string[];
     });
     expect((ranked.ranking?.deterministic ?? []).length).toBeGreaterThan(0);
     for (const entry of ranked.ranking?.deterministic ?? []) {
-      expect(ranked.offered).toContain(entry.tool);
+      expect(ranked.offered).toContain(entry.candidateId);
     }
 
     // T2-c acceptance: the recorded trace reconstructs the frozen scope and can
@@ -398,16 +401,17 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     expect(scopes).toHaveLength(1);
     expect(scopes[0].scopeId).toMatch(/^scope_\d+$/);
     expect(scopes[0].offered.length).toBeGreaterThan(0);
-    expect(scopes[0].actualChoices[0]).toBe('alix_file_create');
+    const fileCreate = builtinCandidateId('alix_file_create');
+    expect(scopes[0].actualCandidateIds[0]).toBe(fileCreate);
     const replay = await replayToolSelection(scopes[0], {
       id: 'stub-selector',
-      async score(request) {
-        return { score: request.tool === 'alix_file_create' ? 1 : 0 };
+      async rank(request) {
+        return { rankValue: request.candidateId === fileCreate ? 1 : 0 };
       },
     });
     expect(replay.candidateSetPreserved).toBe(true);
-    expect(replay.actualChoice).toBe('alix_file_create');
-    expect(replay.domains[0].ranking[0]).toBe('alix_file_create');
+    expect(replay.actualCandidateId).toBe(fileCreate);
+    expect(replay.domains[0].ranking[0]).toBe(fileCreate);
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {

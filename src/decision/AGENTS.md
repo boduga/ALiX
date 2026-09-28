@@ -21,7 +21,7 @@
 - `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability, accuracy sweep (scoreless engines), versioned threshold profiles. See its AGENTS.md.
-- `tool-selection-*.ts` — offline tool-selection experiment surface (T2), never a runtime decision: `tool-selection-replay.ts` (frozen `scopeId` scopes, per-domain builtin/MCP replay, exact set preservation), `tool-selection-evaluation.ts` (observed/replayed/unknown outcomes), `tool-selection-snapshot.ts` (isolated snapshot runner), `tool-selection-fixtures.ts` (recorded-response replay for external tools), `tool-selection-experiment.ts` (experiment-only Jev scorer, pinned `tool-selection/v1` projector).
+- `tool-selection-*.ts` — offline tool-selection experiment surface (T2), never a runtime decision: `tool-selection-candidates.ts` (the frozen candidate descriptor + local-only binding), `tool-selection-replay.ts` (frozen `scopeId` scopes, per-domain builtin/MCP replay, exact set preservation), `tool-selection-evaluation.ts` (observed/replayed/unknown outcomes), `tool-selection-snapshot.ts` (isolated snapshot runner), `tool-selection-fixtures.ts` (recorded-response replay for external tools), `tool-selection-experiment.ts` (experiment-only Jev scorer, pinned `tool-selection/v1` projector).
 - Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
@@ -57,6 +57,16 @@
 - A tool-selection selector scores ONE candidate at a time. ALiX owns candidate
   enumeration, identity, complete-set validation, sorting and tie-breaking;
   `set(ranking) == set(offered)` or the replay attempt is invalid.
+- Candidate identity is the frozen `candidateId` (`builtin:<name>`,
+  `mcp:<short hash>`), not an executor identifier. The local-only binding
+  (candidateId -> model/executor name) resolves executable machinery for replay;
+  raw `mcp__<handle>` strings never enter a projection, and a scope that still
+  offers one fails closed at projection time.
+- The selection engine's answer is a Noul probability used as a ranking value:
+  provenance records `outcomeKind: "noul"`, `probability` and `rankValue`, and
+  the ordinal `Score` primitive stays unmodelled until evidence says ranking
+  needs it. The question is per-candidate ("would executing this tool now be an
+  appropriate next step?"), never "best" — a candidate never sees the others.
 - Tool-selection projections carry selection-time information only
   (`assertNoPostSelectionFields`): `actualChoice`, execution outcome, evidence
   contribution and the deterministic ranking must never reach a scorer.
@@ -90,8 +100,9 @@
 - `tests/decision/jev-protocol.test.ts` — the verified System One request/response shape (map questions/answers, `noul` field, legacy shape rejected).
 - `tests/config/decision-section.test.ts` — canonical `decision` section wiring.
 - `tests/run/tool-selection-*.vitest.ts` — T2 tool-selection experiment surface:
-  scope/ranking recording, replay set preservation, snapshot runner, recorded-response
-  fixtures, and the experiment scorer's anti-leakage projection + Score-only contract.
+  frozen-candidate sanitization + local-only bindings, scope/ranking recording,
+  replay set preservation over candidate ids, snapshot runner, recorded-response
+  fixtures, and the experiment scorer's anti-leakage projection + Noul-only contract.
 
 **Child DOX Index:**
 

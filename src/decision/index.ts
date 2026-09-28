@@ -23,3 +23,4 @@ export * from "./selection-outcome.js";
 export * from "./tool-selection-snapshot.js";
 export * from "./tool-selection-fixtures.js";
 export * from "./tool-selection-experiment.js";
+export * from "./tool-selection-candidates.js";

@@ -245,8 +245,14 @@ export function createSnapshotReplayRunner(options: {
   execute: IsolatedReplayExecutor;
   strategy?: "auto" | "worktree" | "copy";
   excludes?: string[];
+  /**
+   * LOCAL ONLY: resolve a frozen candidate id to the tool name the executor
+   * understands. Without it the candidate id is used as-is.
+   */
+  toolFor?: (candidateId: string) => string;
 }): CounterfactualReplayRunner {
-  return async ({ scopeId, tool }) => {
+  return async ({ scopeId, candidateId }) => {
+    const tool = options.toolFor?.(candidateId) ?? candidateId;
     let snapshot: ReplaySnapshot;
     try {
       snapshot = await createReplaySnapshot(options.sourceRoot, {
@@ -258,7 +264,15 @@ export function createSnapshotReplayRunner(options: {
     }
     try {
       const result = await replayToolInIsolation({
-        scope: { scopeId, iteration: 0, offered: [tool], requirementCandidates: [], deterministicRanking: [], actualChoices: [] },
+        scope: {
+          scopeId,
+          iteration: 0,
+          candidates: [],
+          offered: [candidateId],
+          requirementCandidates: [],
+          deterministicRanking: [],
+          actualCandidateIds: [],
+        },
         tool,
         snapshot,
         execute: options.execute,

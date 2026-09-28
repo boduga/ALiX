@@ -11,6 +11,7 @@ import {
   replayFromRecordedResponse,
   type ExternalReplayFixture,
 } from '../../src/decision/tool-selection-fixtures.js';
+import { builtinCandidateId } from '../../src/decision/tool-selection-candidates.js';
 
 const fixture: ExternalReplayFixture = {
   fixtureId: 'fix_1',
@@ -110,10 +111,25 @@ describe('no live network, structurally', () => {
   it('does not invoke a transport on a fixture miss', async () => {
     const transport = vi.fn(async () => ({ outcome: fixture.outcome }));
     // The runner is the only channel the evaluator has; a miss must not reach it.
-    const runner = createRecordedResponseRunner({ store, argsSignatureFor: () => 'does-not-match' });
-    const result = await runner({ scopeId: 'scope_7', tool: 'alix_web_fetch', domain: 'builtin' });
+    // The lookup key is the LOCAL executor name, resolved from the candidate id.
+    const lookedUp: string[] = [];
+    const runner = createRecordedResponseRunner({
+      store,
+      toolFor: (candidateId) => {
+        const tool = candidateId.replace(/^builtin:/, '');
+        lookedUp.push(tool);
+        return tool;
+      },
+      argsSignatureFor: () => 'does-not-match',
+    });
+    const result = await runner({
+      scopeId: 'scope_7',
+      candidateId: builtinCandidateId('alix_web_fetch'),
+      domain: 'builtin',
+    });
 
     expect(result).toEqual({ error: 'no matching recorded response' });
+    expect(lookedUp).toEqual(['alix_web_fetch']);
     expect(transport).not.toHaveBeenCalled();
   });
 

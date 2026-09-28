@@ -185,11 +185,17 @@ export function replayFromRecordedResponse(input: {
 export function createRecordedResponseRunner(options: {
   store: ExternalReplayFixtureStore;
   /** Canonical signature for the alternative, when one is known. */
-  argsSignatureFor?: (request: { scopeId: string; tool: string; domain: ReturnType<typeof toolSelectionDomain> }) => string | undefined;
+  argsSignatureFor?: (request: { scopeId: string; candidateId: string; domain: ReturnType<typeof toolSelectionDomain> }) => string | undefined;
+  /**
+   * LOCAL ONLY: resolve a candidate id to the tool name the fixture was
+   * captured under (the executor name, never the projected candidate id).
+   * Without it the candidate id is used as-is.
+   */
+  toolFor?: (candidateId: string) => string;
 }): CounterfactualReplayRunner {
   return async (request) => {
     const result = replayFromRecordedResponse({
-      tool: request.tool,
+      tool: options.toolFor?.(request.candidateId) ?? request.candidateId,
       ...(options.argsSignatureFor ? { argsSignature: options.argsSignatureFor(request) } : {}),
       store: options.store,
     });

@@ -71,7 +71,7 @@ existing import paths are unchanged.
   dominate the answer or match it exactly).
 - Tool-selection shadow instrumentation (T0-b): every executed call appends a
   `tool.selection.observed` event (`buildSelectionObservation`) recording the
-  offered surface, the chosen name, the resolved executor, and three *separate*
+  frozen candidate surface, the chosen candidate, the resolved executor, and three *separate*
   signals — `selection.outcome` (`novel` | `redundant` by executor+args
   signature), `execution.status` (`success` | `repaired` | `failed`), and
   `evidence.contribution` (`contributed` | `none` | `unknown`). Keeping them
@@ -86,6 +86,17 @@ existing import paths are unchanged.
   `tool-selection` `DecisionType` is deliberately not added: `decision/config.ts`
   forces a route for every new type, and there is no selection engine to route
   to until the experiment justifies one.
+- The frozen surface is the surface the model was actually offered — scoped core
+  + extended, which includes the MCP entries this task admitted — not the
+  builtin-only provider list. It is frozen once per scope through
+  `freezeToolCandidates` (`src/decision/tool-selection-candidates.ts`): identity
+  is `candidateId` (`builtin:<name>`, `mcp:<short hash of the handle>`),
+  descriptors are sanitized and bounded, and an MCP handle appears ONLY in the
+  local-only `candidateBindings` (candidateId -> model/executor name). Both
+  `offered` and the recorded `ranking`/`scoping`/`requirementCandidates`/
+  `chosenCandidateId` use candidate ids, so no field can carry a handle
+  (`mcp__<opaque>`) into a projection. The same offered name twice is one
+  candidate; two different names sharing an id fails closed.
 - Final prose that promises another agent action (for example, "Next, I'm
   surfacing...") is a continuation, not a completion. The task loop re-prompts
   within its existing bound and records `completed_unverified` if the promise

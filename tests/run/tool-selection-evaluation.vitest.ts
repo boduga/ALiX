@@ -9,22 +9,42 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   evaluateToolSelection,
   replayabilityOf,
+  replayabilityOfCandidate,
   selectionOutcomeFromObservation,
   type CounterfactualReplayRunner,
 } from '../../src/decision/tool-selection-evaluation.js';
 import type { ToolSelectionScope } from '../../src/decision/tool-selection-replay.js';
+import {
+  builtinCandidateId,
+  candidateIdFor,
+  freezeToolCandidates,
+} from '../../src/decision/tool-selection-candidates.js';
+
+const frozen = freezeToolCandidates({
+  builtin: [
+    { name: 'alix_file_read', description: 'Read a file' },
+    { name: 'alix_grep_search', description: 'Search file contents' },
+    { name: 'alix_patch_apply', description: 'Apply a patch' },
+  ],
+  mcp: [{ name: 'mcp__abc', serverName: 'demo', toolName: 'echo' }],
+});
+
+const id = builtinCandidateId;
+const mcpId = candidateIdFor('mcp__abc');
 
 const scope: ToolSelectionScope = {
   scopeId: 'scope_7',
   iteration: 7,
-  offered: ['alix_file_read', 'alix_grep_search', 'alix_patch_apply'],
+  candidates: frozen.candidates,
+  bindings: frozen.bindings,
+  offered: frozen.candidates.map(candidate => candidate.candidateId),
   requirementCandidates: [],
   deterministicRanking: [
-    { tool: 'alix_grep_search', score: 3 },
-    { tool: 'alix_file_read', score: 1 },
-    { tool: 'alix_patch_apply', score: 0 },
+    { candidateId: id('alix_grep_search'), score: 3 },
+    { candidateId: id('alix_file_read'), score: 1 },
+    { candidateId: id('alix_patch_apply'), score: 0 },
   ],
-  actualChoices: ['alix_file_read'],
+  actualCandidateIds: [id('alix_file_read')],
 };
 
 const observedOutcome = { execution: 'success' as const, selection: 'novel' as const, evidence: 'none' as const };
@@ -37,9 +57,14 @@ describe('replayabilityOf', () => {
     expect(replayabilityOf('alix_coordination_run')).toBe('mutating');
     expect(replayabilityOf('alix_shell_run')).toBe('mutating');
     expect(replayabilityOf('alix_web_fetch')).toBe('external');
-    expect(replayabilityOf('mcp__abc')).toBe('external');
     // Unknown tools are never assumed harmless.
     expect(replayabilityOf('alix_something_new')).toBe('external');
+  });
+
+  it('classifies a frozen MCP candidate as external from its domain, not its handle', () => {
+    expect(replayabilityOfCandidate(scope, mcpId)).toBe('external');
+    expect(replayabilityOfCandidate(scope, id('alix_file_read'))).toBe('hermetic');
+    expect(replayabilityOfCandidate(scope, id('alix_patch_apply'))).toBe('mutating');
   });
 });
 
@@ -49,7 +74,8 @@ describe('evaluateToolSelection', () => {
 
     expect(comparison.actual).toEqual({
       basis: 'observed',
-      tool: 'alix_file_read',
+      candidateId: id('alix_file_read'),
+      label: 'alix_file_read',
       domain: 'builtin',
       outcome: { execution: 'success', selection: 'novel', evidence: 'none' },
     });
@@ -61,14 +87,15 @@ describe('evaluateToolSelection', () => {
   it('reuses the observed outcome when an alternative ordering agrees with the executed choice', async () => {
     const replay = vi.fn<CounterfactualReplayRunner>();
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ tool: 'alix_file_read', score: 5 }] },
+      scope: { ...scope, deterministicRanking: [{ candidateId: id('alix_file_read'), score: 5 }] },
       actualOutcome: observedOutcome,
       replay,
     });
 
     expect(comparison.deterministicTop).toEqual({
       basis: 'observed',
-      tool: 'alix_file_read',
+      candidateId: id('alix_file_read'),
+      label: 'alix_file_read',
       domain: 'builtin',
       outcome: observedOutcome,
     });
@@ -84,25 +111,31 @@ describe('evaluateToolSelection', () => {
 
     expect(comparison.deterministicTop).toEqual({
       basis: 'replayed',
-      tool: 'alix_grep_search',
+      candidateId: id('alix_grep_search'),
+      label: 'alix_grep_search',
       domain: 'builtin',
       outcome: { execution: 'success', selection: 'novel', evidence: 'contributed' },
       replayId: 'replay_1',
     });
-    expect(replay).toHaveBeenCalledWith({ scopeId: 'scope_7', tool: 'alix_grep_search', domain: 'builtin' });
+    expect(replay).toHaveBeenCalledWith({
+      scopeId: 'scope_7',
+      candidateId: id('alix_grep_search'),
+      domain: 'builtin',
+    });
   });
 
   it('refuses to replay a mutating alternative, even when a runner exists', async () => {
     const replay = vi.fn<CounterfactualReplayRunner>();
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ tool: 'alix_patch_apply', score: 9 }] },
+      scope: { ...scope, deterministicRanking: [{ candidateId: id('alix_patch_apply'), score: 9 }] },
       actualOutcome: observedOutcome,
       replay,
     });
 
     expect(comparison.deterministicTop).toEqual({
       basis: 'unknown',
-      tool: 'alix_patch_apply',
+      candidateId: id('alix_patch_apply'),
+      label: 'alix_patch_apply',
       domain: 'builtin',
       reason: 'mutating tool: replay requires an isolated snapshot',
     });
@@ -111,13 +144,14 @@ describe('evaluateToolSelection', () => {
 
   it('leaves an external alternative unknown rather than reaching the network', async () => {
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ tool: 'mcp__abc', score: 4 }] },
+      scope: { ...scope, deterministicRanking: [{ candidateId: mcpId, score: 4 }] },
       actualOutcome: observedOutcome,
     });
 
     expect(comparison.deterministicTop).toEqual({
       basis: 'unknown',
-      tool: 'mcp__abc',
+      candidateId: mcpId,
+      label: 'demo/echo',
       domain: 'mcp',
       reason: 'external tool: replay requires fixtures or recorded responses',
     });
@@ -127,7 +161,8 @@ describe('evaluateToolSelection', () => {
     const comparison = await evaluateToolSelection({ scope });
     expect(comparison.actual).toEqual({
       basis: 'unknown',
-      tool: 'alix_file_read',
+      candidateId: id('alix_file_read'),
+      label: 'alix_file_read',
       domain: 'builtin',
       reason: 'no recorded outcome for the executed choice',
     });
@@ -137,11 +172,13 @@ describe('evaluateToolSelection', () => {
     const comparison = await evaluateToolSelection({
       scope,
       actualOutcome: observedOutcome,
-      selectorRanking: ['alix_grep_search', 'alix_file_read'],
+      selectorRanking: [id('alix_grep_search'), id('alix_file_read')],
       selectorId: 'jev-stub',
     });
 
-    expect(comparison.notes).toContain('deterministic and jev-stub orderings agree on alix_grep_search');
+    expect(comparison.notes).toContain(
+      `deterministic and jev-stub orderings agree on ${id('alix_grep_search')}`,
+    );
     expect(comparison.selectorTop?.basis).toBe('unknown'); // no runner supplied
     expect(comparison.selectorId).toBe('jev-stub');
   });
@@ -150,10 +187,12 @@ describe('evaluateToolSelection', () => {
     const comparison = await evaluateToolSelection({
       scope,
       actualOutcome: observedOutcome,
-      selectorRanking: ['alix_file_read', 'alix_grep_search'],
+      selectorRanking: [id('alix_file_read'), id('alix_grep_search')],
       selectorId: 'jev-stub',
     });
-    expect(comparison.notes).toContain('orderings disagree: deterministic top alix_grep_search, jev-stub top alix_file_read');
+    expect(comparison.notes).toContain(
+      `orderings disagree: deterministic top ${id('alix_grep_search')}, jev-stub top ${id('alix_file_read')}`,
+    );
   });
 });
 

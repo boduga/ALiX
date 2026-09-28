@@ -22,44 +22,76 @@ import type { DecisionType } from "./contracts.js";
 import { sealForRemote, type RemoteDecisionSubject } from "./boundary.js";
 import { executeWithTimeout, type DecisionExecutor } from "./executors.js";
 import { DEFAULT_REPLAY_TIMEOUT_MS } from "./replay/harness.js";
+import {
+  toolSelectionDomain,
+  type FrozenToolCandidate,
+  type LocalToolBinding,
+  type ToolSelectionDomain,
+} from "./tool-selection-candidates.js";
 
-export type ToolSelectionDomain = "builtin" | "mcp";
-
-/** MCP model handles use the reserved `mcp__` namespace. */
-export function toolSelectionDomain(tool: string): ToolSelectionDomain {
-  return tool.startsWith("mcp__") ? "mcp" : "builtin";
-}
+export { toolSelectionDomain, type ToolSelectionDomain } from "./tool-selection-candidates.js";
 
 export type ToolSelectionScope = {
   scopeId: string;
   iteration: number;
+  /** Sanitized frozen surface, in offered order. */
+  candidates: FrozenToolCandidate[];
+  /** Candidate ids of the frozen surface, in offered order. */
   offered: string[];
-  requirementCandidates: Array<{ tool: string; reasons: string[] }>;
+  requirementCandidates: Array<{ candidateId: string; reasons: string[] }>;
   /** The production ordering recorded with the scope (native scores). */
-  deterministicRanking: Array<{ tool: string; score: number }>;
-  /** Model-facing names the loop actually called on this surface, in order. */
-  actualChoices: string[];
+  deterministicRanking: Array<{ candidateId: string; score: number }>;
+  /** Candidate ids the loop actually called on this surface, in order. */
+  actualCandidateIds: string[];
+  /** LOCAL ONLY: candidateId -> executable machinery. Never projected. */
+  bindings?: LocalToolBinding[];
   /** Recorded scoping provenance for the frozen surface, when present. */
   scoping?: {
-    admitted: Array<{ tool: string; reasons: string[] }>;
+    admitted: Array<{ candidateId: string; reasons: string[] }>;
     fallbackFull: boolean;
-    excluded?: Array<{ tool: string; reasons: string[] }>;
+    excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
 };
 
 export type ToolSelectionScoreRequest = {
   scopeId: string;
   iteration: number;
-  tool: string;
+  candidateId: string;
   domain: ToolSelectionDomain;
-  requirementCandidates: Array<{ tool: string; reasons: string[] }>;
+  requirementCandidates: Array<{ candidateId: string; reasons: string[] }>;
 };
+
+/** The frozen descriptor behind a candidate id, when the scope carries one. */
+export function candidateFor(
+  scope: ToolSelectionScope,
+  candidateId: string,
+): FrozenToolCandidate | undefined {
+  return scope.candidates.find(candidate => candidate.candidateId === candidateId);
+}
+
+/** LOCAL ONLY: resolve a candidate to its model-facing / executor name. */
+export function bindingForCandidate(
+  scope: ToolSelectionScope,
+  candidateId: string,
+): LocalToolBinding | undefined {
+  const binding = scope.bindings?.find(entry => entry.candidateId === candidateId);
+  if (binding) return binding;
+  const candidate = candidateFor(scope, candidateId);
+  return candidate?.tool !== undefined
+    ? { candidateId, domain: candidate.domain, modelName: candidate.tool }
+    : undefined;
+}
 
 export type ToolSelectionSelector = {
   id: string;
   /** True when the selector crosses a remote trust boundary (Jev). */
   remote?: boolean;
-  score(request: ToolSelectionScoreRequest): Promise<{ score: number } | { error: string }>;
+  /**
+   * One candidate in, one ranking value out. The field is `rankValue`, not
+   * `score`: a native engine outcome (a Noul probability, say) is being used as
+   * a ranking value, and provenance records the outcome kind it came from.
+   */
+  rank(request: ToolSelectionScoreRequest): Promise<{ rankValue: number } | { error: string }>;
 };
 
 /**
@@ -81,7 +113,7 @@ export function decisionSubjectString(subject: DecisionSubject): RemoteDecisionS
 export type ToolSelectionReplay = {
   scopeId: string;
   selectorId: string;
-  actualChoice?: string;
+  actualCandidateId?: string;
   deterministicRanking: string[];
   selectorRanking: string[];
   candidateSetPreserved: boolean;
@@ -93,15 +125,15 @@ export type ToolSelectionReplay = {
   }>;
 };
 
-async function scoreWithTimeout(
+async function rankWithTimeout(
   selector: ToolSelectionSelector,
   request: ToolSelectionScoreRequest,
   timeoutMs: number,
-): Promise<{ score: number } | { error: string }> {
+): Promise<{ rankValue: number } | { error: string }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      selector.score(request),
+      selector.rank(request),
       new Promise<{ error: string }>((resolve) => {
         timer = setTimeout(
           () => resolve({ error: `selector "${selector.id}" timed out after ${timeoutMs}ms` }),
@@ -131,32 +163,35 @@ export async function replayToolSelection(
   const invalidReasons: string[] = [];
 
   for (const domain of ["builtin", "mcp"] as const) {
-    const candidates = scope.offered.filter(tool => toolSelectionDomain(tool) === domain);
+    const candidates = scope.offered.filter(candidateId => {
+      const candidate = candidateFor(scope, candidateId);
+      return (candidate?.domain ?? toolSelectionDomain(candidateId)) === domain;
+    });
     if (candidates.length === 0) continue;
 
-    const scored: Array<{ tool: string; score: number }> = [];
+    const scored: Array<{ candidateId: string; score: number }> = [];
     let failure: string | undefined;
-    for (const tool of candidates) {
-      const outcome = await scoreWithTimeout(
+    for (const candidateId of candidates) {
+      const outcome = await rankWithTimeout(
         selector,
         {
           scopeId: scope.scopeId,
           iteration: scope.iteration,
-          tool,
+          candidateId,
           domain,
           requirementCandidates: scope.requirementCandidates,
         },
         timeoutMs,
       );
       if ("error" in outcome) {
-        failure = `selector "${selector.id}" failed for ${tool}: ${outcome.error}`;
+        failure = `selector "${selector.id}" failed for ${candidateId}: ${outcome.error}`;
         break;
       }
-      if (!Number.isFinite(outcome.score)) {
-        failure = `selector "${selector.id}" returned a non-finite score for ${tool}`;
+      if (!Number.isFinite(outcome.rankValue)) {
+        failure = `selector "${selector.id}" returned a non-finite ranking value for ${candidateId}`;
         break;
       }
-      scored.push({ tool, score: outcome.score });
+      scored.push({ candidateId, score: outcome.rankValue });
     }
 
     if (failure) {
@@ -169,13 +204,13 @@ export async function replayToolSelection(
     const ranking = scored
       .map((entry, index) => ({ ...entry, index }))
       .sort((a, b) => (b.score - a.score) || (a.index - b.index))
-      .map(({ tool }) => tool);
+      .map(({ candidateId }) => candidateId);
 
     // Exact set equality, verified rather than assumed: an adapter bug must not
     // produce a "replayed" ordering over a different population.
     const preserved = ranking.length === candidates.length
       && new Set(ranking).size === candidates.length
-      && candidates.every(tool => ranking.includes(tool));
+      && candidates.every(candidateId => ranking.includes(candidateId));
     if (!preserved) invalidReasons.push(`selector "${selector.id}" did not preserve the ${domain} candidate set`);
     domains.push({ domain, ranking, candidateSetPreserved: preserved });
   }
@@ -184,8 +219,8 @@ export async function replayToolSelection(
   return {
     scopeId: scope.scopeId,
     selectorId: selector.id,
-    ...(scope.actualChoices[0] ? { actualChoice: scope.actualChoices[0] } : {}),
-    deterministicRanking: scope.deterministicRanking.map(entry => entry.tool),
+    ...(scope.actualCandidateIds[0] ? { actualCandidateId: scope.actualCandidateIds[0] } : {}),
+    deterministicRanking: scope.deterministicRanking.map(entry => entry.candidateId),
     selectorRanking: domains.flatMap(entry => entry.ranking),
     candidateSetPreserved,
     ...(invalidReasons.length > 0 ? { invalidReason: invalidReasons.join("; ") } : {}),
@@ -196,21 +231,23 @@ export async function replayToolSelection(
 type RecordedObservation = {
   scopeId?: string;
   iteration?: number;
+  candidates?: FrozenToolCandidate[];
+  bindings?: LocalToolBinding[];
   offered?: string[];
-  chosen?: string;
-  requirementCandidates?: Array<{ tool: string; reasons: string[] }>;
-  ranking?: { deterministic?: Array<{ tool: string; score: number }> };
+  chosenCandidateId?: string;
+  requirementCandidates?: Array<{ candidateId: string; reasons: string[] }>;
+  ranking?: { deterministic?: Array<{ candidateId: string; score: number }> };
   scoping?: {
-    admitted?: Array<{ tool: string; reasons: string[] }>;
+    admitted?: Array<{ candidateId: string; reasons: string[] }>;
     fallbackFull?: boolean;
-    excluded?: Array<{ tool: string; reasons: string[] }>;
+    excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
 };
 
 /**
  * Rebuild the frozen scope(s) from recorded `tool.selection.observed` events.
  * The first observation of a scope supplies the surface (it was frozen once);
- * every observation contributes its chosen tool, in order, so the actual
+ * every observation contributes its chosen candidate, in order, so the actual
  * selection sequence survives.
  */
 export function extractToolSelectionScopes(
@@ -227,10 +264,12 @@ export function extractToolSelectionScopes(
       scope = {
         scopeId,
         iteration: payload.iteration ?? 0,
+        candidates: payload.candidates ?? [],
         offered: payload.offered ?? [],
         requirementCandidates: payload.requirementCandidates ?? [],
         deterministicRanking: payload.ranking?.deterministic ?? [],
-        actualChoices: [],
+        actualCandidateIds: [],
+        ...(payload.bindings ? { bindings: payload.bindings } : {}),
         ...(payload.scoping?.admitted
           ? {
               scoping: {
@@ -243,7 +282,7 @@ export function extractToolSelectionScopes(
       };
       byScope.set(scopeId, scope);
     }
-    if (payload.chosen) scope.actualChoices.push(payload.chosen);
+    if (payload.chosenCandidateId) scope.actualCandidateIds.push(payload.chosenCandidateId);
   }
   return [...byScope.values()];
 }
@@ -255,9 +294,11 @@ export function extractToolSelectionScopes(
  * experiment must not be smuggled through an unrelated runtime decision just to
  * reach an engine.
  *
- * Only bounded `score` results are accepted. A Choice/Noul answer cannot rank a
- * set without ordering artifacts, so it invalidates the replay instead of being
- * coerced into a score.
+ * Only bounded `score` results are accepted here: this adapter's job is to hand
+ * ALiX one ranking value per candidate. A native Choice/Noul result invalidates
+ * the replay instead of being coerced — an experiment that reads a Noul
+ * probability as its ranking value does that conversion itself, in provenance
+ * terms, and reports the outcome kind it actually used.
  */
 export function createEngineToolSelector(
   executor: DecisionExecutor,
@@ -266,22 +307,23 @@ export function createEngineToolSelector(
   return {
     id: executor.engineId,
     remote: true,
-    async score(request) {
+    async rank(request) {
       const sealed = sealForRemote(decisionSubjectString(options.subject), options.projectorVersion, {
         scopeId: request.scopeId,
         iteration: request.iteration,
-        tool: request.tool,
+        candidateId: request.candidateId,
         domain: request.domain,
         requirementCandidates: request.requirementCandidates,
       });
       const outcome = await executeWithTimeout(
         executor,
-        { decision: sealed.decision, sealed, candidates: [request.tool] },
+        { decision: sealed.decision, sealed, candidates: [request.candidateId] },
         options.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS,
       );
       if (outcome.kind === "failure") return { error: outcome.error };
       if (outcome.kind !== "score") return { error: `selector returned ${outcome.kind}, expected a bounded score` };
-      return { score: outcome.score };
+      if (!Number.isFinite(outcome.score)) return { error: "selector returned a non-finite score" };
+      return { rankValue: outcome.score };
     },
   };
 }

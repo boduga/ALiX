@@ -13,6 +13,11 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ModelAdapter, NormalizedMessage, ToolCall, TokenUsage, ToolDef } from "../../providers/types.js";
 import type { DeferredToolEntry } from "../../mcp/tool-deferral.js";
+import {
+  MCP_TOOL_PREFIX,
+  candidateIdFor,
+  freezeToolCandidates,
+} from "../../decision/tool-selection-candidates.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { MemoryStore } from "../../utils/memory/store.js";
 import type { ExecutionContext } from "../../observability/execution-context.js";
@@ -250,6 +255,68 @@ onProgress,
   // The candidate surface is frozen here, once, so the scope id is minted here:
   // replay joins selectors to scopes on this id, not on the iteration number.
   const scopeId = `scope_${++selectionScopeSequence}`;
+  // The frozen surface is the surface the model is actually offered: scoped
+  // core + extended, which includes the MCP entries this task admitted. It is
+  // sanitized once, here — an MCP candidate is recorded as `mcp:<short hash>`
+  // plus a readable label, and its opaque handle stays in a local-only binding,
+  // so a recorded scope can never carry a handle to the remote boundary.
+  const providerByName = new Map(providerTools.map((tool) => [tool.name, tool]));
+  const mcpByName = new Map(mcpToolIndex.map((entry) => [entry.name, entry]));
+  const wireSurface: Array<ToolDef | DeferredToolEntry> = [...coreTools, ...extendedTools];
+  const frozenSurface = freezeToolCandidates({
+    builtin: wireSurface
+      .filter((tool) => !tool.name.startsWith(MCP_TOOL_PREFIX))
+      .map((tool) => ({
+        name: tool.name,
+        description: providerByName.get(tool.name)?.description ?? tool.description,
+      })),
+    mcp: wireSurface
+      .filter((tool) => tool.name.startsWith(MCP_TOOL_PREFIX))
+      .map((tool) => {
+        const entry = mcpByName.get(tool.name);
+        return entry
+          ? {
+              name: entry.name,
+              description: entry.description,
+              ...(entry.searchName !== undefined ? { searchName: entry.searchName } : {}),
+              ...(entry.serverName !== undefined ? { serverName: entry.serverName } : {}),
+              ...(entry.toolName !== undefined ? { toolName: entry.toolName } : {}),
+              ...(entry.execName !== undefined ? { execName: entry.execName } : {}),
+            }
+          : { name: tool.name, description: tool.description };
+      }),
+  });
+  const frozenRanking = {
+    deterministic: scopingProvenance.ranking.map((entry) => ({
+      candidateId: candidateIdFor(entry.tool),
+      score: entry.score,
+    })),
+    ...(mcpSelectorRanking.length > 0
+      ? {
+          mcpSelector: mcpSelectorRanking.map((entry) => ({
+            candidateId: candidateIdFor(entry.tool),
+            score: entry.score,
+          })),
+        }
+      : {}),
+  };
+  const frozenScoping = {
+    admitted: scopingProvenance.admitted.map((entry) => ({
+      candidateId: candidateIdFor(entry.tool),
+      reasons: entry.reasons,
+    })),
+    fallbackFull: scopingProvenance.fallbackFull,
+    // Exclusions are debug-only: they answer "why wasn't the
+    // requirement-closing tool offered?" and can grow unbounded.
+    ...(selectionDebug
+      ? {
+          excluded: scopingProvenance.excluded.map((entry) => ({
+            candidateId: candidateIdFor(entry.tool),
+            reasons: entry.reasons,
+          })),
+        }
+      : {}),
+  };
   // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
   // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
   const scopedOutNames = new Set(
@@ -1139,8 +1206,10 @@ if (toolCalls.length === 0) {
         scopeId,
         iteration: i,
         invocationId,
-        offered: providerTools.map((tool) => tool.name),
+        candidates: frozenSurface.candidates,
+        candidateBindings: frozenSurface.bindings,
         chosen: toolCall.name,
+        chosenCandidateId: candidateIdFor(toolCall.name),
         executor: execName,
         argsSignature: `${execName}:${hashArgs(toolCall.args)}`,
         seenSignatures: selectionSignatures,
@@ -1150,17 +1219,8 @@ if (toolCalls.length === 0) {
         noOp: toolResult.changed === false && /identical content/i.test(body),
         hasContent: body.length > 0,
         requirementCandidates: requirementCandidatesForTurn,
-        scoping: {
-          admitted: scopingProvenance.admitted,
-          fallbackFull: scopingProvenance.fallbackFull,
-          // Exclusions are debug-only: they answer "why wasn't the
-          // requirement-closing tool offered?" and can grow unbounded.
-          ...(selectionDebug ? { excluded: scopingProvenance.excluded } : {}),
-        },
-        ranking: {
-          deterministic: scopingProvenance.ranking,
-          ...(mcpSelectorRanking.length > 0 ? { mcpSelector: mcpSelectorRanking } : {}),
-        },
+        scoping: frozenScoping,
+        ranking: frozenRanking,
       });
       await log.append({
         ...session,

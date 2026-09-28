@@ -21,7 +21,7 @@ import type {
   SelectionOutcome,
 } from "./selection-outcome.js";
 import type { ToolSelectionDomain, ToolSelectionScope } from "./tool-selection-replay.js";
-import { toolSelectionDomain } from "./tool-selection-replay.js";
+import { bindingForCandidate, candidateFor } from "./tool-selection-replay.js";
 
 /** The three recorded dimensions, deliberately never collapsed into one. */
 export type SelectionOutcomeRecord = {
@@ -31,9 +31,9 @@ export type SelectionOutcomeRecord = {
 };
 
 export type SelectionEvaluation =
-  | { basis: "observed"; tool: string; domain: ToolSelectionDomain; outcome: SelectionOutcomeRecord }
-  | { basis: "replayed"; tool: string; domain: ToolSelectionDomain; outcome: SelectionOutcomeRecord; replayId: string }
-  | { basis: "unknown"; tool: string; domain: ToolSelectionDomain; reason: string };
+  | { basis: "observed"; candidateId: string; label?: string; domain: ToolSelectionDomain; outcome: SelectionOutcomeRecord }
+  | { basis: "replayed"; candidateId: string; label?: string; domain: ToolSelectionDomain; outcome: SelectionOutcomeRecord; replayId: string }
+  | { basis: "unknown"; candidateId: string; label?: string; domain: ToolSelectionDomain; reason: string };
 
 /** How an alternative tool could be evaluated honestly, if at all. */
 export type ToolReplayability = "hermetic" | "mutating" | "external";
@@ -79,16 +79,29 @@ const MUTATING = new Set([
  * responses can evaluate them, otherwise the alternative stays `unknown`.
  */
 export function replayabilityOf(tool: string): ToolReplayability {
-  if (toolSelectionDomain(tool) === "mcp") return "external";
   if (MUTATING.has(tool)) return "mutating";
   if (HERMETIC.has(tool)) return "hermetic";
   // Unknown tools are never assumed harmless.
   return "external";
 }
 
+/**
+ * Replayability of a frozen candidate. Identity is the candidate id; the local
+ * binding (never projected) is what resolves executable machinery, and an MCP
+ * candidate stays `external` because its effects leave the machine.
+ */
+export function replayabilityOfCandidate(
+  scope: ToolSelectionScope,
+  candidateId: string,
+): ToolReplayability {
+  if (candidateFor(scope, candidateId)?.domain === "mcp") return "external";
+  const binding = bindingForCandidate(scope, candidateId);
+  return replayabilityOf(binding?.modelName ?? candidateFor(scope, candidateId)?.tool ?? candidateId);
+}
+
 export type CounterfactualReplayRunner = (request: {
   scopeId: string;
-  tool: string;
+  candidateId: string;
   domain: ToolSelectionDomain;
 }) => Promise<{ outcome: SelectionOutcomeRecord; replayId: string } | { error: string }>;
 
@@ -103,34 +116,45 @@ export type ToolSelectionComparison = {
 };
 
 function observedOrUnknown(
-  tool: string,
+  scope: ToolSelectionScope,
+  candidateId: string,
   outcome: SelectionOutcomeRecord | undefined,
   reasonForMissing: string,
 ): SelectionEvaluation {
-  const domain = toolSelectionDomain(tool);
+  const candidate = candidateFor(scope, candidateId);
+  const domain = candidate?.domain ?? "builtin";
+  const label = candidate?.label;
   return outcome
-    ? { basis: "observed", tool, domain, outcome }
-    : { basis: "unknown", tool, domain, reason: reasonForMissing };
+    ? { basis: "observed", candidateId, ...(label ? { label } : {}), domain, outcome }
+    : { basis: "unknown", candidateId, ...(label ? { label } : {}), domain, reason: reasonForMissing };
 }
 
 async function evaluateAlternative(input: {
-  scopeId: string;
-  tool: string;
-  actualTool: string | undefined;
+  scope: ToolSelectionScope;
+  candidateId: string;
+  actualCandidateId: string | undefined;
   actualOutcome: SelectionOutcomeRecord | undefined;
   replay?: CounterfactualReplayRunner;
 }): Promise<SelectionEvaluation> {
-  const domain = toolSelectionDomain(input.tool);
-  // Same tool the model ran: its recorded outcome IS the observation, no
+  const candidate = candidateFor(input.scope, input.candidateId);
+  const domain = candidate?.domain ?? "builtin";
+  const label = candidate?.label;
+  // Same candidate the model ran: its recorded outcome IS the observation, no
   // counterfactual is involved at all.
-  if (input.tool === input.actualTool) {
-    return observedOrUnknown(input.tool, input.actualOutcome, "no recorded outcome for the executed choice");
+  if (input.candidateId === input.actualCandidateId) {
+    return observedOrUnknown(
+      input.scope,
+      input.candidateId,
+      input.actualOutcome,
+      "no recorded outcome for the executed choice",
+    );
   }
-  const replayability = replayabilityOf(input.tool);
+  const replayability = replayabilityOfCandidate(input.scope, input.candidateId);
   if (replayability !== "hermetic") {
     return {
       basis: "unknown",
-      tool: input.tool,
+      candidateId: input.candidateId,
+      ...(label ? { label } : {}),
       domain,
       reason: replayability === "mutating"
         ? "mutating tool: replay requires an isolated snapshot"
@@ -138,13 +162,13 @@ async function evaluateAlternative(input: {
     };
   }
   if (!input.replay) {
-    return { basis: "unknown", tool: input.tool, domain, reason: "no replay runner supplied" };
+    return { basis: "unknown", candidateId: input.candidateId, ...(label ? { label } : {}), domain, reason: "no replay runner supplied" };
   }
-  const replayed = await input.replay({ scopeId: input.scopeId, tool: input.tool, domain });
+  const replayed = await input.replay({ scopeId: input.scope.scopeId, candidateId: input.candidateId, domain });
   if ("error" in replayed) {
-    return { basis: "unknown", tool: input.tool, domain, reason: `replay failed: ${replayed.error}` };
+    return { basis: "unknown", candidateId: input.candidateId, ...(label ? { label } : {}), domain, reason: `replay failed: ${replayed.error}` };
   }
-  return { basis: "replayed", tool: input.tool, domain, outcome: replayed.outcome, replayId: replayed.replayId };
+  return { basis: "replayed", candidateId: input.candidateId, ...(label ? { label } : {}), domain, outcome: replayed.outcome, replayId: replayed.replayId };
 }
 
 /**
@@ -161,42 +185,42 @@ export async function evaluateToolSelection(input: {
   selectorId?: string;
   replay?: CounterfactualReplayRunner;
 }): Promise<ToolSelectionComparison> {
-  const actualTool = input.scope.actualChoices[0];
-  const actual = actualTool
-    ? observedOrUnknown(actualTool, input.actualOutcome, "no recorded outcome for the executed choice")
-    : { basis: "unknown" as const, tool: "(none)", domain: "builtin" as const, reason: "the scope recorded no executed choice" };
+  const actualCandidateId = input.scope.actualCandidateIds[0];
+  const actual = actualCandidateId
+    ? observedOrUnknown(input.scope, actualCandidateId, input.actualOutcome, "no recorded outcome for the executed choice")
+    : { basis: "unknown" as const, candidateId: "(none)", domain: "builtin" as const, reason: "the scope recorded no executed choice" };
 
   const notes: string[] = [];
   if (actual.basis === "observed" && actual.outcome.evidence !== "contributed") {
     notes.push("actual selection: execution recorded without demonstrated evidence contribution");
   }
 
-  const deterministicTopTool = input.scope.deterministicRanking[0]?.tool;
-  const deterministicTop = deterministicTopTool
+  const deterministicTopCandidate = input.scope.deterministicRanking[0]?.candidateId;
+  const deterministicTop = deterministicTopCandidate
     ? await evaluateAlternative({
-        scopeId: input.scope.scopeId,
-        tool: deterministicTopTool,
-        actualTool,
+        scope: input.scope,
+        candidateId: deterministicTopCandidate,
+        actualCandidateId,
         actualOutcome: input.actualOutcome,
         replay: input.replay,
       })
-    : { basis: "unknown" as const, tool: "(none)", domain: "builtin" as const, reason: "scope recorded no deterministic ranking" };
+    : { basis: "unknown" as const, candidateId: "(none)", domain: "builtin" as const, reason: "scope recorded no deterministic ranking" };
 
-  const selectorTopTool = input.selectorRanking?.[0];
-  const selectorTop = selectorTopTool
+  const selectorTopCandidate = input.selectorRanking?.[0];
+  const selectorTop = selectorTopCandidate
     ? await evaluateAlternative({
-        scopeId: input.scope.scopeId,
-        tool: selectorTopTool,
-        actualTool,
+        scope: input.scope,
+        candidateId: selectorTopCandidate,
+        actualCandidateId,
         actualOutcome: input.actualOutcome,
         replay: input.replay,
       })
     : undefined;
 
-  if (deterministicTopTool && selectorTopTool && deterministicTopTool === selectorTopTool) {
-    notes.push(`deterministic and ${input.selectorId ?? "selector"} orderings agree on ${selectorTopTool}`);
-  } else if (deterministicTopTool && selectorTopTool) {
-    notes.push(`orderings disagree: deterministic top ${deterministicTopTool}, ${input.selectorId ?? "selector"} top ${selectorTopTool}`);
+  if (deterministicTopCandidate && selectorTopCandidate && deterministicTopCandidate === selectorTopCandidate) {
+    notes.push(`deterministic and ${input.selectorId ?? "selector"} orderings agree on ${selectorTopCandidate}`);
+  } else if (deterministicTopCandidate && selectorTopCandidate) {
+    notes.push(`orderings disagree: deterministic top ${deterministicTopCandidate}, ${input.selectorId ?? "selector"} top ${selectorTopCandidate}`);
   }
   if (deterministicTop.basis === "unknown" || selectorTop?.basis === "unknown") {
     notes.push("at least one alternative remains unevaluated (counterfactual unknown)");

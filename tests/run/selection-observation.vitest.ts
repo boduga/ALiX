@@ -9,14 +9,31 @@ import {
   rankingOutsideOffered,
   unexplainedRequirementCandidates,
 } from '../../src/run/task-loop/predicates.js';
+import {
+  builtinCandidateId,
+  freezeToolCandidates,
+} from '../../src/decision/tool-selection-candidates.js';
+
+const frozen = freezeToolCandidates({
+  builtin: [
+    { name: 'alix_file_read', description: 'Read a file' },
+    { name: 'alix_grep_search', description: 'Search file contents' },
+    { name: 'alix_shell_run', description: 'Run a shell command' },
+    { name: 'alix_coordination_run', description: 'Run coordinated workers' },
+  ],
+});
+
+const id = builtinCandidateId;
 
 function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>[0]> = {}) {
   return buildSelectionObservation({
     scopeId: 'scope_1',
     iteration: 0,
     invocationId: 'inv-1',
-    offered: ['alix_file_read', 'alix_grep_search', 'alix_shell_run'],
+    candidates: frozen.candidates,
+    candidateBindings: frozen.bindings,
     chosen: 'alix_file_read',
+    chosenCandidateId: id('alix_file_read'),
     executor: 'file.read',
     argsSignature: 'file.read:{"path":"a.ts"}',
     seenSignatures: new Map(),
@@ -27,14 +44,35 @@ function observe(overrides: Partial<Parameters<typeof buildSelectionObservation>
 }
 
 describe('buildSelectionObservation', () => {
-  it('records the offered surface, the choice, and the executor', () => {
+  it('records the frozen surface, the choice, and the executor', () => {
     const observation = observe();
     // Replay joins scopes to selector results on scopeId, not on iteration.
     expect(observation.scopeId).toBe('scope_1');
-    expect(observation.offered).toEqual(['alix_file_read', 'alix_grep_search', 'alix_shell_run']);
+    expect(observation.offered).toEqual(frozen.candidates.map(candidate => candidate.candidateId));
+    expect(observation.candidates).toHaveLength(4);
     expect(observation.chosen).toBe('alix_file_read');
+    expect(observation.chosenCandidateId).toBe(id('alix_file_read'));
     expect(observation.executor).toBe('file.read');
     expect(observation.invocationId).toBe('inv-1');
+  });
+
+  it('records an MCP candidate as an identity plus label, never as a handle', () => {
+    const withMcp = freezeToolCandidates({
+      builtin: [{ name: 'alix_file_read' }],
+      mcp: [{ name: 'mcp__opaque', serverName: 'github', toolName: 'search.code', description: 'Search code' }],
+    });
+    const observation = observe({
+      candidates: withMcp.candidates,
+      candidateBindings: withMcp.bindings,
+      chosen: 'alix_file_read',
+      chosenCandidateId: id('alix_file_read'),
+    });
+    const mcpId = withMcp.candidates.find(candidate => candidate.domain === 'mcp')?.candidateId;
+    expect(observation.offered).toContain(mcpId);
+    expect(JSON.stringify(observation.candidates).includes('mcp__opaque')).toBe(false);
+    // The handle survives only in the local binding.
+    expect(observation.candidateBindings?.find(entry => entry.candidateId === mcpId)?.modelName)
+      .toBe('mcp__opaque');
   });
 
   it('separates mechanical outcome, selection outcome, and evidence contribution', () => {
@@ -101,21 +139,24 @@ describe('requirement-closing tools cannot vanish without provenance', () => {
 
   it('reports a candidate missing from the offered surface with no recorded exclusion', () => {
     const observation = observe({
-      offered: ['alix_file_read', 'alix_shell_run'],
+      candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_coordination_run'),
       requirementCandidates,
-      scoping: { admitted: [{ tool: 'alix_file_read', reasons: ['core'] }], fallbackFull: false },
+      scoping: {
+        admitted: [{ candidateId: id('alix_file_read'), reasons: ['core'] }],
+        fallbackFull: false,
+      },
     });
-    expect(unexplainedRequirementCandidates(observation)).toEqual(['alix_coordination_run']);
+    expect(unexplainedRequirementCandidates(observation)).toEqual([id('alix_coordination_run')]);
   });
 
   it('accepts a documented exclusion (debug mode) as provenance', () => {
     const observation = observe({
-      offered: ['alix_file_read'],
+      candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_coordination_run'),
       requirementCandidates,
       scoping: {
-        admitted: [{ tool: 'alix_file_read', reasons: ['core'] }],
+        admitted: [{ candidateId: id('alix_file_read'), reasons: ['core'] }],
         fallbackFull: false,
-        excluded: [{ tool: 'alix_coordination_run', reasons: ['not_relevant'] }],
+        excluded: [{ candidateId: id('alix_coordination_run'), reasons: ['not_relevant'] }],
       },
     });
     expect(unexplainedRequirementCandidates(observation)).toEqual([]);
@@ -123,18 +164,17 @@ describe('requirement-closing tools cannot vanish without provenance', () => {
 
   it('accepts an offered candidate, and merges requirement reasons into scoping', () => {
     const observation = observe({
-      offered: ['alix_file_read', 'alix_coordination_run'],
       requirementCandidates,
       scoping: {
         admitted: [
-          { tool: 'alix_file_read', reasons: ['core'] },
-          { tool: 'alix_coordination_run', reasons: ['relevance_match'] },
+          { candidateId: id('alix_file_read'), reasons: ['core'] },
+          { candidateId: id('alix_coordination_run'), reasons: ['relevance_match'] },
         ],
         fallbackFull: false,
       },
     });
     expect(unexplainedRequirementCandidates(observation)).toEqual([]);
-    expect(observation.scoping.admitted.find(entry => entry.tool === 'alix_coordination_run')?.reasons)
+    expect(observation.scoping.admitted.find(entry => entry.candidateId === id('alix_coordination_run'))?.reasons)
       .toEqual(['relevance_match', 'requirement:coordination']);
   });
 });
@@ -144,18 +184,18 @@ describe('recorded deterministic ranking', () => {
     const observation = observe({
       ranking: {
         deterministic: [
-          { tool: 'alix_grep_search', score: 3 },
-          { tool: 'alix_file_read', score: 0 },
+          { candidateId: id('alix_grep_search'), score: 3 },
+          { candidateId: id('alix_file_read'), score: 0 },
         ],
-        mcpSelector: [{ tool: 'mcp__abc', score: 7 }],
+        mcpSelector: [{ candidateId: 'mcp:abc123', score: 7 }],
       },
     });
     expect(observation.ranking.deterministic).toEqual([
-      { tool: 'alix_grep_search', score: 3 },
-      { tool: 'alix_file_read', score: 0 },
+      { candidateId: id('alix_grep_search'), score: 3 },
+      { candidateId: id('alix_file_read'), score: 0 },
     ]);
     // MCP scores come from a different scorer and are never interleaved.
-    expect(observation.ranking.mcpSelector).toEqual([{ tool: 'mcp__abc', score: 7 }]);
+    expect(observation.ranking.mcpSelector).toEqual([{ candidateId: 'mcp:abc123', score: 7 }]);
     // The subset invariant applies to the deterministic ranking only: MCP
     // entries beyond the offered surface are expected (selector truncation) and
     // are a separate question from a builtin ranked but never offered.
@@ -168,9 +208,9 @@ describe('recorded deterministic ranking', () => {
 
   it('flags a tool ranked but never offered (the replay baseline must describe a real surface)', () => {
     const observation = observe({
-      offered: ['alix_file_read'],
-      ranking: { deterministic: [{ tool: 'alix_grep_search', score: 2 }] },
+      candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_grep_search'),
+      ranking: { deterministic: [{ candidateId: id('alix_grep_search'), score: 2 }] },
     });
-    expect(rankingOutsideOffered(observation)).toEqual(['alix_grep_search']);
+    expect(rankingOutsideOffered(observation)).toEqual([id('alix_grep_search')]);
   });
 });
