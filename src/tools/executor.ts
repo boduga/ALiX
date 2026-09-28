@@ -13,6 +13,7 @@ import "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult, ToolCallRequest } from "./types.js";
+import { toolResultText } from "./result-text.js";
 import { inferCapability, canonicalCapabilityOf } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import { buildDefaultToolIndex } from "./tool-registry.js";
@@ -617,10 +618,12 @@ export class ToolExecutor {
 
     const durationMs = Date.now() - startedAt;
 
+    // The single renderer for a result's text — search tools answer with
+    // `matches[]`, which a bare `output`/`content` read would count as zero.
+    const rawOutput = toolResultText(result);
+
     // Handle large outputs by writing to file
-    const outputSize = (result.kind === "success")
-      ? ((result.output?.length ?? 0) + (result.content?.length ?? 0))
-      : 0;
+    const outputSize = rawOutput.length;
     let outputRef: string | undefined;
 
     if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
@@ -637,31 +640,10 @@ export class ToolExecutor {
       );
     }
 
-    // Build canonical rawOutput and an explicit preview (so the model always sees something)
+    // Build an explicit preview (so the model always sees something)
     if (result.kind === "success") {
-      function rawResultValue(r: typeof result): string | undefined {
-        // ToolResult is a discriminated union on kind:
-        // - success branch has matches[] (dir.search) or value (other tools)
-        // - error branch has neither
-        if (r.kind === "success") {
-          if ("matches" in r && Array.isArray(r.matches)) return r.matches as unknown as string;
-          if ("value" in r && typeof r.value === "string") return r.value;
-        }
-        return undefined;
-      }
-      const rawOutput =
-        result.output ??
-        result.content ??
-        rawResultValue(result) ??
-        "";
-
       // Normalize preview: explicit for empty/empty-array results so the model isn't left guessing.
-      let preview: string;
-      if ((Array.isArray(rawOutput) && rawOutput.length === 0) || rawOutput === "" || rawOutput == null) {
-        preview = "[no output]";
-      } else {
-        preview = truncateOutput(rawOutput);
-      }
+      const preview = rawOutput === "" ? "[no output]" : truncateOutput(rawOutput);
 
       const outputPayload: ToolOutputPayload = {
         toolCallId,

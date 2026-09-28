@@ -210,3 +210,54 @@ describe("MCP search tool", () => {
     expect(deps.mcpDiscovery?.search).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Regression: search tools answer with `matches[]` (grep.search, dir.search),
+ * not `output`/`content`. Reading only those two handed the model an empty
+ * <tool_result> for every search that matched — observed in cohort
+ * t3d-2026-09-28-a, where the model looped four times reporting "the tool
+ * results appear empty" while the telemetry previews held the matches.
+ */
+describe("handleToolCall search results reach the model", () => {
+  function makeDeps(executor: unknown): EventHandlerDeps {
+    return {
+      executor: executor as EventHandlerDeps["executor"],
+      mcpManager: null,
+      mcpDiscovery: null,
+      scope: {} as EventHandlerDeps["scope"],
+      session: { sessionId: "s-1", actor: "system" },
+      sessionState: {} as EventHandlerDeps["sessionState"],
+      log: { append: vi.fn().mockResolvedValue(undefined) } as unknown as EventHandlerDeps["log"],
+      selectedTools: [],
+      mcpToolIndex: [],
+      config: { permissions: { sessionMode: "bypass" } },
+    };
+  }
+
+  it("carries the match list for a matches[] result", async () => {
+    const executor = {
+      execute: vi.fn().mockResolvedValue({
+        kind: "success",
+        matches: [{ path: "src/decision/tool-selection-replay.ts", lineNumber: 34, line: "export type ToolSelectionScope = {" }],
+      }),
+    };
+    const result = await handleToolCall(
+      { id: "call-grep", name: "alix_grep_search", args: { pattern: "ToolSelectionScope" } },
+      makeDeps(executor),
+      [],
+      [],
+    );
+    expect(result.message?.content).toContain("src/decision/tool-selection-replay.ts:34: export type ToolSelectionScope = {");
+  });
+
+  it("says the output was empty when a search matched nothing", async () => {
+    const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", matches: [] }) };
+    const result = await handleToolCall(
+      { id: "call-grep-miss", name: "alix_grep_search", args: { pattern: "zzz-no-such-symbol" } },
+      makeDeps(executor),
+      [],
+      [],
+    );
+    expect(result.message?.content).toContain("[no output]");
+  });
+});

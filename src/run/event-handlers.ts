@@ -20,6 +20,7 @@ import { McpManager } from "../mcp/manager.js";
 import { promptUser, BASE_TOOLS } from "./helpers.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js";
+import { toolResultText } from "../tools/result-text.js";
 import type { EventLog } from "../events/event-log.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { AgentProgressKind } from "../agent/agent-liveness.js";
@@ -523,9 +524,12 @@ export async function handleToolCall(
     }
   }
 
+  // Success text goes through the shared renderer: search tools answer with
+  // `matches[]`, so reading only `output`/`content` handed the model an empty
+  // <tool_result> for every grep that actually matched.
   const resultContent =
     execResult.kind === "success"
-      ? (execResult.output ?? execResult.content ?? "")
+      ? (toolResultText(execResult) || "[no output]")
       : execResult.kind === "denied"
         ? `Access denied: ${(execResult as { reason: string }).reason}`
         : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
