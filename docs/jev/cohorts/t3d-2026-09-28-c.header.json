@@ -1,0 +1,16 @@
+{
+  "cohortId": "t3d-2026-09-28-c",
+  "gitRevision": "8d30294a8f1055b5de56c10af7a1ee2d2f06ceeb",
+  "projectorVersion": "tool-selection/v1",
+  "jevModel": "jev-latest",
+  "jevConfigHash": "sha256:db1f398baddea494e4690ccc8c2b823132bdbaf1f6e8a350373d6fb31560cd23",
+  "candidateSchemaVersion": "sha256:0839ab4948d0de49d966a9493b54947284e4e7b2e7303d679417d37ba479fea4",
+  "startedAt": "2026-09-28T20:55:00Z",
+  "supersedes": ["t3d-2026-09-28-a", "t3d-2026-09-28-b"],
+  "supersedesReason": "cohort a ran before tool-result delivery was fixed (search results reached the model empty); cohort b was abandoned mid-collection when that fix moved the revision and exposed the large-result artifact-write crash",
+  "recordedRevisionCorrection": {
+    "from": "26021a6ca77a1220354bdf572119645e6f10d80f",
+    "to": "8d30294a8f1055b5de56c10af7a1ee2d2f06ceeb",
+    "why": "The header was written before committing cohort b's closeout, so the pinned revision was one commit behind the tree the batch actually ran on. `git diff 26021a6c..8d30294a` touches only docs/jev/cohorts/t3d-2026-09-28-b.{header,closeout}.json — no runtime, projector, candidate-schema or config change — so this corrects the recorded fact rather than moving a cohort-defining field."
+  }
+}
