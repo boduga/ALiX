@@ -59,12 +59,17 @@ export function builtinCandidateId(name: string): string {
   return `builtin:${name}`;
 }
 
+/** The digest half of an MCP candidate id — the handle itself never leaves. */
+export function mcpHandleDigest(handle: string): string {
+  return createHash("sha256").update(handle, "utf8").digest("hex").slice(0, 6);
+}
+
 /**
  * Stable within a trace/replay, opaque, and derived from the handle — so two
  * distinct handles never collide with a readable-looking id.
  */
 export function mcpCandidateId(handle: string): string {
-  return `mcp:${createHash("sha256").update(handle, "utf8").digest("hex").slice(0, 6)}`;
+  return `mcp:${mcpHandleDigest(handle)}`;
 }
 
 export function candidateIdFor(modelName: string): string {
@@ -72,6 +77,26 @@ export function candidateIdFor(modelName: string): string {
     ? mcpCandidateId(modelName)
     : builtinCandidateId(modelName);
 }
+
+/**
+ * Inverse lookups. A candidate id encodes its domain in the prefix, so callers
+ * must not hand-parse it: `builtin:<name>` also carries the model-facing name,
+ * while an `mcp:` id carries only a digest — the handle lives in the local
+ * binding.
+ */
+export function candidateIdDomain(candidateId: string): ToolSelectionDomain {
+  return candidateId.startsWith("mcp:") ? "mcp" : "builtin";
+}
+
+export function builtinNameOf(candidateId: string): string | undefined {
+  return candidateId.startsWith("builtin:") ? candidateId.slice("builtin:".length) : undefined;
+}
+
+/**
+ * LOCAL ONLY: how a caller resolves a frozen candidate id to the tool name its
+ * executor understands. Shared by the replay runners so the seam has one shape.
+ */
+export type LocalToolResolver = (candidateId: string) => string;
 
 function bounded(text: string, max: number): string {
   const trimmed = text.replace(/\s+/g, " ").trim();
@@ -156,6 +181,7 @@ export function freezeToolCandidates(input: {
 
   for (const tool of input.mcp ?? []) {
     const candidateId = mcpCandidateId(tool.name);
+    const digest = mcpHandleDigest(tool.name);
     const readable =
       tool.serverName && tool.toolName
         ? `${tool.serverName}/${tool.toolName}`
@@ -165,12 +191,12 @@ export function freezeToolCandidates(input: {
     const label =
       redactSecrets(readable) === readable
         ? bounded(readable, MAX_CANDIDATE_LABEL_CHARS)
-        : `mcp tool ${candidateId.slice(4)}`;
+        : `mcp tool ${digest}`;
     push(
       {
         candidateId,
         domain: "mcp",
-        label: label.length > 0 ? label : `mcp tool ${candidateId.slice(4)}`,
+        label: label.length > 0 ? label : `mcp tool ${digest}`,
         description: safeText(tool.description, MAX_CANDIDATE_DESCRIPTION_CHARS),
       },
       {
@@ -191,18 +217,4 @@ export function bindingFor(
   candidateId: string,
 ): LocalToolBinding | undefined {
   return bindings?.find(entry => entry.candidateId === candidateId);
-}
-
-/**
- * Guard for tests and for any caller that assembles a projection by hand: a
- * frozen surface must not carry a model-facing MCP handle anywhere.
- */
-export function frozenSurfaceLeaksHandles(surface: {
-  candidates: ReadonlyArray<FrozenToolCandidate>;
-}): boolean {
-  return surface.candidates.some(candidate => {
-    if (candidate.domain !== "mcp") return false;
-    const serialized = JSON.stringify(candidate);
-    return serialized.includes(MCP_TOOL_PREFIX) || redactSecrets(serialized) !== serialized;
-  });
 }

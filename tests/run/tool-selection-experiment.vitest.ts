@@ -5,20 +5,25 @@
  * probability in, a bounded ranking value out, anything else refused.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   POST_SELECTION_FIELDS,
   TOOL_SELECTION_PROJECTOR_VERSION,
   assertNoPostSelectionFields,
+  assertNoRawHandlesOnSurface,
   createJevExperimentScorer,
   projectToolSelectionCandidate,
-  TOOL_SELECTION_JEV_MAPPING,
-  TOOL_SELECTION_JEV_QUESTION_ID,
-  createJevToolSelectionScorer,
   readToolSelectionProjection,
-  renderToolSelectionState,
   type ExperimentRankingRecord,
   type ToolSelectionProjection,
 } from '../../src/decision/tool-selection-experiment.js';
+import {
+  TOOL_SELECTION_JEV_MAPPING,
+  TOOL_SELECTION_JEV_QUESTION_ID,
+  createJevToolSelectionScorer,
+  renderToolSelectionState,
+} from '../../src/decision/tool-selection-jev-mapping.js';
 import {
   TOOL_SELECTION_EXPERIMENT,
   replayToolSelection,
@@ -59,7 +64,7 @@ const scope: ToolSelectionScope = {
   requirementCandidates: [
     { candidateId: builtinCandidateId('alix_shell_run'), reasons: ['requirement:verification'] },
   ],
-  deterministicRanking: [
+  scoperRanking: [
     { candidateId: builtinCandidateId('alix_shell_run'), score: 3 },
     { candidateId: builtinCandidateId('alix_grep_search'), score: 1 },
     { candidateId: builtinCandidateId('alix_file_read'), score: 0 },
@@ -202,6 +207,9 @@ describe('projectToolSelectionCandidate', () => {
     expect(() =>
       projectToolSelectionCandidate({ scope: unfrozen, candidateId: builtinCandidateId('alix_file_read') }),
     ).toThrow(/unresolved MCP handle/);
+    // The validator is the guard the projection relies on, and it names the id.
+    expect(() => assertNoRawHandlesOnSurface(unfrozen)).toThrow(/mcp___bweCunehzWnFt/);
+    expect(() => assertNoRawHandlesOnSurface(scope)).not.toThrow();
   });
 });
 
@@ -374,7 +382,7 @@ describe('TOOL_SELECTION_JEV_MAPPING', () => {
     expect(state).toContain('alix_grep_search');
     expect(state).toContain('Verify the three files exist');
     // Selection-time state only: no outcome or ranking reaches the wire.
-    for (const leaked of ['actualChoice', 'deterministicRanking', 'success', 'mcp__']) {
+    for (const leaked of ['actualChoice', 'scoperRanking', 'success', 'mcp__']) {
       expect(state.includes(leaked), `state leaked ${leaked}`).toBe(false);
     }
   });
@@ -493,5 +501,46 @@ describe('createJevToolSelectionScorer', () => {
       candidates: [],
     });
     expect(Object.keys(seen[0] ?? {})).toEqual(['claim-verdict']);
+  });
+});
+
+describe('offline-only isolation', () => {
+  /**
+   * The experiment must not gain runtime influence by accident: nothing outside
+   * `src/decision/` (the decision layer that owns it) may import the experiment
+   * scorer, its Jev mapping, or the replay engine. A `src/run`, `src/agent`,
+   * `src/tools` or `src/mcp` importer would make tool selection a runtime
+   * surface without a promotion decision.
+   *
+   * `tool-selection-candidates.js` is deliberately NOT in the ban list: the run
+   * layer freezes the surface with it, which is instrumentation, not selection.
+   */
+  it('is imported by nothing outside the decision layer', () => {
+    const root = new URL('../../src/', import.meta.url).pathname;
+    const offenders: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(path);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts')) continue;
+        const relative = path.slice(root.length);
+        if (relative.startsWith('decision/')) continue;
+        const source = readFileSync(path, 'utf8');
+        for (const banned of [
+          'tool-selection-experiment.js',
+          'tool-selection-jev-mapping.js',
+          'tool-selection-replay.js',
+        ]) {
+          if (source.includes(banned)) offenders.push(`${relative} -> ${banned}`);
+        }
+      }
+    };
+    walk(root);
+
+    expect(offenders).toEqual([]);
   });
 });

@@ -17,7 +17,9 @@ import {
   type ToolSelectionSelector,
 } from '../../src/decision/tool-selection-replay.js';
 import {
+  builtinNameOf,
   builtinCandidateId,
+  candidateIdDomain,
   candidateIdFor,
   freezeToolCandidates,
 } from '../../src/decision/tool-selection-candidates.js';
@@ -40,7 +42,7 @@ const scope: ToolSelectionScope = {
   requirementCandidates: [
     { candidateId: builtinCandidateId('alix_shell_run'), reasons: ['requirement:verification'] },
   ],
-  deterministicRanking: [
+  scoperRanking: [
     { candidateId: builtinCandidateId('alix_shell_run'), score: 3 },
     { candidateId: builtinCandidateId('alix_grep_search'), score: 2 },
     { candidateId: builtinCandidateId('alix_file_read'), score: 0 },
@@ -102,6 +104,14 @@ describe('freezeToolCandidates', () => {
     });
     expect(new Set(surface.candidates.map(candidate => candidate.candidateId)).size).toBe(2);
   });
+
+  it('exposes inverse lookups so callers never hand-parse a candidate id', () => {
+    expect(candidateIdDomain(builtinCandidateId('alix_file_read'))).toBe('builtin');
+    expect(candidateIdDomain(candidateIdFor('mcp__abc'))).toBe('mcp');
+    expect(builtinNameOf(builtinCandidateId('alix_file_read'))).toBe('alix_file_read');
+    // An MCP id carries a digest only — the handle lives in the binding.
+    expect(builtinNameOf(candidateIdFor('mcp__abc'))).toBeUndefined();
+  });
 });
 
 describe('replayToolSelection', () => {
@@ -117,7 +127,7 @@ describe('replayToolSelection', () => {
 
     expect(replay.scopeId).toBe('scope_7');
     expect(replay.actualCandidateId).toBe(builtinCandidateId('alix_grep_search'));
-    expect(replay.deterministicRanking).toEqual([
+    expect(replay.scoperRanking).toEqual([
       builtinCandidateId('alix_shell_run'),
       builtinCandidateId('alix_grep_search'),
       builtinCandidateId('alix_file_read'),
@@ -169,8 +179,12 @@ describe('replayToolSelection', () => {
 
     expect(replay.candidateSetPreserved).toBe(false);
     expect(replay.invalidReason).toMatch(/builtin:alix_shell_run/);
-    // No partial ordering is offered as a result.
+    // No partial ordering is offered as a result — including the domain that
+    // scored cleanly, which must not read as a complete ordering.
     expect(replay.domains[0].ranking).toEqual([]);
+    expect(replay.domains[1].ranking).toEqual([]);
+    expect(replay.domains[1].candidateSetPreserved).toBe(false);
+    expect(replay.selectorRanking).toEqual([]);
   });
 
   it('invalidates a selector that returns a non-finite ranking value', async () => {

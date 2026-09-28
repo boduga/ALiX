@@ -21,7 +21,7 @@
 - `decisions/risk-escalation/` — J6 decision (bounded risk tiers + composed approval recommendation, advisory only); see its AGENTS.md (records the §14 admission review).
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability, accuracy sweep (scoreless engines), versioned threshold profiles. See its AGENTS.md.
-- `tool-selection-*.ts` — offline tool-selection experiment surface (T2), never a runtime decision: `tool-selection-candidates.ts` (the frozen candidate descriptor + local-only binding), `tool-selection-replay.ts` (frozen `scopeId` scopes, per-domain builtin/MCP replay, exact set preservation), `tool-selection-evaluation.ts` (observed/replayed/unknown outcomes), `tool-selection-snapshot.ts` (isolated snapshot runner), `tool-selection-fixtures.ts` (recorded-response replay for external tools), `tool-selection-experiment.ts` (experiment-only Jev scorer, pinned `tool-selection/v1` projector).
+- `tool-selection-*.ts` — offline tool-selection experiment surface (T2), never a runtime decision: `tool-selection-candidates.ts` (the frozen candidate descriptor, id helpers, local-only binding), `tool-selection-replay.ts` (frozen `scopeId` scopes, per-domain builtin/MCP replay, exact set preservation), `tool-selection-evaluation.ts` (observed/replayed/unknown outcomes), `tool-selection-snapshot.ts` (isolated snapshot runner), `tool-selection-fixtures.ts` (recorded-response replay for external tools), `tool-selection-experiment.ts` (projection + per-candidate scorer, pinned `tool-selection/v1` projector), `tool-selection-jev-mapping.ts` (the experiment's System One wire mapping + `createJevToolSelectionScorer`; offline only, imported by nothing in the live loop).
 - Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
@@ -67,6 +67,15 @@
   the ordinal `Score` primitive stays unmodelled until evidence says ranking
   needs it. The question is per-candidate ("would executing this tool now be an
   appropriate next step?"), never "best" — a candidate never sees the others.
+- The recorded scoper ordering is a RELEVANCE ordering (`scoperRanking` /
+  `scoperTop`, native token-overlap scores). Never present it as the
+  deterministic selection baseline: T3 must compare against the component that
+  actually influences next-tool choice, or it compares two different questions.
+- A failed candidate invalidates the WHOLE replay attempt: no domain keeps a
+  usable ordering (`selectorRanking: []`, every domain
+  `candidateSetPreserved: false`), so a partial ordering is never read as a
+  complete one. Per-domain populations stay separate otherwise: builtin and MCP
+  values are never merged into one ordering.
 - Tool-selection projections carry selection-time information only
   (`assertNoPostSelectionFields`): `actualChoice`, execution outcome, evidence
   contribution and the deterministic ranking must never reach a scorer.
@@ -102,7 +111,9 @@
 - `tests/run/tool-selection-*.vitest.ts` — T2 tool-selection experiment surface:
   frozen-candidate sanitization + local-only bindings, scope/ranking recording,
   replay set preservation over candidate ids, snapshot runner, recorded-response
-  fixtures, and the experiment scorer's anti-leakage projection + Noul-only contract.
+  fixtures, the experiment scorer's anti-leakage projection + Noul-only contract,
+  and the offline-only import isolation pin (nothing outside `src/decision/`
+  imports the scorer, its mapping, or the replay engine).
 
 **Child DOX Index:**
 

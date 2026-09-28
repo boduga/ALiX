@@ -39,8 +39,13 @@ export type ToolSelectionScope = {
   /** Candidate ids of the frozen surface, in offered order. */
   offered: string[];
   requirementCandidates: Array<{ candidateId: string; reasons: string[] }>;
-  /** The production ordering recorded with the scope (native scores). */
-  deterministicRanking: Array<{ candidateId: string; score: number }>;
+  /**
+   * The scoper's relevance ordering recorded with the scope (native scores).
+   * NOT a next-tool preference: it ranks how much a tool's description overlaps
+   * the task text, so a selector comparison must not present it as the
+   * deterministic selection baseline without saying which question it answers.
+   */
+  scoperRanking: Array<{ candidateId: string; score: number }>;
   /** Candidate ids the loop actually called on this surface, in order. */
   actualCandidateIds: string[];
   /** LOCAL ONLY: candidateId -> executable machinery. Never projected. */
@@ -114,7 +119,8 @@ export type ToolSelectionReplay = {
   scopeId: string;
   selectorId: string;
   actualCandidateId?: string;
-  deterministicRanking: string[];
+  /** The recorded scoper ordering, in candidate ids (relevance, not preference). */
+  scoperRanking: string[];
   selectorRanking: string[];
   candidateSetPreserved: boolean;
   invalidReason?: string;
@@ -169,7 +175,7 @@ export async function replayToolSelection(
     });
     if (candidates.length === 0) continue;
 
-    const scored: Array<{ candidateId: string; score: number }> = [];
+    const scored: Array<{ candidateId: string; rankValue: number }> = [];
     let failure: string | undefined;
     for (const candidateId of candidates) {
       const outcome = await rankWithTimeout(
@@ -191,7 +197,7 @@ export async function replayToolSelection(
         failure = `selector "${selector.id}" returned a non-finite ranking value for ${candidateId}`;
         break;
       }
-      scored.push({ candidateId, score: outcome.rankValue });
+      scored.push({ candidateId, rankValue: outcome.rankValue });
     }
 
     if (failure) {
@@ -200,10 +206,10 @@ export async function replayToolSelection(
       continue;
     }
 
-    // ALiX sorts: score descending, ties in the offered order for stability.
+    // ALiX sorts: ranking value descending, ties in the offered order.
     const ranking = scored
       .map((entry, index) => ({ ...entry, index }))
-      .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+      .sort((a, b) => (b.rankValue - a.rankValue) || (a.index - b.index))
       .map(({ candidateId }) => candidateId);
 
     // Exact set equality, verified rather than assumed: an adapter bug must not
@@ -215,14 +221,23 @@ export async function replayToolSelection(
     domains.push({ domain, ranking, candidateSetPreserved: preserved });
   }
 
-  const candidateSetPreserved = domains.every(entry => entry.candidateSetPreserved);
+  // One failed candidate invalidates the whole attempt: a domain that answered
+  // cleanly must not be returned as a usable ordering while its sibling is
+  // missing candidates, or a partial ranking would be read as a complete one.
+  const attemptValid = invalidReasons.length === 0 && domains.every(entry => entry.candidateSetPreserved);
+  if (!attemptValid) {
+    for (const entry of domains) {
+      entry.ranking = [];
+      entry.candidateSetPreserved = false;
+    }
+  }
   return {
     scopeId: scope.scopeId,
     selectorId: selector.id,
     ...(scope.actualCandidateIds[0] ? { actualCandidateId: scope.actualCandidateIds[0] } : {}),
-    deterministicRanking: scope.deterministicRanking.map(entry => entry.candidateId),
-    selectorRanking: domains.flatMap(entry => entry.ranking),
-    candidateSetPreserved,
+    scoperRanking: scope.scoperRanking.map(entry => entry.candidateId),
+    selectorRanking: attemptValid ? domains.flatMap(entry => entry.ranking) : [],
+    candidateSetPreserved: attemptValid,
     ...(invalidReasons.length > 0 ? { invalidReason: invalidReasons.join("; ") } : {}),
     domains,
   };
@@ -236,7 +251,7 @@ type RecordedObservation = {
   offered?: string[];
   chosenCandidateId?: string;
   requirementCandidates?: Array<{ candidateId: string; reasons: string[] }>;
-  ranking?: { deterministic?: Array<{ candidateId: string; score: number }> };
+  ranking?: { scoper?: Array<{ candidateId: string; score: number }> };
   scoping?: {
     admitted?: Array<{ candidateId: string; reasons: string[] }>;
     fallbackFull?: boolean;
@@ -267,7 +282,7 @@ export function extractToolSelectionScopes(
         candidates: payload.candidates ?? [],
         offered: payload.offered ?? [],
         requirementCandidates: payload.requirementCandidates ?? [],
-        deterministicRanking: payload.ranking?.deterministic ?? [],
+        scoperRanking: payload.ranking?.scoper ?? [],
         actualCandidateIds: [],
         ...(payload.bindings ? { bindings: payload.bindings } : {}),
         ...(payload.scoping?.admitted

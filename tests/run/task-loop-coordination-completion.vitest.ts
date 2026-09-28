@@ -384,14 +384,14 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       provenance.requirementCandidates?.some(entry => entry.candidateId === builtinCandidateId('alix_file_create')),
     ).toBe(true);
     expect((provenance.scoping?.admitted ?? []).length).toBeGreaterThan(0);
-    // The deterministic ranking is recorded from the scoper, and every ranked
-    // tool is one the model could actually call.
+    // The scoper's ranking is recorded as it was produced, and every ranked
+    // candidate is one the model could actually call.
     const ranked = (observed?.payload as {
-      ranking?: { deterministic?: Array<{ candidateId: string; score: number }> };
+      ranking?: { scoper?: Array<{ candidateId: string; score: number }> };
       offered?: string[];
     });
-    expect((ranked.ranking?.deterministic ?? []).length).toBeGreaterThan(0);
-    for (const entry of ranked.ranking?.deterministic ?? []) {
+    expect((ranked.ranking?.scoper ?? []).length).toBeGreaterThan(0);
+    for (const entry of ranked.ranking?.scoper ?? []) {
       expect(ranked.offered).toContain(entry.candidateId);
     }
 

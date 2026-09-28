@@ -25,6 +25,7 @@
 
 import { readFileSync } from "node:fs";
 import { toolSelectionDomain } from "./tool-selection-replay.js";
+import type { LocalToolResolver } from "./tool-selection-candidates.js";
 import {
   replayabilityOf,
   type CounterfactualReplayRunner,
@@ -191,7 +192,7 @@ export function createRecordedResponseRunner(options: {
    * captured under (the executor name, never the projected candidate id).
    * Without it the candidate id is used as-is.
    */
-  toolFor?: (candidateId: string) => string;
+  toolFor?: LocalToolResolver;
 }): CounterfactualReplayRunner {
   return async (request) => {
     const result = replayFromRecordedResponse({

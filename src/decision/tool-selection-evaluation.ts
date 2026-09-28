@@ -108,7 +108,11 @@ export type CounterfactualReplayRunner = (request: {
 export type ToolSelectionComparison = {
   scopeId: string;
   actual: SelectionEvaluation;
-  deterministicTop: SelectionEvaluation;
+  /**
+   * Top of the recorded scoper ordering. Named for what it is: a relevance
+   * ordering, not a selector's next-tool preference.
+   */
+  scoperTop: SelectionEvaluation;
   selectorTop?: SelectionEvaluation;
   selectorId?: string;
   /** Factual observations only — never a verdict about which selector is better. */
@@ -195,16 +199,19 @@ export async function evaluateToolSelection(input: {
     notes.push("actual selection: execution recorded without demonstrated evidence contribution");
   }
 
-  const deterministicTopCandidate = input.scope.deterministicRanking[0]?.candidateId;
-  const deterministicTop = deterministicTopCandidate
+  // The recorded scoper ordering answers "how much does this tool's description
+  // overlap the task text" — not "what should run next". It is reported as the
+  // scoper's top, never as a selector baseline.
+  const scoperTopCandidate = input.scope.scoperRanking[0]?.candidateId;
+  const scoperTop = scoperTopCandidate
     ? await evaluateAlternative({
         scope: input.scope,
-        candidateId: deterministicTopCandidate,
+        candidateId: scoperTopCandidate,
         actualCandidateId,
         actualOutcome: input.actualOutcome,
         replay: input.replay,
       })
-    : { basis: "unknown" as const, candidateId: "(none)", domain: "builtin" as const, reason: "scope recorded no deterministic ranking" };
+    : { basis: "unknown" as const, candidateId: "(none)", domain: "builtin" as const, reason: "scope recorded no scoper ranking" };
 
   const selectorTopCandidate = input.selectorRanking?.[0];
   const selectorTop = selectorTopCandidate
@@ -217,19 +224,19 @@ export async function evaluateToolSelection(input: {
       })
     : undefined;
 
-  if (deterministicTopCandidate && selectorTopCandidate && deterministicTopCandidate === selectorTopCandidate) {
-    notes.push(`deterministic and ${input.selectorId ?? "selector"} orderings agree on ${selectorTopCandidate}`);
-  } else if (deterministicTopCandidate && selectorTopCandidate) {
-    notes.push(`orderings disagree: deterministic top ${deterministicTopCandidate}, ${input.selectorId ?? "selector"} top ${selectorTopCandidate}`);
+  if (scoperTopCandidate && selectorTopCandidate && scoperTopCandidate === selectorTopCandidate) {
+    notes.push(`scoper and ${input.selectorId ?? "selector"} orderings agree on ${selectorTopCandidate}`);
+  } else if (scoperTopCandidate && selectorTopCandidate) {
+    notes.push(`orderings differ: scoper top ${scoperTopCandidate} (relevance, not next-tool preference), ${input.selectorId ?? "selector"} top ${selectorTopCandidate}`);
   }
-  if (deterministicTop.basis === "unknown" || selectorTop?.basis === "unknown") {
+  if (scoperTop.basis === "unknown" || selectorTop?.basis === "unknown") {
     notes.push("at least one alternative remains unevaluated (counterfactual unknown)");
   }
 
   return {
     scopeId: input.scope.scopeId,
     actual,
-    deterministicTop,
+    scoperTop,
     ...(selectorTop ? { selectorTop } : {}),
     ...(input.selectorId ? { selectorId: input.selectorId } : {}),
     notes,

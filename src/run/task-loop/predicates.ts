@@ -513,14 +513,16 @@ export type SelectionObservation = {
     excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
   /**
-   * Deterministic orderings, recorded as the production layer produced them.
-   * `deterministic` is the scoper's relevance ranking of the admitted surface
-   * (native semantics: overlapping-token count, 0 for core membership).
+   * Recorded orderings, as the production layer produced them.
+   * `scoper` is the scoper's relevance ranking of the admitted surface (native
+   * semantics: overlapping-token count, 0 for core membership) — a relevance
+   * ordering, NOT a next-tool preference, so a selector comparison must not
+   * present it as the deterministic selection baseline.
    * `mcpSelector` carries the MCP selector's own scores when the MCP path ran —
-   * a different scale, deliberately not interleaved with `deterministic`.
+   * a different scale, deliberately not interleaved with `scoper`.
    */
   ranking: {
-    deterministic: Array<{ candidateId: string; score: number }>;
+    scoper: Array<{ candidateId: string; score: number }>;
     mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
 };
@@ -551,7 +553,7 @@ export function buildSelectionObservation(input: {
     excluded?: Array<{ candidateId: string; reasons: string[] }>;
   };
   ranking?: {
-    deterministic?: Array<{ candidateId: string; score: number }>;
+    scoper?: Array<{ candidateId: string; score: number }>;
     mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
 }): SelectionObservation {
@@ -601,7 +603,7 @@ export function buildSelectionObservation(input: {
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
     },
     ranking: {
-      deterministic: input.ranking?.deterministic ?? [],
+      scoper: input.ranking?.scoper ?? [],
       ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
     },
   };
@@ -630,7 +632,7 @@ export function unexplainedRequirementCandidates(observation: SelectionObservati
  * ranked but never offered.
  */
 export function rankingOutsideOffered(observation: SelectionObservation): string[] {
-  return observation.ranking.deterministic
+  return observation.ranking.scoper
     .map(entry => entry.candidateId)
     .filter(candidateId => !observation.offered.includes(candidateId));
 }

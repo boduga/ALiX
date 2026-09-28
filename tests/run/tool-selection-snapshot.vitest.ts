@@ -37,7 +37,7 @@ const scope: ToolSelectionScope = {
   bindings: frozen.bindings,
   offered: frozen.candidates.map(candidate => candidate.candidateId),
   requirementCandidates: [],
-  deterministicRanking: [{ candidateId: builtinCandidateId('alix_file_read'), score: 1 }],
+  scoperRanking: [{ candidateId: builtinCandidateId('alix_file_read'), score: 1 }],
   actualCandidateIds: [builtinCandidateId('alix_grep_search')],
 };
 

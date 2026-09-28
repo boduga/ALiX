@@ -50,10 +50,13 @@ export type ScopingProvenance = {
   fallbackFull: boolean;
   /**
    * The scoper's own relevance ordering of the admitted surface — the
-   * deterministic baseline a selector comparison needs. Native semantics: the
-   * score is the number of overlapping task tokens (0 for core tools admitted
-   * on membership rather than relevance). Only admitted tools appear, so
-   * `set(ranking) ⊆ set(offered)`.
+   * relevance signal a selector comparison can cite, NOT a next-tool
+   * preference: it answers "how much does this tool's description overlap the
+   * task text", so presenting it as the deterministic selection baseline would
+   * compare two different questions. Native semantics: the score is the number
+   * of overlapping task tokens (0 for core tools admitted on membership rather
+   * than relevance). Only admitted tools appear, so `set(ranking) ⊆
+   * set(offered)`.
    */
   ranking: Array<{ tool: string; score: number }>;
 };

@@ -183,14 +183,14 @@ describe('recorded deterministic ranking', () => {
   it('carries the production ordering and scores', () => {
     const observation = observe({
       ranking: {
-        deterministic: [
+        scoper: [
           { candidateId: id('alix_grep_search'), score: 3 },
           { candidateId: id('alix_file_read'), score: 0 },
         ],
         mcpSelector: [{ candidateId: 'mcp:abc123', score: 7 }],
       },
     });
-    expect(observation.ranking.deterministic).toEqual([
+    expect(observation.ranking.scoper).toEqual([
       { candidateId: id('alix_grep_search'), score: 3 },
       { candidateId: id('alix_file_read'), score: 0 },
     ]);
@@ -203,13 +203,13 @@ describe('recorded deterministic ranking', () => {
   });
 
   it('defaults to an empty ranking when the caller records none', () => {
-    expect(observe().ranking).toEqual({ deterministic: [] });
+    expect(observe().ranking).toEqual({ scoper: [] });
   });
 
-  it('flags a tool ranked but never offered (the replay baseline must describe a real surface)', () => {
+  it('flags a candidate ranked but never offered (the recorded surface must be real)', () => {
     const observation = observe({
       candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_grep_search'),
-      ranking: { deterministic: [{ candidateId: id('alix_grep_search'), score: 2 }] },
+      ranking: { scoper: [{ candidateId: id('alix_grep_search'), score: 2 }] },
     });
     expect(rankingOutsideOffered(observation)).toEqual([id('alix_grep_search')]);
   });

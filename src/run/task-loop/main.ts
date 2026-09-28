@@ -287,7 +287,8 @@ onProgress,
       }),
   });
   const frozenRanking = {
-    deterministic: scopingProvenance.ranking.map((entry) => ({
+    // The scoper's relevance ordering (see SelectionObservation.ranking).
+    scoper: scopingProvenance.ranking.map((entry) => ({
       candidateId: candidateIdFor(entry.tool),
       score: entry.score,
     })),

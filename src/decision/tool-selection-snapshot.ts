@@ -26,6 +26,7 @@ import { basename, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolSelectionScope } from "./tool-selection-replay.js";
+import type { LocalToolResolver } from "./tool-selection-candidates.js";
 import {
   replayabilityOf,
   type CounterfactualReplayRunner,
@@ -249,7 +250,7 @@ export function createSnapshotReplayRunner(options: {
    * LOCAL ONLY: resolve a frozen candidate id to the tool name the executor
    * understands. Without it the candidate id is used as-is.
    */
-  toolFor?: (candidateId: string) => string;
+  toolFor?: LocalToolResolver;
 }): CounterfactualReplayRunner {
   return async ({ scopeId, candidateId }) => {
     const tool = options.toolFor?.(candidateId) ?? candidateId;
@@ -270,7 +271,7 @@ export function createSnapshotReplayRunner(options: {
           candidates: [],
           offered: [candidateId],
           requirementCandidates: [],
-          deterministicRanking: [],
+          scoperRanking: [],
           actualCandidateIds: [],
         },
         tool,

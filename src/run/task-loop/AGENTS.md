@@ -97,6 +97,10 @@ existing import paths are unchanged.
   `chosenCandidateId` use candidate ids, so no field can carry a handle
   (`mcp__<opaque>`) into a projection. The same offered name twice is one
   candidate; two different names sharing an id fails closed.
+- The recorded `ranking` has two named keys: `scoper` (the scoper's relevance
+  ordering — token overlap, NOT a next-tool preference) and `mcpSelector` (the
+  MCP selector's own scores on its own scale). They are never interleaved, and
+  neither may be presented as "the deterministic selector baseline".
 - Final prose that promises another agent action (for example, "Next, I'm
   surfacing...") is a continuation, not a completion. The task loop re-prompts
   within its existing bound and records `completed_unverified` if the promise

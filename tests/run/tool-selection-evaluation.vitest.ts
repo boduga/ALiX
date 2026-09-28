@@ -39,7 +39,7 @@ const scope: ToolSelectionScope = {
   bindings: frozen.bindings,
   offered: frozen.candidates.map(candidate => candidate.candidateId),
   requirementCandidates: [],
-  deterministicRanking: [
+  scoperRanking: [
     { candidateId: id('alix_grep_search'), score: 3 },
     { candidateId: id('alix_file_read'), score: 1 },
     { candidateId: id('alix_patch_apply'), score: 0 },
@@ -87,12 +87,12 @@ describe('evaluateToolSelection', () => {
   it('reuses the observed outcome when an alternative ordering agrees with the executed choice', async () => {
     const replay = vi.fn<CounterfactualReplayRunner>();
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ candidateId: id('alix_file_read'), score: 5 }] },
+      scope: { ...scope, scoperRanking: [{ candidateId: id('alix_file_read'), score: 5 }] },
       actualOutcome: observedOutcome,
       replay,
     });
 
-    expect(comparison.deterministicTop).toEqual({
+    expect(comparison.scoperTop).toEqual({
       basis: 'observed',
       candidateId: id('alix_file_read'),
       label: 'alix_file_read',
@@ -109,7 +109,7 @@ describe('evaluateToolSelection', () => {
     }));
     const comparison = await evaluateToolSelection({ scope, actualOutcome: observedOutcome, replay });
 
-    expect(comparison.deterministicTop).toEqual({
+    expect(comparison.scoperTop).toEqual({
       basis: 'replayed',
       candidateId: id('alix_grep_search'),
       label: 'alix_grep_search',
@@ -127,12 +127,12 @@ describe('evaluateToolSelection', () => {
   it('refuses to replay a mutating alternative, even when a runner exists', async () => {
     const replay = vi.fn<CounterfactualReplayRunner>();
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ candidateId: id('alix_patch_apply'), score: 9 }] },
+      scope: { ...scope, scoperRanking: [{ candidateId: id('alix_patch_apply'), score: 9 }] },
       actualOutcome: observedOutcome,
       replay,
     });
 
-    expect(comparison.deterministicTop).toEqual({
+    expect(comparison.scoperTop).toEqual({
       basis: 'unknown',
       candidateId: id('alix_patch_apply'),
       label: 'alix_patch_apply',
@@ -144,11 +144,11 @@ describe('evaluateToolSelection', () => {
 
   it('leaves an external alternative unknown rather than reaching the network', async () => {
     const comparison = await evaluateToolSelection({
-      scope: { ...scope, deterministicRanking: [{ candidateId: mcpId, score: 4 }] },
+      scope: { ...scope, scoperRanking: [{ candidateId: mcpId, score: 4 }] },
       actualOutcome: observedOutcome,
     });
 
-    expect(comparison.deterministicTop).toEqual({
+    expect(comparison.scoperTop).toEqual({
       basis: 'unknown',
       candidateId: mcpId,
       label: 'demo/echo',
@@ -168,7 +168,7 @@ describe('evaluateToolSelection', () => {
     });
   });
 
-  it('records agreement between the deterministic and selector orderings without ranking them', async () => {
+  it('records agreement between the scoper and selector orderings without ranking them', async () => {
     const comparison = await evaluateToolSelection({
       scope,
       actualOutcome: observedOutcome,
@@ -177,7 +177,7 @@ describe('evaluateToolSelection', () => {
     });
 
     expect(comparison.notes).toContain(
-      `deterministic and jev-stub orderings agree on ${id('alix_grep_search')}`,
+      `scoper and jev-stub orderings agree on ${id('alix_grep_search')}`,
     );
     expect(comparison.selectorTop?.basis).toBe('unknown'); // no runner supplied
     expect(comparison.selectorId).toBe('jev-stub');
@@ -191,7 +191,7 @@ describe('evaluateToolSelection', () => {
       selectorId: 'jev-stub',
     });
     expect(comparison.notes).toContain(
-      `orderings disagree: deterministic top ${id('alix_grep_search')}, jev-stub top ${id('alix_file_read')}`,
+      `orderings differ: scoper top ${id('alix_grep_search')} (relevance, not next-tool preference), jev-stub top ${id('alix_file_read')}`,
     );
   });
 });
