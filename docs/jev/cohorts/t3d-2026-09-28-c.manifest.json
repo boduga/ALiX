@@ -70,5 +70,77 @@
     "MCPExpected": false,
     "requirementClassExpected": null,
     "producedScope": true
+  },
+  "6a4e45b5-71e0-4a7f-860e-760521c05c8b": {
+    "taskId": "v1",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "66228d3e-ac93-48fd-a9fd-2c5ceb23b067": {
+    "taskId": "v2",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "ee162d4e-9597-430a-a52c-bc0dcd2bd5b9": {
+    "taskId": "v3",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "53f3a078-0a49-4402-9f48-c4fa143ce2c7": {
+    "taskId": "v4",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "2fcfdceb-f98d-4e88-9a43-478dbca70505": {
+    "taskId": "v5",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "5a0cee54-4f31-4f32-86cc-4d1554dd0f30": {
+    "taskId": "v6",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "a4280b90-f304-4903-8434-032ee57b3f32": {
+    "taskId": "v7",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
+  },
+  "d5c37b25-6d06-45fb-a4fa-261a1c40c46a": {
+    "taskId": "v8",
+    "family": "verification",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:verification",
+    "producedScope": true
   }
 }
