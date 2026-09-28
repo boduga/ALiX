@@ -628,7 +628,11 @@ export class ToolExecutor {
 
     if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
       outputRef = await writeOutputToFile(
-        result.output ?? result.content,
+        // Must be the rendered text: a search result carries `matches[]`, and
+        // passing `output ?? content` (undefined) here crashed the run with
+        // `The "data" argument must be of type string ... Received undefined`
+        // the first time a large grep crossed the threshold.
+        rawOutput,
         this.log.sessionDir,
         toolCallId,
         this.log,
