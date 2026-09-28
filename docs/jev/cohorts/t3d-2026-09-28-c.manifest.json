@@ -142,5 +142,77 @@
     "MCPExpected": false,
     "requirementClassExpected": "requirement:verification",
     "producedScope": true
+  },
+  "f778fd95-e5a0-4992-bd8f-cdd5126107b9": {
+    "taskId": "m1",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "fb6edcc6-3b73-4760-af43-0cf6843ef712": {
+    "taskId": "m2",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "000bcd5d-44d8-440f-951d-97f9e67db71a": {
+    "taskId": "m3",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "6a6df34d-c110-4486-94e1-ad639154e7b0": {
+    "taskId": "m4",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "ecd86415-3a8d-4ffd-9b7c-66331617c305": {
+    "taskId": "m5",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "c5267eb4-1dcc-472e-9d87-43bfba2b0835": {
+    "taskId": "m6",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "50e69b94-f907-4ce9-8fcd-5e9ffabfd606": {
+    "taskId": "m7",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
+  },
+  "3aaf3c05-f1c9-441d-8cc8-6b6af73e703a": {
+    "taskId": "m8",
+    "family": "mutation",
+    "expectedMode": "mutating",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:mutation",
+    "producedScope": true
   }
 }
