@@ -175,6 +175,10 @@ disagreement record exist. Until then tool selection stays an experiment:
 
 ## Appendix — T3-d collection plan
 
+Execution procedure: `T3-d-corpus-collection-runbook.md` (cohort header, task
+matrix, run steps, tagging, failure/retry rules, ledger schema, checkpoint
+commands). Policy below stays here; the runbook does not restate it.
+
 **Planned size: 40–50 eligible scopes.** The formal checkpoint stays 30 eligible
 scopes / 10 labelled disagreements; the pilot's disagreement density (1 in 4
 eligible) suggests 30 may not be enough to reach 10 labels, so collect past the

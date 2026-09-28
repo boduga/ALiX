@@ -18,6 +18,8 @@ the code).
 | `ALiX-Jev-J0-Integration-Points.md` | The read-only inventory of classifier/routing/governance seams. |
 | `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the shipped wiring decision and how to activate it, caveats. |
 | `T3-selection-evaluation-preregistration.md` | The **frozen** T3 evaluation contract: eligibility tracks + exclusion codes, blind appropriateness labelling, outcome/gap-closure labels, the 30-scope/10-disagreement checkpoint. Amendments go in its own table. |
+| `T3-d-corpus-collection-runbook.md` | The T3-d **procedure**: cohort header + immutability rule, the 40-task family matrix (no expected winning tool encoded), the per-run steps, tagging rules, failure/retry rules, and the ledger schema (collection facts vs label state). Policy stays in the pre-registration. |
+| `cohorts/<cohortId>.header.json`, `cohorts/<cohortId>.ledger.jsonl` | Per-cohort collection artifacts: the immutable identity header and one row per frozen scope. Collection facts only; labels live in the labelling store and are joined later. |
 
 ## Local Contracts
 
@@ -35,6 +37,13 @@ the code).
 - **Caveats are part of the record.** Circular fixture metrics, a single
   adversarial fixture, and a small Noul corpus must stay listed as caveats.
   Removing a caveat requires the evidence that retires it.
+- **Measurement policy and procedure are separate documents.** The
+  pre-registration owns what may be counted (codes, labels, checkpoint); the
+  runbook owns how a cohort is collected. Changing what may be counted is an
+  amendment to the pre-registration — never a silent edit to the runbook.
+- **A failed sample is data, not noise.** A scorer failure or a scope that
+  produced no observation is recorded with its reason; retries get a new sample
+  identity rather than replacing the failure, so completion rates stay honest.
 - **Name collision:** `src/cli/commands/decision/` is the governance-lens CLI
   and is unrelated to `src/decision/`. The Jev surface is `alix jev`.
 
