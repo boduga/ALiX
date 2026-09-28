@@ -58,6 +58,17 @@
   ranks selectors or declares a winner; that judgement is the operator's, at T3-f.
   Amending a code, label, or the checkpoint belongs in the pre-registration's
   amendment table and invalidates comparability with earlier rows.
+- Comparison eligibility is not the same as an observed choice: agreement
+  requires a complete alternative ordering (`candidateSetPreserved: true`), so a
+  scope whose scorer failed mid-set keeps its model choice as trace fact and is
+  excluded from comparison. A row holds one chosen `reason` plus `diagnostics`
+  (every other code that fired) — a run may have two defects and both stay
+  visible. The replay reports `attemptedCandidates`/`failedCandidates`, so scorer
+  completion is experiment data (full-scope success rate, candidate failure rate,
+  per-scope latency percentiles), not a silent exclusion. Corpus cohorts are
+  comparable only under the run controls listed in the pre-registration: a change
+  to revision, projector, Jev model/config, or candidate-freeze schema starts a
+  new cohort rather than mixing rows.
 - An engine never borrows a runtime mapping for an `experiment:` subject: the
   Jev adapter takes experiment mappings only through `experimentMappings`
   (`experiment:<id>` → mapping, keyed by experiment id) and still fails closed

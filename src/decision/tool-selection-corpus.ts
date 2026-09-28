@@ -49,6 +49,14 @@ export type TrackEligibility = "eligible" | "ineligible";
 export type EvaluationEligibility = {
   selection: TrackEligibility;
   outcome: TrackEligibility;
+  /**
+   * The chosen code is `reason`; every other code that fired is kept here.
+   * A row can be excluded for one reason while still carrying evidence about
+   * another defect (pilot 8a0de18b: comparison excluded for a failed candidate
+   * set, diagnostic `execution-context-drift`). Dropping the second code would
+   * lose the only record of that defect.
+   */
+  diagnostics: SelectionExclusionCode[];
   reason?: SelectionExclusionCode;
 };
 
@@ -100,9 +108,11 @@ export function deriveEvaluationEligibility(input: EligibilityInput): Evaluation
   const selectionIneligible = firstReason(selectionReasons);
   const outcomeIneligible = firstReason(outcomeReasons);
   const reason = selectionIneligible ?? outcomeIneligible;
+  const diagnostics = [...new Set([...selectionReasons, ...outcomeReasons])].filter(code => code !== reason);
   return {
     selection: selectionIneligible ? "ineligible" : "eligible",
     outcome: outcomeIneligible ? "ineligible" : "eligible",
+    diagnostics,
     ...(reason ? { reason } : {}),
   };
 }
@@ -267,12 +277,42 @@ export type CorpusRow = {
   scoperRanking: string[];
   alternative?: { selectorId: string; ranking: string[]; candidateSetPreserved: boolean; invalidReason?: string };
   /**
-   * Offline scorer economics for this scope. A failure aborts the attempt on
-   * the first bad candidate, so the number of failed CALLS is not knowable —
-   * the row records the scope-level outcome instead.
+   * Offline scorer economics for this scope. A failure aborts the attempt on the
+   * first bad candidate, so `attemptedCandidates`/`failedCandidates` (from the
+   * replay) say how far it got; `calls` counts the answers that came back.
    */
-  scoring?: { calls: number; latencyMs: number[]; scorerOutcome: "complete" | "failed" };
+  scoring?: {
+    calls: number;
+    latencyMs: number[];
+    scorerOutcome: "complete" | "failed";
+    /** Calls the attempt made, and how many of them failed before it stopped. */
+    attemptedCandidates?: number;
+    failedCandidates?: number;
+  };
 };
+
+/**
+ * The four statuses T3-d records per scope. `traceComplete` and
+ * `candidateSetPreserved` are facts about the run; the two comparison flags say
+ * whether the row may be used in that comparison. An observed model choice stays
+ * a trace fact even when the comparison is ineligible — that is why the first
+ * field is separate rather than implied by the last two.
+ */
+export type EvaluationStatus = {
+  traceComplete: boolean;
+  candidateSetPreserved: boolean;
+  selectionComparisonEligible: boolean;
+  outcomeComparisonEligible: boolean;
+};
+
+export function comparisonStatusOf(row: CorpusRow): EvaluationStatus {
+  return {
+    traceComplete: Boolean(row.actual.candidateId),
+    candidateSetPreserved: row.alternative?.candidateSetPreserved === true,
+    selectionComparisonEligible: row.eligibility.selection === "eligible",
+    outcomeComparisonEligible: row.eligibility.outcome === "eligible",
+  };
+}
 
 export type LabelledDisagreement = {
   scopeKey: string;
@@ -306,15 +346,41 @@ export function resolveDisagreementLabels(
 export const T3_CHECKPOINT = { eligibleScopes: 30, labelledDisagreements: 10 } as const;
 
 export type CorpusSummary = {
+  /** Scopes the run attempted, before any eligibility filtering. */
+  attemptedScopes: number;
   scopes: number;
   eligibility: {
     selectionEligible: number;
     outcomeEligible: number;
     byReason: Record<string, number>;
+    diagnostics: Record<string, number>;
   };
-  agreement: { comparable: number; agree: number; disagree: number };
+  /** The four T3-d statuses, counted. */
+  status: {
+    traceComplete: number;
+    candidateSetPreserved: number;
+    selectionComparisonEligible: number;
+    outcomeComparisonEligible: number;
+  };
+  /** How often the alternative produced a complete, preserved ordering. */
+  preservation: { attempted: number; preserved: number; rate: number | null };
+  /**
+   * The Jev scorer's completion behaviour, which is experiment data: a selector
+   * with good judgements that frequently cannot finish a 20-25 candidate scope is
+   * still unsuitable for T4.
+   */
+  jevCompletion: {
+    attempts: number;
+    fullScopeSuccess: number;
+    fullScopeSuccessRate: number | null;
+    candidateCalls: number;
+    candidateFailures: number;
+    candidateFailureRate: number | null;
+  };
+  agreement: { comparable: number; agree: number; disagree: number; rate: number | null };
   labelledDisagreements: {
     labelled: number;
+    unlabelled: number;
     bothAppropriate: number;
     actualOnlyAppropriate: number;
     alternativeOnlyAppropriate: number;
@@ -334,6 +400,8 @@ export type CorpusSummary = {
     totalLatencyMs: number;
     medianCandidateLatencyMs: number | null;
     p95CandidateLatencyMs: number | null;
+    medianScopeLatencyMs: number | null;
+    p95ScopeLatencyMs: number | null;
     scopesWithScorerFailure: number;
   };
   requirementContext: {
@@ -351,6 +419,11 @@ function percentile(sorted: number[], fraction: number): number | null {
   return sorted[index] ?? null;
 }
 
+/** Ratio as a fraction, or null when there is nothing to divide by. */
+function rate(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? numerator / denominator : null;
+}
+
 /**
  * Summarise a corpus and its labels. Facts only: counts, rates, latency and
  * prerequisite status. It never ranks selectors and never declares a winner —
@@ -361,11 +434,16 @@ export function summarizeCorpus(input: {
   labels: ReadonlyArray<ToolSelectionLabelRecord>;
 }): CorpusSummary {
   const byReason: Record<string, number> = {};
+  const byDiagnostic: Record<string, number> = {};
   for (const row of input.rows) {
     if (row.eligibility.reason) byReason[row.eligibility.reason] = (byReason[row.eligibility.reason] ?? 0) + 1;
+    for (const code of row.eligibility.diagnostics) byDiagnostic[code] = (byDiagnostic[code] ?? 0) + 1;
   }
 
   const selectionEligibleRows = input.rows.filter(row => row.eligibility.selection === "eligible");
+  const statuses = input.rows.map(comparisonStatusOf);
+  const countStatus = (pick: (status: EvaluationStatus) => boolean): number =>
+    statuses.filter(pick).length;
   const disagreementRecords = input.labels.filter(
     (record): record is DisagreementLabelRecord => record.kind === "disagreement",
   );
@@ -389,6 +467,7 @@ export function summarizeCorpus(input: {
 
   const counts = {
     labelled: 0,
+    unlabelled: 0,
     bothAppropriate: 0,
     actualOnlyAppropriate: 0,
     alternativeOnlyAppropriate: 0,
@@ -399,10 +478,14 @@ export function summarizeCorpus(input: {
   for (const { row } of disagreements) {
     const scopeKey = `${row.sessionId}:${row.scopeId}`;
     const record = disagreementRecords.find(entry => entry.scopeKey === scopeKey);
-    if (!record) continue;
+    if (!record) {
+      counts.unlabelled += 1;
+      continue;
+    }
     const resolved = resolveDisagreementLabels(row, record);
     if (!resolved) {
       counts.unmatched += 1;
+      counts.unlabelled += 1;
       continue;
     }
     counts.labelled += 1;
@@ -431,21 +514,35 @@ export function summarizeCorpus(input: {
   }
 
   const latencies: number[] = [];
+  const scopeLatencies: number[] = [];
   let calls = 0;
   let totalLatencyMs = 0;
   let scopesWithScorerFailure = 0;
   let scopesWithScoring = 0;
+  let fullScopeSuccess = 0;
+  let candidateCalls = 0;
+  let candidateFailures = 0;
   for (const row of input.rows) {
     if (!row.scoring) continue;
     scopesWithScoring += 1;
     calls += row.scoring.calls;
     if (row.scoring.scorerOutcome === "failed") scopesWithScorerFailure += 1;
+    else fullScopeSuccess += 1;
+    candidateCalls += row.scoring.attemptedCandidates ?? row.scoring.calls;
+    candidateFailures += row.scoring.failedCandidates ?? 0;
+    let scopeTotal = 0;
     for (const latency of row.scoring.latencyMs) {
       latencies.push(latency);
       totalLatencyMs += latency;
+      scopeTotal += latency;
     }
+    scopeLatencies.push(scopeTotal);
   }
   latencies.sort((a, b) => a - b);
+  scopeLatencies.sort((a, b) => a - b);
+
+  const preservationAttempts = input.rows.filter(row => row.alternative !== undefined).length;
+  const preservationSucceeded = input.rows.filter(row => row.alternative?.candidateSetPreserved === true).length;
 
   const byRequirementClass: Record<string, number> = {};
   let scopesWithRequirementCandidates = 0;
@@ -468,13 +565,34 @@ export function summarizeCorpus(input: {
   }
 
   return {
+    attemptedScopes: input.rows.length,
     scopes: input.rows.length,
     eligibility: {
       selectionEligible: eligibleScopes,
       outcomeEligible: input.rows.filter(row => row.eligibility.outcome === "eligible").length,
       byReason,
+      diagnostics: byDiagnostic,
     },
-    agreement: { comparable: agree + disagree, agree, disagree },
+    status: {
+      traceComplete: countStatus(status => status.traceComplete),
+      candidateSetPreserved: countStatus(status => status.candidateSetPreserved),
+      selectionComparisonEligible: countStatus(status => status.selectionComparisonEligible),
+      outcomeComparisonEligible: countStatus(status => status.outcomeComparisonEligible),
+    },
+    preservation: {
+      attempted: preservationAttempts,
+      preserved: preservationSucceeded,
+      rate: rate(preservationSucceeded, preservationAttempts),
+    },
+    jevCompletion: {
+      attempts: scopesWithScoring,
+      fullScopeSuccess,
+      fullScopeSuccessRate: rate(fullScopeSuccess, scopesWithScoring),
+      candidateCalls,
+      candidateFailures,
+      candidateFailureRate: rate(candidateFailures, candidateCalls),
+    },
+    agreement: { comparable: agree + disagree, agree, disagree, rate: rate(agree, agree + disagree) },
     labelledDisagreements: counts,
     outcomeDimensions: { execution, selection, evidence },
     gapClosure,
@@ -484,6 +602,8 @@ export function summarizeCorpus(input: {
       totalLatencyMs,
       medianCandidateLatencyMs: percentile(latencies, 0.5),
       p95CandidateLatencyMs: percentile(latencies, 0.95),
+      medianScopeLatencyMs: percentile(scopeLatencies, 0.5),
+      p95ScopeLatencyMs: percentile(scopeLatencies, 0.95),
       scopesWithScorerFailure,
     },
     requirementContext: { scopesWithRequirementCandidates, byRequirementClass, taskCategory: "not-recorded" },

@@ -124,6 +124,15 @@ export type ToolSelectionReplay = {
   selectorRanking: string[];
   candidateSetPreserved: boolean;
   invalidReason?: string;
+  /**
+   * Candidate calls this attempt made, and how many of them failed. A failure
+   * stops the attempt (a partial ranking is never returned), so these are the
+   * experiment's completion numbers rather than a measure of the selector's
+   * per-candidate quality: a selector that cannot finish a 20-25 candidate
+   * scope is unsuitable for T4 even when its few judgements look good.
+   */
+  attemptedCandidates: number;
+  failedCandidates: number;
   domains: Array<{
     domain: ToolSelectionDomain;
     ranking: string[];
@@ -167,6 +176,8 @@ export async function replayToolSelection(
   const timeoutMs = options.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS;
   const domains: ToolSelectionReplay["domains"] = [];
   const invalidReasons: string[] = [];
+  let attemptedCandidates = 0;
+  let failedCandidates = 0;
 
   for (const domain of ["builtin", "mcp"] as const) {
     const candidates = scope.offered.filter(candidateId => {
@@ -178,6 +189,7 @@ export async function replayToolSelection(
     const scored: Array<{ candidateId: string; rankValue: number }> = [];
     let failure: string | undefined;
     for (const candidateId of candidates) {
+      attemptedCandidates += 1;
       const outcome = await rankWithTimeout(
         selector,
         {
@@ -190,10 +202,12 @@ export async function replayToolSelection(
         timeoutMs,
       );
       if ("error" in outcome) {
+        failedCandidates += 1;
         failure = `selector "${selector.id}" failed for ${candidateId}: ${outcome.error}`;
         break;
       }
       if (!Number.isFinite(outcome.rankValue)) {
+        failedCandidates += 1;
         failure = `selector "${selector.id}" returned a non-finite ranking value for ${candidateId}`;
         break;
       }
@@ -239,6 +253,8 @@ export async function replayToolSelection(
     selectorRanking: attemptValid ? domains.flatMap(entry => entry.ranking) : [],
     candidateSetPreserved: attemptValid,
     ...(invalidReasons.length > 0 ? { invalidReason: invalidReasons.join("; ") } : {}),
+    attemptedCandidates,
+    failedCandidates,
     domains,
   };
 }

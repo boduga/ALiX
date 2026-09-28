@@ -17,6 +17,7 @@ import {
   blindOrder,
   buildBlindLabellingCard,
   deriveEvaluationEligibility,
+  comparisonStatusOf,
   isSelectionExclusionCode,
   objectiveHash,
   parseLabelRecord,
@@ -58,7 +59,7 @@ function row(overrides: Partial<CorpusRow> = {}): CorpusRow {
   return {
     sessionId: 'session-1',
     scopeId: 'scope_27',
-    eligibility: { selection: 'eligible', outcome: 'eligible' },
+    eligibility: { selection: 'eligible', outcome: 'eligible', diagnostics: [] },
     objective: 'Verify whether provider-selection behaviour is correct.',
     actual: {
       candidateId: builtinCandidateId('alix_file_read'),
@@ -98,6 +99,7 @@ describe('deriveEvaluationEligibility', () => {
     expect(deriveEvaluationEligibility({ scope })).toEqual({
       selection: 'eligible',
       outcome: 'eligible',
+      diagnostics: [],
     });
   });
 
@@ -108,7 +110,30 @@ describe('deriveEvaluationEligibility', () => {
         scope,
         override: { track: 'outcome', reason: 'execution-context-drift' },
       }),
-    ).toEqual({ selection: 'eligible', outcome: 'ineligible', reason: 'execution-context-drift' });
+    ).toEqual({
+      selection: 'eligible',
+      outcome: 'ineligible',
+      diagnostics: [],
+      reason: 'execution-context-drift',
+    });
+  });
+
+  it('keeps the second defect as diagnostic metadata when two codes fire', () => {
+    // The pilot's 8a0de18b once the replay is accounted for: the comparison is
+    // excluded for the failed candidate set, and the drift that was assigned by
+    // hand must not vanish just because it is not the highest-precedence code.
+    expect(
+      deriveEvaluationEligibility({
+        scope,
+        replay: { candidateSetPreserved: false, invalidReason: 'selector failed for builtin:x' },
+        override: { track: 'outcome', reason: 'execution-context-drift' },
+      }),
+    ).toEqual({
+      selection: 'ineligible',
+      outcome: 'ineligible',
+      reason: 'candidate-set-not-preserved',
+      diagnostics: ['execution-context-drift'],
+    });
   });
 
   it('marks only the selection ineligible when the candidate set was not preserved', () => {
@@ -120,6 +145,7 @@ describe('deriveEvaluationEligibility', () => {
     ).toEqual({
       selection: 'ineligible',
       outcome: 'eligible',
+      diagnostics: [],
       reason: 'candidate-set-not-preserved',
     });
   });
@@ -141,6 +167,7 @@ describe('deriveEvaluationEligibility', () => {
     expect(deriveEvaluationEligibility({ scope: leaky })).toEqual({
       selection: 'ineligible',
       outcome: 'ineligible',
+      diagnostics: [],
       reason: 'projection-invalid',
     });
   });
@@ -150,7 +177,45 @@ describe('deriveEvaluationEligibility', () => {
     expect(deriveEvaluationEligibility({ scope: empty })).toEqual({
       selection: 'eligible',
       outcome: 'ineligible',
+      diagnostics: [],
       reason: 'incomplete-trace',
+    });
+  });
+});
+
+describe('comparisonStatusOf', () => {
+  it('separates the observed choice from comparison eligibility', () => {
+    // A failed replay: the model's choice is still a fact, the comparison is not.
+    expect(
+      comparisonStatusOf(
+        row({
+          eligibility: {
+            selection: 'ineligible',
+            outcome: 'ineligible',
+            diagnostics: [],
+            reason: 'candidate-set-not-preserved',
+          },
+          alternative: {
+            selectorId: 'jev:tool-selection-replay',
+            ranking: [],
+            candidateSetPreserved: false,
+          },
+        }),
+      ),
+    ).toEqual({
+      traceComplete: true,
+      candidateSetPreserved: false,
+      selectionComparisonEligible: false,
+      outcomeComparisonEligible: false,
+    });
+  });
+
+  it('is fully eligible for a preserved replay with an observed choice', () => {
+    expect(comparisonStatusOf(row())).toEqual({
+      traceComplete: true,
+      candidateSetPreserved: true,
+      selectionComparisonEligible: true,
+      outcomeComparisonEligible: true,
     });
   });
 });
@@ -293,7 +358,12 @@ describe('summarizeCorpus', () => {
             ranking: [builtinCandidateId('alix_grep_search')],
             candidateSetPreserved: true,
           },
-          eligibility: { selection: 'ineligible', outcome: 'eligible', reason: 'candidate-set-not-preserved' },
+          eligibility: {
+            selection: 'ineligible',
+            outcome: 'eligible',
+            diagnostics: [],
+            reason: 'candidate-set-not-preserved',
+          },
         }),
       ],
       labels,
@@ -304,9 +374,10 @@ describe('summarizeCorpus', () => {
       selectionEligible: 1,
       outcomeEligible: 2,
       byReason: { 'candidate-set-not-preserved': 1 },
+      diagnostics: {},
     });
     // The ineligible scope is excluded from agreement statistics entirely.
-    expect(summary.agreement).toEqual({ comparable: 1, agree: 0, disagree: 1 });
+    expect(summary.agreement).toEqual({ comparable: 1, agree: 0, disagree: 1, rate: 0 });
     expect(summary.labelledDisagreements).toMatchObject({ labelled: 1, bothAppropriate: 1, unmatched: 0 });
     expect(summary.outcomeDimensions.evidence).toEqual({ contributed: 1, none: 1 });
     expect(summary.gapClosure).toEqual({ closed: 1 });
@@ -316,6 +387,8 @@ describe('summarizeCorpus', () => {
       totalLatencyMs: 600,
       medianCandidateLatencyMs: 200,
       p95CandidateLatencyMs: 300,
+      medianScopeLatencyMs: 600,
+      p95ScopeLatencyMs: 600,
       scopesWithScorerFailure: 0,
     });
     expect(summary.requirementContext).toEqual({
@@ -334,5 +407,58 @@ describe('summarizeCorpus', () => {
   it('never labels a selector as better or worse', () => {
     const summary = summarizeCorpus({ rows: [row()], labels });
     expect(JSON.stringify(summary)).not.toMatch(/better|worse|winner|should use/);
+  });
+
+  it('tracks the four statuses and the scorer completion rates as facts', () => {
+    const summary = summarizeCorpus({
+      rows: [
+        row({ scoring: { calls: 3, latencyMs: [100, 200, 300], scorerOutcome: 'complete', attemptedCandidates: 3, failedCandidates: 0 } }),
+        row({
+          scopeId: 'scope_28',
+          scoring: {
+            calls: 2,
+            latencyMs: [400, 500],
+            scorerOutcome: 'failed',
+            attemptedCandidates: 3,
+            failedCandidates: 1,
+          },
+          eligibility: {
+            selection: 'ineligible',
+            outcome: 'ineligible',
+            diagnostics: ['execution-context-drift'],
+            reason: 'candidate-set-not-preserved',
+          },
+          alternative: {
+            selectorId: 'jev:tool-selection-replay',
+            ranking: [],
+            candidateSetPreserved: false,
+          },
+        }),
+      ],
+      labels: [],
+    });
+
+    expect(summary.attemptedScopes).toBe(2);
+    expect(summary.status).toEqual({
+      traceComplete: 2,
+      candidateSetPreserved: 1,
+      selectionComparisonEligible: 1,
+      outcomeComparisonEligible: 1,
+    });
+    expect(summary.preservation).toEqual({ attempted: 2, preserved: 1, rate: 0.5 });
+    expect(summary.jevCompletion).toEqual({
+      attempts: 2,
+      fullScopeSuccess: 1,
+      fullScopeSuccessRate: 0.5,
+      candidateCalls: 6,
+      candidateFailures: 1,
+      candidateFailureRate: 1 / 6,
+    });
+    expect(summary.scoring.medianScopeLatencyMs).toBe(600);
+    expect(summary.scoring.p95ScopeLatencyMs).toBe(900);
+    expect(summary.eligibility.diagnostics).toEqual({ 'execution-context-drift': 1 });
+    // One disagreement, and no label for it: it is reported, not dropped.
+    expect(summary.agreement).toEqual({ comparable: 1, agree: 0, disagree: 1, rate: 0 });
+    expect(summary.labelledDisagreements).toMatchObject({ labelled: 0, unlabelled: 1 });
   });
 });

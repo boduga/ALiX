@@ -51,6 +51,31 @@ Rules:
   a row keeps the selection factual while excluding its execution result.
 - An ineligible track is excluded from that track's statistics and stays in the
   corpus. Failures are preserved, not deleted, so the reason is auditable.
+- **An observed model choice is a trace fact; comparing it is a separate
+  question.** `actual-vs-Jev` agreement requires a *complete, preserved*
+  alternative ordering (`candidateSetPreserved: true`). When the scorer fails
+  mid-set the row keeps the observed choice but is not comparison-eligible — see
+  the 2026-09-28 amendment. This is a clarification of comparability, not a
+  loosening of the experiment: `partial` rankings still never count.
+- A row carries one chosen `reason` plus `diagnostics`: every other code that
+  fired, kept as metadata. Two defects on one run must both stay visible, and
+  only the highest-precedence code may be the reason.
+
+### Per-scope statuses (T3-d)
+
+Every scope records four independent statuses, because "the run happened" and
+"the comparison is usable" are different facts:
+
+```text
+trace complete?                 (a model choice was observed)
+candidate set preserved?        (the alternative covered the offered set)
+selection comparison eligible?  (agreement/disagreement may be computed)
+outcome comparison eligible?    (execution dimensions may be counted)
+```
+
+Scorer failures are therefore measurable experiment data, not rows that silently
+disappear: a selector with good judgements that frequently cannot finish a
+20-25 candidate scope is still unsuitable for T4.
 
 ## Track A — selection-time appropriateness (blind, offline)
 
@@ -146,3 +171,54 @@ disagreement record exist. Until then tool selection stays an experiment:
 | Date | Change | Why | Effect on existing rows |
 |------|--------|-----|-------------------------|
 | 2026-09-28 | Initial freeze (this document) | Stop the definition of success moving after corpus #2 | none |
+| 2026-09-28 | Clarification: selection comparison requires a complete alternative ordering with `candidateSetPreserved: true`. The actual model choice remains a trace fact but is not comparison-eligible when the Jev replay is incomplete. Threshold impact: none. Label policy impact: none. | Pilot `8a0de18b` showed a scorer timeout/fetch failure can leave `ranking=[]`; in that state agreement cannot be computed | none — the clarification matches how the derivation already behaved; `8a0de18b` stays excluded from selector comparison and its drift becomes diagnostic metadata |
+
+## Appendix — T3-d collection plan
+
+**Planned size: 40–50 eligible scopes.** The formal checkpoint stays 30 eligible
+scopes / 10 labelled disagreements; the pilot's disagreement density (1 in 4
+eligible) suggests 30 may not be enough to reach 10 labels, so collect past the
+checkpoint rather than stopping exactly on it.
+
+| Workload family | Target scopes | What it exercises |
+|---|---:|---|
+| Read/search | 8 | file read, grep, glob, directory search |
+| Verification | 8 | tests, claim verification, shell verification |
+| Mutation | 8 | create/patch/delete + read-back verification |
+| Coordination | 8 | multi-agent planning/execution, requirement candidates |
+| MCP/external | 8 | sanitized MCP candidates, external-tool availability |
+
+**Multi-iteration:** at least 12–15 of the 40 must be multi-iteration, spread
+across the families rather than collected as a separate artificial category.
+
+**Run controls — locked before collection.** Any change means a new cohort, not
+a silent mix:
+
+```text
+same ALiX revision
+same tool-selection/v1 projector
+same Jev model and config
+same candidate-freeze schema
+fresh scopeIds
+no reuse of failed scorer results
+```
+
+**Report footer (facts, no verdict):**
+
+```text
+attemptedScopes                     scopes the run started
+status.traceComplete                model choice observed
+status.candidateSetPreserved        alternative ordering complete
+status.selectionComparisonEligible  usable for agreement/disagreement
+status.outcomeComparisonEligible    usable for execution dimensions
+eligibility.byReason                exclusions, by chosen code
+eligibility.diagnostics             secondary codes that also fired
+preservation.rate                   candidate_set_preservation_rate
+jevCompletion.fullScopeSuccessRate  jev_full_scope_success_rate
+jevCompletion.candidateFailureRate  jev_candidate_failure_rate
+agreement.rate                      agreement_rate
+labelledDisagreements.labelled      labelled_disagreements
+labelledDisagreements.unlabelled    unlabelled_disagreements
+scoring.medianScopeLatencyMs        median_scope_latency
+scoring.p95ScopeLatencyMs           p95_scope_latency
+```

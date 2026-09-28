@@ -189,6 +189,12 @@ for (const sessionId of sessionIds) {
               calls: records.length,
               latencyMs: records.map((record) => record.latencyMs),
               scorerOutcome: replay?.invalidReason ? "failed" : "complete",
+              ...(replay
+                ? {
+                    attemptedCandidates: replay.attemptedCandidates,
+                    failedCandidates: replay.failedCandidates,
+                  }
+                : {}),
             },
           }
         : {}),
