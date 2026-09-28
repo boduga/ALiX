@@ -1,0 +1,7 @@
+{
+  "8a0de18b-d822-4ea3-a27c-90bd74e38916:scope_1": {
+    "track": "outcome",
+    "reason": "execution-context-drift",
+    "note": "Pilot corpus. The model's selection (file_read) is factual and kept, but that run drifted off its prompt into an unrelated scratch context and closed with unverified claims about unrelated test files. Its execution result is therefore not a clean tool-quality label; selection stays eligible."
+  }
+}

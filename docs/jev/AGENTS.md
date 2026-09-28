@@ -17,6 +17,7 @@ the code).
 | `ALiX-Jev-Implementation-Plan.md` | Phases J0–J6, tasks, exit criteria, PR strategy, stop conditions. |
 | `ALiX-Jev-J0-Integration-Points.md` | The read-only inventory of classifier/routing/governance seams. |
 | `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the shipped wiring decision and how to activate it, caveats. |
+| `T3-selection-evaluation-preregistration.md` | The **frozen** T3 evaluation contract: eligibility tracks + exclusion codes, blind appropriateness labelling, outcome/gap-closure labels, the 30-scope/10-disagreement checkpoint. Amendments go in its own table. |
 
 ## Local Contracts
 

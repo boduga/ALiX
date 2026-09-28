@@ -25,20 +25,22 @@
  *
  * Output: a JSON corpus on stdout (or --out) plus a human summary on stderr.
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "");
 const SESSIONS = join(ROOT, ".alix", "sessions");
 
 function parseArgs(argv) {
-  const out = { sessions: [], latest: 0, engine: "none", out: undefined };
+  const out = { sessions: [], latest: 0, engine: "none", out: undefined, overrides: undefined, summary: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--session") out.sessions.push(argv[++i]);
     else if (arg === "--latest") out.latest = Number(argv[++i]);
     else if (arg === "--engine") out.engine = argv[++i];
     else if (arg === "--out") out.out = argv[++i];
+    else if (arg === "--overrides") out.overrides = argv[++i];
+    else if (arg === "--summary") out.summary = true;
     else if (arg === "--help" || arg === "-h") out.help = true;
     else throw new Error(`unknown argument: ${arg}`);
   }
@@ -74,6 +76,9 @@ const {
 const { evaluateToolSelection, selectionOutcomeFromObservation } = await import(
   `${ROOT}/dist/src/decision/tool-selection-evaluation.js`
 );
+const { deriveEvaluationEligibility, summarizeCorpus } = await import(
+  `${ROOT}/dist/src/decision/tool-selection-corpus.js`
+);
 
 async function selectorFor(options, scope, objective, onRanking) {
   if (options.engine === "none") return undefined;
@@ -101,6 +106,17 @@ if (args.help) {
 const sessionIds = args.sessions.length > 0 ? args.sessions : latestSessions(args.latest || 1);
 const rows = [];
 const selectorRecords = [];
+
+/**
+ * Analyst-assigned exclusions, keyed `${sessionId}:${scopeId}`. Defaults to the
+ * in-repo record so a corpus regenerated from the same traces gets the same
+ * eligibility; pass --overrides for a different set.
+ */
+const overridesPath = args.overrides ?? join(ROOT, "scripts", "t3-eligibility.json");
+if (args.overrides && !existsSync(args.overrides)) {
+  throw new Error(`overrides file not found: ${args.overrides}`);
+}
+const overrides = existsSync(overridesPath) ? JSON.parse(readFileSync(overridesPath, "utf8")) : {};
 
 for (const sessionId of sessionIds) {
   let events;
@@ -135,16 +151,27 @@ for (const sessionId of sessionIds) {
       ...(replay?.candidateSetPreserved ? { selectorRanking: replay.selectorRanking, selectorId: replay.selectorId } : {}),
     });
 
+    const scopeKey = `${sessionId}:${scope.scopeId}`;
+    const eligibility = deriveEvaluationEligibility({
+      scope,
+      ...(replay ? { replay: { candidateSetPreserved: replay.candidateSetPreserved, ...(replay.invalidReason ? { invalidReason: replay.invalidReason } : {}) } } : {}),
+      ...(overrides[scopeKey] ? { override: overrides[scopeKey] } : {}),
+    });
+    const detectedRequirements = [
+      ...new Set(scope.requirementCandidates.flatMap(entry => entry.reasons)),
+    ].sort();
     rows.push({
       sessionId,
       scopeId: scope.scopeId,
       iteration: scope.iteration,
       objective,
+      eligibility,
       domains: {
         builtin: scope.candidates.filter((candidate) => candidate.domain === "builtin").length,
         mcp: scope.candidates.filter((candidate) => candidate.domain === "mcp").length,
       },
       requirementCandidates: scope.requirementCandidates,
+      detectedRequirements,
       offered: scope.offered,
       // Baseline: what the model actually selected.
       actual: {
@@ -156,6 +183,15 @@ for (const sessionId of sessionIds) {
       // Context orderings, never merged: scoper relevance, MCP selector.
       scoperRanking: scope.scoperRanking.map((entry) => entry.candidateId),
       ...(replay ? { alternative: { selectorId: replay.selectorId, ranking: replay.selectorRanking, candidateSetPreserved: replay.candidateSetPreserved, ...(replay.invalidReason ? { invalidReason: replay.invalidReason } : {}) } } : {}),
+      ...(records.length > 0
+        ? {
+            scoring: {
+              calls: records.length,
+              latencyMs: records.map((record) => record.latencyMs),
+              scorerOutcome: replay?.invalidReason ? "failed" : "complete",
+            },
+          }
+        : {}),
       comparison,
     });
 
@@ -167,7 +203,8 @@ for (const sessionId of sessionIds) {
         `${actualOutcome ? `${actualOutcome.execution}/${actualOutcome.selection}/${actualOutcome.evidence}` : "no outcome"} ` +
         `scoperTop ${scope.scoperRanking[0]?.candidateId ?? "(none)"}` +
         (replay ? ` jevTop ${replay.selectorRanking[0] ?? "(none)"} set=${replay.candidateSetPreserved}` : "") +
-        ` jevCalls ${records.length}`,
+        ` jevCalls ${records.length}` +
+        ` eligibility ${eligibility.selection}/${eligibility.outcome}${eligibility.reason ? ` (${eligibility.reason})` : ""}`,
     );
   }
 }
@@ -185,12 +222,16 @@ const serialized = JSON.stringify(corpus, null, 2);
 if (args.out) writeFileSync(args.out, serialized);
 else process.stdout.write(`${serialized}\n`);
 
-const withOutcome = rows.filter((row) => row.actual.outcome).length;
-const mcpOffered = rows.filter((row) => row.domains.mcp > 0).length;
-const withRequirements = rows.filter((row) => row.requirementCandidates.length > 0).length;
-const distinctActual = new Set(rows.map((row) => row.actual.candidateId)).size;
+const summary = summarizeCorpus({ rows, labels: [] });
 console.error(
-  `\ncorpus: ${rows.length} scope(s) from ${sessionIds.length} session(s); ` +
-    `${withOutcome} with a recorded outcome, ${mcpOffered} offering MCP candidates, ` +
-    `${withRequirements} with requirement candidates, ${distinctActual} distinct actual choices`,
+  `\ncorpus: ${summary.scopes} scope(s) from ${sessionIds.length} session(s); ` +
+    `selection-eligible ${summary.eligibility.selectionEligible}, ` +
+    `outcome-eligible ${summary.eligibility.outcomeEligible}, ` +
+    `agreement ${summary.agreement.agree}/${summary.agreement.comparable}, ` +
+    `requirement scopes ${summary.requirementContext.scopesWithRequirementCandidates}, ` +
+    `jev calls ${summary.scoring.calls}` +
+    (Object.keys(summary.eligibility.byReason).length > 0
+      ? `, excluded ${JSON.stringify(summary.eligibility.byReason)}`
+      : ""),
 );
+if (args.summary) console.error(`\n${JSON.stringify(summary, null, 2)}`);

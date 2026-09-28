@@ -22,6 +22,7 @@
 - `decisions/shared/` — `text.ts` (tokenizer), `attempts.ts` (attempt-list readers), `journaling.ts` (one attempt→journal-record shape) shared by decisions.
 - `calibration/` — J4 evidence pipeline: outcome labels, label store, dataset join/export, reliability, accuracy sweep (scoreless engines), versioned threshold profiles. See its AGENTS.md.
 - `tool-selection-*.ts` — offline tool-selection experiment surface (T2), never a runtime decision: `tool-selection-candidates.ts` (the frozen candidate descriptor, id helpers, local-only binding), `tool-selection-replay.ts` (frozen `scopeId` scopes, per-domain builtin/MCP replay, exact set preservation), `tool-selection-evaluation.ts` (observed/replayed/unknown outcomes), `tool-selection-snapshot.ts` (isolated snapshot runner), `tool-selection-fixtures.ts` (recorded-response replay for external tools), `tool-selection-experiment.ts` (projection + per-candidate scorer, pinned `tool-selection/v1` projector), `tool-selection-jev-mapping.ts` (the experiment's System One wire mapping + `createJevToolSelectionScorer`; offline only, imported by nothing in the live loop).
+- `tool-selection-corpus.ts` — T3 measurement contract, the executable form of `docs/jev/T3-selection-evaluation-preregistration.md`: two independent eligibility tracks over a closed exclusion vocabulary (`deriveEvaluationEligibility`), the blind A/B labelling card (`buildBlindLabellingCard`, deterministic rotation from the scope key), the disagreement and gap-closure label records with strict parsers, and a facts-only corpus summary. It scores no selector and ranks none.
 - Risk context (`RiskContext`) is captured at decision time on the journal record, never on a post-hoc label.
 - `approval.ts` — Approval floor composition (policy OR risk-escalation, never waive).
 - `index.ts` — barrel.
@@ -48,6 +49,15 @@
   An offline experiment uses the sealed `experiment:<id>` subject
   (`RemoteDecisionSubject`) so it can call an engine without becoming a
   supported decision surface.
+- T3 freezes measurement before collection: eligibility is two independent
+  tracks (`selection`, `outcome`) over a closed exclusion vocabulary with no
+  generic `bad-run`; appropriateness is labelled blind, per candidate, with the
+  A/B rotation derived from the scope key; `gapClosure` is an offline label that
+  is never read off the live loop. The checkpoint is 30 eligible scopes AND 10
+  labelled disagreements. The summary reports facts and prerequisites — it never
+  ranks selectors or declares a winner; that judgement is the operator's, at T3-f.
+  Amending a code, label, or the checkpoint belongs in the pre-registration's
+  amendment table and invalidates comparability with earlier rows.
 - An engine never borrows a runtime mapping for an `experiment:` subject: the
   Jev adapter takes experiment mappings only through `experimentMappings`
   (`experiment:<id>` → mapping, keyed by experiment id) and still fails closed
@@ -119,6 +129,12 @@
   fixtures, the experiment scorer's anti-leakage projection + Noul-only contract,
   and the offline-only import isolation pin (nothing outside `src/decision/`
   imports the scorer, its mapping, or the replay engine).
+- `tests/run/tool-selection-corpus.vitest.ts` — T3 measurement contract: the
+  closed exclusion vocabulary (no generic `bad-run`), per-track eligibility
+  derivation + override semantics, the blind card carrying no provenance field
+  and rotating A/B from the scope key, strict label-record parsing and
+  slot→actual/alternative mapping (a mismatched card is ignored), and a summary
+  that reports facts and prerequisites without ranking a selector.
 
 **Child DOX Index:**
 
