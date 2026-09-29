@@ -69,6 +69,18 @@ export type SelectionRanking = {
   mcpSelector?: Array<{ candidateId: string; score: number }>;
 };
 
+/**
+ * An already-frozen surface handed down to a path that will let the model
+ * choose: identity, the exact candidates offered, and their local bindings.
+ * The receiving layer adds only its own facts (the choice and its outcome).
+ */
+export type FrozenToolSelectionContext = {
+  scopeId: string;
+  iteration: number;
+  candidates: readonly FrozenCandidateDescriptor[];
+  candidateBindings?: readonly CandidateBindingDescriptor[];
+};
+
 export type SelectionObservation = {
   scopeId: string;
   iteration: number;

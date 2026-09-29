@@ -66,6 +66,17 @@ export interface ExecutionDeps {
 export interface ToolExecutionDeps extends ExecutionDeps {
   cwd: string;
   eventLog: any; // EventLog
+  /**
+   * Identity for the selection scope this route may produce. The caller owns
+   * the scope id; the route supplies only the facts it uniquely has (the exact
+   * tools it offered, the choice the model made, and how that choice turned
+   * out). Absent means this caller does not observe selections.
+   */
+  selectionScope?: {
+    scopeId: string;
+    iteration: number;
+    sessionId: string;
+  };
 }
 
 /** Build the provider a behavior will call, honoring the factory seam. */
@@ -298,6 +309,45 @@ export async function executeGroundedChatBehavior(
       signal: deps.signal,
       runId: deps.context?.runId,
     });
+
+    // Selection observation for this external turn. The surface recorded is
+    // exactly the `tools` array handed to `provider.complete` above — not a
+    // later reconstruction — and the choice is resolved against it. A choice
+    // that does not resolve is recorded as invalid rather than matched to a
+    // convenient candidate. Emitted through the shared neutral assembly, so
+    // this path and the task loop describe a selection identically.
+    if (deps.selectionScope) {
+      const frozen = tools.map(tool => ({
+        candidateId: `builtin:${tool.name}`,
+        domain: "builtin" as const,
+        label: tool.name,
+        description: tool.description ?? "",
+      }));
+      const chosenCandidateId = frozen.find(candidate => candidate.label === tc.name)?.candidateId;
+      const { emitSelectionObservation } = await import("../observability/tool-selection-observation.js");
+      await emitSelectionObservation(
+        deps.eventLog,
+        { sessionId: deps.selectionScope.sessionId, actor: "system" },
+        {
+          scopeId: deps.selectionScope.scopeId,
+          iteration: deps.selectionScope.iteration,
+          candidates: frozen,
+          chosen: tc.name,
+          chosenCandidateId: chosenCandidateId ?? `builtin:${tc.name}`,
+          executor: tc.name,
+          argsSignature: `${tc.name}:${JSON.stringify(tc.args ?? {})}`,
+          seenSignatures: new Map<string, number>(),
+          executorSuccess: toolResult.kind === "success",
+          hasContent: toolResult.kind === "success",
+          ...(chosenCandidateId
+            ? {}
+            : { invalidSelection: { toolName: tc.name, reason: "chosen tool is not in the offered surface" } }),
+        },
+      ).catch(() => {
+        // Observation is instrumentation: a logging failure must never break
+        // the external turn.
+      });
+    }
 
     const toolContent = toolResult.kind === "success"
       ? (toolResult.output || toolResult.content || "(no output)")
