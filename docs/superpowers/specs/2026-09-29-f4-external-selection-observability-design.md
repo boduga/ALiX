@@ -187,6 +187,37 @@ Tests:
 
 ## 6. The new cohort
 
+### Amendment 2026-09-29 (third): three findings from the first test pass
+
+Attempting the F4 invariant tests surfaced three things worth fixing before the
+cohort, none of which is a behaviour defect in the emitter itself:
+
+1. **The grounded route's provider-facing tool names are not the canonical
+   candidate names.** `webSearchTool()` / `webFetchTool()` are named
+   `web_search` / `web_fetch` (`src/tools/web-search.ts:18`,
+   `src/tools/web-fetch.ts:351`), and `task-router.ts:479/521` allow-lists those
+   names, while the task loop's frozen candidate ids are
+   `builtin:alix_web_search` / `builtin:alix_web_fetch`. Emitting
+   `builtin:web_search` from the grounded path would put the same tool in two
+   different key spaces and make cross-path comparison impossible. The grounded
+   emission must normalise provider names onto the canonical candidate names
+   (a small alias table owned by the route), while `chosen` keeps the name the
+   model actually emitted.
+2. **`makeToolExecutor` has no test seam.** Unlike `makeProvider`, it always
+   constructs a real `ToolExecutor` and hands it `deps.cwd` as the session
+   directory, so any test of a route behaviour's own logic (tool choice,
+   observation) needs a real session layout. Adding
+   `toolExecutorFactory?(config, deps)` mirroring `providerFactory` is the
+   honest fix.
+3. **The invariant tests are drafted but were not landed green.** Four of five
+   passed against the seam; the offered-surface-equals-provider-surface test
+   stayed red because the fixture's `allowedTools` did not match the real tool
+   names, which is itself finding 1. They should be re-landed with the fixture
+   corrected rather than committed red.
+
+No runtime behaviour was left changed by this attempt: the experimental edits
+were reverted to the last verified commit (`99dc0530`).
+
 Open **`t3d-2026-09-29-d`** (new cohort id — never appended to cohort C), with a
 new frozen header, targeting **16–20 external scopes**:
 
