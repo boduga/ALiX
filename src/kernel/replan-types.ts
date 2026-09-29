@@ -212,6 +212,18 @@ export interface ModelReplanContext {
   recentFindings: ModelFindingInfo[];
   workerGraph: ModelWorkerInfo[];
   aggregateResult?: AggregateResultInfo;
+  /**
+   * Derived completion dimensions for the run this context describes. Present
+   * so a worker can tell "aggregate generated" from "verified" — `aggregateResult`
+   * alone does not mean the run was verified.
+   */
+  completion?: {
+    execution: string;
+    aggregation: string;
+    outcome: string;
+    verification: string;
+    label: string;
+  };
   dependencyGraph: string[][];
   tokenBudget: {
     allocated: number;

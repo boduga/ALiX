@@ -306,6 +306,23 @@ async function handleStatus(args: string[]): Promise<void> {
   if (run.outcome) {
     console.log(`Outcome: ${run.outcome}`);
   }
+  // Derived completion. `Status` above is the terminal execution state only:
+  // it does not imply the results were aggregated, that the outcome was
+  // success, or that anything was verified.
+  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
+    await import("../../kernel/coordination-types.js");
+  const { computeAggregationSourceFingerprint } =
+    await import("../../kernel/coordination-aggregation-fingerprint.js");
+  const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run),
+    aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, run.sessionId)),
+  });
+  console.log(`Completion: ${coordinationCompletionLabel(completion)}`);
+  console.log(
+    `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
+    `outcome=${completion.outcome} verification=${completion.verification}`,
+  );
   // Failure chains
   const failedWorkers = run.workers.filter(w => w.status === "failed" || w.status === "cancelled");
   if (failedWorkers.length > 0) {

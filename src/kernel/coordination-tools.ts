@@ -275,6 +275,32 @@ async function handleCoordinationList(
   return { kind: "success", output: `Coordination runs (newest first):\n${lines.join("\n")}` };
 }
 
+/**
+ * Derived completion lines for a run. `Status` is the terminal execution state
+ * only: it does not imply aggregation, a success outcome, or verification.
+ */
+async function completionLines(
+  run: { id: string; sessionId: string } & Parameters<typeof import("./coordination-types.js").deriveCoordinationCompletion>[0],
+  cwd: string,
+): Promise<string[]> {
+  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
+    await import("./coordination-types.js");
+  const { computeAggregationSourceFingerprint } = await import("./coordination-aggregation-fingerprint.js");
+  const { readRunSessionEvents } = await import("./coordination-view.js");
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run as never),
+    aggregateEventMatches: matchesAttachedAggregateEvent(
+      run as never,
+      await readRunSessionEvents(cwd, run.sessionId),
+    ),
+  });
+  return [
+    `Completion: ${coordinationCompletionLabel(completion)}`,
+    `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
+    `outcome=${completion.outcome} verification=${completion.verification}`,
+  ];
+}
+
 async function handleCoordinationStatus(
   deps: CoordinationToolDeps,
   args: Record<string, unknown>,
@@ -306,6 +332,7 @@ async function handleCoordinationStatus(
   }
   if (run.aggregateResultRef) lines.push(`Aggregate: ${run.aggregateResultRef}`);
   if (run.outcome) lines.push(`Outcome: ${run.outcome}`);
+  lines.push(...(await completionLines(run, deps.cwd)));
   // Per-worker identity is what callers ask for by name (worker id, task id,
   // dependencies, scope, attempt, retry count, result reference). Answering it
   // here keeps that read inside this tool instead of sending the caller to
@@ -360,7 +387,16 @@ async function handleCoordinationResults(
     aggregateStore,
   });
   const summary = await completionService.finalize(runId);
-  return { kind: "success", output: summarizeAggregate(runId, summary) };
+  const aggregateLines = summarizeAggregate(runId, summary);
+  const finalized = await store.load(runId);
+  // Show the derived completion next to the aggregate so a caller can tell
+  // "aggregate generated" from "verified" (they are different facts).
+  return {
+    kind: "success",
+    output: finalized
+      ? `${aggregateLines}\n${(await completionLines(finalized, deps.cwd)).join("\n")}`
+      : aggregateLines,
+  };
 }
 
 function summarizeAggregate(runId: string, aggregate: any): string {
