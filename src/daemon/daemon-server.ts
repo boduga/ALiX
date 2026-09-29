@@ -475,6 +475,9 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     if (route.kind !== "agent") {
       const daemonExecutor = new DaemonRuntimeExecutor({
         client, sessionId, taskId, cwd: requestCwd, eventLog, signal,
+        // Daemon-hosted grounded turns make a real model choice; give it a
+        // scope so external selection is observable here too (F4).
+        selectionScope: { scopeId: `grounded_${sessionId}_${Date.now()}`, iteration: 0 },
       });
       const runtimeCtx: RuntimeContext = {
         cwd: requestCwd,
