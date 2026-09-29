@@ -287,5 +287,85 @@
     "requirementClassExpected": "requirement:coordination",
     "producedScope": true,
     "note": "max_iterations: coordination.run offered but never called; no run, no workers"
+  },
+  "09a931e5-4d80-4f67-b0c5-7393981e9e31": {
+    "taskId": "x1",
+    "family": "MCP/external",
+    "expectedMode": "read-only",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: every call was alix_mcp_search_tools, which is short-circuited before handleToolResult (main.ts:1341), so it never reaches the observation surface. Session ended max_iterations."
+  },
+  "155d97de-b812-49e0-b5e0-5c2d204f98fd": {
+    "taskId": "x2",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: single-tool external turn (one tool.requested/completed, no model.usage/agent.decision/context.assembled) that never entered the loop"
+  },
+  "4d0b0c2b-970c-4665-853f-e3eabb0ac010": {
+    "taskId": "x3",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: single-tool external turn (web_search) outside the loop"
+  },
+  "6569e6b8-cb24-4dcb-b238-f6fcba62c7e0": {
+    "taskId": "x4",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: single-tool external turn (web_search) outside the loop"
+  },
+  "8c187148-6590-4abe-95dd-69b9f4845b69": {
+    "taskId": "x5",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: single-tool external turn (web_fetch) outside the loop"
+  },
+  "c1f88615-b1de-40ab-8c91-41331cd6e60c": {
+    "taskId": "x6",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: single-tool external turn; web_fetch refused with 'Private network destinations are not allowed' (SSRF policy), preserved as the factual outcome"
+  },
+  "33c16172-95b9-4266-b59d-4e4451aa83df": {
+    "taskId": "x7",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: trace stops at task.ready + mcp.tools_selected (8 events); never entered the loop"
+  },
+  "36dfccd7-38e1-4fe8-9e70-bdd8fabd08f8": {
+    "taskId": "x8",
+    "family": "MCP/external",
+    "expectedMode": "read-only",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false,
+    "note": "no tool.selection.observed: trace stops at task.ready + mcp.tools_selected; never entered the loop"
   }
 }
