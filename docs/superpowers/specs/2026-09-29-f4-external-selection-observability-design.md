@@ -90,6 +90,49 @@ seam. Options:
 Option 1 or 2 should be chosen before implementing Bypass B; the sentinel path
 (§2) does not need it.
 
+### Amendment 2026-09-29 (second): Option 2 needs a boundary decision
+
+Option 2 was chosen (inject the immutable frozen surface through
+`ToolExecutionDeps`; runtime adds only the actual choice and execution facts).
+Reconnaissance for the wiring found that the premise does not hold for this
+path:
+
+```text
+src/agent/session/turn.ts:322-346   builds RuntimeContext, dispatches executeRouteGoverned
+src/daemon/daemon-server.ts:488     dispatches executeRoute
+```
+
+Both grounded-chat dispatchers live in `src/agent/**` and `src/daemon/**`. The
+documented Jev rule (`docs/jev/AGENTS.md` §Verification, and its import-specific
+grep) is that `src/agent`, `src/runtime`, `src/policy`, `src/providers` and
+`src/kernel` **never import `src/decision/`** — and today that grep is empty for
+`src/agent`. The only layer that currently imports the selection machinery is
+`src/run/task-loop/predicates.ts` (`decision/selection-outcome.js`,
+`decision/tool-selection-candidates.js`), which is outside the exclusion set.
+
+So "the run/orchestration layer owns selection semantics and freezes the
+surface" is true for the task loop but **not** for the grounded route, whose
+dispatcher is inside the exclusion set. Option 2 therefore needs one of:
+
+1. **A documented, narrow exception** — allow the two dispatchers to import the
+   *observation* helpers (pure instrumentation: no engine, no route, no
+   authority), while the exclusion continues to forbid decision *engine/routing*
+   imports. Strengthen the import test to assert the decision **engine**
+   (`decision/engines/**`, `decision/decisions/**`, router/selection-service)
+   is never reachable from those layers, rather than the whole folder.
+2. **Move only the pure assembly** — `buildSelectionObservation` +
+   `emitSelectionObservation` into a neutral module (e.g.
+   `src/runtime/contracts/selection-observation.ts`) with the DTO, leaving
+   candidate freezing in the run layer. Then runtime/agent import the neutral
+   module and never `src/decision/`. This is Option 3 reduced to its minimum:
+   one emitter, one builder, no second interpretation.
+
+Recommendation: **2** if the caller can supply frozen candidates through deps
+(then `src/decision` never enters `src/runtime` or `src/agent` at all, and the
+documented rule is untouched); otherwise **1** with the import test tightened as
+described. Both preserve the single-builder property Option 1 was rejected for.
+Bypass B remains unimplemented until this is settled.
+
 ```text
 src/run/task-loop/main.ts              ← never entered (no model.usage/agent.decision in the trace)
 src/runtime/route-executor.ts:103      case "grounded_chat": return executor.executeGroundedChat(route, ctx);
