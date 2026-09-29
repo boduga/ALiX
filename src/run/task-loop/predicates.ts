@@ -304,7 +304,7 @@ export function objectiveEvidenceGaps(
   task: string,
   taskType: string,
   evidence: ReadonlyArray<SuccessfulToolEvidence>,
-  opts?: { coordinationRunFailed?: boolean },
+  opts?: { coordinationUnverified?: boolean },
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
@@ -332,7 +332,7 @@ export function objectiveEvidenceGaps(
   // volunteered coordination, it failed, so the success evidence is missing
   // until a later attempt clears the flag (durability contract).
   if (
-    opts?.coordinationRunFailed ||
+    opts?.coordinationUnverified ||
     (required.coordination && !evidence.some((item) => item.name === COORDINATION_RUN_TOOL_NAME))
   ) {
     gaps.push(COORDINATION_EVIDENCE_GAP);

@@ -62,7 +62,7 @@ export interface MonitorEvent {
 }
 
 export type ToolResult =
-  | { kind: "success"; content?: string; output?: string; value?: string; matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number; createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean; reports?: FindingReport[]; events?: MonitorEvent[]; outcome?: string; changed?: boolean }
+  | { kind: "success"; content?: string; output?: string; value?: string; matches?: FileMatch[]; changedFiles?: string[]; /** Structured identity of a coordination run this call started, so the completion gate can resolve the run's own evidence instead of inferring it from prose. */ coordinationRunId?: string; exitCode?: number; createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean; reports?: FindingReport[]; events?: MonitorEvent[]; outcome?: string; changed?: boolean }
   | { kind: "error"; message: string; retryable?: boolean; hint?: string };
 // retryable: true = safe to retry. false/undefined = fatal (don't spin).
 // hint: short instruction for the model on how to recover.

@@ -560,7 +560,13 @@ export async function handleToolCall(
     // observation needs to distinguish a provable no-op (identical create) from
     // a result that simply carried no change flag.
     ...(execResult.kind === "success"
-      ? { changed: execResult.changed === true, changedFiles: execResult.changedFiles ?? [] }
+      ? {
+          changed: execResult.changed === true,
+          changedFiles: execResult.changedFiles ?? [],
+          // Structured identity travels with the result so the task loop can
+          // look up the run's completion dimensions (C6).
+          ...(execResult.coordinationRunId ? { coordinationRunId: execResult.coordinationRunId } : {}),
+        }
       : {}),
   };
 }

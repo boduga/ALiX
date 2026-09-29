@@ -152,6 +152,7 @@ Default section order:
   (dead `executionOwnerId` workers reset to pending under the run's original
   approval mode). No other HTTP route may execute agent actions.
 - **Coordination workers are reclaimable and non-orphaning (durable).** A
+- **Coordination completion requires evidence, not a successful call (durable).** A `coordination.run` invocation returning success is NOT completion. The session completion gate resolves the run's own dimensions (`deriveCoordinationCompletion`) and requires execution terminal AND aggregate generated AND outcome known AND verification evidence present — a `coordination.aggregate.completed` event matching the run id, the attached `aggregateResultRef` and the attached source fingerprint. Anything less terminates `completed_unverified`, never `session.ended:completed`. The gate takes the run identity from the tool result's structured `coordinationRunId` (falling back to the `Coordination run:` line) and fails closed when the run cannot be resolved. Cohort `t3d-2026-09-28-c` showed why: 7 runs closed `status: completed`, only 3 carried an aggregate, and a successful invocation proved none of it.
   subagent child exits when its host dies (stdin-pipe watchdog,
   `installParentLivenessWatchdog`), so a crash cannot leave workers writing
   files after their scheduler is gone. A worker whose `executionOwnerId`

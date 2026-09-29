@@ -134,6 +134,11 @@ post_task?: { command: string; reason: string }[];
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
+  /**
+   * Workspace root for state lookups the loop performs itself (the
+   * coordination completion check). Defaults to `process.cwd()`.
+   */
+  cwd?: string;
   systemPrompt: string;
   onStream?: (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../../extensions/hook-runner.js").HookRunner;
@@ -467,13 +472,63 @@ function lastToolResultContent(
   }
   return undefined;
 }
-// Last-attempt outcome of `coordination.run` this run: set true when the most
-// recent executed call errored, cleared by a later success. Gates every
+// Verification state of the most recent `coordination.run` this run, cleared by
+// a later call that proves verification. True when the call itself failed OR
+// the run it started is not verified (execution terminal + aggregate generated
+// + outcome known + verification evidence present). Gates every
 // completed-status emission (Path A trust, verification-pass Path B,
-// trackCompleted, shell-complete, research limits) so a failed coordination
-// run can never surface task.done / graph.completed / workflow.completed /
-// session.ended:completed (durability contract). In-process, per-invocation.
-let coordinationRunFailed = false;
+// trackCompleted, shell-complete, research limits) so neither a failed
+// coordination call nor an unverified run can surface task.done /
+// graph.completed / workflow.completed / session.ended:completed (durability
+// contract). In-process, per-invocation.
+let coordinationUnverified = false;
+
+/** Pull a run id out of a `coordination.run` tool result (structured first). */
+function parseCoordinationRunId(output: string | undefined): string | undefined {
+  const match = /Coordination run:\s*(\S+)/.exec(output ?? "");
+  return match?.[1];
+}
+
+/**
+ * Is the coordination run this call started actually verified?
+ *
+ * Requires all four facts, from the run's own record and durable evidence:
+ * execution terminal, aggregate generated, outcome known, verification
+ * evidence present. A successful `coordination.run` invocation proves none of
+ * them (cohort `t3d-2026-09-28-c`: 7 runs closed `completed`, only 3 carried an
+ * aggregate). Unresolvable identity or an unreadable run returns false — the
+ * gate fails closed.
+ */
+async function coordinationRunIsVerified(
+  toolResult: unknown,
+  cwd: string,
+  sessionId: string,
+): Promise<boolean> {
+  const result = (toolResult ?? {}) as { coordinationRunId?: string; output?: string };
+  const runId = result.coordinationRunId
+    ?? parseCoordinationRunId(typeof result.output === "string" ? result.output : undefined);
+  if (!runId) return false;
+  try {
+    const { CoordinationStore } = await import("../../kernel/coordination-store.js");
+    const { deriveCoordinationCompletion, matchesAttachedAggregateEvent } =
+      await import("../../kernel/coordination-types.js");
+    const { computeAggregationSourceFingerprint } =
+      await import("../../kernel/coordination-aggregation-fingerprint.js");
+    const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
+    const run = await new CoordinationStore(cwd).load(runId);
+    if (!run) return false;
+    const completion = deriveCoordinationCompletion(run, {
+      currentFingerprint: computeAggregationSourceFingerprint(run),
+      aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, sessionId)),
+    });
+    return completion.execution === "completed"
+      && completion.aggregation === "generated"
+      && completion.outcome !== "unknown"
+      && completion.verification === "verified";
+  } catch {
+    return false;
+  }
+}
 
 // Truncation continuation: when a provider stops mid-answer at the output
 // budget (finish_reason=length), keep generating until the answer completes.
@@ -898,13 +953,13 @@ if (toolCalls.length === 0) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, ...(coordinationUnverified ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
       if (i >= limits.maxIterations) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, ...(coordinationUnverified ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
     }
     if (modelSaysDone) {
@@ -952,7 +1007,7 @@ if (toolCalls.length === 0) {
         ranToolCalls &&
         !explicitDoneCalled &&
         isToolResultEcho(text, lastToolResultContent(messages));
-      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
       const pendingAction = hasPendingAgentAction(text);
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone && !toolEchoDone)) &&
@@ -1010,7 +1065,7 @@ if (toolCalls.length === 0) {
     const allPassed = verResults.every((vr) => vr.result.status === "passed");
 
     if (allPassed && modelSaysDone) {
-      if (coordinationRunFailed) {
+      if (coordinationUnverified) {
         // Verification passed, but the last coordination.run failed — the
         // completed-status contract still applies here: bounded retry, then
         // an honest completed_unverified terminal (never session.ended:completed).
@@ -1179,7 +1234,13 @@ if (toolCalls.length === 0) {
     }
 
     if (resolveToolExecutionName(toolCall.name, selectedTools) === COORDINATION_RUN_TOOL_NAME) {
-      coordinationRunFailed = Boolean(toolResult.error);
+      // A failed invocation is unambiguously not completion. A *successful*
+      // invocation is not completion either: the gate needs the run's derived
+      // dimensions (execution terminal, aggregate generated, outcome known,
+      // verification evidence present), never the tool call's own status.
+      coordinationUnverified = toolResult.error
+        ? true
+        : !(await coordinationRunIsVerified(toolResult, deps.cwd ?? process.cwd(), sessionId));
     }
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
@@ -1491,7 +1552,7 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
     // An explicit `alix_done` does not make an echoed tool result a summary.
     const echoedToolResult = isToolResultEcho(text, lastToolResultContent(messages));
     if (
@@ -1581,7 +1642,7 @@ if (toolCalls.length === 0) {
       session, log, memoryStore, sessionDir,
       taskType, sessionId, shellOutput || text,
       model.streaming ?? false,
-      "session.ended", coordinationRunFailed ? "completed_unverified" : "completed",
+      "session.ended", coordinationUnverified ? "completed_unverified" : "completed",
       contextPressure.snapshot(),
       { threshold: contextRotThreshold, contextBudget, lastInvocationId },
     );

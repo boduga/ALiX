@@ -251,6 +251,9 @@ async function handleCoordinationRun(
   return {
     kind: "success",
     output: lines.join("\n"),
+    // Structured run identity: the completion gate resolves this run's own
+    // completion dimensions rather than inferring them from the prose above.
+    ...(run ? { coordinationRunId: run.id } : {}),
     ...(changedFiles.length > 0 ? { changed: true, changedFiles } : {}),
   };
 }
