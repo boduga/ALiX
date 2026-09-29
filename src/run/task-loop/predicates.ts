@@ -41,6 +41,8 @@ import {
   type LocalToolBinding,
 } from "../../decision/tool-selection-candidates.js";
 
+import { buildSelectionObservation as buildNeutralSelectionObservation } from "../../observability/tool-selection-observation.js";
+
 export function emitAgent(
   log: EventLog,
   session: { sessionId: string },
@@ -557,48 +559,40 @@ export function buildSelectionObservation(input: {
     mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
 }): SelectionObservation {
-  const repeatCount = (input.seenSignatures.get(input.argsSignature) ?? 0) + 1;
-  input.seenSignatures.set(input.argsSignature, repeatCount);
-  const repaired = input.repaired === true;
-  const status: ExecutionOutcome = !input.executorSuccess ? "failed" : repaired ? "repaired" : "success";
-  const contribution: EvidenceContribution = !input.executorSuccess || input.noOp === true
-    ? "none"
-    : input.hasContent === true
-      ? "contributed"
-      : "unknown";
-  return {
+  // Candidate semantics stay in this layer: requirement tools are builtin tool
+  // names, the frozen surface is keyed by candidate id, and the scoper is
+  // requirement-blind — so the id conversion and the reason merge happen here,
+  // once, and the neutral assembly receives plain candidate ids.
+  const requirementCandidates = (input.requirementCandidates ?? []).map(candidate => ({
+    candidateId: builtinCandidateId(candidate.tool),
+    reasons: [...candidate.reasons],
+  }));
+  const admitted = (input.scoping?.admitted ?? []).map((entry) => {
+    const requirement = requirementCandidates.find(candidate => candidate.candidateId === entry.candidateId);
+    if (!requirement) return entry;
+    return {
+      candidateId: entry.candidateId,
+      reasons: [...new Set([...entry.reasons, ...requirement.reasons])],
+    };
+  });
+  const observation = buildNeutralSelectionObservation({
     scopeId: input.scopeId,
     iteration: input.iteration,
     ...(input.invocationId ? { invocationId: input.invocationId } : {}),
-    candidates: [...input.candidates],
-    offered: input.candidates.map(candidate => candidate.candidateId),
-    ...(input.candidateBindings ? { candidateBindings: [...input.candidateBindings] } : {}),
+    candidates: input.candidates,
+    ...(input.candidateBindings ? { candidateBindings: input.candidateBindings } : {}),
     chosen: input.chosen,
     chosenCandidateId: input.chosenCandidateId,
     executor: input.executor,
     argsSignature: input.argsSignature,
-    selection: { outcome: repeatCount > 1 ? "redundant" : "novel", repeatCount },
-    execution: { status },
-    evidence: { contribution },
-    // Requirement candidates are built from builtin tool names; the frozen
-    // surface is keyed by candidate id, so convert once, here.
-    requirementCandidates: (input.requirementCandidates ?? []).map(candidate => ({
-      candidateId: builtinCandidateId(candidate.tool),
-      reasons: [...candidate.reasons],
-    })),
+    seenSignatures: input.seenSignatures,
+    executorSuccess: input.executorSuccess,
+    ...(input.repaired !== undefined ? { repaired: input.repaired } : {}),
+    ...(input.noOp !== undefined ? { noOp: input.noOp } : {}),
+    ...(input.hasContent !== undefined ? { hasContent: input.hasContent } : {}),
+    requirementCandidates,
     scoping: {
-      // Requirement reasons are merged in here: the scoper is requirement-blind
-      // by design, and this keeps one place that knows why a tool was admitted.
-      admitted: (input.scoping?.admitted ?? []).map((entry) => {
-        const requirement = (input.requirementCandidates ?? []).find(
-          candidate => builtinCandidateId(candidate.tool) === entry.candidateId,
-        );
-        if (!requirement) return entry;
-        return {
-          candidateId: entry.candidateId,
-          reasons: [...new Set([...entry.reasons, ...requirement.reasons])],
-        };
-      }),
+      admitted,
       fallbackFull: input.scoping?.fallbackFull ?? false,
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
     },
@@ -606,7 +600,11 @@ export function buildSelectionObservation(input: {
       scoper: input.ranking?.scoper ?? [],
       ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
     },
-  };
+  });
+  // The task-loop observation always carries a scoper ranking (possibly empty);
+  // the neutral assembly leaves it optional because the grounded path has no
+  // scoper. Restating it here keeps the loop's own invariant in its own type.
+  return { ...observation, ranking: observation.ranking ?? { scoper: [] } };
 }
 
 /**
