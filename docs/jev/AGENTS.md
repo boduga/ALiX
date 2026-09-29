@@ -20,6 +20,8 @@ the code).
 | `T3-selection-evaluation-preregistration.md` | The **frozen** T3 evaluation contract: eligibility tracks + exclusion codes, blind appropriateness labelling, outcome/gap-closure labels, the 30-scope/10-disagreement checkpoint. Amendments go in its own table. |
 | `T3-d-corpus-collection-runbook.md` | The T3-d **procedure**: cohort header + immutability rule, the 40-task family matrix (no expected winning tool encoded), the per-run steps, tagging rules, failure/retry rules, and the ledger schema (collection facts vs label state). Policy stays in the pre-registration. |
 | `cohorts/<cohortId>.header.json`, `cohorts/<cohortId>.ledger.jsonl` | Per-cohort collection artifacts: the immutable identity header and one row per frozen scope. Collection facts only; labels live in the labelling store and are joined later. |
+| `T3-final-report-t3d-2026-09-28-c.md` | The T3 result: blind selection-time appropriateness (14 disagreements) and offline outcome-level gap closure (32 scopes), plus completion, latency, the represented-family limitation, and the ordered next work. Supersedes the checkpoint report of the same cohort. |
+| `cohorts/<cohortId>.corpus.json`, `cohorts/<cohortId>.labels.jsonl`, `cohorts/<cohortId>.closeout.md` | The frozen corpus (the artifact — re-scoring is not idempotent), the committed label records, and the closeout with findings + evidence hashes. |
 
 ## Local Contracts
 
