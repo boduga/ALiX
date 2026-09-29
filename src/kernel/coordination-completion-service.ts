@@ -96,7 +96,18 @@ export class CoordinationCompletionService {
         sessionId: run.sessionId,
         actor: "coordination",
         type: "coordination.aggregate.completed",
-        payload: { runId, outcome: summary.outcome, workerCount: summary.counts.workers },
+        // The ref and fingerprint are what make this event usable as durable
+        // verification evidence: a consumer can check the event describes the
+        // aggregate currently attached to the run (see
+        // `matchesAttachedAggregateEvent`). Without them an older event could
+        // verify a newer, post-replan aggregate.
+        payload: {
+          runId,
+          outcome: summary.outcome,
+          workerCount: summary.counts.workers,
+          aggregateResultRef: aggregateRef,
+          sourceFingerprint: fingerprint,
+        },
       }).catch(() => {});
 
       return summary;
@@ -104,13 +115,21 @@ export class CoordinationCompletionService {
         // Aggregation failure is its own evidence. It must never be reported as
         // an execution failure: the workers' terminal statuses are untouched,
         // and `run.status` is only ever recomputed from worker statuses.
+        const reason = error instanceof Error ? error.message : String(error);
+        // Durable first: a consumer without the event log still sees the failure
+        // through `deriveCoordinationCompletion` (`aggregation: "failed"`).
+        await this.deps.coordinationStore.recordAggregationFailure(runId, {
+          sourceFingerprint: fingerprint,
+          failedAt: new Date().toISOString(),
+          reason,
+        }).catch(() => {});
         this.deps.eventLog?.append({
           sessionId: run.sessionId,
           actor: "coordination",
           type: "coordination.aggregate.failed",
           payload: {
             runId,
-            error: error instanceof Error ? error.message : String(error),
+            error: reason,
             workerCount: run.workers.length,
           },
         }).catch(() => {});

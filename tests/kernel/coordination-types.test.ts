@@ -654,7 +654,7 @@ describe("deriveCoordinationCompletion", () => {
     const aggregated = { status: "completed" as const, aggregateResultRef: "x.json", outcome: "success" as const };
     assert.equal(deriveCoordinationCompletion(aggregated).verification, "unverified");
     assert.equal(
-      deriveCoordinationCompletion(aggregated, { aggregateEventPresent: true }).verification,
+      deriveCoordinationCompletion(aggregated, { aggregateEventMatches: true }).verification,
       "verified",
     );
   });
@@ -662,7 +662,7 @@ describe("deriveCoordinationCompletion", () => {
   it("refuses verification when the completing session ended unverified", () => {
     const completion = deriveCoordinationCompletion(
       { status: "completed", aggregateResultRef: "x.json", outcome: "success" },
-      { aggregateEventPresent: true, sessionTerminal: "completed_unverified" },
+      { aggregateEventMatches: true, sessionTerminal: "completed_unverified" },
     );
     assert.equal(completion.verification, "unverified");
   });
@@ -718,7 +718,10 @@ describe("deriveCoordinationCompletion", () => {
   });
 
   it("surfaces an explicit aggregation failure as its own dimension", () => {
-    const completion = deriveCoordinationCompletion(legacyCompleted, { aggregationFailed: true });
+    const completion = deriveCoordinationCompletion({
+      ...legacyCompleted,
+      aggregationFailure: { sourceFingerprint: "fp", failedAt: "2026-09-29T00:00:00.000Z", reason: "boom" },
+    });
     assert.equal(completion.execution, "completed");
     assert.equal(completion.aggregation, "failed");
     assert.equal(completion.verification, "failed");
@@ -745,7 +748,7 @@ describe("coordinationCompletionLabel", () => {
       "completed; not verified",
     );
     assert.equal(
-      label({ status: "completed", aggregateResultRef: "x.json", outcome: "success" }, { aggregateEventPresent: true }),
+      label({ status: "completed", aggregateResultRef: "x.json", outcome: "success" }, { aggregateEventMatches: true }),
       "verified completion",
     );
     assert.equal(
@@ -758,6 +761,12 @@ describe("coordinationCompletionLabel", () => {
     );
     assert.equal(label({ status: "failed" }), "failed");
     assert.equal(label({ status: "running" }), "in progress");
-    assert.equal(label({ status: "completed" }, { aggregationFailed: true }), "workers finished; aggregation failed");
+    assert.equal(
+      label({
+        status: "completed",
+        aggregationFailure: { sourceFingerprint: "fp", failedAt: "2026-09-29T00:00:00.000Z", reason: "boom" },
+      }),
+      "workers finished; aggregation failed",
+    );
   });
 });

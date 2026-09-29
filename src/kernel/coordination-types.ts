@@ -48,6 +48,13 @@ export type CoordinationRunOutcome =
   | "success" | "partial_success" | "failure"
   | "cancelled" | "blocked" | "incomplete";
 
+/** Durable evidence that aggregation failed for a specific source fingerprint. */
+export type CoordinationAggregationFailure = {
+  sourceFingerprint: string;
+  failedAt: string;
+  reason: string;
+};
+
 // ─── Planning / Replanning Types ─────────────────────────────────────────
 
 export type PlanningRoundStatus =
@@ -250,6 +257,14 @@ export interface CoordinationRun {
   aggregateGeneratedAt?: string;
   aggregateSourceFingerprint?: string;
   outcome?: CoordinationRunOutcome;
+  /**
+   * Durable record of the last aggregation attempt that FAILED, keyed to the
+   * aggregation source fingerprint it failed for. Cleared atomically when a
+   * later attempt attaches an aggregate for the same source. A marker whose
+   * fingerprint no longer matches the current source is stale history — it must
+   * not make the current run read as failed.
+   */
+  aggregationFailure?: CoordinationAggregationFailure;
 
   /** Current plan revision number (increments on each replan). */
   planRevision: number;
@@ -469,15 +484,27 @@ export type CoordinationCompletion = {
  * conservative reading (unverified).
  */
 export type CoordinationCompletionEvidence = {
-  /** `coordination.aggregate.completed` was observed for this run. */
-  aggregateEventPresent?: boolean;
-  /** A terminal finalization attempt ran and threw. */
-  aggregationFailed?: boolean;
+  /**
+   * Fingerprint of the CURRENT source. Supplying it lets a stale
+   * `aggregationFailure` marker (from before a replan) be recognised as stale
+   * instead of poisoning the current reading.
+   */
+  currentFingerprint?: string;
+  /**
+   * A `coordination.aggregate.completed` event was observed that matches this
+   * run's attached ref AND fingerprint — use `matchesAttachedAggregateEvent`.
+   * A bare boolean is deliberately strict: an event for an older aggregate must
+   * not verify a newer one.
+   */
+  aggregateEventMatches?: boolean;
   /** Terminal the completing session reported. */
   sessionTerminal?: "completed" | "completed_unverified" | "cancelled" | "failed";
 };
 
-type CompletionRunFields = Pick<CoordinationRun, "status" | "outcome" | "aggregateResultRef">;
+type CompletionRunFields = Pick<
+  CoordinationRun,
+  "status" | "outcome" | "aggregateResultRef" | "aggregationFailure"
+>;
 
 /**
  * Map persisted run fields (+ optional evidence) onto the four dimensions.
@@ -496,9 +523,15 @@ export function deriveCoordinationCompletion(
           : "running"; // planning | replanning | running | blocked are all non-terminal
 
   const terminal = execution === "completed" || execution === "failed" || execution === "cancelled";
+  // A failure marker counts only for the source it was recorded against; when
+  // the caller cannot supply the current fingerprint the marker is taken at
+  // face value (the store clears it when a later attach succeeds).
+  const failureIsCurrent = run.aggregationFailure !== undefined
+    && (evidence.currentFingerprint === undefined
+      || run.aggregationFailure.sourceFingerprint === evidence.currentFingerprint);
   const aggregation: CoordinationAggregationState =
-    evidence.aggregationFailed === true ? "failed"
-      : run.aggregateResultRef ? "generated"
+    run.aggregateResultRef ? "generated"
+      : failureIsCurrent ? "failed"
         : terminal ? "pending"
           : "not_required";
 
@@ -509,7 +542,7 @@ export function deriveCoordinationCompletion(
       : outcome === "failure" || outcome === "blocked" || outcome === "cancelled" ? "failed"
         : aggregation === "generated"
           && outcome === "success"
-          && evidence.aggregateEventPresent === true
+          && evidence.aggregateEventMatches === true
           && evidence.sessionTerminal !== "completed_unverified"
           ? "verified"
           : "unverified";
@@ -521,6 +554,41 @@ export function deriveCoordinationCompletion(
  * Derived, user-facing label. Renderers use this instead of inventing another
  * boolean; the legacy `status` stays visible for compatibility.
  */
+/** The subset of a recorded event the aggregate-evidence matcher needs. */
+export type AggregateCompletedEventLike = {
+  type: string;
+  payload?: {
+    runId?: unknown;
+    aggregateResultRef?: unknown;
+    sourceFingerprint?: unknown;
+  };
+};
+
+/**
+ * Does a durable `coordination.aggregate.completed` event describe THIS run's
+ * currently attached aggregate?
+ *
+ * Strict on purpose: the event must name the same run, the same aggregate
+ * reference and the same source fingerprint. A completion event for an older
+ * aggregate — e.g. from before a replan — must not verify the current one. A
+ * run whose aggregate was attached but whose event never landed durably reads
+ * as unverified, which is the fail-closed direction.
+ */
+export function matchesAttachedAggregateEvent(
+  run: Pick<CoordinationRun, "id" | "aggregateResultRef" | "aggregateSourceFingerprint">,
+  events: ReadonlyArray<AggregateCompletedEventLike>,
+): boolean {
+  const ref = run.aggregateResultRef;
+  const fingerprint = run.aggregateSourceFingerprint;
+  if (!ref || !fingerprint) return false;
+  return events.some(event =>
+    event.type === "coordination.aggregate.completed"
+    && event.payload?.runId === run.id
+    && event.payload?.aggregateResultRef === ref
+    && event.payload?.sourceFingerprint === fingerprint,
+  );
+}
+
 export function coordinationCompletionLabel(completion: CoordinationCompletion): string {
   const { execution, aggregation, outcome, verification } = completion;
   if (execution === "failed") return "failed";

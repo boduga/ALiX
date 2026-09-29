@@ -342,6 +342,9 @@ export class CoordinationStore {
       run.aggregateGeneratedAt = metadata.aggregateGeneratedAt;
       run.aggregateSourceFingerprint = metadata.aggregateSourceFingerprint;
       run.outcome = metadata.outcome;
+      // A successful attach for this source supersedes any earlier failure
+      // marker, so clear it in the same locked write.
+      run.aggregationFailure = undefined;
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
       await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
@@ -349,5 +352,24 @@ export class CoordinationStore {
     } finally {
       lock.release();
     }
+  }
+
+  /**
+   * Record a failed aggregation attempt against the source fingerprint it
+   * failed for. Durable so the failure is visible without the event log, and
+   * keyed so a stale marker can be told apart from a current one.
+   */
+  async recordAggregationFailure(runId: string, failure: {
+    sourceFingerprint: string;
+    failedAt: string;
+    reason: string;
+  }): Promise<CoordinationRun | null> {
+    return this.updateRun(runId, (run) => {
+      run.aggregationFailure = {
+        sourceFingerprint: failure.sourceFingerprint,
+        failedAt: failure.failedAt,
+        reason: failure.reason,
+      };
+    });
   }
 }

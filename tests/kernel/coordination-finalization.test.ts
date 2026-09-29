@@ -26,6 +26,10 @@ import {
   createCoordinationScheduler,
 } from "../../src/kernel/coordination-scheduler.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import {
+  deriveCoordinationCompletion,
+  matchesAttachedAggregateEvent,
+} from "../../src/kernel/coordination-types.js";
 import { CoordinationAggregateStore } from "../../src/kernel/coordination-aggregate-store.js";
 import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
 import { persistGraph } from "../../src/kernel/graph-planner.js";
@@ -338,5 +342,205 @@ describe("scheduler construction wiring", () => {
     };
     walk("src");
     assert.deepEqual(offenders, []);
+  });
+});
+
+/**
+ * C3: aggregation evidence is durable and unambiguous.
+ *
+ * The failure marker is persisted on the run keyed to its source fingerprint,
+ * and `coordination.aggregate.completed` only counts as evidence when it names
+ * the aggregate currently attached to the run. Nothing here changes session
+ * behaviour — that stays C6.
+ */
+describe("durable aggregation evidence", () => {
+  let cwd: string;
+  let store: CoordinationStore;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "coord-evidence-"));
+    store = new CoordinationStore(cwd);
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  /** A run whose single worker is terminal, with no aggregate attached. */
+  async function terminalUnaggregated() {
+    const { runId } = await pendingRun(store);
+    // The setup scheduler gets its own recorder: tests assert on the events of
+    // the service under test, not on the setup's finalization.
+    const setupRecorder = recordingEventLog();
+    const scheduler = schedulerFor(cwd, store, setupRecorder.log);
+    await scheduler.tick(runId);
+    await waitUntil(async () => (await store.load(runId))?.status === "completed", 8_000);
+    // The setup's own finalization is fire-and-forget; let it settle before
+    // wiping, or a late attach lands after the wipe and defeats the scenario.
+    await waitUntil(async () => (await store.load(runId))?.aggregateResultRef !== undefined, 8_000);
+    await store.updateRun(runId, (current) => {
+      current.aggregateResultRef = undefined;
+      current.aggregateGeneratedAt = undefined;
+      current.aggregateSourceFingerprint = undefined;
+      current.outcome = undefined;
+      current.aggregationFailure = undefined;
+    });
+    return { runId, recorder: recordingEventLog() };
+  }
+
+  async function failingService(recorder: { log: any }) {
+    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
+    return new CoordinationCompletionService({
+      coordinationStore: store,
+      resultAggregator: {
+        aggregate: async () => {
+          throw new Error("aggregate exploded");
+        },
+      } as unknown as InstanceType<typeof ResultAggregator>,
+      aggregateStore: new CoordinationAggregateStore(cwd),
+      eventLog: recorder.log,
+    });
+  }
+
+  async function workingService(recorder: { log: any }) {
+    const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
+    const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
+    const { CoordinationResultStore } = await import("../../src/kernel/coordination-result-store.js");
+    return new CoordinationCompletionService({
+      coordinationStore: store,
+      resultAggregator: new ResultAggregator(new CoordinationResultStore(cwd)),
+      aggregateStore: new CoordinationAggregateStore(cwd),
+      eventLog: recorder.log,
+    });
+  }
+
+  it("persists a failed attempt without changing execution status", async () => {
+    const { runId, recorder } = await terminalUnaggregated();
+    const before = await store.load(runId);
+
+    const failing = await failingService(recorder);
+    await assert.rejects(() => failing.finalize(runId), /aggregate exploded/);
+
+    const run = await store.load(runId);
+    assert.equal(run?.status, before?.status, "execution status must not change on aggregation failure");
+    assert.ok(run?.aggregationFailure, "the failure must be durable on the run record");
+    assert.equal(run?.aggregationFailure?.reason, "aggregate exploded");
+    assert.equal(
+      deriveCoordinationCompletion(run!).aggregation,
+      "failed",
+      "the marker alone must read as failed, without the event log",
+    );
+  });
+
+  it("clears the marker and attaches the aggregate when a retry succeeds for the same source", async () => {
+    const { runId, recorder } = await terminalUnaggregated();
+    const failing = await failingService(recorder);
+    await assert.rejects(() => failing.finalize(runId), /aggregate exploded/);
+    assert.ok((await store.load(runId))?.aggregationFailure);
+
+    const service = await workingService(recorder);
+    await service.finalize(runId);
+
+    const run = await store.load(runId);
+    assert.equal(run?.aggregationFailure, undefined, "a successful attach clears the stale marker");
+    assert.ok(run?.aggregateResultRef);
+    assert.equal(deriveCoordinationCompletion(run!).aggregation, "generated");
+
+    // The event append is fire-and-forget; wait for it rather than assuming the
+    // promise settled before finalize() returned (it does not under load).
+    await waitUntil(() => recorder.appended.some(e => e.type === "coordination.aggregate.completed"), 2_000);
+    const completed = recorder.appended.filter(e => e.type === "coordination.aggregate.completed");
+    assert.equal(completed.length, 1);
+    const payload = completed[0].payload as Record<string, unknown>;
+    assert.equal(payload.aggregateResultRef, run?.aggregateResultRef);
+    assert.equal(payload.sourceFingerprint, run?.aggregateSourceFingerprint);
+    assert.equal(payload.runId, runId);
+  });
+
+  it("does not let a stale failure fingerprint mark the current source failed", async () => {
+    const { runId } = await terminalUnaggregated();
+    await store.recordAggregationFailure(runId, {
+      sourceFingerprint: "pre-replan-fingerprint",
+      failedAt: "2026-09-29T00:00:00.000Z",
+      reason: "old failure",
+    });
+    const run = await store.load(runId);
+
+    assert.equal(
+      deriveCoordinationCompletion(run!, { currentFingerprint: "current-fingerprint" }).aggregation,
+      "pending",
+      "a failure from a different source must not poison the current reading",
+    );
+    assert.equal(
+      deriveCoordinationCompletion(run!, { currentFingerprint: "pre-replan-fingerprint" }).aggregation,
+      "failed",
+      "the matching source still reads as failed",
+    );
+  });
+
+  it("requires a completion event to match the attached aggregate before it verifies", () => {
+    const run = {
+      id: "coord_1",
+      aggregateResultRef: ".alix/coordination/results/runs/coord_1.json",
+      aggregateSourceFingerprint: "fp-current",
+    };
+    const event = (overrides: Record<string, unknown>) => ({
+      type: "coordination.aggregate.completed",
+      payload: {
+        runId: "coord_1",
+        aggregateResultRef: run.aggregateResultRef,
+        sourceFingerprint: "fp-current",
+        ...overrides,
+      },
+    });
+
+    assert.equal(matchesAttachedAggregateEvent(run, [event({})]), true, "matching event qualifies");
+    assert.equal(
+      matchesAttachedAggregateEvent(run, [event({ sourceFingerprint: "fp-old" })]),
+      false,
+      "an event for an older fingerprint must not verify the current aggregate",
+    );
+    assert.equal(
+      matchesAttachedAggregateEvent(run, [event({ aggregateResultRef: "other.json" })]),
+      false,
+      "an event for a different aggregate ref must not verify",
+    );
+    assert.equal(
+      matchesAttachedAggregateEvent(run, [event({ runId: "coord_2" })]),
+      false,
+      "an event for a different run must not verify",
+    );
+    assert.equal(
+      matchesAttachedAggregateEvent(run, [{ type: "coordination.aggregate.failed", payload: {} }]),
+      false,
+    );
+  });
+
+  it("leaves an attached aggregate unverified when no matching event exists", async () => {
+    const { runId, recorder } = await terminalUnaggregated();
+    const service = await workingService(recorder);
+    await service.finalize(runId);
+    const run = await store.load(runId);
+    assert.ok(run?.aggregateResultRef);
+
+    // The crash boundary: aggregate attached, but the event never landed durably.
+    const withoutEvent = deriveCoordinationCompletion(run!, {
+      currentFingerprint: run!.aggregateSourceFingerprint,
+    });
+    assert.equal(withoutEvent.aggregation, "generated");
+    assert.equal(withoutEvent.verification, "unverified", "an attach alone must not verify");
+
+    await waitUntil(() => recorder.appended.some(e => e.type === "coordination.aggregate.completed"), 2_000);
+    const events = recorder.appended.map(e => ({ type: e.type, payload: e.payload as Record<string, unknown> }));
+    assert.equal(matchesAttachedAggregateEvent(run!, events), true, "the emitted event does match here");
+    assert.equal(
+      deriveCoordinationCompletion(run!, {
+        currentFingerprint: run!.aggregateSourceFingerprint,
+        aggregateEventMatches: matchesAttachedAggregateEvent(run!, events),
+      }).verification,
+      "verified",
+      "with both the aggregate and its matching event, verification follows",
+    );
   });
 });
