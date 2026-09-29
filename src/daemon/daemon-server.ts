@@ -57,7 +57,7 @@ let scheduledTaskTimer: ReturnType<typeof setInterval> | undefined;
  */
 async function startCoordinationService(): Promise<void> {
   const { loadConfig } = await import("../config/loader.js");
-  const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+  const { createCoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
   const { CoordinationStore } = await import("../kernel/coordination-store.js");
   const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
   const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
@@ -79,7 +79,7 @@ async function startCoordinationService(): Promise<void> {
     executor = new DefaultWorkerExecutor();
   }
 
-  const scheduler = new CoordinationScheduler({
+  const scheduler = createCoordinationScheduler({
     cwd: defaultCwd,
     daemonInstanceId: `daemon-${process.pid}`,
     configProvider: async () => config,

@@ -22,6 +22,10 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
+import { CoordinationCompletionService as CompletionService } from "./coordination-completion-service.js";
+import { CoordinationResultStore as CompletionResultStore } from "./coordination-result-store.js";
+import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
+import { ResultAggregator } from "./coordination-result-aggregator.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
 import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
@@ -1023,6 +1027,33 @@ export class CoordinationScheduler {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Build the production scheduler.
+ *
+ * Wires a `CoordinationCompletionService` so that reaching a terminal run
+ * status actually finalizes the run (aggregate generated, outcome attached,
+ * `coordination.aggregate.completed` emitted once). Without this,
+ * `maybeFinalizeRun` is dead optional behaviour: aggregation only ever
+ * happened when someone read the results, which is how 4 of 7 runs in cohort
+ * `t3d-2026-09-28-c` closed `completed` with no aggregate at all.
+ *
+ * Tests that need to control finalization can still construct
+ * `new CoordinationScheduler(deps)` directly and omit `completionService` —
+ * that omission is then explicit, not accidental.
+ */
+export function createCoordinationScheduler(
+  deps: Omit<CoordinationSchedulerDeps, "completionService">,
+  options?: SchedulerOptions,
+): CoordinationScheduler {
+  const completionService = new CompletionService({
+    coordinationStore: deps.store,
+    resultAggregator: new ResultAggregator(new CompletionResultStore(deps.cwd)),
+    aggregateStore: new CoordinationAggregateStore(deps.cwd),
+    ...(deps.eventLog ? { eventLog: deps.eventLog } : {}),
+  });
+  return new CoordinationScheduler({ ...deps, completionService }, options);
+}
 
 function emptyTick(runId: string, status: CoordinationRunStatus): SchedulerTickResult {
   return {

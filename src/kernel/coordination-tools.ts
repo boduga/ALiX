@@ -22,7 +22,7 @@ import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationPlanner } from "./coordination-planner.js";
 import { createPlannerGenerator } from "./planner-model.js";
-import { CoordinationScheduler } from "./coordination-scheduler.js";
+import { createCoordinationScheduler } from "./coordination-scheduler.js";
 import { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 import { PolicyGate } from "../policy/policy-gate.js";
@@ -184,7 +184,7 @@ async function handleCoordinationRun(
     const { DefaultWorkerExecutor } = await import("./worker-executor.js");
     executor = new DefaultWorkerExecutor();
   }
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     {
       cwd: deps.cwd,
       daemonInstanceId: `tool-${process.pid}`,

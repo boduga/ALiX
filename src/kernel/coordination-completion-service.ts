@@ -43,6 +43,7 @@ export class CoordinationCompletionService {
         if (existing) return existing;
       }
 
+      try {
       // Deterministic aggregation
       const summary = await this.deps.resultAggregator.aggregate(run);
       summary.sourceFingerprint = fingerprint;
@@ -70,15 +71,27 @@ export class CoordinationCompletionService {
       summary.aggregateRef = aggregateRef;
       await this.deps.aggregateStore.persist(summary);
 
-      // Attach metadata to run (lock-safe via updateRun)
-      await this.deps.coordinationStore.attachAggregate(runId, {
+      // Attach metadata only if this call wins the finalization race. The
+      // store does check-and-attach under the per-run lock, so a second
+      // terminal observation (another scheduler tick, another process) cannot
+      // duplicate the attach — and therefore cannot duplicate the event below.
+      const attach = await this.deps.coordinationStore.attachAggregateIfUnfinalized(runId, {
         aggregateResultRef: aggregateRef,
         aggregateGeneratedAt: summary.generatedAt,
         aggregateSourceFingerprint: fingerprint,
         outcome: summary.outcome,
       });
 
-      // Emit event
+      if (!attach.attached) {
+        // Someone else finalized this fingerprint first. Return their aggregate
+        // without emitting a second event; if the store holds a different
+        // fingerprint (a replan beat us), our summary is stale for the run
+        // record but still the honest answer for the source we aggregated.
+        const existing = await this.deps.aggregateStore.load(runId);
+        return existing ?? summary;
+      }
+
+      // Emit event — exactly once, by the attach winner
       this.deps.eventLog?.append({
         sessionId: run.sessionId,
         actor: "coordination",
@@ -87,6 +100,22 @@ export class CoordinationCompletionService {
       }).catch(() => {});
 
       return summary;
+      } catch (error) {
+        // Aggregation failure is its own evidence. It must never be reported as
+        // an execution failure: the workers' terminal statuses are untouched,
+        // and `run.status` is only ever recomputed from worker statuses.
+        this.deps.eventLog?.append({
+          sessionId: run.sessionId,
+          actor: "coordination",
+          type: "coordination.aggregate.failed",
+          payload: {
+            runId,
+            error: error instanceof Error ? error.message : String(error),
+            workerCount: run.workers.length,
+          },
+        }).catch(() => {});
+        throw error;
+      }
     } finally {
       lock.release();
     }

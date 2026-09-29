@@ -19,7 +19,7 @@ import { CoordinationStore } from "../../kernel/coordination-store.js";
 import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
 import { createPlannerGenerator } from "../../kernel/planner-model.js";
-import { CoordinationScheduler } from "../../kernel/coordination-scheduler.js";
+import { createCoordinationScheduler } from "../../kernel/coordination-scheduler.js";
 import { OwnershipRegistry } from "../../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../../runtime/execution-authorization.js";
 import { PolicyGate } from "../../policy/policy-gate.js";
@@ -170,7 +170,7 @@ async function handleRun(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
 
   const executor = new DefaultWorkerExecutor();
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
     { maxConcurrency },
   );
@@ -220,7 +220,7 @@ async function handleTick(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
@@ -248,7 +248,7 @@ async function handleResume(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
@@ -333,7 +333,7 @@ async function handleCancel(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
