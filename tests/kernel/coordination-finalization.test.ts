@@ -263,6 +263,9 @@ describe("coordination terminal finalization", () => {
     const scheduler = schedulerFor(cwd, store, recorder.log);
     await scheduler.tick(runId);
     await waitUntil(async () => (await store.load(runId))?.status === "completed", 8_000);
+    // Let the setup's own finalization settle before dropping the aggregate,
+    // otherwise a late attach lands after the wipe (it is fire-and-forget).
+    await waitUntil(async () => (await store.load(runId))?.aggregateResultRef !== undefined, 8_000);
     // Drop the aggregate so the failing service is the one that finalizes.
     await store.updateRun(runId, (current) => {
       current.aggregateResultRef = undefined;

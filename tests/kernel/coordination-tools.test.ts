@@ -140,7 +140,7 @@ describe("coordination chat tools", () => {
     assert.ok(!rendered.includes("do not retry"), rendered);
   });
 
-  it("reports its completed workers' owned outputs as changed files", async () => {
+  it("does not report owned outputs as changed files without explicit mutation evidence", async () => {
     const planner = {
       plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
         const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
@@ -158,8 +158,38 @@ describe("coordination chat tools", () => {
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
 
-    // The coordinator never mutates anything itself; this is the executed
-    // evidence its workers produced, and the completion gate consumes it.
+    // Ownership scopes are where a worker MAY write, not proof that it did:
+    // a completed worker with no mutation record is not changed-file evidence.
+    assert.equal(result.kind, "success");
+    assert.notEqual(result.changed, true);
+    assert.equal(result.changedFiles, undefined);
+  });
+
+  it("reports changed files from explicit worker mutation records", async () => {
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        const writer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "writer", goalPrompt: "write",
+          status: "completed", ownershipScopes: [".tmp/out/a.md"],
+        });
+        await store.addWorker(run.id, writer);
+        await store.patchWorker(run.id, writer.id, { status: "completed" });
+        return { valid: true, errors: [], run: { ...run, workers: [writer] } };
+      },
+    } as any;
+    // The session recorded the write the worker actually performed.
+    const eventLog = {
+      readAll: async () => [
+        { sessionId: "s1", type: "file.created", payload: { path: ".tmp/out/a.md" } },
+      ],
+      append: async () => {},
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1" });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
+
     assert.equal(result.kind, "success");
     assert.equal(result.changed, true);
     assert.deepEqual(result.changedFiles, [".tmp/out/a.md"]);

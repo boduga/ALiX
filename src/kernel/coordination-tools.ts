@@ -232,15 +232,22 @@ async function handleCoordinationRun(
   if (result.finalStatus === "failed") {
     return { kind: "error", message: lines.join("\n"), retryable: false };
   }
-  // Report the owned outputs its completed workers wrote. A worker only
-  // completes after writing its owned paths, so this is the run's real
-  // workspace change — the coordinator itself never mutates anything, and the
-  // completion gate needs executed evidence rather than a claim.
-  const changedFiles = [...new Set(
-    (run?.workers ?? [])
-      .filter(worker => worker.status === "completed")
-      .flatMap(worker => worker.ownershipScopes ?? []),
-  )].filter(entry => !entry.includes("*") && !entry.includes("?") && /\.[A-Za-z0-9]{1,5}$/.test(entry));
+  // Report what the run's workers actually wrote, from explicit mutation
+  // records — never from worker status or ownership scopes. A completed worker
+  // may have written nothing, and a worker that failed after writing a file
+  // still wrote it; an assigned path is a claim about where a worker may write,
+  // not evidence that it did. Paths are normalized and containment-checked
+  // inside the derivation.
+  const { deriveCoordinationEvidence } = await import("./coordination-evidence.js");
+  const sessionEvents = deps.eventLog
+    ? (await deps.eventLog.readAll()).filter(
+        event => !deps.sessionId || event.sessionId === deps.sessionId,
+      )
+    : [];
+  const changedFiles = deriveCoordinationEvidence(
+    { events: sessionEvents as Array<{ type: string; payload?: Record<string, unknown> }> },
+    { cwd: deps.cwd },
+  ).changedFiles;
   return {
     kind: "success",
     output: lines.join("\n"),
