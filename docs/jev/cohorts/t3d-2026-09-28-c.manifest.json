@@ -214,5 +214,78 @@
     "MCPExpected": false,
     "requirementClassExpected": "requirement:mutation",
     "producedScope": true
+  },
+  "1fc7c014-2aac-4585-a08d-1a2b719784ff": {
+    "taskId": "c1",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "ceee1d90-3578-484e-a9d8-252a920bebda": {
+    "taskId": "c2",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "83672a20-21b7-426e-b702-10299c4b20b9": {
+    "taskId": "c3",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "8d30693d-98ee-4577-8e58-84a425d8f76e": {
+    "taskId": "c4",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "8251af58-33e1-482b-a03b-e95b4de53aa3": {
+    "taskId": "c5",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "279422f6-700e-4785-aa46-5581b2a3794c": {
+    "taskId": "c6",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "dc79a37f-8b2e-4f9b-883d-d16b68c9a16a": {
+    "taskId": "c7",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true
+  },
+  "b60f0609-4581-419a-a3ff-978b1a628f4c": {
+    "taskId": "c8",
+    "family": "coordination",
+    "expectedMode": "coordination",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": "requirement:coordination",
+    "producedScope": true,
+    "note": "max_iterations: coordination.run offered but never called; no run, no workers"
   }
 }
