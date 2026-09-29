@@ -432,3 +432,107 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
 
   return "running";
 }
+
+// ─── Completion semantics ─────────────────────────────────────────────
+//
+// `completed` is the run's TERMINAL EXECUTION state, derived from worker
+// statuses by `recomputeRunStatus` above. It deliberately says nothing about
+// whether the results were aggregated, what the aggregate outcome was, or
+// whether anything was verified. Those are separate dimensions, derived here
+// from persisted fields so legacy records stay readable with no migration.
+//
+// Invariants (pinned by tests/kernel/coordination-types.test.ts):
+//   status === "completed"  ⇏  aggregation = "generated"
+//   status === "completed"  ⇏  outcome = "success"
+//   status === "completed"  ⇏  verification = "verified"
+//   verification = "verified" requires explicit aggregate EVENT evidence — a
+//   non-null `aggregateResultRef` alone is not sufficient.
+
+export type CoordinationExecutionState = "running" | "completed" | "failed" | "cancelled";
+
+export type CoordinationAggregationState = "not_required" | "pending" | "generated" | "failed";
+
+export type CoordinationOutcomeState = "unknown" | CoordinationRunOutcome;
+
+export type CoordinationVerificationState = "unverified" | "verified" | "failed";
+
+export type CoordinationCompletion = {
+  execution: CoordinationExecutionState;
+  aggregation: CoordinationAggregationState;
+  outcome: CoordinationOutcomeState;
+  verification: CoordinationVerificationState;
+};
+
+/**
+ * Evidence a run record cannot carry itself. Callers that can observe the
+ * event log or the completing session supply it; callers that cannot get the
+ * conservative reading (unverified).
+ */
+export type CoordinationCompletionEvidence = {
+  /** `coordination.aggregate.completed` was observed for this run. */
+  aggregateEventPresent?: boolean;
+  /** A terminal finalization attempt ran and threw. */
+  aggregationFailed?: boolean;
+  /** Terminal the completing session reported. */
+  sessionTerminal?: "completed" | "completed_unverified" | "cancelled" | "failed";
+};
+
+type CompletionRunFields = Pick<CoordinationRun, "status" | "outcome" | "aggregateResultRef">;
+
+/**
+ * Map persisted run fields (+ optional evidence) onto the four dimensions.
+ * Pure and decision-free: it never mutates the run and never rewrites a
+ * legacy record — a `completed` run with no aggregate reads as
+ * `aggregation: "pending"`, `outcome: "unknown"`, `verification: "unverified"`.
+ */
+export function deriveCoordinationCompletion(
+  run: CompletionRunFields,
+  evidence: CoordinationCompletionEvidence = {},
+): CoordinationCompletion {
+  const execution: CoordinationExecutionState =
+    run.status === "completed" ? "completed"
+      : run.status === "failed" ? "failed"
+        : run.status === "cancelled" ? "cancelled"
+          : "running"; // planning | replanning | running | blocked are all non-terminal
+
+  const terminal = execution === "completed" || execution === "failed" || execution === "cancelled";
+  const aggregation: CoordinationAggregationState =
+    evidence.aggregationFailed === true ? "failed"
+      : run.aggregateResultRef ? "generated"
+        : terminal ? "pending"
+          : "not_required";
+
+  const outcome: CoordinationOutcomeState = run.outcome ?? "unknown";
+
+  const verification: CoordinationVerificationState =
+    aggregation === "failed" ? "failed"
+      : outcome === "failure" || outcome === "blocked" || outcome === "cancelled" ? "failed"
+        : aggregation === "generated"
+          && outcome === "success"
+          && evidence.aggregateEventPresent === true
+          && evidence.sessionTerminal !== "completed_unverified"
+          ? "verified"
+          : "unverified";
+
+  return { execution, aggregation, outcome, verification };
+}
+
+/**
+ * Derived, user-facing label. Renderers use this instead of inventing another
+ * boolean; the legacy `status` stays visible for compatibility.
+ */
+export function coordinationCompletionLabel(completion: CoordinationCompletion): string {
+  const { execution, aggregation, outcome, verification } = completion;
+  if (execution === "failed") return "failed";
+  if (execution === "cancelled") return "cancelled";
+  if (execution === "running") return "in progress";
+  if (aggregation === "failed") return "workers finished; aggregation failed";
+  if (aggregation !== "generated") return "workers finished; results not aggregated";
+  if (verification === "verified") return "verified completion";
+  if (outcome === "success") return "completed; not verified";
+  if (outcome === "partial_success") return "completed with failures";
+  if (outcome === "failure" || outcome === "blocked" || outcome === "cancelled") {
+    return "completed with a failed outcome";
+  }
+  return "aggregated; outcome unknown";
+}

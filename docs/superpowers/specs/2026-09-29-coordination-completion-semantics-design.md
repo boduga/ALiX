@@ -105,6 +105,19 @@ being written. Do **not** rename `completed`.
 
 ## 4. Proposed state model
 
+**Amendments (2026-09-29, recorded during C1):**
+
+1. `verification = "verified"` now requires `outcome === "success"` exactly.
+   §4 originally allowed `partial_success`; a run that completed with failures is
+   not a verified success, and its label already reads "completed with
+   failures".
+2. `verification = "unverified"` means **no verification evidence exists**, not
+   "verification passed". A failed execution whose aggregate was never generated
+   is `aggregation: pending, outcome: unknown, verification: unverified`; the
+   user-facing label still reads "failed" from execution alone. `"failed"` is
+   reserved for evidence that contradicts success (`aggregation: failed`, or an
+   outcome of `failure`/`blocked`/`cancelled`).
+
 ```ts
 type ExecutionState  = "running" | "completed" | "failed" | "cancelled";
 type AggregationState = "not_required" | "pending" | "generated" | "failed";
