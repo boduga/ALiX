@@ -80,6 +80,71 @@ import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, ge
 // today; replay joins selectors to scopes on the id, never on the iteration.
 let selectionScopeSequence = 0;
 
+/**
+ * The frozen surfaces an observation needs, taken from the builder's own
+ * parameter type so the two can never drift apart.
+ */
+type SelectionObservationContext = Pick<
+  Parameters<typeof buildSelectionObservation>[0],
+  "candidates" | "candidateBindings" | "scoping" | "ranking" | "requirementCandidates"
+>;
+
+/**
+ * Emit one frozen selection scope.
+ *
+ * Extracted so every path that lets the model choose among the frozen
+ * candidates records the same scope shape — including the
+ * `alix_mcp_search_tools` short-circuit, which used to `continue` past the
+ * observation and leave external turns unscoped (cohort `t3d-2026-09-28-c`:
+ * eight external tasks, zero scopes).
+ */
+async function emitSelectionObservation(
+  log: EventLog,
+  session: { sessionId: string; actor: "system" },
+  input: {
+    scopeId: string;
+    iteration: number;
+    invocationId?: string;
+    toolCall: ToolCall;
+    /** Same shape the loop resolves executor names from (name + execName). */
+    selectedTools: Parameters<typeof resolveToolExecutionName>[1];
+    seenSignatures: Map<string, number>;
+    toolResult: { error?: unknown; message?: { content?: unknown }; changed?: boolean };
+    context: SelectionObservationContext;
+  },
+): Promise<void> {
+  const execName = resolveToolExecutionName(input.toolCall.name, input.selectedTools);
+  const body = toolResultBody(
+    typeof input.toolResult.message?.content === "string" ? input.toolResult.message.content : undefined,
+  );
+  const observation = buildSelectionObservation({
+    scopeId: input.scopeId,
+    iteration: input.iteration,
+    ...(input.invocationId ? { invocationId: input.invocationId } : {}),
+    candidates: input.context.candidates,
+    ...(input.context.candidateBindings ? { candidateBindings: input.context.candidateBindings } : {}),
+    chosen: input.toolCall.name,
+    chosenCandidateId: candidateIdFor(input.toolCall.name),
+    executor: execName,
+    argsSignature: `${execName}:${hashArgs(input.toolCall.args)}`,
+    seenSignatures: input.seenSignatures,
+    executorSuccess: !input.toolResult.error,
+    repaired: body.includes("[Tool Repair Hint]"),
+    // A create that found identical content is a provable no-op.
+    noOp: input.toolResult.changed === false && /identical content/i.test(body),
+    hasContent: body.length > 0,
+    ...(input.context.requirementCandidates ? { requirementCandidates: input.context.requirementCandidates } : {}),
+    ...(input.context.scoping ? { scoping: input.context.scoping } : {}),
+    ...(input.context.ranking ? { ranking: input.context.ranking } : {}),
+  });
+  await log.append({
+    ...session,
+    actor: "system",
+    type: TOOL_EVENT_TYPES.SELECTION_OBSERVED,
+    payload: observation,
+  });
+}
+
 export interface TaskLoopDeps {
   config: {
     // The loop resolves the effective model from the canonical `models`
@@ -1260,35 +1325,21 @@ if (toolCalls.length === 0) {
     {
       // Shadow observation (T0-b): what was offered, what was chosen, and how
       // useful the executed choice turned out to be. No behavior depends on it.
-      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
-      const body = toolResultBody(
-        typeof toolResult.message?.content === "string" ? toolResult.message.content : undefined,
-      );
-      const observation = buildSelectionObservation({
+      await emitSelectionObservation(log, session, {
         scopeId,
         iteration: i,
-        invocationId,
-        candidates: frozenSurface.candidates,
-        candidateBindings: frozenSurface.bindings,
-        chosen: toolCall.name,
-        chosenCandidateId: candidateIdFor(toolCall.name),
-        executor: execName,
-        argsSignature: `${execName}:${hashArgs(toolCall.args)}`,
+        ...(invocationId ? { invocationId } : {}),
+        toolCall,
+        selectedTools,
         seenSignatures: selectionSignatures,
-        executorSuccess: !toolResult.error,
-        repaired: body.includes("[Tool Repair Hint]"),
-        // A create that found identical content is a provable no-op.
-        noOp: toolResult.changed === false && /identical content/i.test(body),
-        hasContent: body.length > 0,
-        requirementCandidates: requirementCandidatesForTurn,
-        scoping: frozenScoping,
-        ranking: frozenRanking,
-      });
-      await log.append({
-        ...session,
-        actor: "system",
-        type: TOOL_EVENT_TYPES.SELECTION_OBSERVED,
-        payload: observation,
+        toolResult,
+        context: {
+          candidates: frozenSurface.candidates,
+          candidateBindings: frozenSurface.bindings,
+          requirementCandidates: requirementCandidatesForTurn,
+          scoping: frozenScoping,
+          ranking: frozenRanking,
+        },
       });
     }
     if (toolResult.completed) {
@@ -1400,6 +1451,25 @@ if (toolCalls.length === 0) {
     // Handle MCP tool search first
     const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
     if (mcpSearchResult.handled && mcpSearchResult.message) {
+      // The sentinel is a real member of the frozen candidate set, so this is a
+      // real selection — record the scope before short-circuiting. Skipping it
+      // is what left every external turn in cohort t3d-2026-09-28-c unscoped.
+      await emitSelectionObservation(log, session, {
+        scopeId,
+        iteration: i,
+        ...(invocationId ? { invocationId } : {}),
+        toolCall,
+        selectedTools,
+        seenSignatures: selectionSignatures,
+        toolResult: { message: mcpSearchResult.message },
+        context: {
+          candidates: frozenSurface.candidates,
+          candidateBindings: frozenSurface.bindings,
+          requirementCandidates: requirementCandidatesForTurn,
+          scoping: frozenScoping,
+          ranking: frozenRanking,
+        },
+      });
       messages.push(mcpSearchResult.message);
       continue;
     }

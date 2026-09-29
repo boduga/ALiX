@@ -49,6 +49,47 @@ the same inputs the loop already has (`frozenSurface`, `scopeId`, `iteration`,
 
 ## 3. Bypass B — single-tool external turns on the route path
 
+**Amendment 2026-09-29 (found during implementation):** the original claim that
+"no model chose among candidates" is **wrong**. `executeGroundedChatBehavior`
+does make a model call:
+
+```text
+src/runtime/route-execution.ts:270  provider.complete({ ..., tools: tools.length ? tools : undefined })
+src/runtime/route-execution.ts:281  if (response.toolCalls.length > 0) { const tc = response.toolCalls[0]; ... }
+```
+
+The model **does** choose, from a small allowlisted surface (`web_search` and/or
+`web_fetch`, filtered by `route.allowedTools`). The x2–x8 traces showing no
+`model.usage` simply reflect that this path does not emit usage events — the
+choice is real.
+
+Consequence: Bypass B should emit a **real frozen scope** (candidates = the
+offered web tools, chosen = the tool the model issued), not a
+`not_applicable` marker. `not_applicable` remains correct only for turns with no
+model choice at all. That is better news for F4: the external family can produce
+genuine selection scopes.
+
+**Blocker to resolve first (layering):** `src/runtime/**` currently imports
+nothing from `src/decision/**` (verified: empty grep), while the observation
+builder lives in `src/run/task-loop/predicates.ts`, which *does* import
+`decision/selection-outcome.js` and `decision/tool-selection-candidates.js`.
+Emitting from `executeGroundedChatBehavior` therefore needs a decision-neutral
+seam. Options:
+
+1. dependency-neutral payload construction in the runtime path — the ids here
+   are plain `builtin:alix_web_search` / `builtin:alix_web_fetch` with no MCP
+   handles to sanitize, and the payload type can be shared from a neutral module
+   (`src/events/types.ts` or `src/runtime/contracts/`), with a shape-parity test
+   against the loop emitter (recommended);
+2. inject the frozen surface into the route behaviour through `ToolExecutionDeps`
+   (callers already pass `eventLog`/`cwd`), so the runtime never freezes anything;
+   more plumbing, no shape duplication;
+3. move freeze+emit into a neutral module both import — cleanest long term,
+   largest change.
+
+Option 1 or 2 should be chosen before implementing Bypass B; the sentinel path
+(§2) does not need it.
+
 ```text
 src/run/task-loop/main.ts              ← never entered (no model.usage/agent.decision in the trace)
 src/runtime/route-executor.ts:103      case "grounded_chat": return executor.executeGroundedChat(route, ctx);
