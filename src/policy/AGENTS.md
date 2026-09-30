@@ -11,7 +11,7 @@
 - `policy-loader.ts` — Load rules from `.alix/policies/*.json`, fall back to defaults
 
 **Local Contracts:**
-- **Owned-scope matching is ONE contract enforced at TWO points.** The owned-path rule in `policy-gate.ts` (`isWithinOwned` → `isWithinOwnedScope`) and `FileToolRouter.isOwnedWriteTarget` are both authorization checks on the same `ownedPaths`, and the gate runs FIRST — so a normalization difference between them silently denies every owned write the router would have allowed, with no error at either site. Both call `isWithinOwnedScope` (`src/ownership/path-scope.ts`) and neither may grow a second matcher. That function owns the whole vocabulary: a path, a directory (`docs/`), a recursive scope (`docs/**`), and every spelling of a workspace-wide grant (`.`, `**`, `./**`, `**/*`, `/*`, …) reduce to an absolute directory prefix; `..` traversal and uninterpretable wildcards reduce to nothing, so an unparseable grant authorizes NOTHING rather than everything. Regression coverage lives in `tests/policy/policy-gate.test.ts`, not only the router tests — a router-only test bypasses this gate entirely and cannot see this class of bug.
+- **Owned-scope matching is ONE contract enforced at TWO points.** The owned-path rule in `policy-gate.ts` (`isWithinOwned` → `isWithinOwnedScope`) and `FileToolRouter.isOwnedWriteTarget` are both authorization checks on the same `ownedPaths`, and the gate runs FIRST — so a normalization difference between them silently denies every owned write the router would have allowed, with no error at either site. Both call `isWithinOwnedScope` (`src/ownership/path-scope.ts`, owned by `src/ownership/AGENTS.md`) and neither may grow a second matcher. It reduces a path, a directory (`docs/`), a recursive scope (`docs/**`), and any workspace-wide grant (`.`, or a pattern of only `*` segments) to an absolute directory prefix. `..` traversal, uninterpretable wildcards, and an entry resolving outside the workspace reduce to nothing, so an unparseable grant authorizes NOTHING rather than everything. Workspace-wide detection is a rule, not a list of spellings — an earlier list was incomplete and stayed that way until someone edited it. Regression coverage lives in `tests/policy/policy-gate.test.ts`, not only the router tests — a router-only test bypasses this gate entirely and cannot see this class of bug.
 - Two-layer enforcement: capability coverage first, policy second.
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
@@ -29,6 +29,7 @@
 - Adding a new policy rule type means updating `policy-rule.ts` (match fields), `default-policies.ts` (default instances), and `runtime-gate.ts` (if the evaluation logic changes).
 
 **Verification:**
+- `tests/policy/policy-gate.test.ts` — the owned-path rule in every workspace-wide spelling, and fail-closed behaviour for `..` and uninterpretable wildcards. This is the regression home for the shared matcher; a router-only test bypasses this gate and cannot see the class of bug.
 - `tests/policy/policy-rule.test.ts` — validation and matching
 - `tests/policy/rule-evaluator.test.ts` — evaluator and default policies
 - `tests/policy/policy-loader.test.ts` — disk loading and fallback

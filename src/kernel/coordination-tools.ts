@@ -84,6 +84,35 @@ function effectiveSessionMode(
 }
 
 /**
+ * Build the failure recorder for a cancelling run.
+ *
+ * `sessionId` is a PARAMETER, not a captured variable, on purpose. The previous
+ * version closed over the run record — a `const` declared *after* the cancel
+ * sites — so on the failure path the closure hit the temporal dead zone, threw,
+ * and the inner catch swallowed it. The event that exists to prove the run was
+ * not finalized was the one thing never recorded. Binding the value at
+ * construction makes that class of bug structurally impossible.
+ */
+export function createCancelFailureRecorder(deps: {
+  eventLog: EventLog | undefined;
+  runId: string;
+  sessionId: string;
+}): (error: unknown) => Promise<unknown> | undefined {
+  return (error: unknown) => deps.eventLog?.append({
+    sessionId: deps.sessionId,
+    actor: "coordination",
+    type: COORDINATION_EVENT_TYPES.CANCEL_FAILED,
+    payload: {
+      runId: deps.runId,
+      error: error instanceof Error ? error.message : String(error),
+      // The run may still be `running` with leases held, and a live
+      // `tool-<pid>` owner is never reclaimed — this is the only record.
+      reason: "operator cancel could not finalize the run",
+    },
+  });
+}
+
+/**
  * Cancel-with-record guard for the operator-abort path.
  *
  * The abort listener is a SYNCHRONOUS callback, so `cancel()` returning a
@@ -113,7 +142,14 @@ export function createCancelGuard(deps: {
 } {
   let pending: Promise<void> | undefined;
   const cancelRun = (): Promise<void> => deps.cancel().catch((err: unknown) => {
-    void Promise.resolve(deps.onFailure(err)).catch(() => {});
+    // `onFailure` is awaited-and-caught rather than fire-and-forget, so the
+    // record lands before the turn ends. It is still not allowed to reject:
+    // a broken recorder must not turn a cancellation into a tool failure, and
+    // must not leave an unhandled rejection behind either.
+    return Promise.resolve()
+      .then(() => deps.onFailure(err))
+      .then(() => undefined)
+      .catch(() => undefined);
   });
   return {
     cancelRun,
@@ -246,20 +282,16 @@ async function handleCoordinationRun(
   // run and graph marked cancelled — instead of leaving it running for a later
   // sweep to collide with.
   const signal = request?.signal;
+  // Recorded against the plan's session id. Passed as an argument rather than
+  // closed over, so nothing here depends on a declaration below.
+  const recordCancelFailure = createCancelFailureRecorder({
+    eventLog: deps.eventLog,
+    runId,
+    sessionId: planResult.run.sessionId,
+  });
   const guard = createCancelGuard({
     cancel: () => scheduler.cancelRun(runId),
-    onFailure: (error) => deps.eventLog?.append({
-      sessionId: run?.sessionId ?? "unknown",
-      actor: "coordination",
-      type: COORDINATION_EVENT_TYPES.CANCEL_FAILED,
-      payload: {
-        runId,
-        error: error instanceof Error ? error.message : String(error),
-        // The run may still be `running` with leases held, and a live
-        // `tool-<pid>` owner is never reclaimed — this is the only record.
-        reason: "operator cancel could not finalize the run",
-      },
-    }),
+    onFailure: recordCancelFailure,
   });
   if (signal?.aborted) {
     await guard.cancelRun();

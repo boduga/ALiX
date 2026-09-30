@@ -128,16 +128,23 @@ export function formatScope(scope: PathScope): string {
 // ─── Owned-write scopes (single authority) ─────────────────────────────
 
 /**
- * Grants that mean "the whole workspace". Listed exhaustively rather than
- * pattern-matched: a bare `**` reduced to a literal `**` path segment matches
- * nothing, which is how a workspace-wide ownership grant silently stopped
- * working. Both the policy gate and the file router consult this — they are
- * two enforcement points for ONE contract, so they must normalize identically.
+ * True when an owned-path entry is a workspace-wide grant — `.`, or a pattern
+ * made only of `*` segments and separators.
+ *
+ * This is a RULE, not an enumeration. An enumerated list of spellings was
+ * incomplete — several multi-star forms fell through to the reject branch, and
+ * only a future edit would have added them. Deriving it means a spelling nobody
+ * thought of still resolves to the workspace rather than to nothing.
  */
-const WORKSPACE_WIDE_GRANTS: ReadonlySet<string> = new Set([
-  ".", "./", "*", "**", "/*", "/**",
-  "./*", "./**", "./**/*", "**/*", "**/**",
-]);
+function isWorkspaceWideGrant(normalized: string): boolean {
+  if (normalized === "." || normalized === "./") return true;
+  // A leading separator is cosmetic, not a scope: `/*` and `**` mean the same
+  // workspace-wide grant, so strip it before splitting or the empty first
+  // segment reads as a non-wildcard component.
+  const withoutTrailing = normalized.replace(/\/+$/, "").replace(/^\/+/, "");
+  return withoutTrailing.length > 0
+    && withoutTrailing.split("/").every(segment => segment === "*" || segment === "**");
+}
 
 /**
  * Reduce an owned-path entry to the absolute directory prefix it authorizes,
@@ -153,7 +160,7 @@ export function resolveOwnedScopePrefix(raw: string, cwd: string): string | unde
   if (normalized.length === 0) return undefined;
   // `resolve` normalizes a trailing separator, so a cwd of "/tmp/" cannot
   // silently disable a workspace-wide grant.
-  if (WORKSPACE_WIDE_GRANTS.has(normalized)) return resolve(cwd);
+  if (isWorkspaceWideGrant(normalized)) return resolve(cwd);
 
   const stripped = normalized
     .replace(/\/\*\*$/, "")
@@ -164,7 +171,14 @@ export function resolveOwnedScopePrefix(raw: string, cwd: string): string | unde
   const segments = stripped.split("/").filter(Boolean);
   if (segments.some(segment => segment === "..")) return undefined;
   if (/[*?[\]{}]/.test(stripped)) return undefined;
-  return resolve(cwd, stripped);
+  const absolute = resolve(cwd, stripped);
+  // An owned entry that resolves OUTSIDE the workspace is not an owned scope —
+  // the sibling `normalizePathScope` rejects the same case, and silently
+  // authorizing `/etc` because a worker wrote it in `ownedPaths` would be a
+  // privilege escalation dressed as a convenience.
+  const rel = relative(resolve(cwd), absolute);
+  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) return undefined;
+  return absolute;
 }
 
 /**
