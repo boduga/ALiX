@@ -57,7 +57,7 @@ reason about.
 ## Verification
 
 - `tests/tools/tool-router.test.ts` — dispatch, owned writes, containment.
-- `tests/tools/safe-shell*.vitest.ts` — shell admission grammar.
+- `tests/unit/safe-shell.test.ts` — shell admission grammar.
 - `tests/policy/policy-gate.test.ts` — the authorization decision that runs
   before any of this.
 
