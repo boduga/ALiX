@@ -6,34 +6,34 @@ interface Tool { name: string; description: string; [key: string]: string | numb
 
 describe("searchTools", () => {
   const tools: Tool[] = [
-    { name: "mcp_github_repos_list", description: "List repositories for a user or organization" },
-    { name: "mcp_github_issues_list", description: "List issues in a repository" },
-    { name: "mcp_fetch_web_page", description: "Fetch the content of a web page" },
+    { name: "mcp__h1", searchName: "github_repos_list", description: "List repositories for a user or organization" },
+    { name: "mcp__h2", searchName: "github_issues_list", description: "List issues in a repository" },
+    { name: "mcp__h3", searchName: "fetch_web_page", description: "Fetch the content of a web page" },
   ];
 
   it("returns exact match with highest score", () => {
-    const results = searchTools("mcp_github_repos_list", tools);
+    const results = searchTools("github_repos_list", tools, { nameField: "searchName" });
     assert.strictEqual(results.length, 1);
-    assert.strictEqual(results[0].item.name, "mcp_github_repos_list");
+    assert.strictEqual(results[0].item.name, "mcp__h1");
     assert.strictEqual(results[0].score, 100);
   });
 
   it("matches prefix", () => {
-    const results = searchTools("mcp_github", tools);
+    const results = searchTools("github", tools, { nameField: "searchName" });
     assert.ok(results.length >= 2);
     assert.strictEqual(results[0].score, 80);
-    assert.ok(results.some(r => r.item.name === "mcp_github_repos_list"), "Should include github_repos_list");
+    assert.ok(results.some(r => r.item.name === "mcp__h1"), "Should include github_repos_list");
   });
 
   it("matches substring", () => {
-    const results = searchTools("repos", tools);
-    assert.ok(results.some(r => r.item.name === "mcp_github_repos_list"));
+    const results = searchTools("repos", tools, { nameField: "searchName" });
+    assert.ok(results.some(r => r.item.name === "mcp__h1"));
   });
 
   it("finds typo 'guthu' -> 'github'", () => {
-    const results = searchTools("mcp_guthu_repos_list", tools);
+    const results = searchTools("guthu_repos_list", tools, { nameField: "searchName" });
     assert.ok(results.length > 0, "Should find github with typo");
-    assert.strictEqual(results[0].item.name, "mcp_github_repos_list");
+    assert.strictEqual(results[0].item.name, "mcp__h1");
     assert.ok(results[0].score > 0, "Should have positive score");
   });
 
@@ -43,7 +43,7 @@ describe("searchTools", () => {
   });
 
   it("returns results sorted by score descending", () => {
-    const results = searchTools("github", tools);
+    const results = searchTools("github", tools, { nameField: "searchName" });
     for (let i = 1; i < results.length; i++) {
       assert.ok(results[i - 1].score >= results[i].score);
     }

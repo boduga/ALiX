@@ -9,8 +9,33 @@
  * them. Retries stay bounded by `maxAttempts`.
  */
 
+import { join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { isOwnerAlive } from "./owner-liveness.js";
+import { releaseWorkerOwnership } from "./coordination-ownership.js";
 import type { CoordinationStore } from "./coordination-store.js";
+import type { CoordinationRun } from "./coordination-types.js";
+import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
+import type { TaskGraph } from "./task-graph.js";
+
+/**
+ * Mark the run's persisted TaskGraph cancelled so the inspector and any
+ * graph listing agree with the run record. Best-effort: a graph that cannot
+ * be read or written never blocks cancellation.
+ */
+export async function markRunGraphCancelled(cwd: string, run: CoordinationRun): Promise<void> {
+  if (!run.taskGraphId) return;
+  try {
+    const graphPath = join(cwd, ".alix", "graphs", `${run.taskGraphId}.json`);
+    const graph = JSON.parse(await readFile(graphPath, "utf-8")) as TaskGraph;
+    if (graph.status === "cancelled") return;
+    graph.status = "cancelled";
+    graph.updatedAt = new Date().toISOString();
+    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+  } catch {
+    // Observability only.
+  }
+}
 
 export type ReclaimResult = {
   runId: string;
@@ -77,6 +102,7 @@ export async function findResumableRuns(
 export async function cancelDeadOwnerRuns(
   store: CoordinationStore,
   hostKinds: readonly string[],
+  ownershipRegistry?: OwnershipRegistry,
 ): Promise<string[]> {
   const runs = await store.list();
   const cancelled: string[] = [];
@@ -87,7 +113,15 @@ export async function cancelDeadOwnerRuns(
     if (runningWorkers.length === 0) continue;
     if (!runningWorkers.every(w => !isOwnerAlive(w.executionOwnerId))) continue;
     const deadOwner = runningWorkers[0]?.executionOwnerId ?? "unknown";
-    await store.updateRun(run.id, (current) => {
+    // Release the leases the dead host held. Clearing `leaseIds` without
+    // releasing them leaves active registry records behind, and every later
+    // run in the workspace collides with them until the TTL expires.
+    if (ownershipRegistry) {
+      for (const worker of run.workers) {
+        if (worker.leaseIds?.length) await releaseWorkerOwnership(ownershipRegistry, worker.leaseIds);
+      }
+    }
+    const updated = await store.updateRun(run.id, (current) => {
       for (const worker of current.workers) {
         if (worker.status === "running" || worker.status === "pending") {
           worker.status = "cancelled";
@@ -96,7 +130,11 @@ export async function cancelDeadOwnerRuns(
           worker.error = `Run abandoned — host ${deadOwner} stopped`;
         }
       }
+      // Explicit terminal status: recomputeRunStatus would otherwise map an
+      // all-cancelled run back to "blocked" and keep it in the active set.
+      current.status = "cancelled";
     });
+    if (updated) await markRunGraphCancelled(store.cwd, updated);
     cancelled.push(run.id);
   }
   return cancelled;

@@ -1,12 +1,15 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseOwnerPid, isPidAlive, isOwnerAlive } from "../../src/kernel/owner-liveness.js";
 import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/kernel/coordination-resume.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
+import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
+import { persistGraph } from "../../src/kernel/graph-planner.js";
 
 const DEAD_PID = 99_999_999;
 
@@ -153,6 +156,61 @@ describe("cancelDeadOwnerRuns", () => {
     assert.equal(loaded!.workers[0].status, "cancelled");
     assert.match(loaded!.workers[0].error ?? "", /host cli-/);
     assert.ok(!["planning", "running"].includes(loaded!.status), "run must leave active statuses");
+  });
+
+  it("releases the dead host's leases and marks run + graph cancelled", async () => {
+    const graph = {
+      id: "graph_dead_owner_case",
+      schemaVersion: "1.0",
+      workflowId: "wf_dead_owner_case",
+      rootGoal: "g",
+      status: "running" as const,
+      strategy: "sequential" as const,
+      nodes: [],
+      edges: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await persistGraph(graph as any, cwd);
+
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "cli";
+    run.taskGraphId = graph.id;
+    await store.save(run);
+    const owned = join(cwd, ".tmp", "dead-owner.md");
+    const dead = addWorker(run.id, {
+      executionOwnerId: `cli-${DEAD_PID}`,
+      ownershipClaims: [{ path: ".tmp/dead-owner.md", recursive: false, sourcePattern: ".tmp/dead-owner.md" }],
+    });
+    await store.addWorker(run.id, dead);
+
+    const registry = new OwnershipRegistry(cwd);
+    const acquired = await registry.acquire({
+      agentId: "alix#1",
+      scope: { kind: "path", root: owned, recursive: false },
+      mode: "exclusive-write",
+      taskId: dead.id,
+      sessionId: "s1",
+      ttlMs: 60_000,
+      reason: "test lease",
+    });
+    assert.equal(acquired.acquired, true);
+    const leaseId = acquired.record!.id;
+    await store.patchWorker(run.id, dead.id, { leaseIds: [leaseId] });
+
+    const cancelled = await cancelDeadOwnerRuns(store, ["cli"], registry);
+
+    assert.deepEqual(cancelled, [run.id]);
+    // Clearing leaseIds without releasing the record would leave an active
+    // lease blocking every later run in this workspace until its TTL.
+    assert.equal(registry.get(leaseId)?.status, "released");
+    const loaded = await store.load(run.id);
+    assert.equal(loaded!.status, "cancelled");
+    assert.equal(loaded!.workers[0].leaseIds?.length, 0);
+    const persistedGraph = JSON.parse(
+      await readFile(join(cwd, ".alix", "graphs", `${graph.id}.json`), "utf-8"),
+    );
+    assert.equal(persistedGraph.status, "cancelled");
   });
 
   it("leaves a live-owner running run alone", async () => {

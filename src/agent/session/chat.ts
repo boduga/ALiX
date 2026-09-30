@@ -36,7 +36,6 @@ import "../../skills/dispatcher.js";
 import "../../skills/lifecycle.js";
 import "../../mcp/tool-selector.js";
 import "../../mcp/tool-discovery.js";
-import "../../agents/tool-name-map.js";
 import { continueTruncatedGeneration, TRUNCATION_CONTINUATION_LIMIT } from "../../run/helpers.js";
 import "../../kernel/minimal-metrics.js";
 import "../system-prompt.js";

@@ -7,6 +7,7 @@
  * admits everything and flags true.
  */
 import { describe, it, expect } from "vitest";
+import { createHash } from "node:crypto";
 import { CORE_TOOL_NAMES, scopeToolsByTask } from "../../src/config/tool-scoping.js";
 import type { ToolDef } from "../../src/providers/types.js";
 import type { DeferredToolEntry } from "../../src/mcp/tool-deferral.js";
@@ -15,24 +16,29 @@ function tool(name: string, description: string): ToolDef {
   return { name, description, input_schema: { type: "object", properties: {} } };
 }
 
+function mcpHandle(name: string): string {
+  return `mcp__${createHash("sha256").update(name).digest("base64url")}`;
+}
+
 function mcpTool(
   name: string,
   description: string,
   serverName: string,
 ): DeferredToolEntry {
-  return { name, description, input_schema: { type: "object", properties: {} }, serverName, toolName: name.replace(/^mcp_/, ""), execName: name };
+  return { name: mcpHandle(name), searchName: name, description, input_schema: { type: "object", properties: {} }, serverName, toolName: name, execName: `mcp.${serverName}.${name}` };
 }
 
 describe("CORE_TOOL_NAMES", () => {
-  it("includes the five always-mandatory tools", () => {
+  it("includes core tools and bound worker collaboration tools", () => {
     expect(CORE_TOOL_NAMES.has("alix_shell_run")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_file_read")).toBe(true);
     expect(CORE_TOOL_NAMES.has("alix_patch_apply")).toBe(true);
-    expect(CORE_TOOL_NAMES.has("alix_patch_create")).toBe(true);
+    expect(CORE_TOOL_NAMES.has("alix_patch_create")).toBe(false);
     expect(CORE_TOOL_NAMES.has("alix_done")).toBe(true);
     // `file.write` is not an executable tool — no `alix_file_write` in core.
     expect(CORE_TOOL_NAMES.has("alix_file_write")).toBe(false);
-    expect(CORE_TOOL_NAMES.size).toBe(5);
+    expect(CORE_TOOL_NAMES.has("alix_collaboration_publish_finding")).toBe(true);
+    expect(CORE_TOOL_NAMES.size).toBe(10);
   });
 });
 
@@ -75,7 +81,7 @@ describe("scopeToolsByTask", () => {
       [mcpTool("github_repos_list", "list repos on github", "github")],
       "list my github repos",
     );
-    expect(extended.map((t) => t.name)).toContain("github_repos_list");
+    expect(extended.map((t) => t.name)).toContain(mcpHandle("github_repos_list"));
   });
 
   it("admits MCP tool when description matches task", () => {
@@ -84,16 +90,17 @@ describe("scopeToolsByTask", () => {
       [mcpTool("github_repos_list", "list repos on github", "github")],
       "list my github repos",
     );
-    expect(extended.map((t) => t.name)).toContain("github_repos_list");
+    expect(extended.map((t) => t.name)).toContain(mcpHandle("github_repos_list"));
   });
 
   it("admits MCP tool when tool name matches task", () => {
     const { extended } = scopeToolsByTask(
       [],
-      [mcpTool("github_repos_list", "list repos on github", "github")],
-      "list my github repos",
+      [mcpTool("customer_records_export", "operates plugin", "service")],
+      "export customer records",
     );
-    expect(extended.map((t) => t.name)).toContain("github_repos_list");
+    expect(extended.map((t) => t.name)).toContain(mcpHandle("customer_records_export"));
+    expect(scopeToolsByTask([], [mcpTool("customer_records_export", "operates plugin", "service")], "export customer records").fallbackFull).toBe(false);
   });
 
   it("excludes non-matching MCP tools", () => {
@@ -102,8 +109,8 @@ describe("scopeToolsByTask", () => {
       [mcpTool("github_repos_list", "list repos on github", "github"), mcpTool("slack_send_message", "send messages on slack", "slack")],
       "list my github repos",
     );
-    expect(extended.map((t) => t.name)).toContain("github_repos_list");
-    expect(extended.map((t) => t.name)).not.toContain("slack_send_message");
+    expect(extended.map((t) => t.name)).toContain(mcpHandle("github_repos_list"));
+    expect(extended.map((t) => t.name)).not.toContain(mcpHandle("slack_send_message"));
   });
 
   it("triggers fallbackFull when no extended match but non-core tools exist", () => {
@@ -115,7 +122,7 @@ describe("scopeToolsByTask", () => {
     expect(result.fallbackFull).toBe(true);
     // In fallback mode, extended includes ALL non-core tools
     expect(result.extended.map((t) => t.name)).toContain("alix_schedule_meeting");
-    expect(result.extended.map((t) => t.name)).toContain("github_repos_list");
+    expect(result.extended.map((t) => t.name)).toContain(mcpHandle("github_repos_list"));
     expect(result.extended.map((t) => t.name)).not.toContain("alix_shell_run");
   });
 
@@ -136,7 +143,7 @@ describe("scopeToolsByTask", () => {
       "list my github repos",
     );
     expect(extended.length).toBe(1);
-    expect(extended[0]!.name).toBe("github_repos_list");
+    expect(extended[0]!.name).toBe(mcpHandle("github_repos_list"));
     expect(extended[0]!.description).toBe("list repos on github");
     expect(extended[0]!.input_schema).toEqual({ type: "object", properties: {} });
   });

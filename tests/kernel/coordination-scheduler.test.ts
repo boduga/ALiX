@@ -8,6 +8,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
@@ -17,6 +18,7 @@ import {
   createWorkerAssignment,
 } from "../../src/kernel/coordination-types.js";
 import { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
+import { persistGraph } from "../../src/kernel/graph-planner.js";
 import type { ExecutionAuthorization } from "../../src/runtime/execution-authorization.js";
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -598,6 +600,9 @@ describe("CoordinationScheduler", () => {
     // Check final state — both workers must be terminal (failed due to abort,
     // or cancelled by cancelRun). Both are valid outcomes of cancellation.
     const loaded = await store.load(run.id);
+    // The run itself is terminal: recomputeRunStatus maps an all-cancelled run
+    // to "blocked", which the resume sweeps still treat as active.
+    assert.equal(loaded!.status, "cancelled");
     for (const w of loaded!.workers) {
       assert.ok(
         ["failed", "cancelled"].includes(w.status),
@@ -606,6 +611,55 @@ describe("CoordinationScheduler", () => {
     }
 
     // Cleanup — resolve pending so deferred promises settle
+    for (const [, p] of pending) p.resolve({ outcome: "success" });
+    await sched.shutdown();
+  });
+
+  it("cancelRun releases leases and marks the persisted graph cancelled", async () => {
+    const { executor, pending } = createDeferredExecutor();
+    const sched = createScheduler({ executor });
+
+    const graph = {
+      id: "graph_cancel_case",
+      schemaVersion: "1.0",
+      workflowId: "wf_cancel_case",
+      rootGoal: "cancel case",
+      status: "running" as const,
+      strategy: "sequential" as const,
+      nodes: [],
+      edges: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await persistGraph(graph as any, cwd);
+
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "cancel case", coordinatorAgentId: "alix" });
+    run.taskGraphId = graph.id;
+    await store.save(run);
+    const worker = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "first", goalPrompt: "do",
+      requiredCapabilities: ["task.do"], attempt: 0, maxAttempts: 3,
+      ownershipScopes: [".tmp/cancel-case.md"],
+      ownershipClaims: [{ path: ".tmp/cancel-case.md", recursive: false, sourcePattern: ".tmp/cancel-case.md" }],
+    });
+    await store.addWorker(run.id, worker);
+    await sched.tick(run.id);
+    const leased = (await store.load(run.id))!.workers[0].leaseIds ?? [];
+    assert.ok(leased.length > 0, "worker should hold an ownership lease while running");
+
+    await sched.cancelRun(run.id);
+
+    // Leases are released, not merely detached from the worker record: an
+    // active registry record would block the next run until its TTL.
+    for (const leaseId of leased) {
+      const record = registry.get(leaseId);
+      assert.equal(record?.status, "released", `lease ${leaseId} should be released`);
+    }
+    const persistedGraph = JSON.parse(
+      await readFile(join(cwd, ".alix", "graphs", `${graph.id}.json`), "utf-8"),
+    );
+    assert.equal(persistedGraph.status, "cancelled");
+
     for (const [, p] of pending) p.resolve({ outcome: "success" });
     await sched.shutdown();
   });

@@ -73,14 +73,17 @@ describe("ownedPathsForWorker", () => {
 
 describe("taskForWorker", () => {
   it("builds a write task with owned paths", () => {
+    const assignment = worker({ id: "w1", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/a.txt"] });
+    assignment.inputPaths = [".tmp/source.txt"];
     const task = taskForWorker(
-      worker({ id: "w1", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/a.txt"] }),
+      assignment,
       "sess-1",
       "/tmp",
     );
     assert.equal(task.role, "worker");
     assert.equal(task.mode, "write");
     assert.deepEqual(task.ownedPaths, [".tmp/a.txt"]);
+    assert.deepEqual((task as unknown as { inputPaths?: string[] }).inputPaths, [".tmp/source.txt"]);
     assert.ok(task.prompt.includes(".tmp/a.txt"));
     assert.equal(task.coordinationRunId, "coord_test");
     assert.equal(task.eventSessionId, "sess-1");
@@ -107,6 +110,18 @@ describe("SubagentWorkerExecutor", () => {
     );
     assert.equal(result.outcome, "success");
     assert.match(result.summary ?? "", /done/);
+  });
+
+  it("does not mark an incomplete write worker successful", async () => {
+    const partialChild = `console.log(JSON.stringify({ status: "partial", error: "delegated objective incomplete", findings: [{ type: "summary", content: "Changed: src/project.md" }], events: [] }));`;
+    const executor = new SubagentWorkerExecutor({ manager: managerWith(partialChild) });
+    const result = await executor.execute(
+      worker({ id: "partial-write", requiredCapabilities: ["filesystem.write"], ownershipScopes: [".tmp/workbench/project.md"] }),
+      { run: {} as any, sessionId: "sess-1", cwd: "/tmp", config: {} as AlixConfig },
+      new AbortController().signal,
+    );
+    assert.equal(result.outcome, "failure");
+    assert.match(result.error ?? "", /delegated objective incomplete/);
   });
 
   it("runs two workers in parallel through one manager", async () => {

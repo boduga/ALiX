@@ -45,11 +45,11 @@ describe("prompt registry", () => {
   // update the hash below.
   it("prompt texts match snapshot hashes", () => {
     const snapshot: Record<string, string> = {
-      "agent.system-base": "730e16e94342f43b",
+      "agent.system-base": "3f8b304be91a23b0",
       "agent.research-supplement": "b874aa6c71159b03",
       "agent.execution-supplement": "7b62665ebcd35a95",
       "agent.verification-supplement": "f104d69cfdfe3fa3",
-      "agent.shell-task": "240b73f373d06efe",
+      "agent.shell-task": "54517b069791b569",
       "agent.read-only-mode": "47cee00c48da8752",
       "subagent.explorer": "688d0d2d82929e9f",
       "subagent.reviewer": "0dee12e10bd5c931",
@@ -62,6 +62,25 @@ describe("prompt registry", () => {
     };
     for (const e of PROMPT_REGISTRY) {
       assert.equal(sha(e.text), snapshot[e.id], `${e.id} text changed without a version bump (update snapshot + version)`);
+    }
+  });
+
+  // Prompt text is model-facing instruction: naming a retired tool spelling
+  // sends the model at a fail-closed tool boundary (`shell_run`, `done`, and
+  // `file_create` are all rejected — only exact offered `alix_*` names resolve).
+  it("prompt texts use exact model-facing tool names", () => {
+    const retiredSpellings = [
+      "`done`", "`shell_run`", "`file_read`", "`file_create`", "`file_write`",
+      "`grep_search`", "`glob_match`", "`dir_search`", "`patch_apply`",
+      "`mcp_search_tools`", "`file.read`", "`shell.run`",
+    ];
+    for (const e of PROMPT_REGISTRY) {
+      for (const spelling of retiredSpellings) {
+        assert.ok(
+          !e.text.includes(spelling),
+          `${e.id} instructs the model to use ${spelling}; the resolver accepts only exact offered alix_* names`,
+        );
+      }
     }
   });
 });

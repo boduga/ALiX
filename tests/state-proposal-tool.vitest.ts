@@ -49,7 +49,7 @@ describe("state-proposal-tool — model emits StateTransitionProposal", () => {
   const call = (args: unknown) => ({ id: "call-1", name: STATE_PROPOSAL_TOOL_NAME, args: args as Record<string, unknown> });
 
   it("exposes a well-formed tool definition", () => {
-    expect(STATE_PROPOSAL_TOOL.name).toBe("execution_state_propose");
+    expect(STATE_PROPOSAL_TOOL.name).toBe("alix_execution_state_propose");
     expect(STATE_PROPOSAL_TOOL.input_schema.required).toContain("patch");
   });
 

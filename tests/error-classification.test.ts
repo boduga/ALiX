@@ -7,7 +7,7 @@ type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?:
 // --- classifyError: non-retryable (fatal) errors ---
 
 test("classifyError marks 'unknown mcp tool' as retryable: false", () => {
-  const result = classifyError({ kind: "error", message: "Unknown MCP tool: mcp_server_tool" });
+  const result = classifyError({ kind: "error", message: "Unknown MCP tool: mcp__opaque_handle" });
   assert.equal(result.retryable, false);
 });
 

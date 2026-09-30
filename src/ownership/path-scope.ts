@@ -124,3 +124,90 @@ function isInside(parent: string, child: string): boolean {
 export function formatScope(scope: PathScope): string {
   return scope.recursive ? `${scope.root}/**` : scope.root;
 }
+
+// ─── Owned-write scopes (single authority) ─────────────────────────────
+
+/**
+ * True when an owned-path entry is a workspace-wide grant: `.`, or a pattern
+ * whose every non-empty segment is `*` or `**`.
+ *
+ * This is a RULE, not an enumeration. An enumerated list of spellings was
+ * incomplete — several multi-star forms fell through to the reject branch, and
+ * only a future edit would have added them. Deriving it means a spelling nobody
+ * thought of still resolves to the workspace rather than to nothing.
+ *
+ * The rule must be a strict SUPERSET of any list it replaces. An earlier
+ * version split on the separator and demanded every segment be a star, which
+ * silently narrowed the grant: the dot-slash spellings (dot-slash-star and
+ * dot-slash-globstar-slash-star) were both workspace-wide and began denying.
+ * A leading dot-slash and a leading slash are cosmetic, so both are stripped
+ * before the segments are examined — treating them as scope is the bug.
+ */
+function isWorkspaceWideGrant(normalized: string): boolean {
+  const trimmed = normalized.trim();
+  if (trimmed === "." || trimmed === "./" || trimmed === "/") return true;
+  // Strip cosmetic prefixes and suffixes — a leading dot-slash, a leading
+  // slash, and any trailing slashes. All of them mean the same workspace-wide
+  // grant. Anything left that is not a star segment (a real directory name)
+  // makes this an ordinary scoped path instead.
+  const bare = trimmed
+    .replace(/^\.\//, "")
+    .replace(/^\/+|\/+$/g, "");
+  return bare.length > 0 && bare.split("/").every(segment => segment === "*" || segment === "**");
+}
+
+/**
+ * Reduce an owned-path entry to the absolute directory prefix it authorizes,
+ * or `undefined` when the entry cannot be reduced safely.
+ *
+ * Accepts a path, a directory (`docs/`), a recursive scope (`docs/**`), or a
+ * workspace-wide grant (see {@link isWorkspaceWideGrant}). Fails closed on `..` traversal and on
+ * wildcards it cannot interpret — an uninterpretable grant authorizes nothing
+ * rather than everything.
+ */
+export function resolveOwnedScopePrefix(raw: string, cwd: string): string | undefined {
+  const normalized = raw.trim().replace(/\\/g, "/");
+  if (normalized.length === 0) return undefined;
+  // Fail closed on Windows drive spellings on every platform: on Windows they
+  // can name locations outside the workspace, and on POSIX they would otherwise
+  // create surprising literal `C:` entries under the workspace.
+  if (/^[A-Za-z]:(?:[\/]|$)/.test(normalized)) return undefined;
+  // `resolve` normalizes a trailing separator, so a cwd of "/tmp/" cannot
+  // silently disable a workspace-wide grant.
+  if (isWorkspaceWideGrant(normalized)) return resolve(cwd);
+
+  const stripped = normalized
+    .replace(/\/\*\*$/, "")
+    .replace(/\*\*\/$/, "")
+    .replace(/\/+$/, "");
+  if (stripped.length === 0) return resolve(cwd);
+
+  const segments = stripped.split("/").filter(Boolean);
+  if (segments.some(segment => segment === "..")) return undefined;
+  if (/[*?[\]{}]/.test(stripped)) return undefined;
+  const absolute = resolve(cwd, stripped);
+  // An owned entry that resolves OUTSIDE the workspace is not an owned scope —
+  // the sibling `normalizePathScope` rejects the same case, and silently
+  // authorizing `/etc` because a worker wrote it in `ownedPaths` would be a
+  // privilege escalation dressed as a convenience.
+  const rel = relative(resolve(cwd), absolute);
+  if (rel.startsWith(`..${sep}`) || rel === ".." || isAbsolute(rel)) return undefined;
+  return absolute;
+}
+
+/**
+ * True when `resolvedTarget` sits inside one of the caller's owned scopes.
+ * The single ownership matcher: the policy gate and the file router MUST both
+ * call this, or one of them will authorize (or deny) something the other
+ * disagrees with.
+ */
+export function isWithinOwnedScope(
+  resolvedTarget: string,
+  ownedPaths: readonly string[],
+  cwd: string,
+): boolean {
+  return ownedPaths.some(raw => {
+    const prefix = resolveOwnedScopePrefix(raw, cwd);
+    return prefix !== undefined && isInside(prefix, resolvedTarget);
+  });
+}

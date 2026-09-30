@@ -2,6 +2,29 @@ import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
 import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedCreatePath, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
+import * as subagentCliModule from "../../src/agents/subagent-cli.js";
+
+test("worker executes only exact offered canonical names", () => {
+  const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveOfferedToolName as
+    ((name: string, tools: Array<{ name: string }>) => string | null) | undefined;
+  assert.equal(typeof resolve, "function");
+  assert.equal(resolve!("alix_file_create", [{ name: "alix_file_create" }]), "file.create");
+  assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), null);
+  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), null);
+  assert.equal(resolve!("file_create", [{ name: "alix_file_read" }]), null);
+  assert.equal(resolve!("alix_shell_run", [{ name: "alix_file_create" }]), null);
+  assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
+});
+
+test("worker reads resolve only unique declared input basenames", () => {
+  const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveWorkerInputPath as
+    ((path: string, inputs: string[]) => string) | undefined;
+  assert.equal(typeof resolve, "function");
+  assert.equal(resolve!("tui.md", [".tmp/run/tui.md"]), ".tmp/run/tui.md");
+  assert.equal(resolve!("./tui.md", [".tmp/run/tui.md"]), "./tui.md");
+  assert.equal(resolve!("tui.md", [".tmp/a/tui.md", ".tmp/b/tui.md"]), "tui.md");
+  assert.equal(resolve!("other.md", [".tmp/run/tui.md"]), "other.md");
+});
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -265,7 +288,7 @@ describe("inferSingleOwnedPatchPath", () => {
 describe("shouldInferPatchPath (call-site tool-name guard)", () => {
   it("returns false for a non-patch.apply tool whose args carry format + patchText (never rewritten)", () => {
     const args: Record<string, unknown> = { format: "search_replace", patchText: "old\n---\nnew" };
-    assert.equal(shouldInferPatchPath("mcp_custom_write", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
+    assert.equal(shouldInferPatchPath("mcp__opaque_custom_write", args, { mode: "write", ownedPaths: ["a.ts"] }), false);
     assert.equal(args.patchText, "old\n---\nnew");
   });
 

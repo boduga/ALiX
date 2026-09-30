@@ -100,7 +100,7 @@ export const EVENT_IMMUTABILITY: EventImmutabilityAssertion = {
  * | Agent                 | `AGENT_EVENT_TYPES`        | 3     |
  * | MCP                   | `MCP_EVENT_TYPES`          | 1     |
  * | Ownership             | `OWNERSHIP_EVENT_TYPES`    | 8     |
- * | Coordination          | `COORDINATION_EVENT_TYPES` | 8     |
+ * | Coordination          | `COORDINATION_EVENT_TYPES` | 9     |
  * | Collaboration         | `COLLABORATION_EVENT_TYPES`| 10    |
  * | Conflict              | `CONFLICT_EVENT_TYPES`     | 9     |
  * | Subagent              | `SUBAGENT_EVENT_TYPES`     | 2     |

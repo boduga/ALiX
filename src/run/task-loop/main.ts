@@ -64,11 +64,10 @@ import type { CancellationToken } from "../../runtime/cancellation-token.js";
 import { raceWithCancellation } from "../../runtime/cancellation-token.js";
 import { initExecutionStateEmission, buildLiveSendRequest } from "./execution-state-phase.js";
 import type { ExecutionStateEmitter } from "../../runtime/execution-state/execution-state-emitter.js";
-import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, isCompletionTool, isContinuationMessage, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 export interface TaskLoopDeps {
@@ -90,6 +89,7 @@ context?: {
   };
   provider: ModelAdapter;
   providerTools: ToolDef[];
+  boundTools?: import("../../tools/collaboration-tools.js").BoundTool[];
   mcpToolIndex: DeferredToolEntry[];
   messages: NormalizedMessage[];
   sessionState: MutationSessionState;
@@ -170,6 +170,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 config,
 provider,
 providerTools,
+boundTools,
 mcpToolIndex,
 sessionState,
 stateMachine,
@@ -361,6 +362,17 @@ let explicitDoneCalled = false;
 // honestly instead of silently accepted as "completed").
 let unconfirmedDoneAttempts = 0;
 const MAX_UNCONFIRMED_DONE_ATTEMPTS = 2;
+
+/** Content of the most recent `<tool_result …>` message, if any. */
+function lastToolResultContent(
+  messages: ReadonlyArray<{ content?: unknown }>,
+): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i]?.content;
+    if (typeof content === "string" && content.includes("<tool_result")) return content;
+  }
+  return undefined;
+}
 // Last-attempt outcome of `coordination.run` this run: set true when the most
 // recent executed call errored, cleared by a later success. Gates every
 // completed-status emission (Path A trust, verification-pass Path B,
@@ -750,7 +762,7 @@ if (toolCalls.length === 0) {
           `and wait for the result before continuing. Do not invent tool names.`
         : "No tool calls were detected in your last response. To proceed, you must invoke a tool using the proper tool-use format. " +
           "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
-          "Use the `done` tool when the task is complete.",
+          "Use the `alix_done` tool when the task is complete.",
     });
     noToolNudges++;
     continue;
@@ -839,26 +851,36 @@ if (toolCalls.length === 0) {
         !explicitDoneCalled &&
         !claimsArtifactWritten(text, sessionState.changed) &&
         lastToolResultShowsClientError(messages);
+      // A final answer that is the last tool result repeated back is not a
+      // summary: it satisfies every other check while saying nothing about the
+      // work, so it gets the same bounded reprompt as an error echo.
+      const toolEchoDone =
+        ranToolCalls &&
+        !explicitDoneCalled &&
+        isToolResultEcho(text, lastToolResultContent(messages));
       const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+      const pendingAction = hasPendingAgentAction(text);
       const trustworthy =
-        (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone)) &&
-        evidenceGaps.length === 0;
+        (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone && !toolEchoDone)) &&
+        evidenceGaps.length === 0 && !pendingAction;
 
       if (!trustworthy && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
         unconfirmedDoneAttempts++;
         await log.append({
           ...session, actor: "system", type: "completion.claim_rejected",
-          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(errorEchoDone ? { reason: "client_error_echo" } : {}) },
+          payload: { unsubstantiatedClaims: unsubstantiated, objectiveEvidenceGaps: evidenceGaps, attempt: unconfirmedDoneAttempts, ...(pendingAction ? { reason: "pending_action" } : errorEchoDone ? { reason: "client_error_echo" } : toolEchoDone ? { reason: "tool_result_echo" } : {}) },
         });
 
-        // Build a targeted re-prompt: list the missing tool calls with their
-        // exact alix_ names so the model has no ambiguity about what to invoke.
-        const content = buildUnconfirmedDonePrompt({
-          unsubstantiated,
-          evidenceGaps,
-          errorEchoDone,
-          attempt: unconfirmedDoneAttempts,
-        });
+        // Re-prompt on missing evidence or a promise of future work.
+        const content = pendingAction
+          ? "Your response promises another action, so it is not a final answer. Finish that action, then report the outcome without future-work promises."
+          : buildUnconfirmedDonePrompt({
+              unsubstantiated,
+              evidenceGaps,
+              errorEchoDone,
+              toolEchoDone,
+              attempt: unconfirmedDoneAttempts,
+            });
 
         messages.push({ role: "user", content });
         continue;
@@ -869,6 +891,8 @@ if (toolCalls.length === 0) {
       const failure = latestToolFailure(messages);
       const completionSummary = evidenceGaps.length > 0
         ? missingEvidenceSummary(evidenceGaps, text)
+        : toolEchoDone
+          ? `The turn ended by repeating a tool result instead of reporting the work: ${text.trim().slice(0, 200)}`
         : text.trim().length > 0
           ? durableCompletionSummary(text, sessionState.changed, failure)
         : failure
@@ -994,6 +1018,8 @@ if (toolCalls.length === 0) {
     log,
     selectedTools,
     mcpToolIndex,
+    offeredTools: wireTools,
+    boundTools,
     config,
     verbose: deps.verbose ?? true, // Stream tool outputs to stdout
     cancelSignal: deps.cancelSignal,
@@ -1064,7 +1090,16 @@ if (toolCalls.length === 0) {
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
       const execName = resolveToolExecutionName(toolCall.name, selectedTools);
-      successfulToolEvidence.push({ name: execName, args: toolCall.args, ordinal: toolEvidenceOrdinal++ });
+      const changedFiles = toolResult.changedFiles ?? [];
+      successfulToolEvidence.push({
+        name: execName,
+        args: toolCall.args,
+        ordinal: toolEvidenceOrdinal++,
+        // Record what the call actually changed, so a delegated coordination
+        // run whose workers wrote files can satisfy the mutation requirement
+        // the coordinator itself cannot meet.
+        ...(toolResult.changed === true || changedFiles.length > 0 ? { mutated: true } : {}),
+      });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
     if (toolResult.completed) {
@@ -1319,7 +1354,7 @@ if (toolCalls.length === 0) {
       messages.push({
         role: "user",
         content:
-          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call done again.",
+          "Tools completed. Write a concise summary of what you did and what you found. Return prose only; do not call `alix_done` again.",
       });
       continue;
     }
@@ -1329,6 +1364,28 @@ if (toolCalls.length === 0) {
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
     const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+    // An explicit `alix_done` does not make an echoed tool result a summary.
+    const echoedToolResult = isToolResultEcho(text, lastToolResultContent(messages));
+    if (
+      completedAfterAction &&
+      echoedToolResult &&
+      !priorToolFailure &&
+      !synthesisRequested &&
+      i < maxIterations - 1
+    ) {
+      synthesisRequested = true;
+      await log.append({
+        ...session, actor: "system", type: "completion.claim_rejected",
+        payload: { unsubstantiatedClaims: [], objectiveEvidenceGaps: [], attempt: unconfirmedDoneAttempts, reason: "tool_result_echo", source: "trackCompleted" },
+      });
+      messages.push({
+        role: "user",
+        content:
+          "Your reply repeated a tool result instead of answering. Write the actual completion summary — " +
+          "what you did, what you verified, and the outcome — in prose, never the raw tool output.",
+      });
+      continue;
+    }
     if ((unsubstantiated.length > 0 || evidenceGaps.length > 0) && unconfirmedDoneAttempts < MAX_UNCONFIRMED_DONE_ATTEMPTS && i < maxIterations - 1) {
       unconfirmedDoneAttempts++;
       await log.append({
@@ -1339,20 +1396,24 @@ if (toolCalls.length === 0) {
         .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
         .join("\n");
       const content = unconfirmedDoneAttempts >= 2
-        ? `You called the \`done\` tool but your summary still claims work that was never executed:\n${missingToolLines}\n\n` +
-          `Do NOT call \`done\` until every one of these tools has returned a result.`
-        : `You called \`done\` but your summary claims work that was never done:\n${missingToolLines}\n\n` +
-          `Call these tools now using their \`alix_\` names, or call \`done\` again only once you have genuinely finished.`;
+        ? `You called the \`alix_done\` tool but your summary still claims work that was never executed:\n${missingToolLines}\n\n` +
+          `Do NOT call \`alix_done\` until every one of these tools has returned a result.`
+        : `You called \`alix_done\` but your summary claims work that was never done:\n${missingToolLines}\n\n` +
+          `Call these tools now using their \`alix_\` names, or call \`alix_done\` again only once you have genuinely finished.`;
       messages.push({ role: "user", content });
       continue;
     }
 
     const missingSynthesis = completedAfterAction && text.trim().length === 0;
     const reason: RunResult["reason"] =
-      unsubstantiated.length === 0 && evidenceGaps.length === 0 && !missingSynthesis ? "completed" : "completed_unverified";
+      unsubstantiated.length === 0 && evidenceGaps.length === 0 && !missingSynthesis && !echoedToolResult
+        ? "completed"
+        : "completed_unverified";
     const failure = priorToolFailure;
     const completionSummary = evidenceGaps.length > 0
       ? missingEvidenceSummary(evidenceGaps, text)
+      : echoedToolResult
+        ? `The turn ended by repeating a tool result instead of reporting the work: ${text.trim().slice(0, 200)}`
       : text.trim().length > 0
         ? durableCompletionSummary(text, sessionState.changed, failure)
       : missingSynthesis

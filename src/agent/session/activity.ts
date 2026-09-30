@@ -36,7 +36,6 @@ import "../../skills/dispatcher.js";
 import "../../skills/lifecycle.js";
 import "../../mcp/tool-selector.js";
 import "../../mcp/tool-discovery.js";
-import "../../agents/tool-name-map.js";
 import "../../kernel/minimal-metrics.js";
 import "../system-prompt.js";
 import { SessionPhase } from "./types.js";

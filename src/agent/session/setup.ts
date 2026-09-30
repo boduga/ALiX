@@ -66,7 +66,6 @@ import { evictIfNeeded } from "../../skills/lifecycle.js";
 import type { SkillEntry } from "../../skills/catalog.js";
 import { ToolSelector } from "../../mcp/tool-selector.js";
 import { ToolDiscovery } from "../../mcp/tool-discovery.js";
-import { TOOL_NAME_MAP } from "../../agents/tool-name-map.js";
 import { READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
 import type { PlanTask } from "../../planning/plan-task.js";
@@ -537,9 +536,6 @@ export async function setupTools(
   });
   const selectedTools = toolSelector.select(task);
   const mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
-  for (const entry of selectedTools) {
-    TOOL_NAME_MAP[entry.name] = entry.execName;
-  }
 
   return { providerTools, mcpToolIndex, selectedTools, mcpDiscovery };
 }

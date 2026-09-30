@@ -48,7 +48,8 @@ export type WorkerPatch = Partial<Pick<WorkerAssignment,
 >>;
 
 export class CoordinationStore {
-  private readonly cwd: string;
+  /** Workspace root this store is scoped to (used by run-lifecycle helpers). */
+  readonly cwd: string;
   private readonly baseDir: string;
 
   constructor(cwd: string) {

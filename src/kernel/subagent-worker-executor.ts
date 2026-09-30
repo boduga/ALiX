@@ -14,9 +14,8 @@
  * - web.search/fetch (no write) → `researcher` (read-only).
  * - anything else → `explorer` (read-only).
  *
- * Result mapping: success/partial → success (findings text becomes the
- * summary, partial prefixed — mirrors the delegate boundary);
- * failed/rejected/crash → failure. Cancellation aborts via manager.cancel().
+ * Result mapping: only success → success. Partial/incomplete, failed,
+ * rejected, and crashed workers → failure. Cancellation aborts via manager.cancel().
  */
 
 import { randomUUID } from "node:crypto";
@@ -63,6 +62,7 @@ export function taskForWorker(
     mode,
     prompt,
     ownedPaths,
+    inputPaths: worker.inputPaths,
     contextBundle: sessionId,
     eventSessionId: sessionId,
     cwd,
@@ -129,8 +129,15 @@ export class SubagentWorkerExecutor implements CoordinationWorkerExecutor {
       if (signal.aborted) {
         return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };
       }
-      if (result.status === "success" || result.status === "partial") {
+      if (result.status === "success") {
         return { outcome: "success", summary: summaryForResult(result), outputPath: result.id };
+      }
+      if (result.status === "partial") {
+        return {
+          outcome: "failure",
+          failureKind: "execution_error",
+          error: summaryForResult(result),
+        };
       }
       return {
         outcome: "failure",

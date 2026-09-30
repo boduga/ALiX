@@ -34,7 +34,7 @@ describe("collaboration conflict tools", () => {
   it("report_conflict tool cannot set run/worker identity", async () => {
     const api = makeFakeApi({});
     const tools = createCollaborationTools(api);
-    const report = tools.find(t => t.definition.name === "collaboration.report_conflict")!;
+    const report = tools.find(t => t.definition.name === "alix_collaboration_report_conflict")!;
     // Schema must NOT include runId/workerId/attempt properties.
     const props = (report.definition.inputSchema as any).properties;
     assert.equal(typeof props.runId, "undefined");
@@ -76,7 +76,7 @@ describe("collaboration conflict tools", () => {
     }));
     const api = makeFakeApi({ listConflictsResult: conflicts });
     const tools = createCollaborationTools(api);
-    const list = tools.find(t => t.definition.name === "collaboration.list_conflicts")!;
+    const list = tools.find(t => t.definition.name === "alix_collaboration_list_conflicts")!;
 
     // Custom limit is respected.
     const result5 = await list.handler({ limit: 5 });

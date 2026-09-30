@@ -39,7 +39,6 @@ import { type ContextRotThreshold } from "../../config/calibration-store.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import "../../agents/tool-name-map.js";
 import { evaluatePattern } from "./context-helpers.js";
 import { extractErrors } from "./predicates.js";
 

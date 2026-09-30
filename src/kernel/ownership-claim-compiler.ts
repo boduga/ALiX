@@ -5,6 +5,12 @@
  * nearest safe parent directory. This may reduce concurrency but never
  * under-protects the workspace.
  *
+ * Known limit: claims are directory/prefix scopes, not patterns. A root-level
+ * wildcard therefore conflicts with other root-level claims (and with `**`),
+ * but not with a claim on a specific root file it could match
+ * (`Dockerfile*` vs `Dockerfile.dev`). Pattern-aware overlap would need the
+ * raw pattern persisted on the ownership record.
+ *
  * Security: traversal patterns, absolute paths, and empty paths are rejected.
  */
 
@@ -25,9 +31,10 @@ export type OwnershipClaimCompileResult = {
  *   README.md             → path=README.md, recursive=false
  *   .github/**            → path=.github, recursive=true
  *   **                    → path=., recursive=true
- *   Dockerfile*           → path=., recursive=true
- *   docker-compose*.yml   → path=., recursive=true
- *   unsupported wildcard  → nearest safe parent or "."
+ *   src/*.ts              → path=src, recursive=true   (literal dir prefix)
+ *   Dockerfile*           → path=., recursive=false    (root entries only)
+ *   docker-compose*.yml   → path=., recursive=false
+ *   unsupported wildcard  → literal dir prefix, "."
  */
 export function compileOwnershipClaims(patterns: string[]): OwnershipClaimCompileResult {
   const claims: WorkerOwnershipClaim[] = [];
@@ -66,9 +73,20 @@ export function compileOwnershipClaims(patterns: string[]): OwnershipClaimCompil
       const base = pattern.slice(0, -3);
       claim = { path: base, recursive: true, sourcePattern: pattern };
     } else if (pattern.includes('*') || pattern.includes('?')) {
-      // Unsupported wildcard — widen to workspace root
-      claim = { path: '.', recursive: true, sourcePattern: pattern };
-      warnings.push(`Unsupported wildcard "${pattern}" widened to workspace root`);
+      // A wildcard can only match inside the directory formed by the literal
+      // segments before its first wildcard segment. Claiming that directory
+      // recursively is the safe over-approximation. A wildcard with no literal
+      // directory ("Dockerfile*", "*.yml") matches root entries only — widening
+      // it to a recursive claim on "." would reserve the whole workspace, so it
+      // stays non-recursive: it still conflicts with every other root-level
+      // claim (and with `**`), and with nothing outside the root.
+      const segments = pattern.split('/');
+      const wildcardAt = segments.findIndex(segment => segment.includes('*') || segment.includes('?'));
+      const literalDir = segments.slice(0, wildcardAt).filter(segment => segment.length > 0).join('/');
+      claim = literalDir.length > 0
+        ? { path: literalDir, recursive: true, sourcePattern: pattern }
+        : { path: '.', recursive: false, sourcePattern: pattern };
+      warnings.push(`Wildcard "${pattern}" compiled to path="${claim.path}" recursive=${claim.recursive}`);
     } else {
       // Plain path, no wildcards
       claim = { path: pattern, recursive: false, sourcePattern: pattern };

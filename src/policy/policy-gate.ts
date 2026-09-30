@@ -16,6 +16,7 @@ import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../tools/capability-map.js";
 import { extractPatchPaths } from "../patch/patch-paths.js";
 import { resolve } from "node:path";
+import { isWithinOwnedScope } from "../ownership/path-scope.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -89,13 +90,10 @@ function mutationTargets(args: Record<string, unknown>): string[] {
   return extractPatchPaths(format, args.patchText);
 }
 
-/** True when a resolved target is inside (or equals) one of the owned paths. */
-function isWithinOwned(resolvedTarget: string, ownedPaths: string[], cwd: string): boolean {
-  return ownedPaths.some((owned) => {
-    const resolvedOwned = resolvePolicyPath(cwd, owned);
-    return resolvedTarget === resolvedOwned || resolvedTarget.startsWith(resolvedOwned + "/");
-  });
-}
+// Owned-scope matching is `isWithinOwnedScope` (see the Local Contracts in
+// src/policy/AGENTS.md). This gate runs BEFORE the file router, so a
+// normalization difference between them would silently deny every owned write
+// the router allowed — call the shared function directly, do not alias it.
 
 // ─── Evasion patterns (single authority) ───────────────────────────────
 
@@ -303,13 +301,13 @@ export class PolicyGate {
             reason: `Path protected: ${protectedTarget}`, matchedRuleId: "protected-path-rule", policyRevision,
           };
         }
-        if (resolvedTargets.every((t) => isWithinOwned(t, request.ownedPaths!, request.cwd))) {
+        if (resolvedTargets.every((t) => isWithinOwnedScope(t, request.ownedPaths!, request.cwd))) {
           return {
             requestId: request.requestId, capability, decision: "allow",
             reason: "Write targets owned path", matchedRuleId: "owned-path-rule", policyRevision,
           };
         }
-        const outside = resolvedTargets.filter((t) => !isWithinOwned(t, request.ownedPaths!, request.cwd));
+        const outside = resolvedTargets.filter((t) => !isWithinOwnedScope(t, request.ownedPaths!, request.cwd));
         return {
           requestId: request.requestId, capability, decision: "deny",
           reason: `Write target outside owned paths: ${outside.join(", ")}`, matchedRuleId: "owned-path-rule", policyRevision,

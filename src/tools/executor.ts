@@ -121,7 +121,10 @@ export class ToolExecutor {
     private root: string,
     private mcpManager?: McpManager,
     editFormatPolicy?: EditFormatPolicy,
-    extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
+    extraHandlers?: Record<
+      string,
+      (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>
+    >,
     checkpointManager?: CheckpointManager,
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
     private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
@@ -341,6 +344,11 @@ export class ToolExecutor {
     let args = request.args;
     const capability = inferCapability(name);
     const canonicalCapability = canonicalCapabilityOf(name);
+    // Routers need the same owned-path authority policy uses: a write worker
+    // rewriting its own declared output must be able to replace it.
+    if (!request.ownedPaths?.length && this.ownedPaths?.length) {
+      (request as { ownedPaths?: readonly string[] }).ownedPaths = this.ownedPaths;
+    }
 
     // === TOOL REPAIR LAYER — runs before policy so hash and decision use repaired args ===
     let repairHint: string | undefined;

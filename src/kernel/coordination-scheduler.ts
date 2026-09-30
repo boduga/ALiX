@@ -11,6 +11,7 @@ import "node:crypto";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
+import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
 import type { ReconciliationResult as ReconcileResult } from "./coordination-reconciliation.js";
 import { authorizeWorker } from "./coordination-authorization.js";
@@ -119,7 +120,7 @@ export type SchedulerTickResult = {
   progressMade: boolean;
 };
 
-export type SchedulerStopReason = "completed" | "failed" | "awaiting_approval" | "blocked" | "idle" | "timeout";
+export type SchedulerStopReason = "completed" | "failed" | "cancelled" | "awaiting_approval" | "blocked" | "idle" | "timeout";
 
 export type SchedulerRunResult = {
   runId: string;
@@ -223,7 +224,7 @@ export class CoordinationScheduler {
     if (!run) {
       return emptyTick(runId, "failed");
     }
-    if (run.status === "completed" || run.status === "failed" || run.status === "replanning") {
+    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled" || run.status === "replanning") {
       return emptyTick(runId, run.status);
     }
 
@@ -662,6 +663,9 @@ export class CoordinationScheduler {
       if (result.runStatus === "failed") {
         return { runId, finalStatus: "failed", stopReason: "failed", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
+      if (result.runStatus === "cancelled") {
+        return { runId, finalStatus: "cancelled", stopReason: "cancelled", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+      }
 
       // Don't idle while active executions exist
       let activeForRun = [...this.activeExecutions.values()].filter(e => e.runId === runId);
@@ -989,7 +993,7 @@ export class CoordinationScheduler {
     const run = await this.deps.store.load(runId);
     if (!run) return;
     for (const worker of run.workers) {
-      if (worker.status === "running" || worker.status === "pending") {
+      if (worker.status === "running" || worker.status === "pending" || worker.status === "ready") {
         if (worker.leaseIds && worker.leaseIds.length > 0) {
           await releaseWorkerOwnership(this.deps.ownershipRegistry, worker.leaseIds);
         }
@@ -998,6 +1002,13 @@ export class CoordinationScheduler {
         });
       }
     }
+    // Cancellation is terminal and must survive recomputeRunStatus, which maps
+    // an all-idle run to "blocked" — a status the resume sweeps still treat as
+    // active. The persisted graph is marked cancelled to match.
+    const cancelled = await this.deps.store.updateRun(runId, (current) => {
+      current.status = "cancelled";
+    });
+    if (cancelled) await markRunGraphCancelled(this.deps.cwd, cancelled);
     await this.maybeFinalizeRun(runId);
   }
 

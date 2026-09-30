@@ -7,7 +7,8 @@
  * - Verification results
  */
 
-import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
+import { resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../run.js";
@@ -35,6 +36,8 @@ export type EventHandlerDeps = {
   log: EventLog;
   selectedTools: { name: string; execName: string }[];
   mcpToolIndex: DeferredToolEntry[];
+  offeredTools?: ReadonlyArray<{ name: string }>;
+  boundTools?: import("../tools/collaboration-tools.js").BoundTool[];
   config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
   verbose?: boolean; // Print tool outputs to stdout
   /**
@@ -47,7 +50,7 @@ export type EventHandlerDeps = {
   cancelSignal?: AbortSignal;
   /**
    * Session-level governed execution-state emitter (opt-in). When present,
-   * `execution_state_propose` tool calls are routed through the harness
+   * `alix_execution_state_propose` tool calls are routed through the harness
    * instead of the ToolExecutor. Optional; absent preserves legacy dispatch.
    */
   executionStateEmitter?: ExecutionStateEmitter | null;
@@ -121,11 +124,12 @@ export async function handleMcpToolSearch(
   toolCall: ToolCall,
   deps: EventHandlerDeps
 ): Promise<{ handled: boolean; message?: NormalizedMessage }> {
-  if (toolCall.name !== "alix_mcp_search_tools" && !TOOL_NAME_MAP[toolCall.name]?.startsWith("mcp.")) {
+  if (toolCall.name !== "alix_mcp_search_tools"
+    || (deps.offeredTools && !deps.offeredTools.some(tool => tool.name === toolCall.name))) {
     return { handled: false };
   }
 
-  const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+  const execName = ALIX_BUILTIN_EXECUTORS.alix_mcp_search_tools;
   if (execName !== "mcp_search_tools") {
     return { handled: false };
   }
@@ -180,7 +184,9 @@ export async function handleScopeExpansion(
   toolCall: ToolCall,
   deps: EventHandlerDeps
 ): Promise<{ handled: boolean; continue?: boolean; denied?: boolean }> {
-  const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+  const execName = Object.hasOwn(ALIX_BUILTIN_EXECUTORS, toolCall.name)
+    ? ALIX_BUILTIN_EXECUTORS[toolCall.name as keyof typeof ALIX_BUILTIN_EXECUTORS]
+    : toolCall.name;
   const isMutation =
     execName === "file.create" ||
     execName === "file.write" ||
@@ -316,26 +322,6 @@ export function buildScopeRejectionSummary(expansionPaths: string[]): string {
 /**
  * Handle a single tool call execution and return result
  */
-/**
- * Whether a tool name is one ALiX can actually run.
- *
- * Conservative superset: provider-facing names (alix_*), executor names
- * (TOOL_NAME_MAP values), MCP names, and selected/deferred tools. Any name
- * outside this set was invented by the model (e.g. exec_command) and cannot
- * be executed — returning a corrective <tool_result> beats a terse
- * "no router found" that invites endless retries of the same name.
- */
-function isKnownToolName(name: string, execName: string, deps: EventHandlerDeps): boolean {
-  if (execName !== name) return true; // TOOL_NAME_MAP resolved an alias
-  if (name.startsWith("mcp.") || name === "alix_mcp_search_tools") return true;
-  if (Object.keys(TOOL_NAME_MAP).includes(name)) return true;
-  if (Object.values(TOOL_NAME_MAP).includes(name)) return true;
-  if (BASE_TOOLS.some((t) => t.name === name)) return true;
-  if (deps.selectedTools.some((s) => s.name === name || s.execName === name)) return true;
-  if (deps.mcpToolIndex.some((t) => t.name === name || t.execName === name)) return true;
-  return false;
-}
-
 export async function handleToolCall(
   toolCall: ToolCall,
   deps: EventHandlerDeps,
@@ -348,35 +334,59 @@ export async function handleToolCall(
   completed?: boolean;
   summary?: string;
   error?: { message: string; retryable?: boolean };
+  /** Propagated from a successful result so completion evidence can record
+   *  what the call changed (e.g. a coordination run's worker-written files). */
+  changed?: boolean;
+  changedFiles?: string[];
 }> {
-  const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-
-  // Model-proposal tool (opt-in execution-state emission): route state
-  // patches through the governed harness before the executor or the
-  // unknown-tool guard (the tool is flag-gated, not in the static map).
-  const stateProposal = await tryHandleStateProposal(toolCall, deps.executionStateEmitter ?? null);
-  if (stateProposal) return stateProposal;
-
-  // Unknown-tool guard: a model that drifted into a foreign convention (e.g.
-  // exec_command) will otherwise hit the executor's terse "no router found"
-  // error and can retry the same name forever. Surface the real tool list in
-  // one corrective turn instead.
-  if (!isKnownToolName(toolCall.name, execName, deps)) {
-    const valid = [
-      ...Object.keys(TOOL_NAME_MAP),
-      ...Object.values(TOOL_NAME_MAP),
-      ...deps.selectedTools.flatMap((s) => [s.name, s.execName]),
-      ...deps.mcpToolIndex.map((t) => t.name),
-    ];
+  const visibleTools = deps.offeredTools ?? [...BASE_TOOLS, ...deps.selectedTools];
+  const offered = visibleTools.map((tool) => ({
+    name: tool.name,
+    execName: deps.mcpToolIndex.find((entry) => entry.name === tool.name)?.execName,
+  }));
+  let execName: string;
+  try {
+    execName = resolveExecutableToolName(toolCall.name, offered);
+  } catch (error) {
+    if (!(error instanceof ToolNotFoundError)) throw error;
     // T5 correlation: typed attributes via helper — no loose Record, no spread
     const correlationAttrs = ` invocationId="${correlation.invocationId}" executionId="${correlation.executionId}"`;
     return {
       continue: true,
       message: {
         role: "user",
-        content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
+        content: `<tool_result id="${toolCall.id}"${correlationAttrs}>\nError: Unknown tool "${toolCall.name}". Available tools: ${error.offeredTools.join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
       },
     };
+  }
+
+  // Model-proposal tool (opt-in execution-state emission) is intercepted
+  // only after the exact offered-name gate.
+  const stateProposal = await tryHandleStateProposal(toolCall, deps.executionStateEmitter ?? null);
+  if (stateProposal) return stateProposal;
+
+  const boundTool = deps.boundTools?.find((tool) => tool.definition.name === toolCall.name);
+  if (boundTool) {
+    try {
+      const output = await boundTool.handler((toolCall.args ?? {}) as Record<string, unknown>);
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, output, correlation),
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failedTools.push(execName);
+      fatalToolErrors.push(execName);
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, `Error: ${message}`, correlation),
+        },
+        error: { message, retryable: false },
+      };
+    }
   }
 
   // Web-search routing guard: a query that is plainly a local workspace search
@@ -542,6 +552,9 @@ export async function handleToolCall(
   return {
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
+    ...(execResult.kind === "success" && (execResult.changed === true || (execResult.changedFiles?.length ?? 0) > 0)
+      ? { changed: true, changedFiles: execResult.changedFiles ?? [] }
+      : {}),
   };
 }
 

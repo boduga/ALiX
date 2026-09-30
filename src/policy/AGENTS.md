@@ -11,6 +11,11 @@
 - `policy-loader.ts` — Load rules from `.alix/policies/*.json`, fall back to defaults
 
 **Local Contracts:**
+- **Owned-scope matching is owned by `src/ownership/AGENTS.md`.** This gate is
+  one of the two enforcement points and calls `isWithinOwnedScope`; it must
+  never grow its own matcher or re-normalize a grant. The rule, the fail-closed
+  cases, and the workspace-wide vocabulary are documented there — read them
+  there rather than restating them here.
 - Two-layer enforcement: capability coverage first, policy second.
 - Most-restrictive-wins across multiple capabilities: deny > ask > allow.
 - RuntimeGate checks ApprovalStore for prior approvals before creating new ones.
@@ -28,6 +33,7 @@
 - Adding a new policy rule type means updating `policy-rule.ts` (match fields), `default-policies.ts` (default instances), and `runtime-gate.ts` (if the evaluation logic changes).
 
 **Verification:**
+- `tests/policy/policy-gate.test.ts` — the owned-path rule across the full space of workspace-wide spellings (listed and derived), and fail-closed behaviour. This is the regression home for the shared matcher; a router-only test bypasses this gate and cannot see that class of bug.
 - `tests/policy/policy-rule.test.ts` — validation and matching
 - `tests/policy/rule-evaluator.test.ts` — evaluator and default policies
 - `tests/policy/policy-loader.test.ts` — disk loading and fallback

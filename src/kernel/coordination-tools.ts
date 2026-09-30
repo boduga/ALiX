@@ -11,13 +11,14 @@
  * - `coordination.results` — aggregate result summary (read-only).
  *
  * Executor names use dots (`coordination.run`); model names use the
- * `alix_coordination_*` aliases (TOOL_NAME_MAP). Policy keys/capabilities
+ * `alix_coordination_*` model names (tool manifest). Policy keys/capabilities
  * come from the registry entries in tool-registry.ts.
  */
 
 import type { AlixConfig } from "../config/schema.js";
 import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
+import { COORDINATION_EVENT_TYPES } from "../events/types.js";
 import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationPlanner } from "./coordination-planner.js";
@@ -28,6 +29,9 @@ import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 import { PolicyGate } from "../policy/policy-gate.js";
 import type { CoordinationWorkerExecutor } from "./worker-executor.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
+import type { ToolCallRequest } from "../tools/types.js";
+import { ExecutionCancelledError } from "../runtime/cancellation-token.js";
+import { cancelDeadOwnerRuns } from "./coordination-resume.js";
 
 export const COORDINATION_RUN_TOOL = "coordination.run";
 export const COORDINATION_STATUS_TOOL = "coordination.status";
@@ -35,6 +39,17 @@ export const COORDINATION_LIST_TOOL = "coordination.list";
 export const COORDINATION_RESULTS_TOOL = "coordination.results";
 
 export const MAX_COORDINATION_TOOL_CONCURRENCY = 8;
+
+/** Bounded per-worker rows in `coordination.status` output. */
+const MAX_STATUS_WORKER_ROWS = 20;
+
+/**
+ * A rejected plan is fixable — the goal text is the caller's own input — so
+ * the failure carries the recovery steps instead of a "do not retry" verdict.
+ */
+const PLAN_FAILURE_HINT =
+  "Fix the goal text and call again: give each worker exactly one owned path, keep owners disjoint, "
+  + "and note that auxiliary steps (creating the directory, verifying outputs) do not count toward the stated worker count.";
 
 export type CoordinationToolDeps = {
   cwd: string;
@@ -51,9 +66,9 @@ export type CoordinationToolDeps = {
 /** ExtraHandlers record for ToolExecutor (mirrors the `delegate` wiring). */
 export function createCoordinationHandlers(
   deps: CoordinationToolDeps,
-): Record<string, (args: Record<string, unknown>) => Promise<ToolResult>> {
+): Record<string, (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>> {
   return {
-    [COORDINATION_RUN_TOOL]: (args) => handleCoordinationRun(deps, args),
+    [COORDINATION_RUN_TOOL]: (args, request) => handleCoordinationRun(deps, args, request),
     [COORDINATION_STATUS_TOOL]: (args) => handleCoordinationStatus(deps, args),
     [COORDINATION_LIST_TOOL]: (args) => handleCoordinationList(deps, args),
     [COORDINATION_RESULTS_TOOL]: (args) => handleCoordinationResults(deps, args),
@@ -68,9 +83,88 @@ function effectiveSessionMode(
   return parseSessionMode(config.permissions.sessionMode);
 }
 
+/**
+ * Build the failure recorder for a cancelling run.
+ *
+ * `sessionId` is a PARAMETER, not a captured variable, on purpose. The previous
+ * version closed over the run record — a `const` declared *after* the cancel
+ * sites — so on the failure path the closure hit the temporal dead zone, threw,
+ * and the inner catch swallowed it. The event that exists to prove the run was
+ * not finalized was the one thing never recorded. Binding the value at
+ * construction makes that class of bug structurally impossible.
+ */
+export function createCancelFailureRecorder(deps: {
+  eventLog: EventLog | undefined;
+  runId: string;
+  sessionId: string;
+}): (error: unknown) => Promise<unknown> | undefined {
+  return (error: unknown) => deps.eventLog?.append({
+    sessionId: deps.sessionId,
+    actor: "coordination",
+    type: COORDINATION_EVENT_TYPES.CANCEL_FAILED,
+    payload: {
+      runId: deps.runId,
+      error: error instanceof Error ? error.message : String(error),
+      // The run may still be `running` with leases held, and a live
+      // `tool-<pid>` owner is never reclaimed — this is the only record.
+      reason: "operator cancel could not finalize the run",
+    },
+  });
+}
+
+/**
+ * Cancel-with-record guard for the operator-abort path.
+ *
+ * The abort listener is a SYNCHRONOUS callback, so `cancel()` returning a
+ * rejected promise there leaves the rejection with no handler: Node reports an
+ * unhandled rejection with nothing on the stack and may tear down the process.
+ * So the handler is attached at creation, never later.
+ *
+ * The rejection is caught rather than rethrown — an operator who asked to stop
+ * must not be handed a store error instead of a cancellation — but it is never
+ * silent: `onFailure` records it. That matters because a cancel that could not
+ * complete leaves the run `running` with leases held, and the reclaim sweeps
+ * only recover a DEAD owner. Without the record, a failed cancel and a
+ * successful one are indistinguishable.
+ *
+ * Exported so the shape is directly testable: `handleCoordinationRun` builds
+ * its scheduler and worker executor internally, so the abort path cannot be
+ * driven end-to-end from a test without a much larger seam.
+ */
+export function createCancelGuard(deps: {
+  cancel: () => Promise<void>;
+  onFailure: (error: unknown) => Promise<unknown> | unknown;
+}): {
+  cancelRun: () => Promise<void>;
+  onAbort: () => void;
+  /** The in-flight cancel, once the listener has fired. */
+  cancellation: () => Promise<void> | undefined;
+} {
+  let pending: Promise<void> | undefined;
+  const cancelRun = (): Promise<void> => deps.cancel().catch((err: unknown) => {
+    // `onFailure` is awaited-and-caught rather than fire-and-forget, so the
+    // record lands before the turn ends. It is still not allowed to reject:
+    // a broken recorder must not turn a cancellation into a tool failure, and
+    // must not leave an unhandled rejection behind either.
+    return Promise.resolve()
+      .then(() => deps.onFailure(err))
+      .then(() => undefined)
+      .catch(() => undefined);
+  });
+  return {
+    cancelRun,
+    onAbort: (): void => {
+      if (pending) return;
+      pending = cancelRun();
+    },
+    cancellation: (): Promise<void> | undefined => pending,
+  };
+}
+
 async function handleCoordinationRun(
   deps: CoordinationToolDeps,
   args: Record<string, unknown>,
+  request?: ToolCallRequest,
 ): Promise<ToolResult> {
   const goal = typeof args.goal === "string" ? args.goal.trim() : "";
   if (!goal) {
@@ -88,6 +182,9 @@ async function handleCoordinationRun(
   };
 
   const store = deps.store ?? new CoordinationStore(deps.cwd);
+  // Self-heal before planning: a run whose host died mid-execution holds
+  // leases that would otherwise block this run's claims until the TTL.
+  await cancelDeadOwnerRuns(store, ["cli"], new OwnershipRegistry(deps.cwd));
   const toolRegistry = buildDefaultToolIndex().registry;
   const agentPool = Array.isArray(args.agentPool)
     ? (args.agentPool as unknown[]).filter((a): a is string => typeof a === "string" && a.length > 0)
@@ -109,14 +206,16 @@ async function handleCoordinationRun(
     return {
       kind: "error",
       message: `Coordination plan failed: ${err instanceof Error ? err.message : String(err)}`,
-      retryable: false,
+      hint: PLAN_FAILURE_HINT,
+      retryable: true,
     };
   }
   if (!planResult.valid || !planResult.run) {
     return {
       kind: "error",
       message: `Coordination plan failed: ${planResult.errors.join("; ") || "unknown error"}`,
-      retryable: false,
+      hint: PLAN_FAILURE_HINT,
+      retryable: true,
     };
   }
 
@@ -178,7 +277,38 @@ async function handleCoordinationRun(
     { maxConcurrency },
   );
 
-  const result = await scheduler.runUntilIdle(runId);
+  // Operator cancellation is a terminal outcome, not a failure: an abort must
+  // finalize the run this turn started — workers cancelled, leases released,
+  // run and graph marked cancelled — instead of leaving it running for a later
+  // sweep to collide with.
+  const signal = request?.signal;
+  // Recorded against the plan's session id. Passed as an argument rather than
+  // closed over, so nothing here depends on a declaration below.
+  const recordCancelFailure = createCancelFailureRecorder({
+    eventLog: deps.eventLog,
+    runId,
+    sessionId: planResult.run.sessionId,
+  });
+  const guard = createCancelGuard({
+    cancel: () => scheduler.cancelRun(runId),
+    onFailure: recordCancelFailure,
+  });
+  if (signal?.aborted) {
+    await guard.cancelRun();
+    throw new ExecutionCancelledError("cancelled by operator");
+  }
+  signal?.addEventListener("abort", guard.onAbort, { once: true });
+  let result;
+  try {
+    result = await scheduler.runUntilIdle(runId);
+  } finally {
+    signal?.removeEventListener("abort", guard.onAbort);
+  }
+  if (signal?.aborted) {
+    const inFlight = guard.cancellation();
+    if (inFlight) await inFlight;
+    throw new ExecutionCancelledError("cancelled by operator");
+  }
   const run = await store.load(runId);
   const lines = [
     `Coordination run: ${runId}`,
@@ -194,7 +324,20 @@ async function handleCoordinationRun(
   if (result.finalStatus === "failed") {
     return { kind: "error", message: lines.join("\n"), retryable: false };
   }
-  return { kind: "success", output: lines.join("\n") };
+  // Report the owned outputs its completed workers wrote. A worker only
+  // completes after writing its owned paths, so this is the run's real
+  // workspace change — the coordinator itself never mutates anything, and the
+  // completion gate needs executed evidence rather than a claim.
+  const changedFiles = [...new Set(
+    (run?.workers ?? [])
+      .filter(worker => worker.status === "completed")
+      .flatMap(worker => worker.ownershipScopes ?? []),
+  )].filter(entry => !entry.includes("*") && !entry.includes("?") && /\.[A-Za-z0-9]{1,5}$/.test(entry));
+  return {
+    kind: "success",
+    output: lines.join("\n"),
+    ...(changedFiles.length > 0 ? { changed: true, changedFiles } : {}),
+  };
 }
 
 async function handleCoordinationList(
@@ -248,6 +391,25 @@ async function handleCoordinationStatus(
   }
   if (run.aggregateResultRef) lines.push(`Aggregate: ${run.aggregateResultRef}`);
   if (run.outcome) lines.push(`Outcome: ${run.outcome}`);
+  // Per-worker identity is what callers ask for by name (worker id, task id,
+  // dependencies, scope, attempt, retry count, result reference). Answering it
+  // here keeps that read inside this tool instead of sending the caller to
+  // `.alix/coordination/**` — a sensitive path that raw file/shell access
+  // cannot open.
+  if (run.workers.length > 0) {
+    lines.push(`Workers (${run.workers.length}):`);
+    for (const w of run.workers.slice(0, MAX_STATUS_WORKER_ROWS)) {
+      const deps = w.dependencies.length > 0 ? w.dependencies.join(", ") : "-";
+      const scope = (w.ownershipScopes ?? []).join(", ") || "-";
+      lines.push(
+        `- ${w.id} | ${w.taskLabel} | agent ${w.agentId} | status ${w.status} | attempt ${w.attempt}/${w.maxAttempts}` +
+        `${w.planOrder === undefined ? "" : ` | order ${w.planOrder}`} | deps ${deps} | writes ${scope}` +
+        `${w.resultRef ? ` | result ${w.resultRef}` : ""}`,
+      );
+    }
+    const hidden = run.workers.length - MAX_STATUS_WORKER_ROWS;
+    if (hidden > 0) lines.push(`- ... ${hidden} more worker(s)`);
+  }
   return { kind: "success", output: lines.join("\n") };
 }
 

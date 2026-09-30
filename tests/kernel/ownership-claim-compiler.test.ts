@@ -63,11 +63,34 @@ describe("compileOwnershipClaims", () => {
     assert.equal(r.claims.length, 0);
   });
 
-  it("converts Dockerfile* to workspace root", () => {
+  it("scopes a root-level wildcard to root entries, never the whole workspace", () => {
     const r = compileOwnershipClaims(["Dockerfile*"]);
     assert.equal(r.claims.length, 1);
     assert.equal(r.claims[0].path, ".");
+    // Root-level globs match entries directly in the root; a recursive claim
+    // on "." would reserve every path in the workspace and collide with
+    // unrelated leases elsewhere in the tree.
+    assert.equal(r.claims[0].recursive, false);
+    assert.ok(r.warnings.some(w => w.includes("Dockerfile*")), r.warnings.join("; "));
+  });
+
+  it("scopes a directory wildcard to its literal directory prefix", () => {
+    const r = compileOwnershipClaims(["src/*.ts"]);
+    assert.equal(r.claims.length, 1);
+    assert.equal(r.claims[0].path, "src");
     assert.equal(r.claims[0].recursive, true);
+  });
+
+  it("keeps the infra domain map out of unrelated trees", () => {
+    const r = compileOwnershipClaims([
+      ".github/**", "Dockerfile*", "docker-compose*.yml", "compose*.yml",
+      "infra/**", "terraform/**", "helm/**",
+    ]);
+    assert.deepEqual(
+      r.claims.map(c => c.path),
+      [".github", ".", "infra", "terraform", "helm"],
+    );
+    assert.equal(r.claims.every(c => c.path !== "." || c.recursive === false), true);
   });
 
   it("handles infra domain scopes", () => {

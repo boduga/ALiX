@@ -63,7 +63,8 @@ export class ToolSelector {
     );
 
     const scored = this.tools.map(tool => {
-      const nameParts = tool.name.toLowerCase().split(/[_\.]/);
+      const readableName = tool.searchName ?? `${tool.serverName}_${tool.toolName}`;
+      const nameParts = readableName.toLowerCase().split(/[_\.]/);
       const descWords = new Set(
         tool.description.toLowerCase().split(/\W+/).filter(w => w.length >= 2)
       );
@@ -72,7 +73,7 @@ export class ToolSelector {
       for (const word of taskWords) {
         if (nameParts.includes(word)) {
           score += 3;
-        } else if (tool.name.toLowerCase().includes(word)) {
+        } else if (readableName.toLowerCase().includes(word)) {
           score += 1;
         }
         if (descWords.has(word)) score += 1;
@@ -100,13 +101,13 @@ export class ToolSelector {
     let result = scored.slice(0, effectiveMax);
 
     const hasFallback = result.some(t =>
-      SAFE_FALLBACK_NAMES.some(fb => t.tool.name.includes(fb))
+      SAFE_FALLBACK_NAMES.some(fb => (t.tool.searchName ?? t.tool.name).includes(fb))
     );
     if (!hasFallback) {
       // Build index map for O(1) lookup by object reference
       const scoredIndex = new Map(scored.map((s, i) => [s, i]));
       const fallback = scored.find(s =>
-        SAFE_FALLBACK_NAMES.some(fb => s.tool.name.includes(fb))
+        SAFE_FALLBACK_NAMES.some(fb => (s.tool.searchName ?? s.tool.name).includes(fb))
       );
       if (fallback) {
         if (result.length < effectiveMax) {

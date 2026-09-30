@@ -3,7 +3,7 @@
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
-import { resolve } from "path";
+import { basename, resolve } from "path";
 import { mkdir } from "fs/promises";
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -41,9 +41,10 @@ import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../mcp/manager.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
+import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import { ReliabilityMatrix } from "../config/reliability-matrix.js";
 import { getToolPolicy, filterTools, WRITE_TOOLS } from "./tool-policy.js";
-import { TOOL_NAME_MAP } from "./tool-name-map.js";
+import { resolveExecutableToolName, ToolNotFoundError } from "./tool-name-resolver.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
 import { ROLE_INSTRUCTIONS } from "./agent-registry.js";
@@ -69,6 +70,31 @@ export function toolsForSubagentIteration<T extends { name: string }>(
   return mutationReserved
     ? allowedTools.filter(tool => WRITE_TOOLS.has(tool.name) || tool.name === "alix_done")
     : allowedTools;
+}
+
+/** Resolve a model spelling only when that executor tool was offered now. */
+export function resolveOfferedToolName(
+  name: string,
+  offeredTools: ReadonlyArray<{ name: string }>,
+  mcpTools: ReadonlyArray<{ name: string; execName: string }> = [],
+): string | null {
+  const offered = offeredTools.map(tool => ({
+    name: tool.name,
+    execName: mcpTools.find(entry => entry.name === tool.name)?.execName,
+  }));
+  try {
+    return resolveExecutableToolName(name, offered);
+  } catch (error) {
+    if (error instanceof ToolNotFoundError) return null;
+    throw error;
+  }
+}
+
+/** Expand a bare filename only when it names exactly one declared producer file. */
+export function resolveWorkerInputPath(path: string, inputPaths: readonly string[]): string {
+  if (!path || path === "." || path === ".." || path.includes("/") || path.includes("\\")) return path;
+  const matches = [...new Set(inputPaths.filter(input => basename(input) === path))];
+  return matches.length === 1 ? matches[0] : path;
 }
 
 function isToolCallText(text: string): boolean {
@@ -374,6 +400,7 @@ export class SubagentCLI {
         "session-id": { type: "string" },
         "session-mode": { type: "string" },
         "owned-paths": { type: "string" },
+        "input-paths": { type: "string" },
         output: { type: "string" },
         "coordination-run-id": { type: "string" },
         "credential-fd": { type: "string" },
@@ -388,6 +415,11 @@ export class SubagentCLI {
     const sessionId = args.values["session-id"];
     const sessionMode = args.values["session-mode"] as "auto" | "ask" | "bypass" | undefined;
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean) ?? [];
+    let inputPaths: string[] = [];
+    try {
+      const parsed: unknown = JSON.parse(args.values["input-paths"] ?? "[]");
+      if (Array.isArray(parsed) && parsed.every(path => typeof path === "string")) inputPaths = parsed;
+    } catch { /* Invalid input manifest leaves reads unchanged. */ }
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
     const outputFormat = args.values.output === "text" ? "text" : "json";
@@ -451,13 +483,14 @@ export class SubagentCLI {
     let mcpManager: McpManager | null = null;
     let mcpDiscovery: ToolDiscovery | null = null;
     let selectedTools: ToolDef[] = [];
+    let mcpToolIndex: DeferredToolEntry[] = [];
 
     try {
       mcpManager = new McpManager(config);
       await mcpManager.initialize();
 
       const mcpDeferral = mcpManager.getDeferral();
-      const mcpToolIndex = mcpDeferral.buildIndex();
+      mcpToolIndex = mcpDeferral.buildIndex();
 
       // Resolve tool selector options from config
       const toolConfig = config.toolConfig;
@@ -499,10 +532,6 @@ export class SubagentCLI {
       selectedTools = toolSelector.select(prompt) as ToolDef[];
       mcpDiscovery = new ToolDiscovery(mcpToolIndex);
 
-      // Register MCP tool name mappings
-      for (const entry of selectedTools) {
-        TOOL_NAME_MAP[entry.name] = entry.name;
-      }
     } catch (err) {
       // MCP init failed — continue without tools (non-fatal)
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
@@ -597,7 +626,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         if (mutationReserved) {
           messages.push({
             role: "user",
-            content: `[Execution budget] Exploration is complete. You MUST now create or patch these owned outputs before calling done: ${missingOwnedPaths.join(", ")}.`,
+            content: `[Execution budget] Exploration is complete. You MUST now create or patch these owned outputs before calling alix_done: ${missingOwnedPaths.join(", ")}.`,
           });
         }
         const iterationTools = toolsForSubagentIteration(allowedTools, {
@@ -623,7 +652,24 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
         // Execute each tool call
         for (const toolCall of toolCalls) {
-          const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+          const execName = resolveOfferedToolName(toolCall.name, iterationTools, mcpToolIndex);
+          if (!execName) {
+            recordLedger(toolCall.name, false);
+            // A write worker's final iterations reserve their tool budget for
+            // mutation, so a read retried there comes back unavailable. Point
+            // at the two calls that can still finish the work.
+            const unwritten = mode === "write"
+              ? ownedPaths.filter(path => !progress.successfulPaths.has(path))
+              : [];
+            const nudge = unwritten.length > 0
+              ? `\nThis iteration is reserved for your owned output. Write ${unwritten.map(path => `\`${path}\``).join(", ")} with alix_file_create, or call alix_done if it is already written.`
+              : "";
+            messages.push({
+              role: "user",
+              content: `<tool_result id="${toolCall.id}" invocationId="${invocationId}" executionId="${executionId}">\nTool "${toolCall.name}" is not available for this iteration.${nudge}\n</tool_result>`,
+            });
+            continue;
+          }
 
           // Handle mcp_search_tools specially
           if (execName === "mcp_search_tools") {
@@ -651,6 +697,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           }
           if (execName === "file.create") {
             inferSingleOwnedCreatePath(toolCall.args as Record<string, unknown>, { mode, ownedPaths });
+          }
+          if ((execName === "file.read" || execName === "file.exists") && typeof toolCall.args.path === "string") {
+            toolCall.args.path = resolveWorkerInputPath(toolCall.args.path, inputPaths);
           }
 
           const execResult = await executor.execute({

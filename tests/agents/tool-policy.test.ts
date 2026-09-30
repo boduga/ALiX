@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getToolPolicy, filterTools } from "../../src/agents/tool-policy.js";
+import { getToolPolicy, filterTools, WRITE_TOOLS } from "../../src/agents/tool-policy.js";
+import { ALIX_CANONICAL_BUILTIN_TOOLS } from "../../src/agents/tool-manifest.js";
 import type { ToolDef } from "../../src/providers/types.js";
 
 test("getToolPolicy returns read-only for explorer role", () => {
@@ -58,7 +59,7 @@ test("filterTools includes write tools for worker role", () => {
 
 test("filterTools blocks MCP tools for read-only roles", () => {
   const tools: ToolDef[] = [
-    { name: "mcp_github_search", description: "github", input_schema: { type: "object", properties: {} } },
+    { name: "mcp__opaque_github_search", description: "github", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
@@ -74,22 +75,22 @@ test("filterTools always allows alix_done", () => {
   assert.equal(filtered.length, 1);
 });
 
-test("filterTools allows mcp_search_tools only when MCP tools allowed", () => {
-  const tools = [{ name: "mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } }];
+test("filterTools allows alix_mcp_search_tools only when MCP tools allowed", () => {
+  const tools = [{ name: "alix_mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } }];
   const explorerPolicy = getToolPolicy("explorer");
   const workerPolicy = getToolPolicy("worker");
   assert.equal(filterTools(tools, explorerPolicy).length, 0, "blocked for explorer");
   assert.equal(filterTools(tools, workerPolicy).length, 1, "allowed for worker");
 });
 
-test("filterTools allows git and shell tools for read-only roles", () => {
+test("filterTools drops phantom git tools and keeps shell for read-only roles", () => {
   const tools: ToolDef[] = [
     { name: "alix_git_status", description: "", input_schema: { type: "object", properties: {} } },
     { name: "alix_shell_run", description: "", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
-  assert.equal(filtered.length, 2);
+  assert.deepEqual(filtered.map(tool => tool.name), ["alix_shell_run"]);
 });
 
 test("getToolPolicy returns research access for researcher role", () => {
@@ -103,4 +104,29 @@ test("getToolPolicy returns read-only fallback for auto", () => {
 
   assert.deepEqual(policy.allowedCategories, ["read"]);
   assert.equal(policy.maxIterations, 3);
+});
+
+test("every built-in name the manifest knows is classified or explicitly handled", () => {
+  // `filterTools` denies anything it does not recognise, so a built-in added to
+  // the manifest but not to a policy set would be silently withheld from every
+  // subagent role. The only names allowed to be in neither set are the ones
+  // handled inline (`alix_done`, `alix_mcp_search_tools`) and the collaboration
+  // tools, which reach workers as bound tools and bypass this filter.
+  const handledInline = new Set(["alix_done", "alix_mcp_search_tools"]);
+  const collab = new Set(
+    ALIX_CANONICAL_BUILTIN_TOOLS.filter(name => name.startsWith("alix_collaboration_")),
+  );
+  const unclassified = ALIX_CANONICAL_BUILTIN_TOOLS.filter(name => {
+    if (handledInline.has(name) || collab.has(name)) return false;
+    return !WRITE_TOOLS.has(name) && !filterTools([{ name }], getToolPolicy("worker")).length;
+  });
+  assert.deepEqual(unclassified, [], `unclassified built-ins: ${unclassified.join(", ")}`);
+});
+
+test("collaboration built-ins are absent from both policy sets by design", () => {
+  // Guards the assumption the test above rests on: if a collaboration tool were
+  // ever added to a policy set, that test would need revisiting.
+  for (const name of ALIX_CANONICAL_BUILTIN_TOOLS.filter(n => n.startsWith("alix_collaboration_"))) {
+    assert.equal(WRITE_TOOLS.has(name), false, `${name} must not be a write tool`);
+  }
 });

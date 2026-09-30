@@ -23,6 +23,7 @@ export type CoordinationRunStatus =
   | "replanning"   // coordinator is re-planning after a worker completed/failed
   | "running"      // one or more workers active
   | "blocked"      // all workers blocked or pending
+  | "cancelled"    // operator cancelled the run: terminal, never resumed
   | "completed"    // all workers completed successfully
   | "failed";      // one or more workers failed and cannot proceed
 
@@ -149,6 +150,9 @@ export interface WorkerAssignment {
 
   /** Detailed goal prompt — what the worker should accomplish */
   goalPrompt: string;
+
+  /** Explicit file outputs of direct graph dependencies, for read-path resolution. */
+  inputPaths?: string[];
 
   /** IDs of other WorkerAssignments that must complete first */
   dependencies: string[];
@@ -298,6 +302,7 @@ export function createWorkerAssignment(opts: {
   agentId: string;
   taskLabel: string;
   goalPrompt: string;
+  inputPaths?: string[];
   dependencies?: string[];
   ownershipScopes?: string[];
   status?: WorkerStatus;
@@ -336,10 +341,12 @@ export function createWorkerAssignment(opts: {
     agentId: opts.agentId,
     taskLabel: opts.taskLabel,
     goalPrompt: opts.goalPrompt,
+    inputPaths: opts.inputPaths,
     dependencies: opts.dependencies ?? [],
     ownershipScopes: opts.ownershipScopes ?? [],
     status: opts.status ?? "pending",
     error: opts.error,
+    resultRef: opts.resultRef,
     sourceNodeId: opts.sourceNodeId,
     requiredCapabilities: opts.requiredCapabilities ?? [],
     riskLevel: opts.riskLevel,
@@ -406,6 +413,10 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
   // The scheduler sets "replanning" before invoking replan() and expects
   // status to stay "replanning" until replan() completes.
   if (run.status === "replanning") return "replanning";
+  // Cancellation is an explicit terminal outcome. Without this guard an
+  // all-cancelled run recomputes to "blocked" — not terminal — so a cancelled
+  // run would stay in the active set and could be resumed by a host sweep.
+  if (run.status === "cancelled") return "cancelled";
 
   const allCompleted = run.workers.every(w => w.status === "completed");
   if (allCompleted && run.workers.length > 0) return "completed";

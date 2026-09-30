@@ -167,6 +167,7 @@ export class SubagentManager {
           ...(task.coordinationRunId ? ["--coordination-run-id", task.coordinationRunId] : []),
           ...(task.coordinationRunId ? ["--credential-fd", "3"] : []),
           ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
+          ...(task.inputPaths?.length ? ["--input-paths", JSON.stringify(task.inputPaths)] : []),
         ];
 
         // Use spawnOverride for testing, otherwise use alix CLI

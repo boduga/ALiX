@@ -29,7 +29,7 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import { TOOL_NAME_MAP } from "../../agents/tool-name-map.js";
+import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
 
 export function emitAgent(
   log: EventLog,
@@ -57,28 +57,106 @@ export function buildShedToolRetryMessage(toolCall: ToolCall): string {
 // but false negatives let a hallucinated "I did X" claim slip through
 // uncontested, which is the failure mode we're closing.
 
-export const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: string }> = [
-  { keywords: /\bschedul(e|ed|ing)\b|\brecurring\b|\bcron\b/i, toolPrefix: "schedule.", label: "scheduling a job" },
-  { keywords: /\bsent?\b.*\bnotification\b|\bnotifi(ed|cation)\b/i, toolPrefix: "notification.", label: "sending a notification" },
-  { keywords: /\bsent?\b.*\bfile\b/i, toolPrefix: "user.send_file", label: "sending a file to the user" },
-  { keywords: /\badded\b.*\bregistrat|\bregister(ed|ing)\b/i, toolPrefix: "file.edit", label: "editing/registering files" },
-  { keywords: /\bverified\b.*\bcompil|\bcompil(ed|ation)\b.*\bpass/i, toolPrefix: "shell.run", label: "verifying compilation" },
-  { keywords: /\bset\s?up\b.*\bmonitor|\bmonitor(ing)?\b/i, toolPrefix: "monitor", label: "setting up monitoring" },
+/**
+ * A claim entry declares:
+ * - `keywords` — a first-person action naming its object ("I scheduled a
+ *   nightly job"). Bare vocabulary must not match: coordination prose
+ *   ("Scheduling: workers ran in parallel"), denials, and the operator's own
+ *   reporting vocabulary ("report the registered artifact") are not claims,
+ *   and flagging them traps the turn in a re-prompt loop.
+ * - `excusedBy` — executor prefixes that make the claim substantiated.
+ * - `tool` — the model-facing name to record the claim against, when a tool
+ *   for it exists in this build. Deriving this by string-munging the prefix
+ *   produced phantom names (`alix_schedule_`, `alix_file_edit`), so it is
+ *   explicit here and pinned by `taxonomy-sentinel.vitest.ts`.
+ */
+export const CLAIM_TOOL_MAP: Array<{
+  keywords: RegExp;
+  excusedBy: string[];
+  tool?: AlixBuiltinToolName;
+  label: string;
+}> = [
+  {
+    // A scheduling *claim* is a first-person action naming a job-like object:
+    // "I scheduled a nightly job". Bare scheduling vocabulary must not count —
+    // "Scheduling: workers 1-3 ran in parallel" describes the coordination
+    // scheduler, and "no scheduling was requested" denies the claim. Flagging
+    // either traps the turn: the re-prompt names the tool, the model explains
+    // the flag, and the explanation re-arms the detector until the bounded
+    // attempts run out and the turn ends completed_unverified.
+    //
+    // Deliberately first-person only: third-person subjects ("The coordinator
+    // scheduled four workers", "the scheduler dispatched tasks") are how
+    // coordination prose reads, and matching them re-arms the same trap. The
+    // apostrophe accepts both ASCII and typographic forms, and the object list
+    // covers non-"job" scheduling targets (a meeting, a review, a report).
+    keywords: new RegExp(
+      String.raw`\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?` +
+      String.raw`(?:schedul\w*|set\s*up|creat\w*|add\w*|propos\w*|enabl\w*|configur\w*)\b` +
+      String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic|meeting|review|report|digest|export|publish|notification)\b`,
+      "i",
+    ),
+    excusedBy: ["schedule.propose"],
+    tool: "alix_schedule_propose",
+    label: "scheduling a job",
+  },
+  {
+    // No notification tool exists in this build, so the only remedy is to drop
+    // the claim — the re-prompt says exactly that (never a phantom tool name).
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:sent|send|notified|notify|alerted|alert)\b[^.!?]{0,60}\b(?:notification|notifications|alert|alerts|message|email|slack|webhook)\b/i,
+    excusedBy: [],
+    label: "sending a notification",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:sent|send|uploaded|upload|shared|share|attached|attach)\b[^.!?]{0,60}\b(?:file|files|attachment|attachments|artifact|artifacts)\b/i,
+    excusedBy: [],
+    label: "sending a file to the user",
+  },
+  {
+    // "registered/edited a file" — a first-person action with a file object.
+    // The previous bare `\bregister(ed|ing)\b` matched the operator's own
+    // reporting requirement ("report … registered artifact").
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:registered|registering|register|edited|editing|edit|added|adding|add|updated|updating|update|modified|modifying|modify)\b[^.!?]{0,60}\b(?:file|files|card|cards|tool|tools|registry)\b/i,
+    excusedBy: ["patch.apply", "file.create"],
+    tool: "alix_patch_apply",
+    label: "editing/registering files",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:verified|verifying|verify|compiled|compiling|compile|ran|run)\b[^.!?]{0,60}\b(?:build|compilation|tests?|typecheck|suite|tsc)\b/i,
+    excusedBy: ["shell.run"],
+    tool: "alix_shell_run",
+    label: "verifying compilation",
+  },
+  {
+    keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:set\s*up|configured|configuring|configure|enabled|enabling|enable|added|adding|add)\b[^.!?]{0,60}\bmonitor(?:ing|s)?\b/i,
+    excusedBy: [],
+    label: "setting up monitoring",
+  },
 ];
 
-/** Tool-name override map derived from CLAIM_TOOL_MAP for claim-detection re-prompts. */
+/**
+ * Model-facing tool name for a claim label, when one exists. Labels without a
+ * tool are instructed to drop the claim instead — a phantom name here is a
+ * harness-authored hallucination the model can never satisfy.
+ */
 export const CLAIM_TOOL_NAMES: Record<string, string> = {
   ...Object.fromEntries(
-    CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`]),
+    CLAIM_TOOL_MAP.filter(item => item.tool).map(item => [item.label, item.tool as string]),
   ),
   "a successful coordination run with worker outcomes": "alix_coordination_run",
 };
+
+/** Every label the claim map can report (tool-backed or not). */
+const CLAIM_TOOL_LABELS: ReadonlySet<string> = new Set<string>([
+  ...CLAIM_TOOL_MAP.map(item => item.label),
+  "a successful coordination run with worker outcomes",
+]);
 
 export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
 
 export function isCompletionTool(toolName: string): boolean {
-  return (TOOL_NAME_MAP[toolName] ?? toolName) === "done";
+  return toolName === "alix_done" || toolName === "done";
 }
 
 export function resolveToolExecutionName(
@@ -86,8 +164,9 @@ export function resolveToolExecutionName(
   selectedTools: ReadonlyArray<{ name: string; execName: string }>,
 ): string {
   return selectedTools.find((tool) => tool.name === toolName)?.execName
-    ?? TOOL_NAME_MAP[toolName]
-    ?? toolName;
+    ?? (Object.hasOwn(ALIX_BUILTIN_EXECUTORS, toolName)
+      ? ALIX_BUILTIN_EXECUTORS[toolName as keyof typeof ALIX_BUILTIN_EXECUTORS]
+      : toolName);
 }
 
 /**
@@ -121,10 +200,20 @@ export function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
  */
 
 export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string[] {
+  // `usedTools` holds the names the model called (`alix_shell_run`), while the
+  // map is keyed by executor ids (`shell.run`). Resolve both directions —
+  // without this, every mapped keyword reads as unsubstantiated no matter what
+  // ran, and the re-prompt can never be satisfied.
+  const called = new Set<string>();
+  for (const name of usedTools) {
+    called.add(name);
+    const execName = ALIX_BUILTIN_EXECUTORS[name as keyof typeof ALIX_BUILTIN_EXECUTORS];
+    if (execName) called.add(execName);
+  }
   const unsubstantiated: string[] = [];
-  for (const { keywords, toolPrefix, label } of CLAIM_TOOL_MAP) {
+  for (const { keywords, excusedBy, label } of CLAIM_TOOL_MAP) {
     if (keywords.test(text)) {
-      const wasCalled = [...usedTools].some((t) => t.startsWith(toolPrefix));
+      const wasCalled = excusedBy.length > 0 && [...called].some((t) => excusedBy.some((prefix) => t.startsWith(prefix)));
       if (!wasCalled) {
         unsubstantiated.push(label);
       }
@@ -133,10 +222,23 @@ export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>):
   return unsubstantiated;
 }
 
+/** First-person future work means the model has not supplied a final answer. */
+export function hasPendingAgentAction(text: string): boolean {
+  return /\bI(?:['’]m| am)\s+(?:surfacing|registering|writing|creating|sending|verifying|checking|reporting|summarizing|running|reading|adding|updating|finishing|publishing|committing|pushing|listing|showing|reviewing)\b/i.test(text) ||
+    /\bI(?:['’]ll| will)\s+(?:surface|register|write|create|send|verify|check|report|summari[sz]e|run|read|add|update|finish|publish|commit|push|list|show|review)\b/i.test(text);
+}
+
 export type SuccessfulToolEvidence = {
   name: string;
   args: Record<string, unknown>;
   ordinal: number;
+  /**
+   * The call reported a workspace change (`changed` / `changedFiles`). Set by
+   * the task loop for every successful call; used to accept a delegated
+   * coordination run as mutation evidence, since a coordinator that follows
+   * "do not perform the workers' tasks" never mutates anything itself.
+   */
+  mutated?: boolean;
 };
 
 export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
@@ -163,22 +265,28 @@ export function isContinuationMessage(text: string): boolean {
 }
 
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean; coordination: boolean } {
-  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(task);
+  // Model-facing tool names carry the action ("alix_coordination_run",
+  // "alix_verify_claim", "alix_file_create"), and `\brun\b`/`\bverify\b`/
+  // `\bcreate\b` cannot match across the underscore. Scan a name-normalized
+  // view so an objective that names tools exactly still registers its
+  // requirements.
+  const named = task.replace(/[_.]/g, " ");
+  const readOnlyInstruction = /\b(?:do not|don't|without)\s+(?:modify|edit|change|write|create|delete|remove)\b/i.test(named);
   const mutationTaskType = /^(?:bugfix|feature|refactor|docs)$/.test(taskType);
-  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(task);
+  const explicitMutationVerb = /\b(?:fix|implement|refactor|update|change|apply|create|edit|modify|delete|remove|build|scaffold|generate)\b/i.test(named);
   const mutation = !readOnlyInstruction && (
     (mutationTaskType && explicitMutationVerb) ||
-    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(task) ||
-    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(task) ||
-    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(task)
+    /\bmake\b.{0,60}\b(?:improvement|change|edit|fix)\b/i.test(named) ||
+    /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(named) ||
+    /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(named)
   );
-  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code)\b/i.test(task);
+  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
   const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
   const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
   const coordination = new RegExp(
     String.raw`\b${coordinationAction}\b.{0,100}\b${coordinationSubject}\b|\b${coordinationSubject}\b.{0,100}\b${coordinationAction}\b`,
     "i",
-  ).test(task);
+  ).test(named);
   return { mutation, verification, coordination };
 }
 
@@ -190,13 +298,21 @@ export function objectiveEvidenceGaps(
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
-    .filter((item) => MUTATION_TOOL_NAMES.has(item.name))
+    .filter((item) =>
+      MUTATION_TOOL_NAMES.has(item.name)
+      || (item.name === COORDINATION_RUN_TOOL_NAME && item.mutated === true),
+    )
     .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
   const verifiedAfterMutation = evidence.some((item) =>
     item.ordinal > mutationOrdinal &&
-    item.name === "shell.run" &&
-    typeof item.args.command === "string" &&
-    VERIFICATION_COMMAND_RE.test(item.args.command)
+    (
+      // A verification tool call is verification evidence in its own right;
+      // only shell-based checks have to look like a build/test command.
+      item.name === "verify.claim" ||
+      (item.name === "shell.run" &&
+        typeof item.args.command === "string" &&
+        VERIFICATION_COMMAND_RE.test(item.args.command))
+    )
   );
   const gaps: string[] = [];
   if (required.mutation && mutationOrdinal < 0) gaps.push("a successful workspace mutation");
@@ -224,17 +340,26 @@ export function buildUnconfirmedDonePrompt(input: {
   unsubstantiated: string[];
   evidenceGaps: string[];
   errorEchoDone: boolean;
+  toolEchoDone?: boolean;
   attempt: number;
 }): string {
-  const { unsubstantiated, evidenceGaps, errorEchoDone, attempt } = input;
+  const { unsubstantiated, evidenceGaps, errorEchoDone, toolEchoDone = false, attempt } = input;
   const missingToolLines = [...unsubstantiated, ...evidenceGaps]
-    .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
+    .map((c) => {
+      const tool = CLAIM_TOOL_NAMES[c];
+      if (tool) return `  - ${tool}`;
+      // A label with no tool must ask for the claim to be dropped, never name a
+      // tool that does not exist — a phantom instruction cannot be satisfied.
+      return CLAIM_TOOL_LABELS.has(c)
+        ? `  - ${c} (no matching tool exists in this build — remove that claim)`
+        : `  - ${c}`;
+    })
     .join("\n");
 
   if (evidenceGaps.length > 0) {
     return (
       `The current task is not complete because the event log lacks: ${evidenceGaps.join(" and ")}. ` +
-      `Perform those actions now. Do not call done or describe the task as complete until the tools succeed.`
+      `Perform those actions now. Do not call \`alix_done\` or describe the task as complete until the tools succeed.`
     );
   }
   if (errorEchoDone && unsubstantiated.length === 0) {
@@ -244,23 +369,29 @@ export function buildUnconfirmedDonePrompt(input: {
       `and confirm the deliverable exists before saying done.`
     );
   }
+  if (toolEchoDone && unsubstantiated.length === 0) {
+    return (
+      `Your reply repeated a tool result instead of answering. Write the actual completion summary: ` +
+      `what you did, what you verified, and the outcome, in prose — never the raw tool output. ` +
+      `If any requested step is still unfinished, do it now instead of summarising.`
+    );
+  }
   if (attempt >= 2) {
     return (
-      `You keep saying you are done without having actually called the required tools. ` +
-      `Call these tools now:\n${missingToolLines}\n\n` +
-      `Do NOT call done until every one of these tools has returned a result.`
+      `You keep saying you are done without having completed the work:\n${missingToolLines}\n\n` +
+      `Do NOT call \`alix_done\` until each item is either executed or withdrawn.`
     );
   }
   if (attempt >= 1) {
     return (
       `Your summary claims you completed the following, but no matching tool call was made:\n${missingToolLines}\n\n` +
-      `Call these tools now using their \`alix_\` names, or call \`done\` only if you genuinely cannot proceed.`
+      `Call the listed tools now using their \`alix_\` names, or withdraw a claim that no tool can substantiate.`
     );
   }
   return (
     `Your summary claims you did the following, but no matching tool call was made: ${unsubstantiated.join(", ")}. ` +
     `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
-    `Either call the remaining tools now, or call the \`done\` tool explicitly once everything is genuinely finished.`
+    `Either call the remaining tools now, or withdraw a claim that no tool in this build can substantiate.`
   );
 }
 
@@ -371,6 +502,32 @@ export function claimsArtifactWritten(
 ): boolean {
   const changed = typeof changedFiles === "number" ? changedFiles : changedFiles.size;
   return changed > 0 || ARTIFACT_WRITE_RE.test(text);
+}
+
+/** Strip the `<tool_result …>` envelope the loop wraps results in. */
+function toolResultBody(content: string | undefined): string {
+  return (content ?? "")
+    .replace(/<\/?tool_result[^>]*>/g, "")
+    .replace(/^\s*\[Tool Result\]\s*/i, "")
+    .trim();
+}
+
+/**
+ * True when a "final answer" is the last tool result repeated back. Weak models
+ * end turns this way ("310 .tmp/out/notes.md"), which reads as a completion
+ * summary while saying nothing about the work — and it satisfies the claim and
+ * evidence checks, because an echo makes no claims and the requirement scan
+ * cannot see that the objective's steps were skipped.
+ */
+export function isToolResultEcho(text: string, lastToolResult: string | undefined): boolean {
+  const answer = toolResultBody(text);
+  if (answer.length < 8) return false; // short prose is not an echo
+  const result = toolResultBody(lastToolResult);
+  if (result.length === 0 || result.length > 200) return false;
+  if (answer === result) return true;
+  // Quoting a short result inside real prose is normal ("the heading is
+  // `# ALiX`"), so an embedded result only counts when it dominates the answer.
+  return answer.includes(result) && result.length / answer.length >= 0.6;
 }
 
 export function extractErrors(output: string): string[] {

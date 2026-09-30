@@ -30,7 +30,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
   return [
     {
       definition: {
-        name: "collaboration.publish_finding",
+        name: "alix_collaboration_publish_finding",
         description: "Publish a structured finding from this worker. Use for facts, decisions, assumptions, warnings, questions, or recommendations that other workers should see.",
         inputSchema: {
           type: "object",
@@ -58,7 +58,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
 
     {
       definition: {
-        name: "collaboration.publish_artifact",
+        name: "alix_collaboration_publish_artifact",
         description: "Publish an artifact reference (file, report, dataset, etc.) from this worker.",
         inputSchema: {
           type: "object",
@@ -84,7 +84,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
 
     {
       definition: {
-        name: "collaboration.query_findings",
+        name: "alix_collaboration_query_findings",
         description: "Query shared findings from other workers. Filter by kind, tags, or worker.",
         inputSchema: {
           type: "object",
@@ -109,7 +109,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
 
     {
       definition: {
-        name: "collaboration.get_dependency_results",
+        name: "alix_collaboration_get_dependency_results",
         description: "Get results from workers this worker depends on. Read-only snapshot of completed dependency outputs.",
         inputSchema: {
           type: "object",
@@ -124,7 +124,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
 
     {
       definition: {
-        name: "collaboration.report_conflict",
+        name: "alix_collaboration_report_conflict",
         description: "Report a potential conflict between your findings and other workers' findings.",
         inputSchema: {
           type: "object",
@@ -143,7 +143,7 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
     },
     {
       definition: {
-        name: "collaboration.list_conflicts",
+        name: "alix_collaboration_list_conflicts",
         description: "List unresolved conflicts relevant to this worker.",
         inputSchema: {
           type: "object",

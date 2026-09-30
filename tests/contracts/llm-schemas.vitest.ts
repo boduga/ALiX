@@ -111,7 +111,8 @@ describe("NormalizedRequestSchema", () => {
       messages: [{ role: "user", content: "Hi" }],
       tools: [
         {
-          name: "mcp_github_repos_list",
+          name: "mcp__a1b2",
+          searchName: "github_repos_list",
           execName: "mcp.github.repos.list",
           serverName: "github",
           toolName: "repos_list",

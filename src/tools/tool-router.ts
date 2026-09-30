@@ -4,7 +4,7 @@ import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
@@ -14,9 +14,11 @@ import { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
 import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
 import { measurePhase } from "../runtime/timing-events.js";
+import { isCancellationError } from "../runtime/cancellation-token.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
+import { isWithinOwnedScope } from "../ownership/path-scope.js";
 import { validateShellNetworkCommand, type ResolveNetworkHost } from "./shell-network-policy.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
@@ -127,6 +129,17 @@ export class FileToolRouter implements ToolRouter {
     return null;
   }
 
+  /**
+   * True when the resolved target sits inside one of the caller's owned paths.
+   * Owned paths are the worker's authorization, so a worker may replace the
+   * file it owns. Delegates to the shared matcher — `PolicyGate` consults the
+   * SAME function and runs first, so a workspace-wide grant (`.`, `**`) has to
+   * mean the same thing here or the gate denies before we are reached.
+   */
+  private isOwnedWriteTarget(request: ToolCallRequest, resolvedPath: string): boolean {
+    return isWithinOwnedScope(resolvedPath, request.ownedPaths ?? [], this.root);
+  }
+
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
   }
@@ -185,12 +198,15 @@ export class FileToolRouter implements ToolRouter {
         }
         const baseRoot = resolve(this.root);
         const resolvedPath = resolve(baseRoot, path);
-        // CRITICAL: validate path stays within workspace
+        // Defence in depth: `checkPath` (WorkspacePathResolver) already rejected
+        // escapes above, but resolve lexically so a symlinked path cannot change
+        // the target between that check and this write.
         const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
+        let overwritten = false;
         try {
           // Exclusive creation closes the exists-check/write race: this call
           // can never overwrite a file created by another worker.
@@ -218,11 +234,19 @@ export class FileToolRouter implements ToolRouter {
                 changedFiles: [],
               };
             }
-            return {
-              kind: "error",
-              message: `File already exists with different content: ${path}`,
-              retryable: false,
-            };
+            if (!this.isOwnedWriteTarget(request, resolvedPath)) {
+              return {
+                kind: "error",
+                message: `File already exists with different content: ${path}`,
+                retryable: false,
+              };
+            }
+            // The worker owns this path: rewriting its own output is the whole
+            // point of ownership. Without this, re-running the same goal in the
+            // same workspace fails structurally (`file.create` is the only
+            // creation tool, and it refuses differing content).
+            await writeFile(resolvedPath, content, { encoding: "utf8" });
+            overwritten = true;
           } catch (compareError) {
             return {
               kind: "error",
@@ -241,9 +265,9 @@ export class FileToolRouter implements ToolRouter {
         }
         return {
           kind: "success",
-          outcome: "created",
+          outcome: overwritten ? "overwritten" : "created",
           changed: true,
-          output: `File created: ${path}`,
+          output: `${overwritten ? "File overwritten (owned path)" : "File created"}: ${path}`,
           createdPath: path,
           changedFiles: [path],
         };
@@ -253,8 +277,9 @@ export class FileToolRouter implements ToolRouter {
         if (!path) return { kind: "error", message: "file.delete requires path" };
         const baseRoot = resolve(this.root);
         const resolvedPath = resolve(baseRoot, path);
+        // Defence in depth, as in file.create: checkPath already rejected escapes.
         const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." };
         }
         const { rm } = await import("node:fs/promises");
@@ -606,7 +631,12 @@ export class McpToolRouter implements ToolRouter {
 }
 
 export class DelegateToolRouter implements ToolRouter {
-  constructor(private handlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>) {}
+  constructor(
+    private handlers?: Record<
+      string,
+      (args: Record<string, unknown>, request?: ToolCallRequest) => Promise<ToolResult>
+    >,
+  ) {}
 
   canHandle(name: string): boolean {
     if (name === "delegate") return true;
@@ -619,8 +649,12 @@ export class DelegateToolRouter implements ToolRouter {
       return { kind: "error", message: "Delegate handler not initialized", retryable: false };
     }
     try {
-      return await handler(request.args);
+      // The request carries the operator-cancel signal; an interruptible
+      // handler (coordination.run) maps an abort onto its own cancel path.
+      return await handler(request.args, request);
     } catch (e: unknown) {
+      // A cancellation is not a tool failure — it must keep unwinding.
+      if (isCancellationError(e)) throw e;
       return { kind: "error", message: e instanceof Error ? e.message : String(e) };
     }
   }

@@ -16,6 +16,13 @@ export const DEFAULT_CONFIG: AlixConfig = {
     tools: {
       "file.read": "allow",
       "file.search": "allow",
+      // First-party state readers are read-only and already the sanctioned
+      // surface for their questions (state.query, coordination tools). They
+      // read ALiX state that raw file/shell access cannot reach — `.alix/**`
+      // is a sensitive path — so approval-gating them only pushes the model
+      // back toward blocked reads.
+      "coordination.read": "allow",
+      "state.read": "allow",
       "file.write": "ask",
       "shell.run": "ask",
       "git.diff": "allow",
