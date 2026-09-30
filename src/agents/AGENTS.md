@@ -17,7 +17,7 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - Built-in model names come from the manifest; capability and executor IDs stay internal.
 - Worker turns accept only exact offered names, including bound collaboration tools.
 - MCP model handles are opaque `mcp__*` values scoped to the current discovery/turn registry. Search names may rank tools but never resolve calls.
-- Unknown, legacy, and unoffered names fail closed.
+- Unknown, legacy, and unoffered names fail closed. `filterTools` classifies by role category through two hand-maintained sets in `tool-policy.ts` (`NON_WRITE_TOOLS`, `WRITE_TOOLS`) and denies anything unlisted, so every `alix_*` name in `ALIX_BUILTIN_EXECUTORS` must appear in exactly one set or be handled inline — `tests/agents/tool-policy.test.ts` scans for drift. The sets are a role-category classification, NOT a second copy of the manifest: `NON_WRITE_TOOLS` is deliberately not called "read-only" because it contains `alix_shell_run` (arbitrary command execution, separately `ask`-gated) and the coordination/state readers. The `alix_collaboration_*` tools are in neither set on purpose — they reach a worker only as bound tools, which bypass `filterTools` entirely.
 
 ## Work Guidance
 

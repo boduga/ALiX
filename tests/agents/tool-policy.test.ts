@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getToolPolicy, filterTools } from "../../src/agents/tool-policy.js";
+import { getToolPolicy, filterTools, WRITE_TOOLS } from "../../src/agents/tool-policy.js";
+import { ALIX_CANONICAL_BUILTIN_TOOLS } from "../../src/agents/tool-manifest.js";
 import type { ToolDef } from "../../src/providers/types.js";
 
 test("getToolPolicy returns read-only for explorer role", () => {
@@ -103,4 +104,29 @@ test("getToolPolicy returns read-only fallback for auto", () => {
 
   assert.deepEqual(policy.allowedCategories, ["read"]);
   assert.equal(policy.maxIterations, 3);
+});
+
+test("every built-in name the manifest knows is classified or explicitly handled", () => {
+  // `filterTools` denies anything it does not recognise, so a built-in added to
+  // the manifest but not to a policy set would be silently withheld from every
+  // subagent role. The only names allowed to be in neither set are the ones
+  // handled inline (`alix_done`, `alix_mcp_search_tools`) and the collaboration
+  // tools, which reach workers as bound tools and bypass this filter.
+  const handledInline = new Set(["alix_done", "alix_mcp_search_tools"]);
+  const collab = new Set(
+    ALIX_CANONICAL_BUILTIN_TOOLS.filter(name => name.startsWith("alix_collaboration_")),
+  );
+  const unclassified = ALIX_CANONICAL_BUILTIN_TOOLS.filter(name => {
+    if (handledInline.has(name) || collab.has(name)) return false;
+    return !WRITE_TOOLS.has(name) && !filterTools([{ name }], getToolPolicy("worker")).length;
+  });
+  assert.deepEqual(unclassified, [], `unclassified built-ins: ${unclassified.join(", ")}`);
+});
+
+test("collaboration built-ins are absent from both policy sets by design", () => {
+  // Guards the assumption the test above rests on: if a collaboration tool were
+  // ever added to a policy set, that test would need revisiting.
+  for (const name of ALIX_CANONICAL_BUILTIN_TOOLS.filter(n => n.startsWith("alix_collaboration_"))) {
+    assert.equal(WRITE_TOOLS.has(name), false, `${name} must not be a write tool`);
+  }
 });

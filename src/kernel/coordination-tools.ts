@@ -204,7 +204,14 @@ async function handleCoordinationRun(
   // sweep to collide with.
   const signal = request?.signal;
   const cancelRun = (): Promise<void> => scheduler.cancelRun(runId);
-  const onAbort = (): void => { void cancelRun(); };
+  // Capture the promise: cancellation is several async store writes plus lease
+  // releases, so a fire-and-forget listener let this handler report a cancel
+  // while the run was still mid-write — leaving exactly the lingering run the
+  // cancellation contract exists to prevent.
+  let cancellation: Promise<void> | undefined;
+  const onAbort = (): void => {
+    cancellation ??= cancelRun();
+  };
   if (signal?.aborted) {
     await cancelRun();
     throw new ExecutionCancelledError("cancelled by operator");
@@ -216,7 +223,10 @@ async function handleCoordinationRun(
   } finally {
     signal?.removeEventListener("abort", onAbort);
   }
-  if (signal?.aborted) throw new ExecutionCancelledError("cancelled by operator");
+  if (signal?.aborted) {
+    if (cancellation) await cancellation;
+    throw new ExecutionCancelledError("cancelled by operator");
+  }
   const run = await store.load(runId);
   const lines = [
     `Coordination run: ${runId}`,

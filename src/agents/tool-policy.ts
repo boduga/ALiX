@@ -60,8 +60,13 @@ export function getToolPolicy(role: SubagentRole): ToolPolicy {
   };
 }
 
-// Built-in read-only tool names (alix_* model names)
-const READ_ONLY_TOOLS = new Set([
+// Built-in tools that are not workspace writers. Deliberately NOT called
+// "read-only": the set includes `alix_shell_run` (arbitrary command execution,
+// separately `ask`-gated in DEFAULT_CONFIG.permissions.tools) and the
+// coordination/state readers, so "non-write" is the honest description of what
+// these have in common. Membership decides which `allowedCategories` a role
+// needs, not what the tool may do.
+const NON_WRITE_TOOLS = new Set([
   "alix_file_read",
   "alix_file_exists",
   "alix_grep_search",
@@ -106,12 +111,19 @@ export function filterTools(tools: Array<{ name: string; description?: string }>
     }
 
     // Built-in tools
-    if (READ_ONLY_TOOLS.has(tool.name)) {
+    if (NON_WRITE_TOOLS.has(tool.name)) {
       return policy.allowedCategories.includes("read");
     }
     if (WRITE_TOOLS.has(tool.name)) {
       return policy.allowedCategories.includes("write");
     }
+    // Unlisted built-in: deny. Every `alix_*` name in ALIX_BUILTIN_EXECUTORS
+    // should appear in exactly one of the two sets above (or be handled
+    // explicitly, as `alix_done` and `alix_mcp_search_tools` are), so this is
+    // the fail-closed branch for a name the manifest gains and policy has not
+    // classified yet. The `alix_collaboration_*` tools are deliberately in
+    // neither set: they reach a worker only as bound tools, which bypass this
+    // function entirely (see `ToolExecutor` `boundTools` in worker-executor.ts).
     return false;
   });
 }
