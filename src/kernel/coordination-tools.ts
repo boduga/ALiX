@@ -18,6 +18,7 @@
 import type { AlixConfig } from "../config/schema.js";
 import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
+import { COORDINATION_EVENT_TYPES } from "../events/types.js";
 import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationPlanner } from "./coordination-planner.js";
@@ -80,6 +81,48 @@ function effectiveSessionMode(
 ): "auto" | "ask" | "bypass" {
   if (arg === "auto" || arg === "ask" || arg === "bypass") return arg;
   return parseSessionMode(config.permissions.sessionMode);
+}
+
+/**
+ * Cancel-with-record guard for the operator-abort path.
+ *
+ * The abort listener is a SYNCHRONOUS callback, so `cancel()` returning a
+ * rejected promise there leaves the rejection with no handler: Node reports an
+ * unhandled rejection with nothing on the stack and may tear down the process.
+ * So the handler is attached at creation, never later.
+ *
+ * The rejection is caught rather than rethrown — an operator who asked to stop
+ * must not be handed a store error instead of a cancellation — but it is never
+ * silent: `onFailure` records it. That matters because a cancel that could not
+ * complete leaves the run `running` with leases held, and the reclaim sweeps
+ * only recover a DEAD owner. Without the record, a failed cancel and a
+ * successful one are indistinguishable.
+ *
+ * Exported so the shape is directly testable: `handleCoordinationRun` builds
+ * its scheduler and worker executor internally, so the abort path cannot be
+ * driven end-to-end from a test without a much larger seam.
+ */
+export function createCancelGuard(deps: {
+  cancel: () => Promise<void>;
+  onFailure: (error: unknown) => Promise<unknown> | unknown;
+}): {
+  cancelRun: () => Promise<void>;
+  onAbort: () => void;
+  /** The in-flight cancel, once the listener has fired. */
+  cancellation: () => Promise<void> | undefined;
+} {
+  let pending: Promise<void> | undefined;
+  const cancelRun = (): Promise<void> => deps.cancel().catch((err: unknown) => {
+    void Promise.resolve(deps.onFailure(err)).catch(() => {});
+  });
+  return {
+    cancelRun,
+    onAbort: (): void => {
+      if (pending) return;
+      pending = cancelRun();
+    },
+    cancellation: (): Promise<void> | undefined => pending,
+  };
 }
 
 async function handleCoordinationRun(
@@ -203,39 +246,35 @@ async function handleCoordinationRun(
   // run and graph marked cancelled — instead of leaving it running for a later
   // sweep to collide with.
   const signal = request?.signal;
-  const cancelRun = (): Promise<void> => scheduler.cancelRun(runId);
-  // Capture the promise: cancellation is several async store writes plus lease
-  // releases, so a fire-and-forget listener let this handler report a cancel
-  // while the run was still mid-write — leaving exactly the lingering run the
-  // cancellation contract exists to prevent.
-  let cancellation: Promise<void> | undefined;
-  const onAbort = (): void => {
-    if (cancellation) return;
-    // Attach a handler IMMEDIATELY. `cancelRun` performs several store writes
-    // and lease releases that can reject, and this is a synchronous listener: if
-    // the rejection is still unhandled when the turn ends without aborting
-    // (`signal.aborted` false), Node reports an unhandled rejection and can
-    // tear down the process. Swallowing it here is deliberate — the abort path
-    // below still awaits the same promise, so a genuine failure is not lost,
-    // it just cannot crash the process from a detached listener.
-    cancellation = cancelRun().catch(() => {});
-  };
+  const guard = createCancelGuard({
+    cancel: () => scheduler.cancelRun(runId),
+    onFailure: (error) => deps.eventLog?.append({
+      sessionId: run?.sessionId ?? "unknown",
+      actor: "coordination",
+      type: COORDINATION_EVENT_TYPES.CANCEL_FAILED,
+      payload: {
+        runId,
+        error: error instanceof Error ? error.message : String(error),
+        // The run may still be `running` with leases held, and a live
+        // `tool-<pid>` owner is never reclaimed — this is the only record.
+        reason: "operator cancel could not finalize the run",
+      },
+    }),
+  });
   if (signal?.aborted) {
-    // Same reasoning as the listener: a cancel that cannot complete is still a
-    // cancellation. The operator asked to stop; reporting a store failure
-    // instead would misrepresent the outcome and leave the run unfinalized.
-    await cancelRun().catch(() => {});
+    await guard.cancelRun();
     throw new ExecutionCancelledError("cancelled by operator");
   }
-  signal?.addEventListener("abort", onAbort, { once: true });
+  signal?.addEventListener("abort", guard.onAbort, { once: true });
   let result;
   try {
     result = await scheduler.runUntilIdle(runId);
   } finally {
-    signal?.removeEventListener("abort", onAbort);
+    signal?.removeEventListener("abort", guard.onAbort);
   }
   if (signal?.aborted) {
-    if (cancellation) await cancellation;
+    const inFlight = guard.cancellation();
+    if (inFlight) await inFlight;
     throw new ExecutionCancelledError("cancelled by operator");
   }
   const run = await store.load(runId);

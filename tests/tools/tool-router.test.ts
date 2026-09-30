@@ -611,9 +611,17 @@ test("file.create honours a workspace-wide ownership grant", async () => {
   // `.` was explicitly refused, and `**` resolved to a literal `**` segment
   // that prefixes nothing. A worker that owns everything therefore could not
   // overwrite anything — the grant was widest exactly where it was weakest.
-  for (const owned of [".", "**", "./**", "**/*"]) {
+  // Each case writes its own file so one pass cannot mask another.
+  const cases: Array<[string, string]> = [
+    [".", "dot"],
+    ["**", "globstar"],
+    ["./**", "dotslash-globstar"],
+    ["**/*", "globstar-slash-star"],
+    ["/*", "slash-globstar"],
+  ];
+  for (const [owned, label] of cases) {
     const router = new FileToolRouter("/tmp");
-    const path = `ws-owned-${process.pid}-${owned.replace(/[^a-z]/gi, "") || "dot"}.txt`;
+    const path = `ws-owned-${process.pid}-${label}.txt`;
     await writeFile(`/tmp/${path}`, "first pass");
 
     const result = await router.execute({
@@ -629,9 +637,34 @@ test("file.create honours a workspace-wide ownership grant", async () => {
   }
 });
 
+test("a recursive owned scope also authorizes its subtree", async () => {
+  // `docs/**` was already broken end-to-end: the router reduced it to `docs`
+  // but PolicyGate resolved it to a literal `docs/**` and denied. Both now
+  // share one matcher, so the two enforcement points agree.
+  const router = new FileToolRouter("/tmp");
+  const dir = `/tmp/ws-scope-${process.pid}`;
+  await mkdir(dir, { recursive: true });
+  const file = `${dir}/nested/deep.md`;
+  await mkdir(`${dir}/nested`, { recursive: true });
+  await writeFile(file, "first pass");
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path: `ws-scope-${process.pid}/nested/deep.md`, content: "second pass" },
+    ownedPaths: [`ws-scope-${process.pid}/**`],
+  });
+
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(await readFile(file, "utf8"), "second pass");
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("a workspace-wide grant still cannot reach outside the workspace", async () => {
-  // The grant is bounded by the root, not open-ended: `..` in the target is
-  // rejected by path validation before ownership is ever consulted.
+  // Asserts the REASON, not just `kind === "error"`: with only the kind
+  // asserted this test still passed if path containment were removed, because
+  // the ownership matcher also rejects `..`. The message is what proves
+  // containment did the work.
   const router = new FileToolRouter("/tmp");
   const result = await router.execute({
     toolCallId: "1",
@@ -640,6 +673,11 @@ test("a workspace-wide grant still cannot reach outside the workspace", async ()
     ownedPaths: ["**"],
   });
   assert.strictEqual(result.kind, "error");
+  assert.match(
+    result.message ?? "",
+    /outside|escape|denied|workspace/i,
+    "the denial must come from workspace containment, not from the ownership matcher",
+  );
   await rm("/tmp/escape-ws-owned.txt", { force: true });
 });
 
