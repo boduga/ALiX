@@ -128,30 +128,40 @@ export function formatScope(scope: PathScope): string {
 // ─── Owned-write scopes (single authority) ─────────────────────────────
 
 /**
- * True when an owned-path entry is a workspace-wide grant — `.`, or a pattern
- * made only of `*` segments and separators.
+ * True when an owned-path entry is a workspace-wide grant: `.`, or a pattern
+ * whose every non-empty segment is `*` or `**`.
  *
  * This is a RULE, not an enumeration. An enumerated list of spellings was
  * incomplete — several multi-star forms fell through to the reject branch, and
  * only a future edit would have added them. Deriving it means a spelling nobody
  * thought of still resolves to the workspace rather than to nothing.
+ *
+ * The rule must be a strict SUPERSET of any list it replaces. An earlier
+ * version split on the separator and demanded every segment be a star, which
+ * silently narrowed the grant: the dot-slash spellings (dot-slash-star and
+ * dot-slash-globstar-slash-star) were both workspace-wide and began denying.
+ * A leading dot-slash and a leading slash are cosmetic, so both are stripped
+ * before the segments are examined — treating them as scope is the bug.
  */
 function isWorkspaceWideGrant(normalized: string): boolean {
-  if (normalized === "." || normalized === "./") return true;
-  // A leading separator is cosmetic, not a scope: `/*` and `**` mean the same
-  // workspace-wide grant, so strip it before splitting or the empty first
-  // segment reads as a non-wildcard component.
-  const withoutTrailing = normalized.replace(/\/+$/, "").replace(/^\/+/, "");
-  return withoutTrailing.length > 0
-    && withoutTrailing.split("/").every(segment => segment === "*" || segment === "**");
+  const trimmed = normalized.trim();
+  if (trimmed === "." || trimmed === "./" || trimmed === "/") return true;
+  // Strip cosmetic prefixes and suffixes — a leading dot-slash, a leading
+  // slash, and any trailing slashes. All of them mean the same workspace-wide
+  // grant. Anything left that is not a star segment (a real directory name)
+  // makes this an ordinary scoped path instead.
+  const bare = trimmed
+    .replace(/^\.\//, "")
+    .replace(/^\/+|\/+$/g, "");
+  return bare.length > 0 && bare.split("/").every(segment => segment === "*" || segment === "**");
 }
 
 /**
  * Reduce an owned-path entry to the absolute directory prefix it authorizes,
  * or `undefined` when the entry cannot be reduced safely.
  *
- * Accepts a path, a directory (`docs/`), a recursive scope (`docs/**`), or any
- * of {@link WORKSPACE_WIDE_GRANTS}. Fails closed on `..` traversal and on
+ * Accepts a path, a directory (`docs/`), a recursive scope (`docs/**`), or a
+ * workspace-wide grant (see {@link isWorkspaceWideGrant}). Fails closed on `..` traversal and on
  * wildcards it cannot interpret — an uninterpretable grant authorizes nothing
  * rather than everything.
  */

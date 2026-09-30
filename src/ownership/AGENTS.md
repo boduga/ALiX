@@ -10,7 +10,7 @@ plus the path-scope arithmetic both enforcement points share.
   fix, `resolveOwnedScopePrefix` + `isWithinOwnedScope` (enforcement-side).
 - `ownership-registry.ts` — The registry of live ownership claims: which agent
   holds which paths, with lease ids.
-- `ownership-types.ts` — `PathScope`, `OwnershipClaim`, and the shared shapes.
+- `ownership-types.ts` — `PathScope`, `OwnershipScope`, `OwnershipMode`, `OwnershipStatus`, `OwnershipRecord`, `AcquireResult`, `OwnershipStore`, `OwnershipEventSink`.
 - `ownership-lock.ts` — Cross-process locking around claim mutation, so two
   schedulers cannot grant the same path concurrently.
 - `ownership-gate.ts` — Pre-dispatch check that a write falls inside the

@@ -301,21 +301,19 @@ describe("coordination chat tools", () => {
 });
 
 /**
- * The operator-cancel guard is the only part of the abort path that can be
- * driven from a test: `handleCoordinationRun` builds its scheduler and worker
- * executor internally, so the surrounding flow is not reachable without a much
- * larger seam. What matters here is that a REJECTING cancel never surfaces as a
- * tool failure and never escapes unhandled — a cancel that cannot complete
- * still means the operator asked to stop — and that the failure is recorded,
- * because the run is then still `running` with leases held and only a dead
- * owner is ever reclaimed.
- */
-/**
- * The recorder is the ONLY record that a cancel failed to finalize its run. It
- * is tested against its real shape, not a synthetic stand-in: the defect it
- * guards against was a closure reading a `const` declared after the cancel
- * sites, which threw in the temporal dead zone and was swallowed — and every
- * test that injected its own `onFailure` passed straight through that.
+ * The recorder is the ONLY record that a cancel failed to finalize its run, and
+ * the guard is the only part of the abort path a test can drive:
+ * `handleCoordinationRun` builds its scheduler and worker executor internally,
+ * so the surrounding flow needs a much larger seam to reach.
+ *
+ * Together they must guarantee: a REJECTING cancel never surfaces as a tool
+ * failure and never escapes unhandled (the operator asked to stop, so a store
+ * error would misreport the outcome), AND the failure is recorded — because the
+ * run is then still `running` with leases held and only a dead owner is ever
+ * reclaimed. The original defect was a closure reading a `const` declared after
+ * the cancel sites, which threw a `ReferenceError` inside the `.catch` callback
+ * and rejected the cancel promise; tests that injected their own `onFailure`
+ * passed straight through it.
  */
 describe("cancel failure recorder", () => {
   it("appends coordination.cancel.failed with the run and session it was given", async () => {
@@ -397,13 +395,14 @@ describe("operator cancel guard", () => {
   });
 
   it("records the failure when the recorder itself is wired to state read at call time", async () => {
-    // Regression: the real `onFailure` closure reads `sessionId` from state
-    // resolved around the cancel. When that state was a `const` declared AFTER
-    // the cancel sites, the closure hit the temporal dead zone, THREW, and the
-    // inner catch swallowed it — so the event that exists to prove the run was
-    // not finalized was never appended. Synthetic `onFailure` tests could not
-    // see this, because they never reproduce the real closure. This one models
-    // the shape: state captured up front, recorder called on the failure path.
+    // Regression guard for the failure path. The defect was a closure reading
+    // `sessionId` from a `const` declared AFTER the cancel sites: it threw a
+    // `ReferenceError` from inside the `.catch` callback, which REJECTED the
+    // cancel promise (it was not swallowed), so the caller saw a ReferenceError
+    // where a cancellation was promised. The fix binds the id as a parameter.
+    // Synthetic `onFailure` tests could not see the defect because they never
+    // reproduced the real closure — see `createCancelFailureRecorder`'s own
+    // tests, which drive the extracted recorder.
     const recorded: Array<{ type: string; payload: Record<string, unknown> }> = [];
     const cancelSessionId = "coord-gate-test";
     const guard = createCancelGuard({
