@@ -449,6 +449,29 @@ describe("PolicyGate", () => {
     }
   });
 
+  // A RULE that replaces an enumerated list must be a strict SUPERSET of it.
+  // The first derived rule required every separator-delimited segment to be a
+  // star, which silently narrowed the grant: the dot-slash spellings below were
+  // workspace-wide in the list it replaced and began denying. Nothing caught it
+  // because the list above never spelled them out. This pins the full space,
+  // including the spellings the earlier enumeration missed.
+  it("owned-path rule honours every workspace-wide spelling, listed or derived", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    const workspaceWide = [
+      ".", "./", "/", "*", "**", "/*", "/**",
+      "./*", "./**", "./**/*", "./*/*",
+      "**/*", "**/**", "**/**/*", "*/*", "*/*/*", "/**/*", "//**", "./**/",
+    ];
+    for (const owned of workspaceWide) {
+      const decision = await gate.evaluateToolCall({
+        requestId: "ws", toolName: "file.create", args: { path: "src/new.ts" }, cwd: "/ws",
+        sessionMode: "ask", source: "tool", ownedPaths: [owned],
+      });
+      assert.equal(decision.decision, "allow", `ownedPaths: ${JSON.stringify(owned)} — ${decision.reason}`);
+    }
+  });
+
   it("owned-path rule still denies a path the owned scope does not cover", async () => {
     // Fails closed: a grant that cannot be reduced safely authorizes nothing.
     const config = makeConfig();

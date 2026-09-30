@@ -533,3 +533,156 @@ describe("operator cancel guard", () => {
     assert.deepEqual(failures, [], "a successful cancel must not emit a failure event");
   });
 });
+/**
+ * The recorder is the ONLY record that a cancel failed to finalize its run, and
+ * the guard is the only part of the abort path a test can drive:
+ * `handleCoordinationRun` builds its scheduler and worker executor internally,
+ * so the surrounding flow needs a much larger seam to reach.
+ *
+ * Together they must guarantee: a REJECTING cancel never surfaces as a tool
+ * failure and never escapes unhandled (the operator asked to stop, so a store
+ * error would misreport the outcome), AND the failure is recorded — because the
+ * run is then still `running` with leases held and only a dead owner is ever
+ * reclaimed. The original defect was a closure reading a `const` declared after
+ * the cancel sites, which threw a `ReferenceError` inside the `.catch` callback
+ * and rejected the cancel promise; tests that injected their own `onFailure`
+ * passed straight through it.
+ */
+describe("cancel failure recorder", () => {
+  it("appends coordination.cancel.failed with the run and session it was given", async () => {
+    const appended: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const record = createCancelFailureRecorder({
+      eventLog: { append: async (e: { type: string; sessionId?: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
+      runId: "coord_abc",
+      sessionId: "coord-gate-test",
+    });
+
+    await record(new Error("store write failed"));
+
+    assert.equal(appended.length, 1);
+    assert.equal(appended[0].type, "coordination.cancel.failed");
+    assert.equal(appended[0].payload.runId, "coord_abc");
+    assert.equal(appended[0].payload.error, "store write failed");
+    // sessionId is a top-level event field, not part of the payload.
+    assert.equal((appended[0] as unknown as { sessionId?: string }).sessionId, "coord-gate-test");
+  });
+
+  it("is safe with no event log", async () => {
+    const record = createCancelFailureRecorder({ eventLog: undefined, runId: "r", sessionId: "s" });
+    await record(new Error("x")); // must not throw
+  });
+
+  it("records a stringified non-Error rejection", async () => {
+    const appended: Array<{ payload: Record<string, unknown> }> = [];
+    const record = createCancelFailureRecorder({
+      eventLog: { append: async (e: { type: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
+      runId: "r", sessionId: "s",
+    });
+    await record("plain string failure");
+    assert.match(String(appended[0].payload.error), /plain string failure/);
+  });
+});
+
+describe("operator cancel guard", () => {
+  it("attaches a handler immediately, so a rejecting cancel is never unhandled", async () => {
+    const failures: unknown[] = [];
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("store write failed")),
+      onFailure: (err) => { failures.push(err); },
+    });
+
+    // Exactly the listener shape: fire and forget, never awaited.
+    guard.onAbort();
+
+    // If no handler were attached, this rejection would surface as an
+    // unhandledRejection and could take the process down.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(failures.length, 1, "the failure must be recorded, not swallowed");
+    assert.match(String((failures[0] as Error).message), /store write failed/);
+  });
+
+  it("resolves rather than rejecting, so the turn still reports a cancellation", async () => {
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("nope")),
+      onFailure: () => {},
+    });
+    await guard.cancelRun(); // must NOT throw
+  });
+
+  it("only cancels once however many times the listener fires", async () => {
+    let calls = 0;
+    const guard = createCancelGuard({
+      cancel: () => { calls++; return Promise.resolve(); },
+      onFailure: () => {},
+    });
+    guard.onAbort();
+    guard.onAbort();
+    guard.onAbort();
+    await guard.cancellation();
+    assert.equal(calls, 1);
+  });
+
+  it("exposes no in-flight cancel before the listener fires", () => {
+    const guard = createCancelGuard({ cancel: () => Promise.resolve(), onFailure: () => {} });
+    assert.equal(guard.cancellation(), undefined);
+  });
+
+  it("records the failure when the recorder itself is wired to state read at call time", async () => {
+    // Regression guard for the failure path. The defect was a closure reading
+    // `sessionId` from a `const` declared AFTER the cancel sites: it threw a
+    // `ReferenceError` from inside the `.catch` callback, which REJECTED the
+    // cancel promise (it was not swallowed), so the caller saw a ReferenceError
+    // where a cancellation was promised. The fix binds the id as a parameter.
+    // Synthetic `onFailure` tests could not see the defect because they never
+    // reproduced the real closure — see `createCancelFailureRecorder`'s own
+    // tests, which drive the extracted recorder.
+    const recorded: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const cancelSessionId = "coord-gate-test";
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("store write failed")),
+      onFailure: (error) => recorded.push({
+        type: "coordination.cancel.failed",
+        payload: { sessionId: cancelSessionId, error: String(error) },
+      }),
+    });
+
+    await guard.cancelRun();
+
+    assert.equal(recorded.length, 1, "the failure must be recorded");
+    assert.equal(recorded[0].payload.sessionId, cancelSessionId);
+  });
+
+  it("still reports a cancellation when the recorder itself throws", async () => {
+    // A broken recorder must not turn a cancellation into a tool failure, and
+    // must not leave an unhandled rejection.
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("store write failed")),
+      onFailure: () => { throw new Error("recorder exploded"); },
+    });
+    await guard.cancelRun(); // must resolve
+  });
+
+  it("settles the record before cancelRun resolves", async () => {
+    // Fire-and-forget meant the turn could end before the only record of a
+    // non-finalized run landed. `onFailure` is awaited.
+    let settled = false;
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("nope")),
+      onFailure: async () => { await new Promise(r => setTimeout(r, 10)); settled = true; },
+    });
+    await guard.cancelRun();
+    assert.equal(settled, true, "the record must land before the turn continues");
+  });
+
+  it("still runs a successful cancel without recording a failure", async () => {
+    let cancelled = false;
+    const failures: unknown[] = [];
+    const guard = createCancelGuard({
+      cancel: async () => { cancelled = true; },
+      onFailure: (err) => { failures.push(err); },
+    });
+    await guard.cancelRun();
+    assert.equal(cancelled, true);
+    assert.deepEqual(failures, [], "a successful cancel must not emit a failure event");
+  });
+});

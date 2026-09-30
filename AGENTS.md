@@ -181,10 +181,14 @@ Default section order:
   `coordination.cancel.failed`, because the run is then still `running` with
   leases held and a live `tool-<pid>` owner is never reclaimed — the event is
   the only record that the guarantee above was not met. The recorder's inputs
-  must be captured BEFORE the cancel sites, not read from a `const` declared
-  after them: a closure reading it in the temporal dead zone threw, and the
-  throw was swallowed, so the event that exists to prove the run was not
-  finalized was the one thing never recorded.
+  must be bound BEFORE the cancel sites, never read from a `const` declared
+  after them: a closure reading it in the temporal dead zone threw a
+  `ReferenceError` from inside the `.catch` callback, which rejected the cancel
+  promise itself — so the caller saw a `ReferenceError` where a cancellation was
+  promised, and via the abort listener it was stored unawaited as an unhandled
+  rejection. The event that exists to prove the run was not finalized was
+  therefore never written. `createCancelFailureRecorder` takes its session id as
+  a parameter so the hazard cannot recur.
 - **Single-output write workers recover omitted create paths (durable).** When
   a write worker owns exactly one path and emits `file.create` with valid
   content but no path, the subagent boundary supplies that sole owned path.
@@ -240,6 +244,7 @@ Default section order:
 
 | Path | Scope |
 |------|-------|
+| `src/tools/AGENTS.md` | The model-callable tool surface — registry/capability cards, routers, `ToolExecutor` (policy gate then router), safe shell, bound collaboration tools |
 | `src/ownership/AGENTS.md` | Ownership claims and path-scope arithmetic — the registry/lock, and the owned-scope matcher both the policy gate and the file router must share |
 | `src/kernel/AGENTS.md` | Graph execution engine — TaskGraph, GraphExecutor, projection, planner, coordination (planner/scheduler/tools/subagent executor) |
 | `src/prompts/AGENTS.md` | Prompt registry — static prompt ids, versions, token accounting, snapshot hashes |
