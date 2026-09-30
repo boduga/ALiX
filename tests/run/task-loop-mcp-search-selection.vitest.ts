@@ -36,6 +36,11 @@ const MCP_SEARCH_TOOL: ToolDef = {
   description: 'Search the available MCP tools',
   input_schema: { type: 'object', properties: { query: { type: 'string' } } },
 };
+const SHELL_TOOL: ToolDef = {
+  name: 'alix_shell_run',
+  description: 'Run a shell command in the workspace.',
+  input_schema: { type: 'object', properties: { command: { type: 'string' } } },
+};
 const DONE_TOOL: ToolDef = {
   name: 'alix_done',
   description: 'Signal completion',
@@ -101,7 +106,7 @@ async function makeDeps(overrides: {
       permissions: {},
     },
     provider: overrides.provider,
-    providerTools: [MCP_SEARCH_TOOL, DONE_TOOL],
+    providerTools: [MCP_SEARCH_TOOL, SHELL_TOOL, DONE_TOOL],
     mcpToolIndex: [],
     messages: [{ role: 'user', content: overrides.task } as NormalizedMessage],
     sessionState,
@@ -167,6 +172,87 @@ describe('F4 Bypass A — the MCP search sentinel is a recorded selection', () =
       const scopes = extractToolSelectionScopes(events);
       expect(scopes.some(scope =>
         scope.actualCandidateIds.includes('builtin:alix_mcp_search_tools'))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+/**
+ * T3 could not distinguish "the selector chose badly" from "the surface made
+ * the objective impossible": a requirement tool stripped before the scoper ran
+ * appears in neither `offered` nor `scoping.excluded`. This drives the real
+ * loop with a coordination-shaped objective and NO coordination tool in the
+ * surface, so the gap must be recorded end to end.
+ */
+describe('surface gaps are recorded end to end', () => {
+  it('records an absent-upstream requirement tool the surface could not offer', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_shell_run', id: 's1', args: { command: 'ls' } }] },
+      { text: 'No coordination tool is available.' },
+      { text: 'No coordination tool is available.' },
+    ]);
+    const { deps, log, cleanup } = await makeDeps({
+      provider,
+      task: 'Plan a two-worker coordination run writing left.md and right.md.',
+    });
+
+    try {
+      await runTaskLoop(deps);
+      const events = await log.readAll();
+      const observed = events.find(e => e.type === 'tool.selection.observed');
+      expect(observed, 'the turn made a real choice among the offered tools').toBeDefined();
+
+      const payload = observed!.payload as {
+        surfaceGaps?: Array<{ toolName?: string; absence?: string; reasons?: string[] }>;
+      };
+      const gap = payload.surfaceGaps?.find(g => g.toolName === 'alix_coordination_run');
+      expect(gap, 'the missing coordination tool must be named').toBeDefined();
+      expect(gap!.absence).toBe('absent-upstream');
+      expect(gap!.reasons).toContain('requirement:coordination');
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+/**
+ * `emitSelectionObservation` builds its argument field by field, so a context
+ * field the emitter forgets is TYPE-accepted and silently DROPPED. That is not
+ * hypothetical: `invalidSelection` and `surfaceGaps` were both lost exactly this
+ * way, each with a green typecheck and a green build. The loop's own contract
+ * lists the keys; this drives a real turn and asserts every one arrives.
+ */
+describe('selection context forwarding', () => {
+  it('carries every declared context key onto the emitted observation', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_shell_run', id: 'f1', args: { command: 'ls' } }] },
+      { text: 'done' },
+      { text: 'done' },
+    ]);
+    const { deps, log, cleanup } = await makeDeps({
+      provider,
+      task: 'Plan a two-worker coordination run writing left.md and right.md.',
+    });
+
+    try {
+      await runTaskLoop(deps);
+      const observed = (await log.readAll()).find(e => e.type === 'tool.selection.observed');
+      expect(observed).toBeDefined();
+      const payload = observed!.payload as Record<string, unknown>;
+
+      // Every optional key the emitter forwards conditionally, plus the
+      // required ones. `candidates`/`requirementCandidates`/`scoping`/`ranking`
+      // are always sent; `candidateBindings` and `surfaceGaps` only when present.
+      const required = ['candidates', 'requirementCandidates', 'scoping', 'ranking'] as const;
+      for (const key of required) {
+        expect(payload, `${key} must reach the observation`).toHaveProperty(key);
+      }
+      // These are the two that have each been dropped at runtime before. The
+      // surface carries an MCP tool, so bindings are always present here.
+      expect(payload).toHaveProperty('candidateBindings');
+      // The objective requires coordination, which this surface cannot offer.
+      expect(payload).toHaveProperty('surfaceGaps');
     } finally {
       cleanup();
     }

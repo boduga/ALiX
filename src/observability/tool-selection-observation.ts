@@ -53,6 +53,29 @@ export type FrozenCandidateDescriptor = {
 export type RequirementCandidateRef = { candidateId: string; reasons: string[] };
 
 /**
+ * Why a requirement-closing tool was missing from the offered surface.
+ *
+ * - `scoper-excluded` — the T1a/T1b relevance filter dropped it. Explained by
+ *   `scoping.excluded`, so this is the case the old
+ *   `unexplainedRequirementCandidates` check could already see.
+ * - `absent-upstream` — the tool was never a candidate at all: stripped by
+ *   session mode (`--read-only` removes `alix_shell_run` before the scoper
+ *   runs) or absent from the base tool set. Nothing in `scoping` records this,
+ *   which is exactly why it went unmeasured.
+ * - `unknown` — not offered and not explainable from the recorded facts.
+ */
+export type SurfaceGapReason = "scoper-excluded" | "absent-upstream" | "unknown";
+
+/** One requirement-closing tool that was not offered, with its reason. */
+export type SurfaceGap = {
+  candidateId: string;
+  /** The model-facing name, so a reader need not resolve the id. */
+  toolName?: string;
+  reasons: string[];
+  absence: SurfaceGapReason;
+};
+
+/**
  * LOCAL-ONLY resolution of a candidate to executable machinery. Never part of
  * a remote projection; carried so a reader can map an id back to a tool name.
  */
@@ -114,6 +137,18 @@ export type SelectionObservation = {
   evidence: { contribution: EvidenceContribution };
   requirementCandidates: RequirementCandidateRef[];
   scoping: FrozenScopingProvenance;
+  /**
+   * Requirement-closing tools that were NOT offered this turn, and why.
+   *
+   * T3 could not see its own largest finding because a missing tool looked the
+   * same whether the scoper excluded it or it was stripped upstream (e.g.
+   * `alix_shell_run` is removed from the surface entirely in read-only mode,
+   * before the scoper ever sees it). `scoping.excluded` only explains the
+   * former, so the latter read as a clean, fully-explained surface. This field
+   * records BOTH cases explicitly, so "the surface made the objective
+   * impossible" is a measurement rather than something inferred afterwards.
+   */
+  surfaceGaps?: SurfaceGap[];
   ranking?: SelectionRanking;
   /**
    * Set when the chosen tool could not be resolved against the frozen surface.
@@ -142,6 +177,8 @@ export type SelectionObservationInput = {
   hasContent?: boolean;
   requirementCandidates?: readonly RequirementCandidateRef[];
   scoping?: FrozenScopingProvenance;
+  /** Supplied by the loop: requirement tools that were not offered. */
+  surfaceGaps?: readonly SurfaceGap[];
   ranking?: SelectionRanking;
   invalidSelection?: { toolName: string; reason: string };
 };
@@ -220,6 +257,9 @@ export function buildSelectionObservation(input: SelectionObservationInput): Sel
       fallbackFull: input.scoping?.fallbackFull ?? false,
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded.map(e => ({ ...e, reasons: [...e.reasons] })) } : {}),
     },
+    ...(input.surfaceGaps
+      ? { surfaceGaps: input.surfaceGaps.map(gap => ({ ...gap, reasons: [...gap.reasons] })) }
+      : {}),
     ...(input.ranking ? { ranking: input.ranking } : {}),
     ...(input.invalidSelection
       ? {

@@ -7,6 +7,8 @@ import {
   buildRequirementCandidates,
   buildSelectionObservation,
   rankingOutsideOffered,
+  deriveSurfaceGaps,
+  surfaceBlockedTheObjective,
   unexplainedRequirementCandidates,
 } from '../../src/run/task-loop/predicates.js';
 import {
@@ -219,6 +221,55 @@ describe('requirement-closing tools cannot vanish without provenance', () => {
       },
     });
     expect(unexplainedRequirementCandidates(observation)).toEqual([]);
+  });
+
+  it('names the tool and marks an upstream removal as absent-upstream', () => {
+    // This is T3's blind spot, made explicit. `alix_shell_run` is stripped from
+    // the surface entirely in read-only mode (`agent-loop.ts`), BEFORE the
+    // scoper runs, so it appears in neither `offered` nor `scoping.excluded`.
+    // The old predicate could only say "unexplained"; this says which tool, and
+    // that the surface — not any selector — made the objective impossible.
+    const verification = buildRequirementCandidates({ mutation: false, verification: true, coordination: false });
+    const observation = observe({
+      candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_shell_run'),
+      requirementCandidates: verification,
+      scoping: {
+        admitted: [{ candidateId: id('alix_file_read'), reasons: ['core'] }],
+        fallbackFull: false,
+      },
+    });
+
+    // A verification requirement names BOTH alix_verify_claim and
+    // alix_shell_run; the fixture's frozen surface has neither, so both gaps
+    // are reported. What matters is that each is named and classed.
+    const gaps = deriveSurfaceGaps(observation);
+    expect(gaps.map(gap => gap.toolName).sort())
+      .toEqual(['alix_shell_run', 'alix_verify_claim']);
+    expect(gaps.every(gap => gap.absence === 'absent-upstream')).toBe(true);
+    expect(surfaceBlockedTheObjective(observation)).toBe(true);
+  });
+
+  it('does not call a scoper exclusion a surface block', () => {
+    const coordination = buildRequirementCandidates({ mutation: false, verification: false, coordination: true });
+    const observation = observe({
+      candidates: frozen.candidates.filter(candidate => candidate.tool !== 'alix_coordination_run'),
+      requirementCandidates: coordination,
+      scoping: {
+        admitted: [{ candidateId: id('alix_file_read'), reasons: ['core'] }],
+        fallbackFull: false,
+        excluded: [{ candidateId: id('alix_coordination_run'), reasons: ['not_relevant'] }],
+      },
+    });
+
+    expect(deriveSurfaceGaps(observation)).toEqual([{
+      candidateId: id('alix_coordination_run'),
+      toolName: 'alix_coordination_run',
+      reasons: ['requirement:coordination'],
+      absence: 'scoper-excluded',
+    }]);
+    // The relevance filter made a decision here; that is not the surface
+    // deciding the objective is impossible.
+    expect(surfaceBlockedTheObjective(observation)).toBe(false);
   });
 
   it('accepts an offered candidate, and merges requirement reasons into scoping', () => {

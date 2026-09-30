@@ -32,6 +32,7 @@ import "../../runtime/cancellation-token.js";
 import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
 import {
   builtinCandidateId,
+  builtinNameOf,
   type FrozenToolCandidate,
   type LocalToolBinding,
 } from "../../decision/tool-selection-candidates.js";
@@ -40,6 +41,7 @@ import {
   buildSelectionObservation as buildNeutralSelectionObservation,
   type SelectionObservation as NeutralSelectionObservation,
   type SelectionRanking,
+  type SurfaceGap,
 } from "../../observability/tool-selection-observation.js";
 
 export function emitAgent(
@@ -514,6 +516,8 @@ export function buildSelectionObservation(input: {
    * selection even though `main.ts` passed one.
    */
   invalidSelection?: { toolName: string; reason: string };
+  /** Requirement tools the surface could not offer, and why. */
+  surfaceGaps?: readonly SurfaceGap[];
 }): SelectionObservation {
   // Candidate semantics stay in this layer: requirement tools are builtin tool
   // names, the frozen surface is keyed by candidate id, and the scoper is
@@ -557,6 +561,7 @@ export function buildSelectionObservation(input: {
       ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
     },
     ...(input.invalidSelection ? { invalidSelection: input.invalidSelection } : {}),
+    ...(input.surfaceGaps ? { surfaceGaps: input.surfaceGaps } : {}),
   });
   // The task-loop observation always carries a scoper ranking (possibly empty);
   // the neutral assembly leaves it optional because the grounded path has no
@@ -576,6 +581,40 @@ export function unexplainedRequirementCandidates(observation: SelectionObservati
     .filter(candidate => !observation.offered.includes(candidate.candidateId))
     .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.candidateId === candidate.candidateId))
     .map(candidate => candidate.candidateId);
+}
+
+/**
+ * Requirement-closing tools that were NOT offered, each labelled with WHY.
+ *
+ * The predicate above cannot see the case that matters most. It only calls a
+ * missing tool "unexplained" when the tool is absent from `offered` AND absent
+ * from `scoping.excluded` — but a tool removed by session mode never reaches
+ * the scoper, so it is in neither list and the surface reads as fully
+ * explained. T3 measured 6 of 8 verification scopes in exactly that state:
+ * `alix_shell_run` is stripped by `--read-only` (`agent-loop.ts`), so
+ * "Run pnpm typecheck:unused" was impossible, and the corpus could not say so.
+ *
+ * `scoper-excluded` is the explicable case. `absent-upstream` means the tool
+ * was never a candidate — stripped by session mode, or missing from the base
+ * tool set — and is the one worth surfacing. A requirement candidate the loop
+ * knows about but the base surface never offered is exactly the asymmetry T3
+ * mistook for a selector failure.
+ */
+export function deriveSurfaceGaps(observation: SelectionObservation): SurfaceGap[] {
+  const excluded = new Set((observation.scoping.excluded ?? []).map(entry => entry.candidateId));
+  return observation.requirementCandidates
+    .filter(candidate => !observation.offered.includes(candidate.candidateId))
+    .map(candidate => ({
+      candidateId: candidate.candidateId,
+      toolName: builtinNameOf(candidate.candidateId),
+      reasons: [...candidate.reasons],
+      absence: excluded.has(candidate.candidateId) ? "scoper-excluded" as const : "absent-upstream" as const,
+    }));
+}
+
+/** True when a tool the objective needs could not have been called at all. */
+export function surfaceBlockedTheObjective(observation: SelectionObservation): boolean {
+  return deriveSurfaceGaps(observation).some(gap => gap.absence !== "scoper-excluded");
 }
 
 /**

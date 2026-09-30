@@ -24,6 +24,10 @@ existing import paths are unchanged.
   the observation reached the emitter but was erased by the local return type,
   so the loop never recorded an invalid selection. Add observation fields to
   `src/observability/tool-selection-observation.ts` and narrow here.
+  `emitSelectionObservation` forwards context fields ONE BY ONE, so a new field
+  must be added there as well: the `Pick` type accepts it and the runtime drops
+  it otherwise. That has silently bitten three fields in a row —
+  `invalidSelection`, the wrapper parameter, and `surfaceGaps`.
 - `context-helpers.ts` — context assembly helpers: `classifyMessageToCategory`,
   `classifyCandidateContext`, `reconstructRequest`, `sourceIndexOf`,
   `toBudgetedItems`, `evaluatePattern`.

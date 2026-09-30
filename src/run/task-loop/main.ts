@@ -15,9 +15,11 @@ import type { ModelAdapter, NormalizedMessage, ToolCall, TokenUsage, ToolDef } f
 import type { DeferredToolEntry } from "../../mcp/tool-deferral.js";
 import {
   MCP_TOOL_PREFIX,
+  builtinCandidateId,
   candidateIdFor,
   freezeToolCandidates,
 } from "../../decision/tool-selection-candidates.js";
+import type { SurfaceGap } from "../../observability/tool-selection-observation.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { MemoryStore } from "../../utils/memory/store.js";
 import type { ExecutionContext } from "../../observability/execution-context.js";
@@ -86,8 +88,24 @@ let selectionScopeSequence = 0;
  */
 type SelectionObservationContext = Pick<
   Parameters<typeof buildSelectionObservation>[0],
-  "candidates" | "candidateBindings" | "scoping" | "ranking" | "requirementCandidates"
+  "candidates" | "candidateBindings" | "scoping" | "ranking" | "requirementCandidates" | "surfaceGaps"
 >;
+
+/**
+ * Every optional key of `SelectionObservationContext`, so the field-by-field
+ * forwarding inside `emitSelectionObservation` can be checked at compile time.
+ * `emitSelectionObservation` builds its argument by hand, which means a new
+ * context field is TYPE-accepted but DROPPED at runtime unless it is also
+ * forwarded — that has silently swallowed `invalidSelection` and `surfaceGaps`.
+ * `SelectionObservationContextKey` is asserted by a test that drives the real loop.
+ */
+/**
+ * Every key the emitter must forward, listed so a test can assert the
+ * hand-built argument inside `emitSelectionObservation` carries all of them.
+ * Deriving it from the type is what makes the test meaningful: adding a context
+ * field without forwarding it fails `tests/run/selection-context-forwarding`.
+ */
+export type SelectionObservationContextKey = keyof SelectionObservationContext;
 
 /**
  * Emit one frozen selection scope.
@@ -134,6 +152,10 @@ async function emitSelectionObservation(
     noOp: input.toolResult.changed === false && /identical content/i.test(body),
     hasContent: body.length > 0,
     ...(input.context.requirementCandidates ? { requirementCandidates: input.context.requirementCandidates } : {}),
+    // Forwarded explicitly like every other context field: the type permits it,
+    // but a field missing here is silently dropped at runtime, which is how
+    // `invalidSelection` and then `surfaceGaps` both went missing.
+    ...(input.context.surfaceGaps ? { surfaceGaps: input.context.surfaceGaps } : {}),
     ...(input.context.scoping ? { scoping: input.context.scoping } : {}),
     ...(input.context.ranking ? { ranking: input.context.ranking } : {}),
     ...(input.context.candidates.some(candidate => candidate.candidateId === candidateIdFor(input.toolCall.name))
@@ -320,6 +342,32 @@ onProgress,
   const requirementCandidatesForTurn = buildRequirementCandidates(
     objectiveEvidenceRequirements(evidenceTask, evidenceTaskType),
   );
+  // Which requirement-closing tools the objective needed but the surface could
+  // not offer, and why. Computed here, while both the scoper verdict and the
+  // pre-scoper surface are still in hand: `scoping.excluded` is debug-gated and
+  // explains only scoper drops, so a tool removed upstream (session mode strips
+  // `alix_shell_run` in read-only) would otherwise look like a clean surface.
+  // This is the signal T3 lacked — see `deriveSurfaceGaps`.
+  const surfaceGapsForTurn: SurfaceGap[] = requirementCandidatesForTurn
+    .filter(candidate => !fullToolRegistry.some((t) => t.name === candidate.tool))
+    .map(candidate => ({
+      candidateId: builtinCandidateId(candidate.tool),
+      toolName: candidate.tool,
+      reasons: [...candidate.reasons],
+      absence: "absent-upstream" as const,
+    }));
+  const scoperExcludedIds = new Set(scopingProvenance.excluded.map(entry => entry.tool));
+  for (const candidate of requirementCandidatesForTurn) {
+    if (surfaceGapsForTurn.some(gap => gap.candidateId === builtinCandidateId(candidate.tool))) continue;
+    if (scoperExcludedIds.has(candidate.tool)) {
+      surfaceGapsForTurn.push({
+        candidateId: builtinCandidateId(candidate.tool),
+        toolName: candidate.tool,
+        reasons: [...candidate.reasons],
+        absence: "scoper-excluded",
+      });
+    }
+  }
   const selectionDebug = process.env.ALIX_TOOL_SELECTION_DEBUG === "1";
   // Deterministic orderings for the shadow trace, taken from the layers that
   // own them: the scoper's relevance ranking, and the MCP selector's scores.
@@ -1340,6 +1388,7 @@ if (toolCalls.length === 0) {
           candidates: frozenSurface.candidates,
           candidateBindings: frozenSurface.bindings,
           requirementCandidates: requirementCandidatesForTurn,
+          ...(surfaceGapsForTurn.length > 0 ? { surfaceGaps: surfaceGapsForTurn } : {}),
           scoping: frozenScoping,
           ranking: frozenRanking,
         },
@@ -1469,6 +1518,7 @@ if (toolCalls.length === 0) {
           candidates: frozenSurface.candidates,
           candidateBindings: frozenSurface.bindings,
           requirementCandidates: requirementCandidatesForTurn,
+          ...(surfaceGapsForTurn.length > 0 ? { surfaceGaps: surfaceGapsForTurn } : {}),
           scoping: frozenScoping,
           ranking: frozenRanking,
         },

@@ -365,6 +365,12 @@ async function runTaskCoreImpl(
   //   --read-only:  exclude alix_shell_run, include alix_delegate
   //   shell task:   only READ_ONLY_TOOL_NAMES (includes alix_shell_run)
   //   default:      all tools
+  //
+  // The read-only exclusion of `alix_shell_run` is a containment boundary, and
+  // it is duplicated in `session/setup.ts` `setupTools` — keep the two in step.
+  // Consequence worth knowing: a read-only objective that must actually RUN
+  // something is unsatisfiable, and the selection observation records that as
+  // `surfaceGaps[].absence === "absent-upstream"`. See `setupTools`.
   const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
   readOnlyToolFilter.add("alix_delegate");
   readOnlyToolFilter.add("alix_coordination_status");
