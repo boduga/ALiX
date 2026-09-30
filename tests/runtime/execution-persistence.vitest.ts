@@ -66,6 +66,17 @@ function withTempDir(fn: (dir: string, store: ExecutionEvidenceStore) => Promise
 // PersistenceEvidenceEmitter
 // ---------------------------------------------------------------------------
 
+/**
+ * `PersistenceEvidenceEmitter.emit` is deliberately non-blocking: it chains
+ * appends so ordering is preserved without making the caller await I/O. These
+ * tests therefore await `emitter.drain()` — the durability barrier the class
+ * provides for exactly this purpose — rather than sleeping a fixed interval.
+ *
+ * The sleeps were load-sensitive: on slower Windows and macOS runners five
+ * chained appends had not landed after 50 ms, so `totalEvidence` read 3 instead
+ * of 5 and the suite failed on a machine, not on a defect. A timed wait asserts
+ * nothing about the work it is waiting for.
+ */
 describe("PersistenceEvidenceEmitter", () => {
   it("appends evidence to the store", async () => {
     await withTempDir(async (dir, store) => {
@@ -74,7 +85,7 @@ describe("PersistenceEvidenceEmitter", () => {
       emitter.emit("ExecutionCreated", makeEvidence({ evidenceId: "ev-001" }));
 
       // Wait for async write to complete
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const all = await store.list();
       expect(all).toHaveLength(1);
@@ -91,7 +102,7 @@ describe("PersistenceEvidenceEmitter", () => {
         makeEvidence({ evidenceId: "ev-002", intentId: "intent-find-me" }),
       );
 
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const found = await store.getByIntentId("intent-find-me");
       expect(found).toHaveLength(1);
@@ -107,7 +118,7 @@ describe("PersistenceEvidenceEmitter", () => {
       emitter.emit("ExecutionStarted", makeEvidence({ evidenceId: "ev-b" }));
       emitter.emit("ExecutionCompleted", makeEvidence({ evidenceId: "ev-c" }));
 
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const all = await store.list();
       expect(all).toHaveLength(3);
@@ -150,7 +161,7 @@ describe("recoverExecutionState", () => {
         intentId: "intent-success",
         outcome: "SUCCESS",
       }));
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
 
@@ -171,7 +182,7 @@ describe("recoverExecutionState", () => {
         intentId: "intent-failure",
         outcome: "FAILED",
       }));
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
 
@@ -189,7 +200,7 @@ describe("recoverExecutionState", () => {
         intentId: "intent-rolled",
         outcome: "PARTIAL",
       }));
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
 
@@ -213,7 +224,7 @@ describe("recoverExecutionState", () => {
         evidenceId: "ev-3", intentId: "intent-a", outcome: "SUCCESS",
       }));
 
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
 
@@ -234,7 +245,7 @@ describe("recoverExecutionState", () => {
         outcome: "PARTIAL",
       }));
 
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
 
@@ -259,7 +270,7 @@ describe("recoverExecutionState", () => {
         }));
       }
 
-      await new Promise((r) => setTimeout(r, 50));
+      await emitter.drain();
 
       const result = await recoverExecutionState(store);
       expect(result.totalEvidence).toBe(5);
