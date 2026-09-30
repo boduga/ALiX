@@ -64,6 +64,29 @@ jobs:
       - name: TypeScript unused check (src; #718)
         run: pnpm typecheck:unused
 
+  # ─── Lane 1b: DOX claim/code audit (git-only, no install) ─────────────────
+  # A contract line a branch ADDS to any AGENTS.md must be backed by that
+  # branch's own content. This is the gate that caught a doc claiming functions
+  # which only existed on a sibling branch.
+  dox-claims:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v4 — pinned SHA
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # The audit diffs the PR against its base, so the base must be present.
+          # A shallow (depth-1) checkout leaves it unresolvable and the script
+          # exits 2 rather than treating an unresolved base as an empty diff.
+          fetch-depth: 0
+      # actions/setup-node v4 — pinned SHA
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+      - name: DOX claim/code audit
+        run: node scripts/check-dox-claims.mjs --base "${{ github.event.pull_request.base.sha || 'main' }}"
+
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
     runs-on: ubuntu-latest

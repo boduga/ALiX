@@ -57,6 +57,7 @@
     "stress:long-turn": "node scripts/stress/long-turn-stress.mjs",
     "test:skips:audit": "bash scripts/test-skips-audit.sh",
     "check:dead": "node scripts/check-dead-modules.mjs",
+    "check:dox": "node scripts/check-dox-claims.mjs",
     "check:package-manager": "bash scripts/check-package-manager.sh",
     "fresh": "pnpm build && node dist/src/cli.js doctor"
   },
