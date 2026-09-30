@@ -606,6 +606,43 @@ test("file.create overwrites the caller's own owned output", async () => {
   await rm(`/tmp/${path}`, { force: true });
 });
 
+test("file.create honours a workspace-wide ownership grant", async () => {
+  // `.` and a bare `**` both mean "the whole workspace". Both used to fail:
+  // `.` was explicitly refused, and `**` resolved to a literal `**` segment
+  // that prefixes nothing. A worker that owns everything therefore could not
+  // overwrite anything — the grant was widest exactly where it was weakest.
+  for (const owned of [".", "**", "./**", "**/*"]) {
+    const router = new FileToolRouter("/tmp");
+    const path = `ws-owned-${process.pid}-${owned.replace(/[^a-z]/gi, "") || "dot"}.txt`;
+    await writeFile(`/tmp/${path}`, "first pass");
+
+    const result = await router.execute({
+      toolCallId: "1",
+      name: "file.create",
+      args: { path, content: "second pass" },
+      ownedPaths: [owned],
+    });
+
+    assert.strictEqual(result.kind, "success", `ownedPaths: ${owned}`);
+    assert.strictEqual(await readFile(`/tmp/${path}`, "utf8"), "second pass", `ownedPaths: ${owned}`);
+    await rm(`/tmp/${path}`, { force: true });
+  }
+});
+
+test("a workspace-wide grant still cannot reach outside the workspace", async () => {
+  // The grant is bounded by the root, not open-ended: `..` in the target is
+  // rejected by path validation before ownership is ever consulted.
+  const router = new FileToolRouter("/tmp");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path: "../escape-ws-owned.txt", content: "nope" },
+    ownedPaths: ["**"],
+  });
+  assert.strictEqual(result.kind, "error");
+  await rm("/tmp/escape-ws-owned.txt", { force: true });
+});
+
 test("file.create refuses to overwrite a path the caller does not own", async () => {
   const router = new FileToolRouter("/tmp");
   const path = `unowned-rewrite-${process.pid}.txt`;

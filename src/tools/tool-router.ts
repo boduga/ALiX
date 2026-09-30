@@ -133,12 +133,25 @@ export class FileToolRouter implements ToolRouter {
    * Owned paths are the worker's authorization, so a worker may replace the
    * file it owns — matching policy, which already treats an owned write as
    * authorized. Glob entries are reduced to their literal directory prefix.
+   *
+   * A workspace-wide grant is honoured. `.` and a bare `**` both mean "the whole
+   * workspace", and refusing them made an owned write unsatisfiable exactly
+   * where ownership is widest: the worker that owns everything could not
+   * overwrite anything. `**` additionally has to be normalized to the root —
+   * left alone it resolves to a literal `**` segment that prefixes nothing, so
+   * it silently never matched.
    */
   private isOwnedWriteTarget(request: ToolCallRequest, resolvedPath: string): boolean {
     const owned = request.ownedPaths ?? [];
     return owned.some((entry) => {
-      const literal = String(entry).replace(/\/\*\*$/, "").replace(/\/+$/, "");
-      if (literal.length === 0 || literal === ".") return false;
+      const raw = String(entry).trim();
+      // A bare recursive glob, or one rooted at the workspace, is a
+      // workspace-wide grant. Normalize both to the root itself.
+      if (raw === "." || raw === "**" || raw === "**/*" || raw === "./**") {
+        return resolvedPath.startsWith(this.root + sep) || resolvedPath === this.root;
+      }
+      const literal = raw.replace(/\/\*\*$/, "").replace(/\/+$/, "");
+      if (literal.length === 0) return false;
       const resolvedOwned = resolve(this.root, literal);
       return resolvedPath === resolvedOwned || resolvedPath.startsWith(resolvedOwned + sep);
     });

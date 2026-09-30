@@ -210,10 +210,21 @@ async function handleCoordinationRun(
   // cancellation contract exists to prevent.
   let cancellation: Promise<void> | undefined;
   const onAbort = (): void => {
-    cancellation ??= cancelRun();
+    if (cancellation) return;
+    // Attach a handler IMMEDIATELY. `cancelRun` performs several store writes
+    // and lease releases that can reject, and this is a synchronous listener: if
+    // the rejection is still unhandled when the turn ends without aborting
+    // (`signal.aborted` false), Node reports an unhandled rejection and can
+    // tear down the process. Swallowing it here is deliberate — the abort path
+    // below still awaits the same promise, so a genuine failure is not lost,
+    // it just cannot crash the process from a detached listener.
+    cancellation = cancelRun().catch(() => {});
   };
   if (signal?.aborted) {
-    await cancelRun();
+    // Same reasoning as the listener: a cancel that cannot complete is still a
+    // cancellation. The operator asked to stop; reporting a store failure
+    // instead would misrepresent the outcome and leave the run unfinalized.
+    await cancelRun().catch(() => {});
     throw new ExecutionCancelledError("cancelled by operator");
   }
   signal?.addEventListener("abort", onAbort, { once: true });
