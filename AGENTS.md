@@ -165,7 +165,10 @@ Default section order:
   owned write, and `file.create` is the only creation tool — without this a
   re-run of the same goal in the same workspace fails structurally). A
   resumed retry that finds its output already written still succeeds instead
-  of failing a non-idempotent create.
+  of failing a non-idempotent create. A WORKSPACE-WIDE grant (`.`, `**`,
+  `./**`, `**/*`) is honoured and bounded by the workspace root: it was
+  previously refused outright, so a worker owning everything could not
+  overwrite anything — the grant was widest exactly where it was weakest.
 - **Operator cancellation finalizes the coordination run (durable).** An
   aborted `coordination.run` call cancels its run through the scheduler
   (`cancelled` run status, cancelled workers, released ownership leases,
