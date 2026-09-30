@@ -6,7 +6,8 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   POST_SELECTION_FIELDS,
   TOOL_SELECTION_PROJECTOR_VERSION,
@@ -516,7 +517,11 @@ describe('offline-only isolation', () => {
    * layer freezes the surface with it, which is instrumentation, not selection.
    */
   it('is imported by nothing outside the decision layer', () => {
-    const root = new URL('../../src/', import.meta.url).pathname;
+    // fileURLToPath, not .pathname: a URL pathname keeps the leading slash
+    // and URL-escapes on Windows (`/D:/...`), which re-resolves to a doubled
+    // drive (`D:\D:\...`) and fails the walk with ENOENT. This is the
+    // canonical conversion; it also decodes %20-style escapes everywhere.
+    const root = fileURLToPath(new URL('../../src/', import.meta.url));
     const offenders: string[] = [];
 
     const walk = (dir: string): void => {
@@ -527,7 +532,9 @@ describe('offline-only isolation', () => {
           continue;
         }
         if (!entry.name.endsWith('.ts')) continue;
-        const relative = path.slice(root.length);
+        // Normalise separators before the prefix check: on Windows the slice
+        // below yields backslashes, which would never match 'decision/'.
+        const relative = path.slice(root.length).split(sep).join('/');
         if (relative.startsWith('decision/')) continue;
         const source = readFileSync(path, 'utf8');
         for (const banned of [
