@@ -1,6 +1,6 @@
 # F4 — External Selection Observability: Impact Analysis & Plan
 
-**Status:** analysis complete; implementation not started.
+**Status:** complete — both observation bypasses and the coverage-vocabulary gap are implemented and tested.
 
 **Problem (cohort `t3d-2026-09-28-c`, F4):** eight MCP/external tasks produced
 **zero** `tool.selection.observed` events, so the cohort has no external/MCP
@@ -248,3 +248,39 @@ completion / failure / latency are measurable
 
 No promotion question is in scope. Only after F4 closes does the plan move to
 the verification-detection / read-only offer gap.
+
+## 7. Closure amendment 2026-09-29 (fourth)
+
+The final coverage contract replaces the earlier draft reasons with the narrow
+payload approved for implementation:
+
+```ts
+type ToolSelectionNotApplicable = {
+  type: "tool.selection.not_applicable";
+  scopeId: string;
+  iteration: number;
+  route: "grounded" | "task-loop";
+  reason:
+    | "no_tool_call"
+    | "no_tools_offered"
+    | "non_selection_turn";
+};
+```
+
+The grounded path emits `no_tool_call` when tools were offered and the model
+returned no tool call, and `no_tools_offered` when an observing path received an
+empty surface. It never invents `chosenCandidateId`, never reclassifies the turn
+as a failed selection, and emits no `tool.selection.observed` alongside it.
+Replay continues to extract selector samples only from observed records, so
+coverage telemetry cannot enter agreement statistics.
+
+The MCP leak acceptance test now scans identity-bearing fields only:
+`candidateId`, `label`, `offered`, `chosen`, `chosenCandidateId`, and
+requirement/scoping/ranking entries. Candidate descriptions and local-only
+`candidateBindings` are deliberately excluded, so the sentinel description's
+literal `mcp__` prose is not mistaken for a serialized handle.
+
+F4 is therefore closed as an observability result. Cohort
+`t3d-2026-09-29-d` remains valid and frozen, but coverage-limited for its two
+scope-less/no-tool-call tasks because that vocabulary did not exist during
+collection. It must not be discarded or recollected solely for this fix.

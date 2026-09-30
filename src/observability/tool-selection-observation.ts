@@ -146,6 +146,15 @@ export type SelectionObservationInput = {
   invalidSelection?: { toolName: string; reason: string };
 };
 
+export type ToolSelectionNotApplicable = {
+  type: "tool.selection.not_applicable";
+  scopeId: string;
+  iteration: number;
+  route: "grounded" | "task-loop";
+  reason: "no_tool_call" | "no_tools_offered" | "non_selection_turn";
+};
+
+export type SelectionNotApplicableInput = Omit<ToolSelectionNotApplicable, "type">;
 
 /**
  * An MCP `chosen` is the opaque `mcp__<handle>` the model emitted. F4 requires
@@ -159,6 +168,16 @@ export type SelectionObservationInput = {
 function maskChosen(chosen: string, chosenCandidateId: string, candidates: readonly FrozenCandidateDescriptor[]): string {
   const domain = candidates.find(candidate => candidate.candidateId === chosenCandidateId)?.domain;
   return domain === "mcp" ? chosenCandidateId : chosen;
+}
+
+/**
+ * A name that is NOT among the offered candidates is judged by its own shape:
+ * an `mcp__` prefix is the handle form by construction, and such a call is
+ * invalid by definition so it can never be found in `candidates` to classify it.
+ * Returns the masked form for a handle, otherwise the name unchanged.
+ */
+function maskUnofferedToolName(toolName: string): string {
+  return toolName.startsWith("mcp__") ? `mcp:unregistered(${toolName.length})` : toolName;
 }
 
 /**
@@ -202,7 +221,14 @@ export function buildSelectionObservation(input: SelectionObservationInput): Sel
       ...(input.scoping?.excluded ? { excluded: input.scoping.excluded.map(e => ({ ...e, reasons: [...e.reasons] })) } : {}),
     },
     ...(input.ranking ? { ranking: input.ranking } : {}),
-    ...(input.invalidSelection ? { invalidSelection: input.invalidSelection } : {}),
+    ...(input.invalidSelection
+      ? {
+          invalidSelection: {
+            toolName: maskUnofferedToolName(input.invalidSelection.toolName),
+            reason: input.invalidSelection.reason,
+          },
+        }
+      : {}),
   };
 }
 
@@ -224,4 +250,22 @@ export async function emitSelectionObservation(
     payload: observation,
   });
   return observation;
+}
+
+export async function emitSelectionNotApplicable(
+  log: EventLog,
+  session: { sessionId: string; actor: "system" },
+  input: SelectionNotApplicableInput,
+): Promise<ToolSelectionNotApplicable> {
+  const record: ToolSelectionNotApplicable = {
+    type: "tool.selection.not_applicable",
+    ...input,
+  };
+  await log.append({
+    ...session,
+    actor: "system",
+    type: TOOL_EVENT_TYPES.SELECTION_NOT_APPLICABLE,
+    payload: record,
+  });
+  return record;
 }

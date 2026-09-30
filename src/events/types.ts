@@ -127,6 +127,7 @@ export const TOOL_EVENT_TYPES = {
   FAILED: "tool.failed",
   /** Shadow tool-selection observation — instrumentation only, never a gate. */
   SELECTION_OBSERVED: "tool.selection.observed",
+  SELECTION_NOT_APPLICABLE: "tool.selection.not_applicable",
 } as const;
 
 export type PatchProposalPayload = {

@@ -108,6 +108,32 @@ describe('buildSelectionObservation', () => {
     expect(observation.chosen).toBe('alix_file_read');
   });
 
+  it('masks a raw handle recorded as an invalid selection', () => {
+    // An unoffered `mcp__` call is invalid BY DEFINITION, so it can never be
+    // found in `candidates` to classify it — the mask has to read the name's own
+    // shape. Recording the name verbatim re-leaks the handle one field over.
+    const observation = observe({
+      chosen: 'mcp__opaque',
+      chosenCandidateId: 'mcp:unregistered',
+      invalidSelection: {
+        toolName: 'mcp__opaque',
+        reason: 'chosen tool is not in the offered surface',
+      },
+    });
+
+    expect(observation.invalidSelection?.toolName).not.toContain('mcp__');
+    expect(observation.invalidSelection?.reason).toBe('chosen tool is not in the offered surface');
+  });
+
+  it('keeps an unoffered builtin name readable in an invalid selection', () => {
+    const observation = observe({
+      chosen: 'alix_file_list',
+      chosenCandidateId: id('alix_file_list'),
+      invalidSelection: { toolName: 'alix_file_list', reason: 'not offered' },
+    });
+    expect(observation.invalidSelection?.toolName).toBe('alix_file_list');
+  });
+
   it('separates mechanical outcome, selection outcome, and evidence contribution', () => {
     const observation = observe();
     expect(observation.execution.status).toBe('success');

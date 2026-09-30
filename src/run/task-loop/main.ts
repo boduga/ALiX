@@ -136,6 +136,9 @@ async function emitSelectionObservation(
     ...(input.context.requirementCandidates ? { requirementCandidates: input.context.requirementCandidates } : {}),
     ...(input.context.scoping ? { scoping: input.context.scoping } : {}),
     ...(input.context.ranking ? { ranking: input.context.ranking } : {}),
+    ...(input.context.candidates.some(candidate => candidate.candidateId === candidateIdFor(input.toolCall.name))
+      ? {}
+      : { invalidSelection: { toolName: input.toolCall.name, reason: "chosen tool is not in the offered surface" } }),
   });
   await log.append({
     ...session,

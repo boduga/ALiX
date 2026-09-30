@@ -16,7 +16,14 @@ existing import paths are unchanged.
   `objectiveEvidenceGaps`, `missingEvidenceSummary`,
   `lastToolResultShowsClientError`, `latestToolFailure`,
   `durableCompletionSummary`, `claimsArtifactWritten`, `extractErrors`,
-  `COORDINATION_RUN_TOOL_NAME` and their constants/types.
+  `COORDINATION_RUN_TOOL_NAME` and their constants/types. It also owns the
+  loop-side `buildSelectionObservation` wrapper and the loop's
+  `SelectionObservation` view — which is the canonical observation type
+  NARROWED to require a scoper ranking, never a re-declaration. That
+  re-declaration is what silently dropped `invalidSelection`: a field added to
+  the observation reached the emitter but was erased by the local return type,
+  so the loop never recorded an invalid selection. Add observation fields to
+  `src/observability/tool-selection-observation.ts` and narrow here.
 - `context-helpers.ts` — context assembly helpers: `classifyMessageToCategory`,
   `classifyCandidateContext`, `reconstructRequest`, `sourceIndexOf`,
   `toBudgetedItems`, `evaluatePattern`.

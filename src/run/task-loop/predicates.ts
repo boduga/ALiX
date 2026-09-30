@@ -30,18 +30,17 @@ import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
 import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
-import type {
-  EvidenceContribution,
-  ExecutionOutcome,
-  SelectionOutcome,
-} from "../../decision/selection-outcome.js";
 import {
   builtinCandidateId,
   type FrozenToolCandidate,
   type LocalToolBinding,
 } from "../../decision/tool-selection-candidates.js";
 
-import { buildSelectionObservation as buildNeutralSelectionObservation } from "../../observability/tool-selection-observation.js";
+import {
+  buildSelectionObservation as buildNeutralSelectionObservation,
+  type SelectionObservation as NeutralSelectionObservation,
+  type SelectionRanking,
+} from "../../observability/tool-selection-observation.js";
 
 export function emitAgent(
   log: EventLog,
@@ -463,70 +462,20 @@ export function buildRequirementCandidates(required: {
   return candidates;
 }
 
-export type SelectionObservation = {
-  /**
-   * Frozen-candidate-surface id. Replay joins scopes to selector results on
-   * this, never on the assumption that iteration and scope are one-to-one.
-   */
-  scopeId: string;
-  iteration: number;
-  invocationId?: string;
-  /**
-   * The frozen surface: sanitized candidate descriptors, in offered order.
-   * Identity is `candidateId`; an MCP candidate never carries its opaque handle.
-   */
-  candidates: FrozenToolCandidate[];
-  /** Candidate ids offered this iteration, in the same order as `candidates`. */
-  offered: string[];
-  /** LOCAL ONLY: candidateId -> model/executor names. Never projected. */
-  candidateBindings?: LocalToolBinding[];
-  /** Model-facing name the model called (local-only detail). */
-  chosen: string;
-  /** Frozen candidate id the model called. */
-  chosenCandidateId: string;
-  /** Executor the chosen name resolved to. */
-  executor: string;
-  /**
-   * Canonical argument signature (the same `hashArgs` the loop uses for
-   * evidence signatures). Recorded so a replay corpus can key external
-   * recorded responses without re-serializing arguments from the trace.
-   */
-  argsSignature: string;
-  selection: {
-    outcome: SelectionOutcome;
-    /** How many times this exact executor+args call has been seen this turn. */
-    repeatCount: number;
-  };
-  execution: {
-    status: ExecutionOutcome;
-  };
-  evidence: {
-    contribution: EvidenceContribution;
-  };
-  /**
-   * Tools that could close a detected requirement (never "applicable"),
-   * recorded by frozen candidate id so it can be checked against `offered`.
-   */
-  requirementCandidates: Array<{ candidateId: string; reasons: string[] }>;
-  scoping: {
-    admitted: Array<{ candidateId: string; reasons: string[] }>;
-    fallbackFull: boolean;
-    /** Debug-only: exclusions can explode, so they are opt-in. */
-    excluded?: Array<{ candidateId: string; reasons: string[] }>;
-  };
-  /**
-   * Recorded orderings, as the production layer produced them.
-   * `scoper` is the scoper's relevance ranking of the admitted surface (native
-   * semantics: overlapping-token count, 0 for core membership) — a relevance
-   * ordering, NOT a next-tool preference, so a selector comparison must not
-   * present it as the deterministic selection baseline.
-   * `mcpSelector` carries the MCP selector's own scores when the MCP path ran —
-   * a different scale, deliberately not interleaved with `scoper`.
-   */
-  ranking: {
-    scoper: Array<{ candidateId: string; score: number }>;
-    mcpSelector?: Array<{ candidateId: string; score: number }>;
-  };
+/**
+ * The task loop's own view of an observation. Structurally the canonical
+ * `SelectionObservation` with ONE narrowing: the loop always carries a scoper
+ * ranking, possibly empty, because the scoper runs on every iteration. The
+ * grounded path has no scoper, so the canonical type leaves `ranking` optional.
+ *
+ * This used to be a full field-by-field re-declaration, which is how
+ * `invalidSelection` came to be missing here: a field added to the observation
+ * reached the emitter but was dropped by the return type, so the task loop
+ * silently never recorded an invalid selection. Narrow the canonical type
+ * instead of restating it.
+ */
+export type SelectionObservation = NeutralSelectionObservation & {
+  ranking: SelectionRanking;
 };
 
 export function buildSelectionObservation(input: {
@@ -558,6 +507,13 @@ export function buildSelectionObservation(input: {
     scoper?: Array<{ candidateId: string; score: number }>;
     mcpSelector?: Array<{ candidateId: string; score: number }>;
   };
+  /**
+   * Set when the chosen tool could not be resolved against the frozen surface.
+   * Declared here as well as on the neutral input: without it the wrapper
+   * silently DROPPED the field, so the loop could never record an invalid
+   * selection even though `main.ts` passed one.
+   */
+  invalidSelection?: { toolName: string; reason: string };
 }): SelectionObservation {
   // Candidate semantics stay in this layer: requirement tools are builtin tool
   // names, the frozen surface is keyed by candidate id, and the scoper is
@@ -600,6 +556,7 @@ export function buildSelectionObservation(input: {
       scoper: input.ranking?.scoper ?? [],
       ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
     },
+    ...(input.invalidSelection ? { invalidSelection: input.invalidSelection } : {}),
   });
   // The task-loop observation always carries a scoper ranking (possibly empty);
   // the neutral assembly leaves it optional because the grounded path has no
@@ -763,8 +720,9 @@ export function isToolResultEcho(text: string, lastToolResult: string | undefine
   const answer = toolResultBody(text);
   if (answer.length < 8) return false; // short prose is not an echo
   const result = toolResultBody(lastToolResult);
-  if (result.length === 0 || result.length > 200) return false;
+  if (result.length === 0) return false;
   if (answer === result) return true;
+  if (result.length > 200) return false;
   // Quoting a short result inside real prose is normal ("the heading is
   // `# ALiX`"), so an embedded result only counts when it dominates the answer.
   return answer.includes(result) && result.length / answer.length >= 0.6;

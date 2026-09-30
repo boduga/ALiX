@@ -298,6 +298,7 @@ export async function executeGroundedChatBehavior(
   const allowedSet = new Set(route.allowedTools);
   const tools = ([webSearchTool(), webFetchTool({ allowDomains: config.permissions?.allowNetworkDomains ?? [] })] as ToolDef[])
     .filter((t) => allowedSet.has(t.name));
+  const selectionSignatures = new Map<string, number>();
 
   // First call: model may issue a tool call for fresh information
   const response = await provider.complete({
@@ -347,7 +348,10 @@ export async function executeGroundedChatBehavior(
         description: tool.description ?? "",
       }));
       const chosenCandidateId = frozen.find(candidate => candidate.label === canonical(tc.name))?.candidateId;
-      const { emitSelectionObservation } = await import("../observability/tool-selection-observation.js");
+      const [{ emitSelectionObservation }, { hashArgs }] = await Promise.all([
+        import("../observability/tool-selection-observation.js"),
+        import("../tools/executor.js"),
+      ]);
       await emitSelectionObservation(
         deps.eventLog,
         { sessionId: deps.selectionScope.sessionId, actor: "system" },
@@ -358,8 +362,8 @@ export async function executeGroundedChatBehavior(
           chosen: tc.name,
           chosenCandidateId: chosenCandidateId ?? `builtin:${canonical(tc.name)}`,
           executor: tc.name,
-          argsSignature: `${tc.name}:${JSON.stringify(tc.args ?? {})}`,
-          seenSignatures: new Map<string, number>(),
+          argsSignature: `${tc.name}:${hashArgs(tc.args ?? {})}`,
+          seenSignatures: selectionSignatures,
           executorSuccess: toolResult.kind === "success",
           hasContent: toolResult.kind === "success",
           ...(chosenCandidateId
@@ -394,5 +398,19 @@ export async function executeGroundedChatBehavior(
   }
 
   // No tool call — model answered directly
+  if (deps.selectionScope) {
+    const { emitSelectionNotApplicable } = await import("../observability/tool-selection-observation.js");
+    await emitSelectionNotApplicable(
+      deps.eventLog,
+      { sessionId: deps.selectionScope.sessionId, actor: "system" },
+      {
+        scopeId: deps.selectionScope.scopeId,
+        iteration: deps.selectionScope.iteration,
+        route: "grounded",
+        reason: tools.length > 0 ? "no_tool_call" : "no_tools_offered",
+      },
+    ).catch(() => {
+    });
+  }
   return response.text || "(no response)";
 }
