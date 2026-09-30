@@ -1,0 +1,174 @@
+/**
+ * F4 Bypass A: `alix_mcp_search_tools` is a real member of the frozen candidate
+ * set, so calling it is a real selection. It used to `continue` past
+ * `handleToolResult`, which meant the observation was never emitted — cohort
+ * `t3d-2026-09-28-c` recorded eight external tasks and ZERO selection scopes.
+ *
+ * The F4 spec requires: "a loop turn that calls `alix_mcp_search_tools` emits a
+ * selection scope whose chosen candidate is `builtin:alix_mcp_search_tools`".
+ * This drives the actual task loop rather than the builder, because the defect
+ * was precisely that the builder worked while the loop never called it.
+ */
+import { describe, it, expect } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { EventLog } from '../../src/events/event-log.js';
+import { runTaskLoop, type TaskLoopDeps } from '../../src/run/task-loop.js';
+import { extractToolSelectionScopes } from '../../src/decision/tool-selection-replay.js';
+import { createContextBudget } from '../../src/config/context-budget.js';
+import { ensureEncoder } from '../../src/utils/tokens.js';
+import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.js';
+import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
+import { MemoryStore } from '../../src/utils/memory/store.js';
+import type {
+  ModelAdapter,
+  NormalizedRequest,
+  NormalizedResponse,
+  NormalizedMessage,
+  ToolCall,
+  ToolDef,
+} from '../../src/providers/types.js';
+import type { MutationSessionState } from '../../src/run.js';
+
+const MCP_SEARCH_TOOL: ToolDef = {
+  name: 'alix_mcp_search_tools',
+  description: 'Search the available MCP tools',
+  input_schema: { type: 'object', properties: { query: { type: 'string' } } },
+};
+const DONE_TOOL: ToolDef = {
+  name: 'alix_done',
+  description: 'Signal completion',
+  input_schema: { type: 'object', properties: {} },
+};
+
+type ScriptedTurn = { text?: string; toolCalls?: ToolCall[] };
+
+function createScriptedProvider(turns: ScriptedTurn[]): ModelAdapter {
+  let iter = 0;
+  return {
+    id: 'mock',
+    capabilities: {
+      provider: 'mock', model: 'mock', inputTokenLimit: 100_000, outputTokenLimit: 16_384,
+      supportsTools: true, supportsStreaming: false, supportsStructuredOutput: false,
+      supportsVision: false, parallelToolCalls: false,
+    },
+    editFormatPreference: 'search_replace',
+    longContextStrategy: 'trimmed_context',
+    async complete(_req: NormalizedRequest): Promise<NormalizedResponse> {
+      const turn = turns[Math.min(iter, turns.length - 1)] ?? {};
+      iter++;
+      return {
+        text: turn.text ?? '',
+        toolCalls: turn.toolCalls ?? [],
+        usage: { inputTokens: 100, outputTokens: 50 },
+        finishReason: (turn.toolCalls?.length ?? 0) > 0 ? 'tool_use' : 'stop',
+      };
+    },
+  } as unknown as ModelAdapter;
+}
+
+/**
+ * `mcpDiscovery` non-null is what makes `handleMcpToolSearch` service the
+ * call — that is the short-circuit under test.
+ */
+async function makeDeps(overrides: {
+  provider: ModelAdapter;
+  task: string;
+}): Promise<{ deps: TaskLoopDeps; log: EventLog; cleanup: () => void }> {
+  const tmpRoot = mkdtempSync(join(tmpdir(), 'alix-bypass-a-'));
+  const sessionId = 'bypass-a-test';
+  const sessionDir = join(tmpRoot, 'sessions', sessionId);
+  mkdirSync(sessionDir, { recursive: true });
+
+  const memoryStore = new MemoryStore(join(tmpRoot, 'memory'));
+  await memoryStore.init();
+  const log = new EventLog(join(tmpRoot, 'events'));
+  await log.init();
+  await ensureEncoder('cl100k_base');
+
+  const sessionState: MutationSessionState = {
+    created: new Set<string>(),
+    deleted: new Set<string>(),
+    changed: new Set<string>(),
+    fatalErrors: [],
+    pendingScopeExpansion: false,
+  };
+
+  const deps: TaskLoopDeps = {
+    config: {
+      models: { default: { provider: 'mock', name: 'mock', streaming: false } },
+      permissions: {},
+    },
+    provider: overrides.provider,
+    providerTools: [MCP_SEARCH_TOOL, DONE_TOOL],
+    mcpToolIndex: [],
+    messages: [{ role: 'user', content: overrides.task } as NormalizedMessage],
+    sessionState,
+    stateMachine: new TaskStateMachine(new RunLimiter({
+      maxIterations: 4, maxRepairs: 3, maxFileChanges: 100, maxShellCommands: 50, maxRuntimeMs: 60_000,
+    })),
+    scope: new ScopeTracker(),
+    session: { sessionId, actor: 'system' as const },
+    log,
+    executor: {
+      execute: async ({ name }: { name: string }) =>
+        name === 'done'
+          ? { kind: 'success' as const, output: 'Task complete.', completed: true }
+          : { kind: 'success' as const, output: 'ok' },
+    } as unknown as TaskLoopDeps['executor'],
+    mcpDiscovery: {
+      search: async () => ({ matches: [{ name: 'mcp__abc', serverName: 'demo', toolName: 'echo' }] }),
+    } as unknown as TaskLoopDeps['mcpDiscovery'],
+    selectedTools: [],
+    hooks: {},
+    maxIterations: 4,
+    contextBudget: createContextBudget(
+      { contextWindowTokens: 100_000 },
+      { outputRatio: 0.1, outputFloor: 1_000, outputCap: 16_384 },
+    ),
+    tokenizer: 'cl100k_base',
+    task: overrides.task,
+    taskType: 'feature',
+    depth: 'quick',
+    memoryStore,
+    sessionId,
+    sessionDir,
+    systemPrompt: 'You are a test assistant.',
+  };
+
+  return { deps, log, cleanup: () => rmSync(tmpRoot, { recursive: true, force: true }) };
+}
+
+describe('F4 Bypass A — the MCP search sentinel is a recorded selection', () => {
+  it('emits a scope whose chosen candidate is builtin:alix_mcp_search_tools', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_mcp_search_tools', id: 'm1', args: { query: 'echo' } }] },
+      { text: 'Found the echo tool.' },
+      { text: 'Found the echo tool.' },
+    ]);
+    const { deps, log, cleanup } = await makeDeps({
+      provider,
+      task: 'Find an MCP tool that echoes text.',
+    });
+
+    try {
+      await runTaskLoop(deps);
+
+      const events = await log.readAll();
+      const observed = events.filter(event => event.type === 'tool.selection.observed');
+      expect(observed.length).toBeGreaterThan(0);
+
+      const payload = observed[0].payload as { chosen?: string; chosenCandidateId?: string };
+      expect(payload.chosenCandidateId).toBe('builtin:alix_mcp_search_tools');
+      expect(payload.chosen).toBe('alix_mcp_search_tools');
+
+      // And the replay reader must see it as a real scope, not a dropped turn.
+      const scopes = extractToolSelectionScopes(events);
+      expect(scopes.some(scope =>
+        scope.actualCandidateIds.includes('builtin:alix_mcp_search_tools'))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+});

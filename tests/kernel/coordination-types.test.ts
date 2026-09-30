@@ -659,12 +659,17 @@ describe("deriveCoordinationCompletion", () => {
     );
   });
 
-  it("refuses verification when the completing session ended unverified", () => {
+  it("verifies from the run record and the durable aggregate event alone", () => {
+    // The removed `sessionTerminal` term could never fire: no production caller
+    // supplied it, because the completing session writes `session.ended` after
+    // this gate. Verification is deliberately a pure function of persisted run
+    // fields plus the matching aggregate event — the four readers (CLI, view,
+    // collaboration context, tools) can all compute it.
     const completion = deriveCoordinationCompletion(
       { status: "completed", aggregateResultRef: "x.json", outcome: "success" },
-      { aggregateEventMatches: true, sessionTerminal: "completed_unverified" },
+      { aggregateEventMatches: true },
     );
-    assert.equal(completion.verification, "unverified");
+    assert.equal(completion.verification, "verified");
   });
 
   it("keeps a failed outcome distinct from a failed execution", () => {

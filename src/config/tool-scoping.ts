@@ -40,9 +40,15 @@ export type ScopingReason = (typeof SCOPING_REASONS)[keyof typeof SCOPING_REASON
 export type ScopingDisposition = { tool: string; reasons: string[] };
 
 /**
- * Why each tool was admitted or dropped. `excluded` is provenance for the
+ * Why each tool was admitted or dropped, keyed by tool NAME — the scoper runs
+ * before the candidate surface is frozen. `excluded` is provenance for the
  * "requirement-closing tool disappeared" question; callers that persist it
  * should gate it behind a debug flag.
+ *
+ * The frozen, id-keyed counterpart is `FrozenScopingProvenance` in
+ * `src/observability/tool-selection-observation.ts`; `run/task-loop/main.ts`
+ * translates between them. Do not confuse the two — they were briefly declared
+ * under this same name with different element types.
  */
 export type ScopingProvenance = {
   admitted: ScopingDisposition[];

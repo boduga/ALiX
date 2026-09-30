@@ -22,8 +22,19 @@
 
 import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES } from "../events/types.js";
+// Type-only, so the emitted JS carries no runtime edge from the neutral seam
+// into `src/decision` — the layering constraint F4 records for this module.
+// These are the SAME types, not copies: the decision layer owns the vocabulary
+// and both the task loop and the offline experiment read it from there.
+import type {
+  EvidenceContribution,
+  ExecutionOutcome,
+  SelectionOutcome,
+} from "../decision/selection-outcome.js";
+import type { ToolSelectionDomain as CandidateDomain } from "../decision/tool-selection-candidates.js";
 
-export type CandidateDomain = "builtin" | "mcp";
+export type { EvidenceContribution, ExecutionOutcome, SelectionOutcome } from "../decision/selection-outcome.js";
+export type { ToolSelectionDomain as CandidateDomain } from "../decision/tool-selection-candidates.js";
 
 /** Structural descriptor of a candidate the model was offered. */
 export type FrozenCandidateDescriptor = {
@@ -52,11 +63,15 @@ export type CandidateBindingDescriptor = {
   executorName?: string;
 };
 
-export type ExecutionOutcome = "success" | "repaired" | "failed";
-export type EvidenceContribution = "contributed" | "none" | "unknown";
-export type SelectionOutcome = "novel" | "redundant";
-
-export type ScopingProvenance = {
+/**
+ * Scoping provenance keyed by FROZEN CANDIDATE ID, which is what an observation
+ * records. Distinct from `config/tool-scoping.ts`'s `ScopingProvenance`, which
+ * is keyed by tool NAME because the scoper runs before the surface is frozen;
+ * `run/task-loop/main.ts` translates between them. The two were previously
+ * declared under one name with incompatible element types, so a reader who
+ * imported either silently assumed the other. This is the id-keyed shape.
+ */
+export type FrozenScopingProvenance = {
   admitted: RequirementCandidateRef[];
   fallbackFull: boolean;
   /** Debug-only: exclusions can explode, so they are opt-in. */
@@ -98,7 +113,7 @@ export type SelectionObservation = {
   execution: { status: ExecutionOutcome };
   evidence: { contribution: EvidenceContribution };
   requirementCandidates: RequirementCandidateRef[];
-  scoping: ScopingProvenance;
+  scoping: FrozenScopingProvenance;
   ranking?: SelectionRanking;
   /**
    * Set when the chosen tool could not be resolved against the frozen surface.
@@ -126,10 +141,25 @@ export type SelectionObservationInput = {
   /** The result carried content (any rendered body). */
   hasContent?: boolean;
   requirementCandidates?: readonly RequirementCandidateRef[];
-  scoping?: ScopingProvenance;
+  scoping?: FrozenScopingProvenance;
   ranking?: SelectionRanking;
   invalidSelection?: { toolName: string; reason: string };
 };
+
+
+/**
+ * An MCP `chosen` is the opaque `mcp__<handle>` the model emitted. F4 requires
+ * that a raw handle never reaches a frozen scope or a Jev projection, so it is
+ * masked to the candidate id here — the same id space every other field uses.
+ * The handle itself stays reachable through the LOCAL-ONLY `candidateBindings`.
+ * Builtin names are already meaningful and carry no secret, so they pass
+ * through unchanged (the grounded route relies on this: its `chosen` is the
+ * provider-facing name it normalised to).
+ */
+function maskChosen(chosen: string, chosenCandidateId: string, candidates: readonly FrozenCandidateDescriptor[]): string {
+  const domain = candidates.find(candidate => candidate.candidateId === chosenCandidateId)?.domain;
+  return domain === "mcp" ? chosenCandidateId : chosen;
+}
 
 /**
  * Assemble one observation from supplied facts. Pure apart from the
@@ -152,7 +182,7 @@ export function buildSelectionObservation(input: SelectionObservationInput): Sel
     candidates: [...input.candidates],
     offered: input.candidates.map(candidate => candidate.candidateId),
     ...(input.candidateBindings ? { candidateBindings: [...input.candidateBindings] } : {}),
-    chosen: input.chosen,
+    chosen: maskChosen(input.chosen, input.chosenCandidateId, input.candidates),
     chosenCandidateId: input.chosenCandidateId,
     executor: input.executor,
     argsSignature: input.argsSignature,

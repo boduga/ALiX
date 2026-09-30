@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  bindingForCandidate,
   createEngineToolSelector,
   extractToolSelectionScopes,
   replayToolSelection,
@@ -16,6 +17,7 @@ import {
   type ToolSelectionScope,
   type ToolSelectionSelector,
 } from '../../src/decision/tool-selection-replay.js';
+import { buildSelectionObservation } from '../../src/observability/tool-selection-observation.js';
 import {
   builtinNameOf,
   builtinCandidateId,
@@ -201,6 +203,31 @@ describe('replayToolSelection', () => {
 });
 
 describe('extractToolSelectionScopes', () => {
+  it('ignores not-applicable coverage records for selector statistics', () => {
+    const scopes = extractToolSelectionScopes([
+      {
+        type: 'tool.selection.not_applicable',
+        payload: {
+          scopeId: 'coverage_only',
+          iteration: 4,
+          route: 'grounded',
+          reason: 'no_tool_call',
+        },
+      },
+      {
+        type: 'tool.selection.observed',
+        payload: {
+          scopeId: 'selector_sample',
+          iteration: 4,
+          offered: ['builtin:alix_file_read'],
+          chosenCandidateId: 'builtin:alix_file_read',
+        },
+      },
+    ]);
+
+    expect(scopes.map(entry => entry.scopeId)).toEqual(['selector_sample']);
+  });
+
   it('joins observations by scopeId and keeps the choice sequence', () => {
     const candidates = freezeToolCandidates({
       builtin: [{ name: 'alix_file_read' }, { name: 'alix_grep_search' }],
@@ -214,7 +241,7 @@ describe('extractToolSelectionScopes', () => {
           scopeId: 'scope_7',
           iteration: 7,
           candidates: candidates.candidates,
-          bindings: candidates.bindings,
+          candidateBindings: candidates.bindings,
           offered: [first, second],
           chosenCandidateId: second,
         },
@@ -243,6 +270,36 @@ describe('extractToolSelectionScopes', () => {
     expect(scopes[0].offered).toEqual([first, second]);
     expect(scopes[0].candidates).toHaveLength(2);
     expect(scopes[1].iteration).toBe(9);
+  });
+
+  it('recovers MCP bindings from a scope built by the real emitter', () => {
+    // The emitter serialises bindings as `candidateBindings`. This round-trips
+    // an ACTUAL `buildSelectionObservation` payload through the reader so the
+    // two field names can never drift apart again — a hand-built payload with
+    // the reader's own field name would pass even while the reader was wrong.
+    const observed = buildSelectionObservation({
+      scopeId: 'scope_mcp',
+      iteration: 1,
+      candidates: frozen.candidates,
+      candidateBindings: frozen.bindings,
+      chosen: 'mcp__abc',
+      chosenCandidateId: candidateIdFor('mcp__abc'),
+      executor: 'mcp.demo.echo',
+      argsSignature: 'mcp.demo.echo:sig',
+      seenSignatures: new Map<string, number>(),
+      executorSuccess: true,
+    });
+
+    const [rebuilt] = extractToolSelectionScopes([
+      { type: 'tool.selection.observed', payload: observed },
+    ]);
+
+    const mcpId = candidateIdFor('mcp__abc');
+    expect(rebuilt.bindings).toBeDefined();
+    // Only the binding can turn a digest id back into a handle: the candidate
+    // itself deliberately carries no handle.
+    expect(rebuilt.candidates.find(c => c.candidateId === mcpId)?.tool).toBeUndefined();
+    expect(bindingForCandidate(rebuilt, mcpId)?.modelName).toBe('mcp__abc');
   });
 });
 

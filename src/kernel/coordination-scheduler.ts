@@ -124,7 +124,7 @@ export type SchedulerTickResult = {
   progressMade: boolean;
 };
 
-export type SchedulerStopReason = "completed" | "failed" | "awaiting_approval" | "blocked" | "idle" | "timeout";
+export type SchedulerStopReason = "completed" | "failed" | "cancelled" | "awaiting_approval" | "blocked" | "idle" | "timeout";
 
 export type SchedulerRunResult = {
   runId: string;

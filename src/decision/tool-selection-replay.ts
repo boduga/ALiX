@@ -263,7 +263,14 @@ type RecordedObservation = {
   scopeId?: string;
   iteration?: number;
   candidates?: FrozenToolCandidate[];
-  bindings?: LocalToolBinding[];
+  /**
+   * LOCAL ONLY, and read under the name the emitters actually write:
+   * `SelectionObservation` serialises it as `candidateBindings`. Reading
+   * `bindings` here silently yielded `undefined` for every scope rebuilt from a
+   * real trace, so `bindingForCandidate` could not resolve an `mcp:<digest>` id
+   * back to its handle.
+   */
+  candidateBindings?: LocalToolBinding[];
   offered?: string[];
   chosenCandidateId?: string;
   requirementCandidates?: Array<{ candidateId: string; reasons: string[] }>;
@@ -300,7 +307,7 @@ export function extractToolSelectionScopes(
         requirementCandidates: payload.requirementCandidates ?? [],
         scoperRanking: payload.ranking?.scoper ?? [],
         actualCandidateIds: [],
-        ...(payload.bindings ? { bindings: payload.bindings } : {}),
+        ...(payload.candidateBindings ? { bindings: payload.candidateBindings } : {}),
         ...(payload.scoping?.admitted
           ? {
               scoping: {

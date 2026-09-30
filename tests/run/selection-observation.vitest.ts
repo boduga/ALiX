@@ -75,6 +75,39 @@ describe('buildSelectionObservation', () => {
       .toBe('mcp__opaque');
   });
 
+  it('masks a chosen MCP handle, not just a candidate one', () => {
+    // The F4 invariant is "raw mcp__ handle -> never serialized into a frozen
+    // scope". `chosen` is the field that carried the handle the model actually
+    // emitted, so masking only `candidates` left the real leak in place.
+    const withMcp = freezeToolCandidates({
+      builtin: [{ name: 'alix_file_read' }],
+      mcp: [{ name: 'mcp__opaque', serverName: 'github', toolName: 'search.code', description: 'Search code' }],
+    });
+    const mcpId = withMcp.candidates.find(candidate => candidate.domain === 'mcp')!.candidateId;
+    const observation = observe({
+      candidates: withMcp.candidates,
+      candidateBindings: withMcp.bindings,
+      chosen: 'mcp__opaque',
+      chosenCandidateId: mcpId,
+    });
+
+    expect(observation.chosen).toBe(mcpId);
+    expect(observation.chosen).not.toContain('mcp__');
+    // No field outside the LOCAL-ONLY binding may carry the handle.
+    const { candidateBindings: _localOnly, ...projected } = observation;
+    expect(JSON.stringify(projected).includes('mcp__opaque')).toBe(false);
+    // ...and the handle is still recoverable locally.
+    expect(observation.candidateBindings?.find(entry => entry.candidateId === mcpId)?.modelName)
+      .toBe('mcp__opaque');
+  });
+
+  it('leaves a chosen builtin name readable', () => {
+    // The grounded route's `chosen` is the provider-facing name it normalised
+    // to; masking every domain would destroy that.
+    const observation = observe({ chosen: 'alix_file_read', chosenCandidateId: id('alix_file_read') });
+    expect(observation.chosen).toBe('alix_file_read');
+  });
+
   it('separates mechanical outcome, selection outcome, and evidence contribution', () => {
     const observation = observe();
     expect(observation.execution.status).toBe('success');

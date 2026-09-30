@@ -497,8 +497,6 @@ export type CoordinationCompletionEvidence = {
    * not verify a newer one.
    */
   aggregateEventMatches?: boolean;
-  /** Terminal the completing session reported. */
-  sessionTerminal?: "completed" | "completed_unverified" | "cancelled" | "failed";
 };
 
 type CompletionRunFields = Pick<
@@ -537,13 +535,19 @@ export function deriveCoordinationCompletion(
 
   const outcome: CoordinationOutcomeState = run.outcome ?? "unknown";
 
+  // Verification is a function of the run record plus the durable aggregate
+  // event only. A `sessionTerminal` term used to sit here, but no production
+  // caller ever supplied it: the completing session writes `session.ended`
+  // AFTER this gate runs (`run/task-loop/main.ts`), so the value was always
+  // `undefined` in the one case that mattered. The unverified-session case it
+  // meant to catch is already enforced at the gate itself, which terminates
+  // `completed_unverified` rather than `completed`.
   const verification: CoordinationVerificationState =
     aggregation === "failed" ? "failed"
       : outcome === "failure" || outcome === "blocked" || outcome === "cancelled" ? "failed"
         : aggregation === "generated"
           && outcome === "success"
           && evidence.aggregateEventMatches === true
-          && evidence.sessionTerminal !== "completed_unverified"
           ? "verified"
           : "unverified";
 
