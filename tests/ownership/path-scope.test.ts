@@ -209,6 +209,15 @@ describe("resolveOwnedScopePrefix — parity table", () => {
     // ── absolute outside the workspace: denied, never authorizing ──
     ["/etc", null],
     ["/etc/passwd", null],
+    ["/ws2", null],
+    ["/workspace-evil", null],
+    ["/ws/../etc", null],
+    ["//server/share", null],
+    ["C:\\", null],
+    ["C:/Windows", null],
+
+    // ── absolute workspace itself, including redundant trailing separators ──
+    ["/ws/", ""],
 
     // ── empty ──
     ["", null],
@@ -233,13 +242,38 @@ describe("resolveOwnedScopePrefix — parity table", () => {
     });
   }
 
-  it("grants nothing for an input no row covers — extend the table, do not guess", () => {
-    // A guard on the table itself: if a new spelling is ever added to the code,
-    // the parity table must be extended in the same commit, so a narrowing can
-    // never hide in an untested corner again.
+  it("parity table anchors the canonical granted and denied forms", () => {
+    // This checks that the table still contains the canonical anchors after
+    // edits; it does not prove that every untested string is safe.
     const covered = new Set(CASES.map(([input]) => input));
     for (const input of [".", "**", "**/*", "docs/**", "..", "/etc"]) {
       assert.ok(covered.has(input), `parity table must cover ${JSON.stringify(input)}`);
+    }
+  });
+
+  it("rejects representative hostile spellings outside the approved vocabulary", () => {
+    // Finite adversarial coverage for forms that must never become grants: a
+    // workspace-wide grant with an escape suffix, malformed template/glob
+    // syntax, sibling-prefix absolutes, and cross-drive spellings.
+    const hostile = [
+      "**/../escape",
+      "./**/../escape",
+      "../escape",
+      "grant-{a,b}",
+      "scope?.md",
+      "docs/*.tmp-1",
+      "/ws2",
+      "/workspace-evil",
+      "/ws/../etc",
+      "C:\\",
+      "C:/Windows",
+    ];
+    for (const input of hostile) {
+      assert.equal(
+        resolveOwnedScopePrefix(input, WORKSPACE),
+        undefined,
+        `expected ${JSON.stringify(input)} to authorize nothing`,
+      );
     }
   });
 });
