@@ -4,7 +4,7 @@ import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
@@ -140,6 +140,25 @@ export class FileToolRouter implements ToolRouter {
     return isWithinOwnedScope(resolvedPath, request.ownedPaths ?? [], this.root);
   }
 
+  /**
+   * Resolve `path` against the workspace root, or return an error result when
+   * it escapes. The containment predicate lives here once: `file.create` and
+   * `file.delete` each hand-rolled the same `relative`/`startsWith` check, and
+   * `checkPath` already runs the canonical `WorkspacePathResolver` version for
+   * every call, so this is the second and looser copy of one rule.
+   */
+  private resolveInsideWorkspace(
+    path: string,
+  ): { ok: true; path: string } | { ok: false } {
+    const baseRoot = resolve(this.root);
+    const resolvedPath = resolve(baseRoot, path);
+    const rel = relative(baseRoot, resolvedPath);
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      return { ok: false };
+    }
+    return { ok: true, path: resolvedPath };
+  }
+
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
   }
@@ -196,13 +215,11 @@ export class FileToolRouter implements ToolRouter {
         if (!path || content === undefined) {
           return { kind: "error", message: "file.create requires path and content" };
         }
-        const baseRoot = resolve(this.root);
-        const resolvedPath = resolve(baseRoot, path);
-        // CRITICAL: validate path stays within workspace
-        const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+        const inside = this.resolveInsideWorkspace(path);
+        if (!inside.ok) {
           return { kind: "error", message: "Path is outside workspace", retryable: false };
         }
+        const resolvedPath = inside.path;
         await mkdir(dirname(resolvedPath), { recursive: true });
         let overwritten = false;
         try {
@@ -273,12 +290,11 @@ export class FileToolRouter implements ToolRouter {
       case "file.delete": {
         const { path } = args;
         if (!path) return { kind: "error", message: "file.delete requires path" };
-        const baseRoot = resolve(this.root);
-        const resolvedPath = resolve(baseRoot, path);
-        const rel = relative(baseRoot, resolvedPath);
-        if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+        const inside = this.resolveInsideWorkspace(path);
+        if (!inside.ok) {
           return { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." };
         }
+        const resolvedPath = inside.path;
         const { rm } = await import("node:fs/promises");
         try {
           await rm(resolvedPath);

@@ -180,7 +180,11 @@ Default section order:
   still reported as a cancellation (the operator asked to stop) but emits
   `coordination.cancel.failed`, because the run is then still `running` with
   leases held and a live `tool-<pid>` owner is never reclaimed — the event is
-  the only record that the guarantee above was not met.
+  the only record that the guarantee above was not met. The recorder's inputs
+  must be captured BEFORE the cancel sites, not read from a `const` declared
+  after them: a closure reading it in the temporal dead zone threw, and the
+  throw was swallowed, so the event that exists to prove the run was not
+  finalized was the one thing never recorded.
 - **Single-output write workers recover omitted create paths (durable).** When
   a write worker owns exactly one path and emits `file.create` with valid
   content but no path, the subagent boundary supplies that sole owned path.
@@ -236,6 +240,7 @@ Default section order:
 
 | Path | Scope |
 |------|-------|
+| `src/ownership/AGENTS.md` | Ownership claims and path-scope arithmetic — the registry/lock, and the owned-scope matcher both the policy gate and the file router must share |
 | `src/kernel/AGENTS.md` | Graph execution engine — TaskGraph, GraphExecutor, projection, planner, coordination (planner/scheduler/tools/subagent executor) |
 | `src/prompts/AGENTS.md` | Prompt registry — static prompt ids, versions, token accounting, snapshot hashes |
 | `src/policy/AGENTS.md` | Policy rules, RuleEvaluator, RuntimeGate, default policies, loader |
