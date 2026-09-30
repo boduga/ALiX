@@ -48,17 +48,11 @@ plus the path-scope arithmetic both enforcement points share.
 - Change an owned-scope rule here, then run BOTH `tests/policy/policy-gate.test.ts`
   and `tests/tools/tool-router.test.ts`. A change that only the router suite
   exercises is unverified.
-- **Any change to what a grant AUTHORIZES gets a parity check, not a spot check.**
-  Establish the old behaviour first (a scratch worktree at the pre-change
-  revision builds fine), run both versions over the full input space, and diff.
-  Two rules, both learned the hard way:
-  1. A derived rule must be a strict SUPERSET of any list it replaces. A rule
-     that is narrower is a silent narrowing wearing the costume of a cleanup.
-  2. A test that enumerates the same cases as the implementation cannot detect
-     the implementation losing one. `tests/ownership/path-scope.test.ts` holds the
-     parity TABLE — the input space, not a sample — so a changed row shows up in
-     review as a visible authority diff. Extend the table in the same commit as
-     any behaviour change.
+- **Any change to what a grant AUTHORIZES gets an expectation table, not a spot check.**
+  A derived rule must be a strict SUPERSET of any list it replaces.
+  `tests/ownership/path-scope.test.ts` holds the parity TABLE — the input space,
+  not a sample — so a changed row shows up in review as a visible authority
+  diff. Extend the table in the same commit as any behaviour change.
 
 ## Verification
 

@@ -25,7 +25,7 @@ describe("emitRunEvidence — governed runTask evidence", () => {
     await withStore(async (store) => {
       const emitter = new PersistenceEvidenceEmitter(store);
       emitRunEvidence("intent-abc", "ExecutionCompleted", "SUCCESS", "done", emitter, "2026-08-07T00:00:00.000Z");
-      await new Promise((r) => setTimeout(r, 60));
+      await emitter.drain();
       const all = await store.list();
       expect(all).toHaveLength(1);
       expect(all[0]!.intentId).toBe("intent-abc");
@@ -38,7 +38,7 @@ describe("emitRunEvidence — governed runTask evidence", () => {
     await withStore(async (store) => {
       const emitter = new PersistenceEvidenceEmitter(store);
       emitRunEvidence("intent-abc", "ExecutionFailed", "FAILED", "boom", emitter, "2026-08-07T00:00:00.000Z");
-      await new Promise((r) => setTimeout(r, 60));
+      await emitter.drain();
       const all = await store.list();
       expect(all).toHaveLength(1);
       expect(all[0]!.outcome).toBe("FAILED");

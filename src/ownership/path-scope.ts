@@ -168,6 +168,10 @@ function isWorkspaceWideGrant(normalized: string): boolean {
 export function resolveOwnedScopePrefix(raw: string, cwd: string): string | undefined {
   const normalized = raw.trim().replace(/\\/g, "/");
   if (normalized.length === 0) return undefined;
+  // Fail closed on Windows drive spellings on every platform: on Windows they
+  // can name locations outside the workspace, and on POSIX they would otherwise
+  // create surprising literal `C:` entries under the workspace.
+  if (/^[A-Za-z]:(?:[\/]|$)/.test(normalized)) return undefined;
   // `resolve` normalizes a trailing separator, so a cwd of "/tmp/" cannot
   // silently disable a workspace-wide grant.
   if (isWorkspaceWideGrant(normalized)) return resolve(cwd);

@@ -45,8 +45,6 @@ const fakeExecutor: RuntimeExecutor = {
   executeAgent: async (r) => `agent:${r.task}`,
 };
 
-const flush = () => new Promise((r) => setTimeout(r, 50));
-
 describe("governed direct path — session-domain separation", () => {
   it("produces intent + CREATED/APPROVED evidence and touches NO session/registry/session dirs", async () => {
     const tmp = mkdtempSync(join(tmpdir(), "governed-direct-"));
@@ -58,10 +56,11 @@ describe("governed direct path — session-domain separation", () => {
       writeFileSync(join(alixDir, "config.json"), JSON.stringify({ model: { provider: "mock", name: "mock" } }));
 
       const store = new ExecutionEvidenceStore(evidenceDir);
+      const emitter = new PersistenceEvidenceEmitter(store);
       const out = await executeRouteGoverned(ARITHMETIC_ROUTE, makeCtx(), fakeExecutor, {
-        emitter: new PersistenceEvidenceEmitter(store),
+        emitter,
       });
-      await flush();
+      await emitter.drain();
 
       // 1. Direct route produced an intent + CREATED/APPROVED lifecycle evidence.
       assert.equal(out.intent.action, "arithmetic");
@@ -91,10 +90,11 @@ describe("governed direct path — session-domain separation", () => {
     const evidenceDir = join(tmp, "evidence");
     try {
       const store = new ExecutionEvidenceStore(evidenceDir);
+      const emitter = new PersistenceEvidenceEmitter(store);
       const out = await governDirectRoute(ARITHMETIC_ROUTE, tmp, {
-        emitter: new PersistenceEvidenceEmitter(store),
+        emitter,
       });
-      await flush();
+      await emitter.drain();
 
       assert.equal(out.result, "4");
       assert.equal(out.intent.action, "arithmetic");
