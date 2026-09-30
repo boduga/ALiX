@@ -228,7 +228,7 @@ export class CoordinationScheduler {
     if (!run) {
       return emptyTick(runId, "failed");
     }
-    if (run.status === "completed" || run.status === "failed" || run.status === "replanning") {
+    if (run.status === "completed" || run.status === "failed" || run.status === "cancelled" || run.status === "replanning") {
       return emptyTick(runId, run.status);
     }
 
@@ -666,6 +666,9 @@ export class CoordinationScheduler {
       }
       if (result.runStatus === "failed") {
         return { runId, finalStatus: "failed", stopReason: "failed", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
+      }
+      if (result.runStatus === "cancelled") {
+        return { runId, finalStatus: "cancelled", stopReason: "cancelled", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
 
       // Don't idle while active executions exist
