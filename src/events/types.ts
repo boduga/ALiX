@@ -253,6 +253,13 @@ export const COORDINATION_EVENT_TYPES = {
   SYNTHESIS_COMPLETED: "coordination.synthesis.completed",
   SYNTHESIS_FAILED: "coordination.synthesis.failed",
   FAILURE_PROPAGATED: "coordination.failure.propagated",
+  /**
+   * An operator cancel could not finalize its run. The run may still be
+   * `running` with ownership leases held, and a live owner is never reclaimed
+   * by the resume sweeps — so this event is the only record that the
+   * cancellation contract was NOT satisfied.
+   */
+  CANCEL_FAILED: "coordination.cancel.failed",
 } as const;
 
 export const COLLABORATION_EVENT_TYPES = {

@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
+  createCancelGuard,
   createCoordinationHandlers,
   COORDINATION_RUN_TOOL,
   COORDINATION_STATUS_TOOL,
@@ -295,5 +296,72 @@ describe("coordination chat tools", () => {
     assert.equal(result.kind, "success");
     assert.match(result.output ?? "", /newer goal/);
     assert.doesNotMatch(result.output ?? "", /older goal/);
+  });
+});
+
+/**
+ * The operator-cancel guard is the only part of the abort path that can be
+ * driven from a test: `handleCoordinationRun` builds its scheduler and worker
+ * executor internally, so the surrounding flow is not reachable without a much
+ * larger seam. What matters here is that a REJECTING cancel never surfaces as a
+ * tool failure and never escapes unhandled — a cancel that cannot complete
+ * still means the operator asked to stop — and that the failure is recorded,
+ * because the run is then still `running` with leases held and only a dead
+ * owner is ever reclaimed.
+ */
+describe("operator cancel guard", () => {
+  it("attaches a handler immediately, so a rejecting cancel is never unhandled", async () => {
+    const failures: unknown[] = [];
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("store write failed")),
+      onFailure: (err) => { failures.push(err); },
+    });
+
+    // Exactly the listener shape: fire and forget, never awaited.
+    guard.onAbort();
+
+    // If no handler were attached, this rejection would surface as an
+    // unhandledRejection and could take the process down.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(failures.length, 1, "the failure must be recorded, not swallowed");
+    assert.match(String((failures[0] as Error).message), /store write failed/);
+  });
+
+  it("resolves rather than rejecting, so the turn still reports a cancellation", async () => {
+    const guard = createCancelGuard({
+      cancel: () => Promise.reject(new Error("nope")),
+      onFailure: () => {},
+    });
+    await guard.cancelRun(); // must NOT throw
+  });
+
+  it("only cancels once however many times the listener fires", async () => {
+    let calls = 0;
+    const guard = createCancelGuard({
+      cancel: () => { calls++; return Promise.resolve(); },
+      onFailure: () => {},
+    });
+    guard.onAbort();
+    guard.onAbort();
+    guard.onAbort();
+    await guard.cancellation();
+    assert.equal(calls, 1);
+  });
+
+  it("exposes no in-flight cancel before the listener fires", () => {
+    const guard = createCancelGuard({ cancel: () => Promise.resolve(), onFailure: () => {} });
+    assert.equal(guard.cancellation(), undefined);
+  });
+
+  it("still runs a successful cancel without recording a failure", async () => {
+    let cancelled = false;
+    const failures: unknown[] = [];
+    const guard = createCancelGuard({
+      cancel: async () => { cancelled = true; },
+      onFailure: (err) => { failures.push(err); },
+    });
+    await guard.cancelRun();
+    assert.equal(cancelled, true);
+    assert.deepEqual(failures, [], "a successful cancel must not emit a failure event");
   });
 });

@@ -4,7 +4,7 @@ import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
@@ -18,6 +18,7 @@ import { isCancellationError } from "../runtime/cancellation-token.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
+import { isWithinOwnedScope } from "../ownership/path-scope.js";
 import { validateShellNetworkCommand, type ResolveNetworkHost } from "./shell-network-policy.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
@@ -131,30 +132,12 @@ export class FileToolRouter implements ToolRouter {
   /**
    * True when the resolved target sits inside one of the caller's owned paths.
    * Owned paths are the worker's authorization, so a worker may replace the
-   * file it owns — matching policy, which already treats an owned write as
-   * authorized. Glob entries are reduced to their literal directory prefix.
-   *
-   * A workspace-wide grant is honoured. `.` and a bare `**` both mean "the whole
-   * workspace", and refusing them made an owned write unsatisfiable exactly
-   * where ownership is widest: the worker that owns everything could not
-   * overwrite anything. `**` additionally has to be normalized to the root —
-   * left alone it resolves to a literal `**` segment that prefixes nothing, so
-   * it silently never matched.
+   * file it owns. Delegates to the shared matcher — `PolicyGate` consults the
+   * SAME function and runs first, so a workspace-wide grant (`.`, `**`) has to
+   * mean the same thing here or the gate denies before we are reached.
    */
   private isOwnedWriteTarget(request: ToolCallRequest, resolvedPath: string): boolean {
-    const owned = request.ownedPaths ?? [];
-    return owned.some((entry) => {
-      const raw = String(entry).trim();
-      // A bare recursive glob, or one rooted at the workspace, is a
-      // workspace-wide grant. Normalize both to the root itself.
-      if (raw === "." || raw === "**" || raw === "**/*" || raw === "./**") {
-        return resolvedPath.startsWith(this.root + sep) || resolvedPath === this.root;
-      }
-      const literal = raw.replace(/\/\*\*$/, "").replace(/\/+$/, "");
-      if (literal.length === 0) return false;
-      const resolvedOwned = resolve(this.root, literal);
-      return resolvedPath === resolvedOwned || resolvedPath.startsWith(resolvedOwned + sep);
-    });
+    return isWithinOwnedScope(resolvedPath, request.ownedPaths ?? [], this.root);
   }
 
   canHandle(name: string): boolean {

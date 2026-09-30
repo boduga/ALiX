@@ -421,6 +421,48 @@ describe("PolicyGate", () => {
     assert.match(decision.reason, /outside owned paths/);
   });
 
+  // The gate runs BEFORE the file router, so a normalization bug here silently
+  // denies every owned write the router would have allowed. The gate and the
+  // router once had two independent matchers, and `**` resolved to a literal
+  // `**` segment in the gate while the router treated it as the workspace root
+  // — a workspace-wide grant worked in one layer and not the other.
+  it("owned-path rule honours a workspace-wide grant in every spelling", async () => {
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    // `docs/**` is paired with a target under `docs/`, not `src/` — it is a
+    // recursive scope, not a workspace-wide grant.
+    const cases: Array<[string, string]> = [
+      [".", "src/new.ts"],
+      ["**", "src/new.ts"],
+      ["./**", "src/new.ts"],
+      ["**/*", "src/new.ts"],
+      ["/*", "src/new.ts"],
+      ["docs/**", "docs/guide.md"],
+    ];
+    for (const [owned, path] of cases) {
+      const decision = await gate.evaluateToolCall({
+        requestId: "ws", toolName: "file.create", args: { path }, cwd: "/ws",
+        sessionMode: "ask", source: "tool", ownedPaths: [owned],
+      });
+      assert.equal(decision.decision, "allow", `ownedPaths: ${owned} target ${path} — ${decision.reason}`);
+      assert.equal(decision.matchedRuleId, "owned-path-rule", `ownedPaths: ${owned}`);
+    }
+  });
+
+  it("owned-path rule still denies a path the owned scope does not cover", async () => {
+    // Fails closed: a grant that cannot be reduced safely authorizes nothing.
+    const config = makeConfig();
+    const gate = new PolicyGate(config);
+    for (const owned of ["../escape", "src/../..", "docs/*.ts"]) {
+      const decision = await gate.evaluateToolCall({
+        requestId: "bad", toolName: "file.create", args: { path: "config.json" }, cwd: "/ws",
+        sessionMode: "ask", source: "tool", ownedPaths: [owned],
+      });
+      assert.equal(decision.decision, "deny", `ownedPaths: ${owned}`);
+      assert.match(decision.reason, /outside owned paths/);
+    }
+  });
+
   it("owned-path rule does NOT auto-approve shell.run even with ownedPaths", async () => {
     const config = makeConfig();
     const gate = new PolicyGate(config);

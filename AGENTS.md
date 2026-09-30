@@ -165,10 +165,10 @@ Default section order:
   owned write, and `file.create` is the only creation tool — without this a
   re-run of the same goal in the same workspace fails structurally). A
   resumed retry that finds its output already written still succeeds instead
-  of failing a non-idempotent create. A WORKSPACE-WIDE grant (`.`, `**`,
-  `./**`, `**/*`) is honoured and bounded by the workspace root: it was
-  previously refused outright, so a worker owning everything could not
-  overwrite anything — the grant was widest exactly where it was weakest.
+  of failing a non-idempotent create. Owned-scope matching itself is ONE
+  contract enforced at TWO points — `PolicyGate` (which runs first) and
+  `FileToolRouter` — so both call `isWithinOwnedScope` and must never grow a
+  second matcher. See the policy child DOX.
 - **Operator cancellation finalizes the coordination run (durable).** An
   aborted `coordination.run` call cancels its run through the scheduler
   (`cancelled` run status, cancelled workers, released ownership leases,
@@ -176,7 +176,11 @@ Default section order:
   never as a tool failure. `cancelDeadOwnerRuns` releases the dead host's
   leases — detaching `leaseIds` alone leaves active records that block every
   later run in the workspace until the TTL expires — and `coordination.run`
-  sweeps dead-owner `cli` runs before planning.
+  sweeps dead-owner `cli` runs before planning. A cancel that CANNOT complete is
+  still reported as a cancellation (the operator asked to stop) but emits
+  `coordination.cancel.failed`, because the run is then still `running` with
+  leases held and a live `tool-<pid>` owner is never reclaimed — the event is
+  the only record that the guarantee above was not met.
 - **Single-output write workers recover omitted create paths (durable).** When
   a write worker owns exactly one path and emits `file.create` with valid
   content but no path, the subagent boundary supplies that sole owned path.

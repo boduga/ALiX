@@ -16,6 +16,7 @@ import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { inferCapability } from "../tools/capability-map.js";
 import { extractPatchPaths } from "../patch/patch-paths.js";
 import { resolve } from "node:path";
+import { isWithinOwnedScope } from "../ownership/path-scope.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -89,13 +90,13 @@ function mutationTargets(args: Record<string, unknown>): string[] {
   return extractPatchPaths(format, args.patchText);
 }
 
-/** True when a resolved target is inside (or equals) one of the owned paths. */
-function isWithinOwned(resolvedTarget: string, ownedPaths: string[], cwd: string): boolean {
-  return ownedPaths.some((owned) => {
-    const resolvedOwned = resolvePolicyPath(cwd, owned);
-    return resolvedTarget === resolvedOwned || resolvedTarget.startsWith(resolvedOwned + "/");
-  });
-}
+/**
+ * True when a resolved target is inside (or equals) one of the owned scopes.
+ * Delegates to the shared matcher so the gate and the file router can never
+ * disagree: this gate runs BEFORE the router, so a normalization bug here
+ * silently denies every owned write the router would have allowed.
+ */
+const isWithinOwned = isWithinOwnedScope;
 
 // ─── Evasion patterns (single authority) ───────────────────────────────
 

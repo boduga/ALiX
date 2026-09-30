@@ -124,3 +124,62 @@ function isInside(parent: string, child: string): boolean {
 export function formatScope(scope: PathScope): string {
   return scope.recursive ? `${scope.root}/**` : scope.root;
 }
+
+// ─── Owned-write scopes (single authority) ─────────────────────────────
+
+/**
+ * Grants that mean "the whole workspace". Listed exhaustively rather than
+ * pattern-matched: a bare `**` reduced to a literal `**` path segment matches
+ * nothing, which is how a workspace-wide ownership grant silently stopped
+ * working. Both the policy gate and the file router consult this — they are
+ * two enforcement points for ONE contract, so they must normalize identically.
+ */
+const WORKSPACE_WIDE_GRANTS: ReadonlySet<string> = new Set([
+  ".", "./", "*", "**", "/*", "/**",
+  "./*", "./**", "./**/*", "**/*", "**/**",
+]);
+
+/**
+ * Reduce an owned-path entry to the absolute directory prefix it authorizes,
+ * or `undefined` when the entry cannot be reduced safely.
+ *
+ * Accepts a path, a directory (`docs/`), a recursive scope (`docs/**`), or any
+ * of {@link WORKSPACE_WIDE_GRANTS}. Fails closed on `..` traversal and on
+ * wildcards it cannot interpret — an uninterpretable grant authorizes nothing
+ * rather than everything.
+ */
+export function resolveOwnedScopePrefix(raw: string, cwd: string): string | undefined {
+  const normalized = raw.trim().replace(/\\/g, "/");
+  if (normalized.length === 0) return undefined;
+  // `resolve` normalizes a trailing separator, so a cwd of "/tmp/" cannot
+  // silently disable a workspace-wide grant.
+  if (WORKSPACE_WIDE_GRANTS.has(normalized)) return resolve(cwd);
+
+  const stripped = normalized
+    .replace(/\/\*\*$/, "")
+    .replace(/\*\*\/$/, "")
+    .replace(/\/+$/, "");
+  if (stripped.length === 0) return resolve(cwd);
+
+  const segments = stripped.split("/").filter(Boolean);
+  if (segments.some(segment => segment === "..")) return undefined;
+  if (/[*?[\]{}]/.test(stripped)) return undefined;
+  return resolve(cwd, stripped);
+}
+
+/**
+ * True when `resolvedTarget` sits inside one of the caller's owned scopes.
+ * The single ownership matcher: the policy gate and the file router MUST both
+ * call this, or one of them will authorize (or deny) something the other
+ * disagrees with.
+ */
+export function isWithinOwnedScope(
+  resolvedTarget: string,
+  ownedPaths: readonly string[],
+  cwd: string,
+): boolean {
+  return ownedPaths.some(raw => {
+    const prefix = resolveOwnedScopePrefix(raw, cwd);
+    return prefix !== undefined && isInside(prefix, resolvedTarget);
+  });
+}
