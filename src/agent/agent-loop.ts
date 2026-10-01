@@ -10,7 +10,7 @@ import { createToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
 import { runPlanPhase } from "../run/plan-phase.js";
-import { READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
+import { buildReadOnlyToolFilter, READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
@@ -366,18 +366,18 @@ async function runTaskCoreImpl(
   //   shell task:   only READ_ONLY_TOOL_NAMES (includes alix_shell_run)
   //   default:      all tools
   //
-  // The read-only exclusion of `alix_shell_run` is a containment boundary, and
-  // it is duplicated in `session/setup.ts` `setupTools` — keep the two in step.
-  // Consequence worth knowing: a read-only objective that must actually RUN
-  // something is unsatisfiable, and the selection observation records that as
-  // `surfaceGaps[].absence === "absent-upstream"`. See `setupTools`.
-  const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
-  readOnlyToolFilter.add("alix_delegate");
-  readOnlyToolFilter.add("alix_coordination_status");
-  readOnlyToolFilter.add("alix_coordination_list");
-  readOnlyToolFilter.add("alix_coordination_results");
-  readOnlyToolFilter.add("alix_state_query");
-  readOnlyToolFilter.add("alix_verify_claim");
+  // `buildReadOnlyToolFilter` is the single derivation, shared with
+  // `session/setup.ts` `setupTools`. It used to be two hand-built copies: this
+  // one re-added `verify.claim` by hand and the session builder did not, so the
+  // same route offered different surfaces depending on which built the tools.
+  // `alix_shell_run` stays excluded — see the contract in `helpers.ts`.
+  const readOnlyToolFilter = buildReadOnlyToolFilter([
+    "alix_delegate",
+    "alix_coordination_status",
+    "alix_coordination_list",
+    "alix_coordination_results",
+    "alix_state_query",
+  ]);
   const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
   const providerTools = toolFilter
     ? availableTools.filter((t) => toolFilter.has(t.name) || boundToolDefs.includes(t))

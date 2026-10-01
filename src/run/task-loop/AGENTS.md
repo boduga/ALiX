@@ -97,6 +97,19 @@ existing import paths are unchanged.
   `tool-selection` `DecisionType` is deliberately not added: `decision/config.ts`
   forces a route for every new type, and there is no selection engine to route
   to until the experiment justifies one.
+- A surface that cannot offer a requirement-closing tool says so TO THE MODEL,
+  not only to telemetry. `surfaceGapsForTurn` classifies each miss
+  (`scoper-excluded` = reachable but deprioritised, `absent-upstream` = never a
+  candidate), and `renderSurfaceBlockNotice` turns any `absent-upstream` gap into
+  a `<surface_constraint>` message pushed before the first model turn. Without
+  it the model cannot distinguish "impossible here" from "read the file
+  instead": cohort `t3d-2026-09-28-c` measured 6 of 8 verification-shaped scopes
+  answering "run pnpm typecheck:unused" by inspection, with no error and no
+  statement that the check never ran. `scoper-excluded` is deliberately NOT
+  surfaced — the tool was reachable, so telling the model it cannot run would be
+  a false constraint. The read-only exclusion that causes this lives in
+  `src/run/helpers.ts` (`buildReadOnlyToolFilter`), which is the single
+  derivation shared with `agent-loop.ts` and `session/setup.ts`.
 - The frozen surface is the surface the model was actually offered — scoped core
   + extended, which includes the MCP entries this task admitted — not the
   builtin-only provider list. It is frozen once per scope through

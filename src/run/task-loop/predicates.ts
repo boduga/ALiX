@@ -618,6 +618,38 @@ export function surfaceBlockedTheObjective(observation: SelectionObservation): b
 }
 
 /**
+ * The limitation notice injected when the surface could not offer a tool the
+ * objective needed. Returns "" when nothing is blocked, so the caller can push
+ * unconditionally.
+ *
+ * This exists because being blocked and being unable were indistinguishable to
+ * the model. Cohort `t3d-2026-09-28-c` measured 6 of 8 verification-shaped
+ * scopes answering a "run pnpm typecheck:unused" objective by *reading* — no
+ * error, no retry, just a confident answer from inspection, because
+ * `alix_shell_run` was never offered and nothing said so. `surfaceGaps`
+ * recorded it for the operator; this tells the model, so the honest outcome is
+ * "this scope cannot execute commands" instead of a silent downgrade to a
+ * weaker method.
+ *
+ * Only `absent-upstream` gaps are surfaced. A `scoper-excluded` tool was a
+ * relevance judgment on a tool that *was* reachable — telling the model it
+ * cannot run would be false.
+ */
+export function renderSurfaceBlockNotice(gaps: ReadonlyArray<SurfaceGap>): string {
+  const blocked = gaps.filter(gap => gap.absence !== "scoper-excluded");
+  if (blocked.length === 0) return "";
+  const names = blocked.map(gap => gap.toolName ?? gap.candidateId).join(", ");
+  return [
+    "<surface_constraint>",
+    `This scope cannot execute commands: ${names} ${blocked.length === 1 ? "is" : "are"} not available in a read-only session.`,
+    "Do not answer an execution request from inspection alone — reading a config file is not the same as running the check.",
+    "Either verify by static inspection and state explicitly that the check was NOT executed and why,",
+    "or report that the objective is not achievable in this scope.",
+    "</surface_constraint>",
+  ].join("\n");
+}
+
+/**
  * The deterministic ranking may only rank tools that were actually offered —
  * ranking a tool the model could not call would make the replay baseline
  * describe a surface that never existed. Scoped to the deterministic

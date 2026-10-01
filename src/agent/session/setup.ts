@@ -66,7 +66,7 @@ import { evictIfNeeded } from "../../skills/lifecycle.js";
 import type { SkillEntry } from "../../skills/catalog.js";
 import { createToolSelector } from "../../mcp/tool-selector.js";
 import { ToolDiscovery } from "../../mcp/tool-discovery.js";
-import { READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
+import { buildReadOnlyToolFilter, READ_ONLY_TOOL_NAMES } from "../../run/helpers.js";
 import { MinimalMetrics } from "../../kernel/minimal-metrics.js";
 import type { PlanTask } from "../../planning/plan-task.js";
 import { SYSTEM_PROMPT_BASE, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT, renderSelfModelSection, type SelfModelInfo } from "../system-prompt.js";
@@ -510,19 +510,13 @@ export async function setupTools(
   mcpDiscovery: ToolDiscovery | null;
 }> {
   const baseTools = buildToolsForProvider(ctx.provider);
-  // Read-only mode drops `alix_shell_run` (mirrored in `agent-loop.ts`). This
-  // is a deliberate containment boundary, not a scoping accident — but it has a
-  // measured cost: a read-only objective that REQUIRES running something
-  // ("Run pnpm typecheck:unused and report whether it passes") cannot be
-  // satisfied at all, because the only tool that could run it is not offered.
-  // Cohort `t3d-2026-09-28-c` hit this on 6 of 8 verification-shaped scopes and
-  // the corpus could not see it, because a tool removed here appears in neither
-  // `offered` nor `scoping.excluded`. `surfaceGaps` on the selection
-  // observation now records it as `absent-upstream`. If a read-only route needs
-  // to execute commands, change this deliberately and re-measure — do not let
-  // the gap look like a selector failure.
+  // Both read-only filter sites derive from `buildReadOnlyToolFilter` — see
+  // `helpers.ts` for why `alix_shell_run` stays out and `verify.claim` is in.
+  // The measured cost of the exclusion is recorded as `absent-upstream` by
+  // `deriveSurfaceGaps` and surfaced to the model as a limitation notice; it is
+  // not silently absorbed.
   const toolFilter = readOnly
-    ? new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"))
+    ? buildReadOnlyToolFilter()
     : shellTask
       ? READ_ONLY_TOOL_NAMES
       : null;

@@ -8,6 +8,7 @@ import {
   buildSelectionObservation,
   rankingOutsideOffered,
   deriveSurfaceGaps,
+  renderSurfaceBlockNotice,
   surfaceBlockedTheObjective,
   unexplainedRequirementCandidates,
 } from '../../src/run/task-loop/predicates.js';
@@ -286,6 +287,53 @@ describe('requirement-closing tools cannot vanish without provenance', () => {
     expect(unexplainedRequirementCandidates(observation)).toEqual([]);
     expect(observation.scoping.admitted.find(entry => entry.candidateId === id('alix_coordination_run'))?.reasons)
       .toEqual(['relevance_match', 'requirement:coordination']);
+  });
+});
+
+/**
+ * The model could not distinguish "impossible in this scope" from "read the
+ * file instead". Cohort `t3d-2026-09-28-c` measured 6 of 8 verification-shaped
+ * scopes answering a "run pnpm typecheck:unused" objective from inspection,
+ * with no error and no statement that the check never ran. The gap was recorded
+ * for the operator; these tests pin that it now reaches the MODEL too.
+ */
+describe('renderSurfaceBlockNotice', () => {
+  it('says nothing when the surface offered everything the objective needed', () => {
+    expect(renderSurfaceBlockNotice([])).toBe('');
+  });
+
+  it('names the unavailable tool and forbids answering by inspection alone', () => {
+    const notice = renderSurfaceBlockNotice([{
+      candidateId: id('alix_shell_run'),
+      toolName: 'alix_shell_run',
+      reasons: ['requirement:verification'],
+      absence: 'absent-upstream',
+    }]);
+    expect(notice).toContain('alix_shell_run');
+    expect(notice).toContain('cannot execute commands');
+    // The 0/8 failure mode: reading a config and reporting the result as if the
+    // check had run. The notice must name that substitution explicitly.
+    expect(notice).toContain('NOT executed');
+  });
+
+  it('stays silent for a scoper exclusion — that tool WAS reachable', () => {
+    // Telling the model it cannot run a tool the surface actually offered
+    // would be a false constraint, not a conservative one.
+    expect(renderSurfaceBlockNotice([{
+      candidateId: id('alix_coordination_run'),
+      toolName: 'alix_coordination_run',
+      reasons: ['requirement:coordination'],
+      absence: 'scoper-excluded',
+    }])).toBe('');
+  });
+
+  it('reports only the blocked tools when gaps are mixed', () => {
+    const notice = renderSurfaceBlockNotice([
+      { candidateId: id('alix_shell_run'), toolName: 'alix_shell_run', reasons: [], absence: 'absent-upstream' },
+      { candidateId: id('alix_coordination_run'), toolName: 'alix_coordination_run', reasons: [], absence: 'scoper-excluded' },
+    ]);
+    expect(notice).toContain('alix_shell_run');
+    expect(notice).not.toContain('alix_coordination_run');
   });
 });
 

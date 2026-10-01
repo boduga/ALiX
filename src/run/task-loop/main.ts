@@ -75,7 +75,7 @@ import type { ExecutionStateEmitter } from "../../runtime/execution-state/execut
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildRequirementCandidates, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName, toolResultBody } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildRequirementCandidates, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, renderSurfaceBlockNotice, resolveToolExecutionName, toolResultBody } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
 
 // Process-local sequence for frozen candidate surfaces (`scopeId`). One per run
@@ -368,6 +368,13 @@ onProgress,
       });
     }
   }
+  // Tell the MODEL, not just the operator. `surfaceGapsForTurn` already
+  // recorded that the surface could not offer a tool the objective needed;
+  // without this the model cannot distinguish "impossible here" from "I
+  // should just read the file instead", and answers an execution request from
+  // inspection without saying the check never ran. `surfaceBlockNoticeForTurn`
+  // is pushed into the message list below, before the first model turn.
+  const surfaceBlockNotice = renderSurfaceBlockNotice(surfaceGapsForTurn);
   const selectionDebug = process.env.ALIX_TOOL_SELECTION_DEBUG === "1";
   // Deterministic orderings for the shadow trace, taken from the layers that
   // own them: the scoper's relevance ranking, and the MCP selector's scores.
@@ -711,6 +718,15 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
     progressLedger,
     onLedgerUpdate: deps.onLedgerUpdate,
   });
+
+  // Surface the limitation before the first model turn, so the model reads it
+  // rather than inferring it from a rejected call. Placed after the progress
+  // ledger so the constraint is the most recent thing in the assembled
+  // context, and after budget injection is irrelevant — it goes in ahead of
+  // `assembleBudgetedContext` below so it is subject to normal admission.
+  if (surfaceBlockNotice) {
+    messages = [...messages, { role: "user", content: surfaceBlockNotice }];
+  }
 
 
 	let assembled: ReturnType<typeof assembleContext>;

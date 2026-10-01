@@ -34,6 +34,18 @@ Record which of these were checked and what they showed.
 - **Fix applied:** the spawn budgets in `tests/governance/governance-report.test.ts` are now named constants — 20 s for the compiled `bin/alix.js` spawns, 30 s for the `npx tsx` spawns, with the two `describe` budgets raised to 300 s so the per-case budgets cannot outlive their suite. No assertion changed; a wrong result still fails, only the false-failure window moved.
 - **Status:** resolved — a fixed short timeout on a spawned process is a false-failure generator; if this test times out again, treat it as a real hang and investigate the spawned CLI, not the budget
 
+## TUI pinned-bottom rendered slice
+
+- **Test:** `tests/tui/app-pinned-bottom.vitest.ts` → `new content while unpinned: end-to-end rendered slice stays identical`
+- **Symptom:** `AssertionError: expected 119 to be greater than 119` at line 271 — `allLinesAfter.length` equals `allLinesBefore.length`, i.e. the appended `new 60`..`new 64` content had not reached the render slice when the assertion ran. No incorrect offset or slice comparison followed; the length precondition failed first.
+- **Frequency:** 1 of 3 full parallel runs during the read-only tool-surface change set. Standalone: 3/3 pass. Second full run with the same tree: clean (6583 pass / 0 fail).
+- **Parallel-only:** Yes — never reproduced standalone; the test drives `refresh()` through a sampled log collector, so the window is event-delivery timing under load.
+- **First observed:** 2026-09-30, during the read-only tool-surface change set (tree at `f1f0e762` + working diff)
+- **Standalone result:** `npx vitest run tests/tui/app-pinned-bottom.vitest.ts` → 17/17 pass, three consecutive runs
+- **Baseline check:** the same full suite on the stashed (pre-change) tree passed, but the failing assertion is downstream of no file this change touches — `helpers.ts`, `agent-loop.ts`, `session/setup.ts`, `task-loop/main.ts`, `task-loop/predicates.ts` have no TUI render path.
+- **Suspected cause:** the assertion samples render state immediately after appending + `refresh()`; under full-suite load the five appends and the refresh interleave differently than standalone. Unconfirmed.
+- **Status:** watch — the change under test is not on this file's dependency path, and the gate was green on the repeat run. If it recurs twice, treat it as a real race in the pinned-bottom repaint and fix the test's await rather than the product.
+
 ## Observability telemetry + skills factory trace
 
 - **Tests:** `tests/observability/security-telemetry.test.ts` (`redactPayload` called on each emission) and `tests/skills/factory-trace.test.ts`
