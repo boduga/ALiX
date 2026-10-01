@@ -31,6 +31,8 @@ export interface DaemonRuntimeExecutorOptions {
   cwd: string;
   eventLog: any; // EventLog
   signal?: AbortSignal;
+  /** Selection-observation identity for grounded turns (see RuntimeContext). */
+  selectionScope?: { scopeId: string; iteration: number };
 }
 
 /** Socket-sink adapter: RuntimeExecutor interface over a daemon client connection. */
@@ -88,6 +90,10 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
         eventLog: this.opts.eventLog,
         cwd: this.opts.cwd,
         signal: this.opts.signal,
+        ...(this.opts.selectionScope
+          ? { selectionScope: { ...this.opts.selectionScope, sessionId: this.opts.sessionId } }
+          : {}),
+        toolCandidateAliases: { web_search: "alix_web_search", web_fetch: "alix_web_fetch" },
       }),
     );
   }

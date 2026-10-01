@@ -13,6 +13,14 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ModelAdapter, NormalizedMessage, ToolCall, TokenUsage, ToolDef } from "../../providers/types.js";
 import type { DeferredToolEntry } from "../../mcp/tool-deferral.js";
+import {
+  MCP_TOOL_PREFIX,
+  builtinCandidateId,
+  candidateIdFor,
+  freezeToolCandidates,
+} from "../../decision/tool-selection-candidates.js";
+import type { SurfaceGap } from "../../observability/tool-selection-observation.js";
+import { selectionTraceEnabled } from "../../observability/tool-selection-observation.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { MemoryStore } from "../../utils/memory/store.js";
 import type { ExecutionContext } from "../../observability/execution-context.js";
@@ -48,7 +56,8 @@ import { assembleContext } from "../../config/context-assembly.js";
 import { MetricsStore } from "../../observability/metrics-store.js";
 import { createMetricRegistry } from "../../observability/metric-registry.js";
 import { StateTelemetry } from "../../observability/state-telemetry.js";
-import { CONTEXT_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../../events/types.js";
+import { CONTEXT_EVENT_TYPES, TOOL_EVENT_TYPES, type TokenCalibrationPayload, type ToolingScopeFallbackFullPayload, type ToolingScopeReintroducedPayload } from "../../events/types.js";
+import { hashArgs } from "../../tools/executor.js";
 import { loadCalibration, type ContextRotThreshold } from "../../config/calibration-store.js";
 import { resolveModelConfig } from "../../config/model-resolver.js";
 import type { ModelsConfig } from "../../config/schema.js";
@@ -67,8 +76,107 @@ import type { ExecutionStateEmitter } from "../../runtime/execution-state/execut
 import { evaluatePattern } from "./context-helpers.js";
 import { assembleBudgetedContext, buildEffectiveSystemPrompt, injectProgressLedger } from "./context-phase.js";
 import { runIterationVerification } from "./verification-phase.js";
-import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, resolveToolExecutionName } from "./predicates.js";
+import { CLAIM_TOOL_NAMES, COORDINATION_EVIDENCE_GAP, COORDINATION_RUN_TOOL_NAME, NARRATING_THRESHOLD, SHORT_SYNTHESIS_THRESHOLD, SuccessfulToolEvidence, VERIFICATION_EVIDENCE_GAP, buildRequirementCandidates, buildSelectionObservation, buildShedToolRetryMessage, buildSynthesisReprompt, buildUnconfirmedDonePrompt, claimsArtifactWritten, durableCompletionSummary, emitAgent, explicitMutationTargets, findUnsubstantiatedClaims, hasExecutedActionTool, hasPendingAgentAction, isCompletionTool, isContinuationMessage, isToolResultEcho, lastToolResultShowsClientError, latestToolFailure, missingEvidenceSummary, objectiveEvidenceGaps, objectiveEvidenceRequirements, renderSurfaceBlockNotice, resolveToolExecutionName, toolResultBody } from "./predicates.js";
 import { RESEARCH_LIMITS, buildContextBudgetOverflowSummary, completeSession, getHistoricalSuggestions, isIrreducibleContextBudgetOverflow, maybeEmitRotRisk, persistSessionState } from "./session-lifecycle.js";
+
+// Process-local sequence for frozen candidate surfaces (`scopeId`). One per run
+// today; replay joins selectors to scopes on the id, never on the iteration.
+let selectionScopeSequence = 0;
+
+/**
+ * The frozen surfaces an observation needs, taken from the builder's own
+ * parameter type so the two can never drift apart.
+ */
+type SelectionObservationContext = Pick<
+  Parameters<typeof buildSelectionObservation>[0],
+  "candidates" | "candidateBindings" | "scoping" | "ranking" | "requirementCandidates" | "surfaceGaps"
+>;
+
+/**
+ * Every optional key of `SelectionObservationContext`, so the field-by-field
+ * forwarding inside `emitSelectionObservation` can be checked at compile time.
+ * `emitSelectionObservation` builds its argument by hand, which means a new
+ * context field is TYPE-accepted but DROPPED at runtime unless it is also
+ * forwarded — that has silently swallowed `invalidSelection` and `surfaceGaps`.
+ * `SelectionObservationContextKey` is asserted by a test that drives the real loop.
+ */
+/**
+ * Every key the emitter must forward, listed so a test can assert the
+ * hand-built argument inside `emitSelectionObservation` carries all of them.
+ * Deriving it from the type is what makes the test meaningful: adding a context
+ * field without forwarding it fails `tests/run/selection-context-forwarding`.
+ */
+export type SelectionObservationContextKey = keyof SelectionObservationContext;
+
+/**
+ * Emit one frozen selection scope.
+ *
+ * Extracted so every path that lets the model choose among the frozen
+ * candidates records the same scope shape — including the
+ * `alix_mcp_search_tools` short-circuit, which used to `continue` past the
+ * observation and leave external turns unscoped (cohort `t3d-2026-09-28-c`:
+ * eight external tasks, zero scopes).
+ */
+async function emitSelectionObservation(
+  log: EventLog,
+  session: { sessionId: string; actor: "system" },
+  input: {
+    scopeId: string;
+    iteration: number;
+    invocationId?: string;
+    toolCall: ToolCall;
+    /** Same shape the loop resolves executor names from (name + execName). */
+    selectedTools: Parameters<typeof resolveToolExecutionName>[1];
+    seenSignatures: Map<string, number>;
+    toolResult: { error?: unknown; message?: { content?: unknown }; changed?: boolean };
+    context: SelectionObservationContext;
+  },
+): Promise<void> {
+  const execName = resolveToolExecutionName(input.toolCall.name, input.selectedTools);
+  const body = toolResultBody(
+    typeof input.toolResult.message?.content === "string" ? input.toolResult.message.content : undefined,
+  );
+  const observation = buildSelectionObservation({
+    scopeId: input.scopeId,
+    iteration: input.iteration,
+    ...(input.invocationId ? { invocationId: input.invocationId } : {}),
+    candidates: input.context.candidates,
+    ...(input.context.candidateBindings ? { candidateBindings: input.context.candidateBindings } : {}),
+    chosen: input.toolCall.name,
+    chosenCandidateId: candidateIdFor(input.toolCall.name),
+    executor: execName,
+    argsSignature: `${execName}:${hashArgs(input.toolCall.args)}`,
+    seenSignatures: input.seenSignatures,
+    executorSuccess: !input.toolResult.error,
+    repaired: body.includes("[Tool Repair Hint]"),
+    // A create that found identical content is a provable no-op.
+    noOp: input.toolResult.changed === false && /identical content/i.test(body),
+    hasContent: body.length > 0,
+    ...(input.context.requirementCandidates ? { requirementCandidates: input.context.requirementCandidates } : {}),
+    // Forwarded explicitly like every other context field: the type permits it,
+    // but a field missing here is silently dropped at runtime, which is how
+    // `invalidSelection` and then `surfaceGaps` both went missing.
+    ...(input.context.surfaceGaps ? { surfaceGaps: input.context.surfaceGaps } : {}),
+    ...(input.context.scoping ? { scoping: input.context.scoping } : {}),
+    ...(input.context.ranking ? { ranking: input.context.ranking } : {}),
+    ...(input.context.candidates.some(candidate => candidate.candidateId === candidateIdFor(input.toolCall.name))
+      ? {}
+      : { invalidSelection: { toolName: input.toolCall.name, reason: "chosen tool is not in the offered surface" } }),
+  });
+  // The gate lives on BOTH emit sites, not just the shared emitter. This
+  // wrapper appends directly and is the path the runbook's `alix run` batch
+  // uses, so gating only `tool-selection-observation.ts` left the hot path
+  // writing the very telemetry the gate exists to suppress. Proven by
+  // deleting ALIX_TOOL_SELECTION_TRACE and watching
+  // `task-loop-mcp-search-selection.vitest.ts` still pass.
+  if (!selectionTraceEnabled()) return;
+  await log.append({
+    ...session,
+    actor: "system",
+    type: TOOL_EVENT_TYPES.SELECTION_OBSERVED,
+    payload: observation,
+  });
+}
 
 export interface TaskLoopDeps {
   config: {
@@ -124,6 +232,11 @@ post_task?: { command: string; reason: string }[];
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
+  /**
+   * Workspace root for state lookups the loop performs itself (the
+   * coordination completion check). Defaults to `process.cwd()`.
+   */
+  cwd?: string;
   systemPrompt: string;
   onStream?: (chunk: { type: "text" | "tool_call" | "reasoning"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../../extensions/hook-runner.js").HookRunner;
@@ -226,7 +339,121 @@ onProgress,
   // Full registry — every tool the model COULD name (provider + MCP). Consumed
   // by Task 8's shed-tool handler to re-admit a scoped-out schema on call.
   const fullToolRegistry = [...providerTools, ...mcpToolIndex];
-  const { core: coreTools, extended: extendedTools, fallbackFull } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  const {
+    core: coreTools,
+    extended: extendedTools,
+    fallbackFull,
+    provenance: scopingProvenance,
+  } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  // Requirement-derived candidates for the shadow observation: what ALiX
+  // believed this objective required, distinct from what the scoper offered.
+  const requirementCandidatesForTurn = buildRequirementCandidates(
+    objectiveEvidenceRequirements(evidenceTask, evidenceTaskType),
+  );
+  // Which requirement-closing tools the objective needed but the surface could
+  // not offer, and why. Computed here, while both the scoper verdict and the
+  // pre-scoper surface are still in hand: `scoping.excluded` is debug-gated and
+  // explains only scoper drops, so a tool removed upstream (session mode strips
+  // `alix_shell_run` in read-only) would otherwise look like a clean surface.
+  // This is the signal T3 lacked — see `deriveSurfaceGaps`.
+  const surfaceGapsForTurn: SurfaceGap[] = requirementCandidatesForTurn
+    .filter(candidate => !fullToolRegistry.some((t) => t.name === candidate.tool))
+    .map(candidate => ({
+      candidateId: builtinCandidateId(candidate.tool),
+      toolName: candidate.tool,
+      reasons: [...candidate.reasons],
+      absence: "absent-upstream" as const,
+    }));
+  const scoperExcludedIds = new Set(scopingProvenance.excluded.map(entry => entry.tool));
+  for (const candidate of requirementCandidatesForTurn) {
+    if (surfaceGapsForTurn.some(gap => gap.candidateId === builtinCandidateId(candidate.tool))) continue;
+    if (scoperExcludedIds.has(candidate.tool)) {
+      surfaceGapsForTurn.push({
+        candidateId: builtinCandidateId(candidate.tool),
+        toolName: candidate.tool,
+        reasons: [...candidate.reasons],
+        absence: "scoper-excluded",
+      });
+    }
+  }
+  // Tell the MODEL, not just the operator. `surfaceGapsForTurn` already
+  // recorded that the surface could not offer a tool the objective needed;
+  // without this the model cannot distinguish "impossible here" from "I
+  // should just read the file instead", and answers an execution request from
+  // inspection without saying the check never ran. `surfaceBlockNoticeForTurn`
+  // is pushed into the message list below, before the first model turn.
+  const surfaceBlockNotice = renderSurfaceBlockNotice(surfaceGapsForTurn);
+  const selectionDebug = process.env.ALIX_TOOL_SELECTION_DEBUG === "1";
+  // Deterministic orderings for the shadow trace, taken from the layers that
+  // own them: the scoper's relevance ranking, and the MCP selector's scores.
+  const { createToolSelector } = await import("../../mcp/tool-selector.js");
+  const mcpSelectorRanking = mcpToolIndex.length > 0 ? createToolSelector(mcpToolIndex).rank(task) : [];
+  // The candidate surface is frozen here, once, so the scope id is minted here:
+  // replay joins selectors to scopes on this id, not on the iteration number.
+  const scopeId = `scope_${++selectionScopeSequence}`;
+  // The frozen surface is the surface the model is actually offered: scoped
+  // core + extended, which includes the MCP entries this task admitted. It is
+  // sanitized once, here — an MCP candidate is recorded as `mcp:<short hash>`
+  // plus a readable label, and its opaque handle stays in a local-only binding,
+  // so a recorded scope can never carry a handle to the remote boundary.
+  const providerByName = new Map(providerTools.map((tool) => [tool.name, tool]));
+  const mcpByName = new Map(mcpToolIndex.map((entry) => [entry.name, entry]));
+  const wireSurface: Array<ToolDef | DeferredToolEntry> = [...coreTools, ...extendedTools];
+  const frozenSurface = freezeToolCandidates({
+    builtin: wireSurface
+      .filter((tool) => !tool.name.startsWith(MCP_TOOL_PREFIX))
+      .map((tool) => ({
+        name: tool.name,
+        description: providerByName.get(tool.name)?.description ?? tool.description,
+      })),
+    mcp: wireSurface
+      .filter((tool) => tool.name.startsWith(MCP_TOOL_PREFIX))
+      .map((tool) => {
+        const entry = mcpByName.get(tool.name);
+        return entry
+          ? {
+              name: entry.name,
+              description: entry.description,
+              ...(entry.searchName !== undefined ? { searchName: entry.searchName } : {}),
+              ...(entry.serverName !== undefined ? { serverName: entry.serverName } : {}),
+              ...(entry.toolName !== undefined ? { toolName: entry.toolName } : {}),
+              ...(entry.execName !== undefined ? { execName: entry.execName } : {}),
+            }
+          : { name: tool.name, description: tool.description };
+      }),
+  });
+  const frozenRanking = {
+    // The scoper's relevance ordering (see SelectionObservation.ranking).
+    scoper: scopingProvenance.ranking.map((entry) => ({
+      candidateId: candidateIdFor(entry.tool),
+      score: entry.score,
+    })),
+    ...(mcpSelectorRanking.length > 0
+      ? {
+          mcpSelector: mcpSelectorRanking.map((entry) => ({
+            candidateId: candidateIdFor(entry.tool),
+            score: entry.score,
+          })),
+        }
+      : {}),
+  };
+  const frozenScoping = {
+    admitted: scopingProvenance.admitted.map((entry) => ({
+      candidateId: candidateIdFor(entry.tool),
+      reasons: entry.reasons,
+    })),
+    fallbackFull: scopingProvenance.fallbackFull,
+    // Exclusions are debug-only: they answer "why wasn't the
+    // requirement-closing tool offered?" and can grow unbounded.
+    ...(selectionDebug
+      ? {
+          excluded: scopingProvenance.excluded.map((entry) => ({
+            candidateId: candidateIdFor(entry.tool),
+            reasons: entry.reasons,
+          })),
+        }
+      : {}),
+  };
   // Scoped-out set = full registry minus (core ∪ extended). These MUST NOT reach
   // the wire; a model call to one is a shed-tool call → Task 8 re-scope.
   const scopedOutNames = new Set(
@@ -351,6 +578,9 @@ const usedTools = new Set<string>();
 const searchCallGuard = new Map<string, number>();
 const successfulToolEvidence: SuccessfulToolEvidence[] = [];
 let toolEvidenceOrdinal = 0;
+// Shadow selection instrumentation: executor+args signature -> how many times
+// this turn has seen it. Feeds `tool.selection.observed`; never a gate.
+const selectionSignatures = new Map<string, number>();
 
 // True only when the model has made a genuine structured "done"-style tool
 // call (toolResult.completed). Prose that merely contains the word "done"
@@ -373,13 +603,63 @@ function lastToolResultContent(
   }
   return undefined;
 }
-// Last-attempt outcome of `coordination.run` this run: set true when the most
-// recent executed call errored, cleared by a later success. Gates every
+// Verification state of the most recent `coordination.run` this run, cleared by
+// a later call that proves verification. True when the call itself failed OR
+// the run it started is not verified (execution terminal + aggregate generated
+// + outcome known + verification evidence present). Gates every
 // completed-status emission (Path A trust, verification-pass Path B,
-// trackCompleted, shell-complete, research limits) so a failed coordination
-// run can never surface task.done / graph.completed / workflow.completed /
-// session.ended:completed (durability contract). In-process, per-invocation.
-let coordinationRunFailed = false;
+// trackCompleted, shell-complete, research limits) so neither a failed
+// coordination call nor an unverified run can surface task.done /
+// graph.completed / workflow.completed / session.ended:completed (durability
+// contract). In-process, per-invocation.
+let coordinationUnverified = false;
+
+/** Pull a run id out of a `coordination.run` tool result (structured first). */
+function parseCoordinationRunId(output: string | undefined): string | undefined {
+  const match = /Coordination run:\s*(\S+)/.exec(output ?? "");
+  return match?.[1];
+}
+
+/**
+ * Is the coordination run this call started actually verified?
+ *
+ * Requires all four facts, from the run's own record and durable evidence:
+ * execution terminal, aggregate generated, outcome known, verification
+ * evidence present. A successful `coordination.run` invocation proves none of
+ * them (cohort `t3d-2026-09-28-c`: 7 runs closed `completed`, only 3 carried an
+ * aggregate). Unresolvable identity or an unreadable run returns false — the
+ * gate fails closed.
+ */
+async function coordinationRunIsVerified(
+  toolResult: unknown,
+  cwd: string,
+  sessionId: string,
+): Promise<boolean> {
+  const result = (toolResult ?? {}) as { coordinationRunId?: string; output?: string };
+  const runId = result.coordinationRunId
+    ?? parseCoordinationRunId(typeof result.output === "string" ? result.output : undefined);
+  if (!runId) return false;
+  try {
+    const { CoordinationStore } = await import("../../kernel/coordination-store.js");
+    const { deriveCoordinationCompletion, matchesAttachedAggregateEvent } =
+      await import("../../kernel/coordination-types.js");
+    const { computeAggregationSourceFingerprint } =
+      await import("../../kernel/coordination-aggregation-fingerprint.js");
+    const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
+    const run = await new CoordinationStore(cwd).load(runId);
+    if (!run) return false;
+    const completion = deriveCoordinationCompletion(run, {
+      currentFingerprint: computeAggregationSourceFingerprint(run),
+      aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, sessionId)),
+    });
+    return completion.execution === "completed"
+      && completion.aggregation === "generated"
+      && completion.outcome !== "unknown"
+      && completion.verification === "verified";
+  } catch {
+    return false;
+  }
+}
 
 // Truncation continuation: when a provider stops mid-answer at the output
 // budget (finish_reason=length), keep generating until the answer completes.
@@ -446,6 +726,15 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
     progressLedger,
     onLedgerUpdate: deps.onLedgerUpdate,
   });
+
+  // Surface the limitation before the first model turn, so the model reads it
+  // rather than inferring it from a rejected call. Placed after the progress
+  // ledger so the constraint is the most recent thing in the assembled
+  // context, and after budget injection is irrelevant — it goes in ahead of
+  // `assembleBudgetedContext` below so it is subject to normal admission.
+  if (surfaceBlockNotice) {
+    messages = [...messages, { role: "user", content: surfaceBlockNotice }];
+  }
 
 
 	let assembled: ReturnType<typeof assembleContext>;
@@ -804,13 +1093,13 @@ if (toolCalls.length === 0) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max search calls)", streamed: model.streaming, ...(coordinationUnverified ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
       if (i >= limits.maxIterations) {
         await maybeEmitRotRisk({ log, session, threshold: contextRotThreshold, contextPressure: contextPressure.snapshot(), contextBudget, lastInvocationId });
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations`, ...(contextPressure ? { contextPressure: contextPressure.snapshot() } : {}) } });
         await evaluatePattern(log, session, sessionDir, taskType);
-        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, ...(coordinationRunFailed ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
+        return { sessionId, summary: text || "Research completed (max iterations)", streamed: model.streaming, ...(coordinationUnverified ? { reason: "completed_unverified" as const } : {}), contextPressure: contextPressure.snapshot(), ...(lastAgentProse !== undefined ? { lastAgentProse } : {}) };
       }
     }
     if (modelSaysDone) {
@@ -858,7 +1147,7 @@ if (toolCalls.length === 0) {
         ranToolCalls &&
         !explicitDoneCalled &&
         isToolResultEcho(text, lastToolResultContent(messages));
-      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+      const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
       const pendingAction = hasPendingAgentAction(text);
       const trustworthy =
         (!ranToolCalls || explicitDoneCalled || (unsubstantiated.length === 0 && !errorEchoDone && !toolEchoDone)) &&
@@ -908,15 +1197,15 @@ if (toolCalls.length === 0) {
     const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
     for (const check of checks) {
       await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-      const verResult = await runVerification(".", check);
-      await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
+      const verResult = await runVerification(deps.cwd ?? process.cwd(), check);
+      await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status, isolated: verResult.isolated === true } });
       verResults.push({ check, result: verResult });
     }
 
     const allPassed = verResults.every((vr) => vr.result.status === "passed");
 
     if (allPassed && modelSaysDone) {
-      if (coordinationRunFailed) {
+      if (coordinationUnverified) {
         // Verification passed, but the last coordination.run failed — the
         // completed-status contract still applies here: bounded retry, then
         // an honest completed_unverified terminal (never session.ended:completed).
@@ -1085,7 +1374,13 @@ if (toolCalls.length === 0) {
     }
 
     if (resolveToolExecutionName(toolCall.name, selectedTools) === COORDINATION_RUN_TOOL_NAME) {
-      coordinationRunFailed = Boolean(toolResult.error);
+      // A failed invocation is unambiguously not completion. A *successful*
+      // invocation is not completion either: the gate needs the run's derived
+      // dimensions (execution terminal, aggregate generated, outcome known,
+      // verification evidence present), never the tool call's own status.
+      coordinationUnverified = toolResult.error
+        ? true
+        : !(await coordinationRunIsVerified(toolResult, deps.cwd ?? process.cwd(), sessionId));
     }
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
@@ -1098,9 +1393,39 @@ if (toolCalls.length === 0) {
         // Record what the call actually changed, so a delegated coordination
         // run whose workers wrote files can satisfy the mutation requirement
         // the coordinator itself cannot meet.
-        ...(toolResult.changed === true || changedFiles.length > 0 ? { mutated: true } : {}),
+        //
+        // The EXPLICIT `mutated: false` matters as much as the `true`: a
+        // `file.create` that found identical content reports `changed: false`,
+        // and that no-op must not pass as mutation evidence. Only an absent
+        // flag is left undecided, because `file.delete` never sets one.
+        ...(toolResult.changed === true || changedFiles.length > 0
+          ? { mutated: true as const }
+          : toolResult.changed === false
+            ? { mutated: false as const }
+            : {}),
       });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
+    }
+    {
+      // Shadow observation (T0-b): what was offered, what was chosen, and how
+      // useful the executed choice turned out to be. No behavior depends on it.
+      await emitSelectionObservation(log, session, {
+        scopeId,
+        iteration: i,
+        ...(invocationId ? { invocationId } : {}),
+        toolCall,
+        selectedTools,
+        seenSignatures: selectionSignatures,
+        toolResult,
+        context: {
+          candidates: frozenSurface.candidates,
+          candidateBindings: frozenSurface.bindings,
+          requirementCandidates: requirementCandidatesForTurn,
+          ...(surfaceGapsForTurn.length > 0 ? { surfaceGaps: surfaceGapsForTurn } : {}),
+          scoping: frozenScoping,
+          ranking: frozenRanking,
+        },
+      });
     }
     if (toolResult.completed) {
       trackCompleted = true;
@@ -1211,6 +1536,26 @@ if (toolCalls.length === 0) {
     // Handle MCP tool search first
     const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
     if (mcpSearchResult.handled && mcpSearchResult.message) {
+      // The sentinel is a real member of the frozen candidate set, so this is a
+      // real selection — record the scope before short-circuiting. Skipping it
+      // is what left every external turn in cohort t3d-2026-09-28-c unscoped.
+      await emitSelectionObservation(log, session, {
+        scopeId,
+        iteration: i,
+        ...(invocationId ? { invocationId } : {}),
+        toolCall,
+        selectedTools,
+        seenSignatures: selectionSignatures,
+        toolResult: { message: mcpSearchResult.message },
+        context: {
+          candidates: frozenSurface.candidates,
+          candidateBindings: frozenSurface.bindings,
+          requirementCandidates: requirementCandidatesForTurn,
+          ...(surfaceGapsForTurn.length > 0 ? { surfaceGaps: surfaceGapsForTurn } : {}),
+          scoping: frozenScoping,
+          ranking: frozenRanking,
+        },
+      });
       messages.push(mcpSearchResult.message);
       continue;
     }
@@ -1363,7 +1708,7 @@ if (toolCalls.length === 0) {
     // may still have described actions it never executed in its text.
     // Same escalation as the no-tool-call branch (see findUnsubstantiatedClaims).
     const unsubstantiated = findUnsubstantiatedClaims(text, usedTools);
-    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationRunFailed });
+    const evidenceGaps = objectiveEvidenceGaps(evidenceTask, evidenceTaskType, successfulToolEvidence, { coordinationUnverified });
     // An explicit `alix_done` does not make an echoed tool result a summary.
     const echoedToolResult = isToolResultEcho(text, lastToolResultContent(messages));
     if (
@@ -1453,7 +1798,7 @@ if (toolCalls.length === 0) {
       session, log, memoryStore, sessionDir,
       taskType, sessionId, shellOutput || text,
       model.streaming ?? false,
-      "session.ended", coordinationRunFailed ? "completed_unverified" : "completed",
+      "session.ended", coordinationUnverified ? "completed_unverified" : "completed",
       contextPressure.snapshot(),
       { threshold: contextRotThreshold, contextBudget, lastInvocationId },
     );
@@ -1485,6 +1830,7 @@ if (toolCalls.length === 0) {
       contextPressure,
       contextBudget,
       lastInvocationId,
+      cwd: deps.cwd ?? process.cwd(),
     });
     repairCount = vr.repairCount;
     if (vr.earlyReturn) return vr.earlyReturn;

@@ -6,7 +6,7 @@
  *
  * Covers:
  * 1. objectiveEvidenceGaps unit contract for the optional
- *    `{ coordinationRunFailed }` flag (last-attempt semantics).
+ *    `{ coordinationUnverified }` flag (last-attempt semantics).
  * 2. Path A (no tools + prose done): bounded re-prompt, then
  *    completed_unverified — never completed.
  * 3. Recovery: a later successful coordination.run clears the gate.
@@ -15,7 +15,7 @@
  * 5. Path B (mutations + verification passed + prose done): explicit
  *    coordination_failed gate, then completed_unverified.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,6 +28,8 @@ import {
   objectiveEvidenceGaps,
   objectiveEvidenceRequirements,
 } from '../../src/run/task-loop/predicates.js';
+import { extractToolSelectionScopes, replayToolSelection } from '../../src/decision/tool-selection-replay.js';
+import { builtinCandidateId } from '../../src/decision/tool-selection-candidates.js';
 import { createContextBudget } from '../../src/config/context-budget.js';
 import { ensureEncoder } from '../../src/utils/tokens.js';
 import type {
@@ -115,6 +117,67 @@ function makeExecutor(coordinationOutcomes: Array<'error' | 'success'>): TaskLoo
   } as unknown as TaskLoopDeps['executor'];
 }
 
+
+/**
+ * C6: a successful `coordination.run` invocation is NOT verification. The gate
+ * resolves the run's own dimensions, so a stub that should be treated as
+ * verified must supply a real run with an attached aggregate plus the matching
+ * durable completion event.
+ */
+/** Executor whose `coordination.run` returns the seeded verified run result. */
+function verifiedExecutor(
+  verifiedResult: { kind: 'success'; output: string; coordinationRunId: string },
+): TaskLoopDeps['executor'] {
+  return {
+    execute: async ({ name }: { name: string }) => {
+      if (name === 'coordination.run') return verifiedResult;
+      if (name === 'done') return { kind: 'success' as const, output: 'Task complete.', completed: true };
+      return { kind: 'success' as const, output: 'ok' };
+    },
+  } as unknown as TaskLoopDeps['executor'];
+}
+
+async function seedVerifiedCoordinationRunSession(): Promise<{
+  cwd: string;
+  coordinationRunId: string;
+  result: { kind: 'success'; output: string; coordinationRunId: string };
+  cleanup: () => void;
+}> {
+  const { CoordinationStore } = await import('../../src/kernel/coordination-store.js');
+  const { createCoordinationRun, createWorkerAssignment } = await import('../../src/kernel/coordination-types.js');
+  const { computeAggregationSourceFingerprint } = await import('../../src/kernel/coordination-aggregation-fingerprint.js');
+  const cwd = mkdtempSync(join(tmpdir(), 'alix-coord-verified-'));
+  const sessionId = 'coord-gate-test';
+  const store = new CoordinationStore(cwd);
+  const run = createCoordinationRun({ sessionId, rootGoal: 'draft report', coordinatorAgentId: 'alix' });
+  await store.save(run);
+  const worker = createWorkerAssignment({
+    coordinationRunId: run.id, agentId: 'alix#1', taskLabel: 'writer', goalPrompt: 'write',
+    ownershipScopes: ['.tmp/out/a.md'], requiredCapabilities: ['task.do'], attempt: 0, maxAttempts: 3,
+  });
+  await store.addWorker(run.id, worker);
+  await store.patchWorker(run.id, worker.id, { status: 'completed' });
+  await store.updateRun(run.id, (current) => { current.status = 'completed'; });
+  const ref = `.alix/coordination/results/runs/${run.id}.json`;
+  const fingerprint = computeAggregationSourceFingerprint((await store.load(run.id))!);
+  await store.attachAggregate(run.id, {
+    aggregateResultRef: ref, aggregateGeneratedAt: new Date().toISOString(),
+    aggregateSourceFingerprint: fingerprint, outcome: 'success',
+  });
+  const dir = join(cwd, '.alix', 'sessions', sessionId);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'events.jsonl'), JSON.stringify({
+    type: 'coordination.aggregate.completed',
+    payload: { runId: run.id, aggregateResultRef: ref, sourceFingerprint: fingerprint, outcome: 'success' },
+  }), 'utf8');
+  return {
+    cwd,
+    coordinationRunId: run.id,
+    result: { kind: 'success', output: `Coordination run: ${run.id}`, coordinationRunId: run.id },
+    cleanup: () => rmSync(cwd, { recursive: true, force: true }),
+  };
+}
+
 async function makeTestDeps(overrides: {
   provider: ModelAdapter & { requests: RecordedRequest[] };
   task?: string;
@@ -122,6 +185,8 @@ async function makeTestDeps(overrides: {
   maxIterations?: number;
   taskType?: TaskLoopDeps['taskType'];
   executor?: TaskLoopDeps['executor'];
+  /** Workspace the loop resolves run state from (the coordination gate). */
+  cwd?: string;
 }): Promise<{ deps: TaskLoopDeps; log: EventLog }> {
   const tmpRoot = mkdtempSync(join(tmpdir(), 'alix-coord-'));
   const sessionId = 'coord-gate-test';
@@ -186,6 +251,7 @@ async function makeTestDeps(overrides: {
     sessionId,
     sessionDir,
     systemPrompt: 'You are a test assistant.',
+    ...(overrides.cwd ? { cwd: overrides.cwd } : {}),
   };
 
   return { deps, log };
@@ -291,7 +357,7 @@ describe('tool-result echo detection', () => {
 
 describe('objectiveEvidenceGaps coordination-failure flag', () => {
   it('forces the coordination gap when the last coordination.run failed, regardless of objective text', () => {
-    const gaps = objectiveEvidenceGaps(NO_COORD_TASK, 'docs', [], { coordinationRunFailed: true });
+    const gaps = objectiveEvidenceGaps(NO_COORD_TASK, 'docs', [], { coordinationUnverified: true });
     expect(gaps).toContain(COORDINATION_EVIDENCE_GAP);
   });
 
@@ -305,7 +371,7 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
       NO_COORD_TASK,
       'docs',
       [{ name: 'coordination.run', args: {}, ordinal: 0 }],
-      { coordinationRunFailed: true },
+      { coordinationUnverified: true },
     );
     expect(gaps).toContain(COORDINATION_EVIDENCE_GAP);
   });
@@ -316,7 +382,7 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
       reqTask,
       'docs',
       [{ name: 'coordination.run', args: {}, ordinal: 1 }],
-      { coordinationRunFailed: false },
+      { coordinationUnverified: false },
     );
     expect(gaps).not.toContain(COORDINATION_EVIDENCE_GAP);
   });
@@ -329,6 +395,15 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
 });
 
 describe('runTaskLoop coordination-failure completion gate', () => {
+  // This suite asserts a selection observation reaches the log, and tracing is
+  // off by default. Opt in for the run, then restore.
+  let traceWasSet: string | undefined;
+  beforeEach(() => { traceWasSet = process.env.ALIX_TOOL_SELECTION_TRACE; process.env.ALIX_TOOL_SELECTION_TRACE = '1'; });
+  afterEach(() => {
+    if (traceWasSet === undefined) delete process.env.ALIX_TOOL_SELECTION_TRACE;
+    else process.env.ALIX_TOOL_SELECTION_TRACE = traceWasSet;
+  });
+
   it('does not accept an echoed tool result as a completion summary', async () => {
     const ECHO = '310 .tmp/out/notes.md';
     const provider = createScriptedProvider([
@@ -360,9 +435,60 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     const events = await log.readAll();
     const rejections = events.filter((event) => event.type === 'completion.claim_rejected');
     expect(rejections.some((event) => (event.payload as { reason?: string })?.reason === 'tool_result_echo')).toBe(true);
+    // The shadow selection observation rides along with every executed call.
+    const observed = events.find((event) => event.type === 'tool.selection.observed');
+    expect(observed).toBeDefined();
+    expect((observed?.payload as { chosen?: string })?.chosen).toBe('alix_file_create');
+    const payload = observed?.payload as {
+      execution?: { status?: string };
+      selection?: { outcome?: string };
+      evidence?: { contribution?: string };
+    };
+    expect(payload.execution?.status).toBe('success');
+    expect(payload.selection?.outcome).toBe('novel');
+    expect(payload.evidence?.contribution).toBe('contributed');
+    // Requirement candidates and scoping provenance ride along: this objective
+    // asks for a file, so the mutation-closing tool must be identifiable.
+    const provenance = observed?.payload as {
+      requirementCandidates?: Array<{ candidateId: string; reasons: string[] }>;
+      scoping?: { admitted?: Array<{ candidateId: string; reasons: string[] }>; fallbackFull?: boolean };
+    };
+    expect(
+      provenance.requirementCandidates?.some(entry => entry.candidateId === builtinCandidateId('alix_file_create')),
+    ).toBe(true);
+    expect((provenance.scoping?.admitted ?? []).length).toBeGreaterThan(0);
+    // The scoper's ranking is recorded as it was produced, and every ranked
+    // candidate is one the model could actually call.
+    const ranked = (observed?.payload as {
+      ranking?: { scoper?: Array<{ candidateId: string; score: number }> };
+      offered?: string[];
+    });
+    expect((ranked.ranking?.scoper ?? []).length).toBeGreaterThan(0);
+    for (const entry of ranked.ranking?.scoper ?? []) {
+      expect(ranked.offered).toContain(entry.candidateId);
+    }
+
+    // T2-c acceptance: the recorded trace reconstructs the frozen scope and can
+    // be replayed against another selector without touching runtime state.
+    const scopes = extractToolSelectionScopes(events);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0].scopeId).toMatch(/^scope_\d+$/);
+    expect(scopes[0].offered.length).toBeGreaterThan(0);
+    const fileCreate = builtinCandidateId('alix_file_create');
+    expect(scopes[0].actualCandidateIds[0]).toBe(fileCreate);
+    const replay = await replayToolSelection(scopes[0], {
+      id: 'stub-selector',
+      async rank(request) {
+        return { rankValue: request.candidateId === fileCreate ? 1 : 0 };
+      },
+    });
+    expect(replay.candidateSetPreserved).toBe(true);
+    expect(replay.actualCandidateId).toBe(fileCreate);
+    expect(replay.domains[0].ranking[0]).toBe(fileCreate);
   });
 
   it('continues after a successful run when final prose promises another agent action', async () => {
+    const seeded = await seedVerifiedCoordinationRunSession();
     const provider = createScriptedProvider([
       { toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'draft report' } }] },
       { text: "The run completed. Next, I'm surfacing the files as artifacts, then I'll write the final summary." },
@@ -373,8 +499,9 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       task: 'Run four coordinated workers to draft a report and surface the results.',
       taskType: 'docs',
       providerTools: [coordinationTool, doneTool],
-      executor: makeExecutor(['success']),
+      executor: verifiedExecutor(seeded.result),
       maxIterations: 4,
+      cwd: seeded.cwd,
     });
 
     const result = await runTaskLoop(deps);
@@ -385,9 +512,11 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     expect(provider.requests).toHaveLength(3);
     const events = await log.readAll();
     expect(events.some((event) => event.type === 'completion.claim_rejected')).toBe(true);
+    seeded.cleanup();
   });
 
   it('accepts a completed report that merely offers future help', async () => {
+    const seeded = await seedVerifiedCoordinationRunSession();
     const provider = createScriptedProvider([
       { toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'draft report' } }] },
       { text: "Run completed. Four files verified. Next, I'm available if you need changes." },
@@ -397,14 +526,16 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       task: 'Run four coordinated workers to draft a report and surface the results.',
       taskType: 'docs',
       providerTools: [coordinationTool, doneTool],
-      executor: makeExecutor(['success']),
+      executor: verifiedExecutor(seeded.result),
       maxIterations: 4,
+      cwd: seeded.cwd,
     });
 
     const result = await runTaskLoop(deps);
 
     expect(result.reason).toBe('completed');
     expect(provider.requests).toHaveLength(2);
+    seeded.cleanup();
   });
 
   it('Path A: blocks completed after a failed coordination.run when objective text does not require coordination', async () => {
@@ -437,6 +568,8 @@ describe('runTaskLoop coordination-failure completion gate', () => {
   });
 
   it('recovery: a later successful coordination.run clears the gate and completion is accepted', async () => {
+    const seeded = await seedVerifiedCoordinationRunSession();
+    let coordRetries = 0;
     const provider = createScriptedProvider([
       { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'x' } }] },
       { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c2', args: { goal: 'x' } }] },
@@ -447,8 +580,22 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       task: NO_COORD_TASK,
       taskType: 'docs',
       providerTools: [coordinationTool, doneTool],
-      executor: makeExecutor(['error', 'success']),
+      // First call fails; the retry returns the VERIFIED run result, which is
+      // what clears the gate now (a bare success no longer does).
+      executor: {
+        execute: async ({ name }: { name: string }) => {
+          if (name !== 'coordination.run') {
+            if (name === 'done') return { kind: 'success' as const, output: 'Task complete.', completed: true };
+            return { kind: 'success' as const, output: 'ok' };
+          }
+          coordRetries++;
+          return coordRetries === 1
+            ? { kind: 'error' as const, message: 'worker pool failed', retryable: false }
+            : seeded.result;
+        },
+      } as unknown as TaskLoopDeps['executor'],
       maxIterations: 4,
+      cwd: seeded.cwd,
     });
 
     const result = await runTaskLoop(deps);
@@ -457,6 +604,28 @@ describe('runTaskLoop coordination-failure completion gate', () => {
     const events = await log.readAll();
     const ended = events.filter((e) => e.type === 'session.ended');
     expect((ended.at(-1)!.payload as { reason?: string }).reason).toBe('completed');
+    seeded.cleanup();
+  });
+
+  it('does not accept a successful coordination.run that cannot prove verification', async () => {
+    const provider = createScriptedProvider([
+      { text: '', toolCalls: [{ name: 'alix_coordination_run', id: 'c1', args: { goal: 'x' } }] },
+      { text: 'Done. Summary ready.' },
+    ]);
+    const { deps } = await makeTestDeps({
+      provider,
+      task: NO_COORD_TASK,
+      taskType: 'docs',
+      providerTools: [coordinationTool, doneTool],
+      // The invocation succeeds, but there is no run record, no aggregate and
+      // no completion event — so the gate must not accept completion.
+      executor: makeExecutor(['success']),
+      maxIterations: 4,
+    });
+
+    const result = await runTaskLoop(deps);
+
+    expect(result.reason).toBe('completed_unverified');
   });
 
   it('trackCompleted: the done tool cannot complete while the coordination gate is set', async () => {

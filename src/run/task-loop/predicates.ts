@@ -30,6 +30,19 @@ import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
 import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
+import {
+  builtinCandidateId,
+  builtinNameOf,
+  type FrozenToolCandidate,
+  type LocalToolBinding,
+} from "../../decision/tool-selection-candidates.js";
+
+import {
+  buildSelectionObservation as buildNeutralSelectionObservation,
+  type SelectionObservation as NeutralSelectionObservation,
+  type SelectionRanking,
+  type SurfaceGap,
+} from "../../observability/tool-selection-observation.js";
 
 export function emitAgent(
   log: EventLog,
@@ -242,6 +255,33 @@ export type SuccessfulToolEvidence = {
 };
 
 export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
+
+/**
+ * Does this call count as mutation evidence for the completion gate?
+ *
+ * A mutation TOOL is not automatically mutation EVIDENCE. `file.create`
+ * reports `changed: false` when the file already exists with identical
+ * content (`already_exists_identical`), and a `patch.apply` can resolve with
+ * an empty `changedFiles`. Both are successful calls that wrote nothing.
+ *
+ * The old predicate counted the tool name alone, so an agent could satisfy
+ * "a successful workspace mutation" by writing a file whose content it had
+ * already written — repeatedly, with no workspace change at all — and then
+ * declare the task complete. That is the F6 defect (`changed=false`
+ * unobservable) with teeth: the no-op was not merely unrecorded, it was
+ * accepted as proof.
+ *
+ * `mutated` is tri-state because the tools disagree about how they report it:
+ * `file.create` and `patch.apply` set it, `file.delete` does not (it has no
+ * `changed` field at all). So an ABSENT flag is not a denial — only an
+ * explicit `false` is. That keeps `file.delete` working while making a
+ * self-reported no-op incapable of satisfying the gate.
+ */
+function isMutationEvidence(item: SuccessfulToolEvidence): boolean {
+  if (item.name === COORDINATION_RUN_TOOL_NAME) return item.mutated === true;
+  if (!MUTATION_TOOL_NAMES.has(item.name)) return false;
+  return item.mutated !== false;
+}
 export const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
 export const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 export const COORDINATION_EVIDENCE_GAP = "a successful coordination run with worker outcomes";
@@ -280,7 +320,36 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
     /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(named) ||
     /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(named)
   );
-  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
+  // Verification is INDEPENDENT of mutation. It used to be gated on
+  // `mutation &&`, which made a verification-only objective undetectable:
+  // "run the tests and confirm the suite passes" names no file-write verb, so
+  // `mutation` was false, so no verification requirement existed, so the
+  // completion gate never demanded verification evidence. The model could
+  // declare that task done without running a single test — a direct violation
+  // of "Completion requires executed evidence (durable)", which requires
+  // verification evidence precisely for objectives that explicitly ask for it.
+  //
+  // Cohort `t3d-2026-09-28-c` measured this as finding 1: verification
+  // requirement detection fired on 0 of 8 verification-shaped scopes while
+  // mutation fired 7 of 8 and coordination 7 of 8.
+  //
+  // The regex is UNCHANGED — only the `mutation &&` precondition is gone, so
+  // the detection surface widens to verification-shaped objectives and nothing
+  // else.
+  //
+  // But dropping the precondition admits NEGATED instructions too: "do not run
+  // the tests, just read the file" contains `run ... tests` and would demand
+  // verification evidence the operator explicitly declined. So a negated
+  // verification instruction cancels the requirement, mirroring the
+  // `readOnlyInstruction` guard that already gates `mutation`.
+  const verificationNegated = /\b(?:do not|don'?t|without|never)\s+(?:run|perform|execute|verify|check|test)\b/i.test(named);
+  // A later affirmative OVERRIDES the negation rather than compounding it:
+  // "do not run the tests but verify the claim" asks for verification. The two
+  // clauses must not be OR-ed — that made the override deepen the decline.
+  const verificationAffirmativeOverride = /\b(?:but|however|instead|then)\s+(?:run|perform|verify|check)\b/i.test(named);
+  const verificationDeclined = verificationNegated && !verificationAffirmativeOverride;
+  const verification = !verificationDeclined
+    && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
   const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
   const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
   const coordination = new RegExp(
@@ -294,14 +363,11 @@ export function objectiveEvidenceGaps(
   task: string,
   taskType: string,
   evidence: ReadonlyArray<SuccessfulToolEvidence>,
-  opts?: { coordinationRunFailed?: boolean },
+  opts?: { coordinationUnverified?: boolean },
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
-    .filter((item) =>
-      MUTATION_TOOL_NAMES.has(item.name)
-      || (item.name === COORDINATION_RUN_TOOL_NAME && item.mutated === true),
-    )
+    .filter((item) => isMutationEvidence(item))
     .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
   const verifiedAfterMutation = evidence.some((item) =>
     item.ordinal > mutationOrdinal &&
@@ -322,7 +388,7 @@ export function objectiveEvidenceGaps(
   // volunteered coordination, it failed, so the success evidence is missing
   // until a later attempt clears the flag (durability contract).
   if (
-    opts?.coordinationRunFailed ||
+    opts?.coordinationUnverified ||
     (required.coordination && !evidence.some((item) => item.name === COORDINATION_RUN_TOOL_NAME))
   ) {
     gaps.push(COORDINATION_EVIDENCE_GAP);
@@ -393,6 +459,261 @@ export function buildUnconfirmedDonePrompt(input: {
     `Do not describe an action as complete unless you actually invoked the corresponding tool. ` +
     `Either call the remaining tools now, or withdraw a claim that no tool in this build can substantiate.`
   );
+}
+
+/**
+ * Shadow tool-selection observation. Instrumentation only — no gate reads it,
+ * and the loop's deterministic checks decide exactly as before. It records what
+ * the model had to choose from and what it chose, with the usefulness labels a
+ * later comparison needs.
+ *
+ * Honest limits, deliberate in the shape:
+ * - It scores the choice that RAN. A shadow alternative that was never executed
+ *   has no outcome here, so shadow data alone cannot rank selectors — comparing
+ *   an alternative selector requires replaying recorded state (see
+ *   `src/decision/replay/*` and `src/runtime/replay-executor.ts`).
+ * - `offered` is the per-turn model-facing surface. The capability-applicable
+ *   subset is not tracked separately yet; adding it is what makes a scoping
+ *   mistake distinguishable from a ranking mistake.
+ */
+export type RequirementClass = "mutation" | "verification" | "coordination";
+
+/** A tool that could close a currently detected objective requirement. */
+export type RequirementCandidate = { tool: AlixBuiltinToolName; reasons: string[] };
+
+/**
+ * Requirement-derived candidates, straight from `objectiveEvidenceRequirements`.
+ * Called *candidates*, never "applicable": ALiX has no general-purpose notion of
+ * applicability, only "these tools could close a requirement we actually
+ * detected". Deliberately not intent-derived — that would add a new semantic
+ * authority before there is evidence it is needed.
+ */
+export function buildRequirementCandidates(required: {
+  mutation: boolean;
+  verification: boolean;
+  coordination: boolean;
+}): RequirementCandidate[] {
+  const candidates: RequirementCandidate[] = [];
+  const add = (tool: AlixBuiltinToolName, reason: `requirement:${RequirementClass}`): void => {
+    const existing = candidates.find(candidate => candidate.tool === tool);
+    if (existing) {
+      if (!existing.reasons.includes(reason)) existing.reasons.push(reason);
+      return;
+    }
+    candidates.push({ tool, reasons: [reason] });
+  };
+  if (required.mutation) {
+    add("alix_file_create", "requirement:mutation");
+    add("alix_patch_apply", "requirement:mutation");
+    add("alix_file_delete", "requirement:mutation");
+  }
+  if (required.verification) {
+    add("alix_verify_claim", "requirement:verification");
+    add("alix_shell_run", "requirement:verification");
+  }
+  if (required.coordination) {
+    add("alix_coordination_run", "requirement:coordination");
+  }
+  return candidates;
+}
+
+/**
+ * The task loop's own view of an observation. Structurally the canonical
+ * `SelectionObservation` with ONE narrowing: the loop always carries a scoper
+ * ranking, possibly empty, because the scoper runs on every iteration. The
+ * grounded path has no scoper, so the canonical type leaves `ranking` optional.
+ *
+ * This used to be a full field-by-field re-declaration, which is how
+ * `invalidSelection` came to be missing here: a field added to the observation
+ * reached the emitter but was dropped by the return type, so the task loop
+ * silently never recorded an invalid selection. Narrow the canonical type
+ * instead of restating it.
+ */
+export type SelectionObservation = NeutralSelectionObservation & {
+  ranking: SelectionRanking;
+};
+
+export function buildSelectionObservation(input: {
+  scopeId: string;
+  iteration: number;
+  invocationId?: string;
+  /** Sanitized frozen surface (builtin tools + genuinely offered MCP entries). */
+  candidates: readonly FrozenToolCandidate[];
+  /** LOCAL ONLY bindings for those candidates. */
+  candidateBindings?: readonly LocalToolBinding[];
+  chosen: string;
+  chosenCandidateId: string;
+  executor: string;
+  argsSignature: string;
+  seenSignatures: Map<string, number>;
+  executorSuccess: boolean;
+  repaired?: boolean;
+  /** Provable no-op: the call succeeded without doing or reporting anything. */
+  noOp?: boolean;
+  /** The result carried content (any rendered body). */
+  hasContent?: boolean;
+  requirementCandidates?: RequirementCandidate[];
+  scoping?: {
+    admitted: Array<{ candidateId: string; reasons: string[] }>;
+    fallbackFull: boolean;
+    excluded?: Array<{ candidateId: string; reasons: string[] }>;
+  };
+  ranking?: {
+    scoper?: Array<{ candidateId: string; score: number }>;
+    mcpSelector?: Array<{ candidateId: string; score: number }>;
+  };
+  /**
+   * Set when the chosen tool could not be resolved against the frozen surface.
+   * Declared here as well as on the neutral input: without it the wrapper
+   * silently DROPPED the field, so the loop could never record an invalid
+   * selection even though `main.ts` passed one.
+   */
+  invalidSelection?: { toolName: string; reason: string };
+  /** Requirement tools the surface could not offer, and why. */
+  surfaceGaps?: readonly SurfaceGap[];
+}): SelectionObservation {
+  // Candidate semantics stay in this layer: requirement tools are builtin tool
+  // names, the frozen surface is keyed by candidate id, and the scoper is
+  // requirement-blind — so the id conversion and the reason merge happen here,
+  // once, and the neutral assembly receives plain candidate ids.
+  const requirementCandidates = (input.requirementCandidates ?? []).map(candidate => ({
+    candidateId: builtinCandidateId(candidate.tool),
+    reasons: [...candidate.reasons],
+  }));
+  const admitted = (input.scoping?.admitted ?? []).map((entry) => {
+    const requirement = requirementCandidates.find(candidate => candidate.candidateId === entry.candidateId);
+    if (!requirement) return entry;
+    return {
+      candidateId: entry.candidateId,
+      reasons: [...new Set([...entry.reasons, ...requirement.reasons])],
+    };
+  });
+  const observation = buildNeutralSelectionObservation({
+    scopeId: input.scopeId,
+    iteration: input.iteration,
+    ...(input.invocationId ? { invocationId: input.invocationId } : {}),
+    candidates: input.candidates,
+    ...(input.candidateBindings ? { candidateBindings: input.candidateBindings } : {}),
+    chosen: input.chosen,
+    chosenCandidateId: input.chosenCandidateId,
+    executor: input.executor,
+    argsSignature: input.argsSignature,
+    seenSignatures: input.seenSignatures,
+    executorSuccess: input.executorSuccess,
+    ...(input.repaired !== undefined ? { repaired: input.repaired } : {}),
+    ...(input.noOp !== undefined ? { noOp: input.noOp } : {}),
+    ...(input.hasContent !== undefined ? { hasContent: input.hasContent } : {}),
+    requirementCandidates,
+    scoping: {
+      admitted,
+      fallbackFull: input.scoping?.fallbackFull ?? false,
+      ...(input.scoping?.excluded ? { excluded: input.scoping.excluded } : {}),
+    },
+    ranking: {
+      scoper: input.ranking?.scoper ?? [],
+      ...(input.ranking?.mcpSelector ? { mcpSelector: input.ranking.mcpSelector } : {}),
+    },
+    ...(input.invalidSelection ? { invalidSelection: input.invalidSelection } : {}),
+    ...(input.surfaceGaps ? { surfaceGaps: input.surfaceGaps } : {}),
+  });
+  // The task-loop observation always carries a scoper ranking (possibly empty);
+  // the neutral assembly leaves it optional because the grounded path has no
+  // scoper. Restating it here keeps the loop's own invariant in its own type.
+  return { ...observation, ranking: observation.ranking ?? { scoper: [] } };
+}
+
+/**
+ * A tool that could close a detected requirement must not disappear from the
+ * offered surface without recorded scoping provenance. Returns the unexplained
+ * tools — empty is the invariant holding. Replay and the regression test both
+ * use this; a requirement-closing tool that vanished silently is a scoping
+ * failure, while one that was offered and not chosen is a selection question.
+ */
+export function unexplainedRequirementCandidates(observation: SelectionObservation): string[] {
+  return observation.requirementCandidates
+    .filter(candidate => !observation.offered.includes(candidate.candidateId))
+    .filter(candidate => !(observation.scoping.excluded ?? []).some(entry => entry.candidateId === candidate.candidateId))
+    .map(candidate => candidate.candidateId);
+}
+
+/**
+ * Requirement-closing tools that were NOT offered, each labelled with WHY.
+ *
+ * The predicate above cannot see the case that matters most. It only calls a
+ * missing tool "unexplained" when the tool is absent from `offered` AND absent
+ * from `scoping.excluded` — but a tool removed by session mode never reaches
+ * the scoper, so it is in neither list and the surface reads as fully
+ * explained. T3 measured 6 of 8 verification scopes in exactly that state:
+ * `alix_shell_run` is stripped by `--read-only` (`agent-loop.ts`), so
+ * "Run pnpm typecheck:unused" was impossible, and the corpus could not say so.
+ *
+ * `scoper-excluded` is the explicable case. `absent-upstream` means the tool
+ * was never a candidate — stripped by session mode, or missing from the base
+ * tool set — and is the one worth surfacing. A requirement candidate the loop
+ * knows about but the base surface never offered is exactly the asymmetry T3
+ * mistook for a selector failure.
+ */
+export function deriveSurfaceGaps(observation: SelectionObservation): SurfaceGap[] {
+  const excluded = new Set((observation.scoping.excluded ?? []).map(entry => entry.candidateId));
+  return observation.requirementCandidates
+    .filter(candidate => !observation.offered.includes(candidate.candidateId))
+    .map(candidate => ({
+      candidateId: candidate.candidateId,
+      toolName: builtinNameOf(candidate.candidateId),
+      reasons: [...candidate.reasons],
+      absence: excluded.has(candidate.candidateId) ? "scoper-excluded" as const : "absent-upstream" as const,
+    }));
+}
+
+/** True when a tool the objective needs could not have been called at all. */
+export function surfaceBlockedTheObjective(observation: SelectionObservation): boolean {
+  return deriveSurfaceGaps(observation).some(gap => gap.absence !== "scoper-excluded");
+}
+
+/**
+ * The limitation notice injected when the surface could not offer a tool the
+ * objective needed. Returns "" when nothing is blocked, so the caller can push
+ * unconditionally.
+ *
+ * This exists because being blocked and being unable were indistinguishable to
+ * the model. Cohort `t3d-2026-09-28-c` measured 6 of 8 verification-shaped
+ * scopes answering a "run pnpm typecheck:unused" objective by *reading* — no
+ * error, no retry, just a confident answer from inspection, because
+ * `alix_shell_run` was never offered and nothing said so. `surfaceGaps`
+ * recorded it for the operator; this tells the model, so the honest outcome is
+ * "this scope cannot execute commands" instead of a silent downgrade to a
+ * weaker method.
+ *
+ * Only `absent-upstream` gaps are surfaced. A `scoper-excluded` tool was a
+ * relevance judgment on a tool that *was* reachable — telling the model it
+ * cannot run would be false.
+ */
+export function renderSurfaceBlockNotice(gaps: ReadonlyArray<SurfaceGap>): string {
+  const blocked = gaps.filter(gap => gap.absence !== "scoper-excluded");
+  if (blocked.length === 0) return "";
+  const names = blocked.map(gap => gap.toolName ?? gap.candidateId).join(", ");
+  return [
+    "<surface_constraint>",
+    `This scope cannot execute commands: ${names} ${blocked.length === 1 ? "is" : "are"} not available in a read-only session.`,
+    "Do not answer an execution request from inspection alone — reading a config file is not the same as running the check.",
+    "Either verify by static inspection and state explicitly that the check was NOT executed and why,",
+    "or report that the objective is not achievable in this scope.",
+    "</surface_constraint>",
+  ].join("\n");
+}
+
+/**
+ * The deterministic ranking may only rank tools that were actually offered —
+ * ranking a tool the model could not call would make the replay baseline
+ * describe a surface that never existed. Scoped to the deterministic
+ * (scoper) ranking: `mcpSelector` legitimately ranks MCP handles the selector
+ * then truncates away, which is a different question from a builtin that was
+ * ranked but never offered.
+ */
+export function rankingOutsideOffered(observation: SelectionObservation): string[] {
+  return observation.ranking.scoper
+    .map(entry => entry.candidateId)
+    .filter(candidateId => !observation.offered.includes(candidateId));
 }
 
 export function missingEvidenceSummary(gaps: string[], text: string): string {
@@ -505,7 +826,7 @@ export function claimsArtifactWritten(
 }
 
 /** Strip the `<tool_result …>` envelope the loop wraps results in. */
-function toolResultBody(content: string | undefined): string {
+export function toolResultBody(content: string | undefined): string {
   return (content ?? "")
     .replace(/<\/?tool_result[^>]*>/g, "")
     .replace(/^\s*\[Tool Result\]\s*/i, "")
@@ -523,8 +844,9 @@ export function isToolResultEcho(text: string, lastToolResult: string | undefine
   const answer = toolResultBody(text);
   if (answer.length < 8) return false; // short prose is not an echo
   const result = toolResultBody(lastToolResult);
-  if (result.length === 0 || result.length > 200) return false;
+  if (result.length === 0) return false;
   if (answer === result) return true;
+  if (result.length > 200) return false;
   // Quoting a short result inside real prose is normal ("the heading is
   // `# ALiX`"), so an embedded result only counts when it dominates the answer.
   return answer.includes(result) && result.length / answer.length >= 0.6;

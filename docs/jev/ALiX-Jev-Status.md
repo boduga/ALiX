@@ -169,6 +169,12 @@ CRITICAL, and neither has the evidence the plan requires.
   continuous and the tolerance is ±0.1.
 - **Cost figures are per-replay and tiny.** They come from provider-reported
   usage where available, falling back to a chars/4 estimate.
+- **Cohort `t3d-2026-09-29-d` is valid but coverage-limited.** Its 18 frozen
+  scopes remain eligible selector-quality evidence, and its provisional 17/18
+  agreement stays provisional. The two scope-less/no-tool-call tasks were
+  collected before `tool.selection.not_applicable` existed, so they are absent
+  from the not-applicable vocabulary. Do not discard or recollect the cohort for
+  that post-collection instrumentation fix; use it as a coverage cohort.
 
 ## 7. Operating it
 

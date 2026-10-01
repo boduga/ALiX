@@ -22,6 +22,10 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
+import { CoordinationCompletionService as CompletionService } from "./coordination-completion-service.js";
+import { CoordinationResultStore as CompletionResultStore } from "./coordination-result-store.js";
+import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
+import { ResultAggregator } from "./coordination-result-aggregator.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
 import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
@@ -493,6 +497,25 @@ export class CoordinationScheduler {
           : baseConfig,
       };
       const result = await this.deps.executor.execute(worker, context, signal);
+
+      // An aborted execution is a CANCELLATION, whatever the executor returns.
+      // The catch path below already treats a thrown AbortError this way, but a
+      // killed worker child does not throw — it RESOLVES with a failure result,
+      // which then took the retry/failure branches below and overwrote the
+      // `cancelled` status `cancelRun` had just written. That broke the durable
+      // contract: an operator cancel must leave the run and its workers
+      // `cancelled`, never `failed`, because a `failed` run reads as a
+      // product failure and a `pending` retry is re-dispatched by the next tick.
+      if (signal.aborted) {
+        try {
+          await this.patchWorkerWithRetry(runId, workerId, {
+            status: "cancelled", blockReason: "cancelled", failureKind: "cancelled",
+            error: result.error ?? "Worker cancelled",
+            completedAt: new Date().toISOString(),
+          });
+        } catch { /* best-effort */ }
+        return;
+      }
 
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
@@ -1026,6 +1049,33 @@ export class CoordinationScheduler {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Build the production scheduler.
+ *
+ * Wires a `CoordinationCompletionService` so that reaching a terminal run
+ * status actually finalizes the run (aggregate generated, outcome attached,
+ * `coordination.aggregate.completed` emitted once). Without this,
+ * `maybeFinalizeRun` is dead optional behaviour: aggregation only ever
+ * happened when someone read the results, which is how 4 of 7 runs in cohort
+ * `t3d-2026-09-28-c` closed `completed` with no aggregate at all.
+ *
+ * Tests that need to control finalization can still construct
+ * `new CoordinationScheduler(deps)` directly and omit `completionService` —
+ * that omission is then explicit, not accidental.
+ */
+export function createCoordinationScheduler(
+  deps: Omit<CoordinationSchedulerDeps, "completionService">,
+  options?: SchedulerOptions,
+): CoordinationScheduler {
+  const completionService = new CompletionService({
+    coordinationStore: deps.store,
+    resultAggregator: new ResultAggregator(new CompletionResultStore(deps.cwd)),
+    aggregateStore: new CoordinationAggregateStore(deps.cwd),
+    ...(deps.eventLog ? { eventLog: deps.eventLog } : {}),
+  });
+  return new CoordinationScheduler({ ...deps, completionService }, options);
+}
 
 function emptyTick(runId: string, status: CoordinationRunStatus): SchedulerTickResult {
   return {

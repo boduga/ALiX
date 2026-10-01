@@ -1,0 +1,11 @@
+{
+  "cohortId": "t3d-2026-09-28-b",
+  "gitRevision": "ff08ff7154c5ea1519e7e5dc6ca78574591e0a6b",
+  "projectorVersion": "tool-selection/v1",
+  "jevModel": "jev-latest",
+  "jevConfigHash": "sha256:db1f398baddea494e4690ccc8c2b823132bdbaf1f6e8a350373d6fb31560cd23",
+  "candidateSchemaVersion": "sha256:0839ab4948d0de49d966a9493b54947284e4e7b2e7303d679417d37ba479fea4",
+  "startedAt": "2026-09-28T20:42:17Z",
+  "supersedes": "t3d-2026-09-28-a",
+  "supersedesReason": "cohort a was collected before ff08ff71 fixed tool-result delivery; every search-family scope ran with the model receiving empty <tool_result> content for grep.search/dir.search"
+}

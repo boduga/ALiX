@@ -327,6 +327,11 @@ export async function processTurnBody(
       eventLog: state.ctx.log,
       config: state.ctx.config,
       onRouteDiagnostic: state.config.onRouteDiagnostic,
+      // External (grounded) turns make a real model choice among the web tools
+      // they offer — give that choice a scope instead of leaving external
+      // selection unobserved (cohort t3d-2026-09-28-c produced zero external
+      // scopes).
+      selectionScope: { scopeId: `grounded_${state.ctx.sessionId}_${Date.now()}`, iteration: 0 },
       // Thread the turn's run identity so grounded-chat model calls and
       // tool spans resolve under the run's trace (R1, §18/§21 coverage).
       context: turnContext,

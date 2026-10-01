@@ -1,0 +1,182 @@
+{
+  "fd49d9e5-f101-44bc-a524-28e1f70b27e0": {
+    "taskId": "d-m1",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": false
+  },
+  "9d689310-5ba4-4af7-9021-fd6054efc6ce": {
+    "taskId": "d-m2",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "75e2c051-4a9b-4111-ab37-1884f2bc065d": {
+    "taskId": "d-m3",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "cecebb32-fa42-421a-af66-2201e90744ec": {
+    "taskId": "d-m4",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "c0057b70-25cd-4e68-8cdd-8ac4de3dcc68": {
+    "taskId": "d-m5",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "8d65e665-49e1-49c4-8de1-829c0988e8be": {
+    "taskId": "d-m6",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "fcd907a0-6783-4165-bafe-6b21e4197555": {
+    "taskId": "d-m7",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "d337fc71-950d-4bcc-855f-bd9aa231207c": {
+    "taskId": "d-m8",
+    "family": "MCP/external",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": true,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "150c056a-94a1-45b0-a93c-4af5b5da1bb9": {
+    "taskId": "d-s1",
+    "family": "web search",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "1eb45250-156f-4dcb-b518-55139126fccb": {
+    "taskId": "d-s2",
+    "family": "web search",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "0b3d5786-26df-494e-a4a4-644756d0ff65": {
+    "taskId": "d-s3",
+    "family": "web search",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "0e47bf94-de0c-4d04-9e17-e2bf2e756acb": {
+    "taskId": "d-s4",
+    "family": "web search",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "d385f118-b3b0-49cb-b455-84f5c33d779c": {
+    "taskId": "d-f1",
+    "family": "web fetch",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "d0a33c55-4418-45e6-baed-75a84134d962": {
+    "taskId": "d-f2",
+    "family": "web fetch",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "58696a7f-e2ab-4a47-84d1-d014d198aa83": {
+    "taskId": "d-f3",
+    "family": "web fetch",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "c61b8e68-754c-4c17-98d8-51e7d3e37ecb": {
+    "taskId": "d-f4",
+    "family": "web fetch",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "30ee9271-ff56-45a0-a894-6a70ae347876": {
+    "taskId": "d-r1",
+    "family": "refusal/mixed",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "0d5f3569-8083-4323-8d82-e297795daa15": {
+    "taskId": "d-r2",
+    "family": "refusal/mixed",
+    "expectedMode": "external",
+    "multiIterationExpected": false,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": false
+  },
+  "10f10a1a-e912-4fb4-8bba-1900c296c02a": {
+    "taskId": "d-r3",
+    "family": "refusal/mixed",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  },
+  "f8737871-eaab-429b-8afc-d66e7c1ec46b": {
+    "taskId": "d-r4",
+    "family": "refusal/mixed",
+    "expectedMode": "external",
+    "multiIterationExpected": true,
+    "MCPExpected": false,
+    "requirementClassExpected": null,
+    "producedScope": true
+  }
+}

@@ -33,6 +33,12 @@ export type { RouteDiagnostic } from "./task-router.js";
 export interface RuntimeContext {
   cwd: string;
   sessionId: string;
+  /**
+   * Selection-observation identity for routes that let the model choose a tool
+   * (grounded_chat today). The session owns the id; the route supplies the
+   * facts. Absent means the caller does not observe selections.
+   */
+  selectionScope?: { scopeId: string; iteration: number };
   sessionDir: string;
   eventLog: any; // EventLog
   config: any;   // AlixConfig
@@ -142,6 +148,11 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       eventLog: ctx.eventLog,
       cwd: ctx.cwd,
       approvalStore: ctx.approvalStore,
+      ...(ctx.selectionScope
+        ? { selectionScope: { ...ctx.selectionScope, sessionId: ctx.sessionId } }
+        : {}),
+      toolCandidateAliases: { web_search: "alix_web_search", web_fetch: "alix_web_fetch" },
+
       // Local passes its historical 512-token cap; the daemon omits it.
       maxOutputTokens: 512,
       context: ctx.context,

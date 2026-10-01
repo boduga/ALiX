@@ -17,6 +17,7 @@ reason about.
 - `shell-network-policy.ts` — Network policy applied to shell clients, so
   `curl`/`wget` cannot bypass the `web_fetch` domain allowlist.
 - `collaboration-tools.ts` — Bound collaboration tools a worker sees.
+- `result-text.ts` — Renders a `ToolResult` into the text the model reads.
 - `web-fetch.ts` / `web-search.ts` / `state-query.ts` / `monitor-tool.ts` /
   `claim-verification-tool.ts` / `state-proposal-tool.ts` / `misc-tools.ts` —
   Individual tool implementations.

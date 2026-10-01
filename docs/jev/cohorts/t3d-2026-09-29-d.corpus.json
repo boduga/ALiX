@@ -1,0 +1,3058 @@
+{
+  "generatedAt": "2026-09-29T07:56:12.559Z",
+  "engine": "jev",
+  "sessions": [
+    "fd49d9e5-f101-44bc-a524-28e1f70b27e0",
+    "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+    "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+    "cecebb32-fa42-421a-af66-2201e90744ec",
+    "c0057b70-25cd-4e68-8cdd-8ac4de3dcc68",
+    "8d65e665-49e1-49c4-8de1-829c0988e8be",
+    "fcd907a0-6783-4165-bafe-6b21e4197555",
+    "d337fc71-950d-4bcc-855f-bd9aa231207c",
+    "150c056a-94a1-45b0-a93c-4af5b5da1bb9",
+    "1eb45250-156f-4dcb-b518-55139126fccb",
+    "0b3d5786-26df-494e-a4a4-644756d0ff65",
+    "0e47bf94-de0c-4d04-9e17-e2bf2e756acb",
+    "d385f118-b3b0-49cb-b455-84f5c33d779c",
+    "d0a33c55-4418-45e6-baed-75a84134d962",
+    "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+    "c61b8e68-754c-4c17-98d8-51e7d3e37ecb",
+    "30ee9271-ff56-45a0-a894-6a70ae347876",
+    "0d5f3569-8083-4323-8d82-e297795daa15",
+    "10f10a1a-e912-4fb4-8bba-1900c296c02a",
+    "f8737871-eaab-429b-8afc-d66e7c1ec46b"
+  ],
+  "scopes": 18,
+  "rows": [
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "scopeId": "scope_1",
+      "iteration": 0,
+      "objective": "Find an MCP tool for fetching a URL and report its exact tool name and server.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 8,
+        "mcp": 4
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_file_read",
+        "builtin:alix_done",
+        "builtin:alix_grep_search",
+        "builtin:alix_glob_match",
+        "builtin:alix_file_exists",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "mcp:705cc6",
+        "mcp:356e46"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_mcp_search_tools",
+        "label": "alix_mcp_search_tools",
+        "calls": [
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_mcp_search_tools"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [
+        "mcp:f90c07",
+        "builtin:alix_mcp_search_tools",
+        "mcp:56c1a2",
+        "mcp:356e46",
+        "builtin:alix_web_fetch",
+        "builtin:alix_grep_search",
+        "builtin:alix_glob_match",
+        "builtin:alix_done",
+        "builtin:alix_file_read",
+        "builtin:alix_file_exists",
+        "builtin:alix_web_search",
+        "mcp:705cc6"
+      ],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search",
+          "builtin:alix_grep_search",
+          "builtin:alix_file_read",
+          "builtin:alix_done",
+          "builtin:alix_glob_match",
+          "builtin:alix_file_exists",
+          "mcp:f90c07",
+          "mcp:356e46",
+          "mcp:56c1a2",
+          "mcp:705cc6"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 12,
+        "latencyMs": [
+          276,
+          121,
+          109,
+          90,
+          219,
+          85,
+          99,
+          156,
+          106,
+          103,
+          89,
+          84
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 12,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "scope_1",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_mcp_search_tools",
+          "label": "alix_mcp_search_tools",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "mcp:f90c07",
+          "label": "fetch/fetch",
+          "domain": "mcp",
+          "reason": "external tool: replay requires fixtures or recorded responses"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_mcp_search_tools",
+          "label": "alix_mcp_search_tools",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "orderings differ: scoper top mcp:f90c07 (relevance, not next-tool preference), jev:tool-selection-replay top builtin:alix_mcp_search_tools",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "scopeId": "scope_1",
+      "iteration": 0,
+      "objective": "Which MCP servers are configured here, and what does each expose?",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 6,
+        "mcp": 5
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_file_read",
+        "builtin:alix_done",
+        "builtin:alix_grep_search",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "mcp:420457",
+        "mcp:705cc6",
+        "mcp:356e46"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_grep_search",
+        "label": "alix_grep_search",
+        "calls": [
+          "builtin:alix_grep_search",
+          "builtin:alix_grep_search",
+          "builtin:alix_file_read",
+          "builtin:alix_file_read",
+          "builtin:alix_mcp_search_tools"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [
+        "mcp:56c1a2",
+        "mcp:356e46",
+        "builtin:alix_grep_search",
+        "builtin:alix_done",
+        "builtin:alix_web_search",
+        "mcp:705cc6",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:420457",
+        "builtin:alix_file_read"
+      ],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_grep_search",
+          "builtin:alix_web_search",
+          "builtin:alix_file_read",
+          "builtin:alix_web_fetch",
+          "builtin:alix_done",
+          "mcp:705cc6",
+          "mcp:420457",
+          "mcp:f90c07",
+          "mcp:356e46",
+          "mcp:56c1a2"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 11,
+        "latencyMs": [
+          105,
+          217,
+          95,
+          112,
+          93,
+          212,
+          87,
+          98,
+          113,
+          110,
+          103
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 11,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "scope_1",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_grep_search",
+          "label": "alix_grep_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "mcp:56c1a2",
+          "label": "searxng/searxng_web_search",
+          "domain": "mcp",
+          "reason": "external tool: replay requires fixtures or recorded responses"
+        },
+        "selectorTop": {
+          "basis": "unknown",
+          "candidateId": "builtin:alix_mcp_search_tools",
+          "label": "alix_mcp_search_tools",
+          "domain": "builtin",
+          "reason": "no replay runner supplied"
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "orderings differ: scoper top mcp:56c1a2 (relevance, not next-tool preference), jev:tool-selection-replay top builtin:alix_mcp_search_tools",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "cecebb32-fa42-421a-af66-2201e90744ec",
+      "scopeId": "grounded_cecebb32-fa42-421a-af66-2201e90744ec_1790667838272",
+      "iteration": 0,
+      "objective": "Use MCP tool discovery to find a search tool, then report whether it is available right now.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          90,
+          80
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_cecebb32-fa42-421a-af66-2201e90744ec_1790667838272",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "c0057b70-25cd-4e68-8cdd-8ac4de3dcc68",
+      "scopeId": "grounded_c0057b70-25cd-4e68-8cdd-8ac4de3dcc68_1790667876199",
+      "iteration": 0,
+      "objective": "Use an available MCP search tool to find the Model Context Protocol versioning discussion and report one result URL.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          82,
+          78
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_c0057b70-25cd-4e68-8cdd-8ac4de3dcc68_1790667876199",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "8d65e665-49e1-49c4-8de1-829c0988e8be",
+      "scopeId": "grounded_8d65e665-49e1-49c4-8de1-829c0988e8be_1790667914721",
+      "iteration": 0,
+      "objective": "Use an MCP tool to fetch https://example.com and report the HTTP status.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          101,
+          89
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_8d65e665-49e1-49c4-8de1-829c0988e8be_1790667914721",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "fcd907a0-6783-4165-bafe-6b21e4197555",
+      "scopeId": "grounded_fcd907a0-6783-4165-bafe-6b21e4197555_1790667935561",
+      "iteration": 0,
+      "objective": "Search the web through an MCP tool for the TypeSafe System One pricing page, then report the headline claim.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          116,
+          110
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_fcd907a0-6783-4165-bafe-6b21e4197555_1790667935561",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "d337fc71-950d-4bcc-855f-bd9aa231207c",
+      "scopeId": "grounded_d337fc71-950d-4bcc-855f-bd9aa231207c_1790667960975",
+      "iteration": 0,
+      "objective": "Use an MCP tool to read https://example.com and quote its first heading.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          84,
+          95
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_d337fc71-950d-4bcc-855f-bd9aa231207c_1790667960975",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "150c056a-94a1-45b0-a93c-4af5b5da1bb9",
+      "scopeId": "grounded_150c056a-94a1-45b0-a93c-4af5b5da1bb9_1790667981149",
+      "iteration": 0,
+      "objective": "Search the web for the latest Node.js LTS release and report the version.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          79,
+          96
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_150c056a-94a1-45b0-a93c-4af5b5da1bb9_1790667981149",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "1eb45250-156f-4dcb-b518-55139126fccb",
+      "scopeId": "grounded_1eb45250-156f-4dcb-b518-55139126fccb_1790668037387",
+      "iteration": 0,
+      "objective": "Search the web for the current Model Context Protocol specification revision and summarise what changed.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          92,
+          83
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_1eb45250-156f-4dcb-b518-55139126fccb_1790668037387",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "scopeId": "scope_1",
+      "iteration": 0,
+      "objective": "Find a public source stating Node's current LTS support window and cite the URL.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 8,
+        "mcp": 5
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_file_read",
+        "builtin:alix_done",
+        "builtin:alix_grep_search",
+        "builtin:alix_glob_match",
+        "builtin:alix_file_exists",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "mcp:420457",
+        "mcp:705cc6",
+        "mcp:356e46"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [
+        "builtin:alix_web_search",
+        "mcp:56c1a2",
+        "mcp:f90c07",
+        "mcp:356e46",
+        "builtin:alix_file_read",
+        "builtin:alix_glob_match",
+        "builtin:alix_web_fetch",
+        "builtin:alix_grep_search",
+        "builtin:alix_file_exists",
+        "builtin:alix_done",
+        "builtin:alix_mcp_search_tools",
+        "mcp:420457",
+        "mcp:705cc6"
+      ],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch",
+          "builtin:alix_done",
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_file_read",
+          "builtin:alix_grep_search",
+          "builtin:alix_glob_match",
+          "builtin:alix_file_exists",
+          "mcp:56c1a2",
+          "mcp:f90c07",
+          "mcp:356e46",
+          "mcp:420457",
+          "mcp:705cc6"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 13,
+        "latencyMs": [
+          84,
+          75,
+          159,
+          204,
+          84,
+          87,
+          77,
+          122,
+          84,
+          94,
+          106,
+          78,
+          91
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 13,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "scope_1",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "scoper and jev:tool-selection-replay orderings agree on builtin:alix_web_search"
+        ]
+      }
+    },
+    {
+      "sessionId": "0e47bf94-de0c-4d04-9e17-e2bf2e756acb",
+      "scopeId": "grounded_0e47bf94-de0c-4d04-9e17-e2bf2e756acb_1790668083761",
+      "iteration": 0,
+      "objective": "Search for the TypeSafe System One announcement and summarise its headline claim.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_search",
+        "label": "alix_web_search",
+        "calls": [
+          "builtin:alix_web_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_search",
+          "builtin:alix_web_fetch"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          92,
+          93
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_0e47bf94-de0c-4d04-9e17-e2bf2e756acb_1790668083761",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_search",
+          "label": "alix_web_search",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "d385f118-b3b0-49cb-b455-84f5c33d779c",
+      "scopeId": "grounded_d385f118-b3b0-49cb-b455-84f5c33d779c_1790668112246",
+      "iteration": 0,
+      "objective": "Fetch https://example.com and report the page title.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          79,
+          85
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_d385f118-b3b0-49cb-b455-84f5c33d779c_1790668112246",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "d0a33c55-4418-45e6-baed-75a84134d962",
+      "scopeId": "grounded_d0a33c55-4418-45e6-baed-75a84134d962_1790668134148",
+      "iteration": 0,
+      "objective": "Fetch https://example.com and summarise it in two sentences.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          100,
+          94
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_d0a33c55-4418-45e6-baed-75a84134d962_1790668134148",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "scopeId": "scope_1",
+      "iteration": 0,
+      "objective": "Fetch https://example.com, then check whether the exact text 'Example Domain' appears in it.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 8,
+        "mcp": 4
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_file_read",
+        "builtin:alix_done",
+        "builtin:alix_grep_search",
+        "builtin:alix_glob_match",
+        "builtin:alix_file_exists",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "mcp:420457",
+        "mcp:356e46"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [
+        "mcp:356e46",
+        "builtin:alix_grep_search",
+        "builtin:alix_file_exists",
+        "builtin:alix_file_read",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "builtin:alix_glob_match",
+        "builtin:alix_done",
+        "mcp:420457"
+      ],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_done",
+          "builtin:alix_web_search",
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_file_read",
+          "builtin:alix_grep_search",
+          "builtin:alix_glob_match",
+          "builtin:alix_file_exists",
+          "mcp:356e46",
+          "mcp:f90c07",
+          "mcp:56c1a2",
+          "mcp:420457"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 12,
+        "latencyMs": [
+          113,
+          89,
+          97,
+          95,
+          124,
+          121,
+          78,
+          79,
+          97,
+          83,
+          119,
+          88
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 12,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "scope_1",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "mcp:356e46",
+          "label": "searxng/web_url_read",
+          "domain": "mcp",
+          "reason": "external tool: replay requires fixtures or recorded responses"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "orderings differ: scoper top mcp:356e46 (relevance, not next-tool preference), jev:tool-selection-replay top builtin:alix_web_fetch",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "c61b8e68-754c-4c17-98d8-51e7d3e37ecb",
+      "scopeId": "grounded_c61b8e68-754c-4c17-98d8-51e7d3e37ecb_1790668188261",
+      "iteration": 0,
+      "objective": "Fetch https://api.github.com/zen and report the response body.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          97,
+          98
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_c61b8e68-754c-4c17-98d8-51e7d3e37ecb_1790668188261",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "30ee9271-ff56-45a0-a894-6a70ae347876",
+      "scopeId": "grounded_30ee9271-ff56-45a0-a894-6a70ae347876_1790668217597",
+      "iteration": 0,
+      "objective": "Attempt to fetch http://127.0.0.1:1/ and report the refusal mode.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "failed",
+          "selection": "novel",
+          "evidence": "none"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          149,
+          105
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_30ee9271-ff56-45a0-a894-6a70ae347876_1790668217597",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "failed",
+            "selection": "novel",
+            "evidence": "none"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "failed",
+            "selection": "novel",
+            "evidence": "none"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "actual selection: execution recorded without demonstrated evidence contribution",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "10f10a1a-e912-4fb4-8bba-1900c296c02a",
+      "scopeId": "grounded_10f10a1a-e912-4fb4-8bba-1900c296c02a_1790668311203",
+      "iteration": 0,
+      "objective": "Fetch https://example.invalid/ and report what happens.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 2,
+        "mcp": 0
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch"
+        ],
+        "outcome": {
+          "execution": "failed",
+          "selection": "novel",
+          "evidence": "none"
+        }
+      },
+      "scoperRanking": [],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_web_search"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 2,
+        "latencyMs": [
+          73,
+          77
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 2,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "grounded_10f10a1a-e912-4fb4-8bba-1900c296c02a_1790668311203",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "failed",
+            "selection": "novel",
+            "evidence": "none"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "(none)",
+          "domain": "builtin",
+          "reason": "scope recorded no scoper ranking"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "failed",
+            "selection": "novel",
+            "evidence": "none"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "actual selection: execution recorded without demonstrated evidence contribution",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "scopeId": "scope_1",
+      "iteration": 0,
+      "objective": "Fetch https://example.com, then compare one claim from it against a local file (README.md or AGENTS.md) and report whether they agree.",
+      "eligibility": {
+        "selection": "eligible",
+        "outcome": "eligible",
+        "diagnostics": []
+      },
+      "domains": {
+        "builtin": 8,
+        "mcp": 5
+      },
+      "requirementCandidates": [],
+      "detectedRequirements": [],
+      "offered": [
+        "builtin:alix_file_read",
+        "builtin:alix_done",
+        "builtin:alix_grep_search",
+        "builtin:alix_glob_match",
+        "builtin:alix_file_exists",
+        "builtin:alix_mcp_search_tools",
+        "builtin:alix_web_search",
+        "builtin:alix_web_fetch",
+        "mcp:f90c07",
+        "mcp:56c1a2",
+        "mcp:420457",
+        "mcp:705cc6",
+        "mcp:356e46"
+      ],
+      "actual": {
+        "candidateId": "builtin:alix_web_fetch",
+        "label": "alix_web_fetch",
+        "calls": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_file_exists",
+          "builtin:alix_file_exists",
+          "builtin:alix_file_read",
+          "builtin:alix_file_read",
+          "builtin:alix_grep_search",
+          "builtin:alix_grep_search"
+        ],
+        "outcome": {
+          "execution": "success",
+          "selection": "novel",
+          "evidence": "contributed"
+        }
+      },
+      "scoperRanking": [
+        "mcp:356e46",
+        "mcp:f90c07",
+        "builtin:alix_grep_search",
+        "builtin:alix_file_exists",
+        "builtin:alix_web_fetch",
+        "mcp:56c1a2",
+        "builtin:alix_file_read",
+        "builtin:alix_glob_match",
+        "builtin:alix_web_search",
+        "mcp:420457",
+        "mcp:705cc6",
+        "builtin:alix_done",
+        "builtin:alix_mcp_search_tools"
+      ],
+      "alternative": {
+        "selectorId": "jev:tool-selection-replay",
+        "ranking": [
+          "builtin:alix_web_fetch",
+          "builtin:alix_file_exists",
+          "builtin:alix_file_read",
+          "builtin:alix_glob_match",
+          "builtin:alix_grep_search",
+          "builtin:alix_web_search",
+          "builtin:alix_mcp_search_tools",
+          "builtin:alix_done",
+          "mcp:f90c07",
+          "mcp:356e46",
+          "mcp:56c1a2",
+          "mcp:420457",
+          "mcp:705cc6"
+        ],
+        "candidateSetPreserved": true
+      },
+      "scoring": {
+        "calls": 13,
+        "latencyMs": [
+          102,
+          79,
+          121,
+          98,
+          82,
+          120,
+          81,
+          111,
+          103,
+          81,
+          226,
+          91,
+          81
+        ],
+        "scorerOutcome": "complete",
+        "attemptedCandidates": 13,
+        "failedCandidates": 0
+      },
+      "comparison": {
+        "scopeId": "scope_1",
+        "actual": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "scoperTop": {
+          "basis": "unknown",
+          "candidateId": "mcp:356e46",
+          "label": "searxng/web_url_read",
+          "domain": "mcp",
+          "reason": "external tool: replay requires fixtures or recorded responses"
+        },
+        "selectorTop": {
+          "basis": "observed",
+          "candidateId": "builtin:alix_web_fetch",
+          "label": "alix_web_fetch",
+          "domain": "builtin",
+          "outcome": {
+            "execution": "success",
+            "selection": "novel",
+            "evidence": "contributed"
+          }
+        },
+        "selectorId": "jev:tool-selection-replay",
+        "notes": [
+          "orderings differ: scoper top mcp:356e46 (relevance, not next-tool preference), jev:tool-selection-replay top builtin:alix_web_fetch",
+          "at least one alternative remains unevaluated (counterfactual unknown)"
+        ]
+      }
+    }
+  ],
+  "selectorRecords": [
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_read",
+      "label": "alix_file_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.09,
+      "rankValue": 0.09,
+      "latencyMs": 276,
+      "projectionHash": "sha256:f1136b846a7b955db5e36dd88fa3df6a6ae71a8711f9debe22fffa172240d1d5"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_done",
+      "label": "alix_done",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 121,
+      "projectionHash": "sha256:e043c157cebd502e1f73b211e9e028b45c547749c77b18cbe4208d8013cc1adb"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_grep_search",
+      "label": "alix_grep_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.1,
+      "rankValue": 0.1,
+      "latencyMs": 109,
+      "projectionHash": "sha256:3a758ed04bc0087cafb891ce0b5e706f0ee3ca364576d42c5a7d068fbf626327"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_glob_match",
+      "label": "alix_glob_match",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 90,
+      "projectionHash": "sha256:d83f38388f940c5bd9af0a35a75f1137da716ae8a719c1136bb5420fb6456afa"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_exists",
+      "label": "alix_file_exists",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.05,
+      "rankValue": 0.05,
+      "latencyMs": 219,
+      "projectionHash": "sha256:316c036d7a58a16dd3e2f9c7ea341dde7746d8eb26180606882b20045f55262a"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_mcp_search_tools",
+      "label": "alix_mcp_search_tools",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.69,
+      "rankValue": 0.69,
+      "latencyMs": 85,
+      "projectionHash": "sha256:b7b3119a83031f112ab3ff2288dbd1223be67cfa38a36aaa6ef420bba20be666"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.14,
+      "rankValue": 0.14,
+      "latencyMs": 99,
+      "projectionHash": "sha256:2554713d514478b3b2a2561689dddd45253296efef481bdd2b1e367b14d09868"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.3,
+      "rankValue": 0.3,
+      "latencyMs": 156,
+      "projectionHash": "sha256:30e71fecc350f3fa7af7f53edd02e5b82d57303cfeb7b0c120d049f38a5f9cd8"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:f90c07",
+      "label": "fetch/fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.39,
+      "rankValue": 0.39,
+      "latencyMs": 106,
+      "projectionHash": "sha256:559a1a7d55b7f85526022e56133eb73422cf8b9600176f6ded87cba180980103"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:56c1a2",
+      "label": "searxng/searxng_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 103,
+      "projectionHash": "sha256:f8b43ae0f7715298786b507449184fa1775bb78bd7d9eec1fd836aec82673965"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:705cc6",
+      "label": "searxng/searxng_instance_info",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.11,
+      "rankValue": 0.11,
+      "latencyMs": 89,
+      "projectionHash": "sha256:96cb5a005419fb5dd62f72a530d42a04b337cebcf5285eaaff20393bfe8fa6eb"
+    },
+    {
+      "sessionId": "9d689310-5ba4-4af7-9021-fd6054efc6ce",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:356e46",
+      "label": "searxng/web_url_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.39,
+      "rankValue": 0.39,
+      "latencyMs": 84,
+      "projectionHash": "sha256:7e6c23e9876b869a81f6d294b1b364dc7d17b79939ed5afcfa83f37bcf904b6f"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_read",
+      "label": "alix_file_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.26,
+      "rankValue": 0.26,
+      "latencyMs": 105,
+      "projectionHash": "sha256:da78f618bb4798ebf39ed6e72a4ac51ccad8b471feacfac0466af281cadbbd4d"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_done",
+      "label": "alix_done",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.17,
+      "rankValue": 0.17,
+      "latencyMs": 217,
+      "projectionHash": "sha256:fba8eb6eb7ec24566802f09ccabce0c08240a2634966935d83aae60d88963907"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_grep_search",
+      "label": "alix_grep_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.34,
+      "rankValue": 0.34,
+      "latencyMs": 95,
+      "projectionHash": "sha256:d2f0ca9684f09b1c1243343c87122c9eff5cf321b2738aa476e16f72c0e7c731"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_mcp_search_tools",
+      "label": "alix_mcp_search_tools",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.77,
+      "rankValue": 0.77,
+      "latencyMs": 112,
+      "projectionHash": "sha256:8b6f824ac41494606d2cfd99f3c11e392f921d7487b25060cf6b280d24ffb24f"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.29,
+      "rankValue": 0.29,
+      "latencyMs": 93,
+      "projectionHash": "sha256:2edce005aeb31024647e2571d81dc94c12f18e943a1cb3efcd0c2e107c2e830e"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.21,
+      "rankValue": 0.21,
+      "latencyMs": 212,
+      "projectionHash": "sha256:cd031dd7ecdafeec88e1940d5dc5a681194bbbc950aec8c154dca9173008cb03"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:f90c07",
+      "label": "fetch/fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.23,
+      "rankValue": 0.23,
+      "latencyMs": 87,
+      "projectionHash": "sha256:0663edc19b64ab42b446b96aa13844a2da74773ca3633d993029f048433a17bd"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:56c1a2",
+      "label": "searxng/searxng_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.17,
+      "rankValue": 0.17,
+      "latencyMs": 98,
+      "projectionHash": "sha256:fbd6b5004e32a9fa389bee933f052776c5a7ff9501f019997ecaa8f687aaa2c8"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:420457",
+      "label": "searxng/searxng_search_suggestions",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.29,
+      "rankValue": 0.29,
+      "latencyMs": 113,
+      "projectionHash": "sha256:986b115b52a6a1f41bd9c3f510dbe0765d2e4da8d16aafdd05ed5ee8f945d770"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:705cc6",
+      "label": "searxng/searxng_instance_info",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.74,
+      "rankValue": 0.74,
+      "latencyMs": 110,
+      "projectionHash": "sha256:09d03132ca80f6dbb8d941251af1a846b7781c8ab2f549f61a83ff6737b1b9ba"
+    },
+    {
+      "sessionId": "75e2c051-4a9b-4111-ab37-1884f2bc065d",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:356e46",
+      "label": "searxng/web_url_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.21,
+      "rankValue": 0.21,
+      "latencyMs": 103,
+      "projectionHash": "sha256:3c4a915682dba4802d6c5cb0e970b3647ca3502665783cf6f26e9a592a5bcd57"
+    },
+    {
+      "sessionId": "cecebb32-fa42-421a-af66-2201e90744ec",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_cecebb32-fa42-421a-af66-2201e90744ec_1790667838272",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.36,
+      "rankValue": 0.36,
+      "latencyMs": 90,
+      "projectionHash": "sha256:7fe150598f792da7c0d17ac10562bb0fa7e2df7c54ee42fc0f81219925e88715"
+    },
+    {
+      "sessionId": "cecebb32-fa42-421a-af66-2201e90744ec",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_cecebb32-fa42-421a-af66-2201e90744ec_1790667838272",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 80,
+      "projectionHash": "sha256:7b0d229bce8580475477522d4725b870f393ffd1ee5e8dcdd6374a3f46d040a7"
+    },
+    {
+      "sessionId": "c0057b70-25cd-4e68-8cdd-8ac4de3dcc68",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_c0057b70-25cd-4e68-8cdd-8ac4de3dcc68_1790667876199",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.89,
+      "rankValue": 0.89,
+      "latencyMs": 82,
+      "projectionHash": "sha256:d28f6df5f578de9f0ac1c39f5e5116029e7a781dbe49196383b7b22d6f428204"
+    },
+    {
+      "sessionId": "c0057b70-25cd-4e68-8cdd-8ac4de3dcc68",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_c0057b70-25cd-4e68-8cdd-8ac4de3dcc68_1790667876199",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.11,
+      "rankValue": 0.11,
+      "latencyMs": 78,
+      "projectionHash": "sha256:f276078a4d6eeb0a7d14bb90450e8691d358931fecd027cb6fd1da15c0a68b65"
+    },
+    {
+      "sessionId": "8d65e665-49e1-49c4-8de1-829c0988e8be",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_8d65e665-49e1-49c4-8de1-829c0988e8be_1790667914721",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 101,
+      "projectionHash": "sha256:c6fea4901f69819bd08fa818d3ece01a4e0d5667387dc9fe533addf48c4481fc"
+    },
+    {
+      "sessionId": "8d65e665-49e1-49c4-8de1-829c0988e8be",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_8d65e665-49e1-49c4-8de1-829c0988e8be_1790667914721",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.62,
+      "rankValue": 0.62,
+      "latencyMs": 89,
+      "projectionHash": "sha256:285b03c348c28db12ff3a61b045cd65c6d89f19b06f17e593785832576f68222"
+    },
+    {
+      "sessionId": "fcd907a0-6783-4165-bafe-6b21e4197555",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_fcd907a0-6783-4165-bafe-6b21e4197555_1790667935561",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.92,
+      "rankValue": 0.92,
+      "latencyMs": 116,
+      "projectionHash": "sha256:feb9333996caad5edef0c14655c4b55a7e2ad75a132b9a0d5c5ca510c1a0fdc5"
+    },
+    {
+      "sessionId": "fcd907a0-6783-4165-bafe-6b21e4197555",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_fcd907a0-6783-4165-bafe-6b21e4197555_1790667935561",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 110,
+      "projectionHash": "sha256:7f74b64f26878d1006fd87522d993ffc23b016616d21509e66efa9e35e923683"
+    },
+    {
+      "sessionId": "d337fc71-950d-4bcc-855f-bd9aa231207c",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d337fc71-950d-4bcc-855f-bd9aa231207c_1790667960975",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.09,
+      "rankValue": 0.09,
+      "latencyMs": 84,
+      "projectionHash": "sha256:eeadca8d75b03f55e579c155ea17e01066485acf7de5576b83c4b96dae5d43f3"
+    },
+    {
+      "sessionId": "d337fc71-950d-4bcc-855f-bd9aa231207c",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d337fc71-950d-4bcc-855f-bd9aa231207c_1790667960975",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.76,
+      "rankValue": 0.76,
+      "latencyMs": 95,
+      "projectionHash": "sha256:a8473284d60ca7c6101d8f9b4d6b59df8e8cfe7cb80fe02650f4f145d1af8806"
+    },
+    {
+      "sessionId": "150c056a-94a1-45b0-a93c-4af5b5da1bb9",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_150c056a-94a1-45b0-a93c-4af5b5da1bb9_1790667981149",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.95,
+      "rankValue": 0.95,
+      "latencyMs": 79,
+      "projectionHash": "sha256:f50815b556b9181387b705d30e7b1280cc5b24d22f603eb184baa8750adc5414"
+    },
+    {
+      "sessionId": "150c056a-94a1-45b0-a93c-4af5b5da1bb9",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_150c056a-94a1-45b0-a93c-4af5b5da1bb9_1790667981149",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.14,
+      "rankValue": 0.14,
+      "latencyMs": 96,
+      "projectionHash": "sha256:283a8a0e90c9fabdd48fcd6f2ba0bd722e52fb071ad56ca2ecb5c094fe8755c1"
+    },
+    {
+      "sessionId": "1eb45250-156f-4dcb-b518-55139126fccb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_1eb45250-156f-4dcb-b518-55139126fccb_1790668037387",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.94,
+      "rankValue": 0.94,
+      "latencyMs": 92,
+      "projectionHash": "sha256:688e9717943309b394ab16550dbf27d81246828aef0de1f57ca97300c79c2973"
+    },
+    {
+      "sessionId": "1eb45250-156f-4dcb-b518-55139126fccb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_1eb45250-156f-4dcb-b518-55139126fccb_1790668037387",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.14,
+      "rankValue": 0.14,
+      "latencyMs": 83,
+      "projectionHash": "sha256:905dd508874ff8eb7e22bf45a5b004cc8269eafcab40dc84e699892339770438"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_read",
+      "label": "alix_file_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 84,
+      "projectionHash": "sha256:602f179a87cf368553b10b8f04e72d5ddf079845cd944a5b8829ee8b9da5df27"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_done",
+      "label": "alix_done",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.11,
+      "rankValue": 0.11,
+      "latencyMs": 75,
+      "projectionHash": "sha256:74a02032e77100df127089094d0d5cf7a1fc1cba586933323b5a89904a8c2a07"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_grep_search",
+      "label": "alix_grep_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 159,
+      "projectionHash": "sha256:6b21cfdb7dfe6d4cbdea1b352197c0c1aed80918577993981da7a022f7941301"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_glob_match",
+      "label": "alix_glob_match",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 204,
+      "projectionHash": "sha256:6982c5490dcdb1390685a48175de599cc4a49b72086c79006c3d31dc57f51d69"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_exists",
+      "label": "alix_file_exists",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.04,
+      "rankValue": 0.04,
+      "latencyMs": 84,
+      "projectionHash": "sha256:84e26beec84a25e7adbaf2f91adc2b76c5828c590f37febcc48d1dc9cf4dcfde"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_mcp_search_tools",
+      "label": "alix_mcp_search_tools",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.09,
+      "rankValue": 0.09,
+      "latencyMs": 87,
+      "projectionHash": "sha256:70d65b48bcbece057e7561f19ae3c61ea500e3ff207370a7301eea1b2da64006"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.9,
+      "rankValue": 0.9,
+      "latencyMs": 77,
+      "projectionHash": "sha256:0c6bda6961dae314750d1b23f3e901c1066f1d8ddd22bf84d46911faa2d6a867"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.14,
+      "rankValue": 0.14,
+      "latencyMs": 122,
+      "projectionHash": "sha256:691e94a17d1c433d3c9a43234a5006ca68192bf326e2dc58849cc077fd8d642b"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:f90c07",
+      "label": "fetch/fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.65,
+      "rankValue": 0.65,
+      "latencyMs": 84,
+      "projectionHash": "sha256:2558dc2c63a1a8b440764212ccdb0f50f7134b463f2cf5704b1868d925cac938"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:56c1a2",
+      "label": "searxng/searxng_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.87,
+      "rankValue": 0.87,
+      "latencyMs": 94,
+      "projectionHash": "sha256:c77416806540712f780e4c877cefac79085b1b8c65e1895659709f23b0983c7b"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:420457",
+      "label": "searxng/searxng_search_suggestions",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.28,
+      "rankValue": 0.28,
+      "latencyMs": 106,
+      "projectionHash": "sha256:f56b011ae33753df855b907a5c5ba0dd689d3a16302855421a5dc26b86692af9"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:705cc6",
+      "label": "searxng/searxng_instance_info",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.16,
+      "rankValue": 0.16,
+      "latencyMs": 78,
+      "projectionHash": "sha256:4b83bcbf88069553748e3c43ee31c40f38860f8bb4ed90a52c6843f7777473c6"
+    },
+    {
+      "sessionId": "0b3d5786-26df-494e-a4a4-644756d0ff65",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:356e46",
+      "label": "searxng/web_url_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.29,
+      "rankValue": 0.29,
+      "latencyMs": 91,
+      "projectionHash": "sha256:649ae336dcaa6ccaf28c892293ecea743110db2b3571431478db8fa5d6c5ad9c"
+    },
+    {
+      "sessionId": "0e47bf94-de0c-4d04-9e17-e2bf2e756acb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_0e47bf94-de0c-4d04-9e17-e2bf2e756acb_1790668083761",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.9,
+      "rankValue": 0.9,
+      "latencyMs": 92,
+      "projectionHash": "sha256:2793c791796b1229666d4467c8a251014b3077bc6025205ef7f2a22fd50ea46f"
+    },
+    {
+      "sessionId": "0e47bf94-de0c-4d04-9e17-e2bf2e756acb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_0e47bf94-de0c-4d04-9e17-e2bf2e756acb_1790668083761",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 93,
+      "projectionHash": "sha256:8b39e64dfc99f26fef28c36e8741543a58f01cf9fa92e06fa57e3df24c74556b"
+    },
+    {
+      "sessionId": "d385f118-b3b0-49cb-b455-84f5c33d779c",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d385f118-b3b0-49cb-b455-84f5c33d779c_1790668112246",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 79,
+      "projectionHash": "sha256:93396604a99410e910423bfcf910db8dffabcb24033eca3c6b9e38640d7cbb67"
+    },
+    {
+      "sessionId": "d385f118-b3b0-49cb-b455-84f5c33d779c",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d385f118-b3b0-49cb-b455-84f5c33d779c_1790668112246",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.78,
+      "rankValue": 0.78,
+      "latencyMs": 85,
+      "projectionHash": "sha256:04187d8a875af290122f0a70e0d3e14c6973d37f6122a11a01fc88aad0ffdb17"
+    },
+    {
+      "sessionId": "d0a33c55-4418-45e6-baed-75a84134d962",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d0a33c55-4418-45e6-baed-75a84134d962_1790668134148",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 100,
+      "projectionHash": "sha256:d8b96b9e408a3e64c981400c654c9ebb5849da84907a9c06f178ae6d4776230e"
+    },
+    {
+      "sessionId": "d0a33c55-4418-45e6-baed-75a84134d962",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_d0a33c55-4418-45e6-baed-75a84134d962_1790668134148",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.86,
+      "rankValue": 0.86,
+      "latencyMs": 94,
+      "projectionHash": "sha256:11e500a2e4ce8adda25a7432c56c378229306288e18cef5c48bb3bebbcfa0fbe"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_read",
+      "label": "alix_file_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.05,
+      "rankValue": 0.05,
+      "latencyMs": 113,
+      "projectionHash": "sha256:89e28f22d94944a284e12857dca4e46dab04146f173dde7cd0e7cdb9dea1f083"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_done",
+      "label": "alix_done",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.09,
+      "rankValue": 0.09,
+      "latencyMs": 89,
+      "projectionHash": "sha256:b68ffb621a1ace2d6af89fff2f31b43497b6208da0973e70aa1c7b01fd1ba138"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_grep_search",
+      "label": "alix_grep_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.04,
+      "rankValue": 0.04,
+      "latencyMs": 97,
+      "projectionHash": "sha256:8cc18e6e885af0c12e50a6217d03fa01fcb55f60862fee74038474da29718f30"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_glob_match",
+      "label": "alix_glob_match",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.04,
+      "rankValue": 0.04,
+      "latencyMs": 95,
+      "projectionHash": "sha256:c5bfa490454e7bf016d615d074938ff3652353100c489cc9b86604a319ac70c3"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_exists",
+      "label": "alix_file_exists",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.03,
+      "rankValue": 0.03,
+      "latencyMs": 124,
+      "projectionHash": "sha256:62354e3505705c1ce27725d2f3bea20a6d2fedf5337fc1dc965be65c934bcc05"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_mcp_search_tools",
+      "label": "alix_mcp_search_tools",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 121,
+      "projectionHash": "sha256:5b0bfaf7a35f2177dacd9643c8b3bb33eb80ee605f28e23a7bb0dc5fb13b40e6"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 78,
+      "projectionHash": "sha256:b52ad2d6aae71710910582175793f6d01f9aff6562a5a890294bc195f54e4777"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.89,
+      "rankValue": 0.89,
+      "latencyMs": 79,
+      "projectionHash": "sha256:2ac0cbf9ec5e2b3c887440ea2dda59c2fa727f33012ba0bd18a9913c85ad0dee"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:f90c07",
+      "label": "fetch/fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.84,
+      "rankValue": 0.84,
+      "latencyMs": 97,
+      "projectionHash": "sha256:154980efe4ae1e519d20135fe41ca0bc32c95e3a8eb4d10e8bc4b65a7bf8881c"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:56c1a2",
+      "label": "searxng/searxng_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 83,
+      "projectionHash": "sha256:5755bcda1fd0b7042cf554416cf82bc8291bbab3992746b8603d7ac7db955a2a"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:420457",
+      "label": "searxng/searxng_search_suggestions",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.04,
+      "rankValue": 0.04,
+      "latencyMs": 119,
+      "projectionHash": "sha256:b73ac89c20efd4a6c82294f8a5b9a81500bc84fcb4efa7e23705aeb0fc414028"
+    },
+    {
+      "sessionId": "58696a7f-e2ab-4a47-84d1-d014d198aa83",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:356e46",
+      "label": "searxng/web_url_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.87,
+      "rankValue": 0.87,
+      "latencyMs": 88,
+      "projectionHash": "sha256:7d76f5bc81c94210ddac897426ef00e2b77b3f5d8ec3ae5bd7edff7b69f7deaf"
+    },
+    {
+      "sessionId": "c61b8e68-754c-4c17-98d8-51e7d3e37ecb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_c61b8e68-754c-4c17-98d8-51e7d3e37ecb_1790668188261",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.16,
+      "rankValue": 0.16,
+      "latencyMs": 97,
+      "projectionHash": "sha256:edd54e958d5b472f112a420db1a653cadc644a1f6e45b705fd9bd12116a0307f"
+    },
+    {
+      "sessionId": "c61b8e68-754c-4c17-98d8-51e7d3e37ecb",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_c61b8e68-754c-4c17-98d8-51e7d3e37ecb_1790668188261",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.91,
+      "rankValue": 0.91,
+      "latencyMs": 98,
+      "projectionHash": "sha256:5f28a7de01b5c41b58a1a09b09c8916364c57733be03db28c5f955949bedf569"
+    },
+    {
+      "sessionId": "30ee9271-ff56-45a0-a894-6a70ae347876",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_30ee9271-ff56-45a0-a894-6a70ae347876_1790668217597",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.09,
+      "rankValue": 0.09,
+      "latencyMs": 149,
+      "projectionHash": "sha256:22da48e1063dcdedc811e6ec57f7401b1d9005cd71b634db2d9891ca540c744a"
+    },
+    {
+      "sessionId": "30ee9271-ff56-45a0-a894-6a70ae347876",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_30ee9271-ff56-45a0-a894-6a70ae347876_1790668217597",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.78,
+      "rankValue": 0.78,
+      "latencyMs": 105,
+      "projectionHash": "sha256:6099bffbba9aa6287f7ac28f5144592361f7c930e723606c44b59b01e645497b"
+    },
+    {
+      "sessionId": "10f10a1a-e912-4fb4-8bba-1900c296c02a",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_10f10a1a-e912-4fb4-8bba-1900c296c02a_1790668311203",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.08,
+      "rankValue": 0.08,
+      "latencyMs": 73,
+      "projectionHash": "sha256:1478a12d56c12e53f9ff418242e4a0eea181bc4e506aea3177e23d15b0e5564b"
+    },
+    {
+      "sessionId": "10f10a1a-e912-4fb4-8bba-1900c296c02a",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "grounded_10f10a1a-e912-4fb4-8bba-1900c296c02a_1790668311203",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.88,
+      "rankValue": 0.88,
+      "latencyMs": 77,
+      "projectionHash": "sha256:66d49b87edb622cccd167afc044e52c16e6b1fd0a6a7902d98d727ca86be9650"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_read",
+      "label": "alix_file_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.34,
+      "rankValue": 0.34,
+      "latencyMs": 102,
+      "projectionHash": "sha256:82798f915b2dacf38d7d501c4e3f3d7cf4612329bb25f789b5df099971c87fdf"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_done",
+      "label": "alix_done",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.1,
+      "rankValue": 0.1,
+      "latencyMs": 79,
+      "projectionHash": "sha256:f7022bc2268c8ecc8c7ba6b6f440258d03de255270b4e8df255506a2f19bcf44"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_grep_search",
+      "label": "alix_grep_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.18,
+      "rankValue": 0.18,
+      "latencyMs": 121,
+      "projectionHash": "sha256:526e4a5e22364ec342ede2ed1c95b2069e349d0c1ee32d64c69136bf01a71c5e"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_glob_match",
+      "label": "alix_glob_match",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.34,
+      "rankValue": 0.34,
+      "latencyMs": 98,
+      "projectionHash": "sha256:4121f88577b7ebc1d5ce7466b4fab6d1c3e29e02f476da09f58ce57806abd8b0"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_file_exists",
+      "label": "alix_file_exists",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.35,
+      "rankValue": 0.35,
+      "latencyMs": 82,
+      "projectionHash": "sha256:10819bd81986b91c881c4e45fea199506ddc45cfa304d636bc921ab386aec900"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_mcp_search_tools",
+      "label": "alix_mcp_search_tools",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.12,
+      "rankValue": 0.12,
+      "latencyMs": 120,
+      "projectionHash": "sha256:f8d6e4253bf41218744c6f520b73eb2393a35513b454a346be05dd35ec76f30c"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_search",
+      "label": "alix_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.15,
+      "rankValue": 0.15,
+      "latencyMs": 81,
+      "projectionHash": "sha256:f10963d59a2cfe041c52bf205ef5b4296d7d5d48ba0383a13406f3faaa6ffb5a"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "builtin:alix_web_fetch",
+      "label": "alix_web_fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.83,
+      "rankValue": 0.83,
+      "latencyMs": 111,
+      "projectionHash": "sha256:3f01d5cae50f149ed5f55a37ed6b303673b5876140a0e9c746aeff18060e720d"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:f90c07",
+      "label": "fetch/fetch",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.81,
+      "rankValue": 0.81,
+      "latencyMs": 103,
+      "projectionHash": "sha256:1d21d5aa38105f13c22633df7236b16a3599a38d5066b9ca9d16881684fe1f00"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:56c1a2",
+      "label": "searxng/searxng_web_search",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.14,
+      "rankValue": 0.14,
+      "latencyMs": 81,
+      "projectionHash": "sha256:4e32d5c82375e0c0fb0e9b9e27b916ecec613b6096e122769e9d544de2ff789f"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:420457",
+      "label": "searxng/searxng_search_suggestions",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 226,
+      "projectionHash": "sha256:1c562f71ec062925fe6b4531f377f5fb4103390f19d866a352b45a3cd49b6003"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:705cc6",
+      "label": "searxng/searxng_instance_info",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.07,
+      "rankValue": 0.07,
+      "latencyMs": 91,
+      "projectionHash": "sha256:450391b02ed1bb336ffa6e21f7d9a34d8dd8e75d998d242ecc29f49a68eadcce"
+    },
+    {
+      "sessionId": "f8737871-eaab-429b-8afc-d66e7c1ec46b",
+      "experimentId": "tool-selection-replay",
+      "projectorVersion": "tool-selection/v1",
+      "scopeId": "scope_1",
+      "candidateId": "mcp:356e46",
+      "label": "searxng/web_url_read",
+      "engineId": "jev",
+      "outcomeKind": "noul",
+      "probability": 0.74,
+      "rankValue": 0.74,
+      "latencyMs": 81,
+      "projectionHash": "sha256:6d22c40683a28e0bbe3b5db11115e43dacd54dde6ce301621e4bab495d5e8de6"
+    }
+  ]
+}

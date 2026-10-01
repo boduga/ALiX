@@ -1,0 +1,9 @@
+{
+  "cohortId": "t3d-2026-09-28-a",
+  "gitRevision": "0cc0ad999adc244dd2f59a3652807f1541c75f56",
+  "projectorVersion": "tool-selection/v1",
+  "jevModel": "jev-latest",
+  "jevConfigHash": "sha256:db1f398baddea494e4690ccc8c2b823132bdbaf1f6e8a350373d6fb31560cd23",
+  "candidateSchemaVersion": "sha256:0839ab4948d0de49d966a9493b54947284e4e7b2e7303d679417d37ba479fea4",
+  "startedAt": "2026-09-28T19:55:44Z"
+}

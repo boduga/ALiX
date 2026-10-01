@@ -19,7 +19,7 @@ import { CoordinationStore } from "../../kernel/coordination-store.js";
 import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
 import { createPlannerGenerator } from "../../kernel/planner-model.js";
-import { CoordinationScheduler } from "../../kernel/coordination-scheduler.js";
+import { createCoordinationScheduler } from "../../kernel/coordination-scheduler.js";
 import { OwnershipRegistry } from "../../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../../runtime/execution-authorization.js";
 import { PolicyGate } from "../../policy/policy-gate.js";
@@ -170,7 +170,7 @@ async function handleRun(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
 
   const executor = new DefaultWorkerExecutor();
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
     { maxConcurrency },
   );
@@ -220,7 +220,7 @@ async function handleTick(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
@@ -248,7 +248,7 @@ async function handleResume(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 
@@ -306,6 +306,23 @@ async function handleStatus(args: string[]): Promise<void> {
   if (run.outcome) {
     console.log(`Outcome: ${run.outcome}`);
   }
+  // Derived completion. `Status` above is the terminal execution state only:
+  // it does not imply the results were aggregated, that the outcome was
+  // success, or that anything was verified.
+  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
+    await import("../../kernel/coordination-types.js");
+  const { computeAggregationSourceFingerprint } =
+    await import("../../kernel/coordination-aggregation-fingerprint.js");
+  const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run),
+    aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, run.sessionId)),
+  });
+  console.log(`Completion: ${coordinationCompletionLabel(completion)}`);
+  console.log(
+    `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
+    `outcome=${completion.outcome} verification=${completion.verification}`,
+  );
   // Failure chains
   const failedWorkers = run.workers.filter(w => w.status === "failed" || w.status === "cancelled");
   if (failedWorkers.length > 0) {
@@ -333,7 +350,7 @@ async function handleCancel(args: string[]): Promise<void> {
   const registry = new OwnershipRegistry(cwd);
   const executor = new DefaultWorkerExecutor();
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     { cwd, daemonInstanceId: `cli-${process.pid}`, configProvider: async () => config, store, authorization: auth, ownershipRegistry: registry, executor },
   );
 

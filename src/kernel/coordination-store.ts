@@ -308,4 +308,68 @@ export class CoordinationStore {
       run.outcome = metadata.outcome;
     });
   }
+
+  /**
+   * Attach aggregate metadata only when this call wins the finalization race.
+   *
+   * The check-and-attach runs inside the per-run lock, so two schedulers that
+   * both notice a terminal run cannot both attach: the loser observes the
+   * winner's metadata and gets `attached: false`. That is what lets the caller
+   * emit `coordination.aggregate.completed` exactly once instead of once per
+   * process that happened to see the terminal state.
+   *
+   * A *different* source fingerprint means the run changed since the last
+   * aggregate (a replan moved the workers), so that is a fresh finalization and
+   * does attach — overwriting stale aggregate metadata, which is the existing
+   * freshness contract.
+   */
+  async attachAggregateIfUnfinalized(runId: string, metadata: {
+    aggregateResultRef: string;
+    aggregateGeneratedAt: string;
+    aggregateSourceFingerprint: string;
+    outcome: CoordinationRunOutcome;
+  }): Promise<{ attached: boolean; run: CoordinationRun | null }> {
+    const lock = new CoordinationRunLock(this.cwd, runId);
+    const acquired = await lock.acquire();
+    if (!acquired) return { attached: false, run: null };
+    try {
+      const run = await this.loadWithRetry(runId);
+      if (!run) return { attached: false, run: null };
+      if (run.aggregateResultRef && run.aggregateSourceFingerprint === metadata.aggregateSourceFingerprint) {
+        return { attached: false, run };
+      }
+      run.aggregateResultRef = metadata.aggregateResultRef;
+      run.aggregateGeneratedAt = metadata.aggregateGeneratedAt;
+      run.aggregateSourceFingerprint = metadata.aggregateSourceFingerprint;
+      run.outcome = metadata.outcome;
+      // A successful attach for this source supersedes any earlier failure
+      // marker, so clear it in the same locked write.
+      run.aggregationFailure = undefined;
+      run.status = recomputeRunStatus(run);
+      run.updatedAt = new Date().toISOString();
+      await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      return { attached: true, run };
+    } finally {
+      lock.release();
+    }
+  }
+
+  /**
+   * Record a failed aggregation attempt against the source fingerprint it
+   * failed for. Durable so the failure is visible without the event log, and
+   * keyed so a stale marker can be told apart from a current one.
+   */
+  async recordAggregationFailure(runId: string, failure: {
+    sourceFingerprint: string;
+    failedAt: string;
+    reason: string;
+  }): Promise<CoordinationRun | null> {
+    return this.updateRun(runId, (run) => {
+      run.aggregationFailure = {
+        sourceFingerprint: failure.sourceFingerprint,
+        failedAt: failure.failedAt,
+        reason: failure.reason,
+      };
+    });
+  }
 }

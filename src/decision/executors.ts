@@ -6,9 +6,9 @@
  * Remote executors fail with EngineUnavailableError so fallback engages.
  */
 
-import type { DecisionType, DecisionResult } from "./contracts.js";
+import type { DecisionResult } from "./contracts.js";
 import { outcomeIssue } from "./contracts.js";
-import type { RemoteSealedProjection } from "./boundary.js";
+import type { RemoteDecisionSubject, RemoteSealedProjection } from "./boundary.js";
 
 /** Terminal outcome: native result or explicit failure signal. */
 export type ExecutorOutcome =
@@ -16,7 +16,8 @@ export type ExecutorOutcome =
   | { kind: "failure"; error: string; fallbackEngine?: string };
 
 export type ExecuteInput = {
-  decision: DecisionType;
+  /** Runtime decision, or `experiment:<id>` for offline experiments. */
+  decision: RemoteDecisionSubject;
   sealed: RemoteSealedProjection<Record<string, unknown>>;
   candidates?: readonly unknown[];
 };

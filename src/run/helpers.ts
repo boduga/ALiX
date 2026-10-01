@@ -371,7 +371,47 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "alix_mcp_search_tools",
   "alix_web_search",
   "alix_web_fetch",
+  // `verify.claim` fetches nothing and mutates nothing: it takes pasted
+  // excerpts and returns a verdict. Withholding a verification tool from
+  // verification-shaped scopes is the defect T3 finding 2 recorded — two
+  // tasks were answered by reading because the tool that would have checked
+  // the reading was not offered. It lives here so BOTH filter sites derive it
+  // from one set (`agent-loop.ts` and `session/setup.ts` had drifted: the
+  // loop re-added it by hand, the session builder did not).
+  "alix_verify_claim",
 ]);
+
+/**
+ * `alix_shell_run` is withheld from read-only scopes. Arbitrary command
+ * execution can mutate the workspace (`rm`, `sed -i`, a test suite writing
+ * fixtures), so offering it would reopen the hole `--read-only` exists to
+ * close. This is a containment boundary, not a scoping accident.
+ *
+ * The measured cost: a read-only objective that must actually RUN something
+ * ("run pnpm typecheck:unused and report whether it passes") is unsatisfiable,
+ * because the only tool that could run it is not offered. Cohort
+ * `t3d-2026-09-28-c` hit this on 6 of 8 verification-shaped scopes.
+ *
+ * That scope is *recorded* rather than silently absorbed: `deriveSurfaceGaps`
+ * classifies it `absent-upstream`, and the loop now injects an explicit
+ * limitation notice so the model reports the constraint instead of quietly
+ * substituting a weaker method. Verification-shaped work that genuinely needs
+ * execution belongs on the `shellTask` route (per-call `ask`-gated), not here.
+ */
+export const READ_ONLY_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set(["alix_shell_run"]);
+
+/**
+ * The single derivation of the read-only offer surface, used by both
+ * `agent-loop.ts` and `session/setup.ts`. Two hand-built copies of this filter
+ * is how `verify.claim` ended up offered in one route and withheld in the
+ * other; the set is now the only place the answer lives.
+ */
+export function buildReadOnlyToolFilter(extra: Iterable<string> = []): Set<string> {
+  const filter = new Set(READ_ONLY_TOOL_NAMES);
+  for (const name of READ_ONLY_EXCLUDED_TOOL_NAMES) filter.delete(name);
+  for (const name of extra) filter.add(name);
+  return filter;
+}
 
 
 // =============================================================================

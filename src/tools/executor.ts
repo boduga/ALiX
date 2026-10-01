@@ -13,6 +13,7 @@ import "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult, ToolCallRequest } from "./types.js";
+import { toolResultText } from "./result-text.js";
 import { inferCapability, canonicalCapabilityOf } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import { buildDefaultToolIndex } from "./tool-registry.js";
@@ -603,11 +604,24 @@ export class ToolExecutor {
     // Verify argument hash match before execution (M0.9 permissive placeholder)
     let result = await this.router.execute(request);
 
-    // Append repair hint to success output
+    // Append repair hint to success output. Routed through `toolResultText`
+    // rather than hand-picking `output`/`content`: those two are only two of
+    // the success payload shapes. A `grep.search` carries `matches[]` and a
+    // `file.exists` carries `exists`, so the old pair-of-branches form wrote
+    // NO hint for either — and this module is the exact defect
+    // `result-text.ts` exists to prevent, one layer up.
     if (repairHint && result.kind === "success") {
       const hintBlock = `\n\n[Tool Repair Hint] ${repairHint}`;
-      if (result.output) result.output += hintBlock;
-      else if (result.content) result.content += hintBlock;
+      const rendered = toolResultText(result);
+      if (rendered.length > 0) {
+        result.output = `${rendered}${hintBlock}`;
+      } else if (result.output !== undefined) {
+        result.output = `${result.output}${hintBlock}`;
+      } else if (result.content !== undefined) {
+        result.content = `${result.content}${hintBlock}`;
+      } else if (result.value !== undefined) {
+        result.value = `${result.value}${hintBlock}`;
+      }
     }
 
     // Classify MCP errors with hints
@@ -617,15 +631,21 @@ export class ToolExecutor {
 
     const durationMs = Date.now() - startedAt;
 
+    // The single renderer for a result's text — search tools answer with
+    // `matches[]`, which a bare `output`/`content` read would count as zero.
+    const rawOutput = toolResultText(result);
+
     // Handle large outputs by writing to file
-    const outputSize = (result.kind === "success")
-      ? ((result.output?.length ?? 0) + (result.content?.length ?? 0))
-      : 0;
+    const outputSize = rawOutput.length;
     let outputRef: string | undefined;
 
     if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
       outputRef = await writeOutputToFile(
-        result.output ?? result.content,
+        // Must be the rendered text: a search result carries `matches[]`, and
+        // passing `output ?? content` (undefined) here crashed the run with
+        // `The "data" argument must be of type string ... Received undefined`
+        // the first time a large grep crossed the threshold.
+        rawOutput,
         this.log.sessionDir,
         toolCallId,
         this.log,
@@ -637,31 +657,10 @@ export class ToolExecutor {
       );
     }
 
-    // Build canonical rawOutput and an explicit preview (so the model always sees something)
+    // Build an explicit preview (so the model always sees something)
     if (result.kind === "success") {
-      function rawResultValue(r: typeof result): string | undefined {
-        // ToolResult is a discriminated union on kind:
-        // - success branch has matches[] (dir.search) or value (other tools)
-        // - error branch has neither
-        if (r.kind === "success") {
-          if ("matches" in r && Array.isArray(r.matches)) return r.matches as unknown as string;
-          if ("value" in r && typeof r.value === "string") return r.value;
-        }
-        return undefined;
-      }
-      const rawOutput =
-        result.output ??
-        result.content ??
-        rawResultValue(result) ??
-        "";
-
       // Normalize preview: explicit for empty/empty-array results so the model isn't left guessing.
-      let preview: string;
-      if ((Array.isArray(rawOutput) && rawOutput.length === 0) || rawOutput === "" || rawOutput == null) {
-        preview = "[no output]";
-      } else {
-        preview = truncateOutput(rawOutput);
-      }
+      const preview = rawOutput === "" ? "[no output]" : truncateOutput(rawOutput);
 
       const outputPayload: ToolOutputPayload = {
         toolCallId,

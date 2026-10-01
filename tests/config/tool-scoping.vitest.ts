@@ -42,6 +42,74 @@ describe("CORE_TOOL_NAMES", () => {
   });
 });
 
+describe("scopeToolsByTask provenance", () => {
+  const relevanceTool = tool("alix_coordination_run", "Run coordinated workers toward a goal");
+  const irrelevantTool = tool("alix_web_search", "Search the public web");
+
+  it("records why each tool was admitted, with stable machine-readable reasons", () => {
+    const scoped = scopeToolsByTask(
+      [tool("alix_file_read", "Read a file"), relevanceTool, irrelevantTool],
+      [],
+      "Run four coordinated workers",
+    );
+    const admitted = new Map(scoped.provenance.admitted.map((entry) => [entry.tool, entry.reasons]));
+    expect(admitted.get("alix_file_read")).toEqual(["core"]);
+    expect(admitted.get("alix_coordination_run")).toEqual(["relevance_match"]);
+    expect(scoped.provenance.excluded).toEqual([{ tool: "alix_web_search", reasons: ["not_relevant"] }]);
+    expect(scoped.provenance.fallbackFull).toBe(false);
+  });
+
+  it("marks every non-core admission as fallback_full and excludes nothing", () => {
+    const scoped = scopeToolsByTask(
+      [tool("alix_file_read", "Read a file"), tool("alix_web_search", "Search the public web")],
+      [],
+      "zzz",
+    );
+    expect(scoped.provenance.fallbackFull).toBe(true);
+    expect(scoped.provenance.admitted.find((entry) => entry.tool === "alix_web_search")?.reasons)
+      .toEqual(["fallback_full"]);
+    expect(scoped.provenance.excluded).toEqual([]);
+  });
+
+  it("keeps provenance in step with the returned partitions", () => {
+    const scoped = scopeToolsByTask([tool("alix_file_read", "Read a file"), relevanceTool], [], "coordinated workers");
+    const admittedNames = scoped.provenance.admitted.map((entry) => entry.tool).sort();
+    expect(admittedNames).toEqual([...scoped.core, ...scoped.extended].map((entry) => entry.name).sort());
+  });
+
+  it("ranks admitted tools by overlapping-token count, excluding the dropped ones", () => {
+    const scoped = scopeToolsByTask(
+      [
+        tool("alix_file_read", "Read a file"),
+        tool("alix_coordination_run", "Run coordinated workers toward a goal"),
+        tool("alix_web_search", "Search the public web"),
+      ],
+      [],
+      "Run coordinated workers to write a file",
+    );
+    const ranked = scoped.provenance.ranking;
+    // coordination tool matches "coordination"? no — "coordinated" is a distinct
+    // token, so only the tools whose signals overlap the task score above zero.
+    const topScore = Math.max(...ranked.map((entry) => entry.score));
+    expect(topScore).toBeGreaterThan(0);
+    expect(ranked[0].score).toBe(topScore);
+    // Ranking is descending and never mentions a tool that was not admitted.
+    for (let i = 1; i < ranked.length; i++) expect(ranked[i - 1].score).toBeGreaterThanOrEqual(ranked[i].score);
+    const offered = [...scoped.core, ...scoped.extended].map((entry) => entry.name);
+    for (const entry of ranked) expect(offered).toContain(entry.tool);
+  });
+
+  it("scores core tools by relevance too, so membership alone does not outrank a match", () => {
+    const scoped = scopeToolsByTask(
+      [tool("alix_file_read", "Read a file"), tool("alix_coordination_run", "Run coordinated workers")],
+      [],
+      "coordinated workers",
+    );
+    const ranked = new Map(scoped.provenance.ranking.map((entry) => [entry.tool, entry.score]));
+    expect(ranked.get("alix_coordination_run")).toBeGreaterThan(ranked.get("alix_file_read") ?? 0);
+  });
+});
+
 describe("scopeToolsByTask", () => {
   it("returns core tools regardless of task", () => {
     const result = scopeToolsByTask(

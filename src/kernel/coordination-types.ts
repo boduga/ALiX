@@ -48,6 +48,13 @@ export type CoordinationRunOutcome =
   | "success" | "partial_success" | "failure"
   | "cancelled" | "blocked" | "incomplete";
 
+/** Durable evidence that aggregation failed for a specific source fingerprint. */
+export type CoordinationAggregationFailure = {
+  sourceFingerprint: string;
+  failedAt: string;
+  reason: string;
+};
+
 // ─── Planning / Replanning Types ─────────────────────────────────────────
 
 export type PlanningRoundStatus =
@@ -250,6 +257,14 @@ export interface CoordinationRun {
   aggregateGeneratedAt?: string;
   aggregateSourceFingerprint?: string;
   outcome?: CoordinationRunOutcome;
+  /**
+   * Durable record of the last aggregation attempt that FAILED, keyed to the
+   * aggregation source fingerprint it failed for. Cleared atomically when a
+   * later attempt attaches an aggregate for the same source. A marker whose
+   * fingerprint no longer matches the current source is stale history — it must
+   * not make the current run read as failed.
+   */
+  aggregationFailure?: CoordinationAggregationFailure;
 
   /** Current plan revision number (increments on each replan). */
   planRevision: number;
@@ -431,4 +446,165 @@ export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus 
   if (allIdle && run.workers.length > 0) return "blocked";
 
   return "running";
+}
+
+// ─── Completion semantics ─────────────────────────────────────────────
+//
+// `completed` is the run's TERMINAL EXECUTION state, derived from worker
+// statuses by `recomputeRunStatus` above. It deliberately says nothing about
+// whether the results were aggregated, what the aggregate outcome was, or
+// whether anything was verified. Those are separate dimensions, derived here
+// from persisted fields so legacy records stay readable with no migration.
+//
+// Invariants (pinned by tests/kernel/coordination-types.test.ts):
+//   status === "completed"  ⇏  aggregation = "generated"
+//   status === "completed"  ⇏  outcome = "success"
+//   status === "completed"  ⇏  verification = "verified"
+//   verification = "verified" requires explicit aggregate EVENT evidence — a
+//   non-null `aggregateResultRef` alone is not sufficient.
+
+export type CoordinationExecutionState = "running" | "completed" | "failed" | "cancelled";
+
+export type CoordinationAggregationState = "not_required" | "pending" | "generated" | "failed";
+
+export type CoordinationOutcomeState = "unknown" | CoordinationRunOutcome;
+
+export type CoordinationVerificationState = "unverified" | "verified" | "failed";
+
+export type CoordinationCompletion = {
+  execution: CoordinationExecutionState;
+  aggregation: CoordinationAggregationState;
+  outcome: CoordinationOutcomeState;
+  verification: CoordinationVerificationState;
+};
+
+/**
+ * Evidence a run record cannot carry itself. Callers that can observe the
+ * event log or the completing session supply it; callers that cannot get the
+ * conservative reading (unverified).
+ */
+export type CoordinationCompletionEvidence = {
+  /**
+   * Fingerprint of the CURRENT source. Supplying it lets a stale
+   * `aggregationFailure` marker (from before a replan) be recognised as stale
+   * instead of poisoning the current reading.
+   */
+  currentFingerprint?: string;
+  /**
+   * A `coordination.aggregate.completed` event was observed that matches this
+   * run's attached ref AND fingerprint — use `matchesAttachedAggregateEvent`.
+   * A bare boolean is deliberately strict: an event for an older aggregate must
+   * not verify a newer one.
+   */
+  aggregateEventMatches?: boolean;
+};
+
+type CompletionRunFields = Pick<
+  CoordinationRun,
+  "status" | "outcome" | "aggregateResultRef" | "aggregationFailure"
+>;
+
+/**
+ * Map persisted run fields (+ optional evidence) onto the four dimensions.
+ * Pure and decision-free: it never mutates the run and never rewrites a
+ * legacy record — a `completed` run with no aggregate reads as
+ * `aggregation: "pending"`, `outcome: "unknown"`, `verification: "unverified"`.
+ */
+export function deriveCoordinationCompletion(
+  run: CompletionRunFields,
+  evidence: CoordinationCompletionEvidence = {},
+): CoordinationCompletion {
+  const execution: CoordinationExecutionState =
+    run.status === "completed" ? "completed"
+      : run.status === "failed" ? "failed"
+        : run.status === "cancelled" ? "cancelled"
+          : "running"; // planning | replanning | running | blocked are all non-terminal
+
+  const terminal = execution === "completed" || execution === "failed" || execution === "cancelled";
+  // A failure marker counts only for the source it was recorded against; when
+  // the caller cannot supply the current fingerprint the marker is taken at
+  // face value (the store clears it when a later attach succeeds).
+  const failureIsCurrent = run.aggregationFailure !== undefined
+    && (evidence.currentFingerprint === undefined
+      || run.aggregationFailure.sourceFingerprint === evidence.currentFingerprint);
+  const aggregation: CoordinationAggregationState =
+    run.aggregateResultRef ? "generated"
+      : failureIsCurrent ? "failed"
+        : terminal ? "pending"
+          : "not_required";
+
+  const outcome: CoordinationOutcomeState = run.outcome ?? "unknown";
+
+  // Verification is a function of the run record plus the durable aggregate
+  // event only. A `sessionTerminal` term used to sit here, but no production
+  // caller ever supplied it: the completing session writes `session.ended`
+  // AFTER this gate runs (`run/task-loop/main.ts`), so the value was always
+  // `undefined` in the one case that mattered. The unverified-session case it
+  // meant to catch is already enforced at the gate itself, which terminates
+  // `completed_unverified` rather than `completed`.
+  const verification: CoordinationVerificationState =
+    aggregation === "failed" ? "failed"
+      : outcome === "failure" || outcome === "blocked" || outcome === "cancelled" ? "failed"
+        : aggregation === "generated"
+          && outcome === "success"
+          && evidence.aggregateEventMatches === true
+          ? "verified"
+          : "unverified";
+
+  return { execution, aggregation, outcome, verification };
+}
+
+/**
+ * Derived, user-facing label. Renderers use this instead of inventing another
+ * boolean; the legacy `status` stays visible for compatibility.
+ */
+/** The subset of a recorded event the aggregate-evidence matcher needs. */
+export type AggregateCompletedEventLike = {
+  type: string;
+  payload?: {
+    runId?: unknown;
+    aggregateResultRef?: unknown;
+    sourceFingerprint?: unknown;
+  };
+};
+
+/**
+ * Does a durable `coordination.aggregate.completed` event describe THIS run's
+ * currently attached aggregate?
+ *
+ * Strict on purpose: the event must name the same run, the same aggregate
+ * reference and the same source fingerprint. A completion event for an older
+ * aggregate — e.g. from before a replan — must not verify the current one. A
+ * run whose aggregate was attached but whose event never landed durably reads
+ * as unverified, which is the fail-closed direction.
+ */
+export function matchesAttachedAggregateEvent(
+  run: Pick<CoordinationRun, "id" | "aggregateResultRef" | "aggregateSourceFingerprint">,
+  events: ReadonlyArray<AggregateCompletedEventLike>,
+): boolean {
+  const ref = run.aggregateResultRef;
+  const fingerprint = run.aggregateSourceFingerprint;
+  if (!ref || !fingerprint) return false;
+  return events.some(event =>
+    event.type === "coordination.aggregate.completed"
+    && event.payload?.runId === run.id
+    && event.payload?.aggregateResultRef === ref
+    && event.payload?.sourceFingerprint === fingerprint,
+  );
+}
+
+export function coordinationCompletionLabel(completion: CoordinationCompletion): string {
+  const { execution, aggregation, outcome, verification } = completion;
+  if (execution === "failed") return "failed";
+  if (execution === "cancelled") return "cancelled";
+  if (execution === "running") return "in progress";
+  if (aggregation === "failed") return "workers finished; aggregation failed";
+  if (aggregation !== "generated") return "workers finished; results not aggregated";
+  if (verification === "verified") return "verified completion";
+  if (outcome === "success") return "completed; not verified";
+  if (outcome === "partial_success") return "completed with failures";
+  if (outcome === "failure" || outcome === "blocked" || outcome === "cancelled") {
+    return "completed with a failed outcome";
+  }
+  return "aggregated; outcome unknown";
 }

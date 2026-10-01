@@ -21,6 +21,10 @@ import {
   transitionWorkerStatus,
   recomputeRunStatus,
 } from "../../src/kernel/coordination-types.js";
+import {
+  coordinationCompletionLabel,
+  deriveCoordinationCompletion,
+} from "../../src/kernel/coordination-types.js";
 import type {
   CoordinationRun,
   CoordinationRunStatus,
@@ -602,5 +606,172 @@ describe("CoordinationRun revision lineage", () => {
 
     assert.deepEqual(w.inputPaths, [".tmp/run/project.md", ".tmp/run/tests.md"]);
     assert.equal(w.resultRef, ".alix/coordination/results/worker_1.json");
+  });
+});
+
+/**
+ * Completion semantics: `completed` is the terminal EXECUTION state only. These
+ * tests pin the non-implications, the evidence requirement for `verified`, and
+ * the legacy-record reading. The cohort evidence that motivated them: 7 runs
+ * closed status=completed, only 3 carried an aggregate, and all 7 parent
+ * sessions reported a completed terminal.
+ */
+describe("deriveCoordinationCompletion", () => {
+  const legacyCompleted = { status: "completed" as const };
+
+  it("reads a legacy completed run as pending / unknown / unverified", () => {
+    assert.deepEqual(deriveCoordinationCompletion(legacyCompleted), {
+      execution: "completed",
+      aggregation: "pending",
+      outcome: "unknown",
+      verification: "unverified",
+    });
+  });
+
+  it("does not imply aggregation from a completed status", () => {
+    const completion = deriveCoordinationCompletion(legacyCompleted);
+    assert.equal(completion.execution, "completed");
+    assert.notEqual(completion.aggregation, "generated");
+  });
+
+  it("does not imply a success outcome from a completed status", () => {
+    assert.notEqual(deriveCoordinationCompletion(legacyCompleted).outcome, "success");
+    assert.notEqual(
+      deriveCoordinationCompletion({ status: "completed", aggregateResultRef: "x.json", outcome: "partial_success" }).outcome,
+      "success",
+    );
+  });
+
+  it("does not imply verification from a completed status", () => {
+    assert.equal(deriveCoordinationCompletion(legacyCompleted).verification, "unverified");
+    assert.equal(
+      deriveCoordinationCompletion({ status: "completed", aggregateResultRef: "x.json", outcome: "success" }).verification,
+      "unverified",
+    );
+  });
+
+  it("requires aggregate event evidence before calling a run verified", () => {
+    const aggregated = { status: "completed" as const, aggregateResultRef: "x.json", outcome: "success" as const };
+    assert.equal(deriveCoordinationCompletion(aggregated).verification, "unverified");
+    assert.equal(
+      deriveCoordinationCompletion(aggregated, { aggregateEventMatches: true }).verification,
+      "verified",
+    );
+  });
+
+  it("verifies from the run record and the durable aggregate event alone", () => {
+    // The removed `sessionTerminal` term could never fire: no production caller
+    // supplied it, because the completing session writes `session.ended` after
+    // this gate. Verification is deliberately a pure function of persisted run
+    // fields plus the matching aggregate event — the four readers (CLI, view,
+    // collaboration context, tools) can all compute it.
+    const completion = deriveCoordinationCompletion(
+      { status: "completed", aggregateResultRef: "x.json", outcome: "success" },
+      { aggregateEventMatches: true },
+    );
+    assert.equal(completion.verification, "verified");
+  });
+
+  it("keeps a failed outcome distinct from a failed execution", () => {
+    const completion = deriveCoordinationCompletion({
+      status: "completed",
+      aggregateResultRef: "x.json",
+      outcome: "failure",
+    });
+    assert.equal(completion.execution, "completed");
+    assert.equal(completion.aggregation, "generated");
+    assert.equal(completion.verification, "failed");
+  });
+
+  it("treats a failed execution as failed regardless of aggregation", () => {
+    // `verification: "unverified"` here means "no verification evidence exists"
+    // — not "verification passed". A failed execution with no aggregate has
+    // nothing to judge; the label still reads "failed" from execution alone.
+    assert.deepEqual(deriveCoordinationCompletion({ status: "failed" }), {
+      execution: "failed",
+      aggregation: "pending",
+      outcome: "unknown",
+      verification: "unverified",
+    });
+    assert.equal(
+      deriveCoordinationCompletion({ status: "failed", aggregateResultRef: "x.json", outcome: "failure" }).verification,
+      "failed",
+    );
+  });
+
+  it("marks a cancelled run cancelled and never not_required once terminal", () => {
+    const completion = deriveCoordinationCompletion({ status: "cancelled" });
+    assert.equal(completion.execution, "cancelled");
+    assert.equal(completion.aggregation, "pending");
+    assert.equal(completion.verification, "unverified"); // no evidence, not a failed verification
+    // With evidence that the run closed cancelled, verification is failed.
+    assert.equal(
+      deriveCoordinationCompletion({ status: "cancelled", aggregateResultRef: "x.json", outcome: "cancelled" }).verification,
+      "failed",
+    );
+  });
+
+  it("reports not_required aggregation while the run is still live", () => {
+    for (const status of ["planning", "replanning", "running", "blocked"] as const) {
+      assert.deepEqual(deriveCoordinationCompletion({ status }), {
+        execution: "running",
+        aggregation: "not_required",
+        outcome: "unknown",
+        verification: "unverified",
+      });
+    }
+  });
+
+  it("surfaces an explicit aggregation failure as its own dimension", () => {
+    const completion = deriveCoordinationCompletion({
+      ...legacyCompleted,
+      aggregationFailure: { sourceFingerprint: "fp", failedAt: "2026-09-29T00:00:00.000Z", reason: "boom" },
+    });
+    assert.equal(completion.execution, "completed");
+    assert.equal(completion.aggregation, "failed");
+    assert.equal(completion.verification, "failed");
+  });
+
+  it("interprets a legacy record without rewriting it", () => {
+    const legacy = { status: "completed" as const, rootGoal: "g", workers: [] };
+    const before = structuredClone(legacy);
+    deriveCoordinationCompletion(legacy);
+    assert.deepEqual(legacy, before);
+    assert.equal("outcome" in legacy, false);
+    assert.equal("aggregateResultRef" in legacy, false);
+  });
+});
+
+describe("coordinationCompletionLabel", () => {
+  const label = (run: Parameters<typeof deriveCoordinationCompletion>[0], evidence?: Parameters<typeof deriveCoordinationCompletion>[1]) =>
+    coordinationCompletionLabel(deriveCoordinationCompletion(run, evidence));
+
+  it("labels the acceptance matrix rows", () => {
+    assert.equal(label({ status: "completed" }), "workers finished; results not aggregated");
+    assert.equal(
+      label({ status: "completed", aggregateResultRef: "x.json", outcome: "success" }),
+      "completed; not verified",
+    );
+    assert.equal(
+      label({ status: "completed", aggregateResultRef: "x.json", outcome: "success" }, { aggregateEventMatches: true }),
+      "verified completion",
+    );
+    assert.equal(
+      label({ status: "completed", aggregateResultRef: "x.json", outcome: "partial_success" }),
+      "completed with failures",
+    );
+    assert.equal(
+      label({ status: "completed", aggregateResultRef: "x.json", outcome: "failure" }),
+      "completed with a failed outcome",
+    );
+    assert.equal(label({ status: "failed" }), "failed");
+    assert.equal(label({ status: "running" }), "in progress");
+    assert.equal(
+      label({
+        status: "completed",
+        aggregationFailure: { sourceFingerprint: "fp", failedAt: "2026-09-29T00:00:00.000Z", reason: "boom" },
+      }),
+      "workers finished; aggregation failed",
+    );
   });
 });

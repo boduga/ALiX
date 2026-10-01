@@ -41,6 +41,12 @@ function renderOverview(data: CoordinationPanelData, width: number): string[] {
   lines.push(`Run: ${v.run.id}`);
   lines.push(`Goal: ${v.run.goal}`);
   lines.push(`Status: ${v.run.status}  Outcome: ${v.run.outcome ?? "-"}  Freshness: ${v.freshness}`);
+  // Derived completion. `Status` is the terminal execution state only: it does
+  // not mean the results were aggregated, that the outcome was success, or that
+  // anything was verified.
+  const { execution, aggregation, outcome, verification } = v.run.completion;
+  lines.push(`Completion: ${v.run.completionLabel}`);
+  lines.push(`  execution=${execution} aggregation=${aggregation} outcome=${outcome} verification=${verification}`);
   lines.push(`Workers: ${v.run.workerCount} total`);
   if (typeof v.conflictCount === "number" && v.conflictCount > 0) {
     lines.push(`Conflicts: ${v.conflictCount} unresolved`);

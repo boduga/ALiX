@@ -9,6 +9,8 @@ function makeView(): CoordinationRunView {
   return {
     run: {
       id: "coord_1", goal: "test", status: "running", outcome: undefined,
+      completion: { execution: "running", aggregation: "not_required", outcome: "unknown", verification: "unverified" },
+      completionLabel: "in progress",
       workerCount: 0, createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },

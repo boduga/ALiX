@@ -118,6 +118,135 @@ describe("coordination chat tools", () => {
     assert.equal(runs[0].workers[0].status, "cancelled");
   });
 
+  it("aborts a running worker end-to-end and leaves no lease held", async () => {
+    // The gap `deps.executor` closes. Every existing cancel test aborts BEFORE
+    // the call, which takes `signal.aborted` at the top of `handleCoordinationRun`
+    // and never reaches the abort LISTENER, a worker actually executing, or the
+    // in-flight `cancellation()` await. So the branches that decide whether a
+    // cancelled run leaves leases held were only covered by unit tests of
+    // `createCancelGuard` — which cannot see the scheduler at all.
+    //
+    // This drives the real entry point with a worker mid-execution.
+    let observedSignal: AbortSignal | undefined;
+    let started!: () => void;
+    const workerStarted = new Promise<void>(resolve => { started = resolve; });
+    let aborted = false;
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        await store.save(run);
+        const queued = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "slow",
+          goalPrompt: "do", status: "pending", requiredCapabilities: ["filesystem.write"],
+        });
+        await store.addWorker(run.id, queued);
+        return { valid: true, errors: [], run: { ...run, workers: [queued] } };
+      },
+    } as any;
+    const executor = {
+      execute: async (_worker: unknown, _context: unknown, signal: AbortSignal) => {
+        observedSignal = signal;
+        started();
+        // Hold the worker open until the abort lands, exactly as a real
+        // long-running execution would be.
+        await new Promise<void>((resolve) => {
+          signal.addEventListener("abort", () => { aborted = true; resolve(); }, { once: true });
+        });
+        return { outcome: "failure" as const, error: "aborted" };
+      },
+    };
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, executor });
+    const controller = new AbortController();
+
+    const pending = handlers[COORDINATION_RUN_TOOL](
+      { goal: "coordinate a slow worker" },
+      { toolCallId: "call-e2e", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as any,
+    );
+    // Abort only once the worker is genuinely mid-execution.
+    await workerStarted;
+    controller.abort();
+
+    await assert.rejects(
+      () => pending,
+      (error: Error) => error.name === "ExecutionCancelledError",
+    );
+
+    // The worker's own signal must have been aborted, not just the caller's —
+    // that is what stops a real child process.
+    assert.equal(aborted, true, "worker execution signal should be aborted");
+    assert.ok(observedSignal, "the executor should have received a signal");
+
+    // Terminal state, and no lease survives: `cancelRun` releases ownership
+    // before marking the worker cancelled, and a run left `running` with a
+    // held lease is invisible to the reclaim sweeps.
+    const runs = await store.list();
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, "cancelled");
+    for (const worker of runs[0].workers) {
+      assert.equal(worker.status, "cancelled");
+      assert.deepEqual(worker.leaseIds ?? [], [], "a cancelled worker must hold no lease");
+    }
+  });
+
+  it("records coordination.cancel.failed when the run cannot be finalized", async () => {
+    // The record that proves a cancel did not complete. Without it a failed
+    // cancel and a successful one are indistinguishable, and the run stays
+    // `running` under an owner the reclaim sweeps will not touch.
+    const appended: Array<{ type: string; payload: unknown }> = [];
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        await store.save(run);
+        const queued = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "queued",
+          goalPrompt: "do", status: "pending", requiredCapabilities: ["filesystem.write"],
+        });
+        await store.addWorker(run.id, queued);
+        return { valid: true, errors: [], run: { ...run, workers: [queued] } };
+      },
+    } as any;
+    const failingStore = {
+      load: async () => { throw new Error("store unavailable"); },
+      updateRun: async () => { throw new Error("store unavailable"); },
+      patchWorker: async () => { throw new Error("store unavailable"); },
+      save: async () => {},
+      addWorker: async () => {},
+      list: async () => [],
+    } as unknown as CoordinationStore;
+    const handlers = createCoordinationHandlers({
+      cwd,
+      config: testConfig(),
+      store: failingStore,
+      planner,
+      sessionId: "s1",
+      eventLog: {
+        append: async (event: { type: string; payload: unknown }) => { appended.push(event); },
+        readAll: async () => [],
+      } as any,
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    // The turn still reports a cancellation rather than surfacing a store
+    // error — but the failure is on the record.
+    await assert.rejects(
+      () => handlers[COORDINATION_RUN_TOOL](
+        { goal: "coordinate" },
+        { toolCallId: "call-fail", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as any,
+      ),
+      (error: Error) => error.name === "ExecutionCancelledError",
+    );
+
+    const recorded = appended.filter(e => e.type === "coordination.cancel.failed");
+    assert.equal(recorded.length, 1, "exactly one cancel-failure record");
+    const payload = recorded[0].payload as { runId: string; reason: string; error: string };
+    assert.match(payload.error, /store unavailable/);
+    assert.equal(payload.reason, "operator cancel could not finalize the run");
+  });
+
   it("reports a rejected plan as retryable with recovery steps", async () => {
     const planner = {
       plan: async () => ({
@@ -142,7 +271,7 @@ describe("coordination chat tools", () => {
     assert.ok(!rendered.includes("do not retry"), rendered);
   });
 
-  it("reports its completed workers' owned outputs as changed files", async () => {
+  it("does not report owned outputs as changed files without explicit mutation evidence", async () => {
     const planner = {
       plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
         const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
@@ -160,8 +289,38 @@ describe("coordination chat tools", () => {
 
     const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
 
-    // The coordinator never mutates anything itself; this is the executed
-    // evidence its workers produced, and the completion gate consumes it.
+    // Ownership scopes are where a worker MAY write, not proof that it did:
+    // a completed worker with no mutation record is not changed-file evidence.
+    assert.equal(result.kind, "success");
+    assert.notEqual(result.changed, true);
+    assert.equal(result.changedFiles, undefined);
+  });
+
+  it("reports changed files from explicit worker mutation records", async () => {
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        const writer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "writer", goalPrompt: "write",
+          status: "completed", ownershipScopes: [".tmp/out/a.md"],
+        });
+        await store.addWorker(run.id, writer);
+        await store.patchWorker(run.id, writer.id, { status: "completed" });
+        return { valid: true, errors: [], run: { ...run, workers: [writer] } };
+      },
+    } as any;
+    // The session recorded the write the worker actually performed.
+    const eventLog = {
+      readAll: async () => [
+        { sessionId: "s1", type: "file.created", payload: { path: ".tmp/out/a.md" } },
+      ],
+      append: async () => {},
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog, sessionId: "s1" });
+
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "write the owned file" });
+
     assert.equal(result.kind, "success");
     assert.equal(result.changed, true);
     assert.deepEqual(result.changedFiles, [".tmp/out/a.md"]);
@@ -270,269 +429,6 @@ describe("coordination chat tools", () => {
   });
 });
 
-/**
- * The operator-cancel guard is the only part of the abort path that can be
- * driven from a test: `handleCoordinationRun` builds its scheduler and worker
- * executor internally, so the surrounding flow is not reachable without a much
- * larger seam. What matters here is that a REJECTING cancel never surfaces as a
- * tool failure and never escapes unhandled — a cancel that cannot complete
- * still means the operator asked to stop — and that the failure is recorded,
- * because the run is then still `running` with leases held and only a dead
- * owner is ever reclaimed.
- */
-describe("operator cancel guard", () => {
-  it("attaches a handler immediately, so a rejecting cancel is never unhandled", async () => {
-    const failures: unknown[] = [];
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("store write failed")),
-      onFailure: (err) => { failures.push(err); },
-    });
-
-    // Exactly the listener shape: fire and forget, never awaited.
-    guard.onAbort();
-
-    // If no handler were attached, this rejection would surface as an
-    // unhandledRejection and could take the process down.
-    await new Promise(resolve => setTimeout(resolve, 20));
-    assert.equal(failures.length, 1, "the failure must be recorded, not swallowed");
-    assert.match(String((failures[0] as Error).message), /store write failed/);
-  });
-
-  it("resolves rather than rejecting, so the turn still reports a cancellation", async () => {
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("nope")),
-      onFailure: () => {},
-    });
-    await guard.cancelRun(); // must NOT throw
-  });
-
-  it("only cancels once however many times the listener fires", async () => {
-    let calls = 0;
-    const guard = createCancelGuard({
-      cancel: () => { calls++; return Promise.resolve(); },
-      onFailure: () => {},
-    });
-    guard.onAbort();
-    guard.onAbort();
-    guard.onAbort();
-    await guard.cancellation();
-    assert.equal(calls, 1);
-  });
-
-  it("exposes no in-flight cancel before the listener fires", () => {
-    const guard = createCancelGuard({ cancel: () => Promise.resolve(), onFailure: () => {} });
-    assert.equal(guard.cancellation(), undefined);
-  });
-
-  it("still runs a successful cancel without recording a failure", async () => {
-    let cancelled = false;
-    const failures: unknown[] = [];
-    const guard = createCancelGuard({
-      cancel: async () => { cancelled = true; },
-      onFailure: (err) => { failures.push(err); },
-    });
-    await guard.cancelRun();
-    assert.equal(cancelled, true);
-    assert.deepEqual(failures, [], "a successful cancel must not emit a failure event");
-  });
-});
-/**
- * The recorder is the ONLY record that a cancel failed to finalize its run. It
- * is tested against its real shape, not a synthetic stand-in: the defect it
- * guards against was a closure reading a `const` declared after the cancel
- * sites, which threw in the temporal dead zone and was swallowed — and every
- * test that injected its own `onFailure` passed straight through that.
- */
-describe("cancel failure recorder", () => {
-  it("appends coordination.cancel.failed with the run and session it was given", async () => {
-    const appended: Array<{ type: string; payload: Record<string, unknown> }> = [];
-    const record = createCancelFailureRecorder({
-      eventLog: { append: async (e: { type: string; sessionId?: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
-      runId: "coord_abc",
-      sessionId: "coord-gate-test",
-    });
-
-    await record(new Error("store write failed"));
-
-    assert.equal(appended.length, 1);
-    assert.equal(appended[0].type, "coordination.cancel.failed");
-    assert.equal(appended[0].payload.runId, "coord_abc");
-    assert.equal(appended[0].payload.error, "store write failed");
-    // sessionId is a top-level event field, not part of the payload.
-    assert.equal((appended[0] as unknown as { sessionId?: string }).sessionId, "coord-gate-test");
-  });
-
-  it("is safe with no event log", async () => {
-    const record = createCancelFailureRecorder({ eventLog: undefined, runId: "r", sessionId: "s" });
-    await record(new Error("x")); // must not throw
-  });
-
-  it("records a stringified non-Error rejection", async () => {
-    const appended: Array<{ payload: Record<string, unknown> }> = [];
-    const record = createCancelFailureRecorder({
-      eventLog: { append: async (e: { type: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
-      runId: "r", sessionId: "s",
-    });
-    await record("plain string failure");
-    assert.match(String(appended[0].payload.error), /plain string failure/);
-  });
-});
-
-
-/**
- * The operator-cancel guard is the only part of the abort path that can be
- * driven from a test: `handleCoordinationRun` builds its scheduler and worker
- * executor internally, so the surrounding flow is not reachable without a much
- * larger seam. What matters here is that a REJECTING cancel never surfaces as a
- * tool failure and never escapes unhandled — a cancel that cannot complete
- * still means the operator asked to stop — and that the failure is recorded,
- * because the run is then still `running` with leases held and only a dead
- * owner is ever reclaimed.
- */
-/**
- * The recorder is the ONLY record that a cancel failed to finalize its run. It
- * is tested against its real shape, not a synthetic stand-in: the defect it
- * guards against was a closure reading a `const` declared after the cancel
- * sites, which threw in the temporal dead zone and was swallowed — and every
- * test that injected its own `onFailure` passed straight through that.
- */
-describe("cancel failure recorder", () => {
-  it("appends coordination.cancel.failed with the run and session it was given", async () => {
-    const appended: Array<{ type: string; payload: Record<string, unknown> }> = [];
-    const record = createCancelFailureRecorder({
-      eventLog: { append: async (e: { type: string; sessionId?: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
-      runId: "coord_abc",
-      sessionId: "coord-gate-test",
-    });
-
-    await record(new Error("store write failed"));
-
-    assert.equal(appended.length, 1);
-    assert.equal(appended[0].type, "coordination.cancel.failed");
-    assert.equal(appended[0].payload.runId, "coord_abc");
-    assert.equal(appended[0].payload.error, "store write failed");
-    // sessionId is a top-level event field, not part of the payload.
-    assert.equal((appended[0] as unknown as { sessionId?: string }).sessionId, "coord-gate-test");
-  });
-
-  it("is safe with no event log", async () => {
-    const record = createCancelFailureRecorder({ eventLog: undefined, runId: "r", sessionId: "s" });
-    await record(new Error("x")); // must not throw
-  });
-
-  it("records a stringified non-Error rejection", async () => {
-    const appended: Array<{ payload: Record<string, unknown> }> = [];
-    const record = createCancelFailureRecorder({
-      eventLog: { append: async (e: { type: string; payload: Record<string, unknown> }) => { appended.push(e); } } as never,
-      runId: "r", sessionId: "s",
-    });
-    await record("plain string failure");
-    assert.match(String(appended[0].payload.error), /plain string failure/);
-  });
-});
-
-describe("operator cancel guard", () => {
-  it("attaches a handler immediately, so a rejecting cancel is never unhandled", async () => {
-    const failures: unknown[] = [];
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("store write failed")),
-      onFailure: (err) => { failures.push(err); },
-    });
-
-    // Exactly the listener shape: fire and forget, never awaited.
-    guard.onAbort();
-
-    // If no handler were attached, this rejection would surface as an
-    // unhandledRejection and could take the process down.
-    await new Promise(resolve => setTimeout(resolve, 20));
-    assert.equal(failures.length, 1, "the failure must be recorded, not swallowed");
-    assert.match(String((failures[0] as Error).message), /store write failed/);
-  });
-
-  it("resolves rather than rejecting, so the turn still reports a cancellation", async () => {
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("nope")),
-      onFailure: () => {},
-    });
-    await guard.cancelRun(); // must NOT throw
-  });
-
-  it("only cancels once however many times the listener fires", async () => {
-    let calls = 0;
-    const guard = createCancelGuard({
-      cancel: () => { calls++; return Promise.resolve(); },
-      onFailure: () => {},
-    });
-    guard.onAbort();
-    guard.onAbort();
-    guard.onAbort();
-    await guard.cancellation();
-    assert.equal(calls, 1);
-  });
-
-  it("exposes no in-flight cancel before the listener fires", () => {
-    const guard = createCancelGuard({ cancel: () => Promise.resolve(), onFailure: () => {} });
-    assert.equal(guard.cancellation(), undefined);
-  });
-
-  it("records the failure when the recorder itself is wired to state read at call time", async () => {
-    // Regression: the real `onFailure` closure reads `sessionId` from state
-    // resolved around the cancel. When that state was a `const` declared AFTER
-    // the cancel sites, the closure hit the temporal dead zone, THREW, and the
-    // inner catch swallowed it — so the event that exists to prove the run was
-    // not finalized was never appended. Synthetic `onFailure` tests could not
-    // see this, because they never reproduce the real closure. This one models
-    // the shape: state captured up front, recorder called on the failure path.
-    const recorded: Array<{ type: string; payload: Record<string, unknown> }> = [];
-    const cancelSessionId = "coord-gate-test";
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("store write failed")),
-      onFailure: (error) => recorded.push({
-        type: "coordination.cancel.failed",
-        payload: { sessionId: cancelSessionId, error: String(error) },
-      }),
-    });
-
-    await guard.cancelRun();
-
-    assert.equal(recorded.length, 1, "the failure must be recorded");
-    assert.equal(recorded[0].payload.sessionId, cancelSessionId);
-  });
-
-  it("still reports a cancellation when the recorder itself throws", async () => {
-    // A broken recorder must not turn a cancellation into a tool failure, and
-    // must not leave an unhandled rejection.
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("store write failed")),
-      onFailure: () => { throw new Error("recorder exploded"); },
-    });
-    await guard.cancelRun(); // must resolve
-  });
-
-  it("settles the record before cancelRun resolves", async () => {
-    // Fire-and-forget meant the turn could end before the only record of a
-    // non-finalized run landed. `onFailure` is awaited.
-    let settled = false;
-    const guard = createCancelGuard({
-      cancel: () => Promise.reject(new Error("nope")),
-      onFailure: async () => { await new Promise(r => setTimeout(r, 10)); settled = true; },
-    });
-    await guard.cancelRun();
-    assert.equal(settled, true, "the record must land before the turn continues");
-  });
-
-  it("still runs a successful cancel without recording a failure", async () => {
-    let cancelled = false;
-    const failures: unknown[] = [];
-    const guard = createCancelGuard({
-      cancel: async () => { cancelled = true; },
-      onFailure: (err) => { failures.push(err); },
-    });
-    await guard.cancelRun();
-    assert.equal(cancelled, true);
-    assert.deepEqual(failures, [], "a successful cancel must not emit a failure event");
-  });
-});
 /**
  * The recorder is the ONLY record that a cancel failed to finalize its run, and
  * the guard is the only part of the abort path a test can drive:

@@ -43,6 +43,7 @@ export class CoordinationCompletionService {
         if (existing) return existing;
       }
 
+      try {
       // Deterministic aggregation
       const summary = await this.deps.resultAggregator.aggregate(run);
       summary.sourceFingerprint = fingerprint;
@@ -70,23 +71,70 @@ export class CoordinationCompletionService {
       summary.aggregateRef = aggregateRef;
       await this.deps.aggregateStore.persist(summary);
 
-      // Attach metadata to run (lock-safe via updateRun)
-      await this.deps.coordinationStore.attachAggregate(runId, {
+      // Attach metadata only if this call wins the finalization race. The
+      // store does check-and-attach under the per-run lock, so a second
+      // terminal observation (another scheduler tick, another process) cannot
+      // duplicate the attach — and therefore cannot duplicate the event below.
+      const attach = await this.deps.coordinationStore.attachAggregateIfUnfinalized(runId, {
         aggregateResultRef: aggregateRef,
         aggregateGeneratedAt: summary.generatedAt,
         aggregateSourceFingerprint: fingerprint,
         outcome: summary.outcome,
       });
 
-      // Emit event
+      if (!attach.attached) {
+        // Someone else finalized this fingerprint first. Return their aggregate
+        // without emitting a second event; if the store holds a different
+        // fingerprint (a replan beat us), our summary is stale for the run
+        // record but still the honest answer for the source we aggregated.
+        const existing = await this.deps.aggregateStore.load(runId);
+        return existing ?? summary;
+      }
+
+      // Emit event — exactly once, by the attach winner
       this.deps.eventLog?.append({
         sessionId: run.sessionId,
         actor: "coordination",
         type: "coordination.aggregate.completed",
-        payload: { runId, outcome: summary.outcome, workerCount: summary.counts.workers },
+        // The ref and fingerprint are what make this event usable as durable
+        // verification evidence: a consumer can check the event describes the
+        // aggregate currently attached to the run (see
+        // `matchesAttachedAggregateEvent`). Without them an older event could
+        // verify a newer, post-replan aggregate.
+        payload: {
+          runId,
+          outcome: summary.outcome,
+          workerCount: summary.counts.workers,
+          aggregateResultRef: aggregateRef,
+          sourceFingerprint: fingerprint,
+        },
       }).catch(() => {});
 
       return summary;
+      } catch (error) {
+        // Aggregation failure is its own evidence. It must never be reported as
+        // an execution failure: the workers' terminal statuses are untouched,
+        // and `run.status` is only ever recomputed from worker statuses.
+        const reason = error instanceof Error ? error.message : String(error);
+        // Durable first: a consumer without the event log still sees the failure
+        // through `deriveCoordinationCompletion` (`aggregation: "failed"`).
+        await this.deps.coordinationStore.recordAggregationFailure(runId, {
+          sourceFingerprint: fingerprint,
+          failedAt: new Date().toISOString(),
+          reason,
+        }).catch(() => {});
+        this.deps.eventLog?.append({
+          sessionId: run.sessionId,
+          actor: "coordination",
+          type: "coordination.aggregate.failed",
+          payload: {
+            runId,
+            error: reason,
+            workerCount: run.workers.length,
+          },
+        }).catch(() => {});
+        throw error;
+      }
     } finally {
       lock.release();
     }

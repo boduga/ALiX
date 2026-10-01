@@ -14,6 +14,12 @@ export type VerificationResult = {
   status: "passed" | "failed" | "not_run";
   command?: string;
   output?: string;
+  /**
+   * Whether the check ran in a stashed verification sandbox. False means it ran
+   * in place against the live working tree — which is what a post-change
+   * verification must do.
+   */
+  isolated?: boolean;
 };
 
 const TEST_COMMANDS = ["test", "test:unit", "test:integration"];
@@ -59,12 +65,34 @@ export async function discoverVerification(root: string): Promise<VerificationCh
   return checks.map(c => c.check);
 }
 
+/**
+ * Run one verification check against the CURRENT WORKING TREE.
+ *
+ * Isolation is requested but only ever granted to a verification sandbox (see
+ * `isVerificationSandbox`). That is not a performance detail: the previous
+ * behaviour passed the live workspace root, so `runWithIsolation` stashed the
+ * agent's uncommitted edits and then ran the suite against the tree from
+ * BEFORE the change. A post-change verification that cannot see the change is
+ * not a verification — it reported `passed` for code the agent never wrote.
+ * Reproduced directly: with `marker.txt` modified in the working tree, an
+ * isolated run observed the committed content.
+ *
+ * In a non-sandbox the command therefore runs in place, against the work that
+ * actually exists.
+ */
 export async function runVerification(root: string, check: VerificationCheck): Promise<VerificationResult> {
   try {
-    const { passed, output } = await runWithIsolation(root, check.command, 120000);
-    return { status: passed ? "passed" : "failed", command: check.command, output };
+    const { passed, output, isolated } = await runWithIsolation(root, check.command, 120000);
+    return {
+      status: passed ? "passed" : "failed",
+      command: check.command,
+      output,
+      // Surfaced so a caller (or an operator reading the trace) can tell a
+      // sandboxed run from an in-place one.
+      ...(isolated ? { isolated: true } : { isolated: false }),
+    };
   } catch (err) {
-    return { status: "not_run", command: check.command, output: String(err) };
+    return { status: "not_run", command: check.command, output: String(err), isolated: false };
   }
 }
 

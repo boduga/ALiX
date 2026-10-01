@@ -8,8 +8,14 @@ import { execSync } from "node:child_process";
 describe("git stash/restore test isolation", () => {
   const testDir = join(tmpdir(), `test-isolation-${Date.now()}`);
 
+  // These tests exercise the SANDBOX path deliberately, so they opt in.
+  // `stashChanges` now refuses any root that is not an explicit verification
+  // sandbox — that guard is what stops a verification pass from capturing a
+  // real working tree (see verification-isolation-guard.vitest.ts). A bare
+  // temp dir is NOT auto-trusted: this repo runs real agent work in temp dirs.
   beforeEach(() => {
     mkdirSync(testDir, { recursive: true });
+    process.env.ALIX_VERIFY_ISOLATION_ROOT = testDir;
     writeFileSync(join(testDir, "package.json"), JSON.stringify({ scripts: {} }));
     writeFileSync(join(testDir, "index.js"), "console.log('hello');");
     // Initialize git repo for testing
@@ -21,6 +27,7 @@ describe("git stash/restore test isolation", () => {
   });
 
   afterEach(() => {
+    delete process.env.ALIX_VERIFY_ISOLATION_ROOT;
     try { rmSync(testDir, { recursive: true }); } catch {}
   });
 

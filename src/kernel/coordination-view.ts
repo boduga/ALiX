@@ -10,6 +10,12 @@ import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
+import {
+  coordinationCompletionLabel,
+  deriveCoordinationCompletion,
+  matchesAttachedAggregateEvent,
+  type CoordinationCompletion,
+} from "./coordination-types.js";
 import { existsSync } from "node:fs";
 import { resolve, relative, isAbsolute, join } from "node:path";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
@@ -22,8 +28,16 @@ import type { ConflictStatus, ConflictType, DetectionMethod } from "./collaborat
 export type RunSummary = {
   id: string;
   goal: string;
+  /** Legacy terminal execution state, kept for compatibility. */
   status: CoordinationRunStatus;
   outcome?: CoordinationRunOutcome;
+  /**
+   * The four completion dimensions. `status` alone never implies aggregation,
+   * a success outcome or verification (see `deriveCoordinationCompletion`).
+   */
+  completion: CoordinationCompletion;
+  /** Derived, user-facing label. Never a stored boolean. */
+  completionLabel: string;
   workerCount: number;
   createdAt: string;
   updatedAt: string;
@@ -123,6 +137,42 @@ function deriveWorkerOutcome(worker: {
 
 // ─── View builder ──────────────────────────────────────────────────
 
+/**
+ * Read a run's recorded session events. Best-effort: a missing or unreadable
+ * session log yields no events, which reads as "no evidence" (fail-closed)
+ * rather than as verification.
+ */
+export async function readRunSessionEvents(
+  cwd: string,
+  sessionId: string,
+): Promise<Array<{ type: string; payload?: Record<string, unknown> }>> {
+  try {
+    const sessionsRoot = resolve(cwd, ".alix", "sessions");
+    const sessionDir = resolve(sessionsRoot, sessionId);
+    const rel = relative(sessionsRoot, sessionDir);
+    if (rel.startsWith("..") || isAbsolute(rel) || rel === "..") return [];
+    const eventPath = join(sessionDir, "events.jsonl");
+    if (!existsSync(eventPath)) return [];
+    const { readFileSync } = await import("node:fs");
+    const events: Array<{ type: string; payload?: Record<string, unknown> }> = [];
+    for (const line of readFileSync(eventPath, "utf-8").trim().split("\n")) {
+      if (!line) continue;
+      try {
+        const parsed = JSON.parse(line) as { type?: string; payload?: Record<string, unknown> };
+        events.push({
+          type: parsed.type ?? "unknown",
+          ...(parsed.payload !== undefined ? { payload: parsed.payload } : {}),
+        });
+      } catch {
+        // A malformed line is not evidence; skip it.
+      }
+    }
+    return events;
+  } catch {
+    return [];
+  }
+}
+
 export async function buildCoordinationRunView(
   runId: string,
   cwd: string,
@@ -131,12 +181,23 @@ export async function buildCoordinationRunView(
   const run = await store.load(runId);
   if (!run) return null;
 
+  // Completion dimensions. `status` is the legacy terminal execution state;
+  // aggregation, outcome and verification are derived from the run record plus
+  // the durable aggregate event, never from status alone.
+  const rawSessionEvents = await readRunSessionEvents(cwd, run.sessionId);
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run),
+    aggregateEventMatches: matchesAttachedAggregateEvent(run, rawSessionEvents),
+  });
+
   // Run summary
   const runSummary: RunSummary = {
     id: run.id,
     goal: run.rootGoal,
     status: run.status,
     outcome: run.outcome,
+    completion,
+    completionLabel: coordinationCompletionLabel(completion),
     workerCount: run.workers.length,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,

@@ -21,13 +21,19 @@ import { join } from "node:path";
 const CLI = resolve("bin/alix.js");
 const TSX = "npx tsx";
 
+// These cases spawn a child process. Under the full parallel suite a spawn
+// costs several times its standalone time (measured: ~5.4s standalone, ~8.5s
+// parallel), so a short fixed budget turns load into false failures.
+const CLI_SPAWN_TIMEOUT_MS = 20_000;
+const TSX_SPAWN_TIMEOUT_MS = 30_000;
+
 function run(args: string): string {
-  return execSync(`${CLI} ${args}`, { encoding: "utf8", timeout: 5000 });
+  return execSync(`${CLI} ${args}`, { encoding: "utf8", timeout: CLI_SPAWN_TIMEOUT_MS });
 }
 
 function runExitCode(args: string): { stdout: string; stderr: string; status: number } {
   try {
-    const stdout = execSync(`${CLI} ${args}`, { encoding: "utf8", timeout: 5000 });
+    const stdout = execSync(`${CLI} ${args}`, { encoding: "utf8", timeout: CLI_SPAWN_TIMEOUT_MS });
     return { stdout, stderr: "", status: 0 };
   } catch (err: unknown) {
     const e = err as { stdout: string; stderr: string; status: number };
@@ -35,7 +41,7 @@ function runExitCode(args: string): { stdout: string; stderr: string; status: nu
   }
 }
 
-describe("alix governance report", { timeout: 120000 }, () => {
+describe("alix governance report", { timeout: 300000 }, () => {
   it("--json returns parseable JSON with all section keys", () => {
     const stdout = run("governance report --json");
     let parsed: Record<string, unknown>;
@@ -139,7 +145,7 @@ describe("alix governance report", { timeout: 120000 }, () => {
 // P29.3 — Compliance subcommand tests
 // ---------------------------------------------------------------------------
 
-describe("alix governance report compliance (P29.3)", { timeout: 120000 }, () => {
+describe("alix governance report compliance (P29.3)", { timeout: 300000 }, () => {
   let tmpDir: string;
   let bundlePath: string;
   let outputPath: string;
@@ -225,7 +231,10 @@ describe("alix governance report compliance (P29.3)", { timeout: 120000 }, () =>
     cwdOverride?: string,
   ): { stdout: string; stderr: string; status: number } {
     const cmd = `${TSX} ${CLI_SRC} governance report compliance ${args}`;
-    const opts: ExecSyncOptionsWithStringEncoding = { encoding: "utf8", timeout: 10000 };
+    const opts: ExecSyncOptionsWithStringEncoding = {
+      encoding: "utf8",
+      timeout: TSX_SPAWN_TIMEOUT_MS,
+    };
     if (cwdOverride) opts.cwd = cwdOverride;
     try {
       const stdout = execSync(cmd, opts) as string;

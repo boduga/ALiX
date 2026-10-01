@@ -392,7 +392,7 @@ async function buildCoordinationRuntime(
   config: import("../config/schema.js").AlixConfig,
   opts: { maxConcurrency: number; sessionIdPrefix: string },
 ): Promise<{ store: CoordinationStore; scheduler: CoordinationScheduler }> {
-  const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+  const { createCoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
   const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
   const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
   const { PolicyGate } = await import("../policy/policy-gate.js");
@@ -419,7 +419,7 @@ async function buildCoordinationRuntime(
     executor = new DefaultWorkerExecutor();
   }
 
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     {
       cwd,
       daemonInstanceId: `web-${process.pid}`,
@@ -575,7 +575,7 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
       backgroundSchedulers.delete(runId);
     } else {
       // Stateless cancel: marks the persisted run without live handles.
-      const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+      const { createCoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
       const { CoordinationStore } = await import("../kernel/coordination-store.js");
       const store = new CoordinationStore(cwd);
       // Unknown runs are an idempotent success. Check before loading config or
@@ -592,7 +592,7 @@ async function handleCancelRun(cwd: string, runId: string, r: SecureJsonResponde
       const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
       const { buildDefaultToolIndex } = await import("../tools/tool-registry.js");
       const config = await loadConfig(cwd);
-      const scheduler = new CoordinationScheduler(
+      const scheduler = createCoordinationScheduler(
         {
           cwd,
           daemonInstanceId: `web-${process.pid}`,

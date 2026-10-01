@@ -67,6 +67,10 @@ alix-*.sbom.json
 # Temporary analysis output
 tmp-*.json
 
+# Local scratch at the repo root only; nested .tmp directories are ordinary
+# project content and must stay visible to git.
+/.tmp/
+
 # Runtime EventLog artifacts (regenerated each session)
 events.jsonl
 

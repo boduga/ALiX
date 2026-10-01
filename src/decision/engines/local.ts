@@ -119,7 +119,12 @@ export function createLocalBaselineExecutor(opts?: LocalBaselineExecutorOptions)
   return {
     engineId: LOCAL_ENGINE_ID,
     async execute(input: ExecuteInput): Promise<ExecutorOutcome> {
-      return baseline[input.decision](input, Date.now());
+      const handler = (baseline as Record<string, ((input: ExecuteInput, started: number) => ExecutorOutcome) | undefined>)[input.decision];
+      // Experiment subjects (`experiment:<id>`) have no runtime handler. The
+      // local baseline is a runtime surface only; an offline experiment must
+      // bring its own executor rather than borrowing a runtime decision.
+      if (!handler) return { kind: "failure", error: `no local handler for ${input.decision}` };
+      return handler(input, Date.now());
     },
   };
 }

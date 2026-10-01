@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EventLog } from "../../src/events/event-log.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import type { AlixConfig } from "../../src/config/schema.js";
@@ -158,6 +158,35 @@ describe("Tool Executor Events", () => {
     assert.ok(outputEvent, "tool.output event should be emitted");
     const payload = outputEvent.payload as any;
     assert.ok(payload.outputSize > 0);
+  });
+
+  it("renders a large matches[] result instead of crashing on the artifact write", async () => {
+    // Regression: grep.search/dir.search answer with matches[]. Once the shared
+    // renderer made outputSize reflect those matches, a result past
+    // LARGE_OUTPUT_THRESHOLD reached writeOutputToFile with `output ?? content`
+    // = undefined and killed the run with `The "data" argument must be of type
+    // string ... Received undefined`.
+    const bigLines = Array.from(
+      { length: 400 },
+      (_, i) => `line ${i} needle payload ${"x".repeat(40)}`,
+    ).join("\n");
+    await writeFile(join(testDir, "big.txt"), bigLines, "utf8");
+
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    await executor.execute({
+      toolCallId: `tool_${Date.now()}_abc1247`,
+      name: "grep.search",
+      args: { pattern: "needle", path: "." },
+    });
+
+    const events = await eventLog.readAll();
+    const outputEvent = events.find((e) => e.type === "tool.output");
+    assert.ok(outputEvent, "tool.output event should be emitted");
+    const payload = outputEvent.payload as any;
+    assert.ok(payload.outputSize > 10_000, `expected a large result, got ${payload.outputSize}`);
+    assert.ok(payload.outputRef, "a large result must be written to an artifact file");
+    const written = await readFile(payload.outputRef, "utf8");
+    assert.ok(written.includes("needle"), "the artifact must hold the rendered matches");
   });
 
   it("sanitizes sensitive args in tool.requested", async () => {

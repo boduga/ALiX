@@ -1,0 +1,7 @@
+{
+  "8a0de18b-d822-4ea3-a27c-90bd74e38916:scope_1": {
+    "track": "outcome",
+    "reason": "execution-context-drift",
+    "note": "Pilot corpus. The model's selection (file_read) stays a trace fact, but the comparison is not eligible: the Jev replay failed mid-set (builtin:alix_web_search timed out, mcp:f90c07 fetch failed), leaving ranking=[] with candidateSetPreserved=false, so no agreement can be computed. The recorded reason is therefore candidate-set-not-preserved on both tracks. The drift below is retained as diagnostic metadata: the run also left its prompt, worked in an unrelated scratch context, and closed with unverified claims about unrelated test files, so its execution result is not a clean tool-quality label either."
+  }
+}

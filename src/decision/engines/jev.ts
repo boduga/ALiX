@@ -65,7 +65,7 @@ const JEV_SUPPORTED_DECISIONS: readonly DecisionType[] = [
   "risk-escalation",
 ];
 
-type JevDecisionMapping = {
+export type JevDecisionMapping = {
   toRequest(
     sealed: ExecuteInput["sealed"],
     candidates?: readonly unknown[],
@@ -161,7 +161,28 @@ export type JevAdapterOptions = {
   /** Injected transport (tests). Defaults to the fetch-based transport. */
   transport?: JevTransport;
   model?: string;
+  /**
+   * Experiment-only mappings, keyed by experiment id (the part after
+   * `experiment:`). An experiment never borrows a runtime decision's mapping,
+   * so it must be registered here explicitly by the offline caller — without
+   * one, an `experiment:` subject fails closed exactly as before.
+   */
+  experimentMappings?: Record<string, JevDecisionMapping>;
 };
+
+const EXPERIMENT_SUBJECT_PREFIX = "experiment:";
+
+/**
+ * Resolve a mapping for an experiment subject. Returns undefined for runtime
+ * decisions (they use `MAPPINGS`) and for experiments with nothing registered.
+ */
+function experimentMappingFor(
+  opts: JevAdapterOptions,
+  decision: string,
+): JevDecisionMapping | undefined {
+  if (!decision.startsWith(EXPERIMENT_SUBJECT_PREFIX)) return undefined;
+  return opts.experimentMappings?.[decision.slice(EXPERIMENT_SUBJECT_PREFIX.length)];
+}
 
 export function createJevExecutor(
   opts: JevAdapterOptions,
@@ -179,11 +200,18 @@ export function createJevExecutor(
       if (!verifySealedProjection(input.sealed)) {
         throw new ProjectionRejectedError("sealed projection failed verification");
       }
-      const mapping = MAPPINGS[input.decision];
+      const mapping =
+        (MAPPINGS as Record<string, JevDecisionMapping | undefined>)[input.decision] ??
+        experimentMappingFor(opts, input.decision);
       if (!mapping) {
         throw new EngineUnavailableError(
           JEV_ENGINE_ID,
-          `no mapping for decision ${input.decision}`,
+          // Experiment subjects carry no runtime mapping by design: an offline
+          // experiment registers its own through `experimentMappings`, never a
+          // borrowed runtime decision.
+          input.decision.startsWith(EXPERIMENT_SUBJECT_PREFIX)
+            ? `no experiment mapping registered for ${input.decision}`
+            : `no mapping for decision ${input.decision}`,
         );
       }
       const request = { ...mapping.toRequest(input.sealed, input.candidates), model: opts.model ?? JEV_DEFAULT_MODEL };

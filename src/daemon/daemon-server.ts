@@ -57,7 +57,7 @@ let scheduledTaskTimer: ReturnType<typeof setInterval> | undefined;
  */
 async function startCoordinationService(): Promise<void> {
   const { loadConfig } = await import("../config/loader.js");
-  const { CoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
+  const { createCoordinationScheduler } = await import("../kernel/coordination-scheduler.js");
   const { CoordinationStore } = await import("../kernel/coordination-store.js");
   const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
   const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
@@ -79,7 +79,7 @@ async function startCoordinationService(): Promise<void> {
     executor = new DefaultWorkerExecutor();
   }
 
-  const scheduler = new CoordinationScheduler({
+  const scheduler = createCoordinationScheduler({
     cwd: defaultCwd,
     daemonInstanceId: `daemon-${process.pid}`,
     configProvider: async () => config,
@@ -475,6 +475,9 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     if (route.kind !== "agent") {
       const daemonExecutor = new DaemonRuntimeExecutor({
         client, sessionId, taskId, cwd: requestCwd, eventLog, signal,
+        // Daemon-hosted grounded turns make a real model choice; give it a
+        // scope so external selection is observable here too (F4).
+        selectionScope: { scopeId: `grounded_${sessionId}_${Date.now()}`, iteration: 0 },
       });
       const runtimeCtx: RuntimeContext = {
         cwd: requestCwd,

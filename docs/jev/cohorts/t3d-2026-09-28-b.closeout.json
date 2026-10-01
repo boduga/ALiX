@@ -1,0 +1,38 @@
+{
+  "cohortId": "t3d-2026-09-28-b",
+  "status": "abandoned",
+  "openedAt": "2026-09-28T20:42:17Z",
+  "abandonedAt": "2026-09-28T20:52:00Z",
+  "openedRevision": "ff08ff7154c5ea1519e7e5dc6ca78574591e0a6b",
+  "closedByRevision": "26021a6ca77a1220354bdf572119645e6f10d80f",
+  "reason": "A cohort-defining field (gitRevision) changed mid-collection: task r3 crashed on a defect that ff08ff71 introduced, and the fix moved the revision. Runbook section 1: if any header field changes, open a new cohort rather than mixing rows.",
+  "scopesCollected": 0,
+  "jevCallsSpent": 0,
+  "note": "No corpus was built for this cohort, so no Jev calls were spent. Rows are preserved as a record of the failed attempt; they must not be merged into cohort c.",
+  "runs": [
+    {
+      "taskId": "r1",
+      "sessionId": "70e63859-18a6-4f0b-8c8e-2ad37ed3538e",
+      "outcome": "ok",
+      "evidence": "1 x file.read, outputSize 24421, scope emitted",
+      "rowUsable": false
+    },
+    {
+      "taskId": "r2",
+      "sessionId": "68176ed2-f400-4d93-a0ae-47c88be237d7",
+      "outcome": "ok",
+      "evidence": "1 x grep.search, outputSize 2086 (cohort a's equivalent was 2 calls at outputSize 0); answer reported 17 references across 10 files",
+      "rowUsable": false,
+      "note": "First empirical confirmation that ff08ff71 fixed search-result delivery"
+    },
+    {
+      "taskId": "r3",
+      "sessionId": "0ff8c6b2-93da-4426-a4cb-7268537ab719",
+      "outcome": "crashed",
+      "evidence": "2 tool requests (glob.match, grep.search), zero tool.output events; process exited with `The \"data\" argument must be of type string or an instance of Buffer, TypedArray, or DataView. Received undefined`",
+      "rowUsable": false,
+      "diagnosis": "A large grep result crossed LARGE_OUTPUT_THRESHOLD; ff08ff71 made outputSize reflect matches[], but writeOutputToFile still received `output ?? content` (undefined) and threw on the artifact write",
+      "fixedBy": "26021a6ca77a1220354bdf572119645e6f10d80f"
+    }
+  ]
+}

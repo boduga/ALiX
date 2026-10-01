@@ -9,6 +9,7 @@
 
 import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
 import { resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
+import { TOOL_EVENT_TYPES } from "../events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../run.js";
@@ -20,6 +21,7 @@ import { McpManager } from "../mcp/manager.js";
 import { promptUser, BASE_TOOLS } from "./helpers.js";
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 import { buildCorrelatedToolResultMessage } from "../runtime/tool-correlation.js";
+import { toolResultText } from "../tools/result-text.js";
 import type { EventLog } from "../events/event-log.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { AgentProgressKind } from "../agent/agent-liveness.js";
@@ -349,6 +351,23 @@ export async function handleToolCall(
     execName = resolveExecutableToolName(toolCall.name, offered);
   } catch (error) {
     if (!(error instanceof ToolNotFoundError)) throw error;
+    // The resolver rejection path is the only place the model's RAW requested
+    // name is still in hand — `ToolExecutor` records the post-resolution
+    // executor, so without this event a hallucinated name leaves no trace in
+    // the audit trail at all.
+    await deps.log.append({
+      ...deps.session,
+      actor: "system",
+      type: TOOL_EVENT_TYPES.REJECTED,
+      payload: {
+        toolCallId: toolCall.id,
+        requestedName: toolCall.name,
+        reason: "name-not-offered",
+        availableCount: error.offeredTools.length,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+      },
+    });
     // T5 correlation: typed attributes via helper — no loose Record, no spread
     const correlationAttrs = ` invocationId="${correlation.invocationId}" executionId="${correlation.executionId}"`;
     return {
@@ -523,9 +542,12 @@ export async function handleToolCall(
     }
   }
 
+  // Success text goes through the shared renderer: search tools answer with
+  // `matches[]`, so reading only `output`/`content` handed the model an empty
+  // <tool_result> for every grep that actually matched.
   const resultContent =
     execResult.kind === "success"
-      ? (execResult.output ?? execResult.content ?? "")
+      ? (toolResultText(execResult) || "[no output]")
       : execResult.kind === "denied"
         ? `Access denied: ${(execResult as { reason: string }).reason}`
         : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
@@ -552,8 +574,22 @@ export async function handleToolCall(
   return {
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
-    ...(execResult.kind === "success" && (execResult.changed === true || (execResult.changedFiles?.length ?? 0) > 0)
-      ? { changed: true, changedFiles: execResult.changedFiles ?? [] }
+    // `changed` is tri-state and must stay that way across this boundary.
+    // Collapsing "the tool set no flag" into `false` erases the difference
+    // between a provable no-op (`file.create` → `already_exists_identical`)
+    // and a tool that simply does not report changes (`file.delete`, or any
+    // executor that omits the field). The task loop's mutation gate reads that
+    // distinction: an explicit `false` means "this wrote nothing", while absent
+    // means "undecided", and reading either as the other either lets a no-op
+    // pass as proof of mutation or breaks every legitimate delete.
+    ...(execResult.kind === "success"
+      ? {
+          ...(execResult.changed === undefined ? {} : { changed: execResult.changed }),
+          changedFiles: execResult.changedFiles ?? [],
+          // Structured identity travels with the result so the task loop can
+          // look up the run's completion dimensions (C6).
+          ...(execResult.coordinationRunId ? { coordinationRunId: execResult.coordinationRunId } : {}),
+        }
       : {}),
   };
 }

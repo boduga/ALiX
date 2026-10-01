@@ -55,6 +55,13 @@ export interface ExecutionDeps {
    * allowlist-rejection path without a network call).
    */
   providerFactory?: (config: any) => Promise<ModelAdapter>;
+  /**
+   * Test seam: override tool-executor construction, mirroring
+   * `providerFactory`. Production adapters never set this; without it a test of
+   * a behavior's own logic (tool choice, observation) would have to stand up a
+   * real `ToolExecutor` and the session directory it expects.
+   */
+  toolExecutorFactory?: (config: any, deps: ToolExecutionDeps) => Promise<unknown>;
   signal?: AbortSignal;
 }
 
@@ -66,6 +73,27 @@ export interface ExecutionDeps {
 export interface ToolExecutionDeps extends ExecutionDeps {
   cwd: string;
   eventLog: any; // EventLog
+  /**
+   * Provider-facing tool names on the grounded route → the model-facing
+   * candidate names the rest of ALiX uses. The route offers `web_search` /
+   * `web_fetch` to the provider (`tools/web-search.ts:18`,
+   * `tools/web-fetch.ts:351`), while the task loop freezes
+   * `builtin:alix_web_search` / `builtin:alix_web_fetch`. Without this
+   * normalisation the same tool would land in two different candidate key
+   * spaces and no actual-vs-Jev comparison could be formed across the paths.
+   */
+  toolCandidateAliases?: Record<string, string>;
+  /**
+   * Identity for the selection scope this route may produce. The caller owns
+   * the scope id; the route supplies only the facts it uniquely has (the exact
+   * tools it offered, the choice the model made, and how that choice turned
+   * out). Absent means this caller does not observe selections.
+   */
+  selectionScope?: {
+    scopeId: string;
+    iteration: number;
+    sessionId: string;
+  };
 }
 
 /** Build the provider a behavior will call, honoring the factory seam. */
@@ -203,6 +231,7 @@ async function newToolCallId(): Promise<string> {
  * two behaviors that run tools construct it identically.
  */
 async function makeToolExecutor(config: any, deps: ToolExecutionDeps): Promise<any> {
+  if (deps.toolExecutorFactory) return deps.toolExecutorFactory(config, deps);
   const { ToolExecutor } = await import("../tools/executor.js");
   return new ToolExecutor(
     config,
@@ -269,6 +298,7 @@ export async function executeGroundedChatBehavior(
   const allowedSet = new Set(route.allowedTools);
   const tools = ([webSearchTool(), webFetchTool({ allowDomains: config.permissions?.allowNetworkDomains ?? [] })] as ToolDef[])
     .filter((t) => allowedSet.has(t.name));
+  const selectionSignatures = new Map<string, number>();
 
   // First call: model may issue a tool call for fresh information
   const response = await provider.complete({
@@ -299,6 +329,53 @@ export async function executeGroundedChatBehavior(
       runId: deps.context?.runId,
     });
 
+    // Selection observation for this external turn. The surface recorded is
+    // exactly the `tools` array handed to `provider.complete` above — not a
+    // later reconstruction — and the choice is resolved against it. A choice
+    // that does not resolve is recorded as invalid rather than matched to a
+    // convenient candidate. Emitted through the shared neutral assembly, so
+    // this path and the task loop describe a selection identically.
+    if (deps.selectionScope) {
+      // Canonical candidate names: the provider-facing name the model emitted
+      // (`chosen`) is a fact; the candidate id must be the same key the task
+      // loop uses for that tool, so the two paths stay comparable.
+      const aliases = deps.toolCandidateAliases;
+      const canonical = (name: string): string => aliases?.[name] ?? name;
+      const frozen = tools.map(tool => ({
+        candidateId: `builtin:${canonical(tool.name)}`,
+        domain: "builtin" as const,
+        label: canonical(tool.name),
+        description: tool.description ?? "",
+      }));
+      const chosenCandidateId = frozen.find(candidate => candidate.label === canonical(tc.name))?.candidateId;
+      const [{ emitSelectionObservation }, { hashArgs }] = await Promise.all([
+        import("../observability/tool-selection-observation.js"),
+        import("../tools/executor.js"),
+      ]);
+      await emitSelectionObservation(
+        deps.eventLog,
+        { sessionId: deps.selectionScope.sessionId, actor: "system" },
+        {
+          scopeId: deps.selectionScope.scopeId,
+          iteration: deps.selectionScope.iteration,
+          candidates: frozen,
+          chosen: tc.name,
+          chosenCandidateId: chosenCandidateId ?? `builtin:${canonical(tc.name)}`,
+          executor: tc.name,
+          argsSignature: `${tc.name}:${hashArgs(tc.args ?? {})}`,
+          seenSignatures: selectionSignatures,
+          executorSuccess: toolResult.kind === "success",
+          hasContent: toolResult.kind === "success",
+          ...(chosenCandidateId
+            ? {}
+            : { invalidSelection: { toolName: tc.name, reason: "chosen tool is not in the offered surface" } }),
+        },
+      ).catch(() => {
+        // Observation is instrumentation: a logging failure must never break
+        // the external turn.
+      });
+    }
+
     const toolContent = toolResult.kind === "success"
       ? (toolResult.output || toolResult.content || "(no output)")
       : toolResult.kind === "error"
@@ -321,5 +398,19 @@ export async function executeGroundedChatBehavior(
   }
 
   // No tool call — model answered directly
+  if (deps.selectionScope) {
+    const { emitSelectionNotApplicable } = await import("../observability/tool-selection-observation.js");
+    await emitSelectionNotApplicable(
+      deps.eventLog,
+      { sessionId: deps.selectionScope.sessionId, actor: "system" },
+      {
+        scopeId: deps.selectionScope.scopeId,
+        iteration: deps.selectionScope.iteration,
+        route: "grounded",
+        reason: tools.length > 0 ? "no_tool_call" : "no_tools_offered",
+      },
+    ).catch(() => {
+    });
+  }
   return response.text || "(no response)";
 }

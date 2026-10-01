@@ -23,7 +23,7 @@ import type { ToolResult } from "../tools/types.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationPlanner } from "./coordination-planner.js";
 import { createPlannerGenerator } from "./planner-model.js";
-import { CoordinationScheduler } from "./coordination-scheduler.js";
+import { createCoordinationScheduler } from "./coordination-scheduler.js";
 import { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 import { PolicyGate } from "../policy/policy-gate.js";
@@ -61,6 +61,19 @@ export type CoordinationToolDeps = {
   /** Injectable for tests (defaults to a live store/planner). */
   store?: CoordinationStore;
   planner?: CoordinationPlanner;
+  /**
+   * Injectable worker executor (defaults to the subagent or in-process one
+   * chosen from `config.subagents.enabled`).
+   *
+   * This exists because the operator-abort path could not otherwise be driven
+   * end-to-end from a test: `handleCoordinationRun` built its executor
+   * internally, so a test could only abort BEFORE the call — which takes the
+   * `signal.aborted` early-return and never reaches the abort LISTENER, the
+   * in-flight `cancellation()` await, or a real worker being aborted mid-execute.
+   * Those are exactly the branches that decide whether a cancelled run leaves
+   * leases held, and the unit tests of `createCancelGuard` cannot see them.
+   */
+  executor?: CoordinationWorkerExecutor;
 };
 
 /** ExtraHandlers record for ToolExecutor (mirrors the `delegate` wiring). */
@@ -250,9 +263,12 @@ async function handleCoordinationRun(
   const registry = new OwnershipRegistry(deps.cwd);
   // Unified execution: when subagents are enabled, workers run as
   // subagent child processes (same dispatch/ownership/tiers/session-mode
-  // as delegate); otherwise the in-process executor is used.
+  // as delegate); otherwise the in-process executor is used. An injected
+  // executor wins, so the abort path is drivable end-to-end.
   let executor: CoordinationWorkerExecutor;
-  if (config.subagents?.enabled) {
+  if (deps.executor) {
+    executor = deps.executor;
+  } else if (config.subagents?.enabled) {
     const { SubagentWorkerExecutor } = await import("./subagent-worker-executor.js");
     executor = new SubagentWorkerExecutor({
       sessionId: `coord-sub-${runId}`,
@@ -263,7 +279,7 @@ async function handleCoordinationRun(
     const { DefaultWorkerExecutor } = await import("./worker-executor.js");
     executor = new DefaultWorkerExecutor();
   }
-  const scheduler = new CoordinationScheduler(
+  const scheduler = createCoordinationScheduler(
     {
       cwd: deps.cwd,
       daemonInstanceId: `tool-${process.pid}`,
@@ -324,18 +340,28 @@ async function handleCoordinationRun(
   if (result.finalStatus === "failed") {
     return { kind: "error", message: lines.join("\n"), retryable: false };
   }
-  // Report the owned outputs its completed workers wrote. A worker only
-  // completes after writing its owned paths, so this is the run's real
-  // workspace change — the coordinator itself never mutates anything, and the
-  // completion gate needs executed evidence rather than a claim.
-  const changedFiles = [...new Set(
-    (run?.workers ?? [])
-      .filter(worker => worker.status === "completed")
-      .flatMap(worker => worker.ownershipScopes ?? []),
-  )].filter(entry => !entry.includes("*") && !entry.includes("?") && /\.[A-Za-z0-9]{1,5}$/.test(entry));
+  // Report what the run's workers actually wrote, from explicit mutation
+  // records — never from worker status or ownership scopes. A completed worker
+  // may have written nothing, and a worker that failed after writing a file
+  // still wrote it; an assigned path is a claim about where a worker may write,
+  // not evidence that it did. Paths are normalized and containment-checked
+  // inside the derivation.
+  const { deriveCoordinationEvidence } = await import("./coordination-evidence.js");
+  const sessionEvents = deps.eventLog
+    ? (await deps.eventLog.readAll()).filter(
+        event => !deps.sessionId || event.sessionId === deps.sessionId,
+      )
+    : [];
+  const changedFiles = deriveCoordinationEvidence(
+    { events: sessionEvents as Array<{ type: string; payload?: Record<string, unknown> }> },
+    { cwd: deps.cwd },
+  ).changedFiles;
   return {
     kind: "success",
     output: lines.join("\n"),
+    // Structured run identity: the completion gate resolves this run's own
+    // completion dimensions rather than inferring them from the prose above.
+    ...(run ? { coordinationRunId: run.id } : {}),
     ...(changedFiles.length > 0 ? { changed: true, changedFiles } : {}),
   };
 }
@@ -358,6 +384,32 @@ async function handleCoordinationList(
     `${run.id}  ${run.status}  ${run.workers.length} worker(s)  ${(run.rootGoal ?? "").slice(0, 80)}`,
   );
   return { kind: "success", output: `Coordination runs (newest first):\n${lines.join("\n")}` };
+}
+
+/**
+ * Derived completion lines for a run. `Status` is the terminal execution state
+ * only: it does not imply aggregation, a success outcome, or verification.
+ */
+async function completionLines(
+  run: { id: string; sessionId: string } & Parameters<typeof import("./coordination-types.js").deriveCoordinationCompletion>[0],
+  cwd: string,
+): Promise<string[]> {
+  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
+    await import("./coordination-types.js");
+  const { computeAggregationSourceFingerprint } = await import("./coordination-aggregation-fingerprint.js");
+  const { readRunSessionEvents } = await import("./coordination-view.js");
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run as never),
+    aggregateEventMatches: matchesAttachedAggregateEvent(
+      run as never,
+      await readRunSessionEvents(cwd, run.sessionId),
+    ),
+  });
+  return [
+    `Completion: ${coordinationCompletionLabel(completion)}`,
+    `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
+    `outcome=${completion.outcome} verification=${completion.verification}`,
+  ];
 }
 
 async function handleCoordinationStatus(
@@ -391,6 +443,7 @@ async function handleCoordinationStatus(
   }
   if (run.aggregateResultRef) lines.push(`Aggregate: ${run.aggregateResultRef}`);
   if (run.outcome) lines.push(`Outcome: ${run.outcome}`);
+  lines.push(...(await completionLines(run, deps.cwd)));
   // Per-worker identity is what callers ask for by name (worker id, task id,
   // dependencies, scope, attempt, retry count, result reference). Answering it
   // here keeps that read inside this tool instead of sending the caller to
@@ -445,7 +498,16 @@ async function handleCoordinationResults(
     aggregateStore,
   });
   const summary = await completionService.finalize(runId);
-  return { kind: "success", output: summarizeAggregate(runId, summary) };
+  const aggregateLines = summarizeAggregate(runId, summary);
+  const finalized = await store.load(runId);
+  // Show the derived completion next to the aggregate so a caller can tell
+  // "aggregate generated" from "verified" (they are different facts).
+  return {
+    kind: "success",
+    output: finalized
+      ? `${aggregateLines}\n${(await completionLines(finalized, deps.cwd)).join("\n")}`
+      : aggregateLines,
+  };
 }
 
 function summarizeAggregate(runId: string, aggregate: any): string {

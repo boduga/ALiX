@@ -1,0 +1,12 @@
+{
+  "cohortId": "t3d-2026-09-29-d",
+  "gitRevision": "54c87392f0170e9f51f90238698f6bb64e4e5fa2",
+  "projectorVersion": "tool-selection/v1",
+  "jevModel": "jev-latest",
+  "jevConfigHash": "sha256:db1f398baddea494e4690ccc8c2b823132bdbaf1f6e8a350373d6fb31560cd23",
+  "candidateSchemaVersion": "sha256:0839ab4948d0de49d966a9493b54947284e4e7b2e7303d679417d37ba479fea4",
+  "startedAt": "2026-09-29T07:41:59Z",
+  "supersedes": [],
+  "supersedesReason": "first external-only cohort; F4 instrumentation (sentinel path + grounded route + canonical ids) landed in 77dcc4e0..54c87392",
+  "purpose": "external/MCP selection observability — cohort c contributed zero external scopes"
+}
