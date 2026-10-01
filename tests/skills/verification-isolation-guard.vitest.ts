@@ -24,6 +24,9 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 function initRepo(dir: string, marker: string): void {
+  // `node -e` with a forward-slash-free relative read: runCommand spawns via
+  // /bin/sh, which does not exist on Windows, so the probe must be a plain
+  // `node probe.cjs` rather than shell syntax.
   writeFileSync(join(dir, 'probe.cjs'), 'process.stdout.write(require("node:fs").readFileSync("marker.txt","utf8").trim()+"\\n");\n');
   writeFileSync(join(dir, 'marker.txt'), marker);
   git(dir, 'init', '-q');
@@ -97,5 +100,25 @@ describe('verification isolation guard', () => {
   it('does not let the opt-in leak to a different root', () => {
     process.env.ALIX_VERIFY_ISOLATION_ROOT = dir;
     expect(isVerificationSandbox(join(dir, 'elsewhere'))).toBe(false);
+  });
+
+  /**
+   * Separator handling is a real correctness concern, not cosmetics: the
+   * matcher originally split on the RUNNING platform's `sep`, so a
+   * `\`-separated Windows path matched nothing on a POSIX test host and the
+   * `unit-windows` lane reported a real sandbox as unprotected. Both shapes are
+   * asserted here so the platform lane and the POSIX lane agree.
+   */
+  it('matches sandbox markers regardless of path separator', () => {
+    expect(isVerificationSandbox('C:\\repo\\node_modules\\pkg')).toBe(true);
+    expect(isVerificationSandbox('/repo/node_modules/pkg')).toBe(true);
+    expect(isVerificationSandbox('C:\\tmp\\verify-sandbox')).toBe(true);
+    expect(isVerificationSandbox('/tmp/verify-sandbox')).toBe(true);
+    expect(isVerificationSandbox('C:\\repo\\.alix\\verify')).toBe(true);
+  });
+
+  it('still refuses a Windows temp dir and a Windows workspace', () => {
+    expect(isVerificationSandbox('C:\\Users\\x\\AppData\\Local\\Temp\\alix-verify-1')).toBe(false);
+    expect(isVerificationSandbox('C:\\Users\\x\\Projects\\Monolith')).toBe(false);
   });
 });

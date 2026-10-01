@@ -1,6 +1,6 @@
 // src/skills/test-isolation.ts
 import { spawn } from "node:child_process";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 /**
  * Why isolation is refused for a given root.
@@ -31,15 +31,20 @@ export function isVerificationSandbox(root: string): boolean {
   // only general escape hatch, and it is checked against the RESOLVED path so
   // it cannot be satisfied by naming a parent.
   if (process.env.ALIX_VERIFY_ISOLATION_ROOT === resolved) return true;
-  const parts = resolved.split(sep);
-  const leaf = parts[parts.length - 1] ?? "";
+  // Normalise separators before matching. Matching on the platform's own `sep`
+  // means a `\`-separated Windows path tested on POSIX matches nothing, and
+  // the failure direction is asymmetric: a real sandbox silently stops being
+  // isolated.
+  const segments = resolved.split(/[\\/]+/).filter(Boolean);
+  const leaf = segments[segments.length - 1] ?? "";
+  const hasDir = (name: string): boolean => segments.includes(name);
   // Deliberately NOT "anything under /tmp". A temp directory is not evidence
   // of anything: this repo runs real agent work and real git repos in temp
   // dirs, and the workspace itself may live there. The only structural signal
   // trusted is a directory NAMED as a verification sandbox.
-  return leaf === "verify-sandbox"
-    || resolved.includes(`${sep}node_modules${sep}`)
-    || resolved.includes(`${sep}.alix${sep}verify`);
+  if (leaf === "verify-sandbox") return true;
+  if (hasDir("node_modules")) return true;
+  return segments.includes(".alix") && segments[segments.length - 1] === "verify";
 }
 
 function gitStashList(cwd: string): Promise<string> {
@@ -135,7 +140,16 @@ export async function runWithIsolation(
 
 function runCommand(cmd: string, cwd: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("/bin/sh", ["-c", cmd], { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    // Windows has no `/bin/sh`, so a hardcoded POSIX shell made every
+    // verification command fail there with a spawn error rather than a real
+    // result — indistinguishable from the command itself failing. Use the
+    // platform's own interpreter; command text must be valid for it.
+    const isWindows = process.platform === "win32";
+    const proc = spawn(
+      isWindows ? process.env.ComSpec ?? "cmd.exe" : "/bin/sh",
+      isWindows ? ["/d", "/s", "/c", cmd] : ["-c", cmd],
+      { cwd, stdio: ["pipe", "pipe", "pipe"] },
+    );
     let output = "";
     proc.stdout?.on("data", (d) => (output += d.toString()));
     proc.stderr?.on("data", (d) => (output += d.toString()));
