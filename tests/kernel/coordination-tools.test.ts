@@ -118,6 +118,135 @@ describe("coordination chat tools", () => {
     assert.equal(runs[0].workers[0].status, "cancelled");
   });
 
+  it("aborts a running worker end-to-end and leaves no lease held", async () => {
+    // The gap `deps.executor` closes. Every existing cancel test aborts BEFORE
+    // the call, which takes `signal.aborted` at the top of `handleCoordinationRun`
+    // and never reaches the abort LISTENER, a worker actually executing, or the
+    // in-flight `cancellation()` await. So the branches that decide whether a
+    // cancelled run leaves leases held were only covered by unit tests of
+    // `createCancelGuard` — which cannot see the scheduler at all.
+    //
+    // This drives the real entry point with a worker mid-execution.
+    let observedSignal: AbortSignal | undefined;
+    let started!: () => void;
+    const workerStarted = new Promise<void>(resolve => { started = resolve; });
+    let aborted = false;
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        await store.save(run);
+        const queued = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "slow",
+          goalPrompt: "do", status: "pending", requiredCapabilities: ["filesystem.write"],
+        });
+        await store.addWorker(run.id, queued);
+        return { valid: true, errors: [], run: { ...run, workers: [queued] } };
+      },
+    } as any;
+    const executor = {
+      execute: async (_worker: unknown, _context: unknown, signal: AbortSignal) => {
+        observedSignal = signal;
+        started();
+        // Hold the worker open until the abort lands, exactly as a real
+        // long-running execution would be.
+        await new Promise<void>((resolve) => {
+          signal.addEventListener("abort", () => { aborted = true; resolve(); }, { once: true });
+        });
+        return { outcome: "failure" as const, error: "aborted" };
+      },
+    };
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, executor });
+    const controller = new AbortController();
+
+    const pending = handlers[COORDINATION_RUN_TOOL](
+      { goal: "coordinate a slow worker" },
+      { toolCallId: "call-e2e", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as any,
+    );
+    // Abort only once the worker is genuinely mid-execution.
+    await workerStarted;
+    controller.abort();
+
+    await assert.rejects(
+      () => pending,
+      (error: Error) => error.name === "ExecutionCancelledError",
+    );
+
+    // The worker's own signal must have been aborted, not just the caller's —
+    // that is what stops a real child process.
+    assert.equal(aborted, true, "worker execution signal should be aborted");
+    assert.ok(observedSignal, "the executor should have received a signal");
+
+    // Terminal state, and no lease survives: `cancelRun` releases ownership
+    // before marking the worker cancelled, and a run left `running` with a
+    // held lease is invisible to the reclaim sweeps.
+    const runs = await store.list();
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, "cancelled");
+    for (const worker of runs[0].workers) {
+      assert.equal(worker.status, "cancelled");
+      assert.deepEqual(worker.leaseIds ?? [], [], "a cancelled worker must hold no lease");
+    }
+  });
+
+  it("records coordination.cancel.failed when the run cannot be finalized", async () => {
+    // The record that proves a cancel did not complete. Without it a failed
+    // cancel and a successful one are indistinguishable, and the run stays
+    // `running` under an owner the reclaim sweeps will not touch.
+    const appended: Array<{ type: string; payload: unknown }> = [];
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        run.hostKind = "cli";
+        await store.save(run);
+        const queued = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "queued",
+          goalPrompt: "do", status: "pending", requiredCapabilities: ["filesystem.write"],
+        });
+        await store.addWorker(run.id, queued);
+        return { valid: true, errors: [], run: { ...run, workers: [queued] } };
+      },
+    } as any;
+    const failingStore = {
+      load: async () => { throw new Error("store unavailable"); },
+      updateRun: async () => { throw new Error("store unavailable"); },
+      patchWorker: async () => { throw new Error("store unavailable"); },
+      save: async () => {},
+      addWorker: async () => {},
+      list: async () => [],
+    } as unknown as CoordinationStore;
+    const handlers = createCoordinationHandlers({
+      cwd,
+      config: testConfig(),
+      store: failingStore,
+      planner,
+      sessionId: "s1",
+      eventLog: {
+        append: async (event: { type: string; payload: unknown }) => { appended.push(event); },
+        readAll: async () => [],
+      } as any,
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    // The turn still reports a cancellation rather than surfacing a store
+    // error — but the failure is on the record.
+    await assert.rejects(
+      () => handlers[COORDINATION_RUN_TOOL](
+        { goal: "coordinate" },
+        { toolCallId: "call-fail", name: COORDINATION_RUN_TOOL, args: {}, signal: controller.signal } as any,
+      ),
+      (error: Error) => error.name === "ExecutionCancelledError",
+    );
+
+    const recorded = appended.filter(e => e.type === "coordination.cancel.failed");
+    assert.equal(recorded.length, 1, "exactly one cancel-failure record");
+    const payload = recorded[0].payload as { runId: string; reason: string; error: string };
+    assert.match(payload.error, /store unavailable/);
+    assert.equal(payload.reason, "operator cancel could not finalize the run");
+  });
+
   it("reports a rejected plan as retryable with recovery steps", async () => {
     const planner = {
       plan: async () => ({

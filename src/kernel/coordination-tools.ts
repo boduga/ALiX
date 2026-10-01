@@ -61,6 +61,19 @@ export type CoordinationToolDeps = {
   /** Injectable for tests (defaults to a live store/planner). */
   store?: CoordinationStore;
   planner?: CoordinationPlanner;
+  /**
+   * Injectable worker executor (defaults to the subagent or in-process one
+   * chosen from `config.subagents.enabled`).
+   *
+   * This exists because the operator-abort path could not otherwise be driven
+   * end-to-end from a test: `handleCoordinationRun` built its executor
+   * internally, so a test could only abort BEFORE the call — which takes the
+   * `signal.aborted` early-return and never reaches the abort LISTENER, the
+   * in-flight `cancellation()` await, or a real worker being aborted mid-execute.
+   * Those are exactly the branches that decide whether a cancelled run leaves
+   * leases held, and the unit tests of `createCancelGuard` cannot see them.
+   */
+  executor?: CoordinationWorkerExecutor;
 };
 
 /** ExtraHandlers record for ToolExecutor (mirrors the `delegate` wiring). */
@@ -250,9 +263,12 @@ async function handleCoordinationRun(
   const registry = new OwnershipRegistry(deps.cwd);
   // Unified execution: when subagents are enabled, workers run as
   // subagent child processes (same dispatch/ownership/tiers/session-mode
-  // as delegate); otherwise the in-process executor is used.
+  // as delegate); otherwise the in-process executor is used. An injected
+  // executor wins, so the abort path is drivable end-to-end.
   let executor: CoordinationWorkerExecutor;
-  if (config.subagents?.enabled) {
+  if (deps.executor) {
+    executor = deps.executor;
+  } else if (config.subagents?.enabled) {
     const { SubagentWorkerExecutor } = await import("./subagent-worker-executor.js");
     executor = new SubagentWorkerExecutor({
       sessionId: `coord-sub-${runId}`,

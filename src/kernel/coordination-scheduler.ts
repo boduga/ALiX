@@ -498,6 +498,25 @@ export class CoordinationScheduler {
       };
       const result = await this.deps.executor.execute(worker, context, signal);
 
+      // An aborted execution is a CANCELLATION, whatever the executor returns.
+      // The catch path below already treats a thrown AbortError this way, but a
+      // killed worker child does not throw — it RESOLVES with a failure result,
+      // which then took the retry/failure branches below and overwrote the
+      // `cancelled` status `cancelRun` had just written. That broke the durable
+      // contract: an operator cancel must leave the run and its workers
+      // `cancelled`, never `failed`, because a `failed` run reads as a
+      // product failure and a `pending` retry is re-dispatched by the next tick.
+      if (signal.aborted) {
+        try {
+          await this.patchWorkerWithRetry(runId, workerId, {
+            status: "cancelled", blockReason: "cancelled", failureKind: "cancelled",
+            error: result.error ?? "Worker cancelled",
+            completedAt: new Date().toISOString(),
+          });
+        } catch { /* best-effort */ }
+        return;
+      }
+
       if (result.outcome === "success") {
         const resultRef = await this.resultStore.persist(worker, runId, result);
         await this.patchWorkerWithRetry(runId, workerId, {
