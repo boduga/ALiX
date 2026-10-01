@@ -27,9 +27,16 @@ eligible candidates under usage gating.
   repo runs real agent work and real git repos there. Structural opt-ins: a
   directory named `verify-sandbox`, anything under `node_modules/`, or
   `ALIX_VERIFY_ISOLATION_ROOT` naming the RESOLVED root exactly (a parent path
-  does not satisfy it). Contract violation to report, not to work around: a
-  verification that stashes the tree it is verifying passes for code nobody
-  wrote. Pinned by `tests/skills/verification-isolation-guard.vitest.ts`.
+  does not satisfy it). Marker matching is separator-agnostic (`split(/[\\/]+/)`,
+  never the platform's `sep`): a `\`-separated path matched no marker on POSIX
+  and a real sandbox silently lost isolation. `runCommand` uses the platform
+  interpreter (`ComSpec` on Windows, `/bin/sh` elsewhere) — a hardcoded POSIX
+  shell made every Windows verification fail as a spawn error, reported as
+  `failed` and indistinguishable from the command genuinely failing. Contract
+  violation to report, not to work around: a verification that stashes the tree
+  it is verifying passes for code nobody wrote. Both path shapes are pinned in
+  `tests/skills/verification-isolation-guard.vitest.ts` so the Windows and
+  POSIX lanes assert one table.
 
 - **Discovery roots (durable):** read paths (slash catalog, agent/session
   catalogs, `run` route detection, `skills run` resolution) union
