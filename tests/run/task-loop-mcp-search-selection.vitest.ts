@@ -152,6 +152,35 @@ beforeAll(() => { process.env.ALIX_TOOL_SELECTION_TRACE = '1'; });
 afterAll(() => { delete process.env.ALIX_TOOL_SELECTION_TRACE; });
 
 describe('F4 Bypass A — the MCP search sentinel is a recorded selection', () => {
+  /**
+   * The gate exists on this path. It did not, and nothing caught it: the
+   * telemetry gate added in 88a01489 gated only
+   * `src/observability/tool-selection-observation.ts`, while the emitter this
+   * file exercises is a SEPARATE wrapper in `task-loop/main.ts` that appends
+   * directly. Every other assertion in this suite passed with the flag
+   * deleted — which is how a suite ends up proving nothing.
+   *
+   * So this asserts the ABSENCE of the event with the flag off. That is the
+   * direction that actually catches a missing gate.
+   */
+  it('writes nothing when selection tracing is off', async () => {
+    delete process.env.ALIX_TOOL_SELECTION_TRACE;
+    const offProvider = createScriptedProvider([
+      { toolCalls: [{ name: 'alix_mcp_search_tools', id: 'm0', args: { query: 'echo' } }] },
+      { text: 'Found the echo tool.' },
+      { text: 'Found the echo tool.' },
+    ]);
+    const off = await makeDeps({ provider: offProvider, task: 'Find an MCP tool that echoes text.' });
+    try {
+      await runTaskLoop(off.deps);
+      const events = await off.log.readAll();
+      expect(events.filter(e => e.type === 'tool.selection.observed')).toHaveLength(0);
+    } finally {
+      off.cleanup();
+      process.env.ALIX_TOOL_SELECTION_TRACE = '1';
+    }
+  });
+
   it('emits a scope whose chosen candidate is builtin:alix_mcp_search_tools', async () => {
     const provider = createScriptedProvider([
       { toolCalls: [{ name: 'alix_mcp_search_tools', id: 'm1', args: { query: 'echo' } }] },

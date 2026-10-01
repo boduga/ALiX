@@ -291,7 +291,7 @@ export function buildSelectionObservation(input: SelectionObservationInput): Sel
  * and the collection runbook already require an explicit opt-in step, so
  * nothing that needs the data loses it.
  */
-function selectionTraceEnabled(): boolean {
+export function selectionTraceEnabled(): boolean {
   return process.env.ALIX_TOOL_SELECTION_TRACE === "1";
 }
 

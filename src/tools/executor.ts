@@ -604,11 +604,24 @@ export class ToolExecutor {
     // Verify argument hash match before execution (M0.9 permissive placeholder)
     let result = await this.router.execute(request);
 
-    // Append repair hint to success output
+    // Append repair hint to success output. Routed through `toolResultText`
+    // rather than hand-picking `output`/`content`: those two are only two of
+    // the success payload shapes. A `grep.search` carries `matches[]` and a
+    // `file.exists` carries `exists`, so the old pair-of-branches form wrote
+    // NO hint for either — and this module is the exact defect
+    // `result-text.ts` exists to prevent, one layer up.
     if (repairHint && result.kind === "success") {
       const hintBlock = `\n\n[Tool Repair Hint] ${repairHint}`;
-      if (result.output) result.output += hintBlock;
-      else if (result.content) result.content += hintBlock;
+      const rendered = toolResultText(result);
+      if (rendered.length > 0) {
+        result.output = `${rendered}${hintBlock}`;
+      } else if (result.output !== undefined) {
+        result.output = `${result.output}${hintBlock}`;
+      } else if (result.content !== undefined) {
+        result.content = `${result.content}${hintBlock}`;
+      } else if (result.value !== undefined) {
+        result.value = `${result.value}${hintBlock}`;
+      }
     }
 
     // Classify MCP errors with hints

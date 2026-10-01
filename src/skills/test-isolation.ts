@@ -3,19 +3,6 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
 /**
- * Why isolation is refused for a given root.
- *
- * The isolation contract is "protect uncommitted work from the command". It
- * only holds when the command is not supposed to be looking AT that work.
- * Verifying an agent's edits is exactly that case: stashing the edits and
- * running the suite verifies the tree from BEFORE the change.
- */
-export type IsolationRefusal =
-  | "not-a-repository"
-  | "not-owned-by-verification"
-  | "isolation-not-requested";
-
-/**
  * True only when this root is a scratch/verification sandbox that isolation may
  * freely stash in.
  *

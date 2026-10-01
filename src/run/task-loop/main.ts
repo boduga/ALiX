@@ -20,6 +20,7 @@ import {
   freezeToolCandidates,
 } from "../../decision/tool-selection-candidates.js";
 import type { SurfaceGap } from "../../observability/tool-selection-observation.js";
+import { selectionTraceEnabled } from "../../observability/tool-selection-observation.js";
 import type { EventLog } from "../../events/event-log.js";
 import type { MemoryStore } from "../../utils/memory/store.js";
 import type { ExecutionContext } from "../../observability/execution-context.js";
@@ -162,6 +163,13 @@ async function emitSelectionObservation(
       ? {}
       : { invalidSelection: { toolName: input.toolCall.name, reason: "chosen tool is not in the offered surface" } }),
   });
+  // The gate lives on BOTH emit sites, not just the shared emitter. This
+  // wrapper appends directly and is the path the runbook's `alix run` batch
+  // uses, so gating only `tool-selection-observation.ts` left the hot path
+  // writing the very telemetry the gate exists to suppress. Proven by
+  // deleting ALIX_TOOL_SELECTION_TRACE and watching
+  // `task-loop-mcp-search-selection.vitest.ts` still pass.
+  if (!selectionTraceEnabled()) return;
   await log.append({
     ...session,
     actor: "system",

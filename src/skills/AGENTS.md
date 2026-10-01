@@ -27,7 +27,10 @@ eligible candidates under usage gating.
   repo runs real agent work and real git repos there. Structural opt-ins: a
   directory named `verify-sandbox`, anything under `node_modules/`, or
   `ALIX_VERIFY_ISOLATION_ROOT` naming the RESOLVED root exactly (a parent path
-  does not satisfy it). Marker matching is separator-agnostic (`split(/[\\/]+/)`,
+  does not satisfy it). That list is COMPLETE and is four entries, not three:
+  a directory named `verify-sandbox`, anything under `node_modules/`, any
+  `.alix/verify/` subtree, or the env opt-in. Marker matching is
+  separator-agnostic (`split(/[\\/]+/)`,
   never the platform's `sep`): a `\`-separated path matched no marker on POSIX
   and a real sandbox silently lost isolation. `runCommand` uses the platform
   interpreter (`ComSpec` on Windows, `/bin/sh` elsewhere) — a hardcoded POSIX

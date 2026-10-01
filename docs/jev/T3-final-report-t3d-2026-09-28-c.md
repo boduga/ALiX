@@ -135,3 +135,23 @@ a coverage gap, not grounds to discard the 32-scope cohort.
 Only after step 3's cohort is collected and analysed is a T4 experiment worth
 reconsidering. Nothing in this report authorises a runtime route, a
 `DecisionType`, or a shadow→active change for tool selection.
+
+## 8. Finding disposition (added at branch close)
+
+Recorded so a reader does not have to infer intent from silence. "Closed" means
+closed in CODE, not in this document.
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 | Verification requirement detection silent (0/8) | **OPEN, deliberately.** `objectiveEvidenceRequirements` computes `verification = mutation && …`, so a verification-only objective ("run the tests and confirm") still fires nothing. Deliberately NOT closed: widening it changes which objectives demand verification evidence and was never in scope for this branch. The 0/8 is a detection gap, not a selector failure. |
+| 2 | `verify.claim` / `shell.run` absent from read-only surface | **PARTIAL by decision.** `verify.claim` restored (it fetches and mutates nothing); `shell.run` stays out — arbitrary command execution can mutate the workspace. Verification-shaped work needing execution belongs on the `shellTask` route, where it is per-call `ask`-gated rather than impossible. The blocked case is now surfaced to the MODEL as a `<surface_constraint>` notice instead of silently answered from inspection. |
+| 3 | Coordination completion is not verification | CLOSED — C1–C6. |
+| 4 | MCP/external family produced zero scopes | CLOSED — F4, plus cohort D. |
+| 5 | Jev re-scoring is not idempotent | **ACCEPTED, not fixed.** Re-scoring the same corpus yields 19/32 vs 18/32 agreement across builds. Left alone deliberately: the verifier's `experiment-only` verdict means no promotion decision consumes a re-score, so there is no correctness exposure to fix. It would only matter if T4 were reopened, at which point idempotence becomes a blocking prerequisite. |
+| 6 | No-op mutation unobservable | CLOSED — and worse than "unobservable": the no-op was being accepted as mutation evidence. |
+| 7 | Iteration accounting differs across emitters | CLOSED — the loop's own count is now preferred over a recount. |
+| 8 | Scoper not task-conditioned | CLOSED (ranking only; admission deliberately unchanged). |
+| 9 | `done` approval-gated interactively, auto-allowed headless | **ACCEPTED as intended.** `policy-gate.ts` carries an explicit rationale: a headless delegate child has no approval store, so denying `task.complete` means a subagent can never finish early and always burns its full iteration budget. Not a defect. |
+
+T4 and T5 remain unauthorised. The gate that keeps them closed is the
+`experiment-only` verdict in §1 of this report.

@@ -57,12 +57,17 @@ export type ScopingProvenance = {
   /**
    * The scoper's own relevance ordering of the admitted surface — the
    * relevance signal a selector comparison can cite, NOT a next-tool
-   * preference: it answers "how much does this tool's description overlap the
+   * preference: it answers "how much does this tool's description match the
    * task text", so presenting it as the deterministic selection baseline would
-   * compare two different questions. Native semantics: the score is the number
-   * of overlapping task tokens (0 for core tools admitted on membership rather
-   * than relevance). Only admitted tools appear, so `set(ranking) ⊆
-   * set(offered)`.
+   * compare two different questions. Native semantics: the score is a
+   * CONTENT-TOKEN IDF sum over the offered surface (English function words
+   * scored as absent; see `weightedScore`). It was a raw overlapping-token
+   * count until T3 finding 8, which showed it ranked a tool matching four pure
+   * connectives above one matching two content words. Core tools DO receive a
+   * real score — they are admitted on membership, but the recorded ranking is
+   * computed the same way for every admitted tool so the ordering is
+   * comparable across the whole surface. Only admitted tools appear, so
+   * `set(ranking) ⊆ set(offered)`.
    */
   ranking: Array<{ tool: string; score: number }>;
 };
