@@ -45,6 +45,12 @@ export interface IterationVerificationParams {
   contextPressure: ReturnType<typeof createContextPressureTracker>;
   contextBudget: ContextBudget;
   lastInvocationId: string;
+  /**
+   * The agent's working directory — the root verification runs against. Must be
+   * the real CWD: a post-change check that does not see the change is not a
+   * verification.
+   */
+  cwd: string;
 }
 
 export async function runIterationVerification(p: IterationVerificationParams): Promise<{
@@ -55,7 +61,7 @@ export async function runIterationVerification(p: IterationVerificationParams): 
     sessionState, config, log, session, evidenceTask, evidenceTaskType,
     successfulToolEvidence, taskType, hasMutations, stateMachine, maxRepairs,
     enhancedVerifier, messages, sessionId, sessionDir, streamed,
-    contextRotThreshold, contextPressure, contextBudget, lastInvocationId,
+    contextRotThreshold, contextPressure, contextBudget, lastInvocationId, cwd,
   } = p;
   let repairCount = p.repairCount;
   const i = p.iteration;
@@ -93,11 +99,12 @@ export async function runIterationVerification(p: IterationVerificationParams): 
 
       const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
 
-      // Run checks in cost order
+      // Run checks in cost order. The root is the agent's CWD, not "." —
+      // this verification must see the edits the agent just made.
       for (const endCheck of plan.checks) {
         await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
-        const verResult = await runVerification(".", endCheck);
-        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
+        const verResult = await runVerification(cwd, endCheck);
+        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status, isolated: verResult.isolated === true } });
         endResults.push({ check: endCheck, result: verResult });
       }
 

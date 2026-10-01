@@ -1189,8 +1189,8 @@ if (toolCalls.length === 0) {
     const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
     for (const check of checks) {
       await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-      const verResult = await runVerification(".", check);
-      await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
+      const verResult = await runVerification(deps.cwd ?? process.cwd(), check);
+      await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status, isolated: verResult.isolated === true } });
       verResults.push({ check, result: verResult });
     }
 
@@ -1822,6 +1822,7 @@ if (toolCalls.length === 0) {
       contextPressure,
       contextBudget,
       lastInvocationId,
+      cwd: deps.cwd ?? process.cwd(),
     });
     repairCount = vr.repairCount;
     if (vr.earlyReturn) return vr.earlyReturn;
