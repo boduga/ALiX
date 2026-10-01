@@ -9,6 +9,7 @@
 
 import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
 import { resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
+import { TOOL_EVENT_TYPES } from "../events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { MutationSessionState } from "../run.js";
@@ -350,6 +351,23 @@ export async function handleToolCall(
     execName = resolveExecutableToolName(toolCall.name, offered);
   } catch (error) {
     if (!(error instanceof ToolNotFoundError)) throw error;
+    // The resolver rejection path is the only place the model's RAW requested
+    // name is still in hand — `ToolExecutor` records the post-resolution
+    // executor, so without this event a hallucinated name leaves no trace in
+    // the audit trail at all.
+    await deps.log.append({
+      ...deps.session,
+      actor: "system",
+      type: TOOL_EVENT_TYPES.REJECTED,
+      payload: {
+        toolCallId: toolCall.id,
+        requestedName: toolCall.name,
+        reason: "name-not-offered",
+        availableCount: error.offeredTools.length,
+        executionId: correlation.executionId,
+        invocationId: correlation.invocationId,
+      },
+    });
     // T5 correlation: typed attributes via helper — no loose Record, no spread
     const correlationAttrs = ` invocationId="${correlation.invocationId}" executionId="${correlation.executionId}"`;
     return {

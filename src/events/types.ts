@@ -128,6 +128,13 @@ export const TOOL_EVENT_TYPES = {
   /** Shadow tool-selection observation — instrumentation only, never a gate. */
   SELECTION_OBSERVED: "tool.selection.observed",
   SELECTION_NOT_APPLICABLE: "tool.selection.not_applicable",
+  /**
+   * A tool call whose name matched nothing offered this turn. Distinct from
+   * `FAILED`: no executor ever ran. Without it, main-loop name rejections are
+   * invisible in the audit trail — they surface only as a `tool_result` error
+   * string the model reads and the operator does not.
+   */
+  REJECTED: "tool.rejected",
 } as const;
 
 export type PatchProposalPayload = {

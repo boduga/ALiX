@@ -10,8 +10,12 @@ test("worker executes only exact offered canonical names", () => {
   assert.equal(typeof resolve, "function");
   assert.equal(resolve!("alix_file_create", [{ name: "alix_file_create" }]), "file.create");
   assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), null);
-  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("file_create", [{ name: "alix_file_read" }]), null);
+  // Documented executor ID of an OFFERED tool resolves (see tool-manifest.ts
+  // alias contract): the repo's DOX names this tool `file.create`.
+  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), "file.create");
+  // ...but only when that tool is actually offered this turn.
+  assert.equal(resolve!("file.create", [{ name: "alix_file_read" }]), null);
   assert.equal(resolve!("alix_shell_run", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
 });
