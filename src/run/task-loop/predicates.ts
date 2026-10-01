@@ -255,6 +255,33 @@ export type SuccessfulToolEvidence = {
 };
 
 export const MUTATION_TOOL_NAMES = new Set(["file.create", "file.write", "file.delete", "patch.apply"]);
+
+/**
+ * Does this call count as mutation evidence for the completion gate?
+ *
+ * A mutation TOOL is not automatically mutation EVIDENCE. `file.create`
+ * reports `changed: false` when the file already exists with identical
+ * content (`already_exists_identical`), and a `patch.apply` can resolve with
+ * an empty `changedFiles`. Both are successful calls that wrote nothing.
+ *
+ * The old predicate counted the tool name alone, so an agent could satisfy
+ * "a successful workspace mutation" by writing a file whose content it had
+ * already written — repeatedly, with no workspace change at all — and then
+ * declare the task complete. That is the F6 defect (`changed=false`
+ * unobservable) with teeth: the no-op was not merely unrecorded, it was
+ * accepted as proof.
+ *
+ * `mutated` is tri-state because the tools disagree about how they report it:
+ * `file.create` and `patch.apply` set it, `file.delete` does not (it has no
+ * `changed` field at all). So an ABSENT flag is not a denial — only an
+ * explicit `false` is. That keeps `file.delete` working while making a
+ * self-reported no-op incapable of satisfying the gate.
+ */
+function isMutationEvidence(item: SuccessfulToolEvidence): boolean {
+  if (item.name === COORDINATION_RUN_TOOL_NAME) return item.mutated === true;
+  if (!MUTATION_TOOL_NAMES.has(item.name)) return false;
+  return item.mutated !== false;
+}
 export const VERIFICATION_COMMAND_RE = /(?:^|\s)(?:pnpm|npm|yarn|bun)\s+(?:test|run\s+(?:test|build|lint|check|typecheck)|build|lint)|\b(?:pytest|vitest|jest|mocha|cargo\s+test|go\s+test|dotnet\s+test|mvn\s+test|gradle\s+test|tsc|eslint|git\s+diff\s+--check)\b/i;
 export const VERIFICATION_EVIDENCE_GAP = "a successful verification command after the mutation";
 export const COORDINATION_EVIDENCE_GAP = "a successful coordination run with worker outcomes";
@@ -311,10 +338,7 @@ export function objectiveEvidenceGaps(
 ): string[] {
   const required = objectiveEvidenceRequirements(task, taskType);
   const mutationOrdinal = evidence
-    .filter((item) =>
-      MUTATION_TOOL_NAMES.has(item.name)
-      || (item.name === COORDINATION_RUN_TOOL_NAME && item.mutated === true),
-    )
+    .filter((item) => isMutationEvidence(item))
     .reduce((latest, item) => Math.max(latest, item.ordinal), -1);
   const verifiedAfterMutation = evidence.some((item) =>
     item.ordinal > mutationOrdinal &&

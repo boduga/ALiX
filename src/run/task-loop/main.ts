@@ -1385,7 +1385,16 @@ if (toolCalls.length === 0) {
         // Record what the call actually changed, so a delegated coordination
         // run whose workers wrote files can satisfy the mutation requirement
         // the coordinator itself cannot meet.
-        ...(toolResult.changed === true || changedFiles.length > 0 ? { mutated: true } : {}),
+        //
+        // The EXPLICIT `mutated: false` matters as much as the `true`: a
+        // `file.create` that found identical content reports `changed: false`,
+        // and that no-op must not pass as mutation evidence. Only an absent
+        // flag is left undecided, because `file.delete` never sets one.
+        ...(toolResult.changed === true || changedFiles.length > 0
+          ? { mutated: true as const }
+          : toolResult.changed === false
+            ? { mutated: false as const }
+            : {}),
       });
       recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
