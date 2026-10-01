@@ -138,9 +138,24 @@ existing import paths are unchanged.
   (`mcp__<opaque>`) into a projection. The same offered name twice is one
   candidate; two different names sharing an id fails closed.
 - The recorded `ranking` has two named keys: `scoper` (the scoper's relevance
-  ordering — token overlap, NOT a next-tool preference) and `mcpSelector` (the
+  ordering — NOT a next-tool preference) and `mcpSelector` (the
   MCP selector's own scores on its own scale). They are never interleaved, and
   neither may be presented as "the deterministic selector baseline".
+- The `scoper` ordering is **content-token IDF over the offered surface**, not
+  a raw overlap count. A raw count scored connectives as content: T3 finding 8
+  recorded `create_hook` above `file_read` for a read-and-summarize prompt,
+  and reproduced on this tool set `grep_search` FIRST on four pure function
+  words with zero content tokens. IDF alone does not fix it — over 21 long
+  descriptions the grammatical commoners are lexically rare, so `it` (df 4) and
+  `does` (df 2) outrank `read` (df 6) — hence the English `FUNCTION_WORDS` set
+  in `src/config/tool-scoping.ts` on top. That set is English-scoped; a
+  non-English surface degrades to the IDF half, never to a wrong ADMISSION.
+- **The weighting applies to the ranking ONLY.** Admission stays a raw
+  `matched.length > 0` test, deliberately: which tools are offered is a product
+  decision, and a connective-only match dropping a tool from the surface is a
+  far larger change than F8 describes. `tests/config/tool-scoping-ranking.vitest.ts`
+  re-implements the old admission rule and asserts the two agree exactly — if
+  that test fails, the surface has changed.
 - Final prose that promises another agent action (for example, "Next, I'm
   surfacing...") is a continuation, not a completion. The task loop re-prompts
   within its existing bound and records `completed_unverified` if the promise

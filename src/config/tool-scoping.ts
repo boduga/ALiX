@@ -86,6 +86,101 @@ function toolSignals(desc: string, name: string, serverName?: string): Set<strin
 }
 
 /**
+ * Inverse document frequency over the offered surface: how much a token
+ * DISCRIMINATES between tools.
+ *
+ * The ranking used to be a raw overlap count, which scored connectives as
+ * content. T3 finding 8 recorded it "ranked `create_hook` 9 above `file_read`
+ * 6 for a read-and-summarize prompt". Reproduced on this branch's own tool set,
+ * worse than recorded — for "Read the config file and summarize what it does":
+ *
+ *   grep_search  matched [the, and, it, does]   -> 0 content tokens, ranked 1st
+ *   create_hook  matched [the, file, and, what] -> 1 content token, ranked 2nd
+ *   file_read    matched [read, the, file]      -> 2 content tokens, ranked 5th
+ *
+ * A token appearing in nearly every description carries no information about
+ * which tool the task wants, and a raw count cannot tell that apart from a
+ * genuinely distinctive match.
+ */
+function buildIdf(allSignals: ReadonlyArray<Set<string>>): Map<string, number> {
+  const total = allSignals.length;
+  const documentFrequency = new Map<string, number>();
+  for (const signals of allSignals) {
+    for (const token of signals) {
+      documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
+    }
+  }
+  const idf = new Map<string, number>();
+  for (const [token, freq] of documentFrequency) {
+    // A token in EVERY description is pure connective; weight it to ~0 rather
+    // than subtracting a floor, so a surface where everything matches equally
+    // still orders deterministically instead of collapsing to ties.
+    idf.set(token, Math.log((total + 1) / (freq + 1)));
+  }
+  return idf;
+}
+
+/**
+ * English function words: articles, pronouns, auxiliaries, prepositions, and
+ * conjunctions. Scored as if absent.
+ *
+ * IDF alone does NOT solve T3 finding 8 here, and it is worth recording why
+ * rather than assuming it does. Over a surface of 21 long descriptions the
+ * grammatical commoners are lexically RARE, so IDF rewards them:
+ *
+ *   it    df 4  -> idf 1.482      read  df 6  -> idf 1.145
+ *   does  df 2  -> idf 1.992      the   df 17 -> idf 0.201
+ *
+ * `grep_search`'s four connector-only matches then sum to 4.28 while
+ * `file_read`'s two real content matches plus one article reach 2.24 — so the
+ * connective-only tool still wins on a corpus far too small for IDF to
+ * identify stopwords on its own.
+ *
+ * Honest limitation: this list is English-scoped. The IDF half is
+ * language-agnostic and does most of the work on any surface; the list is what
+ * rescues the short-lexical-vocabulary case. A non-English surface degrades to
+ * the IDF half rather than breaking — worst case is the old raw-count ordering,
+ * never a wrong ADMISSION, because admission does not use this at all.
+ */
+const FUNCTION_WORDS: ReadonlySet<string> = new Set([
+  // articles / determiners
+  "a", "an", "the", "this", "that", "these", "those", "each", "every", "some", "any", "all",
+  // pronouns
+  "it", "its", "he", "she", "they", "them", "his", "her", "their", "we", "us", "our", "you", "your", "i",
+  // auxiliaries / copulas
+  "is", "are", "was", "were", "be", "been", "being", "am", "do", "does", "did", "done",
+  "has", "have", "had", "will", "would", "shall", "should", "can", "could", "may", "might", "must",
+  // prepositions / particles
+  "of", "to", "in", "on", "at", "by", "for", "with", "from", "into", "over", "under", "up", "down",
+  "out", "off", "about", "after", "before", "between", "through", "during", "than", "then", "so",
+  // conjunctions / adverbs that carry no tool signal
+  "and", "or", "but", "if", "not", "no", "nor", "as", "also", "just", "very", "only", "when", "where",
+  "which", "who", "whom", "whose", "what", "how", "why", "there", "here", "use", "using", "used",
+]);
+
+/** Does this token carry any tool-selection signal? */
+function isContentToken(token: string): boolean {
+  return !FUNCTION_WORDS.has(token);
+}
+
+/**
+ * Content-token IDF relevance. Used for the recorded ORDER only — never for
+ * admission.
+ */
+function weightedScore(
+  matched: ReadonlyArray<string>,
+  idf: ReadonlyMap<string, number>,
+): number {
+  let score = 0;
+  for (const token of new Set(matched)) {
+    if (!isContentToken(token)) continue;
+    score += idf.get(token) ?? 0;
+  }
+  // Round for stable JSON in the trace; sub-1e-6 differences are noise.
+  return Math.round(score * 1e6) / 1e6;
+}
+
+/**
  * Deterministic, no-LLM relevance filter: keyword overlap between tool
  * description/name/server and task text. Cheap and reproducible.
  */
@@ -102,20 +197,30 @@ export function scopeToolsByTask(
   const scores = new Map<string, number>();
 
   const taskTokens = tokens(task);
+  // Admission stays a RAW overlap test (`score > 0` below) and is deliberately
+  // not weighted. Changing which tools are offered is a product decision; this
+  // change only fixes the ORDER the trace records. Weighting admission would
+  // let a connective-only match drop a tool from the surface, which is a
+  // different and far larger change than T3 finding 8 describes.
+  const idf = buildIdf([
+    ...tools.map((t) => toolSignals(t.description, t.name)),
+    ...mcpTools.map((t) => toolSignals(t.description, t.searchName ?? t.name, t.serverName)),
+  ]);
 
   // Partition provider tools
   for (const t of tools) {
     if (CORE_TOOL_NAMES.has(t.name)) {
       core.push(t);
       admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.CORE] });
-      scores.set(t.name, taskTokens.filter((token) => toolSignals(t.description, t.name).has(token)).length);
+      const matched = taskTokens.filter((token) => toolSignals(t.description, t.name).has(token));
+      scores.set(t.name, weightedScore(matched, idf));
     } else {
       const signals = toolSignals(t.description, t.name);
-      const score = taskTokens.filter((token) => signals.has(token)).length;
-      if (score > 0) {
+      const matched = taskTokens.filter((token) => signals.has(token));
+      if (matched.length > 0) {
         extended.push(t);
         admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.RELEVANCE_MATCH] });
-        scores.set(t.name, score);
+        scores.set(t.name, weightedScore(matched, idf));
       } else {
         excluded.push({ tool: t.name, reasons: [SCOPING_REASONS.NOT_RELEVANT] });
       }
@@ -127,15 +232,15 @@ export function scopeToolsByTask(
   for (const t of mcpTools) {
     if (!CORE_TOOL_NAMES.has(t.name)) {
       const signals = toolSignals(t.description, t.searchName ?? t.name, t.serverName);
-      const score = taskTokens.filter((token) => signals.has(token)).length;
-      if (score > 0) {
+      const matched = taskTokens.filter((token) => signals.has(token));
+      if (matched.length > 0) {
         extended.push({
           name: t.name,
           description: t.description,
           input_schema: (t.input_schema ?? { type: "object", properties: {} }) as ToolDef["input_schema"],
         });
         admitted.push({ tool: t.name, reasons: [SCOPING_REASONS.RELEVANCE_MATCH] });
-        scores.set(t.name, score);
+        scores.set(t.name, weightedScore(matched, idf));
       } else {
         excluded.push({ tool: t.name, reasons: [SCOPING_REASONS.NOT_RELEVANT] });
       }
