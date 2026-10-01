@@ -8,7 +8,7 @@
  * recorded candidate ids are the canonical names the task loop uses.
  */
 
-import { describe, it } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { executeGroundedChatBehavior } from "../../src/runtime/route-execution.js";
 import type { ModelAdapter } from "../../src/providers/types.js";
@@ -110,6 +110,12 @@ function identityStrings(value: unknown, selected = false, output: string[] = []
 }
 
 describe("grounded external selection observation", () => {
+  // Selection tracing is OFF by default; this suite asserts scopes ARE
+  // recorded, so it opts in the way a real cohort collection does. Restored
+  // after so the gate's default is not silently widened for other suites.
+  beforeEach(() => { process.env.ALIX_TOOL_SELECTION_TRACE = "1"; });
+  afterEach(() => { delete process.env.ALIX_TOOL_SELECTION_TRACE; });
+
   it("records a scope when the model chose among the tools it was offered", async () => {
     const { observations, notApplicable } = await runGrounded("web_fetch", { selectionScope: scope("1") });
 

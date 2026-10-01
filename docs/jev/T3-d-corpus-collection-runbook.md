@@ -145,9 +145,17 @@ ls -1 .alix/sessions | wc -l
 #    run in the normal write mode. `--mode bypass` keeps an unattended batch
 #    from stalling on an approval prompt; pair it with --read-only wherever the
 #    task does not need to write, and keep mutations inside .tmp/t3d/<taskId>/.
+#
+#    ALIX_TOOL_SELECTION_TRACE=1 is REQUIRED for collection. Tool-selection
+#    tracing is off by default — it is per-turn telemetry for an experiment T3
+#    concluded `experiment-only`, with no runtime reader. Without the flag every
+#    `grep -c 'tool.selection.observed'` in step 3 returns 0 and the run is
+#    untaggable, so set it for the whole batch, not per task.
+#
 #    NOTE: `alix run --help` is not a help flag — it starts a run with "--help"
 #    as the task text. Do not use it to inspect usage.
-node bin/alix.js run "<prompt from the matrix>" --read-only --mode bypass --no-stream \
+ALIX_TOOL_SELECTION_TRACE=1 node bin/alix.js run "<prompt from the matrix>" \
+  --read-only --mode bypass --no-stream \
   2>&1 | tee .tmp/t3d/logs/<taskId>.log
 
 # 3. Capture the session id from the run output (`Session: <id>`) and confirm

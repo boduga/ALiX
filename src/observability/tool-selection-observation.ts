@@ -273,9 +273,36 @@ export function buildSelectionObservation(input: SelectionObservationInput): Sel
 }
 
 /**
+ * Whether tool-selection tracing is switched on.
+ *
+ * Default OFF. This telemetry exists to answer an experiment question that T3
+ * already answered negatively — "is Jev tool selection worth putting on the
+ * runtime path?" — and its verdict was `experiment-only`. Nothing reads the
+ * event at runtime: the only consumer is the offline corpus sampler
+ * (`scripts/tool-selection-sample.mjs`), which reads sessions recorded while a
+ * cohort is being collected. So the steady-state cost was a per-turn event with
+ * no reader.
+ *
+ * Measured on 91 recorded sessions: 338 events, 2% of the event stream, 3.7 MB
+ * (~11 kB average, ~16 kB max per event) — the single largest payload class in
+ * the log, roughly 5% of the 70 MB `.alix` tree.
+ *
+ * `ALIX_TOOL_SELECTION_TRACE=1` turns it on for cohort collection; the sampler
+ * and the collection runbook already require an explicit opt-in step, so
+ * nothing that needs the data loses it.
+ */
+function selectionTraceEnabled(): boolean {
+  return process.env.ALIX_TOOL_SELECTION_TRACE === "1";
+}
+
+/**
  * Append the observation. The single emitter both the task loop and the
  * grounded external path call, so the two can never describe a selection
  * differently.
+ *
+ * Returns the built observation even when tracing is off, so callers that use
+ * the return value (the task loop derives completion signals from it) are
+ * unaffected — only the append is skipped.
  */
 export async function emitSelectionObservation(
   log: EventLog,
@@ -283,6 +310,7 @@ export async function emitSelectionObservation(
   input: SelectionObservationInput,
 ): Promise<SelectionObservation> {
   const observation = buildSelectionObservation(input);
+  if (!selectionTraceEnabled()) return observation;
   await log.append({
     ...session,
     actor: "system",
@@ -301,6 +329,10 @@ export async function emitSelectionNotApplicable(
     type: "tool.selection.not_applicable",
     ...input,
   };
+  // Same gate as `emitSelectionObservation`: `not_applicable` is coverage
+  // vocabulary for the corpus, so it is collected with the observation or not
+  // at all. A `not_applicable` without its `observed` scopes is unusable.
+  if (!selectionTraceEnabled()) return record;
   await log.append({
     ...session,
     actor: "system",

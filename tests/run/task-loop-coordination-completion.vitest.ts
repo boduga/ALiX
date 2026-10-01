@@ -15,7 +15,7 @@
  * 5. Path B (mutations + verification passed + prose done): explicit
  *    coordination_failed gate, then completed_unverified.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -395,6 +395,15 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
 });
 
 describe('runTaskLoop coordination-failure completion gate', () => {
+  // This suite asserts a selection observation reaches the log, and tracing is
+  // off by default. Opt in for the run, then restore.
+  let traceWasSet: string | undefined;
+  beforeEach(() => { traceWasSet = process.env.ALIX_TOOL_SELECTION_TRACE; process.env.ALIX_TOOL_SELECTION_TRACE = '1'; });
+  afterEach(() => {
+    if (traceWasSet === undefined) delete process.env.ALIX_TOOL_SELECTION_TRACE;
+    else process.env.ALIX_TOOL_SELECTION_TRACE = traceWasSet;
+  });
+
   it('does not accept an echoed tool result as a completion summary', async () => {
     const ECHO = '310 .tmp/out/notes.md';
     const provider = createScriptedProvider([

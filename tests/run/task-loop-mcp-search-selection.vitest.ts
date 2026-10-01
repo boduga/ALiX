@@ -9,7 +9,7 @@
  * This drives the actual task loop rather than the builder, because the defect
  * was precisely that the builder worked while the loop never called it.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -144,6 +144,12 @@ async function makeDeps(overrides: {
 
   return { deps, log, cleanup: () => rmSync(tmpRoot, { recursive: true, force: true }) };
 }
+
+// Every suite in this file asserts that scopes reach the log, and selection
+// tracing is off by default. Opt in the way a cohort collection does, then
+// restore so the default is not silently widened.
+beforeAll(() => { process.env.ALIX_TOOL_SELECTION_TRACE = '1'; });
+afterAll(() => { delete process.env.ALIX_TOOL_SELECTION_TRACE; });
 
 describe('F4 Bypass A — the MCP search sentinel is a recorded selection', () => {
   it('emits a scope whose chosen candidate is builtin:alix_mcp_search_tools', async () => {
