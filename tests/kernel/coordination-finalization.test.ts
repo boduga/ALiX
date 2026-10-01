@@ -69,10 +69,25 @@ function minimalConfig() {
   };
 }
 
+/**
+ * Polls `cond` and FAILS if it never becomes true.
+ *
+ * This used to return silently on timeout, which turned a slow side effect
+ * into a wrong assertion further down: the caller waits for the aggregate
+ * STORE write, then asserts on the EVENT append, and the event is emitted
+ * later in the same async flow than the store write. Under coverage
+ * instrumentation that gap widened and the event count read 0 — reported as
+ * `0 !== 1` in `coordination.aggregate.completed`, with the real cause being
+ * a poll that gave up quietly. A silent timeout must never masquerade as a
+ * product defect, so it throws.
+ */
 async function waitUntil(cond: () => boolean | Promise<boolean>, timeoutMs = 5_000): Promise<void> {
   const start = Date.now();
   while (!(await cond()) && Date.now() - start < timeoutMs) {
     await new Promise((r) => setTimeout(r, 10));
+  }
+  if (!(await cond())) {
+    throw new Error(`waitUntil: condition still false after ${timeoutMs}ms`);
   }
 }
 
@@ -148,7 +163,13 @@ describe("coordination terminal finalization", () => {
     const scheduler = schedulerFor(cwd, store, recorder.log);
 
     await scheduler.tick(runId);
-    await waitUntil(async () => (await store.load(runId))?.aggregateResultRef !== undefined, 8_000);
+    // Wait for the EVENT, not just the store write: the assertion below is
+    // about the event, and the aggregate store is persisted before the event
+    // is appended. Polling only the store let the event count be read early.
+    await waitUntil(
+      () => recorder.appended.filter(e => e.type === "coordination.aggregate.completed").length >= 1,
+      8_000,
+    );
 
     const run = await store.load(runId);
     assert.equal(run?.status, "completed", "the worker should have run to completion");
@@ -169,7 +190,10 @@ describe("coordination terminal finalization", () => {
     const scheduler = schedulerFor(cwd, store, recorder.log);
 
     await scheduler.tick(runId);
-    await waitUntil(async () => (await store.load(runId))?.aggregateResultRef !== undefined, 8_000);
+    await waitUntil(
+      () => recorder.appended.filter(e => e.type === "coordination.aggregate.completed").length >= 1,
+      8_000,
+    );
     const first = await store.load(runId);
 
     // Second and third observations of the same terminal state. A concurrent

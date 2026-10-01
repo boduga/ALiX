@@ -34,6 +34,15 @@ Record which of these were checked and what they showed.
 - **Fix applied:** the spawn budgets in `tests/governance/governance-report.test.ts` are now named constants — 20 s for the compiled `bin/alix.js` spawns, 30 s for the `npx tsx` spawns, with the two `describe` budgets raised to 300 s so the per-case budgets cannot outlive their suite. No assertion changed; a wrong result still fails, only the false-failure window moved.
 - **Status:** resolved — a fixed short timeout on a spawned process is a false-failure generator; if this test times out again, treat it as a real hang and investigate the spawned CLI, not the budget
 
+## Coordination finalization — aggregate event count (FIXED, was a real test defect)
+
+- **Test:** `tests/kernel/coordination-finalization.test.ts` → `finalizes a terminal transition and emits exactly one aggregate-completed event`
+- **Symptom:** `AssertionError: 0 !== 1` on the `coordination.aggregate.completed` count. The aggregate store HAD been written (`aggregateResultRef` present), so it read as a scheduler bug in the `coverage` lane.
+- **Frequency:** 1 of ~4 full node runs; never standalone (3/3 pass)
+- **Root cause (confirmed, not inferred):** the local `waitUntil` helper **returned silently on timeout**. The test polled for the aggregate STORE write and then asserted on the EVENT append — two different side effects, the event emitted later in the same async flow than the store write. Under coverage instrumentation the gap exceeded the 10 ms poll interval's usefulness and the event had not landed when the count was read. A quiet timeout, reported as a wrong count.
+- **Fix:** `waitUntil` now throws when the condition never becomes true, so a timeout can never again masquerade as a product defect; and the two tests that assert on the event now poll for the EVENT rather than the store.
+- **Status:** fixed — the test defect was real and is repaired, not suppressed. A silent-timeout poll helper is the actual hazard here; any other `waitUntil` in the suite that swallows a timeout is a candidate for the same repair.
+
 ## TUI pinned-bottom rendered slice
 
 - **Test:** `tests/tui/app-pinned-bottom.vitest.ts` → `new content while unpinned: end-to-end rendered slice stays identical`
