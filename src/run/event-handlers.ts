@@ -574,12 +574,17 @@ export async function handleToolCall(
   return {
     message: { role: "user", content: correlatedContent },
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
-    // `changed` is reported for every success, including `false`: the selection
-    // observation needs to distinguish a provable no-op (identical create) from
-    // a result that simply carried no change flag.
+    // `changed` is tri-state and must stay that way across this boundary.
+    // Collapsing "the tool set no flag" into `false` erases the difference
+    // between a provable no-op (`file.create` → `already_exists_identical`)
+    // and a tool that simply does not report changes (`file.delete`, or any
+    // executor that omits the field). The task loop's mutation gate reads that
+    // distinction: an explicit `false` means "this wrote nothing", while absent
+    // means "undecided", and reading either as the other either lets a no-op
+    // pass as proof of mutation or breaks every legitimate delete.
     ...(execResult.kind === "success"
       ? {
-          changed: execResult.changed === true,
+          ...(execResult.changed === undefined ? {} : { changed: execResult.changed }),
           changedFiles: execResult.changedFiles ?? [],
           // Structured identity travels with the result so the task loop can
           // look up the run's completion dimensions (C6).
