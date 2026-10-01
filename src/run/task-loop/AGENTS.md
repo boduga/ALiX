@@ -69,6 +69,22 @@ existing import paths are unchanged.
   `coordination.run` tool result before completion. A synthesis prompt must
   never assert that work is complete; missing objective evidence terminates as
   `completed_unverified` after bounded retries.
+- Mutation evidence is judged by OUTCOME, not by tool name. `isMutationEvidence`
+  accepts a mutation call only when it changed something: `file.create`'s
+  `already_exists_identical` path reports `changed: false` and a `patch.apply`
+  can resolve with empty `changedFiles`, so counting the tool NAME let an agent
+  satisfy a mutation objective by rewriting a file with content it had already
+  written — repeatedly, with no workspace change — and then declare completion.
+  The flag is tri-state (`isMutationEvidence` + the loop's record at
+  `successfulToolEvidence.push`): `true` wrote something, `false` is a proven
+  no-op and is NOT evidence, ABSENT is undecided and still counts because
+  `file.delete` never sets a flag. `src/run/event-handlers.ts` must pass
+  `changed` through UNCHANGED — collapsing absent into `false` there starves
+  this gate of the distinction and fails every legitimate delete. Pinned by
+  `tests/run/mutation-evidence.vitest.ts`.
+- Verification runs against `deps.cwd` (the agent's real working directory),
+  never `"."`, and is never stash-isolated — see `src/skills/AGENTS.md`. A
+  check that cannot see the change it verifies is not a verification.
 - Objective requirement detection scans a tool-name-normalized view of the
   task: exact model-facing names carry their action, and `\brun\b`/`\bverify\b`
   cannot match across the underscore of `alix_coordination_run` /
