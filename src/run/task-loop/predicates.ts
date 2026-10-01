@@ -320,7 +320,36 @@ export function objectiveEvidenceRequirements(task: string, taskType = "unknown"
     /\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b.{0,100}\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b/i.test(named) ||
     /\b(?:file|code|repository|repo|readme|source|implementation|config|tests?)\b.{0,100}\b(?:create|edit|modify|update|delete|remove|apply|implement|fix|change|build|scaffold|generate)\b/i.test(named)
   );
-  const verification = mutation && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
+  // Verification is INDEPENDENT of mutation. It used to be gated on
+  // `mutation &&`, which made a verification-only objective undetectable:
+  // "run the tests and confirm the suite passes" names no file-write verb, so
+  // `mutation` was false, so no verification requirement existed, so the
+  // completion gate never demanded verification evidence. The model could
+  // declare that task done without running a single test — a direct violation
+  // of "Completion requires executed evidence (durable)", which requires
+  // verification evidence precisely for objectives that explicitly ask for it.
+  //
+  // Cohort `t3d-2026-09-28-c` measured this as finding 1: verification
+  // requirement detection fired on 0 of 8 verification-shaped scopes while
+  // mutation fired 7 of 8 and coordination 7 of 8.
+  //
+  // The regex is UNCHANGED — only the `mutation &&` precondition is gone, so
+  // the detection surface widens to verification-shaped objectives and nothing
+  // else.
+  //
+  // But dropping the precondition admits NEGATED instructions too: "do not run
+  // the tests, just read the file" contains `run ... tests` and would demand
+  // verification evidence the operator explicitly declined. So a negated
+  // verification instruction cancels the requirement, mirroring the
+  // `readOnlyInstruction` guard that already gates `mutation`.
+  const verificationNegated = /\b(?:do not|don'?t|without|never)\s+(?:run|perform|execute|verify|check|test)\b/i.test(named);
+  // A later affirmative OVERRIDES the negation rather than compounding it:
+  // "do not run the tests but verify the claim" asks for verification. The two
+  // clauses must not be OR-ed — that made the override deepen the decline.
+  const verificationAffirmativeOverride = /\b(?:but|however|instead|then)\s+(?:run|perform|verify|check)\b/i.test(named);
+  const verificationDeclined = verificationNegated && !verificationAffirmativeOverride;
+  const verification = !verificationDeclined
+    && /\b(?:run|perform)\b.{0,60}\b(?:verification|tests?|checks?|build|lint|typecheck)\b|\bverify\b.{0,80}\b(?:change|edit|implementation|file|code|claim)\b/i.test(named);
   const coordinationSubject = String.raw`(?:coordination|coordinated\s+(?:agents?|workers?)|multi[- ](?:agent|worker)|parallel\s+(?:agents?|workers?)|(?:two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]workers?)`;
   const coordinationAction = String.raw`(?:run|launch|spawn|start|use|delegate|coordinate|create|request)`;
   const coordination = new RegExp(

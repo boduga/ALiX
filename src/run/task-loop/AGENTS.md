@@ -85,6 +85,18 @@ existing import paths are unchanged.
 - Verification runs against `deps.cwd` (the agent's real working directory),
   never `"."`, and is never stash-isolated — see `src/skills/AGENTS.md`. A
   check that cannot see the change it verifies is not a verification.
+- Verification detection is INDEPENDENT of mutation. It was `verification =
+  mutation && <regex>`, which made a verification-only objective undetectable:
+  "run the tests and confirm the suite passes" names no file-write verb, so no
+  requirement existed, so the completion gate never demanded verification
+  evidence and the task could close with zero tests executed (T3 finding 1,
+  measured 0 of 8 verification scopes). Two guards keep the widened surface
+  honest: a NEGATION guard ("do not run the tests", "without verifying", "never
+  run the build") cancels the requirement, and a later AFFIRMATIVE ("…but
+  verify the claim") overrides that negation — they must not be OR-ed, which is
+  a slip that made the override deepen the decline instead of cancelling it.
+  The regex is unchanged; only the precondition moved.
+  `tests/run/verification-detection.test.ts` pins all four directions.
 - Objective requirement detection scans a tool-name-normalized view of the
   task: exact model-facing names carry their action, and `\brun\b`/`\bverify\b`
   cannot match across the underscore of `alix_coordination_run` /
