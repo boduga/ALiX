@@ -187,7 +187,7 @@ describe("CardLoader", () => {
     // One card per canonical tool registry entry
     assert.equal(cards.length, buildDefaultToolIndex().registry.getAll().length);
     // ids are the canonical tool names
-    assert.ok(cards.find(c => c.id === "web_search"));
+    assert.ok(cards.find(c => c.id === "web.search"));
     assert.ok(cards.find(c => c.id === "file.read"));
     assert.ok(cards.find(c => c.id === "shell.run"));
     assert.ok(cards.find(c => c.id === "mcp.*"));
@@ -201,7 +201,7 @@ describe("CardLoader", () => {
     assert.ok(!cards.find(c => c.id === "file_write"));
     assert.ok(!cards.find(c => c.id === "file_read"));
     // capability/risk/approval/side-effect projection from canonical registry
-    const web = cards.find(c => c.id === "web_search")!;
+    const web = cards.find(c => c.id === "web.search")!;
     assert.deepEqual(web.capabilities, ["web.search"]);
     assert.equal(web.riskLevel, "low");
     assert.equal(web.approvalMode, "auto");

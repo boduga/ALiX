@@ -458,7 +458,11 @@ describe("CAP-12 critical e2e path (steps 1-7)", () => {
       { present: async () => {} },
       // No-op EventLog — the bridge's writes are absorbed; we don't
       // need on-disk events for the read-API parity assertion.
-      { cwd: sessionDir, eventLog: noopEventLog },
+      // Isolate the canonical store: without catalogDir this adapter seeds
+      // registry-derived tool.* capabilities into the repo's real
+      // .alix/capabilities/, where they outlive the test and resurface as a
+      // phantom TUI-vs-service parity mismatch in an unrelated run.
+      { cwd: sessionDir, eventLog: noopEventLog, catalogDir: join(dir, "tui-caps") },
     );
     // Wait for the TUI's async initialize() to settle — the
     // session-integration registration adds `core.session.summary`

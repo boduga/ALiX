@@ -3,7 +3,7 @@
 **Purpose:** File-backed approval queue management — create, resolve, list, and lookup pending/resolved approvals.
 
 **Ownership:**
-- `approval-store.ts` — File-backed store at `.alix/approvals/approvals.json`. Supports create, resolve, list, listPending, findPending, findResolved, get. `ApprovalRequestInput.metadata` carries a structured payload for non-tool approvals (e.g. `schedule.propose`), copied onto the record.
+- `approval-store.ts` — File-backed store at `.alix/approvals/approvals.json`. Supports create, resolve, list, listPending, findPending, findResolved, get. `ApprovalRequestInput.metadata` carries a structured payload for non-tool approvals (e.g. `alix_schedule_propose`), copied onto the record.
 - `global-store.ts` — `openGlobalApprovalStore()`: the cross-project store at `~/.alix/approvals`. Schedule proposals live here so the daemon and the human see them regardless of cwd; `src/cli/helpers/approval-stores.ts` unions it with the project store for the one-inbox `alix approvals` surface.
 - CLI commands in `src/cli.ts` — `alix approvals {list|pending|show|approve|deny}` (unions project + global stores).
 

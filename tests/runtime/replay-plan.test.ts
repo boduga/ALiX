@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildReplayPlan } from "../../src/runtime/replay-plan.js";
+import { classifySideEffect } from "../../src/runtime/replay-executor.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 import { buildReplayPreview } from "../../src/runtime/replay-preview.js";
 import type { TraceEvent } from "../../src/runtime/trace-events.js";
 
@@ -30,12 +32,12 @@ describe("buildReplayPlan", () => {
 
   it("marks network tools as blocked in dry-run mode", () => {
     const events = [
-      makeEvent({ id: "e1", eventType: "tool.started", label: "web_search started", toolCallId: "tc1", rawEvent: { payload: { toolCallId: "tc1", toolName: "web_search", args: { query: "test" } } } }),
+      makeEvent({ id: "e1", eventType: "tool.started", label: "web_search started", toolCallId: "tc1", rawEvent: { payload: { toolCallId: "tc1", toolName: "web.search", args: { query: "test" } } } }),
     ];
     const preview = buildReplayPreview(events[0], events);
     const plan = buildReplayPlan(preview, events, "dry-run");
     assert.ok(plan.steps.length > 0);
-    const webStep = plan.steps.find(s => s.toolName === "web_search");
+    const webStep = plan.steps.find(s => s.toolName === "web.search");
     assert.ok(webStep);
     assert.equal(webStep.status, "blocked");
     assert.ok(webStep.blockReason?.includes("not available"));
@@ -88,13 +90,102 @@ describe("buildReplayPlan", () => {
 
   it("allows network tools in approved-live mode", () => {
     const events = [
-      makeEvent({ id: "e1", eventType: "tool.started", label: "web_search", toolName: "web_search",
-        toolCallId: "tc1", rawEvent: { payload: { toolName: "web_search", args: { query: "test" } } } }),
+      makeEvent({ id: "e1", eventType: "tool.started", label: "web.search", toolName: "web.search",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "web.search", args: { query: "test" } } } }),
     ];
     const preview = buildReplayPreview(events[0], events);
     const plan = buildReplayPlan(preview, events, "approved-live");
-    const webStep = plan.steps.find(s => s.toolName === "web_search");
+    const webStep = plan.steps.find(s => s.toolName === "web.search");
     assert.ok(webStep);
     assert.equal(webStep.status, "ready");
+  });
+});
+
+/**
+ * THE PARITY TABLE for network-tool classification — an authorization surface.
+ *
+ * Three INDEPENDENT copies of the same set existed: `isNetworkTool` and the
+ * risk classifier in `replay-executor.ts`, and `NETWORK_TOOLS` in
+ * `replay-plan.ts`. They decide which tools are blocked in dry-run/sandbox
+ * replay and in `task-router`'s research scope, so one missed name silently
+ * grants network access where the operator expected a block.
+ *
+ * Every tool is listed explicitly, in both directions. A hand-maintained list
+ * cannot detect itself losing an entry, so the classification is also asserted
+ * against the manifest: any executor id not named here must classify as
+ * NON-network, which makes an omission a visible failure instead of a silent
+ * grant.
+ */
+describe("network-tool classification parity", () => {
+  /** [executor id, is it a network tool] — the input space, not a sample. */
+  const CASES: Array<[string, boolean]> = [
+    // ── network: reach the internet ──
+    ["web.search", true],
+    ["web.fetch", true],
+    // `delegate` spawns a subagent that may itself use the network, so it is
+    // conservatively classified as network even though it makes no request.
+    // (`agent.delegate` is its CAPABILITY key, not an executor id — a
+    // capability key never reaches this classifier.)
+    ["delegate", true],
+    // ── not network: local only ──
+    ["file.read", false],
+    ["file.create", false],
+    ["file.delete", false],
+    ["file.exists", false],
+    ["grep.search", false],
+    ["glob.match", false],
+    ["shell.run", false],
+    ["patch.apply", false],
+    ["done", false],
+    ["task.complete", false],
+    ["schedule.propose", false],
+    ["coordination.run", false],
+    ["coordination.status", false],
+    ["state.query", false],
+    ["verify.claim", false],
+    ["skill.create", false],
+    ["extension.list", false],
+    ["extension.inspect", false],
+    ["hook.create", false],
+    ["mcp.search_tools", true],
+    ["mcp.a", true],
+    ["mcp.github.repos.list", true],
+    ["mcp.z", true],
+    ["coordination.list", false],
+    ["coordination.results", false],
+    ["collaboration.publish_finding", false],
+    ["collaboration.publish_artifact", false],
+    ["collaboration.query_findings", false],
+    ["collaboration.get_dependency_results", false],
+    ["collaboration.report_conflict", false],
+    ["collaboration.list_conflicts", false],
+    ["alix_execution_state_propose", false],
+  ];
+
+  for (const [tool, isNetwork] of CASES) {
+    it(`${tool} is ${isNetwork ? "" : "not "}a network tool`, () => {
+      const level = classifySideEffect(tool);
+      if (isNetwork) assert.equal(level, "network", `${tool} must be classified network`);
+      else assert.notEqual(level, "network", `${tool} must NOT be classified network`);
+    });
+  }
+
+  it("classifies every mcp.* tool as network", () => {
+    for (const name of ["mcp.a", "mcp.github.repos.list", "mcp.z"]) {
+      assert.equal(classifySideEffect(name), "network");
+    }
+  });
+
+  it("names no executor id outside the manifest, so the table cannot rot", () => {
+    // Every manifest executor id is classified by the table above. If a tool is
+    // added, this fails until the table says whether it is a network tool —
+    // which is the point: an unclassified tool must never default to allowed.
+    const listed = new Set(CASES.map(([name]) => name));
+    for (const exec of Object.values(ALIX_BUILTIN_EXECUTORS)) {
+      assert.ok(
+        listed.has(exec),
+        `executor id ${JSON.stringify(exec)} is missing from the network-tool parity table`,
+      );
+    }
   });
 });

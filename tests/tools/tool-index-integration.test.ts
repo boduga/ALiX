@@ -68,6 +68,6 @@ describe("ToolAwareRouter", () => {
     assert.ok(router.canHandle("file.read"), "file.read is essential — always included");
     assert.ok(router.canHandle("grep.search"), "grep.search is essential — always included");
     assert.ok(router.canHandle("glob.match"), "glob.match is essential — always included");
-    assert.ok(!router.canHandle("dir.search"), "legacy dir.search is no longer essential");
+    assert.ok(!router.canHandle("dir.search"), "dir.search was deleted; it must stay unroutable");
   });
 });

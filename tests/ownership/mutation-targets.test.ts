@@ -34,7 +34,7 @@ describe("extractMutationTargets", () => {
   });
 
   it("returns unknown-write for unrecognized tool with no path args", () => {
-    const result = extractMutationTargets("web_search", { query: "hello" }, resolver);
+    const result = extractMutationTargets("web.search", { query: "hello" }, resolver);
     assert.equal(result.classification, "unknown-write");
     assert.equal(result.targets.length, 0);
   });

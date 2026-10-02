@@ -45,12 +45,11 @@ export const MUTATION_CONFLICT_INVOCATION_ID = "inv-42";
 const SAFE_TOOL_NAMES: readonly string[] = [
   "file.read",
   "file.exists",
-  "dir.search",
-  "web_search",
-  "web_fetch",
+  "web.search",
+  "web.fetch",
   "done",
-  "list_extensions",
-  "inspect_extension",
+  "extension.list",
+  "extension.inspect",
 ] as const;
 
 // ─── Scenario type ──────────────────────────────────────────────────────

@@ -1,4 +1,22 @@
-export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists" | "dir.search" | "grep.search" | "glob.match" | "shell.run" | "patch.apply" | "done";
+import type { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
+
+/**
+ * Internal dispatch identity of a built-in tool (executor id, never the
+ * model-facing `alix_*` name).
+ *
+ * Derived from the manifest rather than hand-listed. The previous literal named
+ * 10 tools and had drifted: it omitted 21 of the 31 built-ins, so a type
+ * presented as the tool-name contract rejected most real names.
+ *
+ * The derivation is `typeof` over the manifest's value union, so a new manifest
+ * entry widens this type automatically and a stale hand-list cannot survive.
+ * There is no hand-maintained exception: `dir.search` used to need one (the
+ * router dispatched it but no surface ever offered it, so it had no `alix_*`
+ * name) and was deleted as a literal-substring duplicate of `grep.search`.
+ */
+export type ManifestExecutorId = (typeof ALIX_BUILTIN_EXECUTORS)[keyof typeof ALIX_BUILTIN_EXECUTORS];
+
+export type ToolName = ManifestExecutorId;
 
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 
@@ -75,7 +93,6 @@ export type FileMatch = {
 
 export type ToolArgs = {
   "file.read": { root: string; path: string };
-  "dir.search": { root: string; pattern: string; extensions: string[]; headLimit?: number; path?: string };
   "grep.search": { root: string; pattern: string; caseSensitive?: boolean; include?: string[]; headLimit?: number; path?: string };
   "glob.match": { root: string; pattern: string; headLimit?: number; path?: string };
   "shell.run": { command: string; cwd: string; timeoutMs?: number };

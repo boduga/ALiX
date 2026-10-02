@@ -15,7 +15,7 @@ reason about.
 - `safe-shell.ts` / `shell-tool.ts` / `shell-pool.ts` — Shell admission and
   execution, including the safe-shell grammar.
 - `shell-network-policy.ts` — Network policy applied to shell clients, so
-  `curl`/`wget` cannot bypass the `web_fetch` domain allowlist.
+  `curl`/`wget` cannot bypass the `alix_web_fetch` domain allowlist.
 - `collaboration-tools.ts` — Bound collaboration tools a worker sees.
 - `result-text.ts` — Renders a `ToolResult` into the text the model reads.
 - `web-fetch.ts` / `web-search.ts` / `state-query.ts` / `monitor-tool.ts` /
@@ -23,9 +23,22 @@ reason about.
   Individual tool implementations.
 - `capability-map.ts` — Tool name to capability id mapping.
 - `ignore.ts` — Shared ignore rules for every workspace walk.
+- `self-extend/` — hook and skill authoring plus extension inspection, routed by
+  `SelfExtendToolRouter`. The executor ids are `hook.create`, `skill.create`,
+  `extension.list`, and `extension.inspect`; the model-facing names are in
+  `src/agents/tool-manifest.ts`. This is a recorded divergence from the
+  `<domain>.<action>` executor shape used by the rest of the surface, so a
+  future rename must move all four together.
 
 ## Local Contracts
 
+- **The registry is the only list of tools.** 24 entries, each pairing an
+  internal executor ID with its capability id, policy key, risk, and `mutates`
+  flag. `ALIX_BUILTIN_EXECUTORS` (`src/agents/tool-manifest.ts`) is the
+  model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
+  tool that is not in the manifest has no name the model can call and no type
+  that admits it. A registry entry with no manifest counterpart is a defect —
+  `dir.search` was exactly that, dispatchable with no name, and was deleted.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
@@ -49,10 +62,17 @@ reason about.
 
 - Adding a tool means touching `tool-registry.ts`, `ALIX_BUILTIN_EXECUTORS`
   (`src/agents/tool-manifest.ts`), the policy sets in `src/agents/tool-policy.ts`,
-  and the DOX above. They drift silently otherwise.
+  and the DOX above. They drift silently otherwise. `tests/tools/tool-contract.vitest.ts`
+  pins the registry shape and the derived views; it fails on a count change, so
+  update it deliberately rather than to silence it.
 - Path-handling changes need `tests/tools/tool-router.test.ts`; an
   authorization change also needs `tests/policy/policy-gate.test.ts`, because a
   router-only test cannot reach the gate that runs first.
+- Adding or REMOVING a tool changes what the model may call, which is an
+  authorization surface: `tests/tools/tool-authorization-parity.test.ts` pins
+  the full offered/allowed/routable set in both directions so a removal cannot
+  silently shrink it. A spot check proves the new cases work and says nothing
+  about what stopped working.
 
 ## Verification
 

@@ -111,7 +111,7 @@ describe("CapabilityResolver", () => {
     const reg = new CardRegistry();
     reg.registerAgent({ id: "research.scout", name: "Research Scout", description: "Searches web", version: "1.0", domains: ["research"], capabilities: ["web.search", "web.fetch"], executionProfile: "research", enabled: true } as any);
     reg.registerAgent({ id: "coding.helper", name: "Coding Helper", description: "Helps code", version: "1.0", domains: ["coding"], capabilities: ["filesystem.write", "shell.exec"], enabled: true } as any);
-    reg.registerTool({ id: "web_search", name: "Web Search", description: "Search web", version: "1.0", capabilities: ["web.search"], riskLevel: "low", approvalMode: "auto", allowedExecutionProfiles: ["research"], enabled: true } as any);
+    reg.registerTool({ id: "web.search", name: "Web Search", description: "Search web", version: "1.0", capabilities: ["web.search"], riskLevel: "low", approvalMode: "auto", allowedExecutionProfiles: ["research"], enabled: true } as any);
     reg.registerTool({ id: "shell_exec", name: "Shell Exec", description: "Run command", version: "1.0", capabilities: ["shell.exec"], riskLevel: "high", approvalMode: "ask", allowedExecutionProfiles: ["coding"], enabled: true } as any);
     reg.registerTool({ id: "file_write", name: "File Write", description: "Write file", version: "1.0", capabilities: ["filesystem.write"], riskLevel: "medium", approvalMode: "ask", enabled: true } as any);
     return reg;
@@ -121,7 +121,7 @@ describe("CapabilityResolver", () => {
     const reg = makeReg();
     const r = resolveCapabilities({ requiredCapabilities: ["web.search"], registry: reg });
     assert.ok(r.agents.some(a => a.id === "research.scout"), "should include research.scout");
-    assert.ok(r.tools.some(t => t.id === "web_search"), "should include web_search");
+    assert.ok(r.tools.some(t => t.id === "web.search"), "should include web_search");
     assert.equal(r.missingCapabilities.length, 0);
   });
 
@@ -129,7 +129,7 @@ describe("CapabilityResolver", () => {
     const reg = makeReg();
     const r = resolveCapabilities({ requiredCapabilities: ["web.search"], executionProfile: "research", registry: reg });
     assert.ok(r.agents.some(a => a.id === "research.scout"), "research.scout matches research profile");
-    assert.ok(r.tools.some(t => t.id === "web_search"), "web_search allows research profile");
+    assert.ok(r.tools.some(t => t.id === "web.search"), "web_search allows research profile");
   });
 
   it("reports missing capabilities", () => {

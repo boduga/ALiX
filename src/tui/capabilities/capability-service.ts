@@ -27,6 +27,20 @@ export interface CapabilityServiceOptions {
   cwd?: string;
   /** Bootstrap-owned ToolExecutor for tool.* capabilities. */
   toolExecutor?: ToolExecutorLike;
+  /**
+   * Canonical-capability store directory. Defaults to the platform's
+   * `process.cwd()/.alix/capabilities`, which is correct in production.
+   *
+   * Exposed so a TEST can point the adapter at a tempdir. Without it, running
+   * the TUI adapter in a test registers its seeded capabilities — including
+   * every registry-derived `tool.*` id — into the developer's real
+   * `.alix/capabilities/definitions.jsonl`. Those persisted rows then outlive
+   * the test and are re-read on the next run, so a renamed or removed tool
+   * keeps appearing as a phantom capability until the file is deleted by hand:
+   * the failure surfaces as a TUI-vs-service parity mismatch in an unrelated
+   * test, with nothing pointing at the write that caused it.
+   */
+  catalogDir?: string;
 }
 
 /**
@@ -41,8 +55,8 @@ const NOOP_PRESENTER: InvocationPresenter = { present: async () => {} };
 
 /** Resolved options: the optional seams stay optional (undefined = absent),
  *  while sessionId/actor/cwd get real defaults. */
-type ResolvedOptions = Required<Omit<CapabilityServiceOptions, 'eventLog' | 'toolExecutor'>> &
-  Pick<CapabilityServiceOptions, 'eventLog' | 'toolExecutor'>;
+type ResolvedOptions = Required<Omit<CapabilityServiceOptions, 'eventLog' | 'toolExecutor' | 'catalogDir'>> &
+  Pick<CapabilityServiceOptions, 'eventLog' | 'toolExecutor' | 'catalogDir'>;
 
 export class CapabilityService {
   readonly platform: CapabilityPlatform;
@@ -58,6 +72,7 @@ export class CapabilityService {
       actor: 'operator',
       cwd: process.cwd(),
       toolExecutor: undefined,
+      catalogDir: undefined,
       ...opts,
     };
     // Locked ruling #12 — the platform requires an authoritative EventLog.
@@ -67,7 +82,10 @@ export class CapabilityService {
     // (when supplied) takes precedence — both land in the same EventLog.
     const eventLog = this.opts.eventLog ?? new EventLog(this.opts.cwd);
     this.opts.eventLog = eventLog;
-    this.platform = new CapabilityPlatform({ eventLog });
+    this.platform = new CapabilityPlatform({
+      eventLog,
+      ...(this.opts.catalogDir ? { catalogDir: this.opts.catalogDir } : {}),
+    });
     // Subscribe BEFORE registering initial capabilities so the bridge
     // (EventBus does not replay past events to late subscribers) captures
     // every CapabilityRegistered emission.

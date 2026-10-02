@@ -212,9 +212,9 @@ describe("PolicyGate", () => {
   it("allows read-only web tools with no approval store (headless subagent)", async () => {
     const config = makeConfig();
     const gate = new PolicyGate(config);
-    for (const toolName of ["web_search", "web_fetch"]) {
+    for (const toolName of ["web.search", "web.fetch"]) {
       const result = await gate.evaluateToolCall({
-        requestId: `h1-${toolName}`, toolName, args: toolName === "web_search" ? { query: "x" } : { url: "https://example.com" },
+        requestId: `h1-${toolName}`, toolName, args: toolName === "web.search" ? { query: "x" } : { url: "https://example.com" },
         cwd: "/tmp", sessionMode: "ask", source: "tool",
       });
       assert.equal(result.decision, "allow", `${toolName} must stay usable headless`);

@@ -14,7 +14,7 @@ export type AgentIntent = "research" | "mutation" | "validation";
 
 // Tool name patterns for intent classification
 const RESEARCH_TOOLS = new Set([
-  "file.read", "dir.search", "grep.search", "glob.match", "web_fetch", "web_search",
+  "file.read", "grep.search", "glob.match", "web.fetch", "web.search",
   "mcp_discovery", "grep", "glob", "list_files",
 ]);
 
@@ -47,8 +47,9 @@ export class IntentClassifier {
    *
    * Composes three deterministic sub-recognizers:
    *   1. research sub-recognizer — `RESEARCH_TOOLS` set (file.read,
-   *      dir.search, web_fetch, web_search, mcp_discovery, grep, glob,
-   *      list_files) plus the safe default for unrecognized tools.
+   *      grep.search, glob.match, web.fetch, web.search, mcp_discovery, and
+   *      the legacy grep/glob/list_files spellings) plus the safe default for
+   *      unrecognized tools.
    *   2. mutation sub-recognizer — `MUTATION_TOOLS` set (file.edit,
    *      file.create, file.delete, patch.apply, file.write, file.rename)
    *      plus shell.run commands matching `MUTATION_COMMAND_RE` and the

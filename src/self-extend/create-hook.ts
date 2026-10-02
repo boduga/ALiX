@@ -9,7 +9,7 @@ export type CreateHookArgs = {
 
 export function createHookTool(runner: HookRunner) {
   return {
-    name: "create_hook",
+    name: "hook.create",
     description: "Create a hook that runs before or after tool calls, patch applications, session events, or approvals. Describe what you want in plain language and I'll generate the hook code.",
     input_schema: {
       type: "object",

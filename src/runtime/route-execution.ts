@@ -14,6 +14,8 @@
 import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
+import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../agents/tool-manifest.js";
+import { resolveExecutableToolName } from "../agents/tool-name-resolver.js";
 import type { ModelAdapter, ToolDef } from "../providers/types.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 
@@ -74,11 +76,12 @@ export interface ToolExecutionDeps extends ExecutionDeps {
   cwd: string;
   eventLog: any; // EventLog
   /**
-   * Provider-facing tool names on the grounded route → the model-facing
-   * candidate names the rest of ALiX uses. The route offers `web_search` /
-   * `web_fetch` to the provider (`tools/web-search.ts:18`,
-   * `tools/web-fetch.ts:351`), while the task loop freezes
-   * `builtin:alix_web_search` / `builtin:alix_web_fetch`. Without this
+   * Internal executor ids on the grounded route → the model-facing candidate
+   * names the rest of ALiX uses. The route now offers `alix_web_search` /
+   * `alix_web_fetch` to the provider (it used to offer the executor ids
+   * directly, which meant an executor id could reach execution), and resolves
+   * the model's call back to the executor id before dispatch. The task loop
+   * freezes `builtin:alix_web_search` / `builtin:alix_web_fetch`. Without this
    * normalisation the same tool would land in two different candidate key
    * spaces and no actual-vs-Jev comparison could be formed across the paths.
    */
@@ -266,7 +269,7 @@ export async function executeToolBehavior(
  * provider calls (model → optional tool → synthesis).
  *
  * The allowlist (`route.allowedTools`) is the sole gate on what the model may
- * call. A route that offers only `web_search`/`web_fetch` has no shell
+ * call. A route that offers only `alix_web_search`/`alix_web_fetch` has no shell
  * capability, and a model that attempts any other tool is rejected with the
  * same message everywhere — this is the single implementation both adapters
  * share, so the allowlist can never diverge between local and daemon.
@@ -295,9 +298,25 @@ export async function executeGroundedChatBehavior(
   // tool modules.
   const { webSearchTool } = await import("../tools/web-search.js");
   const { webFetchTool } = await import("../tools/web-fetch.js");
-  const allowedSet = new Set(route.allowedTools);
-  const tools = ([webSearchTool(), webFetchTool({ allowDomains: config.permissions?.allowNetworkDomains ?? [] })] as ToolDef[])
-    .filter((t) => allowedSet.has(t.name));
+  // `route.allowedTools` holds INTERNAL executor ids — it is route config, not
+  // a model surface. The provider, however, must be offered the exact manifest
+  // names: passing the executor ids straight through made this route the one
+  // path that never went through `resolveExecutableToolName`, so the model was
+  // offered and the executor accepted the very spelling the exact-name contract
+  // says must never reach execution (`web_search`/`web_fetch` before the dotted
+  // rename, `web.search`/`web.fetch` after it — the violation was pre-existing,
+  // but it is a vocabulary bug and this branch is the vocabulary branch).
+  const allowedExecutors = new Set(route.allowedTools);
+  const executableTools = ([webSearchTool(), webFetchTool({ allowDomains: config.permissions?.allowNetworkDomains ?? [] })] as ToolDef[])
+    .filter((t) => allowedExecutors.has(t.name));
+  const tools = executableTools.map((tool) => {
+    const modelFacing = ALIX_EXECUTOR_TO_MODEL_FACING.get(tool.name);
+    // A tool with no manifest name is unroutable-by-design here; keep its own
+    // name so the allowlist check below still applies rather than silently
+    // widening the surface.
+    return modelFacing ? { ...tool, name: modelFacing } : tool;
+  });
+  const offeredModelFacing = new Set(tools.map((tool) => tool.name));
   const selectionSignatures = new Map<string, number>();
 
   // First call: model may issue a tool call for fresh information
@@ -316,14 +335,23 @@ export async function executeGroundedChatBehavior(
     // instead of surfacing a governor error to natural-language users.
     const tc = response.toolCalls[0];
 
-    // Enforce allowedTools allowlist
-    if (!allowedSet.has(tc.name)) {
+    // Enforce the allowlist against the OFFERED model-facing names, then resolve
+    // through the shared resolver so the executor only ever receives an
+    // internal id derived from a name actually offered this turn.
+    if (!offeredModelFacing.has(tc.name)) {
       return `Tool "${tc.name}" is not allowed for this query type.`;
+    }
+
+    let execName: string;
+    try {
+      execName = resolveExecutableToolName(tc.name, tools.map((tool) => ({ name: tool.name })));
+    } catch {
+      return `Tool "${tc.name}" is not available.`;
     }
 
     const toolResult = await executor.execute({
       toolCallId: await newToolCallId(),
-      name: tc.name,
+      name: execName,
       args: tc.args,
       signal: deps.signal,
       runId: deps.context?.runId,

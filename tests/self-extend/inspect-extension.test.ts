@@ -9,7 +9,7 @@ describe("inspect_extension tool", () => {
 
   it("returns a tool definition", () => {
     const tool = inspectExtensionTool();
-    assert.equal(tool.name, "inspect_extension");
+    assert.equal(tool.name, "extension.inspect");
   });
 
   it("returns the manifest for a registered extension", async () => {

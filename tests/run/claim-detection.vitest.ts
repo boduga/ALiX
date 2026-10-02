@@ -15,7 +15,7 @@ import {
   buildUnconfirmedDonePrompt,
   findUnsubstantiatedClaims,
 } from '../../src/run/task-loop/predicates.js';
-import { ALIX_CANONICAL_BUILTIN_TOOLS } from '../../src/agents/tool-manifest.js';
+import { ALIX_BUILTIN_EXECUTORS, ALIX_CANONICAL_BUILTIN_TOOLS } from '../../src/agents/tool-manifest.js';
 
 const LABEL = 'scheduling a job';
 
@@ -60,11 +60,40 @@ describe('findUnsubstantiatedClaims scheduling entry', () => {
     }
   });
 
-  it('accepts the claim once the tool was actually used, under either name', () => {
+  it('accepts the claim once the model-facing tool was actually used', () => {
     const text = 'I scheduled a nightly job to refresh the report.';
-    // `usedTools` carries model-facing names; the map is keyed by executor ids.
+    // ONE vocabulary: `usedTools` carries exact model-facing names
+    // (`toolCall.name`) and `excusedBy` is declared in those same names, so
+    // substantiation is a direct set-membership test with no translation.
     expect(findUnsubstantiatedClaims(text, new Set(['alix_schedule_propose']))).not.toContain(LABEL);
-    expect(findUnsubstantiatedClaims(text, new Set(['schedule.propose']))).not.toContain(LABEL);
+  });
+
+  it('does NOT excuse the claim on the executor id, which is no longer callable', () => {
+    const text = 'I scheduled a nightly job to refresh the report.';
+    // `schedule.propose` is the internal dispatch identity, not a name the
+    // model can call. With the documented-executor alias removed it can never
+    // appear in `usedTools`, so accepting it here would guard a state the
+    // runtime cannot produce.
+    expect(findUnsubstantiatedClaims(text, new Set(['schedule.propose']))).toContain(LABEL);
+  });
+
+  it('declares every excusedBy in the model-facing vocabulary, and in no other', () => {
+    // The structural invariant behind ONE vocabulary. `usedTools` holds exact
+    // `toolCall.name` values, which are always `alix_*` now that the
+    // documented-executor alias is gone, so an executor-keyed `excusedBy` can
+    // only ever fail to match — a silent false negative on every mapped claim.
+    //
+    // This pins the VOCABULARY rather than one name: a per-name assertion
+    // ("schedule.propose is rejected") still passes under a dual-vocabulary
+    // implementation, because such an implementation rejects that input too.
+    // Only a check over every declared entry catches the real regression.
+    const known = new Set<string>(Object.keys(ALIX_BUILTIN_EXECUTORS));
+    for (const entry of CLAIM_TOOL_MAP) {
+      for (const name of entry.excusedBy) {
+        expect(known, `excusedBy "${name}" is not a manifest tool name`).toContain(name);
+        expect(name, `excusedBy "${name}" must be model-facing`).toMatch(/^alix_/);
+      }
+    }
   });
 
   it('accepts a shell-run claim after alix_shell_run', () => {

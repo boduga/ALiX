@@ -57,8 +57,8 @@ describe("prompt registry", () => {
       "subagent.docs-researcher": "36f722f069f3b831",
       "subagent.worker": "43df6b28ad9296dd",
       "subagent.researcher": "f4fea7a09a499d77",
-      "planner.graph": "ba1e49648366b6f5",
-      "route.retrieval-system": "4a663044320ac9ba",
+      "planner.graph": "4c40616afb3f4519",
+      "route.retrieval-system": "e92d8e599b6d8489",
     };
     for (const e of PROMPT_REGISTRY) {
       assert.equal(sha(e.text), snapshot[e.id], `${e.id} text changed without a version bump (update snapshot + version)`);

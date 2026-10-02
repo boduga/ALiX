@@ -1,5 +1,5 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
-import { readFile, searchDir, grepSearch, globMatch } from "./file-tools.js";
+import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
@@ -96,7 +96,6 @@ export class FileToolRouter implements ToolRouter {
     "file.create",
     "file.delete",
     "file.exists",
-    "dir.search",
     "grep.search",
     "glob.match",
   ];
@@ -160,16 +159,6 @@ export class FileToolRouter implements ToolRouter {
       case "file.read": {
         if (!args.path) return { kind: "error", message: "file.read requires path" };
         return readFile({ root: this.root, path: args.path });
-      }
-      case "dir.search": {
-        if (!args.pattern) return { kind: "error", message: "dir.search requires pattern" };
-        return searchDir({
-          root: this.root,
-          pattern: args.pattern,
-          extensions: args.extensions ?? [],
-          headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
-          path: typeof args.path === "string" ? args.path : undefined,
-        });
       }
       case "grep.search": {
         if (!args.pattern) return { kind: "error", message: "grep.search requires pattern" };
@@ -740,7 +729,7 @@ export class ClaimVerificationToolRouter implements ToolRouter {
 }
 
 export class WebToolsRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
+  private static readonly SUPPORTED_TOOLS = ["web.search", "web.fetch"];
   constructor(private readonly allowDomains: string[] = []) {}
 
   canHandle(name: string): boolean {
@@ -751,7 +740,7 @@ export class WebToolsRouter implements ToolRouter {
     const { webSearchTool } = await import("./web-search.js");
     const { webFetchTool } = await import("./web-fetch.js");
 
-    const tool = request.name === "web_search" ? webSearchTool() : webFetchTool({ allowDomains: this.allowDomains });
+    const tool = request.name === "web.search" ? webSearchTool() : webFetchTool({ allowDomains: this.allowDomains });
     const result = await tool.execute(request.args as any);
 
     if (result.ok) {
@@ -762,7 +751,7 @@ export class WebToolsRouter implements ToolRouter {
 }
 
 export class SelfExtendToolRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension", "create_hook"];
+  private static readonly SUPPORTED_TOOLS = ["skill.create", "extension.list", "extension.inspect", "hook.create"];
 
   canHandle(name: string): boolean {
     return SelfExtendToolRouter.SUPPORTED_TOOLS.includes(name);
@@ -770,7 +759,7 @@ export class SelfExtendToolRouter implements ToolRouter {
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
     // Handle create_hook specially — it needs a HookRunner instance
-    if (request.name === "create_hook") {
+    if (request.name === "hook.create") {
       const { createHookTool } = await import("../self-extend/create-hook.js");
       const { HookRunner } = await import("../extensions/hook-runner.js");
       const runner = new HookRunner();
@@ -783,8 +772,8 @@ export class SelfExtendToolRouter implements ToolRouter {
     const { listExtensionsTool } = await import("../self-extend/list-extensions.js");
     const { inspectExtensionTool } = await import("../self-extend/inspect-extension.js");
 
-    const tool = request.name === "create_skill" ? createSkillTool()
-      : request.name === "list_extensions" ? listExtensionsTool()
+    const tool = request.name === "skill.create" ? createSkillTool()
+      : request.name === "extension.list" ? listExtensionsTool()
       : inspectExtensionTool();
 
     const result = await tool.execute(request.args);

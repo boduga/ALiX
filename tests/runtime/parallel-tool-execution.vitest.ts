@@ -209,7 +209,7 @@ function baseToolsForFileRead(count: number, prefix = "alix_file_read"): ToolDef
 // For file read / dir search we use the canonical manifest names the scheduler knows as safe
 const FILE_READ_TOOLS: ToolDef[] = [
   { name: "alix_file_read", description: "read", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
-  { name: "alix_dir_search", description: "search", input_schema: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } },
+  { name: "alix_grep_search", description: "search", input_schema: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } },
   { name: "alix_file_exists", description: "exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
 ];
 
@@ -677,7 +677,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
           providerTools: FILE_READ_TOOLS,
           selectedTools: [
             { name: "alix_file_read", execName: "file.read" },
-            { name: "alix_dir_search", execName: "dir.search" },
+            { name: "alix_grep_search", execName: "grep.search" },
             { name: "alix_file_exists", execName: "file.exists" },
           ],
           maxIterations: 3,
@@ -712,7 +712,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
       systemPrompt: "sys",
       tools: [
         { name: "file.read", description: "r", input_schema: { type: "object", properties: { path: { type: "string" } } } },
-        { name: "dir.search", description: "s", input_schema: { type: "object", properties: { pattern: { type: "string" } } } },
+        { name: "grep.search", description: "s", input_schema: { type: "object", properties: { pattern: { type: "string" } } } },
       ],
     };
     const capableBody: any = openaiBaseSpec.toRequestBody(capableReq);
@@ -727,7 +727,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
       systemPrompt: "sys",
       tools: [
         { name: "file.read", description: "r", input_schema: { type: "object", properties: { path: { type: "string" } } } },
-        { name: "dir.search", description: "s", input_schema: { type: "object", properties: { pattern: { type: "string" } } } },
+        { name: "grep.search", description: "s", input_schema: { type: "object", properties: { pattern: { type: "string" } } } },
       ],
     };
     const unsupportedBody: any = openaiBaseSpec.toRequestBody(unsupportedReq);
@@ -777,7 +777,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
         providerTools: FILE_READ_TOOLS,
         selectedTools: [
           { name: "alix_file_read", execName: "file.read" },
-          { name: "alix_dir_search", execName: "dir.search" },
+          { name: "alix_grep_search", execName: "grep.search" },
           { name: "alix_file_exists", execName: "file.exists" },
         ],
         maxIterations: 3,
@@ -833,7 +833,7 @@ describe("T6 parallel tool execution — tracer bullet (10 cases + provider fall
         providerTools: FILE_READ_TOOLS,
         selectedTools: [
           { name: "alix_file_read", execName: "file.read" },
-          { name: "alix_dir_search", execName: "dir.search" },
+          { name: "alix_grep_search", execName: "grep.search" },
           { name: "alix_file_exists", execName: "file.exists" },
         ],
         maxIterations: 4,

@@ -13,7 +13,7 @@ export type ToolResult = { ok: boolean; error?: string; data?: unknown };
 
 export function listExtensionsTool() {
   return {
-    name: "list_extensions",
+    name: "extension.list",
     description: "List all loaded extensions: skills, hooks, MCP servers, recipes, subagents.",
     input_schema: { type: "object", properties: {} },
     async execute(_args: {}): Promise<ToolResult> {

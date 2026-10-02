@@ -52,21 +52,12 @@ import type {
 /**
  * Discriminated union of tool names.
  *
- * Matches {@link ToolName} in `src/tools/types.ts` exactly.
- * Each literal member corresponds to a registered tool capability.
- *
- * | Member         | Description                         |
- * |----------------|-------------------------------------|
- * | `file.read`    | Read file contents                  |
- * | `file.create`  | Create or overwrite a file          |
- * | `file.delete`  | Delete a file                       |
- * | `file.exists`  | Check if a file exists              |
- * | `dir.search`   | Search directory for files          |
- * | `grep.search`  | Regex-search file contents          |
- * | `glob.match`   | Match filenames against a glob      |
- * | `shell.run`    | Execute a shell command             |
- * | `patch.apply`  | Apply a structured patch            |
- * | `done`         | Signal task complete                |
+ * Matches {@link ToolName} in `src/tools/types.ts` exactly, which derives it
+ * from `ALIX_BUILTIN_EXECUTORS` — so the members are exactly the manifest
+ * executor ids, with no hand-written exception, and the set grows with the
+ * manifest instead of drifting from a hand-written list. These are INTERNAL
+ * dispatch ids; the model-facing `alix_*` names are offered and resolved before
+ * a call reaches this layer (see `src/agents/tool-name-resolver.ts`).
  */
 export type ToolName = SourceToolName;
 

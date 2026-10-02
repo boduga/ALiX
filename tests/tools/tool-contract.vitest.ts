@@ -75,15 +75,6 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["read", "file", "check"],
   },
-  "dir.search": {
-    capabilityId: "filesystem.search",
-    policyKey: "file.search",
-    risk: "low",
-    mutates: false,
-    domain: "filesystem",
-    alwaysInclude: false,
-    tags: ["search", "file", "directory", "code"],
-  },
   "grep.search": {
     capabilityId: "filesystem.search",
     policyKey: "file.search",
@@ -201,7 +192,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: true,
     tags: ["claim", "verify", "evidence", "decision", "read"],
   },
-  web_search: {
+  "web.search": {
     capabilityId: "web.search",
     policyKey: "web.search",
     risk: "low",
@@ -211,7 +202,7 @@ const EXPECTED: Record<string, EntryShape> = {
     tags: ["web", "search"],
     executionProfiles: ["research"],
   },
-  web_fetch: {
+  "web.fetch": {
     capabilityId: "web.fetch",
     policyKey: "web.fetch",
     risk: "medium",
@@ -221,7 +212,7 @@ const EXPECTED: Record<string, EntryShape> = {
     tags: ["web", "fetch"],
     executionProfiles: ["research"],
   },
-  create_skill: {
+  "skill.create": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "medium",
@@ -230,7 +221,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["skill", "create", "self-extend"],
   },
-  list_extensions: {
+  "extension.list": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "low",
@@ -239,7 +230,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["extension", "list", "self-extend"],
   },
-  inspect_extension: {
+  "extension.inspect": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "low",
@@ -248,7 +239,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["extension", "inspect", "self-extend"],
   },
-  create_hook: {
+  "hook.create": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "high",
@@ -294,9 +285,9 @@ function project(cap: ToolCapability): EntryShape & { name: string } {
 }
 
 describe("canonical tool capability taxonomy contract", () => {
-  it("registers exactly 25 canonical entries", () => {
+  it("registers exactly 24 canonical entries", () => {
     const { registry } = buildDefaultToolIndex();
-    expect(registry.getAll().length).toBe(25);
+    expect(registry.getAll().length).toBe(24);
   });
 
   it("matches the canonical table exactly", () => {
@@ -358,10 +349,10 @@ describe("canonical tool capability taxonomy contract", () => {
     ]);
     // the four self-extend tools all invoke tool.invoke
     expect(namesByCapabilityId("tool.invoke")).toEqual([
-      "create_hook",
-      "create_skill",
-      "inspect_extension",
-      "list_extensions",
+      "extension.inspect",
+      "extension.list",
+      "hook.create",
+      "skill.create",
     ]);
   });
 

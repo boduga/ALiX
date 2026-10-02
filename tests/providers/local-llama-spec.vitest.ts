@@ -127,7 +127,7 @@ describe("localLlamaSpec", () => {
         choices: [{
           message: {
             content: null,
-            tool_calls: [{ id: "x", type: "function", function: { name: "web_search", arguments: '{"query":"test"}' } }],
+            tool_calls: [{ id: "x", type: "function", function: { name: "web.search", arguments: '{"query":"test"}' } }],
           },
           finish_reason: "tool_calls",
         }],

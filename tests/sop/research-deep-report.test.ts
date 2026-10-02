@@ -67,7 +67,7 @@ describe("research.deep_report", () => {
         assert.ok(node.goal.includes(".alix/reports/"),
           `Node ${node.id} goal should reference .alix/reports/`);
       } else {
-        assert.ok(node.goal.includes("web_search") || node.goal.includes("ONLY"),
+        assert.ok(node.goal.includes("web.search") || node.goal.includes("ONLY"),
           `Node ${node.id} goal should restrict to web-only tools`);
       }
     }

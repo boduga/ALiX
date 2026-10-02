@@ -395,7 +395,7 @@ test("stream: OpenAI-compatible tool call deltas accumulate before yielding", as
   _setFetchForTesting(wrap(async (url, init) => {
     calls.push({ url: String(url), init: init ?? {} });
     return makeStreamResponse([
-      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_search","function":{"name":"web_search"}}]}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_search","function":{"name":"web.search"}}]}}]}',
       'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"query\\":\\"latest Node.js\\"}"}}]}}]}',
       'data: [DONE]',
     ]);
@@ -407,7 +407,7 @@ test("stream: OpenAI-compatible tool call deltas accumulate before yielding", as
       ...completionRequest,
       stream: true,
       tools: [{
-        name: "web_search",
+        name: "web.search",
         description: "Search the web",
         input_schema: {
           type: "object",
@@ -421,7 +421,7 @@ test("stream: OpenAI-compatible tool call deltas accumulate before yielding", as
 
     assert.equal(toolCalls.length, 1);
     assert.equal(toolCalls[0].id, "call_search");
-    assert.equal(toolCalls[0].name, "web_search");
+    assert.equal(toolCalls[0].name, "web.search");
     assert.deepEqual(toolCalls[0].args, { query: "latest Node.js" });
   } finally {
     _setFetchForTesting(globalThis.fetch);

@@ -78,7 +78,7 @@ export type EventHandlerDeps = {
 };
 
 /** Read-only search tools subject to the repeated-call guard. */
-const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match", "dir.search"]);
+const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match"]);
 /** How many near-identical search calls are allowed before the guard fires. */
 const SEARCH_REPEAT_LIMIT = 3;
 /**
@@ -104,8 +104,6 @@ function searchSignature(execName: string, args: unknown): string {
       return `grep.search:${s(a.pattern)}:${s(a.path)}:${a.caseSensitive === true}:${list(a.include)}`;
     case "glob.match":
       return `glob.match:${s(a.pattern)}:${s(a.path)}`;
-    case "dir.search":
-      return `dir.search:${s(a.pattern)}:${s(a.path)}:${list(a.extensions)}`;
     default:
       return `${execName}:${JSON.stringify(args ?? {})}`;
   }
@@ -131,11 +129,11 @@ export async function handleMcpToolSearch(
     return { handled: false };
   }
 
-  const execName = ALIX_BUILTIN_EXECUTORS.alix_mcp_search_tools;
-  if (execName !== "mcp_search_tools") {
-    return { handled: false };
-  }
-
+  // No executor-id literal to check here: this path already passed the exact
+  // offered-name gate above, so a hardcoded copy of the manifest value was a
+  // second place to forget. It read as a drift guard but compared a
+  // manifest-derived constant to itself — renaming the entry is what made
+  // `tsc` flag it, which was the only reason it ever caught anything.
   const query = (toolCall.args.query as string) ?? "";
   if (!deps.mcpDiscovery) {
     return { handled: true, message: { role: "assistant", content: "MCP tools are not configured." } };
@@ -410,7 +408,7 @@ export async function handleToolCall(
 
   // Web-search routing guard: a query that is plainly a local workspace search
   // is redirected to the workspace tools instead of hitting the public web.
-  if (execName === "web_search") {
+  if (execName === "web.search") {
     const query = typeof (toolCall.args as { query?: unknown } | undefined)?.query === "string"
       ? (toolCall.args as { query: string }).query
       : "";
@@ -554,7 +552,7 @@ export async function handleToolCall(
 
   // Stream tool output to stdout if verbose mode - only for read-only tools
   if (deps.verbose && execResult.kind === "success" && resultContent) {
-    const isReadOnly = ["file.read", "dir.search", "grep.search", "glob.match", "file.exists"].includes(execName);
+    const isReadOnly = ["file.read", "grep.search", "glob.match", "file.exists"].includes(execName);
     const isPwd = execName === "shell.run" && (toolCall.args.command as string)?.includes("pwd");
     if (isReadOnly || isPwd) {
       const truncated = resultContent.length > 200 ? resultContent.slice(0, 200) + "\n[...truncated]" : resultContent;

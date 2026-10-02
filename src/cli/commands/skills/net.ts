@@ -70,7 +70,7 @@ function defaultResolveHost(hostname: string): Promise<string[]> {
 }
 
 /**
- * Validate a skill URL against the same network policy as web_fetch
+ * Validate a skill URL against the same network policy as `alix_web_fetch`
  * (domain allowlist empty = any public host; private/loopback blocked),
  * on top of the https-only rule. Throws when the destination is rejected.
  */

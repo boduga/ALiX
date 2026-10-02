@@ -140,7 +140,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = {
       kind: "grounded_chat",
       prompt: "latest Node.js version",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as TaskRoute;
 
@@ -181,7 +181,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = await taskRouter("what is the latest linux LTS version");
     assert.equal(route.kind, "grounded_chat");
     if (route.kind === "grounded_chat") {
-      assert.deepEqual(route.allowedTools, ["web_search", "web_fetch"]);
+      assert.deepEqual(route.allowedTools, ["web.search", "web.fetch"]);
       assert.ok(
         !route.allowedTools.some((t) => t.includes("shell")),
         "grounded_chat must not expose a shell tool",
@@ -200,7 +200,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "what is my os",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 
@@ -213,8 +213,14 @@ describe("route executor parity — local vs daemon", () => {
   });
 
   it("grounded_chat passes the web tool schemas to the provider (no stale-memory answers)", async () => {
-    // Regression: the model must be given the web_search/web_fetch schemas so
-    // it can issue a real tool call instead of answering from training data.
+    // Regression: the model must be given the web tool schemas so it can issue
+    // a real tool call instead of answering from training data.
+    //
+    // The offered names are the MANIFEST names (`alix_web_search` /
+    // `alix_web_fetch`), never the internal executor ids. This test used to
+    // assert `web.search` / `web.fetch` were offered — pinning the very defect
+    // the exact-name contract forbids, since a route that hands the model an
+    // executor id has that id reach execution.
     let call1: any;
     const provider = {
       complete: async (opts: any) => {
@@ -226,7 +232,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "Search the web for the current US president",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 
@@ -239,8 +245,13 @@ describe("route executor parity — local vs daemon", () => {
     assert.equal(out, "answered");
     assert.ok(Array.isArray(call1?.tools), "first call must carry a tools array");
     const names = (call1?.tools ?? []).map((t: any) => t.name);
-    assert.ok(names.includes("web_search"), "web_search schema must be offered");
-    assert.ok(names.includes("web_fetch"), "web_fetch schema must be offered");
+    assert.ok(names.includes("alix_web_search"), "alix_web_search schema must be offered");
+    assert.ok(names.includes("alix_web_fetch"), "alix_web_fetch schema must be offered");
+    // No executor id may ever reach the provider: it is the model's only
+    // source of callable names on this route.
+    for (const exec of ["web.search", "web.fetch"]) {
+      assert.ok(!names.includes(exec), `${exec} is an internal executor id and must not be offered`);
+    }
     assert.equal(names.length, 2, "only the allowlisted web tools may be offered");
   });
 
@@ -256,8 +267,10 @@ describe("route executor parity — local vs daemon", () => {
           return {
             text: "",
             toolCalls: [
-              { id: "t1", name: "web_search", args: { query: "Bukina Faso president" } },
-              { id: "t2", name: "web_search", args: { query: "Burkina Faso president" } },
+              // The model may only emit names it was OFFERED, which are the manifest
+              // names — an executor id here would be rejected, as it must be.
+              { id: "t1", name: "alix_web_search", args: { query: "Bukina Faso president" } },
+              { id: "t2", name: "alix_web_search", args: { query: "Burkina Faso president" } },
             ],
           };
         }
@@ -268,7 +281,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "who is the president of Bukina Faso",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 

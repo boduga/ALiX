@@ -242,7 +242,7 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
     const route = {
       kind: "grounded_chat" as const,
       prompt: "what is the latest?",
-      allowedTools: ["web_search"],
+      allowedTools: ["web.search"],
       diagnostic: { classification: "external_retrieval" as const, route: "grounded_chat" as const, reason: "seam test" },
     };
     const config: AlixConfig = {
@@ -275,7 +275,9 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
     try {
       const model = scriptedModel({
         responseTexts: ["", "The latest is v2."],
-        toolCallsSequence: [[{ id: "tc-g", name: "web_search", args: { query: "latest" } }], []],
+        // The grounded route offers the MANIFEST names, so a model that plays by the
+        // rules emits `alix_web_search`; an executor id is rejected by design.
+        toolCallsSequence: [[{ id: "tc-g", name: "alix_web_search", args: { query: "latest" } }], []],
       });
       const wrapped = withProviderContracts(model);
       const result = await executeGroundedChatBehavior(route, config, {
@@ -311,8 +313,8 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
     expect(tool).toBeDefined();
     expect(tool!.traceId).toBe(root.traceId);
     expect(tool!.parentSpanId).toBe(root.spanId);
-    expect(tool!.name).toBe("web_search");
-    expect(alixOf(tool!)).toMatchObject({ kind: "tool", toolName: "web_search" });
+    expect(tool!.name).toBe("web.search");
+    expect(alixOf(tool!)).toMatchObject({ kind: "tool", toolName: "web.search" });
     expect(tool!.endTimeMs).toBeGreaterThan(0); // exactly one end
   });
 });

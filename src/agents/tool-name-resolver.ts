@@ -10,26 +10,29 @@ export class ToolNotFoundError extends Error {
 }
 
 /**
- * Reverse index: internal executor ID -> canonical model-facing name.
+ * ONE vocabulary: a tool has exactly one callable name, the `alix_*` form
+ * offered this turn. Internal executor IDs (`shell.run`, `file.create`) are the
+ * code's own vocabulary and are never accepted from a caller.
  *
- * The repo's own documentation, DOX contracts, and specs name tools by
- * executor ID (`shell.run`, `file.create`, `patch.apply`, `verify.claim` —
- * ~100 backticked mentions across `docs/` and `AGENTS.md`), because that is
- * how the code refers to them. A model that reads those docs and then calls
- * `shell.run` is not hallucinating a capability; it is naming a tool the
- * repository itself taught it to name. Rejecting that costs a turn and
- * teaches nothing.
+ * This resolver used to carry a documented-executor alias that mapped
+ * `shell.run` -> `alix_shell_run`, justified by the repository naming tools by
+ * executor ID in its own DOX and specs. That justification is gone: every
+ * model-facing contract bullet now names the `alix_*` tool, so the alias no
+ * longer bridges anything real — it only widened the accepted surface.
  *
- * The alias is deliberately narrow: it resolves ONLY when the requested name
- * is the exact executor ID of a tool that was OFFERED this turn. It is a
- * naming-convention bridge, not a capability grant — authority still comes
- * from the offered surface, never from the requested string.
+ * A second vocabulary on the model's call path is not free even when
+ * offered-gated. It made `resolveExecutableToolName` accept two spellings per
+ * tool, forced every consumer of tool identity to decide which form it holds,
+ * and meant a contract typo could not be caught by rejecting the call. The
+ * rejection message already names the callable options, so a wrong name costs
+ * one turn and is self-correcting — which is the intended failure mode, not a
+ * defect.
+ *
+ * Executor IDs remain correct in CODE, where they are the dispatch identity.
+ * See `tool-manifest.ts` for the single canonical mapping.
  */
-const EXECUTOR_TO_CANONICAL: ReadonlyMap<string, string> = new Map(
-  Object.entries(ALIX_BUILTIN_EXECUTORS).map(([canonical, execName]) => [execName, canonical]),
-);
 
-/** Resolve an offered model-facing name, or its documented executor alias. */
+/** Resolve an offered model-facing name. Executor IDs are NOT accepted. */
 export function resolveExecutableToolName(
   requestedName: string,
   offeredTools: ReadonlyArray<OfferedExecutableTool>,
@@ -41,14 +44,10 @@ export function resolveExecutableToolName(
   if (offered && requestedName.startsWith("mcp__") && offered.execName?.startsWith("mcp.")) {
     return offered.execName;
   }
-  // Documented-executor alias: `shell.run` -> `alix_shell_run`, offered-only.
-  const canonical = EXECUTOR_TO_CANONICAL.get(requestedName);
-  if (canonical) {
-    const aliased = offeredTools.find((tool) => tool.name === canonical);
-    if (aliased) return ALIX_BUILTIN_EXECUTORS[canonical as keyof typeof ALIX_BUILTIN_EXECUTORS];
-  }
-  // MCP handles are opaque; accept the discovered executor name for the same
-  // reason, still gated on an `mcp__`-named, `mcp.`-executing offered entry.
+  // MCP handles are opaque and minted per turn, so the discovered executor
+  // name is accepted as an equivalent spelling — still gated on an
+  // `mcp__`-named, `mcp.`-executing offered entry. Built-ins get no such
+  // latitude: their callable name is fixed by the manifest.
   for (const tool of offeredTools) {
     if (tool.execName === requestedName && tool.name.startsWith("mcp__") && tool.execName?.startsWith("mcp.")) {
       return tool.execName;

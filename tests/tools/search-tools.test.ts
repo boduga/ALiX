@@ -179,23 +179,26 @@ test("grep.search/glob.match resolve to the allow-listed file.search capability"
   assert.equal(DEFAULT_CONFIG.permissions.tools["file.search"], "allow");
 });
 
-test("dir.search honors headLimit and shares ignore rules (#721)", async () => {
+// Was `dir.search`, deleted as a literal-substring duplicate of `grep.search`.
+// Every behavior asserted here is one a caller still depends on, so the
+// coverage moved to the tool that replaced it rather than being dropped.
+test("grep.search honors headLimit and shares ignore rules (#721)", async () => {
   const root = await seed();
   try {
     const router = new FileToolRouter(root);
     const limited = await router.execute({
-      toolCallId: "d1", name: "dir.search", args: { pattern: "needle", headLimit: 1 },
+      toolCallId: "d1", name: "grep.search", args: { pattern: "needle", headLimit: 1 },
     });
     assert.equal(limited.kind, "success");
     assert.equal((limited as { matches: unknown[] }).matches.length, 1);
 
-    const all = await router.execute({ toolCallId: "d2", name: "dir.search", args: { pattern: "needle" } });
+    const all = await router.execute({ toolCallId: "d2", name: "grep.search", args: { pattern: "needle" } });
     const paths = (all as { matches: { path: string }[] }).matches.map((m) => m.path);
     assert.ok(!paths.some((p) => p.startsWith("node_modules/")), "node_modules ignored");
     assert.ok(!paths.some((p) => p.startsWith("ignored-dir/")), ".gitignore honored");
 
-    const ci = await router.execute({ toolCallId: "d3", name: "dir.search", args: { pattern: "(?i)NEEDLE" } });
-    assert.ok((ci as { matches: unknown[] }).matches.length > 0, "dir.search honors inline (?i)");
+    const ci = await router.execute({ toolCallId: "d3", name: "grep.search", args: { pattern: "(?i)NEEDLE" } });
+    assert.ok((ci as { matches: unknown[] }).matches.length > 0, "grep.search honors inline (?i)");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

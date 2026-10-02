@@ -200,27 +200,6 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["read", "file", "check"],
     },
     {
-      name: "dir.search",
-      capabilityId: "filesystem.search",
-      policyKey: "file.search",
-      description: "Legacy literal content search. Prefer grep.search (regex) for contents or glob.match for filenames.",
-      risk: "low",
-      domain: "filesystem",
-      mutates: false,
-      alwaysInclude: false,
-      tags: ["search", "file", "directory", "code"],
-      argsSchema: {
-        type: "object",
-        properties: {
-          pattern: { type: "string" },
-          extensions: { type: "array", items: { type: "string" } },
-          headLimit: { type: "integer" },
-          path: { type: "string" },
-        },
-        required: ["pattern"],
-      },
-    },
-    {
       name: "grep.search",
       capabilityId: "filesystem.search",
       policyKey: "file.search",
@@ -386,7 +365,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["claim", "verify", "evidence", "decision", "read"],
     },
     {
-      name: "web_search",
+      name: "web.search",
       capabilityId: "web.search",
       policyKey: "web.search",
       description: "Search the public web (NOT the local workspace). For local code/text use grep.search; for local filenames use glob.match.",
@@ -398,7 +377,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       executionProfiles: ["research"],
     },
     {
-      name: "web_fetch",
+      name: "web.fetch",
       capabilityId: "web.fetch",
       policyKey: "web.fetch",
       description: "Fetch a web page",
@@ -410,7 +389,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       executionProfiles: ["research"],
     },
     {
-      name: "create_skill",
+      name: "skill.create",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Create a reusable skill",
@@ -421,7 +400,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["skill", "create", "self-extend"],
     },
     {
-      name: "list_extensions",
+      name: "extension.list",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "List installed extensions",
@@ -432,7 +411,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["extension", "list", "self-extend"],
     },
     {
-      name: "inspect_extension",
+      name: "extension.inspect",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Inspect an extension",
@@ -443,7 +422,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["extension", "inspect", "self-extend"],
     },
     {
-      name: "create_hook",
+      name: "hook.create",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Create a hook",

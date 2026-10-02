@@ -186,7 +186,7 @@ export const BASE_TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "alix_create_hook",
+    name: "alix_hook_create",
     description: "Create a hook that runs before or after tool calls or events. Hooks can log, audit, or modify behavior. For example: 'log every file deletion to audit.log'. Describe what you want in the prompt parameter and provide valid JavaScript code in the body.",
     input_schema: {
       type: "object",

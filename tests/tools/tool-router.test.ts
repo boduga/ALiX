@@ -11,7 +11,10 @@ import {
   DelegateToolRouter,
   CompositeToolRouter,
   ClaimVerificationToolRouter,
+  SelfExtendToolRouter,
+  WebToolsRouter,
 } from "../../src/tools/tool-router.js";
+import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import { EventLog } from "../../src/events/event-log.js";
 import type { ToolResult } from "../../src/tools/types.js";
@@ -50,7 +53,6 @@ test("FileToolRouter.canHandle returns true for file tools", () => {
   assert.strictEqual(router.canHandle("file.create"), true);
   assert.strictEqual(router.canHandle("file.delete"), true);
   assert.strictEqual(router.canHandle("file.exists"), true);
-  assert.strictEqual(router.canHandle("dir.search"), true);
 });
 
 test("FileToolRouter.canHandle returns false for others", () => {
@@ -59,6 +61,43 @@ test("FileToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("patch.apply"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
   assert.strictEqual(router.canHandle("delegate"), false);
+});
+
+/**
+ * The self-extend and web routers gate on a private SUPPORTED_TOOLS list, and
+ * nothing pinned it: renaming an executor id desynchronized the manifest,
+ * registry, and tool definitions from the router, and every suite stayed green
+ * with the tool silently unroutable ("No router found for tool"). The registry
+ * is the authority for WHICH tools exist, so the router's admitted set is
+ * asserted against it here rather than hand-copied.
+ */
+test("SelfExtendToolRouter.canHandle admits every registry system/self-extend tool", () => {
+  const router = new SelfExtendToolRouter();
+  const registry = buildDefaultToolIndex().registry;
+  for (const name of registry.getAll().map((tool) => tool.name)) {
+    const expected = name === "hook.create" || name.startsWith("skill.") || name.startsWith("extension.");
+    assert.strictEqual(
+      router.canHandle(name),
+      expected,
+      `canHandle(${JSON.stringify(name)}) should be ${expected}`,
+    );
+  }
+});
+
+test("SelfExtendToolRouter.canHandle rejects non-self-extend tools", () => {
+  const router = new SelfExtendToolRouter();
+  for (const name of ["file.read", "shell.run", "patch.apply", "web.search", "done"]) {
+    assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
+  }
+});
+
+test("WebToolsRouter.canHandle admits only the two web tools", () => {
+  const router = new WebToolsRouter();
+  assert.strictEqual(router.canHandle("web.search"), true);
+  assert.strictEqual(router.canHandle("web.fetch"), true);
+  for (const name of ["file.read", "shell.run", "skill.create", "done"]) {
+    assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
+  }
 });
 
 test("ShellToolRouter.canHandle returns true for shell.run", () => {
@@ -236,15 +275,18 @@ test("FileToolRouter.execute handles file.read", async () => {
   await rm("/tmp/test-read-file.txt", { force: true });
 });
 
-test("FileToolRouter.execute handles dir.search", async () => {
+test("FileToolRouter.execute handles grep.search", async () => {
+  // Was `dir.search`, deleted as a literal-substring duplicate of this tool.
+  // The coverage is kept rather than dropped: it pins that a content search
+  // through the router still returns path:line matches.
   const searchRoot = await mkdtemp(join(tmpdir(), "tool-router-search-"));
   const router = new FileToolRouter(searchRoot);
   await mkdir(join(searchRoot, "sub"), { recursive: true });
   await writeFile(join(searchRoot, "sub", "test.txt"), "search keyword unique xyz");
   const result = await router.execute({
     toolCallId: "1",
-    name: "dir.search",
-    args: { pattern: "search keyword unique xyz", extensions: [] },
+    name: "grep.search",
+    args: { pattern: "search keyword unique xyz" },
   });
   assert.strictEqual(result.kind, "success");
   assert.ok(result.matches && result.matches.length > 0);

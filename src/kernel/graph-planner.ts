@@ -91,9 +91,9 @@ export const DEFAULT_CAPABILITY_CATALOG: readonly string[] = [
   "shell.exec", "patch.apply", "task.complete", "agent.delegate",
   "web.search", "web.fetch", "tool.invoke", "mcp.invoke",
   "file.read", "file.create", "file.delete", "file.exists",
-  "dir.search", "grep.search", "glob.match", "shell.run",
-  "done", "delegate", "web_search", "web_fetch",
-  "create_skill", "list_extensions", "inspect_extension", "create_hook",
+  "grep.search", "glob.match", "shell.run",
+  "done", "delegate", "web.search", "web.fetch",
+  "skill.create", "extension.list", "extension.inspect", "hook.create",
   "state.read", "state.query",
 ];
 

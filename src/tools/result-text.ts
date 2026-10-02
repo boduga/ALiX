@@ -3,7 +3,7 @@
  *
  * ToolResult is a discriminated union whose success branch carries different
  * payloads per tool family: `content` (file.read), `output` (shell.run,
- * glob.match), `value`, `matches[]` (grep.search, dir.search) or `exists`
+ * glob.match), `value`, `matches[]` (grep.search) or `exists`
  * (file.exists). A consumer that reads only `output`/`content` silently drops
  * every search result — the model receives an empty `<tool_result>` for a
  * grep that matched, reports "the tool returned nothing", and re-issues the

@@ -161,7 +161,7 @@ describe("Tool Executor Events", () => {
   });
 
   it("renders a large matches[] result instead of crashing on the artifact write", async () => {
-    // Regression: grep.search/dir.search answer with matches[]. Once the shared
+    // Regression: the search tools answer with matches[]. Once the shared
     // renderer made outputSize reflect those matches, a result past
     // LARGE_OUTPUT_THRESHOLD reached writeOutputToFile with `output ?? content`
     // = undefined and killed the run with `The "data" argument must be of type

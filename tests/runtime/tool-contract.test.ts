@@ -17,6 +17,7 @@ import type {
 import {
   TOOL_SAFETY_BOUNDARY,
 } from "../../src/runtime/contracts/tool-contract.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 
 // ── Source types (structural comparison) ────────────────────────────
 
@@ -41,23 +42,29 @@ describe("M1.4 — Tool Contract", () => {
     assert.ok(contractToSource);
   });
 
-  it("ToolName has all 8 members matching tools/types.ts", () => {
-    const names: ToolName[] = [
-      "file.read",
-      "file.create",
-      "file.delete",
-      "file.exists",
-      "dir.search",
-      "shell.run",
-      "patch.apply",
-      "done",
-    ];
-    assert.equal(names.length, 8);
-    // Verify each name is assignable to the source type
-    for (const name of names) {
-      const _source: SourceToolName = name;
-      assert.ok(_source, `tool name "${name}" is valid ToolName`);
+  it("ToolName covers every manifest executor id", () => {
+    // Derived from `ALIX_BUILTIN_EXECUTORS`, so this is the drift guard. The
+    // old test asserted a hand-written list of 8 against a 10-member union and
+    // so proved nothing: it could not fail when a tool was added, and could not
+    // notice the two names it silently skipped (`grep.search`, `glob.match`).
+    for (const exec of Object.values(ALIX_BUILTIN_EXECUTORS)) {
+      const asToolName: ToolName = exec;
+      const asSource: SourceToolName = exec;
+      assert.ok(asToolName && asSource, `${exec} must be a valid ToolName`);
     }
+    // No hand-maintained exception. `dir.search` used to need one: it was a
+    // registry entry the router dispatched but no surface ever offered, so it
+    // had no `alix_*` name. It was deleted as a redundant literal-substring
+    // duplicate of `grep.search`, which covers it via `include`.
+  });
+
+  it("ToolName excludes model-facing names", () => {
+    // `alix_shell_run` is what the model calls; `shell.run` is what dispatch
+    // uses. Accepting both in one type is how a caller ends up passing an
+    // unresolved name into the executor.
+    // @ts-expect-error model-facing name is not a dispatch id
+    const wrong: ToolName = "alix_shell_run";
+    assert.ok(wrong);
   });
 
   // ── ToolCallRequest ───────────────────────────────────────────
@@ -244,8 +251,8 @@ describe("M1.4 — Tool Contract", () => {
     assert.equal(readArgs.root, "/project");
     assert.equal(readArgs.path, "readme.md");
 
-    const dirArgs: ToolArgs["dir.search"] = { root: "/project", pattern: "*.ts", extensions: [".ts"] };
-    assert.equal(dirArgs.pattern, "*.ts");
+    const grepArgs: ToolArgs["grep.search"] = { root: "/project", pattern: "*.ts", include: ["**/*.ts"] };
+    assert.equal(grepArgs.pattern, "*.ts");
 
     const shellArgs: ToolArgs["shell.run"] = { command: "echo hi", cwd: "/project", timeoutMs: 5000 };
     assert.equal(shellArgs.command, "echo hi");

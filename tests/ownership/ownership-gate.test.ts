@@ -25,7 +25,7 @@ describe("OwnershipGate", () => {
   it("non-mutating tool passes without check", async () => {
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
-      "agent-1", "web_search", { query: "hello" }, false,
+      "agent-1", "web.search", { query: "hello" }, false,
     );
     assert.equal(result, null);
   });

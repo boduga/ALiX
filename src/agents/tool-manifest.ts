@@ -17,13 +17,13 @@ export const ALIX_BUILTIN_EXECUTORS = {
   alix_coordination_results: "coordination.results",
   alix_state_query: "state.query",
   alix_verify_claim: "verify.claim",
-  alix_web_search: "web_search",
-  alix_web_fetch: "web_fetch",
-  alix_create_hook: "create_hook",
-  alix_create_skill: "create_skill",
-  alix_list_extensions: "list_extensions",
-  alix_inspect_extension: "inspect_extension",
-  alix_mcp_search_tools: "mcp_search_tools",
+  alix_web_search: "web.search",
+  alix_web_fetch: "web.fetch",
+  alix_hook_create: "hook.create",
+  alix_create_skill: "skill.create",
+  alix_list_extensions: "extension.list",
+  alix_inspect_extension: "extension.inspect",
+  alix_mcp_search_tools: "mcp.search_tools",
   alix_execution_state_propose: "alix_execution_state_propose",
   alix_collaboration_publish_finding: "collaboration.publish_finding",
   alix_collaboration_publish_artifact: "collaboration.publish_artifact",
@@ -35,3 +35,23 @@ export const ALIX_BUILTIN_EXECUTORS = {
 
 export const ALIX_CANONICAL_BUILTIN_TOOLS = Object.keys(ALIX_BUILTIN_EXECUTORS) as Array<keyof typeof ALIX_BUILTIN_EXECUTORS>;
 export type AlixBuiltinToolName = keyof typeof ALIX_BUILTIN_EXECUTORS;
+
+/**
+ * Reverse index: internal executor ID -> model-facing `alix_*` name.
+ *
+ * DERIVED from `ALIX_BUILTIN_EXECUTORS`, because the forward map already
+ * states the pairing and two hand-maintained copies of a fact that has one
+ * source is a second place to forget. The grounded-chat route offered
+ * `web_search`/`web_fetch` to the provider while the task loop froze candidates
+ * as `builtin:alix_web_search`/`alix_web_fetch`; that literal pair went stale
+ * the moment the executor ids were renamed to `web.search`/`web.fetch`, and
+ * the alias silently stopped matching — putting one tool in two candidate key
+ * spaces and defeating the actual-vs-Jev comparison the aliases exist to enable.
+ *
+ * Note this is a display/telemetry mapping, NOT an acceptance rule: nothing
+ * resolves a CALL through it. `resolveExecutableToolName` accepts offered
+ * `alix_*` names only.
+ */
+export const ALIX_EXECUTOR_TO_MODEL_FACING: ReadonlyMap<string, string> = new Map(
+  Object.entries(ALIX_BUILTIN_EXECUTORS).map(([modelFacing, executor]) => [executor, modelFacing]),
+);

@@ -361,7 +361,7 @@ const WORKSPACE_PATH_SIGNALS: readonly RegExp[] = [
  * name itself) so bare nouns elsewhere ("user sessions table" in a coding
  * task) don't misroute. Placed above RETRIEVAL_SIGNALS so `\brecent\b` /
  * `\blatest\b` / `\bschedule\b` can't route a local-state question to the
- * web-only grounded_chat (allowedTools web_search/web_fetch only), where
+ * web-only grounded_chat (allowedTools web.search/web.fetch only), where
  * the model truthfully reports "no such tool". Same bug history as the
  * local-machine probes above: observed on "list my 5 most recent
  * sessions, then my saved graphs", which classified external_retrieval

@@ -22,16 +22,23 @@ function scriptedProvider(toolName: string | null, requests: RecordedRequest[]):
     capabilities: {},
     complete: async (request: RecordedRequest) => {
       requests.push(request);
+      // A real model can only emit a name it was OFFERED, and the route offers
+      // the manifest names. Emitting the raw executor id here is exactly the
+      // move the exact-name contract forbids, and the route rejects it.
+      const emitted = toolName === null ? null : ALIASES[toolName] ?? toolName;
       return requests.length === 1
         ? toolName === null
           ? { text: "direct answer", toolCalls: [] }
-          : { text: "", toolCalls: [{ id: "tc1", name: toolName, args: { query: "x" } }] }
+          : { text: "", toolCalls: [{ id: "tc1", name: emitted as string, args: { query: "x" } }] }
         : { text: "synthesized answer", toolCalls: [] };
     },
   } as unknown as ModelAdapter;
 }
 
-const ALIASES: Record<string, string> = { web_search: "alix_web_search", web_fetch: "alix_web_fetch" };
+// Executor id -> model-facing name. Tests name tools by executor id because
+// that is the route config vocabulary (`allowedTools`); the PROVIDER, however,
+// is offered and must emit the manifest names.
+const ALIASES: Record<string, string> = { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" };
 
 async function runGrounded(
   toolName: string | null,
@@ -49,7 +56,7 @@ async function runGrounded(
     kind: "grounded_chat" as const,
     prompt: "fetch https://example.com and summarise it",
     // The real allow-list uses the provider-facing tool names.
-    allowedTools: options.allowedTools ?? ["web_search", "web_fetch"],
+    allowedTools: options.allowedTools ?? ["web.search", "web.fetch"],
     diagnostic: { classification: "external_retrieval" },
   };
 
@@ -117,22 +124,23 @@ describe("grounded external selection observation", () => {
   afterEach(() => { delete process.env.ALIX_TOOL_SELECTION_TRACE; });
 
   it("records a scope when the model chose among the tools it was offered", async () => {
-    const { observations, notApplicable } = await runGrounded("web_fetch", { selectionScope: scope("1") });
+    const { observations, notApplicable } = await runGrounded("web.fetch", { selectionScope: scope("1") });
 
     assert.equal(observations.length, 1, "a real model choice must produce a scope");
     assert.equal(notApplicable.length, 0, "one turn must not emit both records");
     const payload = observations[0].payload;
     assert.equal(payload.scopeId, "grounded_s1_1");
-    // `chosen` is the name the model emitted; `chosenCandidateId` is the
-    // canonical key the rest of ALiX uses, so a grounded scope is comparable
-    // with a task-loop scope.
-    assert.equal(payload.chosen, "web_fetch");
+    // `chosen` is the name the model emitted — a fact about the provider, so it
+    // is the manifest name it was offered, not the executor id underneath.
+    // `chosenCandidateId` is the canonical key the rest of ALiX uses, so a
+    // grounded scope is comparable with a task-loop scope.
+    assert.equal(payload.chosen, "alix_web_fetch");
     assert.equal(payload.chosenCandidateId, "builtin:alix_web_fetch");
     assert.equal(payload.invalidSelection, undefined, "the choice resolved against the offered surface");
   });
 
   it("records exactly the candidates it passed to provider.complete", async () => {
-    const { requests, observations } = await runGrounded("web_search", { selectionScope: scope("2") });
+    const { requests, observations } = await runGrounded("web.search", { selectionScope: scope("2") });
 
     const offeredToProvider = (requests[0].tools ?? []).map(tool => `builtin:${ALIASES[tool.name] ?? tool.name}`).sort();
     const recorded = [...(observations[0].payload.offered as string[])].sort();
@@ -145,8 +153,22 @@ describe("grounded external selection observation", () => {
     );
   });
 
+  it("hands the executor the RESOLVED executor id, never the model's spelling", async () => {
+    // The load-bearing assertion for the route's exact-name fix. This suite
+    // previously asserted only `executed.length === 1`, so passing the raw
+    // model-facing name straight to the executor — skipping
+    // `resolveExecutableToolName` entirely — left every test green while the
+    // route accepted a name it never resolved. A count is not a contract.
+    const { executed } = await runGrounded("web.fetch");
+    assert.deepStrictEqual(executed, ["web.fetch"], "executor must receive the internal id");
+    assert.ok(!executed.includes("alix_web_fetch"), "a model-facing name must never reach the executor");
+
+    const search = await runGrounded("web.search");
+    assert.deepStrictEqual(search.executed, ["web.search"], "executor must receive the internal id");
+  });
+
   it("emits no selection records when the caller does not observe selections", async () => {
-    const { observations, notApplicable, executed } = await runGrounded("web_fetch");
+    const { observations, notApplicable, executed } = await runGrounded("web.fetch");
     assert.equal(executed.length, 1, "the tool still ran");
     assert.equal(observations.length, 0, "observation is opt-in per caller");
     assert.equal(notApplicable.length, 0, "coverage telemetry is opt-in per caller");
@@ -172,7 +194,7 @@ describe("grounded external selection observation", () => {
   });
 
   it("never puts a raw MCP handle in observed identity fields", async () => {
-    const { observations } = await runGrounded("web_fetch", { selectionScope: scope("4") });
+    const { observations } = await runGrounded("web.fetch", { selectionScope: scope("4") });
     assert.deepEqual(identityStrings(observations[0].payload).filter(value => value.includes("mcp__")), []);
   });
 
@@ -204,7 +226,7 @@ describe("grounded external selection observation", () => {
   });
 
   it("records a failed execution as failed rather than dropping the scope", async () => {
-    const { observations } = await runGrounded("web_fetch", {
+    const { observations } = await runGrounded("web.fetch", {
       selectionScope: scope("5"),
       executorResult: { kind: "error", message: "Network error: unreachable" },
     });

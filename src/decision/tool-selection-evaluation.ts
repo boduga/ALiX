@@ -61,7 +61,7 @@ const MUTATING = new Set([
   "alix_schedule_propose",
   "alix_delegate",
   "alix_coordination_run",
-  "alix_create_hook",
+  "alix_hook_create",
   "alix_create_skill",
   "alix_execution_state_propose",
   "alix_collaboration_publish_finding",

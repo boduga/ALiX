@@ -2,25 +2,33 @@
 //
 // Effect Schema contracts for tool execution boundaries.
 // Mirrors src/tools/types.ts ToolName, ToolCallRequest, ToolResult.
+// ToolName is DERIVED from the manifest — see TOOL_NAME_EXECUTOR_IDS below.
 
 import { Schema } from "effect";
+import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
 
 // ---------------------------------------------------------------------------
-// ToolName — literal union
+// ToolName — literal union of INTERNAL executor ids
 // ---------------------------------------------------------------------------
 
-export const ToolNameSchema = Schema.Literal(
-  "file.read",
-  "file.create",
-  "file.delete",
-  "file.exists",
-  "dir.search",
-  "grep.search",
-  "glob.match",
-  "shell.run",
-  "patch.apply",
-  "done",
-);
+/**
+ * Executor ids, derived from the manifest rather than hand-listed.
+ *
+ * This was a frozen 10-name literal that had drifted: it admitted
+ * `dir.search`, which was never a manifest tool (the router dispatched it but no
+ * surface ever offered it), and omitted 21 of the 31 real built-ins — so a
+ * schema described as the tool-name contract rejected most valid names while
+ * accepting one the model could not call. Both are gone: `dir.search` was
+ * deleted as a literal-substring duplicate of `grep.search`.
+ *
+ * These are the internal dispatch ids, NOT the model-facing names: a
+ * `ToolCallRequest` reaching the executor carries the resolved executor.
+ */
+export const TOOL_NAME_EXECUTOR_IDS = [
+  ...new Set(Object.values(ALIX_BUILTIN_EXECUTORS)),
+] as [string, ...string[]];
+
+export const ToolNameSchema = Schema.Literal(...TOOL_NAME_EXECUTOR_IDS);
 export type ToolNameFromSchema = typeof ToolNameSchema.Type;
 
 // ---------------------------------------------------------------------------

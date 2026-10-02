@@ -38,7 +38,7 @@ describe("webSearchTool", () => {
 
   it("returns a tool definition", () => {
     const tool = webSearchTool();
-    assert.equal(tool.name, "web_search");
+    assert.equal(tool.name, "web.search");
     assert.ok(tool.description);
     assert.ok(tool.input_schema);
   });

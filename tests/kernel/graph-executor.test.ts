@@ -311,7 +311,7 @@ describe("GraphExecutor", () => {
 
     const registry = new CardRegistry();
     registry.registerTool({
-      id: "web_search", name: "Web Search", description: "Test web search tool",
+      id: "web.search", name: "Web Search", description: "Test web search tool",
       version: "1.0.0", capabilities: ["web.search"], riskLevel: "low",
       approvalMode: "auto", sideEffects: "read", enabled: true,
     });

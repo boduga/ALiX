@@ -66,7 +66,7 @@ export function getToolPolicy(role: SubagentRole): ToolPolicy {
 // coordination/state readers, so "non-write" is the honest description of what
 // these have in common. Membership decides which `allowedCategories` a role
 // needs, not what the tool may do.
-const NON_WRITE_TOOLS = new Set([
+export const NON_WRITE_TOOLS: ReadonlySet<string> = new Set([
   "alix_file_read",
   "alix_file_exists",
   "alix_grep_search",
@@ -92,7 +92,7 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   "alix_schedule_propose",
   "alix_delegate",
   "alix_coordination_run",
-  "alix_create_hook",
+  "alix_hook_create",
   "alix_create_skill",
   "alix_execution_state_propose",
 ]);

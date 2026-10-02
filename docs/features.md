@@ -83,9 +83,9 @@ ALiX: "Skill 'md-to-html' registered. Try `alix run 'use md-to-html for README.m
 ```
 
 Available tools:
-- `create_skill` — author a new skill
-- `list_extensions` — see what's loaded
-- `inspect_extension` — get details
+- `alix_create_skill` — author a new skill
+- `alix_list_extensions` — see what's loaded
+- `alix_inspect_extension` — get details
 
 ## Memory and context
 

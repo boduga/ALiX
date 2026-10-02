@@ -29,7 +29,7 @@ describe("tool taxonomy sentinels", () => {
   it("maps built-ins only to real executors or the two intercepted tools", () => {
     const registryNames = new Set(buildDefaultToolIndex().registry.getAll().map(tool => tool.name));
     const intercepted = new Set([
-      "mcp_search_tools",
+      "mcp.search_tools",
       "alix_execution_state_propose",
       "collaboration.publish_finding",
       "collaboration.publish_artifact",

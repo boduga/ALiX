@@ -20,7 +20,7 @@
 - Runtime facts flow one way: EventLog/runtime projections → immutable snapshots → views.
 - Views and renderers never emit runtime events or infer successful runtime transitions.
 - UI actions reach runtime through explicit controller/port boundaries.
-- Compact transcripts show operator work and outcomes. Routine context assembly, raw lifecycle plumbing, and the `done` tool are details, not default content.
+- Compact transcripts show operator work and outcomes. Routine context assembly, raw lifecycle plumbing, and the `alix_done` tool are details, not default content.
 - Detailed transcript mode may reveal bounded lifecycle diagnostics but must preserve the same underlying audit correlation.
 - Agent activity and agent liveness are distinct: activity says what is happening; liveness says whether progress is healthy.
 - Never render model-private reasoning. User-safe activity labels are allowed.

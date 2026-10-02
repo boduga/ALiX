@@ -1,0 +1,29 @@
+# Known executor-ID mentions in model-facing DOX contract bullets.
+# Format: <AGENTS.md path>\t<token>
+#
+# The aim is ONE VOCABULARY: a contract may only tell the model to call an
+# `alix_*` name. Entries here are debt inherited from before the exact-names
+# cutover, tolerated so the gate is a RATCHET rather than a wall:
+#   * a NEW executor-ID claim fails CI and must be written as `alix_*`
+#   * removing a line here is one step of the migration
+#
+# Prose is not gated. A DOX file that describes CODE must name the executor.
+# Only asserted contract bullets (lines starting `- `) are listed.
+#
+# 0 entries — the migration is COMPLETE, not pending.
+#
+# The baseline exists so this gate could be a RATCHET while ~180 inherited
+# mentions were being migrated. It is now empty, which means the gate is
+# ABSOLUTE for ADDED contract lines: any executor ID in a newly added bullet
+# fails CI. Do not add an entry to silence a violation — write the `alix_*`
+# name instead. If a legitimate case ever appears, it belongs in PROSE (which
+# is not gated), not in this file.
+#
+# KNOWN LIMIT, stated here because this file previously overstated it: the gate
+# reads ADDED lines only. A pre-existing bullet that drifts out of date — a
+# tool renamed elsewhere and later deleted — is invisible to it. Passing
+# `check:dox` therefore does NOT certify that the contracts still describe
+# reality. That is a whole-repo property, verified by review, not by this gate.
+#
+# Regenerate: node scripts/check-dox-claims.mjs --write-baseline
+

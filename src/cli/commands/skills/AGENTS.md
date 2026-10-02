@@ -25,8 +25,8 @@ and distill mined trace candidates into candidate skills.
 - **Operator context:** distill/eval commands run nightly/operator-gated
   with write creds or local files — never in the hot loop.
 - **Network policy:** skill fetches stay https-only and reject private/
-  non-resolving destinations via the shared web_fetch validator; the
-  agent-loop `web_fetch` additionally pins each connection to the
+  non-resolving destinations via the shared alix_web_fetch validator; the
+  agent-loop `alix_web_fetch` additionally pins each connection to the
   validated address (DNS-rebinding protection).
 
 ## Work Guidance

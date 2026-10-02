@@ -177,7 +177,7 @@ Tests:
 
 ## 5. Replay / network semantics — unchanged
 
-- Live execution may use the network per policy (`web_fetch` SSRF rules,
+- Live execution may use the network per policy (`alix_web_fetch` SSRF rules,
   `allowNetworkDomains`); nothing here relaxes them.
 - Offline replay never falls back to live network: external tools replay only
   from recorded-response fixtures under exact `(tool, argsSignature)` matching
