@@ -386,7 +386,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["claim", "verify", "evidence", "decision", "read"],
     },
     {
-      name: "web_search",
+      name: "web.search",
       capabilityId: "web.search",
       policyKey: "web.search",
       description: "Search the public web (NOT the local workspace). For local code/text use grep.search; for local filenames use glob.match.",
@@ -398,7 +398,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       executionProfiles: ["research"],
     },
     {
-      name: "web_fetch",
+      name: "web.fetch",
       capabilityId: "web.fetch",
       policyKey: "web.fetch",
       description: "Fetch a web page",

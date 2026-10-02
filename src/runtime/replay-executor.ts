@@ -54,7 +54,7 @@ export type ReplayResult = {
 /** Determine if a tool is a network tool (blocked in both modes). */
 function isNetworkTool(toolName: string): boolean {
   if (toolName.startsWith("mcp.")) return true;
-  return ["web_search", "web_fetch", "delegate"].includes(toolName);
+  return ["web.search", "web.fetch", "delegate"].includes(toolName);
 }
 
 /**
@@ -196,10 +196,10 @@ async function replayToolStep(
 
   // Approved-live network: execute for real (already gated by approval above)
   if (isNetworkTool(toolName) && mode === "approved-live") {
-    if (toolName === "web_search" || toolName === "web_fetch") {
+    if (toolName === "web.search" || toolName === "web.fetch") {
       const { webSearchTool } = await import("../tools/web-search.js");
       const { webFetchTool } = await import("../tools/web-fetch.js");
-      const tool = toolName === "web_search" ? webSearchTool() : webFetchTool();
+      const tool = toolName === "web.search" ? webSearchTool() : webFetchTool();
       const result = await tool.execute(args as any);
       if (result.ok) {
         return { status: "completed", output: JSON.stringify(result.data) };
@@ -369,7 +369,7 @@ export type SideEffectLevel = "read-only" | "side-effect" | "network";
 export function classifySideEffect(toolName: string): SideEffectLevel {
   if (["file.read", "file.exists", "dir.search", "grep.search", "glob.match"].includes(toolName)) return "read-only";
   if (toolName.startsWith("mcp.")) return "network";
-  if (["web_search", "web_fetch", "delegate"].includes(toolName)) return "network";
+  if (["web.search", "web.fetch", "delegate"].includes(toolName)) return "network";
   return "side-effect";
 }
 

@@ -348,7 +348,7 @@ export async function fetchPinned(rawUrl: string, options: FetchPinnedOptions = 
 
 export function webFetchTool(options: WebFetchOptions = {}) {
   return {
-    name: "web_fetch",
+    name: "web.fetch",
     description: "Fetch a URL and return its text content. Use after web_search to read full articles. HTML is automatically stripped.",
     input_schema: {
       type: "object",

@@ -15,7 +15,7 @@ export type WebSearchResult = {
 
 export function webSearchTool() {
   return {
-    name: "web_search",
+    name: "web.search",
     description: "Search the web for current information. Use when you need recent data or facts beyond your training cutoff (e.g. current events, latest versions, recent documentation).",
     input_schema: {
       type: "object",

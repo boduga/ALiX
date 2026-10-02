@@ -10,6 +10,7 @@ import type { TraceEvent } from "./trace-events.js";
 import { traceChainContext } from "./trace-events.js";
 import type { ReplayPreview, ReplayAction } from "./replay-preview.js";
 import { hashArgs } from "../tools/executor.js";
+import { classifySideEffect } from "./replay-executor.js";
 
 export type ReplayExecutionContext = {
   replayId: string;
@@ -55,13 +56,19 @@ export type ReplayPlan = {
 
 // ─── Network tools blocked in dry-run/sandbox ────────────────────────
 
-const NETWORK_TOOLS = new Set([
-  "web_search", "web_fetch", "delegate",
-]);
-
+/**
+ * Delegates to `classifySideEffect` (replay-executor.ts) rather than keeping a
+ * second copy of the set.
+ *
+ * Two private copies of this classification existed — here and in
+ * `replay-executor.ts` — and they decided which tools a SANDBOXED or dry-run
+ * replay may reach the network for. Deleting an entry from this copy changed
+ * nothing observable in any test while granting network access the operator
+ * expected to be blocked; the copy here was simply never asserted. One
+ * definition, exported, is the only way that class of drift is visible.
+ */
 function isNetworkTool(toolName: string): boolean {
-  if (toolName.startsWith("mcp.")) return true;
-  return NETWORK_TOOLS.has(toolName);
+  return classifySideEffect(toolName) === "network";
 }
 
 // ─── Builder ─────────────────────────────────────────────────────────

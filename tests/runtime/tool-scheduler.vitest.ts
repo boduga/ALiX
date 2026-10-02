@@ -17,13 +17,13 @@ function tc(name: string, id: string): ToolCall {
 }
 
 describe("ToolConcurrency authoritative metadata", () => {
-  it("safe: file.read, dir.search, web_search, file.exists", () => {
+  it("safe: file.read, dir.search, web.search, file.exists", () => {
     expect(getToolConcurrency("file.read")).toBe("safe");
     expect(getToolConcurrency("alix_file_read")).toBe("safe");
     expect(getToolConcurrency("dir.search")).toBe("safe");
     expect(getToolConcurrency("file.exists")).toBe("safe");
-    expect(getToolConcurrency("web_search")).toBe("safe");
-    expect(getToolConcurrency("web_fetch")).toBe("safe");
+    expect(getToolConcurrency("web.search")).toBe("safe");
+    expect(getToolConcurrency("web.fetch")).toBe("safe");
   });
 
   it("exclusive: file.create, file.delete, shell.run, patch.apply, delegate, mcp.*", () => {

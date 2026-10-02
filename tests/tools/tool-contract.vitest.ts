@@ -201,7 +201,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: true,
     tags: ["claim", "verify", "evidence", "decision", "read"],
   },
-  web_search: {
+  "web.search": {
     capabilityId: "web.search",
     policyKey: "web.search",
     risk: "low",
@@ -211,7 +211,7 @@ const EXPECTED: Record<string, EntryShape> = {
     tags: ["web", "search"],
     executionProfiles: ["research"],
   },
-  web_fetch: {
+  "web.fetch": {
     capabilityId: "web.fetch",
     policyKey: "web.fetch",
     risk: "medium",

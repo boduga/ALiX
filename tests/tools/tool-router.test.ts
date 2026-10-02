@@ -94,9 +94,9 @@ test("SelfExtendToolRouter.canHandle rejects non-self-extend tools", () => {
 
 test("WebToolsRouter.canHandle admits only the two web tools", () => {
   const router = new WebToolsRouter();
-  assert.strictEqual(router.canHandle("web_search"), true);
-  assert.strictEqual(router.canHandle("web_fetch"), true);
-  for (const name of ["file.read", "shell.run", "create_skill", "done"]) {
+  assert.strictEqual(router.canHandle("web.search"), true);
+  assert.strictEqual(router.canHandle("web.fetch"), true);
+  for (const name of ["file.read", "shell.run", "skill.create", "done"]) {
     assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
   }
 });

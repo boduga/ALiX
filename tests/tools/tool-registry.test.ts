@@ -484,7 +484,7 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
   const networkTools = retriever.selectForDomain("network" as ToolDomain);
   assert.strictEqual(networkTools.length, 2);
   const names = networkTools.map(t => t.name).sort();
-  assert.deepStrictEqual(names, ["web_fetch", "web_search"]);
+  assert.deepStrictEqual(names, ["web.fetch", "web.search"]);
 });
 
 // ---------------------------------------------------------------------------
@@ -521,8 +521,8 @@ test("buildDefaultToolIndex registers 25 tools", () => {
     "skill.create",
     "state.query",
     "verify.claim",
-    "web_fetch",
-    "web_search",
+    "web.fetch",
+    "web.search",
   ]);
 });
 

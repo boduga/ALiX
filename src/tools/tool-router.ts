@@ -740,7 +740,7 @@ export class ClaimVerificationToolRouter implements ToolRouter {
 }
 
 export class WebToolsRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
+  private static readonly SUPPORTED_TOOLS = ["web.search", "web.fetch"];
   constructor(private readonly allowDomains: string[] = []) {}
 
   canHandle(name: string): boolean {
@@ -751,7 +751,7 @@ export class WebToolsRouter implements ToolRouter {
     const { webSearchTool } = await import("./web-search.js");
     const { webFetchTool } = await import("./web-fetch.js");
 
-    const tool = request.name === "web_search" ? webSearchTool() : webFetchTool({ allowDomains: this.allowDomains });
+    const tool = request.name === "web.search" ? webSearchTool() : webFetchTool({ allowDomains: this.allowDomains });
     const result = await tool.execute(request.args as any);
 
     if (result.ok) {

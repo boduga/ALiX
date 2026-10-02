@@ -410,7 +410,7 @@ export async function handleToolCall(
 
   // Web-search routing guard: a query that is plainly a local workspace search
   // is redirected to the workspace tools instead of hitting the public web.
-  if (execName === "web_search") {
+  if (execName === "web.search") {
     const query = typeof (toolCall.args as { query?: unknown } | undefined)?.query === "string"
       ? (toolCall.args as { query: string }).query
       : "";
