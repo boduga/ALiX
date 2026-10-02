@@ -498,11 +498,11 @@ test("buildDefaultToolIndex registers 24 tools", () => {
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
+    "agent.delegate",
     "coordination.list",
     "coordination.results",
     "coordination.run",
     "coordination.status",
-    "delegate",
     "done",
     "extension.inspect",
     "extension.list",

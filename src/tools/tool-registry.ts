@@ -288,7 +288,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["schedule", "cron", "recurring", "job", "propose"],
     },
     {
-      name: "delegate",
+      name: "agent.delegate",
       capabilityId: "agent.delegate",
       policyKey: "delegate",
       description: "Delegate a subtask to a sub-agent",

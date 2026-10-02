@@ -122,11 +122,12 @@ describe("network-tool classification parity", () => {
     // ── network: reach the internet ──
     ["web.search", true],
     ["web.fetch", true],
-    // `delegate` spawns a subagent that may itself use the network, so it is
-    // conservatively classified as network even though it makes no request.
-    // (`agent.delegate` is its CAPABILITY key, not an executor id — a
-    // capability key never reaches this classifier.)
-    ["delegate", true],
+    // `agent.delegate` spawns a subagent that may itself use the network, so it
+    // is conservatively classified as network even though it makes no request.
+    // It WAS the bare executor id `delegate`; the dotted rename made
+    // `agent.delegate` the executor id and left the capability key identical,
+    // so the two spellings finally merged.
+    ["agent.delegate", true],
     // ── not network: local only ──
     ["file.read", false],
     ["file.create", false],

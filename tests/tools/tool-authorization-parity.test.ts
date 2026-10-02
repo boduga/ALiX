@@ -200,8 +200,9 @@ describe("tool authorization parity", () => {
     assert.deepStrictEqual(
       manifestExecutorIds,
       [
+        "agent.delegate",
         "coordination.list", "coordination.results", "coordination.run",
-        "coordination.status", "delegate", "done", "extension.inspect",
+        "coordination.status", "done", "extension.inspect",
         "extension.list", "file.create", "file.delete", "file.exists",
         "file.read", "glob.match", "grep.search", "hook.create",
         "patch.apply", "schedule.propose", "shell.run", "skill.create",

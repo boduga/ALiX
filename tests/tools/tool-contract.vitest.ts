@@ -129,7 +129,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["schedule", "cron", "recurring", "job", "propose"],
   },
-  delegate: {
+  "agent.delegate": {
     capabilityId: "agent.delegate",
     policyKey: "delegate",
     risk: "medium",
