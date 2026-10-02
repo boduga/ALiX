@@ -23,7 +23,7 @@ export const ALIX_BUILTIN_EXECUTORS = {
   alix_create_skill: "create_skill",
   alix_list_extensions: "list_extensions",
   alix_inspect_extension: "inspect_extension",
-  alix_mcp_search_tools: "mcp_search_tools",
+  alix_mcp_search_tools: "mcp.search_tools",
   alix_execution_state_propose: "alix_execution_state_propose",
   alix_collaboration_publish_finding: "collaboration.publish_finding",
   alix_collaboration_publish_artifact: "collaboration.publish_artifact",
