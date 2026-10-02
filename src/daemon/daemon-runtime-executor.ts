@@ -23,6 +23,7 @@ import {
   executeToolBehavior,
 } from "../runtime/route-execution.js";
 import type { DaemonResponse } from "./daemon-types.js";
+import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../agents/tool-manifest.js";
 
 export interface DaemonRuntimeExecutorOptions {
   client: Socket;
@@ -93,7 +94,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
         ...(this.opts.selectionScope
           ? { selectionScope: { ...this.opts.selectionScope, sessionId: this.opts.sessionId } }
           : {}),
-        toolCandidateAliases: { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" },
+        toolCandidateAliases: Object.fromEntries(ALIX_EXECUTOR_TO_MODEL_FACING),
       }),
     );
   }

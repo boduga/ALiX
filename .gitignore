@@ -83,8 +83,12 @@ events.jsonl.lock
 # Deliberately name-based, not `**/*.md`: the DOX tree (49 tracked
 # `AGENTS.md` files) and the hand-authored prompt assets under
 # `src/orchestrator/` are markdown that MUST stay trackable.
+# Anchored to the two directories an agent run actually writes into, and to
+# the exact artifact names observed. An earlier draft used `**/tui.md` and
+# `**/tests.md`, which would silently untrack a legitimate `docs/tui.md`.
 /project.md
-**/ARTIFACT_SUMMARY.md
-**/final-report.md
-**/tui.md
-**/tests.md
+src/project.md
+src/**/ARTIFACT_SUMMARY.md
+src/**/tui.md
+tests/**/tests.md
+tests/final-report.md

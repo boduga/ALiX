@@ -35,3 +35,23 @@ export const ALIX_BUILTIN_EXECUTORS = {
 
 export const ALIX_CANONICAL_BUILTIN_TOOLS = Object.keys(ALIX_BUILTIN_EXECUTORS) as Array<keyof typeof ALIX_BUILTIN_EXECUTORS>;
 export type AlixBuiltinToolName = keyof typeof ALIX_BUILTIN_EXECUTORS;
+
+/**
+ * Reverse index: internal executor ID -> model-facing `alix_*` name.
+ *
+ * DERIVED from `ALIX_BUILTIN_EXECUTORS`, because the forward map already
+ * states the pairing and two hand-maintained copies of a fact that has one
+ * source is a second place to forget. The grounded-chat route offered
+ * `web_search`/`web_fetch` to the provider while the task loop froze candidates
+ * as `builtin:alix_web_search`/`alix_web_fetch`; that literal pair went stale
+ * the moment the executor ids were renamed to `web.search`/`web.fetch`, and
+ * the alias silently stopped matching — putting one tool in two candidate key
+ * spaces and defeating the actual-vs-Jev comparison the aliases exist to enable.
+ *
+ * Note this is a display/telemetry mapping, NOT an acceptance rule: nothing
+ * resolves a CALL through it. `resolveExecutableToolName` accepts offered
+ * `alix_*` names only.
+ */
+export const ALIX_EXECUTOR_TO_MODEL_FACING: ReadonlyMap<string, string> = new Map(
+  Object.entries(ALIX_BUILTIN_EXECUTORS).map(([modelFacing, executor]) => [executor, modelFacing]),
+);

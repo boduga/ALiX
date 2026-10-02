@@ -15,18 +15,14 @@ import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
  * Executor ids, derived from the manifest rather than hand-listed.
  *
  * This was a frozen 10-name literal that had drifted: it admitted
- * `dir.search`, which is NOT a manifest tool (it exists only in the tool
- * router), and omitted 21 of the 31 real built-ins — so a schema described as
- * the tool-name contract rejected most valid names while accepting one that
- * the model cannot call.
+ * `dir.search`, which was never a manifest tool (the router dispatched it but no
+ * surface ever offered it), and omitted 21 of the 31 real built-ins — so a
+ * schema described as the tool-name contract rejected most valid names while
+ * accepting one the model could not call. Both are gone: `dir.search` was
+ * deleted as a literal-substring duplicate of `grep.search`.
  *
  * These are the internal dispatch ids, NOT the model-facing names: a
  * `ToolCallRequest` reaching the executor carries the resolved executor.
- *
- * `dir.search` is listed explicitly because it is NOT derivable — it is a
- * router-only tool with no manifest entry and no `alix_*` spelling, yet the
- * router dispatches it (`src/tools/tool-router.ts`). Deriving from the manifest
- * alone would silently drop it.
  */
 export const TOOL_NAME_EXECUTOR_IDS = [
   ...new Set(Object.values(ALIX_BUILTIN_EXECUTORS)),

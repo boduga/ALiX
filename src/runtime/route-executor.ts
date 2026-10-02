@@ -19,6 +19,7 @@
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../agents/tool-manifest.js";
 import {
   executeChatBehavior,
   executeDirectBehavior,
@@ -151,7 +152,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       ...(ctx.selectionScope
         ? { selectionScope: { ...ctx.selectionScope, sessionId: ctx.sessionId } }
         : {}),
-      toolCandidateAliases: { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" },
+      toolCandidateAliases: Object.fromEntries(ALIX_EXECUTOR_TO_MODEL_FACING),
 
       // Local passes its historical 512-token cap; the daemon omits it.
       maxOutputTokens: 512,

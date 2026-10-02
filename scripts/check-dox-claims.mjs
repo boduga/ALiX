@@ -226,12 +226,18 @@ let currentFile = "";
  * loop that produced `Unknown tool "shell.run"` until the resolver grew a
  * bridging alias.
  *
- * RATCHETING, not absolute: the repository still carries ~180 executor-ID
- * mentions inherited from before the exact-names cutover, so an absolute gate
- * would fail every branch on day one and get disabled within a week. Known
- * occurrences are listed in `docs/dox-executor-id-baseline.txt`; this gate
- * fails only on a claim NOT in that file, and the baseline shrinks as the
- * migration lands. Deleting a baseline line is the migration step.
+ * The baseline in `docs/dox-executor-id-baseline.txt` is EMPTY: the migration is
+ * complete, so this gate is ABSOLUTE for ADDED lines — any executor ID in a
+ * newly added contract bullet fails CI. The file is retained only so the
+ * mechanism is auditable, and an entry must never be added to silence a
+ * violation.
+ *
+ * SCOPE, stated plainly because it is the limit of this gate: it reads ADDED
+ * lines only. A pre-existing bullet that drifts out of date — a tool renamed
+ * elsewhere, then deleted — is invisible here. That is why `pnpm check:dox`
+ * alone cannot certify that the contracts still describe reality; the
+ * whole-file spliced-bullet scan below is the one check that is not diff-scoped,
+ * and it detects structural corruption, not stale tokens.
  *
  * Prose is deliberately NOT checked. A DOX file that describes CODE must name
  * the executor — `tool-manifest.ts maps alix_* names to internal executor IDs`
@@ -250,15 +256,21 @@ const EXECUTOR_IDS = (() => {
       sh(`git show ${headSha}:src/agents/tool-manifest.ts`)
         .split("\n")
         .flatMap((l) => {
-          const m = l.match(/:\s*"([a-zA-Z0-9_.]+)"/);
+          // Parse `alix_key: "executor.id"` PAIRS and take the value side. An
+          // earlier revision scraped every `:\s*"..."` in the file and then
+          // filtered out anything starting with `alix_` to remove the keys —
+          // which silently dropped `alix_execution_state_propose`, a real
+          // executor id that is also its own model-facing name. Taking values
+          // directly needs no filter and cannot misclassify that entry.
+          const m = l.match(/^\s*alix_[A-Za-z0-9_]+:\s*"([a-zA-Z0-9_.]+)"/);
           return m ? [m[1]] : [];
         })
-        // NOT filtered on "." — 10 of the 31 built-ins have an undotted
-        // executor id (`done`, `delegate`, `web_search`, `create_hook`,
-        // `mcp_search_tools`, …). A dotted-only rule would leave a third of
-        // the surface ungated, and those are exactly the names a contract is
-        // most tempted to write, since `alix_done` → `done` looks obvious.
-        .filter((id) => id && !id.startsWith("alix_")),
+        // NOT filtered on "." — several built-ins have an undotted executor id
+        // (`done`, `delegate`, `alix_execution_state_propose`). A dotted-only
+        // rule would leave them ungated, and those are exactly the names a
+        // contract is most tempted to write, since `alix_done` → `done` looks
+        // obvious.
+        .filter(Boolean),
     );
   } catch {
     return new Set();
@@ -411,16 +423,6 @@ for (const line of diff.split("\n")) {
     if (!codeHas(ident)) problems.push({ file: currentFile, token: raw, why: "no code" });
   }
 }
-
-/**
- * Backticked tokens inside a tool-GENERATED block, per file.
- *
- * `<!-- gitnexus:start -->` … `<!-- gitnexus:end -->` is rewritten by the
- * indexer, not by a human, and documents the `impact`/`detect_changes` JSON
- * contract. Its field names are legitimately absent from this repo's `.ts`
- * source, so they must not be reported as unbacked claims. Keyed per file so
- * a hand-written bullet that happens to use a similar word is still audited.
- */
 
 // Spliced bullets are checked over the WHOLE changed file, not only added
 // lines: a bullet spliced in by an earlier commit is still a live corruption

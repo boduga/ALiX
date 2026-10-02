@@ -53,11 +53,11 @@ import type {
  * Discriminated union of tool names.
  *
  * Matches {@link ToolName} in `src/tools/types.ts` exactly, which derives it
- * from `ALIX_BUILTIN_EXECUTORS` — so the members are every manifest executor
- * id plus the router-only `dir.search`, and the set grows with the manifest
- * instead of drifting from a hand-written list. These are INTERNAL dispatch
- * ids; the model-facing `alix_*` names are offered and resolved before a call
- * reaches this layer (see `src/agents/tool-name-resolver.ts`).
+ * from `ALIX_BUILTIN_EXECUTORS` — so the members are exactly the manifest
+ * executor ids, with no hand-written exception, and the set grows with the
+ * manifest instead of drifting from a hand-written list. These are INTERNAL
+ * dispatch ids; the model-facing `alix_*` names are offered and resolved before
+ * a call reaches this layer (see `src/agents/tool-name-resolver.ts`).
  */
 export type ToolName = SourceToolName;
 
