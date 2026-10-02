@@ -159,7 +159,7 @@ describe("network-tool classification parity", () => {
     ["collaboration.get_dependency_results", false],
     ["collaboration.report_conflict", false],
     ["collaboration.list_conflicts", false],
-    ["alix_execution_state_propose", false],
+    ["execution_state.propose", false],
   ];
 
   for (const [tool, isNetwork] of CASES) {

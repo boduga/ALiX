@@ -24,7 +24,7 @@ export const ALIX_BUILTIN_EXECUTORS = {
   alix_list_extensions: "extension.list",
   alix_inspect_extension: "extension.inspect",
   alix_mcp_search_tools: "mcp.search_tools",
-  alix_execution_state_propose: "alix_execution_state_propose",
+  alix_execution_state_propose: "execution_state.propose",
   alix_collaboration_publish_finding: "collaboration.publish_finding",
   alix_collaboration_publish_artifact: "collaboration.publish_artifact",
   alix_collaboration_query_findings: "collaboration.query_findings",

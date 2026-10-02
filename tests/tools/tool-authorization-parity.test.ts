@@ -30,6 +30,9 @@ const registryNames = buildDefaultToolIndex().registry.getAll().map((t) => t.nam
 
 /** The manifest names a tool must be routable; registry-only names are legacy. */
 /** Intercepted in event-handlers before the policy gate; never registry-routed. */
+// Model-FACING names of tools intercepted before the router, so they have no
+// registry entry and are exempt from the routable-direction check. Keyed on the
+// model-facing name because that is what the loops below iterate.
 const INTERCEPTED = new Set(["alix_mcp_search_tools", "alix_execution_state_propose"]);
 /** Bound tools that bypass `filterTools` entirely; never policy-classified. */
 const BOUND = manifestNames.filter((n) => n.startsWith("alix_collaboration_"));
