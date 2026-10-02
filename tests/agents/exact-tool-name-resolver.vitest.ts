@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolveExecutableToolName, ToolNotFoundError } from "../../src/agents/tool-name-resolver.js";
-import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
+import { ALIX_BUILTIN_EXECUTORS, ALIX_EXECUTOR_TO_MODEL_FACING, COMPLETION_MODEL_FACING, isCompletionExecName, isCompletionToolName } from "../../src/agents/tool-manifest.js";
 
 describe("exact model tool name resolution", () => {
   const offered = [
@@ -67,5 +67,34 @@ describe("exact model tool name resolution", () => {
   it("does not execute a forged dynamic entry with a non-MCP executor", () => {
     expect(() => resolveExecutableToolName("mcp__forged", [{ name: "mcp__forged", execName: "shell.run" }]))
       .toThrow(ToolNotFoundError);
+  });
+});
+
+describe("completion-tool vocabulary", () => {
+  it("keeps the two vocabularies strictly separate", () => {
+    // The regression this pins: a single `isCompletionTool` matched BOTH
+    // spellings, which read as one tool with two names — the dual-vocabulary
+    // acceptance the ONE vocabulary contract forbids. Its executor arm was also
+    // dead: every task-loop caller passes `toolCall.name`, which holds the name
+    // the model called, so no executor id can reach it.
+    expect(isCompletionToolName(COMPLETION_MODEL_FACING)).toBe(true);
+    // The executor id must be REJECTED by the model-facing predicate. If this
+    // ever passes, someone re-merged the two vocabularies.
+    expect(isCompletionToolName("task.complete")).toBe(false);
+    // ...and accepted by the executor one, which the TUI trace surface uses.
+    expect(isCompletionExecName("task.complete")).toBe(true);
+    expect(isCompletionExecName(COMPLETION_MODEL_FACING)).toBe(false);
+  });
+
+  it("pins the completion tool's two names, and that they are distinct", () => {
+    // This asserts VALUES, not the derivation. Falsifying showed a hardcoded
+    // "alix_done" passes identically — it happens to equal what the manifest
+    // yields today — so a value assertion cannot detect someone replacing the
+    // lookup with a literal. What it does pin is the property that matters:
+    // the two vocabularies are not the same string, so no caller can confuse
+    // one for the other, and a self-map regression fails here.
+    expect(COMPLETION_MODEL_FACING).toBe("alix_done");
+    expect(COMPLETION_MODEL_FACING).toBe(ALIX_EXECUTOR_TO_MODEL_FACING.get("task.complete"));
+    expect(COMPLETION_MODEL_FACING).not.toBe("task.complete");
   });
 });

@@ -29,7 +29,7 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import { ALIX_BUILTIN_EXECUTORS, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
+import { ALIX_BUILTIN_EXECUTORS, isCompletionToolName, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
 import {
   builtinCandidateId,
   builtinNameOf,
@@ -174,9 +174,16 @@ const CLAIM_TOOL_LABELS: ReadonlySet<string> = new Set<string>([
 export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
 
-export function isCompletionTool(toolName: string): boolean {
-  return toolName === "alix_done" || toolName === "task.complete";
-}
+/**
+ * Is this the completion tool, in the vocabulary every caller here holds?
+ *
+ * Both call sites pass `toolCall.name` or a `usedTools` entry, and those hold
+ * the exact name the MODEL called — the task loop resolves to an executor id
+ * into a separate variable rather than rewriting `toolCall`. So this is
+ * model-facing only. It previously also accepted the executor id, an arm that
+ * could never fire; see `isCompletionExecName` for the surface that does.
+ */
+export const isCompletionTool = isCompletionToolName;
 
 export function resolveToolExecutionName(
   toolName: string,

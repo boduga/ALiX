@@ -1,4 +1,5 @@
 import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
+import { isCompletionExecName } from '../../../agents/tool-manifest.js';
 import type { TimelineEntry } from '../../runtime/timeline-builder.js';
 import type {
   AssistantMessageItem,
@@ -46,11 +47,9 @@ function toolName(title: string): string {
   return title.startsWith('tool.') ? title.slice('tool.'.length) : title;
 }
 
-function isCompletionTool(name: string): boolean {
-  // The executor id, read off a `tool.<name>` trace title. It accepted both
-  // spellings as a ratchet while the rename was pending; `done` is now dead.
-  return name === 'task.complete';
-}
+// Reads executor ids off `tool.<name>` trace titles, so it must use the
+  // EXECUTOR-vocabulary predicate — not the task loop's same-named model-facing
+  // one, which is the confusion this shared pair removes.
 
 function cloneTool(entry: ExecutionTraceEntry): ToolItem {
   return {
@@ -156,7 +155,7 @@ export class ConversationProjection {
     for (const entry of input.trace) {
       if (entry.kind !== 'tool') continue;
       const name = toolName(entry.title);
-      if (isCompletionTool(name)) continue;
+      if (isCompletionExecName(name)) continue;
       const range = sourceRange(entry.sourceEvents);
       candidates.push({
         id: `conversation-${entry.id}`,

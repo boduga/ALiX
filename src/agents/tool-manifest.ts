@@ -55,3 +55,44 @@ export type AlixBuiltinToolName = keyof typeof ALIX_BUILTIN_EXECUTORS;
 export const ALIX_EXECUTOR_TO_MODEL_FACING: ReadonlyMap<string, string> = new Map(
   Object.entries(ALIX_BUILTIN_EXECUTORS).map(([modelFacing, executor]) => [executor, modelFacing]),
 );
+
+/**
+ * The completion tool's INTERNAL executor id.
+ *
+ * The single hardcoded name here is deliberate: it is the one tool whose
+ * identity consumers ask about by name rather than by capability, and naming it
+ * is what lets the model-facing spelling be DERIVED below instead of written out
+ * twice.
+ */
+const COMPLETION_EXECUTOR = "task.complete";
+
+/** The completion tool as the MODEL sees it. Derived, so a rename follows. */
+export const COMPLETION_MODEL_FACING: string = ALIX_EXECUTOR_TO_MODEL_FACING.get(COMPLETION_EXECUTOR) ?? COMPLETION_EXECUTOR;
+
+/**
+ * Is this the completion tool in the MODEL-FACING vocabulary?
+ *
+ * For callers holding `toolCall.name` or `usedTools` entries — the task loop,
+ * which records the exact name the model called and never the executor form.
+ */
+export function isCompletionToolName(name: string): boolean {
+  return name === COMPLETION_MODEL_FACING;
+}
+
+/**
+ * Is this the completion tool in the INTERNAL EXECUTOR vocabulary?
+ *
+ * For callers reading executor ids off runtime traces (`tool.<name>` trace
+ * titles), which is a different surface that speaks the other vocabulary.
+ *
+ * These are TWO predicates rather than one accepting either spelling. A single
+ * `isCompletionTool` matched both, which read as one tool with two names — a
+ * dual-vocabulary acceptance, the exact thing the ONE vocabulary contract
+ * forbids — and it made each caller responsible for knowing which vocabulary it
+ * held. Nothing ever needed both: the second arm was dead in the task loop (no
+ * executor id can appear in `toolCall.name`), and the TUI, which genuinely does
+ * hold executor ids, kept its own same-named local copy.
+ */
+export function isCompletionExecName(name: string): boolean {
+  return name === COMPLETION_EXECUTOR;
+}
