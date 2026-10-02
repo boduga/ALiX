@@ -140,7 +140,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = {
       kind: "grounded_chat",
       prompt: "latest Node.js version",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as TaskRoute;
 
@@ -181,7 +181,7 @@ describe("route executor parity — local vs daemon", () => {
     const route = await taskRouter("what is the latest linux LTS version");
     assert.equal(route.kind, "grounded_chat");
     if (route.kind === "grounded_chat") {
-      assert.deepEqual(route.allowedTools, ["web_search", "web_fetch"]);
+      assert.deepEqual(route.allowedTools, ["web.search", "web.fetch"]);
       assert.ok(
         !route.allowedTools.some((t) => t.includes("shell")),
         "grounded_chat must not expose a shell tool",
@@ -200,7 +200,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "what is my os",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 
@@ -226,7 +226,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "Search the web for the current US president",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 
@@ -239,8 +239,8 @@ describe("route executor parity — local vs daemon", () => {
     assert.equal(out, "answered");
     assert.ok(Array.isArray(call1?.tools), "first call must carry a tools array");
     const names = (call1?.tools ?? []).map((t: any) => t.name);
-    assert.ok(names.includes("web_search"), "web_search schema must be offered");
-    assert.ok(names.includes("web_fetch"), "web_fetch schema must be offered");
+    assert.ok(names.includes("web.search"), "web_search schema must be offered");
+    assert.ok(names.includes("web.fetch"), "web_fetch schema must be offered");
     assert.equal(names.length, 2, "only the allowlisted web tools may be offered");
   });
 
@@ -256,8 +256,8 @@ describe("route executor parity — local vs daemon", () => {
           return {
             text: "",
             toolCalls: [
-              { id: "t1", name: "web_search", args: { query: "Bukina Faso president" } },
-              { id: "t2", name: "web_search", args: { query: "Burkina Faso president" } },
+              { id: "t1", name: "web.search", args: { query: "Bukina Faso president" } },
+              { id: "t2", name: "web.search", args: { query: "Burkina Faso president" } },
             ],
           };
         }
@@ -268,7 +268,7 @@ describe("route executor parity — local vs daemon", () => {
     const grounded = {
       kind: "grounded_chat",
       prompt: "who is the president of Bukina Faso",
-      allowedTools: ["web_search", "web_fetch"],
+      allowedTools: ["web.search", "web.fetch"],
       diagnostic: { classification: "external_retrieval", route: "grounded_chat", reason: "test" },
     } as any;
 

@@ -31,7 +31,7 @@ function scriptedProvider(toolName: string | null, requests: RecordedRequest[]):
   } as unknown as ModelAdapter;
 }
 
-const ALIASES: Record<string, string> = { web_search: "alix_web_search", web_fetch: "alix_web_fetch" };
+const ALIASES: Record<string, string> = { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" };
 
 async function runGrounded(
   toolName: string | null,
@@ -49,7 +49,7 @@ async function runGrounded(
     kind: "grounded_chat" as const,
     prompt: "fetch https://example.com and summarise it",
     // The real allow-list uses the provider-facing tool names.
-    allowedTools: options.allowedTools ?? ["web_search", "web_fetch"],
+    allowedTools: options.allowedTools ?? ["web.search", "web.fetch"],
     diagnostic: { classification: "external_retrieval" },
   };
 
@@ -117,7 +117,7 @@ describe("grounded external selection observation", () => {
   afterEach(() => { delete process.env.ALIX_TOOL_SELECTION_TRACE; });
 
   it("records a scope when the model chose among the tools it was offered", async () => {
-    const { observations, notApplicable } = await runGrounded("web_fetch", { selectionScope: scope("1") });
+    const { observations, notApplicable } = await runGrounded("web.fetch", { selectionScope: scope("1") });
 
     assert.equal(observations.length, 1, "a real model choice must produce a scope");
     assert.equal(notApplicable.length, 0, "one turn must not emit both records");
@@ -126,13 +126,13 @@ describe("grounded external selection observation", () => {
     // `chosen` is the name the model emitted; `chosenCandidateId` is the
     // canonical key the rest of ALiX uses, so a grounded scope is comparable
     // with a task-loop scope.
-    assert.equal(payload.chosen, "web_fetch");
+    assert.equal(payload.chosen, "web.fetch");
     assert.equal(payload.chosenCandidateId, "builtin:alix_web_fetch");
     assert.equal(payload.invalidSelection, undefined, "the choice resolved against the offered surface");
   });
 
   it("records exactly the candidates it passed to provider.complete", async () => {
-    const { requests, observations } = await runGrounded("web_search", { selectionScope: scope("2") });
+    const { requests, observations } = await runGrounded("web.search", { selectionScope: scope("2") });
 
     const offeredToProvider = (requests[0].tools ?? []).map(tool => `builtin:${ALIASES[tool.name] ?? tool.name}`).sort();
     const recorded = [...(observations[0].payload.offered as string[])].sort();
@@ -146,7 +146,7 @@ describe("grounded external selection observation", () => {
   });
 
   it("emits no selection records when the caller does not observe selections", async () => {
-    const { observations, notApplicable, executed } = await runGrounded("web_fetch");
+    const { observations, notApplicable, executed } = await runGrounded("web.fetch");
     assert.equal(executed.length, 1, "the tool still ran");
     assert.equal(observations.length, 0, "observation is opt-in per caller");
     assert.equal(notApplicable.length, 0, "coverage telemetry is opt-in per caller");
@@ -172,7 +172,7 @@ describe("grounded external selection observation", () => {
   });
 
   it("never puts a raw MCP handle in observed identity fields", async () => {
-    const { observations } = await runGrounded("web_fetch", { selectionScope: scope("4") });
+    const { observations } = await runGrounded("web.fetch", { selectionScope: scope("4") });
     assert.deepEqual(identityStrings(observations[0].payload).filter(value => value.includes("mcp__")), []);
   });
 
@@ -204,7 +204,7 @@ describe("grounded external selection observation", () => {
   });
 
   it("records a failed execution as failed rather than dropping the scope", async () => {
-    const { observations } = await runGrounded("web_fetch", {
+    const { observations } = await runGrounded("web.fetch", {
       selectionScope: scope("5"),
       executorResult: { kind: "error", message: "Network error: unreachable" },
     });

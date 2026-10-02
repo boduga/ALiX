@@ -39,7 +39,7 @@ describe("renderReplayResult", () => {
   it("renders blocked steps with reason", () => {
     const result = makeResult({
       steps: [
-        { index: 1, traceId: "e1", action: "would-run-tool", status: "blocked" as const, toolName: "web_search", blockReason: '"web_search" not available', durationMs: 0 },
+        { index: 1, traceId: "e1", action: "would-run-tool", status: "blocked" as const, toolName: "web.search", blockReason: '"web.search" not available', durationMs: 0 },
       ],
       successCount: 0,
       blockedCount: 1,
@@ -47,7 +47,7 @@ describe("renderReplayResult", () => {
     const lines = renderReplayResult(result);
     const joined = lines.join("\n");
     assert.ok(joined.includes("✗"));
-    assert.ok(joined.includes("web_search"));
+    assert.ok(joined.includes("web.search"));
   });
 
   it("renders warnings section", () => {

@@ -9,7 +9,7 @@ describe("create_skill tool", () => {
 
   it("returns a tool definition", () => {
     const tool = createSkillTool();
-    assert.equal(tool.name, "create_skill");
+    assert.equal(tool.name, "skill.create");
     assert.ok(tool.description);
     assert.ok(tool.input_schema);
   });

@@ -20,8 +20,8 @@ describe("Daemon event formatting", () => {
   });
 
   it("formats tool.event completed", () => {
-    const line = formatDaemonEvent({ type: "tool.event", sessionId: "sess_1", toolName: "web_search", status: "completed" });
-    assert.equal(line, "  ✓ web_search completed");
+    const line = formatDaemonEvent({ type: "tool.event", sessionId: "sess_1", toolName: "web.search", status: "completed" });
+    assert.equal(line, "  ✓ web.search completed");
   });
 
   it("formats tool.event failed", () => {
@@ -30,8 +30,8 @@ describe("Daemon event formatting", () => {
   });
 
   it("formats tool.event started (unknown status)", () => {
-    const line = formatDaemonEvent({ type: "tool.event", sessionId: "sess_1", toolName: "web_search", status: "started" });
-    assert.equal(line, "  → web_search started");
+    const line = formatDaemonEvent({ type: "tool.event", sessionId: "sess_1", toolName: "web.search", status: "started" });
+    assert.equal(line, "  → web.search started");
   });
 
   it("formats task.completed", () => {

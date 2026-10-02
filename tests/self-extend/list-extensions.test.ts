@@ -9,7 +9,7 @@ describe("list_extensions tool", () => {
 
   it("returns a tool definition", () => {
     const tool = listExtensionsTool();
-    assert.equal(tool.name, "list_extensions");
+    assert.equal(tool.name, "extension.list");
   });
 
   it("returns empty when no extensions registered", async () => {

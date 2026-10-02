@@ -49,7 +49,7 @@ describe("exact model tool name resolution", () => {
     expect(resolveExecutableToolName("mcp.github.repos.list", offered)).toBe("mcp.github.repos.list");
   });
 
-  it.each(["shell.run", "file.create", "patch.apply", "verify.claim", "done", "web_search"])(
+  it.each(["shell.run", "file.create", "patch.apply", "verify.claim", "done", "web.search"])(
     "rejects the executor ID %s regardless of the offered surface",
     (executorId) => {
       // Every built-in executor ID is uncallable, offered or not. This is the

@@ -323,14 +323,14 @@ test("ollamaSpec.fromResponse: /api/generate text-only", () => {
 
 test("ollamaSpec.fromResponse: OpenAI-compatible tool calls", () => {
   const resp = ollamaSpec.fromResponse({
-    choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: "call_xyz", type: "function", function: { name: "web_fetch", arguments: '{"url":"https://example.com"}' } }] }, finish_reason: "tool_calls" }],
+    choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: "call_xyz", type: "function", function: { name: "web.fetch", arguments: '{"url":"https://example.com"}' } }] }, finish_reason: "tool_calls" }],
     usage: { prompt_tokens: 10, completion_tokens: 5 },
   });
 
   assert.equal(resp.text, "");
   assert.equal(resp.toolCalls.length, 1);
   assert.equal(resp.toolCalls[0].id, "call_xyz");
-  assert.equal(resp.toolCalls[0].name, "web_fetch");
+  assert.equal(resp.toolCalls[0].name, "web.fetch");
   assert.equal(resp.toolCalls[0].args.url, "https://example.com");
   assert.deepEqual(resp.usage, { inputTokens: 10, outputTokens: 5 });
   assert.equal(resp.finishReason, "tool_call");

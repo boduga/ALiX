@@ -11,11 +11,13 @@ test("worker executes only exact offered canonical names", () => {
   assert.equal(resolve!("alix_file_create", [{ name: "alix_file_create" }]), "file.create");
   assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("file_create", [{ name: "alix_file_read" }]), null);
-  // Documented executor ID of an OFFERED tool resolves (see tool-manifest.ts
-  // alias contract): the repo's DOX names this tool `file.create`.
-  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), "file.create");
-  // ...but only when that tool is actually offered this turn.
-  assert.equal(resolve!("file.create", [{ name: "alix_file_read" }]), null);
+  // An executor ID is NOT callable, even for a tool that IS offered this turn.
+  // The documented-executor alias was removed once every model-facing contract
+  // bullet named the `alix_*` tool; the worker boundary enforces that here, and
+  // `resolveExecutableToolName` enforces it on the main loop. Both must agree,
+  // so this is asserted rather than assumed.
+  assert.equal(resolve!("file.create", [{ name: "alix_file_create" }]), null);
+  assert.equal(resolve!("shell.run", [{ name: "alix_shell_run" }]), null);
   assert.equal(resolve!("alix_shell_run", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
 });
@@ -422,11 +424,11 @@ test("buildResult: progress + incomplete objective yields partial with untouched
 test("buildResult: tool ledger leads findings when tools ran (#769)", () => {
   const progress = P([], []);
   const ledger = new Map([
-    ["web_search", { completed: 3, failed: 0 }],
+    ["web.search", { completed: 3, failed: 0 }],
     ["shell.run", { completed: 0, failed: 5 }],
   ]);
   const result = buildResult("t", "researcher", "read_only", "some text", [], progress, [], ledger);
-  assert.equal(result.findings[0]?.content, "Subagent tool ledger — ran inside the subagent, not the parent: web_search 3 completed; shell.run 5 denied.");
+  assert.equal(result.findings[0]?.content, "Subagent tool ledger — ran inside the subagent, not the parent: web.search 3 completed; shell.run 5 denied.");
 });
 
 test("buildResult: empty ledger adds no ledger finding", () => {
@@ -446,8 +448,8 @@ test("buildResult: all tools failed yields failed, never success", () => {
 test("formatToolLedger: skips zero-count sides", () => {
   assert.equal(formatToolLedger(new Map()), "");
   assert.equal(
-    formatToolLedger(new Map([["web_search", { completed: 1, failed: 0 }]])),
-    "web_search 1 completed",
+    formatToolLedger(new Map([["web.search", { completed: 1, failed: 0 }]])),
+    "web.search 1 completed",
   );
 });
 

@@ -151,7 +151,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       ...(ctx.selectionScope
         ? { selectionScope: { ...ctx.selectionScope, sessionId: ctx.sessionId } }
         : {}),
-      toolCandidateAliases: { web_search: "alix_web_search", web_fetch: "alix_web_fetch" },
+      toolCandidateAliases: { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" },
 
       // Local passes its historical 512-token cap; the daemon omits it.
       maxOutputTokens: 512,

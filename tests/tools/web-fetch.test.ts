@@ -37,7 +37,7 @@ type Seen = Array<{ url: string; lookup: SeenLookup }>;
 describe("webFetchTool", () => {
   it("returns a tool definition", () => {
     const tool = webFetchTool({ resolveHost: PUBLIC_RESOLVE });
-    assert.equal(tool.name, "web_fetch");
+    assert.equal(tool.name, "web.fetch");
     assert.ok(tool.description);
   });
 

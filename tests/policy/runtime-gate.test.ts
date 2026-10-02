@@ -31,7 +31,7 @@ function makeRegistry(): CardRegistry {
     enabled: true,
   });
   r.registerTool({
-    id: "web_search", name: "Web Search", description: "Search",
+    id: "web.search", name: "Web Search", description: "Search",
     version: "1.0.0", capabilities: ["web.search"], riskLevel: "low",
     approvalMode: "auto", sideEffects: "read", enabled: true,
   });

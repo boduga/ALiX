@@ -202,7 +202,7 @@ describe("Integration: Card registry", () => {
     const { resolveCapabilities } = await import("../../src/registry/capability-resolver.js");
     const reg = new CardRegistry();
     reg.registerTool({
-      id: "web_search", name: "Web Search", description: "Search tool",
+      id: "web.search", name: "Web Search", description: "Search tool",
       version: "1.0.0", capabilities: ["web.search"], riskLevel: "low",
       approvalMode: "auto", sideEffects: "read", enabled: true,
     });

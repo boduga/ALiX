@@ -93,7 +93,7 @@ export class DaemonRuntimeExecutor implements RuntimeExecutor {
         ...(this.opts.selectionScope
           ? { selectionScope: { ...this.opts.selectionScope, sessionId: this.opts.sessionId } }
           : {}),
-        toolCandidateAliases: { web_search: "alix_web_search", web_fetch: "alix_web_fetch" },
+        toolCandidateAliases: { "web.search": "alix_web_search", "web.fetch": "alix_web_fetch" },
       }),
     );
   }

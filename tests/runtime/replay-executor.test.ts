@@ -90,13 +90,13 @@ describe("ReplayExecutor dry-run mode", () => {
 
   it("blocks network tools in dry-run mode", async () => {
     const events = [
-      makeEvent({ id: "e1", eventType: "web_search", label: "web_search started", toolName: "web_search",
-        toolCallId: "tc1", rawEvent: { payload: { toolName: "web_search", args: { query: "test" } } } }),
+      makeEvent({ id: "e1", eventType: "web.search", label: "web_search started", toolName: "web.search",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "web.search", args: { query: "test" } } } }),
     ];
     const preview = buildReplayPreview(events[0], events);
     const plan = buildReplayPlan(preview, events, "dry-run");
     const result = await executor.execute(plan);
-    const webStep = result.steps.find(s => s.toolName === "web_search");
+    const webStep = result.steps.find(s => s.toolName === "web.search");
     assert.ok(webStep);
     assert.equal(webStep.status, "blocked");
   });

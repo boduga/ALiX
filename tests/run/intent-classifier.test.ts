@@ -40,7 +40,7 @@ describe("IntentClassifier — research sub-recognizer (positive corpus)", () =>
 
   it("classifies a pure web_search-only sequence as research", () => {
     assert.equal(
-      classifier.classify([tc("web_search"), tc("web_search")]),
+      classifier.classify([tc("web.search"), tc("web.search")]),
       "research",
     );
   });
@@ -201,7 +201,7 @@ describe("IntentClassifier — ambiguous corpus (tie-breaking policy)", () => {
   it("research + multiple mutations → mutation wins", () => {
     assert.equal(
       classifier.classify([
-        tc("web_search"),
+        tc("web.search"),
         tc("file.read"),
         tc("file.edit"),
         tc("file.write"),
@@ -288,7 +288,7 @@ describe("IntentClassifier — sticky classification flow (end-to-end)", () => {
     const researchTools = [
       tc("file.read"),
       tc("grep"),
-      tc("web_search"),
+      tc("web.search"),
     ];
 
     for (let i = 0; i < 3; i++) {

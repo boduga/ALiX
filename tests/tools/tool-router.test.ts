@@ -87,7 +87,7 @@ test("SelfExtendToolRouter.canHandle admits every registry system/self-extend to
 
 test("SelfExtendToolRouter.canHandle rejects non-self-extend tools", () => {
   const router = new SelfExtendToolRouter();
-  for (const name of ["file.read", "shell.run", "patch.apply", "web_search", "done"]) {
+  for (const name of ["file.read", "shell.run", "patch.apply", "web.search", "done"]) {
     assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
   }
 });
