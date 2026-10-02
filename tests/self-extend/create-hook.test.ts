@@ -7,7 +7,7 @@ describe("create_hook tool", () => {
   it("returns a tool definition", () => {
     const runner = new HookRunner();
     const tool = createHookTool(runner);
-    assert.equal(tool.name, "create_hook");
+    assert.equal(tool.name, "hook.create");
     assert.ok(tool.description);
     assert.ok(tool.input_schema);
   });

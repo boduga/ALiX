@@ -50,6 +50,6 @@ export const PROMPT_REGISTRY: PromptEntry[] = [
   entry("subagent.docs-researcher", "1.2.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.docs_researcher),
   entry("subagent.worker", "1.2.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.worker),
   entry("subagent.researcher", "1.3.0", "src/agents/agent-registry.ts", ROLE_INSTRUCTIONS.researcher),
-  entry("planner.graph", "2.3.0", "src/kernel/graph-planner.ts", buildPlanPrompt()),
+  entry("planner.graph", "2.4.0", "src/kernel/graph-planner.ts", buildPlanPrompt()),
   entry("route.retrieval-system", "1.2.0", "src/runtime/route-prompts.ts", buildExternalRetrievalPrompt("external_retrieval").systemPrompt),
 ];

@@ -19,7 +19,7 @@ export const ALIX_BUILTIN_EXECUTORS = {
   alix_verify_claim: "verify.claim",
   alix_web_search: "web.search",
   alix_web_fetch: "web.fetch",
-  alix_create_hook: "create_hook",
+  alix_hook_create: "hook.create",
   alix_create_skill: "skill.create",
   alix_list_extensions: "extension.list",
   alix_inspect_extension: "extension.inspect",

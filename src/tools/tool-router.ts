@@ -762,7 +762,7 @@ export class WebToolsRouter implements ToolRouter {
 }
 
 export class SelfExtendToolRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["skill.create", "extension.list", "extension.inspect", "create_hook"];
+  private static readonly SUPPORTED_TOOLS = ["skill.create", "extension.list", "extension.inspect", "hook.create"];
 
   canHandle(name: string): boolean {
     return SelfExtendToolRouter.SUPPORTED_TOOLS.includes(name);
@@ -770,7 +770,7 @@ export class SelfExtendToolRouter implements ToolRouter {
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
     // Handle create_hook specially — it needs a HookRunner instance
-    if (request.name === "create_hook") {
+    if (request.name === "hook.create") {
       const { createHookTool } = await import("../self-extend/create-hook.js");
       const { HookRunner } = await import("../extensions/hook-runner.js");
       const runner = new HookRunner();

@@ -147,7 +147,7 @@ describe("network-tool classification parity", () => {
     ["skill.create", false],
     ["extension.list", false],
     ["extension.inspect", false],
-    ["create_hook", false],
+    ["hook.create", false],
     ["mcp.search_tools", true],
     ["mcp.a", true],
     ["mcp.github.repos.list", true],

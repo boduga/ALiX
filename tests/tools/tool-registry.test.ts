@@ -462,7 +462,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(systemTools.some(t => t.name === "skill.create"));
   assert.ok(systemTools.some(t => t.name === "extension.list"));
   assert.ok(systemTools.some(t => t.name === "extension.inspect"));
-  assert.ok(systemTools.some(t => t.name === "create_hook"));
+  assert.ok(systemTools.some(t => t.name === "hook.create"));
   assert.ok(systemTools.some(t => t.name === "state.query"));
 });
 
@@ -502,7 +502,6 @@ test("buildDefaultToolIndex registers 25 tools", () => {
     "coordination.results",
     "coordination.run",
     "coordination.status",
-    "create_hook",
     "delegate",
     "dir.search",
     "done",
@@ -514,6 +513,7 @@ test("buildDefaultToolIndex registers 25 tools", () => {
     "file.read",
     "glob.match",
     "grep.search",
+    "hook.create",
     "mcp.*",
     "patch.apply",
     "schedule.propose",

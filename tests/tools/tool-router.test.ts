@@ -76,7 +76,7 @@ test("SelfExtendToolRouter.canHandle admits every registry system/self-extend to
   const router = new SelfExtendToolRouter();
   const registry = buildDefaultToolIndex().registry;
   for (const name of registry.getAll().map((tool) => tool.name)) {
-    const expected = name === "create_hook" || name.startsWith("skill.") || name.startsWith("extension.");
+    const expected = name === "hook.create" || name.startsWith("skill.") || name.startsWith("extension.");
     assert.strictEqual(
       router.canHandle(name),
       expected,

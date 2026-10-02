@@ -39,7 +39,7 @@ describe('read-only tool surface', () => {
 
   it('never carries a write tool into a read-only surface', () => {
     const filter = buildReadOnlyToolFilter();
-    for (const write of ['alix_patch_apply', 'alix_file_create', 'alix_file_delete', 'alix_create_hook']) {
+    for (const write of ['alix_patch_apply', 'alix_file_create', 'alix_file_delete', 'alix_hook_create']) {
       expect(filter.has(write)).toBe(false);
     }
   });

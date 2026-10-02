@@ -443,7 +443,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["extension", "inspect", "self-extend"],
     },
     {
-      name: "create_hook",
+      name: "hook.create",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Create a hook",

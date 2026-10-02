@@ -248,7 +248,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["extension", "inspect", "self-extend"],
   },
-  create_hook: {
+  "hook.create": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "high",
@@ -358,9 +358,9 @@ describe("canonical tool capability taxonomy contract", () => {
     ]);
     // the four self-extend tools all invoke tool.invoke
     expect(namesByCapabilityId("tool.invoke")).toEqual([
-      "create_hook",
       "extension.inspect",
       "extension.list",
+      "hook.create",
       "skill.create",
     ]);
   });
