@@ -137,6 +137,35 @@ try {
 diff = `${diff}\n${worktreeDiff}`;
 
 /**
+ * Total files changed across the resolved range and the working tree, ANY
+ * extension. Not for scanning — only to tell two "no AGENTS.md changed"
+ * situations apart:
+ *
+ *   range changes files, none of them contracts -> the branch legitimately
+ *     edits no contract, so there is nothing to audit and that is the complete
+ *     answer (a test-only or code-only PR).
+ *   range changes NOTHING at all while base !== head -> the invocation itself
+ *     is wrong (stale branch, wrong base, wrong checkout). That is the case the
+ *     vacuous-pass exit exists to catch.
+ */
+const anyChangedFiles = (() => {
+  const names = new Set();
+  for (const cmd of [
+    `git diff --name-only ${baseSha}...${headSha}`,
+    "git diff --name-only HEAD",
+    "git diff --cached --name-only HEAD",
+  ]) {
+    try {
+      for (const line of sh(cmd).split("\n")) if (line.trim()) names.add(line.trim());
+    } catch {
+      // An unresolvable sub-diff is not itself a finding; the resolved-range
+      // diff above already fails loudly if the range is unreadable.
+    }
+  }
+  return names;
+})();
+
+/**
  * Content of an AGENTS.md as it should be judged: the working-tree copy when
  * the file has uncommitted edits, else the committed `head` blob.
  *
@@ -444,7 +473,7 @@ if (asJson) {
     null,
     2,
   ));
-  process.exit(problems.length || spliced.length ? 1 : changedFiles.size === 0 ? (baseSha === headSha ? 0 : 2) : 0);
+  process.exit(problems.length || spliced.length ? 1 : changedFiles.size === 0 ? (baseSha === headSha || anyChangedFiles.size > 0 ? 0 : 2) : 0);
 }
 
 console.log(
@@ -465,23 +494,37 @@ if (problems.length) {
   for (const p of problems) console.error(`  - ${p.file}\n      ${p.why}  ${p.token}`);
   process.exit(1);
 }
-// A clean run that audited NOTHING is not a pass — with ONE exception.
+// A clean run that audited NOTHING is not a pass — with TWO exceptions, both
+// cases where "nothing to audit" is the complete and correct answer rather than
+// a green that verified nothing.
+//
 // `git diff base...head` ignores the working tree, so before the union this
 // script could print "0 files changed, 0 tokens checked" and exit 0 on a dirty
 // tree full of new claims — indistinguishable, in CI output, from having
 // verified them.
 //
-// The exception is base === head. That is the post-merge run on `main`, where
-// `main...HEAD` is empty BY CONSTRUCTION and "no contracts changed" is the
-// correct, complete answer. Failing it would mean the `dox-claims` job can
-// never pass on main, and a permanently red lane trains everyone to ignore it.
-// Refs that DIFFER but touch no contract remain exit 2: that is the suspicious
-// case, where the invocation was probably wrong.
+//   1. base === head. The post-merge run on `main`, where `main...HEAD` is
+//      empty BY CONSTRUCTION. Failing it means the `dox-claims` lane can never
+//      pass on main, and a permanently red lane trains everyone to ignore it.
+//   2. The range changes files, none of them AGENTS.md. A test-only or
+//      code-only PR legitimately edits no contract. Failing that would mean the
+//      lane is red on every PR that does not touch documentation.
+//
+// Exit 2 is reserved for the genuinely suspicious case: refs that DIFFER while
+// the range changes nothing at all — a stale branch, a wrong base, or the wrong
+// checkout. That is the misconfiguration the vacuous-pass guard exists for.
 if (changedFiles.size === 0) {
   if (baseSha === headSha) {
     console.log(
       `DOX claim/code audit: base and head are both ${headSha.slice(0, 8)} — nothing to audit.\n` +
         "  This is the expected post-merge result on the default branch, not a vacuous pass.",
+    );
+    process.exit(0);
+  }
+  if (anyChangedFiles.size > 0) {
+    console.log(
+      `DOX claim/code audit: ${anyChangedFiles.size} file(s) changed, none of them AGENTS.md — nothing to audit.\n` +
+        "  The branch edits no contract, so there is no claim to check. Not a vacuous pass.",
     );
     process.exit(0);
   }
