@@ -16,6 +16,7 @@ the code).
 | `ALiX-Jev-Engineering-HandOff.md` | Context, locked decisions, constraints, implementation boundaries. |
 | `ALiX-Jev-Implementation-Plan.md` | Phases J0–J6, tasks, exit criteria, PR strategy, stop conditions. |
 | `ALiX-Jev-J0-Integration-Points.md` | The read-only inventory of classifier/routing/governance seams. |
+| `Jev-Vendor-Research.md` | **Dated third-party snapshot** of what TypeSafe claims about Jev: what it is, pricing, versions, limits, evals, and the primary sources each claim came from. Vendor statements, NOT ALiX state. The only doc here that CITES sources for its claims. |
 | `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the shipped wiring decision and how to activate it, caveats. |
 | `T3-selection-evaluation-preregistration.md` | The **frozen** T3 evaluation contract: eligibility tracks + exclusion codes, blind appropriateness labelling, outcome/gap-closure labels, the 30-scope/10-disagreement checkpoint. Amendments go in its own table. |
 | `T3-d-corpus-collection-runbook.md` | The T3-d **procedure**: cohort header + immutability rule, the 40-task family matrix (no expected winning tool encoded), the per-run steps, tagging rules, failure/retry rules, and the ledger schema (collection facts vs label state). Policy stays in the pre-registration. |
@@ -46,6 +47,14 @@ the code).
 - **A failed sample is data, not noise.** A scorer failure or a scope that
   produced no observation is recorded with its reason; retries get a new sample
   identity rather than replacing the failure, so completion rates stay honest.
+- **`Jev-Vendor-Research.md` is a vendor record, never a status source.** Its
+  pricing, version, and limit figures are a snapshot dated in the document's own
+  `Date:` header and WILL drift — `jev-1.13.0` was current when written, while
+  the code deliberately pins `JEV_DEFAULT_MODEL = "jev-latest"`. Treat it as
+  background on what the vendor said, never as ALiX state: where the two could
+  be confused, the code and `ALiX-Jev-Status.md` win. Its value is provenance —
+  it is the only doc here that records which PRIMARY source each claim came
+  from, so a later disagreement can be traced rather than argued.
 - **Name collision:** `src/cli/commands/decision/` is the governance-lens CLI
   and is unrelated to `src/decision/`. The Jev surface is `alix jev`.
 
