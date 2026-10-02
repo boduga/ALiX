@@ -444,7 +444,7 @@ if (asJson) {
     null,
     2,
   ));
-  process.exit(problems.length || spliced.length ? 1 : changedFiles.size === 0 ? 2 : 0);
+  process.exit(problems.length || spliced.length ? 1 : changedFiles.size === 0 ? (baseSha === headSha ? 0 : 2) : 0);
 }
 
 console.log(
@@ -465,12 +465,26 @@ if (problems.length) {
   for (const p of problems) console.error(`  - ${p.file}\n      ${p.why}  ${p.token}`);
   process.exit(1);
 }
-// A clean run that audited NOTHING is not a pass. `git diff base...head`
-// ignores the working tree, so before the union this script could print
-// "0 files changed, 0 tokens checked" and exit 0 on a dirty tree full of new
-// claims — indistinguishable, in CI output, from having verified them.
-// Fail loudly instead, and say which invocation DID audit something.
+// A clean run that audited NOTHING is not a pass — with ONE exception.
+// `git diff base...head` ignores the working tree, so before the union this
+// script could print "0 files changed, 0 tokens checked" and exit 0 on a dirty
+// tree full of new claims — indistinguishable, in CI output, from having
+// verified them.
+//
+// The exception is base === head. That is the post-merge run on `main`, where
+// `main...HEAD` is empty BY CONSTRUCTION and "no contracts changed" is the
+// correct, complete answer. Failing it would mean the `dox-claims` job can
+// never pass on main, and a permanently red lane trains everyone to ignore it.
+// Refs that DIFFER but touch no contract remain exit 2: that is the suspicious
+// case, where the invocation was probably wrong.
 if (changedFiles.size === 0) {
+  if (baseSha === headSha) {
+    console.log(
+      `DOX claim/code audit: base and head are both ${headSha.slice(0, 8)} — nothing to audit.\n` +
+        "  This is the expected post-merge result on the default branch, not a vacuous pass.",
+    );
+    process.exit(0);
+  }
   console.error(
     "NOTHING AUDITED: no AGENTS.md changed between the resolved refs or in the working tree.\n" +
       "  That is a vacuous pass, not a clean one. Re-run with an explicit range\n" +
