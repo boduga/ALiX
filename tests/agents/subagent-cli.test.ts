@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { SubagentResult } from "../../src/config/schema.js";
 import { appendSubagentResponseText, buildResult, buildSubagentFindings, computeSubagentStatus, extractSuccessfulPaths, formatSubagentResult, formatToolLedger, isObjectiveComplete, recordWriteOutcome, subagentToolError, SubagentCLI, inferSingleOwnedCreatePath, inferSingleOwnedPatchPath, shouldInferPatchPath, toolsForSubagentIteration, type WriteProgress } from "../../src/agents/subagent-cli.js";
 import * as subagentCliModule from "../../src/agents/subagent-cli.js";
+import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 
 test("worker executes only exact offered canonical names", () => {
   const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveOfferedToolName as
@@ -469,4 +470,29 @@ test("write workers reserve their final two iterations for mutation", () => {
     toolsForSubagentIteration(tools, { mode: "write", iteration: 4, maxIterations: 5, missingOwnedPaths: [] }).length,
     tools.length,
   );
+});
+
+test("the worker's MCP discovery interception matches the manifest executor id", () => {
+  // Regression: the worker handled MCP discovery by comparing `execName` against
+  // a hand-written `mcp_search_tools`, which the executor-id rename to
+  // `mcp.search_tools` silently turned into a never-true condition. A worker
+  // calling `alix_mcp_search_tools` then fell through to generic dispatch, which
+  // has no registry or router entry for that executor, so MCP search failed
+  // outright and nothing reported why.
+  //
+  // Asserting the PREDICATE, not the resolver: an earlier draft of this test
+  // checked that `resolveOfferedToolName` returned the right id, which passed
+  // with the bug still present — the resolver was always correct; the dead
+  // comparison downstream of it was the defect. Falsified by restoring the
+  // stale literal, which fails this assertion.
+  const isMcp = (subagentCliModule as unknown as Record<string, unknown>)
+    .isMcpDiscoveryExec as ((execName: string) => boolean) | undefined;
+  assert.equal(typeof isMcp, "function");
+
+  const execId = ALIX_BUILTIN_EXECUTORS.alix_mcp_search_tools;
+  assert.equal(execId, "mcp.search_tools", "manifest value the predicate must track");
+  assert.equal(isMcp!(execId), true, "the manifest executor id MUST be intercepted");
+  // The pre-rename spelling must not be what the predicate matches on.
+  assert.equal(isMcp!("mcp_search_tools"), false);
+  assert.equal(isMcp!("file.read"), false);
 });

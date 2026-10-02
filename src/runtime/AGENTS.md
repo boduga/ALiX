@@ -28,6 +28,7 @@
 - Session events use an allowlist to filter out noisy event types.
 - Silent failure on unreadable/missing backends (never crashes).
 - Layer-3 route prompts: only the intents that actually reach a route carry dedicated text; misrouted intents (e.g. `workspace_mutation` on the chat/direct path) share one neutral read-only fallback and log a warning. Chat `workspace_*` intents are read-only because they route to `agent`, never `chat`.
+- The grounded route speaks the same ONE vocabulary as every other path. `route.allowedTools` holds internal executor ids because it is route config, but the provider is offered the manifest names and the model's call is resolved through `resolveExecutableToolName` before dispatch. It previously passed executor ids straight through, making it the one path where an executor id could reach execution; `tests/runtime/grounded-selection-observation.test.ts` asserts the executor receives the RESOLVED id, not the model's spelling.
 
 **Work Guidance:**
 - Adding a new source means adding a new block in `buildRuntimeIndex()` and adding the source string to the `RuntimeIndexEvent.source` union type.

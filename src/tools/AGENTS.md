@@ -26,8 +26,9 @@ reason about.
 - `self-extend/` — hook and skill authoring plus extension inspection, routed by
   `SelfExtendToolRouter`. The executor ids are `hook.create`, `skill.create`,
   `extension.list`, and `extension.inspect`; the model-facing names are in
-  `src/agents/tool-manifest.ts` and deliberately NOT verb-first (this is a
-  recorded divergence from the `<domain>.<action>` shape used elsewhere).
+  `src/agents/tool-manifest.ts`. This is a recorded divergence from the
+  `<domain>.<action>` executor shape used by the rest of the surface, so a
+  future rename must move all four together.
 
 ## Local Contracts
 

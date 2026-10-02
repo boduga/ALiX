@@ -275,7 +275,9 @@ describe("previously-uncovered seams: plan-phase / classifier / grounded-chat mo
     try {
       const model = scriptedModel({
         responseTexts: ["", "The latest is v2."],
-        toolCallsSequence: [[{ id: "tc-g", name: "web.search", args: { query: "latest" } }], []],
+        // The grounded route offers the MANIFEST names, so a model that plays by the
+        // rules emits `alix_web_search`; an executor id is rejected by design.
+        toolCallsSequence: [[{ id: "tc-g", name: "alix_web_search", args: { query: "latest" } }], []],
       });
       const wrapped = withProviderContracts(model);
       const result = await executeGroundedChatBehavior(route, config, {

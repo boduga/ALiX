@@ -2,7 +2,7 @@
  * ignore.ts — Shared workspace ignore rules (#721).
  *
  * One definition of "what the workspace search surface ignores" so content
- * search (grep.search/dir.search), filename search (glob.match), and the
+ * search (grep.search), filename search (glob.match), and the
  * RepoMap walk agree. Directory names + root `.gitignore` patterns.
  */
 

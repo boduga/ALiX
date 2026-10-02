@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
 import { resolvePolicyPath } from "../policy/policy-gate.js";
+import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
 import { resolveModelConfig } from "../config/model-resolver.js";
 
 /**
@@ -70,6 +71,20 @@ export function toolsForSubagentIteration<T extends { name: string }>(
   return mutationReserved
     ? allowedTools.filter(tool => WRITE_TOOLS.has(tool.name) || tool.name === "alix_done")
     : allowedTools;
+}
+
+/**
+ * Is this executor id the MCP discovery tool, which the worker handles inline?
+ *
+ * Extracted so the id is derived from the manifest in exactly ONE place and is
+ * directly testable. Inlined, the comparison was a hand-written literal
+ * `mcp_search_tools` that the rename to `mcp.search_tools` silently turned into
+ * a never-true condition: a worker calling `alix_mcp_search_tools` fell through
+ * to the generic dispatch path, which has no registry or router entry for it,
+ * so MCP search failed outright with nothing reporting why.
+ */
+export function isMcpDiscoveryExec(execName: string): boolean {
+  return execName === ALIX_BUILTIN_EXECUTORS.alix_mcp_search_tools;
 }
 
 /** Resolve a model spelling only when that executor tool was offered now. */
@@ -671,8 +686,15 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             continue;
           }
 
-          // Handle mcp_search_tools specially
-          if (execName === "mcp_search_tools") {
+          // Handle the MCP discovery tool specially: it has no registry or
+          // router entry, so falling through to the executor is unroutable.
+          // The executor id is read from the manifest rather than written out —
+          // the literal `mcp_search_tools` here outlived the rename to
+          // `mcp.search_tools`, silently turning this branch dead: a worker
+          // calling `alix_mcp_search_tools` fell through to a dispatcher that
+          // cannot route it. Compare against the manifest so the two spellings
+          // cannot drift apart again.
+          if (isMcpDiscoveryExec(execName)) {
             const query = (toolCall.args.query as string) ?? "";
             if (mcpDiscovery) {
               const result = await mcpDiscovery.search(query);

@@ -35,9 +35,20 @@ const INTERCEPTED = new Set(["alix_mcp_search_tools", "alix_execution_state_prop
 const BOUND = manifestNames.filter((n) => n.startsWith("alix_collaboration_"));
 /** Handled INLINE in `filterTools` (gated on `policy.allowMcpTools`), not by a set. */
 const INLINE = new Set(["alix_mcp_search_tools", "alix_done"]);
-const routed = manifestNames.filter(
-  (n) => !INTERCEPTED.has(n) && !BOUND.includes(n) && registryNames.includes(ALIX_BUILTIN_EXECUTORS[n as AlixBuiltinToolName]),
-);
+/** Manifest name -> executor id, for names that reach a router. */
+const executorOf = (n: string) => ALIX_BUILTIN_EXECUTORS[n as AlixBuiltinToolName];
+
+/**
+ * Executor ids the manifest points at, ignoring the registry. An earlier draft
+ * computed `routed` by intersecting with registry membership, which made the
+ * assertion circular: an executor dropped FROM the registry silently left the
+ * expected list and the actual list agreeing on its absence. Deriving from the
+ * manifest alone means a registry deletion shows up as a difference.
+ */
+const manifestExecutorIds = manifestNames
+  .filter((n) => !INTERCEPTED.has(n) && !BOUND.includes(n))
+  .map(executorOf)
+  .sort();
 /** Names in NEITHER set are the unclassified ones; a built-in may not be one. */
 const classified = [...WRITE_TOOLS, ...NON_WRITE_TOOLS].sort();
 
@@ -48,6 +59,61 @@ describe("tool authorization parity", () => {
       const inWrite = WRITE_TOOLS.has(name);
       const inNonWrite = NON_WRITE_TOOLS.has(name);
       assert.ok(inWrite !== inNonWrite, `${name} must be in exactly one policy set`);
+    }
+  });
+
+  it("pins the WRITE / NON_WRITE partition, not just its union", () => {
+    // Pinning the union is not enough: `filterTools` maps the two sets onto
+    // distinct `allowedCategories`, so moving a tool from one to the other
+    // changes what a role may call while the union is byte-identical. Each side
+    // is pinned separately so that reclassification cannot pass unnoticed.
+    assert.deepStrictEqual([...WRITE_TOOLS].sort(), [
+      "alix_coordination_run",
+      "alix_create_skill",
+      "alix_delegate",
+      "alix_execution_state_propose",
+      "alix_file_create",
+      "alix_file_delete",
+      "alix_hook_create",
+      "alix_patch_apply",
+      "alix_schedule_propose",
+    ]);
+    assert.deepStrictEqual([...NON_WRITE_TOOLS].sort(), [
+      "alix_coordination_list",
+      "alix_coordination_results",
+      "alix_coordination_status",
+      "alix_done",
+      "alix_file_exists",
+      "alix_file_read",
+      "alix_glob_match",
+      "alix_grep_search",
+      "alix_inspect_extension",
+      "alix_list_extensions",
+      "alix_shell_run",
+      "alix_state_query",
+      "alix_verify_claim",
+      "alix_web_fetch",
+      "alix_web_search",
+    ]);
+  });
+
+  it("no registry entry exists without a model-facing name (the dir.search shape)", () => {
+    // The reverse direction, and the one that actually mattered: `dir.search`
+    // was dispatchable with NO name the model could ever call, so it was
+    // reachable code that no prompt, policy set, or manifest entry could
+    // authorize. Checking manifest -> registry cannot see that shape at all,
+    // because the manifest was never involved. Every registry entry must be the
+    // executor id of some manifest name, or it is unroutable dead authority.
+    const manifestExecutorSet = new Set<string>(Object.values(ALIX_BUILTIN_EXECUTORS));
+    for (const exec of registryNames) {
+      // `mcp.*` is the dynamic-MCP wildcard executor. Its names are minted per
+      // turn and cannot be declared in the manifest by construction, so it is
+      // exempt for the same reason the resolver treats MCP handles specially.
+      if (exec === "mcp.*") continue;
+      assert.ok(
+        manifestExecutorSet.has(exec),
+        `registry entry ${exec} has no model-facing name; it cannot be authorized`,
+      );
     }
   });
 
@@ -132,7 +198,7 @@ describe("tool authorization parity", () => {
     // which would have "passed" against any registry that happened to project
     // the same tools.
     assert.deepStrictEqual(
-      routed.map((n) => ALIX_BUILTIN_EXECUTORS[n as AlixBuiltinToolName]).sort(),
+      manifestExecutorIds,
       [
         "coordination.list", "coordination.results", "coordination.run",
         "coordination.status", "delegate", "done", "extension.inspect",

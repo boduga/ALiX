@@ -33,7 +33,7 @@ export interface PermissionScope {
   workspaceWrite: boolean;
   /** Whether the prompt allows shell command execution. */
   shellExecution: boolean;
-  /** Whether the prompt allows network access (web_fetch, web_search). */
+  /** Whether the prompt allows network access (alix_web_fetch, alix_web_search). */
   networkAccess: boolean;
 }
 
