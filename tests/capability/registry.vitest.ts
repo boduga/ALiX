@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CapabilityRegistry } from '../../src/capability/registry.js';
+import { toolCapabilityId } from '../../src/capability/registry-capabilities.js';
+import { buildDefaultToolIndex } from '../../src/tools/tool-registry.js';
 import { HookRegistry } from '../../src/capability/hook-registry.js';
 import { CapabilityValidationError } from '../../src/capability/errors.js';
 import { EventBus } from '../../src/capability/event-bus.js';
@@ -60,23 +62,32 @@ describe('CapabilityRegistry', () => {
     }
   });
 
-  it('admits underscore tool capability ids at the chokepoint (registry projection surface)', () => {
+  it('admits every capability id the live registry actually projects', () => {
     const r = makeRegistry(dir).registry;
-    // The canonical tool registry names tools with underscores; the projection
-    // maps them verbatim to `tool.<name>` palette ids, so every one of them
-    // must pass the shared capability-id gate.
-    const projected = [
-      'tool.web_search',
-      'tool.web_fetch',
-      'tool.create_skill',
-      'tool.create_hook',
-      'tool.list_extensions',
-      'tool.inspect_extension',
-    ];
+    // DERIVED from the real registry via the real projection, not a hand-typed
+    // list. The previous version hardcoded `tool.web_search`, `tool.fetch`,
+    // `tool.create_hook` and three more — every one stale, since the executor
+    // ids are now dotted (`web.search`, `hook.create`) and the registry's `name`
+    // IS the executor id. The test still passed, because it only checked that
+    // hand-written strings satisfy a syntax gate: it asserted nothing about the
+    // projection it claimed to cover.
+    const projected = buildDefaultToolIndex()
+      .registry.getAll()
+      // Mirrors `registerRegistryToolCapabilities`: the `mcp.*` wildcard is not
+      // a concrete invocable tool, and its projected id carries a glob the
+      // palette grammar rejects. Excluded in production for the same reason.
+      .filter((tool) => tool.name !== 'mcp.*')
+      .map((tool) => toolCapabilityId(tool.name));
     for (const id of projected) {
       expect(() => r.register(makeCap({ id }))).not.toThrow();
     }
     expect(r.list()).toHaveLength(projected.length);
+
+    // Pin WHY it is excluded, so nobody "repairs" it by loosening the grammar:
+    // the wildcard genuinely cannot be a capability id.
+    expect(() => r.register(makeCap({ id: toolCapabilityId('mcp.*') }))).toThrow(
+      CapabilityValidationError,
+    );
   });
 
   it('keeps the grammar strict outside dot-segments: first-segment underscores and the mcp.* wildcard stay rejected', () => {
