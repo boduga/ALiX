@@ -105,10 +105,12 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(rejected?.payload?.reason).toBe("name-not-offered");
   });
 
-  it("routes a documented executor ID to the offered tool that implements it", async () => {
-    // The repo's docs/DOX name tools by executor ID (`shell.run`,
-    // `file.create`, `patch.apply`), so a model that reads them and calls the
-    // executor name is not inventing a capability. Alias is offered-only.
+  it("rejects a documented executor ID instead of routing it to the executor", async () => {
+    // The alias used to let `shell.run` reach the shell executor whenever
+    // `alix_shell_run` was offered. It is removed: the callable name is the
+    // `alix_*` form only. `shell.run` must now be rejected WITHOUT executing,
+    // and the rejection must list the callable options so the model can
+    // self-correct in one turn.
     const executor = { execute: vi.fn().mockResolvedValue({ kind: "success", output: "ok" }) };
     const result = await handleToolCall(
       { id: "call-alias", name: "shell.run", args: { command: "ls" } },
@@ -116,13 +118,12 @@ describe("handleToolCall unknown-tool guard", () => {
       [],
       [],
     );
-    expect(executor.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "shell.run", toolCallId: "call-alias" }),
-    );
-    expect(result.message?.content).not.toContain("Unknown tool");
+    expect(executor.execute).not.toHaveBeenCalled();
+    expect(result.message?.content).toContain('Unknown tool "shell.run"');
+    expect(result.message?.content).toContain("alix_shell_run");
   });
 
-  it("does not let the executor alias reach a tool absent from this turn", async () => {
+  it("does not let an executor ID reach a tool absent from this turn", async () => {
     // `patch.apply` is a real executor ID; only `alix_file_read` is offered.
     const executor = { execute: vi.fn() };
     const deps = makeDeps(executor);

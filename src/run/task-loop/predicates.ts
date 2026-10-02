@@ -77,15 +77,21 @@ export function buildShedToolRetryMessage(toolCall: ToolCall): string {
  *   ("Scheduling: workers ran in parallel"), denials, and the operator's own
  *   reporting vocabulary ("report the registered artifact") are not claims,
  *   and flagging them traps the turn in a re-prompt loop.
- * - `excusedBy` — executor prefixes that make the claim substantiated.
+ * - `excusedBy` — model-facing tool names whose invocation substantiates the
+ *   claim. These are the SAME vocabulary `usedTools` holds (`toolCall.name`,
+ *   always an exact `alix_*` name now that the documented-executor alias is
+ *   removed), so substantiation is a direct set membership test. It was
+ *   executor ids (`shell.run`) matched by translating every entry of
+ *   `usedTools` into its executor form first — a bidirectional map whose only
+ *   purpose was to reconcile two spellings of one tool.
  * - `tool` — the model-facing name to record the claim against, when a tool
- *   for it exists in this build. Deriving this by string-munging the prefix
- *   produced phantom names (`alix_schedule_`, `alix_file_edit`), so it is
- *   explicit here and pinned by `taxonomy-sentinel.vitest.ts`.
+ *   for it exists in this build. Deriving this by string-munging produced
+ *   phantom names (`alix_schedule_`, `alix_file_edit`), so it is explicit here
+ *   and pinned by `taxonomy-sentinel.vitest.ts`.
  */
 export const CLAIM_TOOL_MAP: Array<{
   keywords: RegExp;
-  excusedBy: string[];
+  excusedBy: AlixBuiltinToolName[];
   tool?: AlixBuiltinToolName;
   label: string;
 }> = [
@@ -109,7 +115,7 @@ export const CLAIM_TOOL_MAP: Array<{
       String.raw`[^.!?]{0,80}?\b(?:job|task|schedule|workflow|reminder|check|recurring|cron|nightly|daily|weekly|periodic|meeting|review|report|digest|export|publish|notification)\b`,
       "i",
     ),
-    excusedBy: ["schedule.propose"],
+    excusedBy: ["alix_schedule_propose"],
     tool: "alix_schedule_propose",
     label: "scheduling a job",
   },
@@ -130,13 +136,13 @@ export const CLAIM_TOOL_MAP: Array<{
     // The previous bare `\bregister(ed|ing)\b` matched the operator's own
     // reporting requirement ("report … registered artifact").
     keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:registered|registering|register|edited|editing|edit|added|adding|add|updated|updating|update|modified|modifying|modify)\b[^.!?]{0,60}\b(?:file|files|card|cards|tool|tools|registry)\b/i,
-    excusedBy: ["patch.apply", "file.create"],
+    excusedBy: ["alix_patch_apply", "alix_file_create"],
     tool: "alix_patch_apply",
     label: "editing/registering files",
   },
   {
     keywords: /\bI(?:['’]ve|['’]ll| have| had| will)?\s+(?:just\s+|already\s+)?(?:verified|verifying|verify|compiled|compiling|compile|ran|run)\b[^.!?]{0,60}\b(?:build|compilation|tests?|typecheck|suite|tsc)\b/i,
-    excusedBy: ["shell.run"],
+    excusedBy: ["alix_shell_run"],
     tool: "alix_shell_run",
     label: "verifying compilation",
   },
@@ -213,20 +219,25 @@ export function hasExecutedActionTool(usedTools: ReadonlySet<string>): boolean {
  */
 
 export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>): string[] {
-  // `usedTools` holds the names the model called (`alix_shell_run`), while the
-  // map is keyed by executor ids (`shell.run`). Resolve both directions —
-  // without this, every mapped keyword reads as unsubstantiated no matter what
-  // ran, and the re-prompt can never be satisfied.
-  const called = new Set<string>();
-  for (const name of usedTools) {
-    called.add(name);
-    const execName = ALIX_BUILTIN_EXECUTORS[name as keyof typeof ALIX_BUILTIN_EXECUTORS];
-    if (execName) called.add(execName);
-  }
+  // ONE vocabulary. `usedTools` holds the exact model-facing names the model
+  // called (`toolCall.name`), and `excusedBy` is declared in those same names,
+  // so substantiation is a plain set-membership test.
+  //
+  // This used to translate every `usedTools` entry into its executor form so
+  // it could match an executor-keyed map. That map existed only because the two
+  // vocabularies coexisted; with the documented-executor alias removed, a model
+  // that ran `alix_shell_run` and one that ran `shell.run` are no longer the
+  // same event — only the first is reachable — so reconciling them could only
+  // ever produce a false negative, never a true positive.
+  //
+  // Matching stays a prefix test (`startsWith`) because a claim is excused by
+  // having invoked a tool of that kind, and `usedTools` may hold names this
+  // build does not know (MCP handles).
   const unsubstantiated: string[] = [];
   for (const { keywords, excusedBy, label } of CLAIM_TOOL_MAP) {
     if (keywords.test(text)) {
-      const wasCalled = excusedBy.length > 0 && [...called].some((t) => excusedBy.some((prefix) => t.startsWith(prefix)));
+      const wasCalled = excusedBy.length > 0
+        && [...usedTools].some((called) => excusedBy.some((name) => called.startsWith(name)));
       if (!wasCalled) {
         unsubstantiated.push(label);
       }

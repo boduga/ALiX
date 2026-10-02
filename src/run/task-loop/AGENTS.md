@@ -172,7 +172,7 @@ existing import paths are unchanged.
   surfacing...") is a continuation, not a completion. The task loop re-prompts
   within its existing bound and records `completed_unverified` if the promise
   persists.
-- The last-attempt `coordination.run` outcome gates completion INDEPENDENTLY
+- The last-attempt `alix_coordination_run` outcome gates completion INDEPENDENTLY
   of objective-text matching: `runTaskLoop` tracks a per-invocation
   `coordinationRunFailed` flag (set on error, cleared by a later success) and
   every completed-status emission consults it — Path A trust gate and

@@ -44,7 +44,7 @@ manages active jobs and `alix approvals` unions the global store.
 
 - Keep `schedule-spec.ts` pure (no I/O, injectable `now`) so schedule math stays
   unit-testable and timezone-deterministic.
-- Never let a scheduled run itself propose a schedule: `schedule.propose` is
+- Never let a scheduled run itself propose a schedule: `alix_schedule_propose` is
   denied when the caller is a scheduled/headless/subagent run.
 
 ## Verification
