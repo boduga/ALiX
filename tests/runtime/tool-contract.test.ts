@@ -298,7 +298,7 @@ describe("M1.4 — Tool Contract", () => {
     // sanity check that importing and re-exporting doesn't alter shape.
     const request: SourceToolCallRequest = {
       toolCallId: "id",
-      name: "done",
+      name: "task.complete",
       args: {},
     };
     const contractRequest: ToolCallRequest = request;

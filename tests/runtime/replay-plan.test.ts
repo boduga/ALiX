@@ -137,7 +137,6 @@ describe("network-tool classification parity", () => {
     ["glob.match", false],
     ["shell.run", false],
     ["patch.apply", false],
-    ["done", false],
     ["task.complete", false],
     ["schedule.propose", false],
     ["coordination.run", false],

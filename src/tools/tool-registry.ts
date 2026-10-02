@@ -266,7 +266,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["patch", "code", "edit", "modify"],
     },
     {
-      name: "done",
+      name: "task.complete",
       capabilityId: "task.complete",
       policyKey: "task.complete",
       description: "Signal that the task is complete",

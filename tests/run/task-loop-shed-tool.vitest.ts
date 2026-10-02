@@ -556,7 +556,7 @@ describe('task-loop completion termination', () => {
       task,
       providerTools: [readTool, coordinationTool, doneTool],
       executor: {
-        execute: async ({ name }: { name: string }) => name === 'done'
+        execute: async ({ name }: { name: string }) => name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: '{}' },
       } as any,
@@ -616,7 +616,7 @@ describe('task-loop completion termination', () => {
     };
     const doneExecutor = {
       execute: async ({ name }: { name: string }) =>
-        name === 'done'
+        name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: 'ok' },
     } as any;
@@ -661,7 +661,7 @@ describe('task-loop completion termination', () => {
     });
     const executor = {
       execute: async ({ name }: { name: string }) =>
-        name === 'done'
+        name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: 'ok' },
     };
@@ -708,7 +708,7 @@ describe('task-loop completion termination', () => {
     const executor = {
       execute: async ({ name }: { name: string }) => {
         executedTools.push(name);
-        return name === 'done'
+        return name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: '# ALiX' };
       },
@@ -727,7 +727,7 @@ describe('task-loop completion termination', () => {
     expect(result.summary).toBe(finalSummary);
     expect(result.reason).toBe('completed');
     const events = await deps.log.readAll();
-    expect(executedTools.filter((name) => name === 'done')).toHaveLength(1);
+    expect(executedTools.filter((name) => name === 'task.complete')).toHaveLength(1);
     expect(events.filter((event) => event.type === 'completion.redundant_done_ignored')).toHaveLength(1);
     expect(provider.requests[0]!.systemPrompt).toContain('CURRENT TURN BOUNDARY');
     expect(provider.requests[0]!.systemPrompt).toContain('Earlier completed turns are context only');
@@ -795,7 +795,7 @@ describe('task-loop completion termination', () => {
       task: 'try to read ../package.json and report the result',
       providerTools: [readTool, doneTool],
       executor: {
-        execute: async ({ name }: { name: string }) => name === 'done'
+        execute: async ({ name }: { name: string }) => name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'error' as const, message: 'Access denied: path is outside workspace (/tmp/package.json)', retryable: false },
       } as any,
@@ -844,7 +844,7 @@ describe('task-loop completion termination', () => {
     };
     const executor = {
       execute: async ({ name }: { name: string }) =>
-        name === 'done'
+        name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: 'file content' },
     };
@@ -893,7 +893,7 @@ describe('task-loop completion termination', () => {
         { name: 'alix_done', execName: 'done' },
       ],
       executor: {
-        execute: async ({ name }: { name: string }) => name === 'done'
+        execute: async ({ name }: { name: string }) => name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: name === 'shell.run' ? 'README.md' : '# ALiX' },
       } as any,
@@ -938,7 +938,7 @@ describe('task-loop completion termination', () => {
         { name: 'alix_done', execName: 'done' },
       ],
       executor: {
-        execute: async ({ name }: { name: string }) => name === 'done'
+        execute: async ({ name }: { name: string }) => name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: 'ok' },
       } as any,
@@ -973,7 +973,7 @@ describe('task-loop completion termination', () => {
       executor: {
         execute: async (request: { name: string; allowedMutationPaths?: readonly string[] }) => {
           executions.push(request);
-          return request.name === 'done'
+          return request.name === 'task.complete'
             ? { kind: 'success' as const, output: 'Task complete.', completed: true }
             : { kind: 'success' as const, output: 'ok' };
         },
@@ -1011,7 +1011,7 @@ describe('task-loop completion termination', () => {
         { name: 'alix_done', execName: 'done' },
       ],
       executor: {
-        execute: async ({ name }: { name: string }) => name === 'done'
+        execute: async ({ name }: { name: string }) => name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: name === 'file.read' ? 'ALiX workspace write succeeded.' : 'ok' },
       } as any,

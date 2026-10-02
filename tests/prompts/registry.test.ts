@@ -57,7 +57,7 @@ describe("prompt registry", () => {
       "subagent.docs-researcher": "36f722f069f3b831",
       "subagent.worker": "43df6b28ad9296dd",
       "subagent.researcher": "f4fea7a09a499d77",
-      "planner.graph": "871cafef7155e619",
+      "planner.graph": "0d522e45f5fd21fe",
       "route.retrieval-system": "e92d8e599b6d8489",
     };
     for (const e of PROMPT_REGISTRY) {

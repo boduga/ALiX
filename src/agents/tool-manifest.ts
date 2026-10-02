@@ -8,7 +8,7 @@ export const ALIX_BUILTIN_EXECUTORS = {
   alix_glob_match: "glob.match",
   alix_shell_run: "shell.run",
   alix_patch_apply: "patch.apply",
-  alix_done: "done",
+  alix_done: "task.complete",
   alix_schedule_propose: "schedule.propose",
   alix_delegate: "agent.delegate",
   alix_coordination_run: "coordination.run",

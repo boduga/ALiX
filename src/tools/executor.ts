@@ -353,7 +353,7 @@ export class ToolExecutor {
 
     // === TOOL REPAIR LAYER — runs before policy so hash and decision use repaired args ===
     let repairHint: string | undefined;
-    if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
+    if (this.repair && name !== "task.complete" && !name.startsWith("mcp.")) {
       const repairResult = this.repair.process(name, args);
       if (repairResult.repaired) {
         repairHint = repairResult.hint;
@@ -532,8 +532,8 @@ export class ToolExecutor {
       };
     }
 
-    // Handle special case: "done" tool (not in router)
-    if (name === "done") {
+    // Handle special case: the completion tool (not in router)
+    if (name === "task.complete") {
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, {
         toolCallId,
         toolName: name,

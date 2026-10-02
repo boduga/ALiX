@@ -202,11 +202,12 @@ describe("tool authorization parity", () => {
       [
         "agent.delegate",
         "coordination.list", "coordination.results", "coordination.run",
-        "coordination.status", "done", "extension.inspect",
+        "coordination.status", "extension.inspect",
         "extension.list", "file.create", "file.delete", "file.exists",
         "file.read", "glob.match", "grep.search", "hook.create",
         "patch.apply", "schedule.propose", "shell.run", "skill.create",
-        "state.query", "verify.claim", "web.fetch", "web.search",
+        "state.query", "task.complete",
+        "verify.claim", "web.fetch", "web.search",
       ],
     );
   });

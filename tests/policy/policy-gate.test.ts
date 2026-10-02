@@ -226,7 +226,7 @@ describe("PolicyGate", () => {
     const config = makeConfig();
     const gate = new PolicyGate(config);
     const result = await gate.evaluateToolCall({
-      requestId: "h2-done", toolName: "done", args: {},
+      requestId: "h2-done", toolName: "task.complete", args: {},
       cwd: "/tmp", sessionMode: "ask", source: "tool",
     });
     assert.equal(result.decision, "allow");

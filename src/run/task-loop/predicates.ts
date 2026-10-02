@@ -175,7 +175,7 @@ export const NARRATING_THRESHOLD = 80;
 export const SHORT_SYNTHESIS_THRESHOLD = 200;
 
 export function isCompletionTool(toolName: string): boolean {
-  return toolName === "alix_done" || toolName === "done";
+  return toolName === "alix_done" || toolName === "task.complete";
 }
 
 export function resolveToolExecutionName(

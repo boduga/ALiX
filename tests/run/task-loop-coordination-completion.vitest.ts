@@ -109,7 +109,7 @@ function makeExecutor(coordinationOutcomes: Array<'error' | 'success'>): TaskLoo
         }
         return { kind: 'success' as const, output: '{"runId":"run_test","status":"completed"}' };
       }
-      if (name === 'done') {
+      if (name === 'task.complete') {
         return { kind: 'success' as const, output: 'Task complete.', completed: true };
       }
       return { kind: 'success' as const, output: 'ok' };
@@ -131,7 +131,7 @@ function verifiedExecutor(
   return {
     execute: async ({ name }: { name: string }) => {
       if (name === 'coordination.run') return verifiedResult;
-      if (name === 'done') return { kind: 'success' as const, output: 'Task complete.', completed: true };
+      if (name === 'task.complete') return { kind: 'success' as const, output: 'Task complete.', completed: true };
       return { kind: 'success' as const, output: 'ok' };
     },
   } as unknown as TaskLoopDeps['executor'];
@@ -415,7 +415,7 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       execute: async ({ name }: { name: string }) =>
         name === 'file.create'
           ? { kind: 'success' as const, output: ECHO, changed: true, changedFiles: ['.tmp/out/notes.md'] }
-          : { kind: 'success' as const, output: 'ok', completed: name === 'done' },
+          : { kind: 'success' as const, output: 'ok', completed: name === 'task.complete' },
     } as unknown as TaskLoopDeps['executor'];
     const { deps, log } = await makeTestDeps({
       provider,
@@ -585,7 +585,7 @@ describe('runTaskLoop coordination-failure completion gate', () => {
       executor: {
         execute: async ({ name }: { name: string }) => {
           if (name !== 'coordination.run') {
-            if (name === 'done') return { kind: 'success' as const, output: 'Task complete.', completed: true };
+            if (name === 'task.complete') return { kind: 'success' as const, output: 'Task complete.', completed: true };
             return { kind: 'success' as const, output: 'ok' };
           }
           coordRetries++;

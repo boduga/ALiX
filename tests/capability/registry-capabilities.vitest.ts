@@ -100,7 +100,7 @@ describe("projectToolCapability", () => {
 
     // A tool with NO declared execution profile emits strategy only — no
     // invented timeout/cancellable.
-    const done = projectToolCapability(findTool("done"));
+    const done = projectToolCapability(findTool("task.complete"));
     expect(done.execution).toEqual({ strategy: "tool" });
   });
 

@@ -118,7 +118,7 @@ async function makeDeps(overrides: {
     log,
     executor: {
       execute: async ({ name }: { name: string }) =>
-        name === 'done'
+        name === 'task.complete'
           ? { kind: 'success' as const, output: 'Task complete.', completed: true }
           : { kind: 'success' as const, output: 'ok' },
     } as unknown as TaskLoopDeps['executor'],

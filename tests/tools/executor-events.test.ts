@@ -280,7 +280,7 @@ describe("Tool Executor Events", () => {
     // done tool must always be available regardless of intent
     const doneResult = await executor.execute({
       toolCallId: `done_${Date.now()}_abc`,
-      name: "done",
+      name: "task.complete",
       args: {},
     }) as any;
     assert.ok(doneResult.kind === "success" || doneResult.completed, "done tool must always be available");

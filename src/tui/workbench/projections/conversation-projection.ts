@@ -47,7 +47,9 @@ function toolName(title: string): string {
 }
 
 function isCompletionTool(name: string): boolean {
-  return name === 'done' || name === 'task.complete';
+  // The executor id, read off a `tool.<name>` trace title. It accepted both
+  // spellings as a ratchet while the rename was pending; `done` is now dead.
+  return name === 'task.complete';
 }
 
 function cloneTool(entry: ExecutionTraceEntry): ToolItem {
