@@ -54,7 +54,7 @@ export type ReplayResult = {
 /** Determine if a tool is a network tool (blocked in both modes). */
 function isNetworkTool(toolName: string): boolean {
   if (toolName.startsWith("mcp.")) return true;
-  return ["web.search", "web.fetch", "delegate"].includes(toolName);
+  return ["web.search", "web.fetch", "agent.delegate"].includes(toolName);
 }
 
 /**
@@ -206,7 +206,7 @@ async function replayToolStep(
       }
       return { status: "failed", error: result.error ?? "Unknown error" };
     }
-    if (toolName === "delegate") {
+    if (toolName === "agent.delegate") {
       return { status: "blocked", blockReason: "delegate tool requires subagent context in replay" };
     }
     // mcp.* tools
@@ -352,7 +352,7 @@ export type SideEffectLevel = "read-only" | "side-effect" | "network";
 export function classifySideEffect(toolName: string): SideEffectLevel {
   if (["file.read", "file.exists", "grep.search", "glob.match"].includes(toolName)) return "read-only";
   if (toolName.startsWith("mcp.")) return "network";
-  if (["web.search", "web.fetch", "delegate"].includes(toolName)) return "network";
+  if (["web.search", "web.fetch", "agent.delegate"].includes(toolName)) return "network";
   return "side-effect";
 }
 

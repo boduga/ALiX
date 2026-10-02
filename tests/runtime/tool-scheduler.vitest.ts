@@ -26,12 +26,12 @@ describe("ToolConcurrency authoritative metadata", () => {
     expect(getToolConcurrency("web.fetch")).toBe("safe");
   });
 
-  it("exclusive: file.create, file.delete, shell.run, patch.apply, delegate, mcp.*", () => {
+  it("exclusive: file.create, file.delete, shell.run, patch.apply, agent.delegate, mcp.*", () => {
     expect(getToolConcurrency("file.create")).toBe("exclusive");
     expect(getToolConcurrency("file.delete")).toBe("exclusive");
     expect(getToolConcurrency("shell.run")).toBe("exclusive");
     expect(getToolConcurrency("patch.apply")).toBe("exclusive");
-    expect(getToolConcurrency("delegate")).toBe("exclusive");
+    expect(getToolConcurrency("agent.delegate")).toBe("exclusive");
     expect(getToolConcurrency("mcp.github.repos.list")).toBe("exclusive");
     expect(getToolConcurrency("mcp.any.tool")).toBe("exclusive");
   });

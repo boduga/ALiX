@@ -752,7 +752,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           });
 
           // If done tool was called, stop
-          if (execName === "done") {
+          if (execName === "task.complete") {
             await mcpManager?.closeAll().catch(() => {});
             console.error(`[ledger] tools=${formatToolLedger(toolLedger) || "(none)"} successfulPaths=${[...progress.successfulPaths].join(",") || "(none)"} fatalWriteFailures=${progress.fatalWriteFailures.join(",") || "(none)"} ownedPaths=${ownedPaths.join(",") || "(none)"}`);
             const result = buildResult(taskId, role, mode, text, toolOutputs, progress, ownedPaths, toolLedger);

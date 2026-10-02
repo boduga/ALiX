@@ -25,7 +25,7 @@ describe('ConversationProjection', () => {
       'assistant',
     ]);
     expect(snapshot.items.filter((item) => item.kind === 'assistant')).toHaveLength(2);
-    expect(snapshot.items.some((item) => item.kind === 'tool-group' && item.tools.some((tool) => tool.name === 'done'))).toBe(false);
+    expect(snapshot.items.some((item) => item.kind === 'tool-group' && item.tools.some((tool) => tool.name === 'task.complete'))).toBe(false);
     expect(snapshot.items.at(-2)).toMatchObject({
       kind: 'tool-group',
       tools: [{ name: 'file.read', status: 'failed', detail: 'Access denied: path is outside workspace' }],

@@ -30,6 +30,9 @@ const registryNames = buildDefaultToolIndex().registry.getAll().map((t) => t.nam
 
 /** The manifest names a tool must be routable; registry-only names are legacy. */
 /** Intercepted in event-handlers before the policy gate; never registry-routed. */
+// Model-FACING names of tools intercepted before the router, so they have no
+// registry entry and are exempt from the routable-direction check. Keyed on the
+// model-facing name because that is what the loops below iterate.
 const INTERCEPTED = new Set(["alix_mcp_search_tools", "alix_execution_state_propose"]);
 /** Bound tools that bypass `filterTools` entirely; never policy-classified. */
 const BOUND = manifestNames.filter((n) => n.startsWith("alix_collaboration_"));
@@ -200,12 +203,14 @@ describe("tool authorization parity", () => {
     assert.deepStrictEqual(
       manifestExecutorIds,
       [
+        "agent.delegate",
         "coordination.list", "coordination.results", "coordination.run",
-        "coordination.status", "delegate", "done", "extension.inspect",
+        "coordination.status", "extension.inspect",
         "extension.list", "file.create", "file.delete", "file.exists",
         "file.read", "glob.match", "grep.search", "hook.create",
         "patch.apply", "schedule.propose", "shell.run", "skill.create",
-        "state.query", "verify.claim", "web.fetch", "web.search",
+        "state.query", "task.complete",
+        "verify.claim", "web.fetch", "web.search",
       ],
     );
   });

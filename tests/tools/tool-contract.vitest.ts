@@ -111,7 +111,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["patch", "code", "edit", "modify"],
   },
-  done: {
+  "task.complete": {
     capabilityId: "task.complete",
     policyKey: "task.complete",
     risk: "low",
@@ -129,7 +129,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["schedule", "cron", "recurring", "job", "propose"],
   },
-  delegate: {
+  "agent.delegate": {
     capabilityId: "agent.delegate",
     policyKey: "delegate",
     risk: "medium",

@@ -60,7 +60,7 @@ test("FileToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("shell.run"), false);
   assert.strictEqual(router.canHandle("patch.apply"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
-  assert.strictEqual(router.canHandle("delegate"), false);
+  assert.strictEqual(router.canHandle("agent.delegate"), false);
 });
 
 /**
@@ -86,7 +86,7 @@ test("SelfExtendToolRouter.canHandle admits every registry system/self-extend to
 
 test("SelfExtendToolRouter.canHandle rejects non-self-extend tools", () => {
   const router = new SelfExtendToolRouter();
-  for (const name of ["file.read", "shell.run", "patch.apply", "web.search", "done"]) {
+  for (const name of ["file.read", "shell.run", "patch.apply", "web.search", "task.complete"]) {
     assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
   }
 });
@@ -95,7 +95,7 @@ test("WebToolsRouter.canHandle admits only the two web tools", () => {
   const router = new WebToolsRouter();
   assert.strictEqual(router.canHandle("web.search"), true);
   assert.strictEqual(router.canHandle("web.fetch"), true);
-  for (const name of ["file.read", "shell.run", "skill.create", "done"]) {
+  for (const name of ["file.read", "shell.run", "skill.create", "task.complete"]) {
     assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
   }
 });
@@ -110,7 +110,7 @@ test("ShellToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("file.read"), false);
   assert.strictEqual(router.canHandle("patch.apply"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
-  assert.strictEqual(router.canHandle("delegate"), false);
+  assert.strictEqual(router.canHandle("agent.delegate"), false);
 });
 
 test("PatchToolRouter.canHandle returns true for patch.apply", () => {
@@ -123,7 +123,7 @@ test("PatchToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("file.read"), false);
   assert.strictEqual(router.canHandle("shell.run"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
-  assert.strictEqual(router.canHandle("delegate"), false);
+  assert.strictEqual(router.canHandle("agent.delegate"), false);
 });
 
 test("McpToolRouter.canHandle returns true for mcp.* tools", () => {
@@ -138,12 +138,12 @@ test("McpToolRouter.canHandle returns false for non-mcp tools", () => {
   assert.strictEqual(router.canHandle("file.read"), false);
   assert.strictEqual(router.canHandle("shell.run"), false);
   assert.strictEqual(router.canHandle("patch.apply"), false);
-  assert.strictEqual(router.canHandle("delegate"), false);
+  assert.strictEqual(router.canHandle("agent.delegate"), false);
 });
 
 test("DelegateToolRouter.canHandle returns true for delegate", () => {
   const router = new DelegateToolRouter();
-  assert.strictEqual(router.canHandle("delegate"), true);
+  assert.strictEqual(router.canHandle("agent.delegate"), true);
 });
 
 test("ClaimVerificationToolRouter.canHandle returns true only for verify.claim", () => {
@@ -464,7 +464,7 @@ test("DelegateToolRouter.execute calls the delegate handler", async () => {
   const router = new DelegateToolRouter(handlers);
   const result = await router.execute({
     toolCallId: "1",
-    name: "delegate",
+    name: "agent.delegate",
     args: { arg1: "value1" },
   });
 
@@ -484,7 +484,7 @@ test("DelegateToolRouter.execute passes args to handler", async () => {
   const router = new DelegateToolRouter(handlers);
   await router.execute({
     toolCallId: "1",
-    name: "delegate",
+    name: "agent.delegate",
     args: { custom: "args", number: 42 },
   });
 
@@ -495,7 +495,7 @@ test("DelegateToolRouter.execute returns error if handler not initialized", asyn
   const router = new DelegateToolRouter();
   const result = await router.execute({
     toolCallId: "1",
-    name: "delegate",
+    name: "agent.delegate",
     args: {},
   });
 
@@ -574,7 +574,7 @@ test("DelegateToolRouter.execute handles handler errors gracefully", async () =>
   const router = new DelegateToolRouter(handlers);
   const result = await router.execute({
     toolCallId: "1",
-    name: "delegate",
+    name: "agent.delegate",
     args: {},
   });
 

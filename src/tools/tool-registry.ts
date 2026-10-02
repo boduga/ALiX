@@ -266,7 +266,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["patch", "code", "edit", "modify"],
     },
     {
-      name: "done",
+      name: "task.complete",
       capabilityId: "task.complete",
       policyKey: "task.complete",
       description: "Signal that the task is complete",
@@ -288,7 +288,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["schedule", "cron", "recurring", "job", "propose"],
     },
     {
-      name: "delegate",
+      name: "agent.delegate",
       capabilityId: "agent.delegate",
       policyKey: "delegate",
       description: "Delegate a subtask to a sub-agent",

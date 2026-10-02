@@ -30,7 +30,7 @@ describe("tool taxonomy sentinels", () => {
     const registryNames = new Set(buildDefaultToolIndex().registry.getAll().map(tool => tool.name));
     const intercepted = new Set([
       "mcp.search_tools",
-      "alix_execution_state_propose",
+      "execution_state.propose",
       "collaboration.publish_finding",
       "collaboration.publish_artifact",
       "collaboration.query_findings",

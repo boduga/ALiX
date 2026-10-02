@@ -79,7 +79,7 @@
       "id": "tr-66",
       "kind": "tool",
       "status": "completed",
-      "title": "tool.done",
+      "title": "tool.task.complete",
       "startedAt": 66,
       "completedAt": 69,
       "durationMs": 0,

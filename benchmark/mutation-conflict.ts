@@ -47,7 +47,7 @@ const SAFE_TOOL_NAMES: readonly string[] = [
   "file.exists",
   "web.search",
   "web.fetch",
-  "done",
+  "task.complete",
   "extension.list",
   "extension.inspect",
 ] as const;

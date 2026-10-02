@@ -80,7 +80,7 @@ test("ToolRegistry.getAll returns all registered tools", () => {
     tags: [],
   });
   registry.register({
-    name: "done",
+    name: "task.complete",
     capabilityId: "task.complete",
     policyKey: "task.complete",
     description: "Done",
@@ -231,7 +231,7 @@ test("ToolRegistry.getEssential returns only alwaysInclude tools", () => {
     tags: [],
   });
   registry.register({
-    name: "done",
+    name: "task.complete",
     capabilityId: "task.complete",
     policyKey: "task.complete",
     description: "Done",
@@ -246,7 +246,7 @@ test("ToolRegistry.getEssential returns only alwaysInclude tools", () => {
   assert.strictEqual(essential.length, 2);
   assert.ok(essential.every(t => t.alwaysInclude));
   assert.ok(essential.some(t => t.name === "file.read"));
-  assert.ok(essential.some(t => t.name === "done"));
+  assert.ok(essential.some(t => t.name === "task.complete"));
 });
 
 // ---------------------------------------------------------------------------
@@ -443,7 +443,7 @@ test("ToolRetriever.selectForIntent with write tags returns write-related tools"
   assert.ok(result.some(t => t.name === "file.create"));
   assert.ok(result.some(t => t.name === "grep.search"));
   assert.ok(result.some(t => t.name === "glob.match"));
-  assert.ok(result.some(t => t.name === "done"));
+  assert.ok(result.some(t => t.name === "task.complete"));
 });
 
 test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
@@ -457,7 +457,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   const systemTools = retriever.selectForDomain("system");
   assert.strictEqual(systemTools.length, 7);
   assert.ok(systemTools.every(t => t.domain === "system"));
-  assert.ok(systemTools.some(t => t.name === "done"));
+  assert.ok(systemTools.some(t => t.name === "task.complete"));
   assert.ok(systemTools.some(t => t.name === "schedule.propose"));
   assert.ok(systemTools.some(t => t.name === "skill.create"));
   assert.ok(systemTools.some(t => t.name === "extension.list"));
@@ -498,12 +498,11 @@ test("buildDefaultToolIndex registers 24 tools", () => {
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
+    "agent.delegate",
     "coordination.list",
     "coordination.results",
     "coordination.run",
     "coordination.status",
-    "delegate",
-    "done",
     "extension.inspect",
     "extension.list",
     "file.create",
@@ -519,6 +518,7 @@ test("buildDefaultToolIndex registers 24 tools", () => {
     "shell.run",
     "skill.create",
     "state.query",
+    "task.complete",
     "verify.claim",
     "web.fetch",
     "web.search",

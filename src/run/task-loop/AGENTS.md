@@ -51,6 +51,18 @@ existing import paths are unchanged.
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
+- **The completion tool has TWO vocabularies and this loop only ever holds the
+  model-facing one.** `isCompletionTool` here is `isCompletionToolName` from
+  `src/agents/tool-manifest.ts`, which matches the name the MODEL called. That is
+  correct for every caller in this subsystem because the loop resolves to an
+  executor id into a separate variable (`resolveToolExecutionName`) and never
+  rewrites `toolCall`, so `toolCall.name` and `usedTools` entries are
+  model-facing by construction. The predicate previously ALSO accepted the
+  executor id — an arm that could never fire, and a dual-vocabulary acceptance
+  the ONE vocabulary contract forbids. The executor-vocabulary surface (runtime
+  trace titles, read by the TUI) uses `isCompletionExecName`; the two are
+  separate exports precisely so a caller cannot silently hold the wrong one.
+  Pinned by `tests/agents/exact-tool-name-resolver.vitest.ts`.
 - `../task-loop.ts` re-exports the public surface (`runTaskLoop`, `TaskLoopDeps`,
   `emitAgent`, `buildShedToolRetryMessage`, `explicitMutationTargets`,
   `isContinuationMessage`, `objectiveEvidenceRequirements`,
