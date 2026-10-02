@@ -75,3 +75,16 @@ tmp-*.json
 events.jsonl
 
 events.jsonl.lock
+
+# Agent-run documentation artifacts. A coordination run writes markdown
+# summaries into the working tree; these are generated output, not source, and
+# a directory-scoped `git add src/ tests/` will sweep them into a commit.
+#
+# Deliberately name-based, not `**/*.md`: the DOX tree (49 tracked
+# `AGENTS.md` files) and the hand-authored prompt assets under
+# `src/orchestrator/` are markdown that MUST stay trackable.
+/project.md
+**/ARTIFACT_SUMMARY.md
+**/final-report.md
+**/tui.md
+**/tests.md
