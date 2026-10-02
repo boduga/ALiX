@@ -11,7 +11,10 @@ import {
   DelegateToolRouter,
   CompositeToolRouter,
   ClaimVerificationToolRouter,
+  SelfExtendToolRouter,
+  WebToolsRouter,
 } from "../../src/tools/tool-router.js";
+import { buildDefaultToolIndex } from "../../src/tools/tool-registry.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
 import { EventLog } from "../../src/events/event-log.js";
 import type { ToolResult } from "../../src/tools/types.js";
@@ -59,6 +62,43 @@ test("FileToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("patch.apply"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
   assert.strictEqual(router.canHandle("delegate"), false);
+});
+
+/**
+ * The self-extend and web routers gate on a private SUPPORTED_TOOLS list, and
+ * nothing pinned it: renaming an executor id desynchronized the manifest,
+ * registry, and tool definitions from the router, and every suite stayed green
+ * with the tool silently unroutable ("No router found for tool"). The registry
+ * is the authority for WHICH tools exist, so the router's admitted set is
+ * asserted against it here rather than hand-copied.
+ */
+test("SelfExtendToolRouter.canHandle admits every registry system/self-extend tool", () => {
+  const router = new SelfExtendToolRouter();
+  const registry = buildDefaultToolIndex().registry;
+  for (const name of registry.getAll().map((tool) => tool.name)) {
+    const expected = name === "create_hook" || name.startsWith("skill.") || name.startsWith("extension.");
+    assert.strictEqual(
+      router.canHandle(name),
+      expected,
+      `canHandle(${JSON.stringify(name)}) should be ${expected}`,
+    );
+  }
+});
+
+test("SelfExtendToolRouter.canHandle rejects non-self-extend tools", () => {
+  const router = new SelfExtendToolRouter();
+  for (const name of ["file.read", "shell.run", "patch.apply", "web_search", "done"]) {
+    assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
+  }
+});
+
+test("WebToolsRouter.canHandle admits only the two web tools", () => {
+  const router = new WebToolsRouter();
+  assert.strictEqual(router.canHandle("web_search"), true);
+  assert.strictEqual(router.canHandle("web_fetch"), true);
+  for (const name of ["file.read", "shell.run", "create_skill", "done"]) {
+    assert.strictEqual(router.canHandle(name), false, `canHandle(${JSON.stringify(name)})`);
+  }
 });
 
 test("ShellToolRouter.canHandle returns true for shell.run", () => {

@@ -459,9 +459,9 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   assert.ok(systemTools.every(t => t.domain === "system"));
   assert.ok(systemTools.some(t => t.name === "done"));
   assert.ok(systemTools.some(t => t.name === "schedule.propose"));
-  assert.ok(systemTools.some(t => t.name === "create_skill"));
-  assert.ok(systemTools.some(t => t.name === "list_extensions"));
-  assert.ok(systemTools.some(t => t.name === "inspect_extension"));
+  assert.ok(systemTools.some(t => t.name === "skill.create"));
+  assert.ok(systemTools.some(t => t.name === "extension.list"));
+  assert.ok(systemTools.some(t => t.name === "extension.inspect"));
   assert.ok(systemTools.some(t => t.name === "create_hook"));
   assert.ok(systemTools.some(t => t.name === "state.query"));
 });
@@ -503,22 +503,22 @@ test("buildDefaultToolIndex registers 25 tools", () => {
     "coordination.run",
     "coordination.status",
     "create_hook",
-    "create_skill",
     "delegate",
     "dir.search",
     "done",
+    "extension.inspect",
+    "extension.list",
     "file.create",
     "file.delete",
     "file.exists",
     "file.read",
     "glob.match",
     "grep.search",
-    "inspect_extension",
-    "list_extensions",
     "mcp.*",
     "patch.apply",
     "schedule.propose",
     "shell.run",
+    "skill.create",
     "state.query",
     "verify.claim",
     "web_fetch",

@@ -93,7 +93,7 @@ export const DEFAULT_CAPABILITY_CATALOG: readonly string[] = [
   "file.read", "file.create", "file.delete", "file.exists",
   "dir.search", "grep.search", "glob.match", "shell.run",
   "done", "delegate", "web_search", "web_fetch",
-  "create_skill", "list_extensions", "inspect_extension", "create_hook",
+  "skill.create", "extension.list", "extension.inspect", "create_hook",
   "state.read", "state.query",
 ];
 

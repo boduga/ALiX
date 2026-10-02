@@ -410,7 +410,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       executionProfiles: ["research"],
     },
     {
-      name: "create_skill",
+      name: "skill.create",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Create a reusable skill",
@@ -421,7 +421,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["skill", "create", "self-extend"],
     },
     {
-      name: "list_extensions",
+      name: "extension.list",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "List installed extensions",
@@ -432,7 +432,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["extension", "list", "self-extend"],
     },
     {
-      name: "inspect_extension",
+      name: "extension.inspect",
       capabilityId: "tool.invoke",
       policyKey: "tool.invoke",
       description: "Inspect an extension",

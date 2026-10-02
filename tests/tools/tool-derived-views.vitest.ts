@@ -22,9 +22,9 @@ describe("derived tool↔capability views", () => {
   it("getToolsForCapability returns the four self-extend tools for tool.invoke", () => {
     expect(getToolsForCapability("tool.invoke")).toEqual([
       "create_hook",
-      "create_skill",
-      "inspect_extension",
-      "list_extensions",
+      "extension.inspect",
+      "extension.list",
+      "skill.create",
     ]);
   });
 

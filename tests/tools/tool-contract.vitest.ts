@@ -221,7 +221,7 @@ const EXPECTED: Record<string, EntryShape> = {
     tags: ["web", "fetch"],
     executionProfiles: ["research"],
   },
-  create_skill: {
+  "skill.create": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "medium",
@@ -230,7 +230,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["skill", "create", "self-extend"],
   },
-  list_extensions: {
+  "extension.list": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "low",
@@ -239,7 +239,7 @@ const EXPECTED: Record<string, EntryShape> = {
     alwaysInclude: false,
     tags: ["extension", "list", "self-extend"],
   },
-  inspect_extension: {
+  "extension.inspect": {
     capabilityId: "tool.invoke",
     policyKey: "tool.invoke",
     risk: "low",
@@ -359,9 +359,9 @@ describe("canonical tool capability taxonomy contract", () => {
     // the four self-extend tools all invoke tool.invoke
     expect(namesByCapabilityId("tool.invoke")).toEqual([
       "create_hook",
-      "create_skill",
-      "inspect_extension",
-      "list_extensions",
+      "extension.inspect",
+      "extension.list",
+      "skill.create",
     ]);
   });
 

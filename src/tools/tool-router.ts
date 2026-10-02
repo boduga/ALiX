@@ -762,7 +762,7 @@ export class WebToolsRouter implements ToolRouter {
 }
 
 export class SelfExtendToolRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension", "create_hook"];
+  private static readonly SUPPORTED_TOOLS = ["skill.create", "extension.list", "extension.inspect", "create_hook"];
 
   canHandle(name: string): boolean {
     return SelfExtendToolRouter.SUPPORTED_TOOLS.includes(name);
@@ -783,8 +783,8 @@ export class SelfExtendToolRouter implements ToolRouter {
     const { listExtensionsTool } = await import("../self-extend/list-extensions.js");
     const { inspectExtensionTool } = await import("../self-extend/inspect-extension.js");
 
-    const tool = request.name === "create_skill" ? createSkillTool()
-      : request.name === "list_extensions" ? listExtensionsTool()
+    const tool = request.name === "skill.create" ? createSkillTool()
+      : request.name === "extension.list" ? listExtensionsTool()
       : inspectExtensionTool();
 
     const result = await tool.execute(request.args);

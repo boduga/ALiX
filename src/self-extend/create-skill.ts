@@ -13,7 +13,7 @@ export type ToolResult = { ok: boolean; error?: string; data?: unknown };
 
 export function createSkillTool() {
   return {
-    name: "create_skill",
+    name: "skill.create",
     description: "Create a new skill at runtime. The skill becomes available immediately and can be triggered by its trigger pattern.",
     input_schema: {
       type: "object",

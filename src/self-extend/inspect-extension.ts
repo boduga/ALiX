@@ -10,7 +10,7 @@ export type ToolResult = { ok: boolean; error?: string; data?: unknown };
 
 export function inspectExtensionTool() {
   return {
-    name: "inspect_extension",
+    name: "extension.inspect",
     description: "Get detailed information about a specific extension: full manifest and registration metadata.",
     input_schema: {
       type: "object",

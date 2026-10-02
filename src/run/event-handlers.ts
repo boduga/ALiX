@@ -131,14 +131,11 @@ export async function handleMcpToolSearch(
     return { handled: false };
   }
 
-  // No literal guard on the executor id: this path already reached the exact
-  // offered-name gate above, and a hardcoded copy of the manifest value is a
-  // second place to forget. When the id was `mcp_search_tools` this comparison
-  // read as a drift check but was structurally unreachable as a failure —
-  // renaming the manifest entry made `tsc` flag the mismatch, which is the
-  // only reason it ever caught anything.
-  const execName = ALIX_BUILTIN_EXECUTORS.alix_mcp_search_tools;
-
+  // No executor-id literal to check here: this path already passed the exact
+  // offered-name gate above, so a hardcoded copy of the manifest value was a
+  // second place to forget. It read as a drift guard but compared a
+  // manifest-derived constant to itself — renaming the entry is what made
+  // `tsc` flag it, which was the only reason it ever caught anything.
   const query = (toolCall.args.query as string) ?? "";
   if (!deps.mcpDiscovery) {
     return { handled: true, message: { role: "assistant", content: "MCP tools are not configured." } };
