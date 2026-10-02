@@ -17,10 +17,10 @@ function tc(name: string, id: string): ToolCall {
 }
 
 describe("ToolConcurrency authoritative metadata", () => {
-  it("safe: file.read, dir.search, web.search, file.exists", () => {
+  it("safe: file.read, grep.search, web.search, file.exists", () => {
     expect(getToolConcurrency("file.read")).toBe("safe");
     expect(getToolConcurrency("alix_file_read")).toBe("safe");
-    expect(getToolConcurrency("dir.search")).toBe("safe");
+    expect(getToolConcurrency("grep.search")).toBe("safe");
     expect(getToolConcurrency("file.exists")).toBe("safe");
     expect(getToolConcurrency("web.search")).toBe("safe");
     expect(getToolConcurrency("web.fetch")).toBe("safe");
@@ -182,7 +182,7 @@ describe("scheduler dispatch", () => {
   });
 
   it("preserves input order even when parallel (chunked)", async () => {
-    const calls = [tc("file.read", "x"), tc("dir.search", "y"), tc("file.exists", "z")];
+    const calls = [tc("file.read", "x"), tc("grep.search", "y"), tc("file.exists", "z")];
     const exec = async (c: ToolCall) => {
       // varying delays but order should be preserved
       const delays: Record<string, number> = { x: 30, y: 5, z: 15 };

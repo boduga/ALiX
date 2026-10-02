@@ -208,7 +208,7 @@ modified
     });
   });
 
-  it("FileToolRouter dir.search returns success", async () => {
+  it("FileToolRouter grep.search returns success", async () => {
     await withTempDir(async (dir) => {
       const router = new FileToolRouter(dir);
 
@@ -217,7 +217,7 @@ modified
 
       const result = await router.execute({
         toolCallId: "call-search",
-        name: "dir.search",
+        name: "grep.search",
         args: { pattern: "*.txt" },
       });
 

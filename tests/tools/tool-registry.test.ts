@@ -451,7 +451,7 @@ test("ToolRetriever.selectForDomain returns tools in the given domain", () => {
   const retriever = new ToolRetriever(registry, index);
 
   const fsTools = retriever.selectForDomain("filesystem");
-  assert.strictEqual(fsTools.length, 7);
+  assert.strictEqual(fsTools.length, 6);
   assert.ok(fsTools.every(t => t.domain === "filesystem"));
 
   const systemTools = retriever.selectForDomain("system");
@@ -491,10 +491,10 @@ test("ToolRetriever.selectForDomain returns web tools in the network domain", ()
 // buildDefaultToolIndex
 // ---------------------------------------------------------------------------
 
-test("buildDefaultToolIndex registers 25 tools", () => {
+test("buildDefaultToolIndex registers 24 tools", () => {
   const { registry } = buildDefaultToolIndex();
   const all = registry.getAll();
-  assert.strictEqual(all.length, 25);
+  assert.strictEqual(all.length, 24);
 
   const names = all.map(t => t.name).sort();
   assert.deepStrictEqual(names, [
@@ -503,7 +503,6 @@ test("buildDefaultToolIndex registers 25 tools", () => {
     "coordination.run",
     "coordination.status",
     "delegate",
-    "dir.search",
     "done",
     "extension.inspect",
     "extension.list",
@@ -533,7 +532,7 @@ test("buildDefaultToolIndex indexes all tags", () => {
   // Verify all expected tags are present
   const expectedTags = [
     "agent", "aggregate", "check", "claim", "code", "command", "complete", "config", "content", "coordination",
-    "create", "cron", "decision", "delete", "delegate", "directory", "done", "edit",
+    "create", "cron", "decision", "delete", "delegate", "done", "edit",
     "evidence", "execute", "extension", "fetch", "file", "filename", "files", "finish", "glob",
     "grep", "hook", "inspect", "job", "list", "mcp", "modify", "multi-agent", "parallel", "patch",
     "propose", "read", "recurring", "regex", "remove", "results", "run", "runs", "schedule", "search",

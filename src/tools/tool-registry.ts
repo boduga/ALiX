@@ -200,27 +200,6 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
       tags: ["read", "file", "check"],
     },
     {
-      name: "dir.search",
-      capabilityId: "filesystem.search",
-      policyKey: "file.search",
-      description: "Legacy literal content search. Prefer grep.search (regex) for contents or glob.match for filenames.",
-      risk: "low",
-      domain: "filesystem",
-      mutates: false,
-      alwaysInclude: false,
-      tags: ["search", "file", "directory", "code"],
-      argsSchema: {
-        type: "object",
-        properties: {
-          pattern: { type: "string" },
-          extensions: { type: "array", items: { type: "string" } },
-          headLimit: { type: "integer" },
-          path: { type: "string" },
-        },
-        required: ["pattern"],
-      },
-    },
-    {
       name: "grep.search",
       capabilityId: "filesystem.search",
       policyKey: "file.search",

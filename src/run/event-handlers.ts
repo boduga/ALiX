@@ -78,7 +78,7 @@ export type EventHandlerDeps = {
 };
 
 /** Read-only search tools subject to the repeated-call guard. */
-const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match", "dir.search"]);
+const GUARDED_SEARCH_TOOLS = new Set(["grep.search", "glob.match"]);
 /** How many near-identical search calls are allowed before the guard fires. */
 const SEARCH_REPEAT_LIMIT = 3;
 /**
@@ -104,8 +104,6 @@ function searchSignature(execName: string, args: unknown): string {
       return `grep.search:${s(a.pattern)}:${s(a.path)}:${a.caseSensitive === true}:${list(a.include)}`;
     case "glob.match":
       return `glob.match:${s(a.pattern)}:${s(a.path)}`;
-    case "dir.search":
-      return `dir.search:${s(a.pattern)}:${s(a.path)}:${list(a.extensions)}`;
     default:
       return `${execName}:${JSON.stringify(args ?? {})}`;
   }
@@ -554,7 +552,7 @@ export async function handleToolCall(
 
   // Stream tool output to stdout if verbose mode - only for read-only tools
   if (deps.verbose && execResult.kind === "success" && resultContent) {
-    const isReadOnly = ["file.read", "dir.search", "grep.search", "glob.match", "file.exists"].includes(execName);
+    const isReadOnly = ["file.read", "grep.search", "glob.match", "file.exists"].includes(execName);
     const isPwd = execName === "shell.run" && (toolCall.args.command as string)?.includes("pwd");
     if (isReadOnly || isPwd) {
       const truncated = resultContent.length > 200 ? resultContent.slice(0, 200) + "\n[...truncated]" : resultContent;

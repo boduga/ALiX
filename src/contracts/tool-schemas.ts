@@ -29,7 +29,7 @@ import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
  * alone would silently drop it.
  */
 export const TOOL_NAME_EXECUTOR_IDS = [
-  ...new Set([...Object.values(ALIX_BUILTIN_EXECUTORS), "dir.search"]),
+  ...new Set(Object.values(ALIX_BUILTIN_EXECUTORS)),
 ] as [string, ...string[]];
 
 export const ToolNameSchema = Schema.Literal(...TOOL_NAME_EXECUTOR_IDS);

@@ -132,7 +132,6 @@ describe("network-tool classification parity", () => {
     ["file.create", false],
     ["file.delete", false],
     ["file.exists", false],
-    ["dir.search", false],
     ["grep.search", false],
     ["glob.match", false],
     ["shell.run", false],

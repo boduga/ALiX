@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readFile, searchDir } from "../src/tools/file-tools.js";
+import { readFile, grepSearch } from "../src/tools/file-tools.js";
 
 test("readFile returns content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-file-"));
@@ -29,7 +29,7 @@ test("readFile rejects paths outside workspace", async () => {
   assert.equal(result.kind, "error");
 });
 
-test("searchDir skips ignored directories", async () => {
+test("grepSearch skips ignored directories", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-ignore-"));
   try {
     // Create files in both ignored and non-ignored dirs
@@ -39,7 +39,7 @@ test("searchDir skips ignored directories", async () => {
     await writeFile(join(dir, "src/visible.ts"), "TARGET_LINE\n");
     await writeFile(join(dir, "node_modules/hidden.ts"), "TARGET_LINE\n");
     await writeFile(join(dir, ".git/hidden.ts"), "TARGET_LINE\n");
-    const result = await searchDir({ root: dir, pattern: "TARGET_LINE", extensions: [".ts"] });
+    const result = await grepSearch({ root: dir, pattern: "TARGET_LINE", include: ["**/*.ts"] });
     assert.equal(result.kind, "success");
     assert.equal(result.matches?.length, 1);
     assert.ok(result.matches?.[0].path.includes("src/visible.ts"));
@@ -48,14 +48,14 @@ test("searchDir skips ignored directories", async () => {
   }
 });
 
-test("searchDir returns matching files", async () => {
+test("grepSearch returns matching files", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-search-"));
   try {
     await mkdir(join(dir, "src"));
     await writeFile(join(dir, "src/a.ts"), "function hello() {}\n");
     await writeFile(join(dir, "src/b.ts"), "const x = 1;\n");
     await writeFile(join(dir, "src/c.js"), "function hello() {}\n");
-    const result = await searchDir({ root: dir, pattern: "hello", extensions: [".ts"] });
+    const result = await grepSearch({ root: dir, pattern: "hello", include: ["**/*.ts"] });
     assert.equal(result.kind, "success");
     assert.equal(result.matches?.length, 1);
     assert.ok(result.matches?.[0].path.includes("a.ts"));

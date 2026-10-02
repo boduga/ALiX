@@ -13,7 +13,7 @@ import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
-import { readFile, searchDir, grepSearch, globMatch } from "../tools/file-tools.js";
+import { readFile, grepSearch, globMatch } from "../tools/file-tools.js";
 import type { ReplayStatusIndex } from "./replay-status-index.js";
 
 // -- Types ---------------------------------------------------------------
@@ -291,23 +291,6 @@ async function replayToolStep(
     }
   }
 
-  if (toolName === "dir.search") {
-    const pattern = String(args.pattern || "");
-    const extensions = (args.extensions as string[]) || [];
-    try {
-      const result = await searchDir({ root: cwd, pattern, extensions });
-      if (result.kind === "error") {
-        return { status: "failed", error: result.message };
-      }
-      return {
-        status: "completed",
-        output: JSON.stringify(result.matches || []),
-      };
-    } catch (err: any) {
-      return { status: "failed", error: err.message };
-    }
-  }
-
   if (toolName === "grep.search") {
     try {
       const result = await grepSearch({
@@ -367,7 +350,7 @@ async function replayToolStep(
 export type SideEffectLevel = "read-only" | "side-effect" | "network";
 
 export function classifySideEffect(toolName: string): SideEffectLevel {
-  if (["file.read", "file.exists", "dir.search", "grep.search", "glob.match"].includes(toolName)) return "read-only";
+  if (["file.read", "file.exists", "grep.search", "glob.match"].includes(toolName)) return "read-only";
   if (toolName.startsWith("mcp.")) return "network";
   if (["web.search", "web.fetch", "delegate"].includes(toolName)) return "network";
   return "side-effect";

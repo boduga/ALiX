@@ -21,14 +21,6 @@ describe("ToolNameSchema", () => {
     }
   });
 
-  it("admits dir.search, which is router-only and has no alix_* name", () => {
-    // `dir.search` is reachable as a resolved executor id but is deliberately
-    // absent from the manifest, so it cannot be derived — it is listed
-    // explicitly. Removing it here would narrow the schema below what the
-    // router can actually dispatch.
-    assert.doesNotThrow(() => Schema.decodeSync(ToolNameSchema)("dir.search" as any));
-  });
-
   it("rejects a model-facing name — this schema is the internal dispatch id", () => {
     // `alix_shell_run` is what the model calls; `shell.run` is what the
     // executor receives. Mixing the two here is how the old literal invited a

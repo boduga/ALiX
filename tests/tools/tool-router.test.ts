@@ -53,7 +53,6 @@ test("FileToolRouter.canHandle returns true for file tools", () => {
   assert.strictEqual(router.canHandle("file.create"), true);
   assert.strictEqual(router.canHandle("file.delete"), true);
   assert.strictEqual(router.canHandle("file.exists"), true);
-  assert.strictEqual(router.canHandle("dir.search"), true);
 });
 
 test("FileToolRouter.canHandle returns false for others", () => {
@@ -276,15 +275,18 @@ test("FileToolRouter.execute handles file.read", async () => {
   await rm("/tmp/test-read-file.txt", { force: true });
 });
 
-test("FileToolRouter.execute handles dir.search", async () => {
+test("FileToolRouter.execute handles grep.search", async () => {
+  // Was `dir.search`, deleted as a literal-substring duplicate of this tool.
+  // The coverage is kept rather than dropped: it pins that a content search
+  // through the router still returns path:line matches.
   const searchRoot = await mkdtemp(join(tmpdir(), "tool-router-search-"));
   const router = new FileToolRouter(searchRoot);
   await mkdir(join(searchRoot, "sub"), { recursive: true });
   await writeFile(join(searchRoot, "sub", "test.txt"), "search keyword unique xyz");
   const result = await router.execute({
     toolCallId: "1",
-    name: "dir.search",
-    args: { pattern: "search keyword unique xyz", extensions: [] },
+    name: "grep.search",
+    args: { pattern: "search keyword unique xyz" },
   });
   assert.strictEqual(result.kind, "success");
   assert.ok(result.matches && result.matches.length > 0);

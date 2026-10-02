@@ -1,5 +1,5 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
-import { readFile, searchDir, grepSearch, globMatch } from "./file-tools.js";
+import { readFile, grepSearch, globMatch } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { isSafeShellCommand, executeSafeShell, safeShellPathOperands } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
@@ -96,7 +96,6 @@ export class FileToolRouter implements ToolRouter {
     "file.create",
     "file.delete",
     "file.exists",
-    "dir.search",
     "grep.search",
     "glob.match",
   ];
@@ -160,16 +159,6 @@ export class FileToolRouter implements ToolRouter {
       case "file.read": {
         if (!args.path) return { kind: "error", message: "file.read requires path" };
         return readFile({ root: this.root, path: args.path });
-      }
-      case "dir.search": {
-        if (!args.pattern) return { kind: "error", message: "dir.search requires pattern" };
-        return searchDir({
-          root: this.root,
-          pattern: args.pattern,
-          extensions: args.extensions ?? [],
-          headLimit: typeof args.headLimit === "number" ? args.headLimit : undefined,
-          path: typeof args.path === "string" ? args.path : undefined,
-        });
       }
       case "grep.search": {
         if (!args.pattern) return { kind: "error", message: "grep.search requires pattern" };

@@ -22,8 +22,8 @@ describe("classifyCapabilities", () => {
     assert.equal(classifyCapabilities(["file.read"], registry), "no-write");
   });
 
-  it("classifies dir.search as no-write", () => {
-    assert.equal(classifyCapabilities(["dir.search"], registry), "no-write");
+  it("classifies grep.search as no-write", () => {
+    assert.equal(classifyCapabilities(["grep.search"], registry), "no-write");
   });
 
   it("classifies unknown capabilities as unknown-write", () => {

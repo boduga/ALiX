@@ -114,13 +114,13 @@ function tc(name: string, id: string, args: Record<string, unknown> = {}): ToolC
 
 const FILE_READ_TOOLS: ToolDef[] = [
   { name: "alix_file_read", description: "read", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
-  { name: "alix_dir_search", description: "search", input_schema: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } },
+  { name: "alix_grep_search", description: "search", input_schema: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } },
   { name: "alix_file_exists", description: "exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
 ];
 
 const SELECTED_TOOLS = [
   { name: "alix_file_read", execName: "file.read" },
-  { name: "alix_dir_search", execName: "dir.search" },
+  { name: "alix_grep_search", execName: "grep.search" },
   { name: "alix_file_exists", execName: "file.exists" },
 ];
 

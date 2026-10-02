@@ -42,7 +42,7 @@ describe("M1.4 — Tool Contract", () => {
     assert.ok(contractToSource);
   });
 
-  it("ToolName covers every manifest executor id plus the router-only dir.search", () => {
+  it("ToolName covers every manifest executor id", () => {
     // Derived from `ALIX_BUILTIN_EXECUTORS`, so this is the drift guard. The
     // old test asserted a hand-written list of 8 against a 10-member union and
     // so proved nothing: it could not fail when a tool was added, and could not
@@ -52,8 +52,10 @@ describe("M1.4 — Tool Contract", () => {
       const asSource: SourceToolName = exec;
       assert.ok(asToolName && asSource, `${exec} must be a valid ToolName`);
     }
-    const dirSearch: ToolName = "dir.search";
-    assert.ok(dirSearch, "dir.search is router-only and must remain assignable");
+    // No hand-maintained exception. `dir.search` used to need one: it was a
+    // registry entry the router dispatched but no surface ever offered, so it
+    // had no `alix_*` name. It was deleted as a redundant literal-substring
+    // duplicate of `grep.search`, which covers it via `include`.
   });
 
   it("ToolName excludes model-facing names", () => {
@@ -249,8 +251,8 @@ describe("M1.4 — Tool Contract", () => {
     assert.equal(readArgs.root, "/project");
     assert.equal(readArgs.path, "readme.md");
 
-    const dirArgs: ToolArgs["dir.search"] = { root: "/project", pattern: "*.ts", extensions: [".ts"] };
-    assert.equal(dirArgs.pattern, "*.ts");
+    const grepArgs: ToolArgs["grep.search"] = { root: "/project", pattern: "*.ts", include: ["**/*.ts"] };
+    assert.equal(grepArgs.pattern, "*.ts");
 
     const shellArgs: ToolArgs["shell.run"] = { command: "echo hi", cwd: "/project", timeoutMs: 5000 };
     assert.equal(shellArgs.command, "echo hi");

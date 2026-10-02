@@ -16,7 +16,7 @@ import type { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
  */
 export type ManifestExecutorId = (typeof ALIX_BUILTIN_EXECUTORS)[keyof typeof ALIX_BUILTIN_EXECUTORS];
 
-export type ToolName = ManifestExecutorId | "dir.search";
+export type ToolName = ManifestExecutorId;
 
 import type { CorrelationContext } from "../runtime/tool-correlation.js";
 
@@ -93,7 +93,6 @@ export type FileMatch = {
 
 export type ToolArgs = {
   "file.read": { root: string; path: string };
-  "dir.search": { root: string; pattern: string; extensions: string[]; headLimit?: number; path?: string };
   "grep.search": { root: string; pattern: string; caseSensitive?: boolean; include?: string[]; headLimit?: number; path?: string };
   "glob.match": { root: string; pattern: string; headLimit?: number; path?: string };
   "shell.run": { command: string; cwd: string; timeoutMs?: number };
