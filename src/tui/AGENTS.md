@@ -10,6 +10,7 @@
 - `snapshot.ts` and `snapshot-builder.ts` define and compose immutable TUI read models.
 - `runtime/` owns EventLog-derived projections used by terminal views.
 - `workbench/` owns the conversation-first semantic transcript and the Workbench shell.
+- `src/tui/workbench/model/preview-theme.ts` owns explicit truecolor, ANSI-16, monochrome, and ASCII/Unicode presentation tokens for preview parity; lifecycle labels remain readable without color. Region painters integrate these tokens as their parity phases land.
 - `workbench/model/ui-state.ts`, `workbench/app/workbench-store.ts`, and `workbench/input/input-router.ts` own feature-gated presentation state and context-sensitive composer input; runtime truth stays in `AgentSession` and `EventLog`.
 - `src/tui/workbench/projections/agent-roster-projection.ts` and `src/tui/workbench/projections/task-projection.ts` own distinct EventLog-derived agent and delegated-task read models; painters must not reconstruct either model from the other.
 - `views/` owns presentation-only rendering and view-local input mappings.

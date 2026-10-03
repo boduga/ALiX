@@ -1,0 +1,880 @@
+{
+  "schemaVersion": 1,
+  "now": "2026-10-03T10:14:46.000Z",
+  "timeZone": "UTC",
+  "workspace": "/home/babasola/Projects/ALiX",
+  "sessionId": "preview-session",
+  "coordinationRunId": "preview-run",
+  "selectedAgentId": "frontend-agent",
+  "transcriptScope": "all-agents",
+  "events": [
+    {
+      "id": "preview-001",
+      "seq": 1,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:15.000Z",
+      "actor": "agent",
+      "type": "agent.spawned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "orchestrator",
+        "taskId": "task-orchestrator",
+        "ownedPaths": [],
+        "role": "coordinator",
+        "state": "thinking",
+        "taskLabel": "Coordinating execution",
+        "model": "fixture-model",
+        "operation": "Coordinating execution"
+      }
+    },
+    {
+      "id": "preview-002",
+      "seq": 2,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:15.001Z",
+      "actor": "agent",
+      "type": "agent.task_assigned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "orchestrator",
+        "taskId": "task-orchestrator",
+        "ownedPaths": [],
+        "title": "Coordinating execution",
+        "dependencyIds": []
+      }
+    },
+    {
+      "id": "preview-003",
+      "seq": 3,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:15.002Z",
+      "actor": "agent",
+      "type": "agent.state_changed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "orchestrator",
+        "taskId": "task-orchestrator",
+        "ownedPaths": [],
+        "state": "thinking"
+      }
+    },
+    {
+      "id": "preview-004",
+      "seq": 4,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:16.000Z",
+      "actor": "agent",
+      "type": "agent.spawned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "backend-agent",
+        "taskId": "task-backend-agent",
+        "ownedPaths": [
+          "src/api/sidebar.ts"
+        ],
+        "role": "backend-agent",
+        "state": "thinking",
+        "taskLabel": "Build API endpoints",
+        "model": "fixture-model",
+        "operation": "Build API endpoints"
+      }
+    },
+    {
+      "id": "preview-005",
+      "seq": 5,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:16.001Z",
+      "actor": "agent",
+      "type": "agent.task_assigned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "backend-agent",
+        "taskId": "task-backend-agent",
+        "ownedPaths": [
+          "src/api/sidebar.ts"
+        ],
+        "title": "Build API endpoints",
+        "dependencyIds": []
+      }
+    },
+    {
+      "id": "preview-006",
+      "seq": 6,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:16.002Z",
+      "actor": "agent",
+      "type": "agent.state_changed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "backend-agent",
+        "taskId": "task-backend-agent",
+        "ownedPaths": [
+          "src/api/sidebar.ts"
+        ],
+        "state": "thinking"
+      }
+    },
+    {
+      "id": "preview-007",
+      "seq": 7,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:17.000Z",
+      "actor": "agent",
+      "type": "agent.spawned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "ownedPaths": [
+          "src/components/right-sidebar.ts",
+          "src/components/sidebar-layout.test.ts"
+        ],
+        "role": "frontend-agent",
+        "state": "thinking",
+        "taskLabel": "Implement responsive sidebar",
+        "model": "fixture-coding-model",
+        "operation": "Implement responsive sidebar"
+      }
+    },
+    {
+      "id": "preview-008",
+      "seq": 8,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:17.001Z",
+      "actor": "agent",
+      "type": "agent.task_assigned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "ownedPaths": [
+          "src/components/right-sidebar.ts",
+          "src/components/sidebar-layout.test.ts"
+        ],
+        "title": "Implement responsive sidebar",
+        "dependencyIds": []
+      }
+    },
+    {
+      "id": "preview-009",
+      "seq": 9,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:17.002Z",
+      "actor": "agent",
+      "type": "agent.state_changed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "ownedPaths": [
+          "src/components/right-sidebar.ts",
+          "src/components/sidebar-layout.test.ts"
+        ],
+        "state": "thinking"
+      }
+    },
+    {
+      "id": "preview-010",
+      "seq": 10,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:18.000Z",
+      "actor": "agent",
+      "type": "agent.spawned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "test-agent",
+        "taskId": "task-test-agent",
+        "ownedPaths": [],
+        "role": "test-agent",
+        "state": "waiting_dependency",
+        "taskLabel": "Depends on frontend-agent",
+        "model": "fixture-model",
+        "operation": "Depends on frontend-agent"
+      }
+    },
+    {
+      "id": "preview-011",
+      "seq": 11,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:18.001Z",
+      "actor": "agent",
+      "type": "agent.task_assigned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "test-agent",
+        "taskId": "task-test-agent",
+        "ownedPaths": [],
+        "title": "Depends on frontend-agent",
+        "dependencyIds": [
+          "task-frontend-agent"
+        ]
+      }
+    },
+    {
+      "id": "preview-012",
+      "seq": 12,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:19.000Z",
+      "actor": "agent",
+      "type": "agent.spawned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "review-agent",
+        "taskId": "task-review-agent",
+        "ownedPaths": [],
+        "role": "review-agent",
+        "state": "thinking",
+        "taskLabel": "Review changes and summarize",
+        "model": "fixture-model",
+        "operation": "Review changes and summarize"
+      }
+    },
+    {
+      "id": "preview-013",
+      "seq": 13,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:19.001Z",
+      "actor": "agent",
+      "type": "agent.task_assigned",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "review-agent",
+        "taskId": "task-review-agent",
+        "ownedPaths": [],
+        "title": "Review changes and summarize",
+        "dependencyIds": []
+      }
+    },
+    {
+      "id": "preview-014",
+      "seq": 14,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:19.002Z",
+      "actor": "agent",
+      "type": "agent.state_changed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "review-agent",
+        "taskId": "task-review-agent",
+        "ownedPaths": [],
+        "state": "thinking"
+      }
+    },
+    {
+      "id": "preview-016",
+      "seq": 15,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:20.001Z",
+      "actor": "agent",
+      "type": "artifact.created",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "artifactId": "sidebar-test",
+        "title": "sidebar-layout.test.ts",
+        "path": "src/components/sidebar-layout.test.ts",
+        "preview": "Responsive sidebar layout assertions."
+      }
+    },
+    {
+      "id": "preview-017",
+      "seq": 16,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:21.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "orchestrator",
+        "taskId": "task-orchestrator",
+        "operation": "Planning phase complete. Dispatching tasks to agents...",
+        "message": "Planning phase complete. Dispatching tasks to agents...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-018",
+      "seq": 17,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:22.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "orchestrator",
+        "taskId": "task-orchestrator",
+        "operation": "\u2713 4 agents initialized (3 running, 1 waiting)",
+        "message": "\u2713 4 agents initialized (3 running, 1 waiting)",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-019",
+      "seq": 18,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:22.001Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "backend-agent",
+        "taskId": "task-backend-agent",
+        "operation": "Building API endpoints for sidebar data...",
+        "message": "Building API endpoints for sidebar data...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-015",
+      "seq": 19,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:22.002Z",
+      "actor": "agent",
+      "type": "agent.completed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "review-agent",
+        "taskId": "task-review-agent",
+        "status": "completed"
+      }
+    },
+    {
+      "id": "preview-020",
+      "seq": 20,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:24.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Starting implementation of responsive sidebar...",
+        "message": "Starting implementation of responsive sidebar...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-021",
+      "seq": 21,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:24.001Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Analyzing existing layout structure and components.",
+        "message": "Analyzing existing layout structure and components.",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-022",
+      "seq": 22,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:25.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Reading current sidebar component for context.",
+        "message": "Reading current sidebar component for context.",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-023",
+      "seq": 23,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:25.001Z",
+      "actor": "agent",
+      "type": "tool.requested",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "read-sidebar",
+        "argumentHash": "fixture-read-sidebar",
+        "toolName": "alix_file_read",
+        "capability": "file.read",
+        "canonicalCapability": "file.read",
+        "argsPreview": {
+          "path": "src/components/sidebar.tsx",
+          "startLine": 1,
+          "endLine": 200
+        }
+      }
+    },
+    {
+      "id": "preview-024",
+      "seq": 24,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:25.001Z",
+      "actor": "tool",
+      "type": "tool.started",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "read-sidebar",
+        "argumentHash": "fixture-read-sidebar",
+        "toolName": "file.read"
+      }
+    },
+    {
+      "id": "preview-025",
+      "seq": 25,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:25.001Z",
+      "actor": "tool",
+      "type": "tool.completed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "read-sidebar",
+        "argumentHash": "fixture-read-sidebar",
+        "toolName": "file.read",
+        "status": "success",
+        "durationMs": 0,
+        "canonicalCapability": "file.read",
+        "observedLineCount": 142
+      }
+    },
+    {
+      "id": "preview-026",
+      "seq": 26,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:27.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Identified component structure. Implementing responsive variants for collapsed and expanded states.",
+        "message": "Identified component structure. Implementing responsive variants for collapsed and expanded states.",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-027",
+      "seq": 27,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Writing updated sidebar component with responsive behavior...",
+        "message": "Writing updated sidebar component with responsive behavior...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-028",
+      "seq": 28,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "agent",
+      "type": "tool.requested",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "write-sidebar-completed",
+        "argumentHash": "fixture-write-sidebar-completed",
+        "toolName": "alix_patch_apply",
+        "capability": "file.write",
+        "canonicalCapability": "file.write",
+        "argsPreview": {
+          "path": "src/components/right-sidebar.ts",
+          "startLine": 1,
+          "endLine": 287
+        }
+      }
+    },
+    {
+      "id": "preview-029",
+      "seq": 29,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "tool",
+      "type": "tool.started",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "write-sidebar-completed",
+        "argumentHash": "fixture-write-sidebar-completed",
+        "toolName": "patch.apply"
+      }
+    },
+    {
+      "id": "preview-030",
+      "seq": 30,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "tool",
+      "type": "tool.completed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "write-sidebar-completed",
+        "argumentHash": "fixture-write-sidebar-completed",
+        "toolName": "patch.apply",
+        "status": "success",
+        "durationMs": 0,
+        "canonicalCapability": "file.write",
+        "observedLineCount": 287
+      }
+    },
+    {
+      "id": "preview-031",
+      "seq": 31,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "agent",
+      "type": "artifact.created",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "artifactId": "right-sidebar",
+        "title": "right-sidebar.ts",
+        "path": "src/components/right-sidebar.ts",
+        "preview": "Responsive sidebar implementation."
+      }
+    },
+    {
+      "id": "preview-032",
+      "seq": 32,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "agent",
+      "type": "tool.requested",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "write-sidebar-active",
+        "argumentHash": "fixture-write-sidebar-active",
+        "toolName": "alix_patch_apply",
+        "capability": "file.write",
+        "canonicalCapability": "file.write",
+        "argsPreview": {
+          "path": "src/components/right-sidebar.ts",
+          "startLine": 1,
+          "endLine": 287
+        }
+      }
+    },
+    {
+      "id": "preview-033",
+      "seq": 33,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:28.000Z",
+      "actor": "tool",
+      "type": "tool.started",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "toolCallId": "write-sidebar-active",
+        "argumentHash": "fixture-write-sidebar-active",
+        "toolName": "patch.apply"
+      }
+    },
+    {
+      "id": "preview-034",
+      "seq": 34,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:30.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "test-agent",
+        "taskId": "task-test-agent",
+        "operation": "Waiting for frontend-agent to complete. Dependency: src/components/right-sidebar.ts",
+        "message": "Waiting for frontend-agent to complete. Dependency: src/components/right-sidebar.ts",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-035",
+      "seq": 35,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:30.001Z",
+      "actor": "agent",
+      "type": "agent.state_changed",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "test-agent",
+        "taskId": "task-test-agent",
+        "state": "waiting_dependency",
+        "dependencyIds": [
+          "task-frontend-agent"
+        ],
+        "dependencyPaths": [
+          "src/components/right-sidebar.ts"
+        ]
+      }
+    },
+    {
+      "id": "preview-036",
+      "seq": 36,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:30.002Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "backend-agent",
+        "taskId": "task-backend-agent",
+        "operation": "Continuing with API implementation...",
+        "message": "Continuing with API implementation...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-037",
+      "seq": 37,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:31.000Z",
+      "actor": "agent",
+      "type": "agent.progress",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "operation": "Rendering the selected agent details...",
+        "message": "Rendering the selected agent details...",
+        "userSafe": true
+      }
+    },
+    {
+      "id": "preview-038",
+      "seq": 38,
+      "version": 1,
+      "sessionId": "preview-session",
+      "timestamp": "2026-10-03T10:14:31.001Z",
+      "actor": "agent",
+      "type": "agent.usage",
+      "payload": {
+        "coordinationRunId": "preview-run",
+        "agentId": "frontend-agent",
+        "taskId": "task-frontend-agent",
+        "totalTokens": 7352,
+        "resolvedModel": "fixture-coding-model"
+      }
+    }
+  ],
+  "transcriptGroups": [
+    {
+      "id": "group-01",
+      "eventIds": [
+        "preview-017"
+      ],
+      "category": "activity",
+      "agentId": "orchestrator",
+      "text": "Planning phase complete. Dispatching tasks to agents..."
+    },
+    {
+      "id": "group-02",
+      "eventIds": [
+        "preview-018"
+      ],
+      "category": "activity",
+      "agentId": "orchestrator",
+      "text": "\u2713 4 agents initialized (3 running, 1 waiting)"
+    },
+    {
+      "id": "group-03",
+      "eventIds": [
+        "preview-019"
+      ],
+      "category": "activity",
+      "agentId": "backend-agent",
+      "text": "Building API endpoints for sidebar data...",
+      "statusLabel": "RUNNING"
+    },
+    {
+      "id": "group-04",
+      "eventIds": [
+        "preview-020"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Starting implementation of responsive sidebar...",
+      "statusLabel": "RUNNING"
+    },
+    {
+      "id": "group-05",
+      "eventIds": [
+        "preview-021"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Analyzing existing layout structure and components."
+    },
+    {
+      "id": "group-06",
+      "eventIds": [
+        "preview-022"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Reading current sidebar component for context."
+    },
+    {
+      "id": "group-07",
+      "eventIds": [
+        "preview-023",
+        "preview-024",
+        "preview-025"
+      ],
+      "category": "tool",
+      "agentId": "frontend-agent",
+      "toolCallId": "read-sidebar",
+      "displayLabel": "file.read",
+      "path": "src/components/sidebar.tsx",
+      "requestedRange": [
+        1,
+        200
+      ],
+      "observedLineCount": 142,
+      "status": "success"
+    },
+    {
+      "id": "group-08",
+      "eventIds": [
+        "preview-026"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Identified component structure. Implementing responsive variants for collapsed and expanded states."
+    },
+    {
+      "id": "group-09",
+      "eventIds": [
+        "preview-027"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Writing updated sidebar component with responsive behavior..."
+    },
+    {
+      "id": "group-10",
+      "eventIds": [
+        "preview-028",
+        "preview-029",
+        "preview-030"
+      ],
+      "category": "tool",
+      "agentId": "frontend-agent",
+      "toolCallId": "write-sidebar-completed",
+      "displayLabel": "file.write",
+      "path": "src/components/right-sidebar.ts",
+      "requestedRange": [
+        1,
+        287
+      ],
+      "observedLineCount": 287,
+      "status": "success"
+    },
+    {
+      "id": "group-11",
+      "eventIds": [
+        "preview-034"
+      ],
+      "category": "activity",
+      "agentId": "test-agent",
+      "text": "Waiting for frontend-agent to complete. Dependency: src/components/right-sidebar.ts",
+      "statusLabel": "WAITING"
+    },
+    {
+      "id": "group-12",
+      "eventIds": [
+        "preview-036"
+      ],
+      "category": "activity",
+      "agentId": "backend-agent",
+      "text": "Continuing with API implementation..."
+    },
+    {
+      "id": "group-13",
+      "eventIds": [
+        "preview-037"
+      ],
+      "category": "activity",
+      "agentId": "frontend-agent",
+      "text": "Rendering the selected agent details..."
+    }
+  ],
+  "metadataGaps": [
+    "TaskProjection does not yet project dependencyIds.",
+    "Existing tool projections do not yet expose requested ranges and observed line counts."
+  ],
+  "expected": {
+    "agents": 5,
+    "running": 3,
+    "active": 4,
+    "artifacts": 2,
+    "knownTokens": 7352,
+    "tokenCoverage": 1,
+    "events": 38,
+    "activeToolCallId": "write-sidebar-active",
+    "activeElapsedMs": 18000
+  },
+  "literalReferenceNotes": [
+    "Initialization prose reproduces image wording; it is not live roster telemetry.",
+    "coding model is illustrative; resolved fixture model is fixture-coding-model.",
+    "Distinct completed and active write calls share a second; sequence establishes lifecycle order."
+  ]
+}

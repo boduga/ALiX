@@ -1,8 +1,17 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Draft; implementation not started. Phase 0 resolves proposed design amendments before code.
+Status: Implementation authorized 2026-10-03; Phase 0 and theme foundations underway. Remaining phases pending their exit gates.
+Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
-Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Image is currently untracked; Phase 0 must make the reference durable before publishing this relative link.
+Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
+
+Implementation progress:
+
+- Plan baseline committed as 00b2677a on feat/tui-workbench-preview-parity.
+- Phase 0 foundations: reference provenance/design decisions, event fixture and coverage ownership below. Fixture carries 38 actual events, five current agents/three running, 13 pictured transcript groups, two evidenced artifacts, and a distinct active write with 18 seconds elapsed.
+- Phase 1 partial: semantic theme and lifecycle labels implemented with truecolor, ANSI-16, monochrome and ASCII/Unicode capability choices. Existing region painters are not switched yet; visual parity remains pending.
+- Open Phase 1 gates: structured dependency projection, typed tool-card line metadata, current-context measurement and future live adapters. Existing TaskProjection maps dependency-waiting agent events to running task state; resolve task wait semantics before sidebar delivery.
+- Phases 2–10 pending. No new pane geometry, controls, inspector or coordination launch shipped.
 
 ## Objective
 
@@ -99,6 +108,22 @@ Phase numbers identify primary delivery. Phase 10 verifies every ID together.
 | F04 | Esc cancel | Context-sensitive close/cancel; normal runtime cancellation semantics. | 3, 8 |
 | F05 | Footer bullets/pipes | Accurate spacing/punctuation without overlap or clipped key names. | 3 |
 | F06 | TOKENS 7,352 / FILES 2 / EVENTS 80 / AGENTS 4 | Right-aligned scoped totals; event count differs from visible rows. | 3 |
+
+### Coverage ownership and evidence status
+
+Each ID in a grouped range inherits the same responsible boundary, planned test and visual status. This assigns all 63 IDs without treating foundation tests as finished rendering evidence. Owners are repository modules, not transient agent names. New test names below are marked proposed.
+
+| IDs | Owning boundary | Test evidence or planned extension | Visual status |
+| --- | --- | --- | --- |
+| V01–V04 | model/preview-theme.ts plus region painters | preview-theme.vitest.ts: fallback glyph width, lifecycle text and bounded color capabilities pass; region goldens pending | Pending integration |
+| H01–H06, F01–F06 | model/operator-shell.ts; views/operator-shell.ts | operator-shell.vitest.ts; input-router.vitest.ts for key behavior | Pending |
+| L01–L11 | views/roster-drawer.ts; agent/task projections | responsive-drawer.vitest.ts; agent-task-projections.vitest.ts; work-surface-integration.vitest.ts | Pending |
+| T01–T10, T15–T17 | conversation projection; scrollback; proposed transcript toolbar | preview-fixture.vitest.ts covers all pictured groups; workbench-scrollback.vitest.ts and conversation-projection.vitest.ts rendering extensions pending | Pending |
+| T11–T14 | proposed views/tool-card.ts; transcript model/projection | preview-fixture.vitest.ts covers lifecycle/ranges/counts; proposed tool-card.vitest.ts for geometry | Pending |
+| R01–R16 | proposed agent-inspector model/projection/view | preview-fixture.vitest.ts covers source facts; proposed agent-inspector.vitest.ts for joins/rendering | Pending |
+| C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; actual PTY additions pending | Pending |
+
+Paths in this table are relative to src/tui/workbench or tests/tui/workbench. Phase 10 attaches captures and per-ID pass/fail evidence to these assignments.
 
 ## 3. Coherent reference fixture and intentional differences
 
