@@ -5,10 +5,9 @@ import { renderSlashOverlay } from './slash-overlay.js';
 import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
 import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
 import { RESET } from '../ansi-constants.js';
-import type { TerminalCanvas } from '../canvas.js';
+import { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
-import { layoutComposer } from '../workbench/views/composer-view.js';
-import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
+import { layoutWorkbenchSurface } from '../workbench/views/composer-view.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 import { formatActivityElapsed } from '../../agent/agent-activity.js';
 import { approvalVisibleTo } from '../workbench/model/selection.js';
@@ -41,16 +40,22 @@ export class AgentView implements TuiView {
   readonly id: TabId = 'agent';
 
   render(ctx: ViewRenderContext): ViewRenderResult {
-    const c = ctx.canvas!;
-    const geometry = ctx.workbenchEnabled
-      ? resolveWorkbenchSurfaceGeometry(ctx.dimensions.columns, ctx.dimensions.rows, ctx.workbenchUiState?.drawer ?? 'closed')
+    const frameCanvas = ctx.canvas!;
+    const surface = ctx.workbenchEnabled
+      ? layoutWorkbenchSurface(ctx.perTab.inputBuffer, ctx.dimensions, ctx.workbenchUiState?.drawer ?? 'closed', ctx.workbenchUiState?.composer.cursor)
       : null;
+    const geometry = surface?.geometry ?? null;
     const responsive = geometry?.layout ?? null;
     const surfaceDimensions = geometry?.dimensions ?? ctx.dimensions;
-    const composer = ctx.workbenchEnabled
-      ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns, 5, ctx.workbenchUiState?.composer.cursor)
-      : null;
-    const vp = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
+    const composer = surface?.composer ?? null;
+    const c = geometry ? new TerminalCanvas(surfaceDimensions.columns, surfaceDimensions.rows) : frameCanvas;
+    const baseViewport = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
+    const vp = geometry ? { ...baseViewport,
+      panelRow: geometry.panelRow, topBorderRow: geometry.topBorderRow, bottomBorderRow: geometry.bottomBorderRow,
+      scrollbackTop: geometry.regions.transcriptBody.y,
+      scrollbackBottom: geometry.regions.transcriptBody.y + geometry.regions.transcriptBody.height - 1,
+      scrollbackRows: geometry.regions.transcriptBody.height,
+    } : baseViewport;
     const STATUS_ROW = 4;              // status line + intent badge row
     // Stage-gutter left column: blank under slice #2; stage labels in slice #3.
     // Marker sits at column `gutter`, content text starts at `gutter + 2`. The
@@ -97,7 +102,7 @@ export class AgentView implements TuiView {
 
     // Line-builder lives in scroll-math.ts (single source of truth).
     const allLines: ScrollbackLine[] = ctx.workbenchEnabled
-      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+      ? (vp.scrollbackRows > 0 ? buildWorkbenchScrollbackLines(ctx, vp.textWidth) : [])
       : buildAgentScrollbackLines(ctx, vp.textWidth);
 
     if (ctx.workbenchEnabled) {
@@ -136,21 +141,32 @@ export class AgentView implements TuiView {
       top: vp.scrollbackTop,
       bottomRow: vp.scrollbackBottom,
       offset: effectiveOffset,
-      columns: ctx.dimensions.columns,
+      columns: surfaceDimensions.columns,
       kindStyles,
     });
+
+    if (geometry) {
+      const rows = c.renderFrame().split('\n');
+      const pane = geometry.regions.transcript;
+      for (let row = pane.y; row < pane.y + pane.height; row++) {
+        frameCanvas.write(pane.x, row, rows[row] ?? '');
+      }
+      const inspector = geometry.regions.inspector;
+      if (inspector && inspector.height > 0) frameCanvas.drawBox(inspector.x, inspector.y, inspector.width, inspector.height, 'AGENT DETAILS');
+    }
 
     // Input panel at panelRow.
     const buf = ctx.perTab.inputBuffer;
     if (composer) {
-      const firstRow = vp.panelRow - composer.rows.length + 1;
+      const firstRow = geometry!.regions.composerContent.y;
+      const prefixWidth = geometry!.composerPrefixWidth;
       for (let index = 0; index < composer.rows.length; index++) {
         const prefix = index === 0
-          ? (composer.hiddenRows > 0 ? ' … ' : ' › ')
-          : '   ';
-        c.write(0, firstRow + index, `\x1b[33m${prefix}${RESET}${composer.rows[index] ?? ''}`);
+          ? (composer.hiddenRows > 0 ? ' … ' : ' › ').slice(0, prefixWidth)
+          : ' '.repeat(prefixWidth);
+        frameCanvas.write(0, firstRow + index, `\x1b[33m${prefix}${RESET}${composer.rows[index] ?? ''}`);
       }
-      c.write(3 + composer.cursorColumn, firstRow + composer.cursorRow, `\x1b[7m ${RESET}`);
+      frameCanvas.write(Math.min(geometry!.regions.composer.width - 1, prefixWidth + composer.cursorColumn), firstRow + composer.cursorRow, `\x1b[7m ${RESET}`);
     } else {
       c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
       c.write(vp.promptCol, vp.panelRow, buf);
@@ -162,21 +178,24 @@ export class AgentView implements TuiView {
     // prompt so the rules read as part of the panel; on a tall terminal
     // the slash strip overlays the bottom rule's first row — acceptable
     // because the strip is intentionally visually loud.
-    const border = `\x1b[90m${'─'.repeat(surfaceDimensions.columns)}\x1b[0m`;
-    c.write(0, vp.topBorderRow, border);
-    c.write(0, vp.bottomBorderRow, border);
+    const border = `\x1b[90m${'─'.repeat(geometry?.regions.composer.width ?? surfaceDimensions.columns)}\x1b[0m`;
+    if (!geometry || geometry.regions.composer.height >= composer!.rows.length + 2) {
+      frameCanvas.write(0, vp.topBorderRow, border);
+      frameCanvas.write(0, vp.bottomBorderRow, border);
+    }
 
     // Slash strip directly BELOW the panel.
     if (ctx.slash) {
-      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow: vp.panelRow, columns: surfaceDimensions.columns });
+      renderSlashOverlay({ canvas: frameCanvas, slash: ctx.slash, panelRow: vp.panelRow, columns: geometry?.regions.composer.width ?? surfaceDimensions.columns });
     }
 
     if (responsive) {
       paintRosterDrawer({
-        canvas: c,
+        canvas: frameCanvas,
+        left: geometry?.regions.roster?.x ?? geometry?.regions.overlay?.x,
         terminalColumns: ctx.dimensions.columns,
-        top: 3,
-        bottom: vp.topBorderRow - 1,
+        top: geometry?.regions.body.y ?? 3,
+        bottom: geometry ? geometry.regions.body.y + geometry.regions.body.height - 1 : vp.topBorderRow - 1,
         layout: responsive,
         agents: ctx.snap.runtime?.agents ?? null,
         tasks: ctx.snap.runtime?.tasks ?? null,

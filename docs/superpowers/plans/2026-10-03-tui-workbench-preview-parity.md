@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete. Phases 2–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phase 2 geometry complete. Phases 3–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -14,7 +14,8 @@ Implementation progress:
 - Phase 1 tool-card readiness: shared traces and Workbench tool items preserve bounded requested path/range, call identity, start time and explicit observed counts. Replay and version-one checkpoints preserve detached metadata; previews never supply inferred counts.
 - Phase 1 live-read readiness: file reads measure actual LF-delimited returned lines and executor completion events carry those counts before preview truncation, including known zero for empty files. Patch/write counts remain unavailable without their own authoritative producer.
 - Phase 1 source/fallback audit complete: every image datum has an existing projection source or explicit unavailable fallback, per the phase exit. Active-tool elapsed time is clock-sampled from its authoritative start; snapshot nesting is detached. Current worker-context consumption and patch/write line counts remain unavailable, not readiness blockers. Existing file reads do not execute requested line ranges; later painters must label them as requested. Live view integration belongs to the corresponding region phases.
-- Phases 2–10 pending. No new pane geometry, controls, inspector or coordination launch shipped.
+- Phase 2 geometry complete: shared named regions, left roster/center transcript/right inspector reservation at ≥160×36, full-width bounded composer, pane clipping, semantic resize anchors and matching hardware caret. Inspector section data, preview controls and coordination launch remain pending.
+- Phases 3–10 pending.
 
 ## Objective
 
@@ -242,7 +243,9 @@ Verification: preview fixture, theme, task/agent, metadata/replay/checkpoint, li
 
 ### Phase 2 — Responsive geometry
 
-Dependencies: 1. Coverage: V02, L11, T17, C01.
+Status: Complete 2026-10-03. Dependencies: 1. Coverage: V02, L11, T17, C01 (geometry only; final theme/content remain in their owning phases).
+
+Evidence: 233 affected Vitest cases passed across the broader run plus corrected 12-case integration rerun; build, unused-code, dead-module and DOX checks passed. Real PTY verified resize/caret at 200×44 → 160×36 → 140×24 → 79×20 → 200×8 → 4×3 → 1×1 → 200×44. Spec/code-quality review identified short open-drawer overflow; bounded writes and agents/tasks/artifacts regression cases resolve it. Inspector currently paints its reserved frame/title only.
 
 1. Add named regions and shared clipping, pane widths and full-width composer.
 2. Update AgentView, FramePainter painting/cursor paths and computeBottomAnchor together; preserve feature-disabled legacy geometry.

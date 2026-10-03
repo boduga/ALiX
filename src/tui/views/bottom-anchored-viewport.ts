@@ -4,6 +4,9 @@ export interface ScrollbackLine {
   kind: string;
   text: string;
   isFirst: boolean;
+  /** Stable semantic identity and row within its current wrapping, for resize retention. */
+  itemId?: string;
+  wrappedOffset?: number;
   /**
    * True only for the last row of a multi-row group (e.g. the tail of a
    * wrapped live-streaming line). Optional — most lines omit it; renderers

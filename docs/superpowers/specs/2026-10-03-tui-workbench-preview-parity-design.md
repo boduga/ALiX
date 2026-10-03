@@ -105,3 +105,8 @@ The earlier producer caveat is retired for full file reads only. Patch/write cou
 Phase 1 exits on a verified source **or an explicit unavailable fallback** for each datum; it does not require creating measurements absent from the runtime. The plan's final audit maps every data-bearing image field to its source/fallback. Current worker context consumption and patch/write line counts remain unavailable. Existing context budget/assembly events have invocation identity rather than worker identity, so their tallies cannot safely become selected-worker current-context measurements. Capacity and lifetime usage remain distinct.
 
 Roster snapshots now derive active elapsed time from the supplied clock and authoritative tool start, without rewriting progress timestamps or prior snapshots. Nested ownership, usage and active-tool data are detached. This retires the elapsed-sampling caveat in the starting readiness table. View adapters and painters integrate these prepared read models in their region phases; three-pane geometry and visual parity remain pending.
+
+
+## 2026-10-03 Phase 2 implementation amendment
+
+Three persistent panes activate at ≥160 columns and ≥36 rows. At ≥120 columns and ≥12 rows, drawers sit left of the transcript; smaller surfaces use clipped overlays. The composer spans the terminal width and its bounded growth reallocates body height. One shared layout feeds wrapping, painting, bottom anchoring and hardware caret placement. Unpinned resize preserves semantic item identity plus nearest wrapped offset in a presentation cache without rewriting operator state. The right inspector currently reserves its rectangle and title; section data belongs to Phase 7. Legacy flag-disabled geometry remains unchanged.
