@@ -10,12 +10,14 @@ eligible candidates under usage gating.
 |------|----------------|
 | `factory.ts` | Distillation: `runSkillFactory` (session prose), `runSkillFactoryFromTrace` (trace evidence + candidate bar), `distillMinedCandidates` (mine `--factory-out` batches), prompt builders |
 | `dispatcher.ts` | Post-session factory dispatch |
-| `promotion.ts` | `promoteIfEligible` (success-gated install, versioning) |
+| `promotion.ts` | `promoteIfEligible` (success-gated install, collision/duplicate gates, versioning) |
 | `types.ts` | `parseSkillContent` (front-matter manifest validation) |
 | `discovery.ts` | Discovery roots + union loading (`getSkillDiscoveryRoots`, `loadDiscoveredSkillManifests`, `resolveDiscoveredSkillDir`); `loader.ts` stays single-root |
 | `test-isolation.ts` | `stashChanges` / `restoreChanges` / `runWithIsolation` — git-stash isolation for verification commands, **guarded** (see contracts) |
 
 ## Local Contracts
+
+- Promotion blocks shared-trigger and overlapping-pattern/text collisions with installed user-store skills, returning a reason. Same-name near-duplicate bodies are blocked before versioning; revised bodies retain version handling. `src/skills/pollution.ts` owns pure overlap scoring and duplicate detection.
 
 - **Verification isolation is guarded, not default (durable).**
   `runWithIsolation` stashes the working tree so a verification command cannot
