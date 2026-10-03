@@ -22,6 +22,10 @@ export type WorkbenchInputIntent =
   | { readonly type: 'permission.cycle' }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.toggle' }
+  | { readonly type: 'focus.set'; readonly focus: 'composer' | 'transcript' }
+  | { readonly type: 'transcript.filter'; readonly filter: 'all' | 'response' | 'tool' | 'activity' | 'error' }
+  | { readonly type: 'transcript.scope.toggle' }
+  | { readonly type: 'transcript.follow.toggle' }
   | { readonly type: 'drawer.toggle'; readonly drawer: 'agents' | 'tasks' | 'artifacts' }
   | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
   | { readonly type: 'run.move'; readonly direction: -1 | 1 }
@@ -58,6 +62,17 @@ export function routeWorkbenchInput(
       if (key === 'c') return { type: 'coordination.inspect' };
     }
     if (context.drawer === 'agents' && key === 'Enter') return { type: 'agentRoster.toggle' };
+    return { type: 'unhandled' };
+  }
+  if (context.focus === 'modal') return { type: 'unhandled' };
+  if (key === 'Ctrl+f') return { type: 'focus.set', focus: context.focus === 'transcript' ? 'composer' : 'transcript' };
+  if (context.focus === 'transcript') {
+    const filters = ['all', 'response', 'tool', 'activity', 'error'] as const;
+    if (/^[1-5]$/.test(key)) return { type: 'transcript.filter', filter: filters[Number(key) - 1]! };
+    if (key === 's') return { type: 'transcript.scope.toggle' };
+    if (key === 'f') return { type: 'transcript.follow.toggle' };
+    if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
+    if (key === 'Escape') return context.turnActive ? { type: 'turn.cancel' } : { type: 'focus.set', focus: 'composer' };
     return { type: 'unhandled' };
   }
   if (key === 'Shift+Enter') return { type: 'composer.insert', text: '\n' };

@@ -3,7 +3,9 @@ import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult,
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
 import { renderSlashOverlay } from './slash-overlay.js';
 import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
-import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
+import { buildWorkbenchScrollbackLines, type WorkbenchScrollbackLine } from '../workbench/views/workbench-scrollback.js';
+import { paintTranscriptToolbar } from '../workbench/views/transcript-toolbar.js';
+import { getWorkbenchPreviewTheme } from '../workbench/model/preview-theme.js';
 import { RESET } from '../ansi-constants.js';
 import { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
@@ -55,6 +57,7 @@ export class AgentView implements TuiView {
       scrollbackTop: geometry.regions.transcriptBody.y,
       scrollbackBottom: geometry.regions.transcriptBody.y + geometry.regions.transcriptBody.height - 1,
       scrollbackRows: geometry.regions.transcriptBody.height,
+      textWidth: Math.max(1, surfaceDimensions.columns - 2),
     } : baseViewport;
     const STATUS_ROW = 4;              // status line + intent badge row
     // Stage-gutter left column: blank under slice #2; stage labels in slice #3.
@@ -83,7 +86,7 @@ export class AgentView implements TuiView {
     // escalating to a warning when the run appears stalled. Never a kill.
     const ses = ctx.snap.session;
     const liveness = ses?.liveness;
-    const selectedAgentId = ctx.workbenchUiState?.selectedAgentId;
+    const selectedAgentId = ctx.workbenchEnabled ? undefined : ctx.workbenchUiState?.selectedAgentId;
     const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
     if (pendingApproval) {
       const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
@@ -101,19 +104,29 @@ export class AgentView implements TuiView {
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).
-    const allLines: ScrollbackLine[] = ctx.workbenchEnabled
-      ? (vp.scrollbackRows > 0 ? buildWorkbenchScrollbackLines(ctx, vp.textWidth) : [])
+    const allLines: readonly ScrollbackLine[] = ctx.workbenchEnabled
+      ? (vp.scrollbackRows > 0 ? ctx.workbenchLines ?? buildWorkbenchScrollbackLines(ctx, vp.textWidth) : [])
       : buildAgentScrollbackLines(ctx, vp.textWidth);
 
     if (ctx.workbenchEnabled) {
-      const mode = ctx.perTab.transcriptMode ?? 'compact';
-      const label = mode === 'compact' ? 'compact' : 'details';
-      c.write(Math.max(0, surfaceDimensions.columns - label.length - 12), STATUS_ROW, `\x1b[90m${label} · Ctrl+O${RESET}`);
+      const toolbar = geometry!.regions.transcriptToolbar;
+      for (let row = toolbar.y; row < toolbar.y + toolbar.height; row++) c.write(0, row, ' '.repeat(surfaceDimensions.columns));
+      const pane = geometry!.regions.transcript;
+      if (pane.width >= 2 && pane.height >= 2) {
+        const color = getWorkbenchPreviewTheme().palette.cyan;
+        c.write(0, pane.y, `${color}╭${'─'.repeat(pane.width - 2)}╮${RESET}`);
+        for (let row = pane.y + 1; row < pane.y + pane.height - 1; row++) {
+          c.write(0, row, `${color}│${RESET}`);
+          c.write(pane.width - 1, row, `${color}│${RESET}`);
+        }
+        c.write(0, pane.y + pane.height - 1, `${color}╰${'─'.repeat(pane.width - 2)}╯${RESET}`);
+      }
+      paintTranscriptToolbar(c, { ...toolbar, x: 0 }, ctx.workbenchUiState, ctx.workbenchNewItems);
     }
 
     // Branch on pinnedBottom: pinned recomputes bottomAnchor fresh,
     // unpinned uses captured scrollOffset (absolute window-start index).
-    const effectiveOffset = ctx.perTab.pinnedBottom
+    const effectiveOffset = (ctx.workbenchEnabled ? ctx.workbenchUiState?.followTail ?? ctx.perTab.pinnedBottom : ctx.perTab.pinnedBottom)
       ? Math.max(0, allLines.length - vp.scrollbackRows)
       : ctx.perTab.scrollOffset;
 
@@ -134,6 +147,16 @@ export class AgentView implements TuiView {
       // (snapshot.created / budget.computed) render as dim grey text.
       context:  (l, rowY) => this.renderContextLine(l, rowY, c, gutter),
     };
+
+    if (ctx.workbenchEnabled) {
+      const palette = getWorkbenchPreviewTheme().palette;
+      for (const kind of Object.keys(kindStyles)) kindStyles[kind] = (line, rowY) => {
+        if (!(line as WorkbenchScrollbackLine).previewFormatted) return;
+        const color = kind === 'approval' || kind === 'approvalCard' ? palette.yellow
+          : kind === 'context' ? palette.muted : kind === 'user' ? palette.foreground : palette.teal;
+        c.write(Math.min(1, surfaceDimensions.columns - 1), rowY, `${color}${line.text}${RESET}`);
+      };
+    }
 
     renderBottomAnchoredSlice({
       canvas: c,

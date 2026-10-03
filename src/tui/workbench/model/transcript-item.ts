@@ -64,7 +64,15 @@ export interface DiagnosticItem extends TranscriptItemBase {
   readonly text: string;
 }
 
+export interface ActivityItem extends TranscriptItemBase {
+  readonly kind: 'activity';
+  readonly text: string;
+  readonly status?: string;
+  readonly verifiedOutcome?: 'success' | 'failure';
+}
+
 export type TranscriptItem =
+  | ActivityItem
   | UserTurnItem
   | AssistantMessageItem
   | ToolGroupItem

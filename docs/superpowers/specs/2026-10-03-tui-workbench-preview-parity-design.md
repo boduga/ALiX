@@ -135,3 +135,9 @@ Operator supersedes block-banner sizing with one bold cyan text row: ALiX WORKBE
 ## 2026-10-03 Phase 4 roster amendment
 
 Agent rows join task subtitles and dependency labels by explicit execution/task/run identity, preserve duplicate roles and retries, and use semantic lifecycle colors plus words/glyphs. Wide selections receive a cyan outline/fill; shorter viewports prioritize a visible selected row. Number keys 1–9, slash aggregate selection and c coordination guidance apply only to the focused agents drawer. The coordination entry opens read-only guidance until the Phase 9 launcher is implemented; it never launches execution or consumes composer text. Esc restores an open drawer after closing guidance. Current context utilization is not inferred from lifetime token usage or window capacity.
+
+## 2026-10-03 Phase 5 transcript amendment
+
+Inspector selection no longer implicitly filters transcript content. Explicit all/selected-agent scope and ALL/RESPONSE/TOOL/ACTIVITY/ERROR categories are independent of details mode; pending approvals remain visible across both. Ctrl+F focuses transcript controls, 1–5 choose categories, s changes scope and f toggles follow; Tab retains view switching. Historic operation prose requires explicit user-safe metadata. Timestamps use UTC source time with an unavailable marker when absent; wide prefixes align actor/status/content and narrow prefixes stack above content. Workbench follow state is authoritative over the legacy viewport adapter, with semantic anchor retention and new-item counts while paused. Artifact and execution authority are unchanged.
+
+Initialization success badges require explicit verifiedOutcome metadata. The concept fixture records a scripted success outcome; live events without outcome evidence retain literal prose without gaining a verified badge. Typed activity metadata is validated on checkpoint import before changing projection state.

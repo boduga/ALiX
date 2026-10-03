@@ -44,6 +44,7 @@ export interface FramePainterDeps {
 export class FramePainter {
   private previousWorkbenchFrame: string | null = null;
   private scrollAnchor: { lines: readonly ScrollbackLine[]; requestedOffset: number; resolvedOffset: number; scope: string } | null = null;
+  private pausedTranscript: { scope: string; seen: Set<string>; appended: Set<string> } | null = null;
 
   constructor(private readonly deps: FramePainterDeps) {}
 
@@ -146,21 +147,29 @@ export class FramePainter {
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const surface = layoutWorkbenchSurface(viewCtx.perTab.inputBuffer, dims, viewCtx.workbenchUiState?.drawer ?? 'closed', viewCtx.workbenchUiState?.composer.cursor);
       const state = viewCtx.workbenchUiState;
-      const scope = JSON.stringify([state?.selectedAgentId, state?.selectedRunId, state?.selectedTaskId, viewCtx.perTab.transcriptMode]);
-      if (viewCtx.perTab.pinnedBottom) this.scrollAnchor = null;
+      const scope = JSON.stringify([state?.transcriptScope, state?.transcriptScope === 'selected' ? state.selectedAgentId : undefined, state?.transcriptFilter, viewCtx.perTab.transcriptMode]);
+      const followTail = state?.followTail ?? viewCtx.perTab.pinnedBottom;
+      viewCtx = { ...viewCtx, perTab: { ...viewCtx.perTab, pinnedBottom: followTail } };
+      if (followTail) { this.scrollAnchor = null; this.pausedTranscript = null; }
       else if (surface.geometry.regions.transcriptBody.height > 0) {
-        const lines = buildWorkbenchScrollbackLines(viewCtx, computeViewport(surface.geometry.dimensions, 'agent').textWidth);
+        const lines = buildWorkbenchScrollbackLines(viewCtx, Math.max(1, surface.geometry.dimensions.columns - 2));
         const requestedOffset = viewCtx.perTab.scrollOffset;
-        const previous = this.scrollAnchor?.scope === scope ? this.scrollAnchor : null;
+        const previous = this.scrollAnchor;
         const resolvedOffset = previous
           ? requestedOffset === previous.requestedOffset
             ? reconcileWorkbenchScrollAnchor(previous.lines, previous.resolvedOffset, lines)
             : Math.max(0, Math.min(lines.length - 1, previous.resolvedOffset + requestedOffset - previous.requestedOffset))
           : requestedOffset;
         this.scrollAnchor = { lines, requestedOffset, resolvedOffset, scope };
-        viewCtx = { ...viewCtx, perTab: { ...viewCtx.perTab, scrollOffset: resolvedOffset } };
+        const ids = new Set(lines.flatMap(line => line.itemId && !/^(separator:|scope:|activity:|streaming:)/.test(line.itemId) ? [line.itemId] : []));
+        if (!this.pausedTranscript || this.pausedTranscript.scope !== scope) this.pausedTranscript = { scope, seen: ids, appended: new Set() };
+        else for (const id of ids) if (!this.pausedTranscript.seen.has(id)) {
+          this.pausedTranscript.seen.add(id);
+          this.pausedTranscript.appended.add(id);
+        }
+        viewCtx = { ...viewCtx, workbenchLines: lines, workbenchNewItems: this.pausedTranscript.appended.size, perTab: { ...viewCtx.perTab, scrollOffset: resolvedOffset } };
       }
-    } else this.scrollAnchor = null;
+    } else { this.scrollAnchor = null; this.pausedTranscript = null; }
     this.deps.views()[s.activeTab]!.render(viewCtx);
 
     // Plan approval card — drawn into the same canvas as the active view.

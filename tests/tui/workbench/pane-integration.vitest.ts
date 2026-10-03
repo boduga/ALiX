@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
 import { AgentView } from '../../../src/tui/views/agent-view.js';
+import { computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
 import { createInitialPerTabState } from '../../../src/tui/state.js';
 import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
 import { layoutWorkbenchSurface } from '../../../src/tui/workbench/views/composer-view.js';
@@ -21,6 +22,21 @@ afterEach(() => {
 const strip = (value: string) => value.replace(/\x1b\[[0-9;]*m/gu, '');
 
 describe('Workbench pane integration', () => {
+  it('uses full transcript width for the same bottom anchor as the painted surface', () => {
+    const { state } = createWorkbenchRenderHarness();
+    const perTab = createInitialPerTabState();
+    perTab.streamingText = 'x'.repeat(200);
+    const ctx = { snap: state.lastSnapshot!, dimensions: { columns: 80, rows: 12 }, perTab,
+      workbenchEnabled: true, workbenchUiState: createInitialWorkbenchUiState(), runtime: { agent: null, chat: null } };
+    // 78 columns minus the 41-column actor/time prefix: six streaming rows,
+    // plus scope and separator, with one visible body row.
+    expect(computeBottomAnchor(ctx, 'agent')).toBe(7);
+    const canvas = new TerminalCanvas(80, 12);
+    new AgentView().render({ ...ctx, canvas });
+    const rows = strip(canvas.renderFrame()).split('\n');
+    const { geometry } = layoutWorkbenchSurface('', ctx.dimensions, 'closed');
+    expect(rows[geometry.regions.transcriptBody.y]!.slice(1, -1).trim()).toBe('x'.repeat(15));
+  });
   it('clips transcript into center, keeps roster left and composer full width', () => {
     const { state } = createWorkbenchRenderHarness();
     const canvas = new TerminalCanvas(200, 44);
@@ -34,6 +50,9 @@ describe('Workbench pane integration', () => {
     expect(composer.rows).toHaveLength(1);
     expect(rows[3]!.slice(0, 40)).toContain('AGENTS');
     expect(rows[3]!.slice(160)).toContain('AGENT DETAILS');
+    expect(rows[3]!.slice(41, 159)).toContain('LIVE TRANSCRIPT');
+    expect(rows[6]![41]).toBe('│');
+    expect(rows[6]![158]).toBe('│');
     expect(rows.slice(6, 39).some(row => row.slice(41, 159).includes('pane transcript'))).toBe(true);
     for (const row of rows.slice(6, 39)) expect(row.slice(0, 40)).not.toContain('pane transcript');
     expect(rows[geometry.regions.composerContent.y]!.slice(3, 153)).toBe('x'.repeat(150));
@@ -75,6 +94,8 @@ describe('Workbench pane integration', () => {
     const { app, paint, state, output } = createWorkbenchRenderHarness('wrapped words '.repeat(45));
     const cached = () => (app as unknown as { framePainter: { scrollAnchor: { lines: { itemId?: string; wrappedOffset?: number }[]; resolvedOffset: number } } }).framePainter.scrollAnchor;
     state.views.agent.pinnedBottom = false;
+    (app as unknown as { workbenchStore: { dispatch(action: { type: 'transcript.follow'; followTail: boolean }): void } })
+      .workbenchStore.dispatch({ type: 'transcript.follow', followTail: false });
     state.views.agent.scrollOffset = 10;
     paint();
     const firstAnchor = cached().lines[cached().resolvedOffset]!.itemId;

@@ -4,6 +4,7 @@ import type { DurableProjectionBuilder } from './durable-projection-builder.js';
 
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
+  | 'agent.progress' | 'agent.state_changed'
   | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.plan' | 'agent.response'
   | 'agent.session.phase_changed' | 'agent.session.turn.completed' | 'approval.requested'
   | 'execution.artifact_registered'
@@ -35,6 +36,7 @@ export type TimelineKind =
  *  kinds it projects — unrelated event types must not pollute the timeline. */
 export const TIMELINE_TYPES = new Set<TimelineKind>([
   'chat.message', 'chat.response',
+  'agent.progress', 'agent.state_changed',
   'agent.message', 'agent.reasoning', 'agent.decision', 'agent.plan', 'agent.response',
   'agent.session.phase_changed', 'agent.session.turn.completed', 'approval.requested',
   'execution.artifact_registered',
@@ -43,6 +45,15 @@ export const TIMELINE_TYPES = new Set<TimelineKind>([
   'context.snapshot.created', 'context.budget.computed', 'context.assembled',
   'context.preflight.failed', 'context.irreducible',
 ]);
+const ACTIVITY_STATES = new Set([
+  'queued', 'starting', 'thinking', 'tool_running', 'waiting', 'waiting_approval',
+  'waiting_dependency', 'verifying', 'completed', 'partial', 'failed', 'cancelling', 'cancelled',
+]);
+
+function isActivityState(value: unknown): value is string {
+  return typeof value === 'string' && ACTIVITY_STATES.has(value);
+}
+
 /** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
  *  detached shape. */
 export interface TimelineEntry {
@@ -55,6 +66,9 @@ export interface TimelineEntry {
   readonly text?: string;
   readonly planTasks?: readonly PlanTask[];
   readonly detail?: string;
+  readonly userSafe?: boolean;
+  readonly activityState?: string;
+  readonly verifiedOutcome?: 'success' | 'failure';
   readonly sourceEvents: { readonly firstSequence: number; readonly lastSequence?: number };
 }
 
@@ -66,6 +80,9 @@ function cloneEntry(e: TimelineEntry): TimelineEntry {
     ...(e.text !== undefined ? { text: e.text } : {}),
     ...(e.planTasks !== undefined ? { planTasks: e.planTasks.map((task) => ({ ...task })) } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
+    ...(e.userSafe !== undefined ? { userSafe: e.userSafe } : {}),
+    ...(e.activityState !== undefined ? { activityState: e.activityState } : {}),
+    ...(e.verifiedOutcome !== undefined ? { verifiedOutcome: e.verifiedOutcome } : {}),
     sourceEvents: {
       firstSequence: e.sourceEvents.firstSequence,
       ...(e.sourceEvents.lastSequence !== undefined ? { lastSequence: e.sourceEvents.lastSequence } : {}),
@@ -114,6 +131,9 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
         typeof e.kind !== 'string' ||
         typeof e.startedAt !== 'number' ||
         (e.planTasks !== undefined && !isPlanTaskArray(e.planTasks)) ||
+        (e.userSafe !== undefined && typeof e.userSafe !== 'boolean') ||
+        (e.activityState !== undefined && !isActivityState(e.activityState)) ||
+        (e.verifiedOutcome !== undefined && e.verifiedOutcome !== 'success' && e.verifiedOutcome !== 'failure') ||
         e.sourceEvents == null || typeof e.sourceEvents !== 'object' ||
         typeof e.sourceEvents.firstSequence !== 'number'
       ) {
@@ -241,6 +261,12 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
     } else if (detail === undefined && kind === 'tool.completed' && typeof p.outputPreview === 'string') {
       detail = p.outputPreview;
     }
+    const activity = p as TimelinePayload & { operation?: unknown; userSafe?: unknown; state?: unknown; verifiedOutcome?: unknown };
+    if (kind === 'agent.progress') {
+      text = activity.userSafe === true && typeof activity.operation === 'string' ? activity.operation : undefined;
+    } else if (kind === 'agent.state_changed') {
+      text = isActivityState(activity.state) ? activity.state : undefined;
+    }
     const ts = Date.parse(e.timestamp) || 0;
     const correlationAgentId = (p as TimelinePayload & { agentId?: unknown }).agentId;
     return {
@@ -253,6 +279,9 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
         ? { planTasks: p.planTasks.map((task) => ({ ...task })) }
         : {}),
       ...(detail !== undefined ? { detail } : {}),
+      ...(kind === 'agent.progress' ? { userSafe: activity.userSafe === true } : {}),
+      ...(kind === 'agent.progress' && (activity.verifiedOutcome === 'success' || activity.verifiedOutcome === 'failure') ? { verifiedOutcome: activity.verifiedOutcome } : {}),
+      ...(kind === 'agent.state_changed' && isActivityState(activity.state) ? { activityState: activity.state } : {}),
       sourceEvents: { firstSequence: e.seq ?? 0 },
     };
   }

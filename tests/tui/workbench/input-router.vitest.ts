@@ -14,6 +14,25 @@ const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> =
 });
 
 describe('routeWorkbenchInput', () => {
+  it('uses explicit transcript focus for category, scope and follow controls', () => {
+    const focused = context({ focus: 'transcript' });
+    for (const [index, filter] of ['all', 'response', 'tool', 'activity', 'error'].entries()) {
+      expect(routeWorkbenchInput(String(index + 1), focused)).toEqual({ type: 'transcript.filter', filter });
+    }
+    expect(routeWorkbenchInput('s', focused)).toEqual({ type: 'transcript.scope.toggle' });
+    expect(routeWorkbenchInput('f', focused)).toEqual({ type: 'transcript.follow.toggle' });
+    expect(routeWorkbenchInput('Ctrl+f', context())).toEqual({ type: 'focus.set', focus: 'transcript' });
+    expect(routeWorkbenchInput('Ctrl+f', focused)).toEqual({ type: 'focus.set', focus: 'composer' });
+    expect(routeWorkbenchInput('Escape', focused)).toEqual({ type: 'focus.set', focus: 'composer' });
+    expect(routeWorkbenchInput('Escape', { ...focused, turnActive: true })).toEqual({ type: 'turn.cancel' });
+    for (const key of ['1', '2', '3', '4', '5', 's', 'f']) {
+      expect(routeWorkbenchInput(key, context())).toEqual({ type: 'composer.insert', text: key });
+      expect(routeWorkbenchInput(key, context({ focus: 'drawer', drawer: 'tasks' }))).toEqual({ type: 'unhandled' });
+      expect(routeWorkbenchInput(key, context({ focus: 'modal', overlayOpen: true }))).toEqual({ type: 'unhandled' });
+    }
+    expect(routeWorkbenchInput('Ctrl+f', context({ focus: 'drawer', drawer: 'agents' }))).toEqual({ type: 'unhandled' });
+    expect(routeWorkbenchInput('Ctrl+f', context({ focus: 'modal', overlayOpen: true }))).toEqual({ type: 'unhandled' });
+  });
   const rosterKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', 'c'];
   const rosterContexts = [
     { label: 'agents drawer', drawer: 'agents', focus: 'drawer', result: 'roster' },

@@ -322,6 +322,7 @@
         "agentId": "orchestrator",
         "taskId": "task-orchestrator",
         "operation": "\u2713 4 agents initialized (3 running, 1 waiting)",
+        "verifiedOutcome": "success",
         "message": "\u2713 4 agents initialized (3 running, 1 waiting)",
         "userSafe": true
       }
