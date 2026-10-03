@@ -348,6 +348,7 @@ export class FramePainter {
     // banner and status counters without changing shared viewport geometry.
     // Other tabs and non-Workbench sessions keep the established chrome.
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      const chromeState = this.deps.workbenchState?.();
       paintOperatorShell({
         canvas: c,
         width: dims.columns,
@@ -356,7 +357,8 @@ export class FramePainter {
           snap,
           s.views.agent,
           liveMode,
-          this.deps.workbenchState?.().queuedMessages.length ?? 0,
+          chromeState?.queuedMessages.length ?? 0,
+          { closeSurface: Boolean(chromeState && (chromeState.drawer !== 'closed' || chromeState.overlayStack.length > 0)) },
         ),
       });
     }

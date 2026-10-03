@@ -230,6 +230,8 @@ describe('Workbench responsive drawer', () => {
       },
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('tokens 500 · files 2 · events 10 · agents 2/3 · wait 1 · stalled 1 · cost $0.0100+');
+    expect(frame).toContain('3 agents • 1 running');
+    expect(frame).toContain('1 approval | 1 stalled');
+    expect(frame).toContain('TOKENS 500 | FILES 2 | EVENTS 10 | AGENTS 3 | COST $0.0100+');
   });
 });
