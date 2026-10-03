@@ -4,8 +4,7 @@ Purpose: let the agent *propose* recurring jobs without ever scheduling one.
 A proposal becomes a pending approval; a human approves it; the daemon
 materializes an active job and enqueues it on schedule. The agent has no
 write path to any OS persistence mechanism (cron, at, systemd) — scheduling
-lives entirely inside ALiX state, so `systemctl stop alix` / deleting `.alix`
-removes it.
+lives in ALiX state. Stopping the daemon stops dispatch; persisted jobs remain in the global scheduled-task store until revoked or expired.
 
 ## Ownership
 

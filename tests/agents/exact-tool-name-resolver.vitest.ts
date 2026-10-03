@@ -44,10 +44,31 @@ describe("exact model tool name resolution", () => {
     }
   });
 
-  it("still resolves a discovered MCP executor name for its opaque handle", () => {
-    // MCP handles are minted per turn and cannot be pre-declared, so the
-    // discovered executor name remains an accepted equivalent spelling.
-    expect(resolveExecutableToolName("mcp.github.repos.list", offered)).toBe("mcp.github.repos.list");
+  it("rejects a discovered MCP executor alias and reports only callable names", () => {
+    expect(() => resolveExecutableToolName("mcp.github.repos.list", offered)).toThrow(ToolNotFoundError);
+    try {
+      resolveExecutableToolName("mcp.github.repos.list", offered);
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolNotFoundError);
+      expect((error as ToolNotFoundError).requestedName).toBe("mcp.github.repos.list");
+      expect((error as ToolNotFoundError).offeredTools).toEqual(offered.map((tool) => tool.name));
+    }
+  });
+
+  const acceptanceCases = [
+    { label: "offered handle", requested: "mcp__current", tools: [{ name: "mcp__current", execName: "mcp.github.read" }], expected: "mcp.github.read" },
+    { label: "executor alias", requested: "mcp.github.read", tools: [{ name: "mcp__current", execName: "mcp.github.read" }], expected: null },
+    { label: "unoffered handle", requested: "mcp__stale", tools: [{ name: "mcp__current", execName: "mcp.github.read" }], expected: null },
+    { label: "executor presented as handle", requested: "mcp.github.read", tools: [{ name: "mcp.github.read", execName: "mcp.github.read" }], expected: null },
+    { label: "missing executor", requested: "mcp__current", tools: [{ name: "mcp__current" }], expected: null },
+    { label: "forged built-in executor", requested: "mcp__current", tools: [{ name: "mcp__current", execName: "shell.run" }], expected: null },
+    { label: "noncanonical discovery name", requested: "github_read", tools: [{ name: "github_read", execName: "mcp.github.read" }], expected: null },
+    { label: "case-altered handle", requested: "mcp__CURRENT", tools: [{ name: "mcp__current", execName: "mcp.github.read" }], expected: null },
+  ];
+
+  it.each(acceptanceCases)("MCP acceptance parity: $label", ({ requested, tools, expected }) => {
+    if (expected === null) expect(() => resolveExecutableToolName(requested, tools)).toThrow(ToolNotFoundError);
+    else expect(resolveExecutableToolName(requested, tools)).toBe(expected);
   });
 
   it.each(["shell.run", "file.create", "patch.apply", "verify.claim", "done", "web.search"])(

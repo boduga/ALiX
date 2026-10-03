@@ -7,7 +7,7 @@ import { ALIX_BUILTIN_EXECUTORS } from "../../src/agents/tool-manifest.js";
 
 test("worker executes only exact offered canonical names", () => {
   const resolve = (subagentCliModule as unknown as Record<string, unknown>).resolveOfferedToolName as
-    ((name: string, tools: Array<{ name: string }>) => string | null) | undefined;
+    ((name: string, tools: Array<{ name: string }>, mcpTools?: Array<{ name: string; execName: string }>) => string | null) | undefined;
   assert.equal(typeof resolve, "function");
   assert.equal(resolve!("alix_file_create", [{ name: "alix_file_create" }]), "file.create");
   assert.equal(resolve!("file_create", [{ name: "alix_file_create" }]), null);
@@ -21,6 +21,9 @@ test("worker executes only exact offered canonical names", () => {
   assert.equal(resolve!("shell.run", [{ name: "alix_shell_run" }]), null);
   assert.equal(resolve!("alix_shell_run", [{ name: "alix_file_create" }]), null);
   assert.equal(resolve!("coordination_run", [{ name: "alix_file_create" }]), null);
+  const mcpTools = [{ name: "mcp__worker_read", execName: "mcp.github.read" }];
+  assert.equal(resolve!("mcp__worker_read", mcpTools, mcpTools), "mcp.github.read");
+  assert.equal(resolve!("mcp.github.read", mcpTools, mcpTools), null);
 });
 
 test("worker reads resolve only unique declared input basenames", () => {

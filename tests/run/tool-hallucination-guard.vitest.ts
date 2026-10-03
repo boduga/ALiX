@@ -76,8 +76,8 @@ describe("handleToolCall unknown-tool guard", () => {
     expect(executor.execute).not.toHaveBeenCalled();
   });
 
-  it.each(["file_read", "alix_dir_search", "alix_git_status", "exec_command"])(
-    "rejects legacy or phantom name %s before dispatch",
+  it.each(["file_read", "alix_dir_search", "alix_git_status", "exec_command", "mcp.github.repos.list"])(
+    "rejects legacy, phantom, or executor name %s before dispatch",
     async (name) => {
       const executor = { execute: vi.fn() };
       const deps = makeDeps(executor);

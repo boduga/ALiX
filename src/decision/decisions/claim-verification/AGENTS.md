@@ -27,7 +27,7 @@
 - Baseline and observed outcomes journal separately under the same `projectionHash` — that is the J4 calibration/comparison input.
 - Every attempt is journaled: a failed remote attempt that fell back appears as an explicit `failure` record with its latency.
 - `jev-mapping.ts` sends one Choice question keyed by id with `instructions` + `criteria` (option -> rubric description), matching the verified System One shape. The adapter re-verifies the sealed projection before transport (§6).
-- Mode default is `baseline`, renamed from the original `off` (§3.1): the tool stays useful locally before any experiment starts.
+- Mode default is `baseline`: the tool stays useful locally before any experiment starts.
 - The model-facing payload is exactly `{verdict, engine, decisionId?, authority:"none", warning?}` — never `agree`, the baseline's competing verdict, latency, or the experiment tally (§8.3).
 - Boundary rejection (`ProjectionRejectedError`) degrades to a local verdict + `warning` and writes no record: no seal ⇒ no hash ⇒ no journal/experiment entry (§12).
 

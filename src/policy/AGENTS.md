@@ -1,16 +1,20 @@
 # DOX — Policy Engine
 
-**Purpose:** Policy rules, evaluation, and runtime enforcement — determines whether ALiX is allowed to execute a capability.
+## Purpose
 
-**Ownership:**
+Policy rules, evaluation, and runtime enforcement — determines whether ALiX is allowed to execute a capability.
+
+## Ownership
+
 - `policy-rule.ts` — PolicyRule type, matchPolicy(), validatePolicyRule()
 - `rule-evaluator.ts` — Pure first-match-wins evaluator (decoupled from runtime subsystems)
 - `runtime-gate.ts` — Two-layer gate: CapabilityResolver + RuleEvaluator + ApprovalStore
-- `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. No second authority: the deprecated PolicyEngine was removed (#689).
+- `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. Do not introduce a second policy authority.
 - `default-policies.ts` — 11 built-in rules (allow/ask/deny by risk level and capability)
 - `policy-loader.ts` — Load rules from `.alix/policies/*.json`, fall back to defaults
 
-**Local Contracts:**
+## Local Contracts
+
 - **Owned-scope matching is owned by `src/ownership/AGENTS.md`.** This gate is
   one of the two enforcement points and calls `isWithinOwnedScope`; it must
   never grow its own matcher or re-normalize a grant. The rule, the fail-closed
@@ -23,18 +27,24 @@
 - Policy evaluation forwards the execution request's optional canonical `agentId` into durable approval records and lifecycle events without changing the allow/ask/deny decision.
 - Default deny when no rule matches ("deny by default" closure).
 - Headless exception: with no approval store (delegate subagent child),
-  `web.search`/`web.fetch` and the zero-side-effect `task.complete`
-  (alix_done) auto-allow (`headless-read-allow`, mirroring the default
+  `alix_web_search`/`alix_web_fetch` and the zero-side-effect `alix_done`
+  auto-allow (`headless-read-allow`, mirroring the default
   allow-web-search/fetch rules); all else fails closed.
 
-**Work Guidance:**
+## Work Guidance
+
 - RuleEvaluator is pure logic — no side effects, no I/O. Keep it testable.
 - RuntimeGate is the integration point — it combines registry, policy, and approvals.
 - Adding a new policy rule type means updating `policy-rule.ts` (match fields), `default-policies.ts` (default instances), and `runtime-gate.ts` (if the evaluation logic changes).
 
-**Verification:**
-- `tests/policy/policy-gate.test.ts` — the owned-path rule across the full space of workspace-wide spellings (listed and derived), and fail-closed behaviour. This is the regression home for the shared matcher; a router-only test bypasses this gate and cannot see that class of bug.
+## Verification
+
+- `tests/policy/policy-gate.test.ts` — the owned-path rule across the full space of workspace-wide spellings (listed and derived), and fail-closed behaviour. A router-only test bypasses this enforcement point.
 - `tests/policy/policy-rule.test.ts` — validation and matching
 - `tests/policy/rule-evaluator.test.ts` — evaluator and default policies
 - `tests/policy/policy-loader.test.ts` — disk loading and fallback
 - `tests/policy/runtime-gate.test.ts` — composed gate behavior
+
+## Child DOX Index
+
+None.

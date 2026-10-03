@@ -1,8 +1,7 @@
 # DOX — Governance CLI commands
 
 **Purpose:** `alix governance <subcommand>` handlers + terminal renderers.
-Extracted from the former `../governance.ts` megafile (#717); `../governance.ts`
-is now a re-export barrel so existing import paths are unchanged.
+`../governance.ts` is the compatibility re-export barrel.
 
 **Ownership:**
 - `shared.ts` — ANSI colors (`RESET`…`MAGENTA`, `BAR`), severity/priority/rate
@@ -30,7 +29,7 @@ is now a re-export barrel so existing import paths are unchanged.
 - `main.ts` — `handleGovernanceCommand` dispatcher.
 
 **Local Contracts:**
-- Each module stays ≤ 1,000 lines (leaf-extraction threshold, #717).
+- Each module stays ≤ 1,000 lines.
 - `../governance.ts` re-exports `handleGovernanceCommand` and the three public
   `format*`/`computeRelatedEvents` helpers; do not add logic there.
 - **Purity invariant (sentinel-enforced):** governance code writes only
@@ -48,3 +47,5 @@ is now a re-export barrel so existing import paths are unchanged.
 - `tests/governance/governance-sentinels.vitest.ts` — P9 purity.
 - `tests/governance/audit-migration.test.ts` — no direct emitter usage.
 - `tests/cli/commands/governance-*.vitest.ts` + `tests/governance/*.test.ts`.
+
+**Child DOX Index:** none.

@@ -1,6 +1,6 @@
-# src/utils/memory — Agent Memory Store (M2)
+# src/utils/memory — Agent Memory Store
 
-Purpose: the M2 memory subsystem — persistence of agent memory entries (Markdown + YAML frontmatter), recall/context builders for the system prompt, and consolidation/decision-extraction.
+Purpose: the memory subsystem — persistence of agent memory entries (Markdown + YAML frontmatter), recall/context builders for the system prompt, and consolidation/decision-extraction.
 
 ## Ownership
 
@@ -24,7 +24,7 @@ Purpose: the M2 memory subsystem — persistence of agent memory entries (Markdo
 
 ## Work Guidance
 
-- The runtime contract lives in `src/runtime/contracts/memory-contract.ts` (M1.6: `MemoryQuery`, `MemoryStoreContract`, `MEMORY_INVARIANTS`). Keep it a pure type contract — no runtime code.
+- The runtime contract lives in `src/runtime/contracts/memory-contract.ts`. Keep it a pure type contract — no runtime code.
 - **The concrete `MemoryStore` does NOT structurally implement `MemoryStoreContract`:** it only provides `save` and `find`; `read`, `query`, `delete`, `list`, `consolidate` are declared in the contract but not on the class. Wire them if the full contract is ever exercised, and reconcile the "confidence monotonic" invariant against `consolidate()`'s decay (confidence is **decremented** 0.1/pass on old low-confidence entries).
 - Runtime prompt usage (agent/session/agent-loop resume, session digest) uses `buildMemoryContext`/`buildMemoryStats` directly; `recall()`, `consolidate()`, `MemoryStore.logSession`, and the `index.ts` barrel have no runtime callers (tests only).
 - `extractDecisions` appears in **two** unrelated implementations: `consolidate.ts` (raw log lines) and `decision-extractor.ts` (`AlixEvent[]`). Do not cross-use them.
@@ -36,7 +36,6 @@ Purpose: the M2 memory subsystem — persistence of agent memory entries (Markdo
 
 - `tests/utils/memory/`: store, recall, types, cli, decision-extractor, session-integration.
 - `tests/memory/decision-extractor.test.ts` is a divergent duplicate of `tests/utils/memory/decision-extractor.test.ts` — reconcile if touching.
-- `tests/alix-capabilities.test.ts:490` asserts `src/memory/` exists but the real path is `src/utils/memory/` (stale).
 - `tests/runtime/memory-contract.test.ts` asserts source↔contract parity.
 - Full suite: `pnpm test:node` and `pnpm test:vitest`.
 

@@ -9,9 +9,9 @@
 - `app.ts` coordinates terminal lifecycle, snapshots, input, and runtime ports during the legacy-to-Workbench migration.
 - `snapshot.ts` and `snapshot-builder.ts` define and compose immutable TUI read models.
 - `runtime/` owns EventLog-derived projections used by terminal views.
-- `workbench/` owns the conversation-first semantic transcript and the future Workbench shell.
+- `workbench/` owns the conversation-first semantic transcript and the Workbench shell.
 - `workbench/model/ui-state.ts`, `workbench/app/workbench-store.ts`, and `workbench/input/input-router.ts` own feature-gated presentation state and context-sensitive composer input; runtime truth stays in `AgentSession` and `EventLog`.
-- `workbench/projections/agent-roster-projection.ts` and `task-projection.ts` own distinct EventLog-derived agent and delegated-task read models; painters must not reconstruct either model from the other.
+- `src/tui/workbench/projections/agent-roster-projection.ts` and `src/tui/workbench/projections/task-projection.ts` own distinct EventLog-derived agent and delegated-task read models; painters must not reconstruct either model from the other.
 - `views/` owns presentation-only rendering and view-local input mappings.
 - `canvas.ts`, `frame-painter.ts`, and `render.ts` own terminal composition and output.
 
@@ -66,7 +66,7 @@
 - Keep raw EventLog payload interpretation inside projections, not painters.
 - Preserve source event sequence ranges on semantic transcript items.
 - Agent plans are emitted as typed `agent.plan` events before `agent.response`; Workbench renders them through `ConversationProjection`, never directly from mutable per-tab plan state.
-- When Workbench is enabled on the agent tab, `operator-shell.ts` replaces legacy dashboard chrome after composition while preserving shared header/footer geometry; other tabs retain legacy chrome until their own parity slices land.
+- When Workbench is enabled on the agent tab, `src/tui/workbench/views/operator-shell.ts` replaces legacy dashboard chrome after composition while preserving shared header/footer geometry; other tabs retain legacy chrome until their own parity slices land.
 - While Workbench is feature-gated, `WorkbenchStore.composer` is authoritative and `PerTabState.inputBuffer` is its temporary rendering/slash-completion adapter.
 - Treat task and agent as separate concepts in future roster work.
 - Test narrow and wide terminal dimensions and preserve stable scroll anchors.
