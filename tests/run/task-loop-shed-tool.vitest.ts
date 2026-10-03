@@ -110,6 +110,7 @@ async function makeTestDeps(overrides: {
   taskType?: TaskLoopDeps['taskType'];
   sessionGoal?: TaskLoopDeps['sessionGoal'];
   executor?: TaskLoopDeps['executor'];
+  hookRunner?: TaskLoopDeps['hookRunner'];
   selectedTools?: TaskLoopDeps['selectedTools'];
 }): Promise<{ deps: TaskLoopDeps; log: EventLog; sessionDir: string; cleanup: () => void }> {
   const tmpRoot = makeTempDir('alix-t8-');
@@ -172,6 +173,7 @@ async function makeTestDeps(overrides: {
     executor: overrides.executor ?? ({} as any),
     mcpDiscovery: null,
     selectedTools: overrides.selectedTools ?? [],
+    hookRunner: overrides.hookRunner,
     hooks: {},
     maxIterations: overrides.maxIterations ?? 3,
     contextBudget,
@@ -1023,5 +1025,67 @@ describe('task-loop completion termination', () => {
 
     expect(result.reason).toBe('completed');
     expect(events.some((event) => event.type === 'verification.check_started')).toBe(false);
+  });
+});
+
+/**
+ * The CALL-SITE regression: the task loop resolved executor names for telemetry
+ * from `selectedTools` — the relevance-truncated selector list — while the
+ * offered surface is a different list. A built-in offered but truncated out
+ * could not be found, and the recorded label became the MODEL-FACING name.
+ *
+ * Function-level tests cannot catch this. Falsifying proved it: pass the correct
+ * list to the old lenient implementation and every unit test still passes. The
+ * defect lived in WHICH list reached the function, so this drives the real loop
+ * with the mismatch truncation creates — `selectedTools: []` — and asserts the
+ * label is an executor id.
+ */
+describe('telemetry labels resolve against the OFFERED surface', () => {
+  it('labels a post-tool hook with the executor id when selectedTools is empty', async () => {
+    const fileReadTool: ToolDef = {
+      name: 'alix_file_read',
+      description: 'Read a file',
+      input_schema: { type: 'object', properties: {} },
+    };
+    const task = 'read the file';
+    const message: NormalizedMessage = { role: 'user', content: task };
+    const hookPayloads: Array<{ type?: string; data?: { toolName?: string } }> = [];
+    const { deps, log } = await makeTestDeps({
+      // Offered, and therefore resolvable...
+      providerTools: [fileReadTool],
+      provider: createMockProvider({
+        toolCalls0: [{ id: 'tc1', name: 'alix_file_read', args: { path: 'a.txt' } } as ToolCall],
+        responseText1: 'read it',
+      }),
+      task,
+      // ...but absent from the list the loop used to resolve against.
+      selectedTools: [],
+      executor: {
+        execute: async () => ({
+          kind: 'success' as const,
+          output: 'file contents',
+          completed: false,
+        }),
+      } as any,
+      hookRunner: {
+        // execute(trigger, { type, data }) — `data.toolName` carries the label.
+        execute: async (_trigger: string, payload: any) => {
+          hookPayloads.push(payload);
+          return { handled: false };
+        },
+      } as any,
+    });
+
+    await runTaskLoop(deps);
+
+    const postTool = hookPayloads.filter((p) => p && p.type === 'tool_result');
+    // Explicit rather than `toBeGreaterThan`, so a fixture that stops firing
+    // the hook reports "none fired" instead of an unhelpful length mismatch.
+    expect(postTool.map((p) => p.data?.toolName)).toContain('file.read');
+    for (const p of postTool) {
+      expect(p.data?.toolName).toBe('file.read');
+      expect(p.data?.toolName).not.toBe('alix_file_read');
+    }
+    await log.readAll();
   });
 });
