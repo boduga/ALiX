@@ -87,3 +87,9 @@ Fixture: tests/fixtures/tui/workbench-preview-events.json. Validation: tests/tui
 ## Amendment policy
 
 Record later changes to locked decisions as dated amendments with rationale and verification. Do not silently rewrite accepted decisions or mark unimplemented phases complete.
+
+## 2026-10-03 amendment — Phase 1 metadata readiness
+
+The foundation readiness table above records the starting state. Task projection now preserves dependency IDs and dependency/approval waits; coordination assignment events publish the structured facts. Shared execution traces and Workbench tool items now preserve call identity, start time, bounded requested path/range and explicit completed-event observed line count. Nested fields are detached through snapshots and version-one checkpoint import/export; old checkpoints without metadata remain accepted.
+
+Requested ranges remain request facts, not proof of executed ranges: existing file reads do not implement range arguments. Production observed-count emission remains an open gate; missing values stay absent. No count is inferred from a truncated output preview. Reference-fixture tests establish requested 1–200 versus observed 142, separate completed/active writes, replay and checkpoint compatibility. This amendment changes field readiness, not locked admission or execution decisions.

@@ -1,7 +1,9 @@
 import type { AlixEvent } from '../../events/types.js';
 import { TOOL_EVENT_TYPES } from '../../events/types.js';
 import type { DurableProjectionBuilder } from './durable-projection-builder.js';
-import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention } from './execution-trace.js';
+import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention, ToolCardMetadata } from './execution-trace.js';
+
+import { cloneToolCardMetadata } from './execution-trace.js';
 
 // Trace entry ids are derived from the source event's firstSequence — no hidden
 // module-global mutable state, deterministic and replay-safe within a runtime.
@@ -62,6 +64,7 @@ export interface MutableLifecycle {
   key: string;              // toolCallId / invocationId / timingId / workflowId / phase / approvalId / checkpointId
   title: string;
   agentId?: string;
+  toolMetadata?: ToolCardMetadata;
   /** Streamed detail parts accumulated from intermediate events (e.g. each
    *  tool.output stdout preview appends here). Joined with "\n" at
    *  materialization — long-running tool traces accumulate, not overwrite. */
@@ -130,6 +133,44 @@ function resolveDetail(payload: Record<string, unknown>, carried?: string): stri
   return terminal ?? carried;
 }
 
+function safeCardText(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 1024 && !/[\x00-\x1f\x7f-\x9f]/u.test(value);
+}
+
+function lineNumber(value: unknown, minimum: number): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum;
+}
+
+function toolCardMetadata(type: string, payload: Record<string, unknown>, previous?: ToolCardMetadata): ToolCardMetadata | undefined {
+  if (!safeCardText(payload.toolCallId)) return previous;
+  const metadata = previous?.toolCallId === payload.toolCallId ? cloneToolCardMetadata(previous) : { toolCallId: payload.toolCallId };
+  const args = payload.argsPreview;
+  const requested = type === TOOL_EVENT_TYPES.REQUESTED && args !== null && typeof args === 'object' && !Array.isArray(args)
+    ? args as Record<string, unknown> : undefined;
+  return {
+    ...metadata,
+    ...(requested && safeCardText(requested.path) ? { path: requested.path } : {}),
+    ...(requested && lineNumber(requested.startLine, 1) && lineNumber(requested.endLine, 1) && requested.endLine >= requested.startLine
+      ? { requestedRange: { startLine: requested.startLine, endLine: requested.endLine } } : {}),
+    ...(type === TOOL_EVENT_TYPES.COMPLETED && lineNumber(payload.observedLineCount, 0)
+      ? { observedLineCount: payload.observedLineCount } : {}),
+  };
+}
+
+function assertToolCardMetadata(value: unknown): void {
+  if (value === undefined) return;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('trace projection state: malformed tool metadata');
+  const metadata = value as Record<string, unknown>;
+  const range = metadata.requestedRange as Record<string, unknown> | undefined;
+  if (!safeCardText(metadata.toolCallId) ||
+    (metadata.path !== undefined && !safeCardText(metadata.path)) ||
+    (metadata.observedLineCount !== undefined && !lineNumber(metadata.observedLineCount, 0)) ||
+    (range !== undefined && (range === null || typeof range !== 'object' || Array.isArray(range) ||
+      !lineNumber(range.startLine, 1) || !lineNumber(range.endLine, 1) || range.endLine < range.startLine))) {
+    throw new Error('trace projection state: malformed tool metadata');
+  }
+}
+
 export function createTraceState(): ExecutionTraceState {
   return {
     seenSequences: new Set(), openByKey: new Map(), terminalById: new Map(),
@@ -172,6 +213,7 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
           o.agentId = payload.agentId;
         }
       }
+      if (kind === 'tool') o.toolMetadata = toolCardMetadata(e.type, payload, o.toolMetadata);
       // Accumulate streamed detail (each tool.output preview appends) — a
       // long-running tool trace builds up, it does not overwrite.
       if (e.type === TOOL_EVENT_TYPES.OUTPUT) {
@@ -204,6 +246,7 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       state.closedByKey.set(mapKey, id);
       state.terminalById.set(id, {
         id, kind, status, title: o.title,
+        ...(kind === 'tool' ? { toolMetadata: toolCardMetadata(e.type, payload, o.toolMetadata) } : {}),
         ...(o.agentId !== undefined ? { agentId: o.agentId } :
           typeof payload.agentId === 'string' && payload.agentId.length > 0 ? { agentId: payload.agentId } : {}),
         detail: resolveDetail(payload, o.detailParts.join("\n")),
@@ -216,6 +259,7 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       // A terminal event without a recorded open — synthesize a completed entry.
       state.terminalById.set(id, {
         id, kind, status, title: titleOf(kind, e.type, payload),
+        ...(kind === 'tool' ? { toolMetadata: toolCardMetadata(e.type, payload) } : {}),
         ...(typeof payload.agentId === 'string' && payload.agentId.length > 0 ? { agentId: payload.agentId } : {}),
         detail: resolveDetail(payload),
         startedAt: ts, completedAt: ts,
@@ -237,6 +281,7 @@ export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntr
     .sort((a, b) => a.firstSequence - b.firstSequence)
     .map(o => cloneEntry({
       id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
+      ...(o.toolMetadata !== undefined ? { toolMetadata: o.toolMetadata } : {}),
       ...(o.agentId !== undefined ? { agentId: o.agentId } : {}),
       detail: o.detailParts.length > 0 ? o.detailParts.join("\n") : undefined,
       startedAt: o.startedAt,
@@ -248,6 +293,7 @@ export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntr
 function cloneEntry(e: ExecutionTraceEntry): ExecutionTraceEntry {
   return {
     id: e.id, kind: e.kind, status: e.status, title: e.title,
+    ...(e.toolMetadata !== undefined ? { toolMetadata: cloneToolCardMetadata(e.toolMetadata) } : {}),
     ...(e.agentId !== undefined ? { agentId: e.agentId } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
     startedAt: e.startedAt,
@@ -324,6 +370,8 @@ function assertTraceStateElements(
     if (typeof key !== 'string') throw new Error('trace projection state: malformed openByKey key');
     if (lifecycle == null || typeof lifecycle !== 'object') throw new Error('trace projection state: malformed lifecycle');
     const l = lifecycle as Record<string, unknown>;
+    assertToolCardMetadata(l.toolMetadata);
+    if (l.toolMetadata !== undefined && (l.kind !== 'tool' || (l.toolMetadata as ToolCardMetadata).toolCallId !== l.key)) throw new Error('trace projection state: mismatched tool metadata');
     if (
       typeof l.kind !== 'string' ||
       typeof l.title !== 'string' ||
@@ -342,6 +390,8 @@ function assertTraceStateElements(
     if (typeof id !== 'string') throw new Error('trace projection state: malformed terminalById id');
     if (entry == null || typeof entry !== 'object') throw new Error('trace projection state: malformed terminal entry');
     const en = entry as Record<string, unknown>;
+    assertToolCardMetadata(en.toolMetadata);
+    if (en.toolMetadata !== undefined && en.kind !== 'tool') throw new Error('trace projection state: mismatched tool metadata');
     if (
       typeof en.id !== 'string' ||
       typeof en.kind !== 'string' ||
@@ -403,8 +453,8 @@ export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilde
     return {
       version: 1,
       seenSequences: [...this.state.seenSequences],
-      openByKey: [...this.state.openByKey.entries()].map(([key, lifecycle]) => ({ key, lifecycle: { ...lifecycle, detailParts: [...lifecycle.detailParts] } })),
-      terminalById: [...this.state.terminalById.entries()].map(([id, entry]) => ({ id, entry })),
+      openByKey: [...this.state.openByKey.entries()].map(([key, lifecycle]) => ({ key, lifecycle: { ...lifecycle, detailParts: [...lifecycle.detailParts], ...(lifecycle.toolMetadata !== undefined ? { toolMetadata: cloneToolCardMetadata(lifecycle.toolMetadata) } : {}) } })),
+      terminalById: [...this.state.terminalById.entries()].map(([id, entry]) => ({ id, entry: cloneEntry(entry) })),
       closedFirstSequences: [...this.state.closedFirstSequences],
       closedByKey: [...this.state.closedByKey.entries()].map(([key, id]) => ({ key, id })),
     };
@@ -439,9 +489,9 @@ export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilde
     this.state.closedByKey.clear();
     for (const seq of s.seenSequences) this.state.seenSequences.add(seq);
     for (const { key, lifecycle } of s.openByKey) {
-      this.state.openByKey.set(key, { ...lifecycle, detailParts: [...lifecycle.detailParts] });
+      this.state.openByKey.set(key, { ...lifecycle, detailParts: [...lifecycle.detailParts], ...(lifecycle.toolMetadata !== undefined ? { toolMetadata: cloneToolCardMetadata(lifecycle.toolMetadata) } : {}) });
     }
-    for (const { id, entry } of s.terminalById) this.state.terminalById.set(id, entry);
+    for (const { id, entry } of s.terminalById) this.state.terminalById.set(id, cloneEntry(entry));
     for (const id of s.closedFirstSequences) this.state.closedFirstSequences.add(id);
     for (const { key, id } of s.closedByKey) this.state.closedByKey.set(key, id);
   }

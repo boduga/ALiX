@@ -858,7 +858,7 @@
     }
   ],
   "metadataGaps": [
-    "Existing tool projections do not yet expose requested ranges and observed line counts."
+    "Production tools do not yet emit authoritative observed line counts; requested ranges do not imply executed ranges."
   ],
   "expected": {
     "agents": 5,
