@@ -858,7 +858,6 @@
     }
   ],
   "metadataGaps": [
-    "TaskProjection does not yet project dependencyIds.",
     "Existing tool projections do not yet expose requested ranges and observed line counts."
   ],
   "expected": {

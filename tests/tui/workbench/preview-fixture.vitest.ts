@@ -69,7 +69,10 @@ describe('event-backed Workbench preview reference', () => {
     });
     const dependency = fixture.events.find(event => event.type === 'agent.task_assigned' && event.payload.agentId === 'test-agent');
     expect(dependency?.payload.dependencyIds).toEqual(['task-frontend-agent']);
-    // Dependency IDs are fixture producer metadata, not yet a TaskProjection field.
+    expect(snapshot.tasks).toMatchObject({ waiting: 1, running: 3 });
+    expect(snapshot.tasks.tasks.find(task => task.agentId === 'test-agent')).toMatchObject({
+      state: 'waiting_dependency', dependencyIds: ['task-frontend-agent'],
+    });
   });
 
   it('substantiates initialization prose before the reviewer completes', () => {

@@ -242,6 +242,7 @@ async function handleCoordinationRun(
         coordinationRunId: runId,
         assignedAgentId: worker.agentId,
         taskLabel: worker.taskLabel,
+        dependencyIds: [...worker.dependencies],
         ownedPaths: worker.ownershipClaims.map(claim => claim.path),
       };
       await deps.eventLog.append({
@@ -254,7 +255,8 @@ async function handleCoordinationRun(
         sessionId: planResult.run.sessionId,
         actor: "coordination",
         type: "agent.task_assigned",
-        payload: { ...base, title: worker.taskLabel, prompt: worker.goalPrompt },
+        payload: { ...base, title: worker.taskLabel, prompt: worker.goalPrompt,
+          state: worker.dependencies.length > 0 ? "waiting_dependency" : "queued" },
       });
     }
   }

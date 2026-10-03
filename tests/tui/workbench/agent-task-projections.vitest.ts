@@ -11,6 +11,32 @@ function event(seq: number, type: string, payload: Record<string, unknown>): Ali
 }
 
 describe('Workbench agent and task projections', () => {
+  it('keeps structured dependency and approval waits out of running totals', () => {
+    const tasks = new TaskProjection();
+    tasks.update([
+      event(1, 'agent.task_assigned', { taskId: 'consumer', agentId: 'worker', title: 'Test',
+        state: 'waiting_dependency', dependencyIds: ['producer', '', 12, 'producer'] }),
+      event(2, 'agent.progress', { taskId: 'consumer', operation: 'Waiting for producer' }),
+    ]);
+    expect(tasks.snapshot()).toMatchObject({ running: 0, waiting: 1, blocked: 0,
+      tasks: [{ state: 'waiting_dependency', dependencyIds: ['producer'] }] });
+    const snapshot = tasks.snapshot();
+    (snapshot.tasks[0]!.dependencyIds as string[]).push('forged');
+    expect(tasks.snapshot().tasks[0]!.dependencyIds).toEqual(['producer']);
+    tasks.update([event(3, 'agent.state_changed', { taskId: 'consumer', state: 'waiting_approval' })]);
+    expect(tasks.snapshot()).toMatchObject({ running: 0, waiting: 1, tasks: [{ state: 'waiting_approval' }] });
+    tasks.update([event(4, 'agent.state_changed', { taskId: 'consumer', state: 'running' })]);
+    expect(tasks.snapshot()).toMatchObject({ running: 1, waiting: 0, tasks: [{ state: 'running', dependencyIds: ['producer'] }] });
+  });
+
+  it('preserves dependencies when absent or malformed and clears an explicit empty list', () => {
+    const tasks = new TaskProjection();
+    tasks.update([event(1, 'agent.task_assigned', { taskId: 'consumer', dependencyIds: ['producer'] })]);
+    tasks.update([event(2, 'agent.task_assigned', { taskId: 'consumer', dependencyIds: 'guessed prose' })]);
+    expect(tasks.snapshot().tasks[0]!.dependencyIds).toEqual(['producer']);
+    tasks.update([event(3, 'agent.task_assigned', { taskId: 'consumer', dependencyIds: [] })]);
+    expect(tasks.snapshot().tasks[0]!.dependencyIds).toEqual([]);
+  });
   it('keeps retry attempts non-terminal until scheduler lifecycle arrives', () => {
     const agents = new AgentRosterProjection();
     const tasks = new TaskProjection();

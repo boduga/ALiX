@@ -326,6 +326,43 @@ describe("coordination chat tools", () => {
     assert.deepEqual(result.changedFiles, [".tmp/out/a.md"]);
   });
 
+  it("publishes structured dependency waits before worker dispatch", async () => {
+    const appended: { type: string; payload: Record<string, unknown> }[] = [];
+    let dependencyId = "";
+    const planner = {
+      plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
+        const run = createCoordinationRun({ sessionId, rootGoal: goal, coordinatorAgentId: "alix" });
+        await store.save(run);
+        const producer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#1", taskLabel: "producer", goalPrompt: "produce", status: "completed",
+        });
+        dependencyId = producer.id;
+        const consumer = createWorkerAssignment({
+          coordinationRunId: run.id, agentId: "alix#2", taskLabel: "consumer", goalPrompt: "consume",
+          status: "completed", dependencies: [producer.id],
+        });
+        for (const worker of [producer, consumer]) {
+          await store.addWorker(run.id, worker);
+          await store.patchWorker(run.id, worker.id, { status: "completed" });
+        }
+        return { valid: true, errors: [], run: { ...run, workers: [producer, consumer] } };
+      },
+    } as any;
+    const eventLog = {
+      readAll: async () => [],
+      append: async (event: { type: string; payload: Record<string, unknown> }) => { appended.push(event); },
+    } as any;
+    const handlers = createCoordinationHandlers({ cwd, config: testConfig(), store, planner, eventLog });
+    const result = await handlers[COORDINATION_RUN_TOOL]({ goal: "produce then consume" });
+    assert.equal(result.kind, "success");
+    const assignments = appended.filter(event => event.type === "agent.task_assigned");
+    assert.equal(assignments.length, 2);
+    assert.deepEqual(assignments.map(event => event.payload.dependencyIds), [[], [dependencyId]]);
+    assert.deepEqual(assignments.map(event => event.payload.state), ["queued", "waiting_dependency"]);
+    const spawns = appended.filter(event => event.type === "agent.spawned");
+    assert.deepEqual(spawns.map(event => event.payload.dependencyIds), [[], [dependencyId]]);
+  });
+
   it("claims no changed files when no worker completed", async () => {
     const planner = {
       plan: async (goal: string, _coordinatorId: string, sessionId: string) => {
