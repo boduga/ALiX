@@ -10,7 +10,8 @@ Implementation progress:
 - Plan baseline committed as 00b2677a on feat/tui-workbench-preview-parity.
 - Phase 0 foundations: reference provenance/design decisions, event fixture and coverage ownership below. Fixture carries 38 actual events, five current agents/three running, 13 pictured transcript groups, two evidenced artifacts, and a distinct active write with 18 seconds elapsed.
 - Phase 1 partial: semantic theme and lifecycle labels implemented with truecolor, ANSI-16, monochrome and ASCII/Unicode capability choices. Existing region painters are not switched yet; visual parity remains pending.
-- Open Phase 1 gates: structured dependency projection, typed tool-card line metadata, current-context measurement and future live adapters. Existing TaskProjection maps dependency-waiting agent events to running task state; resolve task wait semantics before sidebar delivery.
+- Phase 1 dependency readiness: task rows preserve structured dependency IDs and distinguish dependency/approval waits from running work; coordination assignment events supply these facts and the task drawer reports waiting totals.
+- Open Phase 1 gates: typed tool-card line metadata, current-context measurement and future live adapters.
 - Phases 2–10 pending. No new pane geometry, controls, inspector or coordination launch shipped.
 
 ## Objective

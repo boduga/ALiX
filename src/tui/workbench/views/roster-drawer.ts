@@ -13,7 +13,7 @@ function fit(text: string, width: number): string {
 
 function taskStateGlyph(state: TaskRosterSnapshot['tasks'][number]['state']): string {
   if (state === 'running') return '●';
-  if (state === 'queued' || state === 'assigned') return '◌';
+  if (state === 'queued' || state === 'assigned' || state === 'waiting_dependency' || state === 'waiting_approval') return '◌';
   if (state === 'completed') return '✓';
   if (state === 'partial') return '◐';
   if (state === 'failed') return '✗';
@@ -63,7 +63,7 @@ export function paintRosterDrawer(input: {
   const title = layout.drawer === 'agents'
     ? `AGENTS  ${input.agents?.active ?? 0} active`
     : layout.drawer === 'tasks'
-      ? `TASKS  ${input.tasks?.running ?? 0} running · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`
+      ? `TASKS  ${input.tasks?.running ?? 0} running${input.tasks?.waiting ? ` · ${input.tasks.waiting} waiting` : ''} · ${input.tasks?.queued ?? 0} queued · ${input.tasks?.blocked ?? 0} blocked`
       : `ARTIFACTS  ${input.artifacts?.artifacts ?? 0} files · ${input.artifacts?.results ?? 0} results`;
   canvas.write(left + 2, top, `\x1b[1m${fit(title, inner)}${RESET}`);
   canvas.write(left + 2, top + 1, `\x1b[90m${'─'.repeat(inner)}${RESET}`);
