@@ -12,6 +12,7 @@ import "node:os";
 import "node:path";
 import "node:crypto";
 import type { ToolCall } from "../../providers/types.js";
+import { resolveExecutableToolName, ToolNotFoundError, type OfferedExecutableTool } from '../../agents/tool-name-resolver.js';
 import type { EventLog } from "../../events/event-log.js";
 import "../../task-classifier.js";
 import "../../run.js";
@@ -29,7 +30,7 @@ import "../../observability/state-telemetry.js";
 import "../../config/model-resolver.js";
 import "../../runtime/tool-correlation.js";
 import "../../runtime/cancellation-token.js";
-import { ALIX_BUILTIN_EXECUTORS, isCompletionToolName, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
+import { isCompletionToolName, type AlixBuiltinToolName } from "../../agents/tool-manifest.js";
 import {
   builtinCandidateId,
   builtinNameOf,
@@ -185,14 +186,39 @@ export const SHORT_SYNTHESIS_THRESHOLD = 200;
  */
 export const isCompletionTool = isCompletionToolName;
 
+/**
+ * Executor id for a name the MODEL called, for TELEMETRY AND EVIDENCE labels.
+ *
+ * This is NOT the dispatch path. `handleToolCall` in `src/run/event-handlers.ts`
+ * resolves through `resolveExecutableToolName` against the offered surface and
+ * dispatches on that result; this exists because the loop needs the same string
+ * for hook payloads, evidence names, and the selection observation, and the
+ * handler does not return it.
+ *
+ * It previously hand-rolled a second, LENIENT resolution: it consulted
+ * `selectedTools` — the relevance-truncated selector list, capped at 20 against
+ * a 24-tool registry — rather than the tools actually offered, and fell back to
+ * returning its own input. Instrumenting the real path found 102 of 170 calls
+ * asking for a name absent from `selectedTools`; built-ins were rescued by a
+ * manifest lookup that happened to be in the chain, but a non-manifest tool such
+ * as `langfuse_trace_export` fell through and had its MODEL-FACING name recorded
+ * as if it were an executor id.
+ *
+ * Now it delegates to the one canonical resolver, given the one offered surface
+ * (`buildOfferedExecutableTools`). The fall-through survives — telemetry must not
+ * throw and abort a turn — but it is now the last resort rather than the
+ * primary path, and it only fires for a name that was genuinely not offered.
+ */
 export function resolveToolExecutionName(
   toolName: string,
-  selectedTools: ReadonlyArray<{ name: string; execName: string }>,
+  offered: ReadonlyArray<OfferedExecutableTool>,
 ): string {
-  return selectedTools.find((tool) => tool.name === toolName)?.execName
-    ?? (Object.hasOwn(ALIX_BUILTIN_EXECUTORS, toolName)
-      ? ALIX_BUILTIN_EXECUTORS[toolName as keyof typeof ALIX_BUILTIN_EXECUTORS]
-      : toolName);
+  try {
+    return resolveExecutableToolName(toolName, offered);
+  } catch (error) {
+    if (error instanceof ToolNotFoundError) return toolName;
+    throw error;
+  }
 }
 
 /**

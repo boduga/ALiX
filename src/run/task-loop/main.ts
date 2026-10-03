@@ -60,6 +60,7 @@ import { CONTEXT_EVENT_TYPES, TOOL_EVENT_TYPES, type TokenCalibrationPayload, ty
 import { hashArgs } from "../../tools/executor.js";
 import { loadCalibration, type ContextRotThreshold } from "../../config/calibration-store.js";
 import { resolveModelConfig } from "../../config/model-resolver.js";
+import { buildOfferedExecutableTools } from '../../agents/tool-name-resolver.js';
 import type { ModelsConfig } from "../../config/schema.js";
 import {
   DEFAULT_TOOL_EXECUTION_POLICY,
@@ -125,14 +126,14 @@ async function emitSelectionObservation(
     iteration: number;
     invocationId?: string;
     toolCall: ToolCall;
-    /** Same shape the loop resolves executor names from (name + execName). */
-    selectedTools: Parameters<typeof resolveToolExecutionName>[1];
+    /** The same offered surface the loop resolves executor names from. */
+    offered: Parameters<typeof resolveToolExecutionName>[1];
     seenSignatures: Map<string, number>;
     toolResult: { error?: unknown; message?: { content?: unknown }; changed?: boolean };
     context: SelectionObservationContext;
   },
 ): Promise<void> {
-  const execName = resolveToolExecutionName(input.toolCall.name, input.selectedTools);
+  const execName = resolveToolExecutionName(input.toolCall.name, input.offered);
   const body = toolResultBody(
     typeof input.toolResult.message?.content === "string" ? input.toolResult.message.content : undefined,
   );
@@ -718,6 +719,13 @@ const hasMutations = sessionState.created.size > 0 || sessionState.changed.size 
     extendedTools,
     reintroducedTools,
   });
+
+  // THE resolution surface for telemetry labels (hooks, evidence names, the
+  // selection observation). It is the tools ACTUALLY OFFERED, paired with MCP
+  // executors — NOT `selectedTools`, which is the relevance-truncated selector
+  // list (capped at 20 against a 24-tool registry) and was the reason 102 of
+  // 170 resolutions asked for a name the resolver could not find.
+  const offeredForResolution = buildOfferedExecutableTools(wireTools, mcpToolIndex);
 
   // ── I1: Inject progress ledger BEFORE budget admission so it is
   // token-accounted (Tier 3, protected); see injectProgressLedger.
@@ -1352,12 +1360,12 @@ if (toolCalls.length === 0) {
     onProgress?.("tool_completed", toolCall.name);
 
     if (deps.hookRunner) {
-      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
       const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
     }
     if (deps.hookRunner && toolResult.error) {
-      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
       const hr = await deps.hookRunner.execute("on_tool_error", {
         type: "tool_error",
         data: { toolName: execName, args: toolCall.args, error: toolResult.error.message, retryable: toolResult.error.retryable },
@@ -1373,7 +1381,7 @@ if (toolCalls.length === 0) {
       }
     }
 
-    if (resolveToolExecutionName(toolCall.name, selectedTools) === COORDINATION_RUN_TOOL_NAME) {
+    if (resolveToolExecutionName(toolCall.name, offeredForResolution) === COORDINATION_RUN_TOOL_NAME) {
       // A failed invocation is unambiguously not completion. A *successful*
       // invocation is not completion either: the gate needs the run's derived
       // dimensions (execution terminal, aggregate generated, outcome known,
@@ -1384,7 +1392,7 @@ if (toolCalls.length === 0) {
     }
     usedTools.add(toolCall.name);
     if (!toolResult.error) {
-      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
       const changedFiles = toolResult.changedFiles ?? [];
       successfulToolEvidence.push({
         name: execName,
@@ -1414,7 +1422,7 @@ if (toolCalls.length === 0) {
         iteration: i,
         ...(invocationId ? { invocationId } : {}),
         toolCall,
-        selectedTools,
+        offered: offeredForResolution,
         seenSignatures: selectionSignatures,
         toolResult,
         context: {
@@ -1442,7 +1450,7 @@ if (toolCalls.length === 0) {
 
   async function runPreToolHook(toolCall: ToolCall): Promise<void> {
     if (deps.hookRunner) {
-      const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+      const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
       const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
       if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
     }
@@ -1486,7 +1494,7 @@ if (toolCalls.length === 0) {
               description: `Scope expansion denied for file changes`,
               outcome: "rejected",
             });
-            const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+            const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
             const pathsToCheck = extractMutationPaths(execName, toolCall.args);
             const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
             if (deniedPaths.length > 0) {
@@ -1544,7 +1552,7 @@ if (toolCalls.length === 0) {
         iteration: i,
         ...(invocationId ? { invocationId } : {}),
         toolCall,
-        selectedTools,
+        offered: offeredForResolution,
         seenSignatures: selectionSignatures,
         toolResult: { message: mcpSearchResult.message },
         context: {
@@ -1596,7 +1604,7 @@ if (toolCalls.length === 0) {
             description: `Scope expansion denied for file changes`,
             outcome: "rejected",
           });
-          const execName = resolveToolExecutionName(toolCall.name, selectedTools);
+          const execName = resolveToolExecutionName(toolCall.name, offeredForResolution);
           // Check if we have paths to report denial for
           const pathsToCheck = extractMutationPaths(execName, toolCall.args);
           const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");

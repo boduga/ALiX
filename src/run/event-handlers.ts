@@ -8,7 +8,7 @@
  */
 
 import { ALIX_BUILTIN_EXECUTORS } from "../agents/tool-manifest.js";
-import { resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
+import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../agents/tool-name-resolver.js";
 import { TOOL_EVENT_TYPES } from "../events/types.js";
 import type { NormalizedMessage, ToolCall, ToolDef } from "../providers/types.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
@@ -340,10 +340,7 @@ export async function handleToolCall(
   changedFiles?: string[];
 }> {
   const visibleTools = deps.offeredTools ?? [...BASE_TOOLS, ...deps.selectedTools];
-  const offered = visibleTools.map((tool) => ({
-    name: tool.name,
-    execName: deps.mcpToolIndex.find((entry) => entry.name === tool.name)?.execName,
-  }));
+  const offered = buildOfferedExecutableTools(visibleTools, deps.mcpToolIndex);
   let execName: string;
   try {
     execName = resolveExecutableToolName(toolCall.name, offered);

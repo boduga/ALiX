@@ -51,7 +51,21 @@ existing import paths are unchanged.
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
 **Local Contracts:**
-- **The completion tool has TWO vocabularies and this loop only ever holds the
+- **Telemetry labels resolve against the OFFERED surface, not `selectedTools`.**
+  `resolveToolExecutionName` (in `predicates.ts`) exists only to label hook
+  payloads, evidence names, and the selection observation — `handleToolCall` in
+  `src/run/event-handlers.ts` does the real resolution and dispatch. It delegates
+  to the canonical `resolveExecutableToolName` over
+  `buildOfferedExecutableTools(wireTools, mcpToolIndex)`. It must NOT be handed
+  `selectedTools`: that is the relevance-truncated selector list (capped at 20
+  against a 24-tool registry) and is routinely missing tools that were offered.
+  The previous hand-rolled fallback hid this — a manifest lookup in the chain
+  rescued built-ins, so 102 of 170 resolutions asked for a name it could not
+  find and nothing failed. Falsifying the unit tests showed they cannot catch
+  this (supply the right list and the old code passes); the call site is pinned
+  by `tests/run/task-loop-shed-tool.vitest.ts`, which drives the loop with
+  `selectedTools: []`.
+- **The completion tool has TWO vocabulararies and this loop only ever holds the
   model-facing one.** `isCompletionTool` here is `isCompletionToolName` from
   `src/agents/tool-manifest.ts`, which matches the name the MODEL called. That is
   correct for every caller in this subsystem because the loop resolves to an

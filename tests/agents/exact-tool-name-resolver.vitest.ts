@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { resolveExecutableToolName, ToolNotFoundError } from "../../src/agents/tool-name-resolver.js";
+import { buildOfferedExecutableTools, resolveExecutableToolName, ToolNotFoundError } from "../../src/agents/tool-name-resolver.js";
+import { resolveToolExecutionName } from '../../src/run/task-loop/predicates.js';
 import { ALIX_BUILTIN_EXECUTORS, ALIX_EXECUTOR_TO_MODEL_FACING, COMPLETION_MODEL_FACING, isCompletionExecName, isCompletionToolName } from "../../src/agents/tool-manifest.js";
 
 describe("exact model tool name resolution", () => {
@@ -96,5 +97,51 @@ describe("completion-tool vocabulary", () => {
     expect(COMPLETION_MODEL_FACING).toBe("alix_done");
     expect(COMPLETION_MODEL_FACING).toBe(ALIX_EXECUTOR_TO_MODEL_FACING.get("task.complete"));
     expect(COMPLETION_MODEL_FACING).not.toBe("task.complete");
+  });
+});
+
+describe("offered-surface composition", () => {
+  it("resolves every offered built-in to its executor, never to itself", () => {
+    // The invariant the task loop's telemetry labels depend on. It previously
+    // had no test: resolution was hand-rolled against `selectedTools`, the
+    // relevance-truncated selector list (capped at 20 against a 24-tool
+    // registry), so a tool that was OFFERED but truncated out could not be
+    // found. Built-ins were rescued by a manifest lookup that happened to sit in
+    // the fallback chain; anything without a manifest entry was not, and its
+    // model-facing name was recorded as if it were an executor id.
+    const offered = buildOfferedExecutableTools(
+      Object.keys(ALIX_BUILTIN_EXECUTORS).map((name) => ({ name })),
+    );
+    for (const tool of offered) {
+      const exec = resolveToolExecutionName(tool.name, offered);
+      expect(exec).not.toBe(tool.name);
+      expect(exec).toBe(ALIX_BUILTIN_EXECUTORS[tool.name as keyof typeof ALIX_BUILTIN_EXECUTORS]);
+    }
+  });
+
+  it("resolves a tool that is offered but ABSENT from a truncated selector list", () => {
+    // The regression, stated as a case. `selectedTools` was the wrong list; the
+    // fix reads the offered surface instead. A built-in must resolve correctly
+    // even when some other selector would have dropped it.
+    const offered = buildOfferedExecutableTools([{ name: "alix_file_read" }]);
+    expect(resolveToolExecutionName("alix_file_read", offered)).toBe("file.read");
+  });
+
+  it("keeps an MCP handle resolvable via its index pairing", () => {
+    const offered = buildOfferedExecutableTools(
+      [{ name: "mcp__langfuse__export" }],
+      [{ name: "mcp__langfuse__export", execName: "mcp.langfuse.export" }],
+    );
+    expect(resolveToolExecutionName("mcp__langfuse__export", offered)).toBe("mcp.langfuse.export");
+  });
+
+  it("returns the input for a name that was genuinely NOT offered", () => {
+    // Telemetry must never throw and abort a turn, so the fall-through stays —
+    // but it is now the LAST resort rather than the primary path. Previously
+    // this was the outcome for 102 of 170 calls; now only for names the model
+    // genuinely could not have been offered.
+    const offered = buildOfferedExecutableTools([{ name: "alix_file_read" }]);
+    expect(resolveToolExecutionName("alix_tool_0", offered)).toBe("alix_tool_0");
+    expect(resolveToolExecutionName("alix_docs_search", offered)).toBe("alix_docs_search");
   });
 });
