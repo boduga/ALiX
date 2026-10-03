@@ -52,20 +52,6 @@ function partsWidth(parts: readonly ChromePart[], separator: string): number {
     + Math.max(0, parts.length - 1) * displayWidth(separator);
 }
 
-const BANNER_GLYPHS: Readonly<Record<string, readonly [string, string, string]>> = {
-  A: ['▄█▄', '█▄█', '█ █'], L: ['█  ', '█  ', '███'],
-  i: [' ▀ ', ' █ ', ' █ '], X: ['█ █', ' ▀ ', '█ █'],
-  ' ': ['   ', '   ', '   '], W: ['█ █', '█▄█', '▀ ▀'],
-  O: ['███', '█ █', '███'], R: ['██▄', '█▄▀', '█ █'],
-  K: ['█ █', '██ ', '█ █'], B: ['██▄', '██▄', '██▀'],
-  E: ['███', '██ ', '███'], N: ['█▄█', '█▀█', '█ █'],
-  C: ['███', '█  ', '███'], H: ['█ █', '███', '█ █'],
-};
-
-function workbenchBanner(): readonly string[] {
-  return [0, 1, 2].map(row => [...'ALiX WORKBENCH'].map(letter => BANNER_GLYPHS[letter]![row]).join(' '));
-}
-
 /** Preview chrome preserves the shared three-row header and one-row footer. */
 export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const { canvas, width, height, model } = input;
@@ -79,12 +65,7 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const badge = model.demo ? 'CONCEPT PREVIEW' : 'PREVIEW';
   const brandParts: ChromePart[] = [{ text: brand, color: `${palette.cyan}\x1b[1m` }];
   if (brand && displayWidth(brand) + badge.length + 3 <= budget) brandParts.push({ text: badge, color: palette.muted });
-  const largeBanner = width >= 120 && height >= 12 && theme.glyphMode === 'unicode';
-  if (largeBanner) {
-    for (const [row, text] of workbenchBanner().entries()) canvas.write(1, row, `${palette.cyan}\x1b[1m${text}${RESET}`);
-  } else {
-    paintParts(canvas, 0, 1, brandParts, '  ', palette.muted);
-  }
+  paintParts(canvas, 0, 1, brandParts, '  ', palette.muted);
 
   const facts: ChromePart[] = [{ text: model.mode, color: modeColor }];
   if (model.agents?.waitingApproval) facts.push({ text: `${model.agents.waitingApproval} ${model.agents.waitingApproval === 1 ? 'approval' : 'approvals'}`, color: palette.yellow });
@@ -93,19 +74,7 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const factsWidth = partsWidth(facts, ' | ');
   const brandWidth = partsWidth(brandParts, '  ');
   const available = budget - brandWidth - 3 - factsWidth - 3;
-  if (largeBanner) {
-    const start = 1 + displayWidth(workbenchBanner()[0]!) + 3;
-    const metadataBudget = width - start - 1;
-    const selected: ChromePart[] = [];
-    for (const fact of facts) {
-      if (partsWidth([...selected, fact], ' | ') <= metadataBudget) selected.push(fact);
-    }
-    const factWidth = partsWidth(selected, ' | ');
-    if (badge.length + factWidth + 3 <= metadataBudget) canvas.write(start, 0, `${palette.muted}${badge}${RESET}`);
-    paintParts(canvas, 0, width - factWidth - 1, selected, ' | ', palette.muted);
-    const path = fitEnd(model.workspace, metadataBudget - 11);
-    if (path) canvas.write(start, 1, `${palette.muted}workspace: ${palette.cyan}${path}${RESET}`);
-  } else if (available >= 12) {
+  if (available >= 12) {
     const path = fitEnd(model.workspace, available - 11);
     const workspace: ChromePart = { text: `workspace: ${path}`, color: palette.cyan };
     const right = [workspace, ...facts];

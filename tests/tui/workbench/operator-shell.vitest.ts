@@ -38,8 +38,8 @@ describe('Agent Workbench operator shell', () => {
     paintOperatorShell({ canvas, width: 200, height: 44, model });
     const frame = visible(canvas.renderFrame());
 
-    expect(frame).toContain('▄█▄ █    ▀  █ █');
-    expect(frame).toContain('█▄█ █    █   ▀ ');
+    expect(frame).toContain('ALiX WORKBENCH');
+    expect(frame).toContain('PREVIEW');
     expect(frame).toContain('/workspace/projects/ALiX');
     expect(frame).toContain('auto');
     expect(frame).toContain('TOKENS 3,918 | FILES 3 | EVENTS 1,204');
@@ -112,11 +112,11 @@ describe('Agent Workbench operator shell', () => {
       agents: { active: 3, total: 4, running: 3, waitingApproval: 0, stalled: 0, costCoverage: 0 } };
     paintOperatorShell({ canvas, width: 200, height: 44, model });
     const rows = visible(canvas.renderFrame()).split('\n');
-    expect(rows[0]).toContain('▄█▄ █    ▀  █ █');
+    expect(rows[0]).toContain('ALiX WORKBENCH');
     expect(rows[0]).toContain('PREVIEW');
     expect(rows[0]).toContain('auto | 4 agents • 3 running');
-    expect(rows[1]).toContain('workspace: /workspace/projects/ALiX');
-    expect(rows[2]).toContain('█ █ ███  █  █ █');
+    expect(rows[0]).toContain('workspace: /workspace/projects/ALiX');
+    expect(rows[2]!.trim()).toBe('');
     expect(rows[2]).not.toContain('─');
     expect(rows[43]).toContain('Tab views • Ctrl+O details • Ctrl+R artifacts • Esc cancel');
     expect(rows[43]).toContain('TOKENS 3,918 | FILES 3 | EVENTS 1,204 | AGENTS 4');
@@ -179,13 +179,16 @@ describe('Agent Workbench operator shell', () => {
     expect(frame).not.toContain('█');
   });
 
-  it('paints a three-row bold cyan banner without extending header geometry', () => {
+  it('paints a one-row bold cyan title without extending header geometry', () => {
     const canvas = new TerminalCanvas(200, 44);
     canvas.write(0, 3, 'body marker');
     paintOperatorShell({ canvas, width: 200, height: 44, model: projectOperatorShell(snapshot(), createInitialPerTabState()) });
     const raw = canvas.renderFrame();
     const rows = visible(raw).split('\n');
-    for (const row of rows.slice(0, 3)) expect(row).toContain('█');
+    expect(rows[0]).toContain('ALiX WORKBENCH');
+    expect(rows[1]!.trim()).toBe('');
+    expect(raw).not.toMatch(/[█▄▀]/u);
+    expect(rows[2]!.trim()).toBe('');
     expect(raw).toContain('\x1b[38;2;6;201;239m\x1b[1m');
     expect(rows[3]).toContain('body marker');
     expect(rows[2]).not.toContain('─');
@@ -202,14 +205,14 @@ describe('Agent Workbench operator shell', () => {
     }
   });
 
-  it('truncates Unicode workspace beside the large banner without overwriting it', () => {
-    const canvas = new TerminalCanvas(120, 24);
-    paintOperatorShell({ canvas, width: 120, height: 24,
+  it('truncates Unicode workspace without overwriting the title', () => {
+    const canvas = new TerminalCanvas(52, 24);
+    paintOperatorShell({ canvas, width: 52, height: 24,
       model: { ...projectOperatorShell(snapshot(), createInitialPerTabState()), workspace: '/very/long/workspace/調査調査/another/long/path/ALiX' } });
     const rows = visible(canvas.renderFrame()).split('\n');
-    expect(rows[1]).toContain('█▄█ █    █   ▀ ');
-    expect(rows[1]).toContain('workspace: …');
-    expect(rows[1]).toContain('/ALiX');
+    expect(rows[0]).toContain('ALiX WORKBENCH');
+    expect(rows[0]).toContain('workspace: …');
+    expect(rows[0]).toContain('/ALiX');
     expect(rows[0]).toContain('auto');
   });
 
