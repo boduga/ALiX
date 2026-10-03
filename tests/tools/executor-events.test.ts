@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { EventLog } from "../../src/events/event-log.js";
 import { ToolExecutor } from "../../src/tools/executor.js";
+import { buildExecutionTrace } from "../../src/tui/runtime/execution-trace-builder.js";
 import type { AlixConfig } from "../../src/config/schema.js";
 
 describe("Tool Executor Events", () => {
@@ -74,6 +75,38 @@ describe("Tool Executor Events", () => {
     assert.equal(payload.toolName, "file.read");
     assert.equal(payload.capability, "file.read");
     assert.ok(payload.argsPreview);
+  });
+
+  it("carries full-read counts through truncated output into trace metadata", async () => {
+    const content = Array.from({ length: 142 }, (_, index) => `line-${index}`).join("\n") + "\n";
+    await writeFile(join(testDir, "test.txt"), content);
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    const result = await executor.execute({
+      toolCallId: "read-count", name: "file.read", agentId: "frontend",
+      args: { path: "test.txt", startLine: 1, endLine: 200 },
+    });
+    assert.equal(result.kind, "success");
+    const events = await eventLog.readAll();
+    const output = events.find(event => event.type === "tool.output");
+    assert.ok(output);
+    assert.ok(String((output.payload as Record<string, unknown>).outputPreview).length < content.length);
+    const trace = buildExecutionTrace(events);
+    assert.deepEqual(trace.find(row => row.toolMetadata?.toolCallId === "read-count")?.toolMetadata, {
+      toolCallId: "read-count", path: "test.txt", requestedRange: { startLine: 1, endLine: 200 }, observedLineCount: 142,
+    });
+  });
+
+  it("publishes known zero for empty reads and no counts for failed reads", async () => {
+    await writeFile(join(testDir, "test.txt"), "");
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    await executor.execute({ toolCallId: "empty-count", name: "file.read", args: { path: "test.txt" } });
+    await executor.execute({ toolCallId: "failed-count", name: "file.read", args: { path: "missing.txt" } });
+    const events = await eventLog.readAll();
+    const completed = events.find(event => event.type === "tool.completed");
+    assert.equal((completed?.payload as Record<string, unknown>).observedLineCount, 0);
+    const failed = events.find(event => event.type === "tool.failed");
+    assert.ok(failed);
+    assert.equal((failed.payload as Record<string, unknown>).observedLineCount, undefined);
   });
 
   it("emits tool.started after tool.requested", async () => {

@@ -38,6 +38,7 @@ reason about.
   model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
   tool that is not in the manifest has no name the model can call and no type
   that admits it. Every registry entry must have a manifest counterpart.
+- Full file reads measure LF-delimited lines from actual returned content before telemetry truncation. Empty content reports zero; a trailing LF terminates its line without adding an empty line. Successful completion events forward only nonnegative safe-integer measurements supplied by tools. Missing measurements stay absent; request ranges and output previews never establish counts.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
