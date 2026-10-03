@@ -230,6 +230,37 @@ describe('Workbench agent and task projections', () => {
     });
   });
 
+  it('samples live elapsed time without rewriting progress or prior snapshots', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([
+      event(1, 'agent.spawned', { agentId: 'agent', ownedPaths: ['src/a.ts'] }),
+      event(2, 'tool.started', { agentId: 'agent', toolCallId: 'call', toolName: 'file.read' }),
+      event(3, 'agent.usage', { agentId: 'agent', totalTokens: 0, costUsd: 0 }),
+    ]);
+    const first = agents.snapshot(4000);
+    expect(first.agents[0]!.activeTool).toMatchObject({ elapsedMs: 2000, lastProgressAt: 2000 });
+    expect(agents.snapshot(20_000).agents[0]!.activeTool).toMatchObject({ elapsedMs: 18_000, lastProgressAt: 2000 });
+    expect(first.agents[0]!.activeTool!.elapsedMs).toBe(2000);
+    expect(agents.snapshot(1000).agents[0]!.activeTool!.elapsedMs).toBe(0);
+    expect(agents.snapshot(NaN).agents[0]!.activeTool!.elapsedMs).toBe(1000);
+    (first.agents[0]!.ownedPaths as string[]).push('forged');
+    (first.agents[0]!.usage as { totalTokens: number }).totalTokens = 999;
+    (first.agents[0]!.activeTool as { startedAt: number }).startedAt = 999;
+    expect(agents.snapshot(4000).agents[0]).toMatchObject({ ownedPaths: ['src/a.ts'], usage: { totalTokens: 0, costUsd: 0 }, activeTool: { startedAt: 2000 } });
+  });
+
+  it('does not treat context budgets or assembly tallies as worker context usage', () => {
+    const agents = new AgentRosterProjection();
+    agents.update([
+      event(1, 'agent.spawned', { agentId: 'agent', state: 'thinking' }),
+      event(2, 'context.budget.computed', { invocationId: 'invocation', contextWindowTokens: 100_000 }),
+      event(3, 'context.assembled', { invocationId: 'invocation', admittedTokens: 5000 }),
+      event(4, 'agent.usage', { agentId: 'agent', totalTokens: 7352, contextWindowTokens: 100_000 }),
+    ]);
+    expect(agents.snapshot(4000).agents[0]!.usage).toEqual({ totalTokens: 7352, contextWindowTokens: 100_000 });
+    expect(agents.snapshot(4000).agents).toHaveLength(1);
+  });
+
   it('correlates live tool activity by agent and tool call identity', () => {
     const agents = new AgentRosterProjection();
     agents.update([
@@ -239,7 +270,7 @@ describe('Workbench agent and task projections', () => {
       event(5, 'tool.completed', { agentId: 'agent-1', toolCallId: 'other-tool', toolName: 'file.read', durationMs: 1 }),
     ]);
 
-    expect(agents.snapshot().agents[0]).toMatchObject({
+    expect(agents.snapshot(4000).agents[0]).toMatchObject({
       state: 'tool_running',
       activeTool: { toolCallId: 'tool-1', toolName: 'grep.search', elapsedMs: 2000 },
     });

@@ -89,7 +89,7 @@ describe('event-backed Workbench preview reference', () => {
 
   it('keeps completed cards separate from the active write and unknown usage absent', () => {
     const frontend = project([fixture.events]).agents.agents.find(agent => agent.agentId === fixture.selectedAgentId)!;
-    expect(frontend.activeTool).toMatchObject({ toolCallId: fixture.expected.activeToolCallId, toolName: 'patch.apply' });
+    expect(frontend.activeTool).toMatchObject({ toolCallId: fixture.expected.activeToolCallId, toolName: 'patch.apply', elapsedMs: fixture.expected.activeElapsedMs });
     expect(Date.parse(fixture.now) - frontend.activeTool!.startedAt).toBe(fixture.expected.activeElapsedMs);
     expect(frontend.usage).toEqual({ totalTokens: 7352 });
     expect(frontend.usage.contextWindowTokens).toBeUndefined();
