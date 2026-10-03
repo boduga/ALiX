@@ -1,3 +1,5 @@
+import { resolveWorkbenchSurfaceGeometry } from '../layout/responsive-layout.js';
+import type { WorkbenchDrawer } from '../model/ui-state.js';
 import { displayWidth, wrapDisplayText } from '../render/terminal-text.js';
 
 export interface ComposerLayout {
@@ -35,4 +37,17 @@ export function layoutComposer(text: string, columns: number, maxRows = 5, curso
     cursorColumn,
     hiddenRows,
   };
+}
+
+/** Shared full-width composer and pane geometry for painting, scrolling and caret placement. */
+export function layoutWorkbenchSurface(
+  text: string,
+  dimensions: { readonly columns: number; readonly rows: number },
+  drawer: WorkbenchDrawer,
+  cursor = text.length,
+) {
+  const initial = resolveWorkbenchSurfaceGeometry(dimensions.columns, dimensions.rows, drawer);
+  const composer = layoutComposer(text, initial.regions.composer.width, initial.maxComposerRows, cursor);
+  const geometry = resolveWorkbenchSurfaceGeometry(dimensions.columns, dimensions.rows, drawer, composer.rows.length);
+  return { composer, geometry };
 }

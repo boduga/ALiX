@@ -9,6 +9,17 @@ import type { ToolItem, TranscriptMode } from '../model/transcript-item.js';
 import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
 import { approvalVisibleTo } from '../model/selection.js';
 
+function tagRows(out: ScrollbackLine[], start: number, itemId: string): void {
+  for (let index = start; index < out.length; index++) {
+    out[index]!.itemId = itemId;
+    out[index]!.wrappedOffset = index - start;
+  }
+}
+
+function appendSeparator(out: ScrollbackLine[], itemId: string): void {
+  if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false, itemId: `separator:${itemId}`, wrappedOffset: 0 });
+}
+
 function appendRendered(
   out: ScrollbackLine[],
   kind: 'user' | 'agent',
@@ -70,21 +81,26 @@ export function buildWorkbenchScrollbackLines(
   });
 
   if (focusAgentId) {
+    const start = out.length;
     wrapText(`focused agent: ${focusAgentId}`, textWidth).forEach((text, index) => {
       out.push({ kind: 'context', text, isFirst: index === 0 });
     });
+    tagRows(out, start, `scope:agent:${focusAgentId}`);
   }
   if (!focusAgentId && ctx.workbenchUiState) {
+    const start = out.length;
     const aggregate = ctx.workbenchUiState.selectedRunId
       ? `all agents · run ${ctx.workbenchUiState.selectedRunId}`
       : 'all agents';
     wrapText(aggregate, textWidth).forEach((text, index) => {
       out.push({ kind: 'context', text, isFirst: index === 0 });
     });
+    tagRows(out, start, `scope:run:${ctx.workbenchUiState.selectedRunId ?? 'all'}`);
   }
 
   for (const item of conversation.items) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    appendSeparator(out, item.id);
+    const start = out.length;
 
     switch (item.kind) {
       case 'user':
@@ -150,13 +166,15 @@ export function buildWorkbenchScrollbackLines(
         break;
       }
     }
+    tagRows(out, start, item.id);
   }
 
   // Runtime projection and timeline sampling can arrive in adjacent frames.
   // Preserve the authoritative pending action even before its semantic event
   // becomes visible; once present, the branch above places it in exact order.
   if (pendingApproval && !inlineApprovalRendered) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    appendSeparator(out, `pending-approval:${pendingApproval.id}`);
+    const start = out.length;
     buildWorkbenchApprovalCardLines(
       pendingApproval,
       pendingApprovals.length,
@@ -169,11 +187,13 @@ export function buildWorkbenchScrollbackLines(
         ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
       });
     });
+    tagRows(out, start, `pending-approval:${pendingApproval.id}`);
   }
 
   const streaming = ctx.perTab.streamingText;
   if (streaming) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    appendSeparator(out, `streaming:${focusAgentId ?? 'all'}`);
+    const start = out.length;
     const lines = wrapText(streaming, textWidth);
     lines.forEach((text, index) => out.push({
       kind: 'streaming',
@@ -182,14 +202,17 @@ export function buildWorkbenchScrollbackLines(
       isLast: index === lines.length - 1,
       ...(index === 0 ? { gutter: 'ALiX' } : {}),
     }));
+    tagRows(out, start, `streaming:${focusAgentId ?? 'all'}`);
   } else {
     const activity = ctx.snap.session?.activity;
     const activityText = activity ? formatActivityLine(activity, Date.now()) : undefined;
     if (activityText) {
-      if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+      appendSeparator(out, `activity:${focusAgentId ?? 'all'}`);
+      const start = out.length;
       wrapText(activityText, textWidth).forEach((text, index) => {
         out.push({ kind: 'activity', text, isFirst: index === 0, ...(index === 0 ? { gutter: 'ALiX' } : {}) });
       });
+      tagRows(out, start, `activity:${focusAgentId ?? 'all'}`);
     }
   }
 

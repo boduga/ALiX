@@ -77,6 +77,17 @@ function context(
 }
 
 describe('Workbench scrollback', () => {
+  it('tags semantic rows with stable identities and wrap offsets across widths', () => {
+    const narrow = buildWorkbenchScrollbackLines(context('detailed'), 24);
+    const wide = buildWorkbenchScrollbackLines(context('detailed'), 90);
+    expect(narrow.every((line) => typeof line.itemId === 'string' && Number.isInteger(line.wrappedOffset))).toBe(true);
+    expect(new Set(narrow.map((line) => line.itemId))).toEqual(new Set(wide.map((line) => line.itemId)));
+    for (const itemId of new Set(narrow.map((line) => line.itemId))) {
+      const offsets = narrow.filter((line) => line.itemId === itemId).map((line) => line.wrappedOffset);
+      expect(offsets).toEqual(offsets.map((_, index) => index));
+    }
+  });
+
   it('keeps the compact transcript focused on work and outcomes', () => {
     const lines = buildWorkbenchScrollbackLines(context('compact'), 90);
     const text = lines.map((line) => line.text).join('\n');
@@ -99,6 +110,20 @@ describe('Workbench scrollback', () => {
 
     expect(text).toContain('context assembled');
     expect(text).toContain('context snapshot created');
+  });
+
+  it('keeps live streaming and scope identities stable across reflow', () => {
+    const renderContext = context('compact', [], []);
+    (renderContext.perTab as PerTabState).streamingText = 'A streaming response that wraps onto multiple narrow rows.';
+    (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
+      ...createInitialWorkbenchUiState(), selectedAgentId: 'worker-1',
+    };
+    const narrow = buildWorkbenchScrollbackLines(renderContext, 20);
+    const wide = buildWorkbenchScrollbackLines(renderContext, 90);
+    expect(narrow.filter((line) => line.kind === 'streaming').map((line) => line.wrappedOffset)).toEqual([0, 1, 2, 3]);
+    expect(narrow.filter((line) => line.kind === 'streaming').every((line) => line.itemId === 'streaming:worker-1')).toBe(true);
+    expect(wide.find((line) => line.kind === 'streaming')?.itemId).toBe('streaming:worker-1');
+    expect(narrow[0]?.itemId).toBe('scope:agent:worker-1');
   });
 
   it('preserves selected-agent focus after the drawer closes and supports aggregate view', () => {
@@ -226,5 +251,6 @@ describe('Workbench scrollback', () => {
     expect(text).toContain('file.write');
     expect(text).toContain('src/tui/app.ts');
     expect(lines.filter((line) => line.kind === 'approvalCard')).toHaveLength(6);
+    expect(lines.every((line) => line.itemId === 'pending-approval:approval-lag')).toBe(true);
   });
 });
