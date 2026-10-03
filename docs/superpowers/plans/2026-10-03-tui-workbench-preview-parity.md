@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phase 2 geometry complete. Phases 3–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–3 geometry/chrome complete. Phases 4–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -15,7 +15,8 @@ Implementation progress:
 - Phase 1 live-read readiness: file reads measure actual LF-delimited returned lines and executor completion events carry those counts before preview truncation, including known zero for empty files. Patch/write counts remain unavailable without their own authoritative producer.
 - Phase 1 source/fallback audit complete: every image datum has an existing projection source or explicit unavailable fallback, per the phase exit. Active-tool elapsed time is clock-sampled from its authoritative start; snapshot nesting is detached. Current worker-context consumption and patch/write line counts remain unavailable, not readiness blockers. Existing file reads do not execute requested line ranges; later painters must label them as requested. Live view integration belongs to the corresponding region phases.
 - Phase 2 geometry complete: shared named regions, left roster/center transcript/right inspector reservation at ≥160×36, full-width bounded composer, pane clipping, semantic resize anchors and matching hardware caret. Inspector section data, preview controls and coordination launch remain pending.
-- Phases 3–10 pending.
+- Phase 3 chrome complete: cyan brand/live PREVIEW badge, responsive workspace/mode/session-roster groups, accented keyboard hints, uppercase right-aligned counters, explicit unavailable telemetry and close/cancel/decision priority. Semantic theme alternatives and unchanged-row diff behavior verified.
+- Phases 4–10 pending.
 
 ## Objective
 
@@ -256,7 +257,9 @@ Exit: no overlap/negative geometry; painted caret matches terminal cursor; resiz
 
 ### Phase 3 — Header and footer
 
-Dependencies: 2. Coverage: H01–H06, F01–F06.
+Status: Complete 2026-10-03. Dependencies: 2. Coverage: H01–H06, F01–F06.
+
+Evidence: affected Workbench/bootstrap/status coverage totals 249 cases; broad run passed 248 and the corrected legacy-footer assertion passed in its focused file rerun. Build, unused-code, dead-module, DOX and eight-size real PTY checks passed. Spec-compliance and code-quality review passed. Chrome-update tests verify stable frames emit no patches, event totals repaint only footer, and lifecycle totals repaint header only. Live telemetry remains session-scoped; inspector data remains Phase 7.
 
 1. Implement brand/badge/workspace/mode/counts and right-aligned counters.
 2. Implement exact hint labels, accent keys, bullet/pipe separators and width-pressure priority: approval/cancel/mode before secondary counters.

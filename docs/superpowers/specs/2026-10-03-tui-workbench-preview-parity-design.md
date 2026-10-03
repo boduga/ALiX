@@ -110,3 +110,8 @@ Roster snapshots now derive active elapsed time from the supplied clock and auth
 ## 2026-10-03 Phase 2 implementation amendment
 
 Three persistent panes activate at ≥160 columns and ≥36 rows. At ≥120 columns and ≥12 rows, drawers sit left of the transcript; smaller surfaces use clipped overlays. The composer spans the terminal width and its bounded growth reallocates body height. One shared layout feeds wrapping, painting, bottom anchoring and hardware caret placement. Unpinned resize preserves semantic item identity plus nearest wrapped offset in a presentation cache without rewriting operator state. The right inspector currently reserves its rectangle and title; section data belongs to Phase 7. Legacy flag-disabled geometry remains unchanged.
+
+
+## 2026-10-03 Phase 3 chrome implementation amendment
+
+Preview chrome retains three header rows and one footer row so pane geometry and composer anchoring stay stable. Wide terminals place branding, live PREVIEW badge and workspace/mode/session-roster groups on the first row; narrower terminals move workspace and warning/count groups to the second. Demonstration presentation explicitly opts into CONCEPT PREVIEW. Footer hints use accent keys and whole groups; decisions and close/cancel outrank optional telemetry. Session-scoped counters preserve missing values as unavailable and explicit zero as known. Header/footer use semantic theme tokens with explicit monochrome/ASCII alternatives; other region painters integrate theme in their own phases.

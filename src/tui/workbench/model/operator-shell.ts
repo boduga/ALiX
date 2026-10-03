@@ -12,10 +12,12 @@ export interface OperatorShellSnapshot {
   readonly mode: 'auto' | 'ask' | 'bypass';
   readonly transcriptMode: 'compact' | 'detailed';
   readonly running: boolean;
-  readonly tokensUsed: number;
-  readonly filesTouched: number;
-  readonly eventCount: number;
+  readonly tokensUsed?: number;
+  readonly filesTouched?: number;
+  readonly eventCount?: number;
   readonly queuedMessages: number;
+  readonly escapeAction?: 'close' | 'cancel' | 'none';
+  readonly demo?: boolean;
   readonly approval?: OperatorShellApproval;
   readonly agents?: {
     readonly active: number;
@@ -38,6 +40,7 @@ export function projectOperatorShell(
   agentState: PerTabState,
   liveMode?: 'auto' | 'ask' | 'bypass',
   queuedMessages = 0,
+  presentation: { readonly closeSurface?: boolean; readonly demo?: boolean } = {},
 ): OperatorShellSnapshot {
   const pending = agentState.pendingApprovals ?? [];
   const oldest = pending[0];
@@ -54,10 +57,12 @@ export function projectOperatorShell(
     mode: liveMode ?? snap.session?.mode ?? 'auto',
     transcriptMode: agentState.transcriptMode ?? 'compact',
     running: snap.session !== null && snap.session.phase !== SessionPhase.Idle,
-    tokensUsed: snap.runtime?.metrics?.tokensUsed ?? 0,
-    filesTouched: snap.session?.filesTouched ?? 0,
-    eventCount: snap.runtime?.totalEventCount ?? 0,
+    tokensUsed: snap.runtime?.metrics?.tokensUsed,
+    filesTouched: snap.session?.filesTouched,
+    eventCount: snap.runtime?.totalEventCount,
     queuedMessages,
+    escapeAction: presentation.closeSurface ? 'close' : snap.session !== null && snap.session.phase !== SessionPhase.Idle ? 'cancel' : 'none',
+    ...(presentation.demo ? { demo: true } : {}),
     ...(approval ? { approval } : {}),
     ...(roster ? { agents: {
       active: roster.active,
