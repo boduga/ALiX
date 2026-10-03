@@ -1,4 +1,7 @@
 // src/tui/capabilities/capability-service.ts
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CapabilityPlatform } from '../../capability/platform.js';
 import { registerInitialCapabilities } from '../../capability/initial-capabilities.js';
 import { registerRegistryToolCapabilities } from '../../capability/registry-capabilities.js';
@@ -72,8 +75,10 @@ export class CapabilityService {
       actor: 'operator',
       cwd: process.cwd(),
       toolExecutor: undefined,
-      catalogDir: undefined,
       ...opts,
+      // AFTER the spread, so an explicitly-passed `catalogDir: undefined` cannot
+      // clobber the default back to "inherit process.cwd()".
+      catalogDir: opts.catalogDir ?? mkdtempSync(join(tmpdir(), "alix-cap-catalog-")),
     };
     // Locked ruling #12 — the platform requires an authoritative EventLog.
     // When the TUI service was constructed without one, construct a no-op

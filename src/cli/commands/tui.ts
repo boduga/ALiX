@@ -391,6 +391,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     actor: 'operator',
     cwd: process.cwd(),
     toolExecutor,
+    // The ONLY caller that wants the repository's capability store to persist
+    // across sessions, so it now names that directory instead of inheriting the
+    // default. That default is a temp dir (see `CapabilityService`), which is
+    // what makes every other caller — chiefly tests — safe by construction.
+    catalogDir: join(process.cwd(), ".alix", "capabilities"),
   });
   setCapabilityService(capabilityService);
   await capabilityService.ready();

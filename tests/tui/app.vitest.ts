@@ -710,7 +710,9 @@ describe('TuiApp — palette-open Ctrl+C quit', () => {
     // module-wide (same pattern as tests/tui/capabilities/palette.vitest.ts).
     clearCapabilityService();
     const presenter: InvocationPresenter = { present: vi.fn(async () => {}) };
-    const svc = new CapabilityService(presenter);
+    // Temp catalog: the platform defaults catalogDir to `process.cwd()`,
+    // which in a test run is the repository itself.
+    const svc = new CapabilityService(presenter, { catalogDir: mkdtempSync(join(tmpdir(), 'cap-app-')) });
     setCapabilityService(svc);
     try {
       const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
