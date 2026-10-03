@@ -1,6 +1,8 @@
 # src/skills — Skill Lifecycle (dispatch, distill, promote)
 
-Purpose: installed-skill runtime — dispatch skill scripts, distill new
+## Purpose
+
+Installed-skill runtime — dispatch skill scripts, distill new
 candidate skills from sessions or mined trace evidence, and promote
 eligible candidates under usage gating.
 
@@ -18,32 +20,21 @@ eligible candidates under usage gating.
 ## Local Contracts
 
 - Promotion blocks shared-trigger and overlapping-pattern/text collisions with installed user-store skills, returning a reason. Same-name near-duplicate bodies are blocked before versioning; revised bodies retain version handling. `src/skills/pollution.ts` owns pure overlap scoring and duplicate detection.
-
-- **Verification isolation is guarded, not default (durable).**
+- **Verification isolation is guarded, not default.**
   `runWithIsolation` stashes the working tree so a verification command cannot
-  pollute it. That is only sound when the command is not supposed to be looking
-  AT that work. `stashChanges` therefore refuses any root that
+  pollute an explicit sandbox. `stashChanges` refuses any root that
   `isVerificationSandbox` rejects, and a refusal runs the command in place.
   The task loop passes the agent's real `cwd`, so post-change verification
-  sees the edits it is verifying. A temp directory is NOT auto-trusted — this
-  repo runs real agent work and real git repos there. Structural opt-ins: a
-  directory named `verify-sandbox`, anything under `node_modules/`, or
-  `ALIX_VERIFY_ISOLATION_ROOT` naming the RESOLVED root exactly (a parent path
-  does not satisfy it). That list is COMPLETE and is four entries, not three:
-  a directory named `verify-sandbox`, anything under `node_modules/`, any
-  `.alix/verify/` subtree, or the env opt-in. Marker matching is
-  separator-agnostic (`split(/[\\/]+/)`,
-  never the platform's `sep`): a `\`-separated path matched no marker on POSIX
-  and a real sandbox silently lost isolation. `runCommand` uses the platform
-  interpreter (`ComSpec` on Windows, `/bin/sh` elsewhere) — a hardcoded POSIX
-  shell made every Windows verification fail as a spawn error, reported as
-  `failed` and indistinguishable from the command genuinely failing. Contract
-  violation to report, not to work around: a verification that stashes the tree
-  it is verifying passes for code nobody wrote. Both path shapes are pinned in
+  sees the edits it is verifying. Temporary directories alone are not opt-ins.
+  The complete opt-in list is a directory named `verify-sandbox`, a
+  `node_modules/` subtree, an `.alix/verify/` subtree, or
+  `ALIX_VERIFY_ISOLATION_ROOT` matching the resolved root exactly (not its
+  parent). Match markers across both slash styles. `runCommand` uses `ComSpec`
+  on Windows and `/bin/sh` elsewhere. Report any isolation that hides the
+  edits being verified as a contract violation. Both path shapes are pinned in
   `tests/skills/verification-isolation-guard.vitest.ts` so the Windows and
   POSIX lanes assert one table.
-
-- **Discovery roots (durable):** read paths (slash catalog, agent/session
+- **Discovery roots:** read paths (slash catalog, agent/session
   catalogs, `run` route detection, `skills run` resolution) union
   `<cwd>/.alix/skills` (first, when a project dir is known) >
   `~/.alix/skills` > read-only `~/.agents/skills`. First root wins on
@@ -53,7 +44,6 @@ eligible candidates under usage gating.
   `--global` is a usage error; `run` scope flags must precede the script
   name). Promotion and eviction stay user-store-only: the factory never
   writes the project store, and the project store is never auto-evicted.
-
 - **Candidate bar** (plan tunables, enforced factory-side): ≥ 5 unique
   traceIds sharing a tool-sequence shape, every traced run scoring ≥ 0.8.
   Identity is unique traceIds (run counters can inflate); per-trace

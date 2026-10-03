@@ -1,11 +1,13 @@
 # DOX — Task loop
 
-**Purpose:** `runTaskLoop` — the agent's main iteration loop (model turn → tool
-dispatch → verification/repair → completion). Extracted from the former
-`../task-loop.ts` megafile (#717); `../task-loop.ts` is now a re-export barrel so
-existing import paths are unchanged.
+## Purpose
 
-**Ownership:**
+ `runTaskLoop` — the agent's main iteration loop (model turn → tool
+dispatch → verification/repair → completion). `../task-loop.ts` is a re-export
+barrel preserving public import paths.
+
+## Ownership
+
 - `session-lifecycle.ts` — `completeSession`, `maybeEmitRotRisk`, context-budget
   overflow classification/summaries, `getHistoricalSuggestions`,
   `persistSessionState`, `RESEARCH_LIMITS`.
@@ -18,21 +20,16 @@ existing import paths are unchanged.
   `durableCompletionSummary`, `claimsArtifactWritten`, `extractErrors`,
   `COORDINATION_RUN_TOOL_NAME` and their constants/types. It also owns the
   loop-side `buildSelectionObservation` wrapper and the loop's
-  `SelectionObservation` view — which is the canonical observation type
-  NARROWED to require a scoper ranking, never a re-declaration. That
-  re-declaration is what silently dropped `invalidSelection`: a field added to
-  the observation reached the emitter but was erased by the local return type,
-  so the loop never recorded an invalid selection. Add observation fields to
-  `src/observability/tool-selection-observation.ts` and narrow here.
-  `emitSelectionObservation` forwards context fields ONE BY ONE, so a new field
-  must be added there as well: the `Pick` type accepts it and the runtime drops
-  it otherwise. That has silently bitten three fields in a row —
-  `invalidSelection`, the wrapper parameter, and `surfaceGaps`.
+  `SelectionObservation` view, narrowed from the canonical observation type to
+  require a scoper ranking. Add fields to
+  `src/observability/tool-selection-observation.ts`, narrow here, and explicitly
+  forward them in `emitSelectionObservation`; its field-by-field emission can
+  otherwise omit fields accepted by its parameter type.
 - `context-helpers.ts` — context assembly helpers: `classifyMessageToCategory`,
   `classifyCandidateContext`, `reconstructRequest`, `sourceIndexOf`,
   `toBudgetedItems`, `evaluatePattern`.
 - `context-phase.ts` — `assembleBudgetedContext`: budget admission gate
-  (assembly + tool-schema reservation + T6 context events + preflight).
+  (assembly + tool-schema reservation + context events + preflight).
 - `verification-phase.ts` — `runIterationVerification`: end-of-iteration
   verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
 - `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
@@ -50,169 +47,103 @@ existing import paths are unchanged.
   `TaskLoopDeps.executionState`).
 - `main.ts` — `TaskLoopDeps` + `runTaskLoop` orchestrator.
 
-**Local Contracts:**
-- **Telemetry labels resolve against the OFFERED surface, not `selectedTools`.**
-  `resolveToolExecutionName` (in `predicates.ts`) exists only to label hook
-  payloads, evidence names, and the selection observation — `handleToolCall` in
-  `src/run/event-handlers.ts` does the real resolution and dispatch. It delegates
-  to the canonical `resolveExecutableToolName` over
-  `buildOfferedExecutableTools(wireTools, mcpToolIndex)`. It must NOT be handed
-  `selectedTools`: that is the relevance-truncated selector list (capped at 20
-  against a 24-tool registry) and is routinely missing tools that were offered.
-  The previous hand-rolled fallback hid this — a manifest lookup in the chain
-  rescued built-ins, so 102 of 170 resolutions asked for a name it could not
-  find and nothing failed. Falsifying the unit tests showed they cannot catch
-  this (supply the right list and the old code passes); the call site is pinned
-  by `tests/run/task-loop-shed-tool.vitest.ts`, which drives the loop with
-  `selectedTools: []`.
-- **The completion tool has TWO vocabulararies and this loop only ever holds the
-  model-facing one.** `isCompletionTool` here is `isCompletionToolName` from
-  `src/agents/tool-manifest.ts`, which matches the name the MODEL called. That is
-  correct for every caller in this subsystem because the loop resolves to an
-  executor id into a separate variable (`resolveToolExecutionName`) and never
-  rewrites `toolCall`, so `toolCall.name` and `usedTools` entries are
-  model-facing by construction. The predicate previously ALSO accepted the
-  executor id — an arm that could never fire, and a dual-vocabulary acceptance
-  the ONE vocabulary contract forbids. The executor-vocabulary surface (runtime
-  trace titles, read by the TUI) uses `isCompletionExecName`; the two are
-  separate exports precisely so a caller cannot silently hold the wrong one.
-  Pinned by `tests/agents/exact-tool-name-resolver.vitest.ts`.
-- `../task-loop.ts` re-exports the public surface (`runTaskLoop`, `TaskLoopDeps`,
-  `emitAgent`, `buildShedToolRetryMessage`, `explicitMutationTargets`,
-  `isContinuationMessage`, `objectiveEvidenceRequirements`,
-  `lastToolResultShowsClientError`, `latestToolFailure`,
-  `durableCompletionSummary`, `claimsArtifactWritten`); do not add logic there.
-- All modules ≤ 1,500 lines; `main.ts` is the orchestrator and must stay ≤ 1,500
-  (extract phases rather than inlining).
-- `runTaskLoop`'s body is written at **column 0** (unindented), so
-  `grep '^function|^const'` over-reports inner statements as top-level — do not
-  slice this file by that grep.
-- Relative imports: `../../` → `src/`, `../` → `src/run/`.
-- Execution-state emission is opt-in and fail-soft: `runTaskLoop` calls
-  `initExecutionStateEmission` once at start; it must never throw into the loop
-  and must not change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
-- Explicit coordinated-worker objectives require a successful
-  `coordination.run` tool result before completion. A synthesis prompt must
-  never assert that work is complete; missing objective evidence terminates as
-  `completed_unverified` after bounded retries.
-- Mutation evidence is judged by OUTCOME, not by tool name. `isMutationEvidence`
-  accepts a mutation call only when it changed something: `file.create`'s
-  `already_exists_identical` path reports `changed: false` and a `patch.apply`
-  can resolve with empty `changedFiles`, so counting the tool NAME let an agent
-  satisfy a mutation objective by rewriting a file with content it had already
-  written — repeatedly, with no workspace change — and then declare completion.
-  The flag is tri-state (`isMutationEvidence` + the loop's record at
-  `successfulToolEvidence.push`): `true` wrote something, `false` is a proven
-  no-op and is NOT evidence, ABSENT is undecided and still counts because
-  `file.delete` never sets a flag. `src/run/event-handlers.ts` must pass
-  `changed` through UNCHANGED — collapsing absent into `false` there starves
-  this gate of the distinction and fails every legitimate delete. Pinned by
-  `tests/run/mutation-evidence.vitest.ts`.
-- Verification runs against `deps.cwd` (the agent's real working directory),
-  never `"."`, and is never stash-isolated — see `src/skills/AGENTS.md`. A
-  check that cannot see the change it verifies is not a verification.
-- Verification detection is INDEPENDENT of mutation. It was `verification =
-  mutation && <regex>`, which made a verification-only objective undetectable:
-  "run the tests and confirm the suite passes" names no file-write verb, so no
-  requirement existed, so the completion gate never demanded verification
-  evidence and the task could close with zero tests executed (T3 finding 1,
-  measured 0 of 8 verification scopes). Two guards keep the widened surface
-  honest: a NEGATION guard ("do not run the tests", "without verifying", "never
-  run the build") cancels the requirement, and a later AFFIRMATIVE ("…but
-  verify the claim") overrides that negation — they must not be OR-ed, which is
-  a slip that made the override deepen the decline instead of cancelling it.
-  The regex is unchanged; only the precondition moved.
-  `tests/run/verification-detection.test.ts` pins all four directions.
-- Objective requirement detection scans a tool-name-normalized view of the
-  task: exact model-facing names carry their action, and `\brun\b`/`\bverify\b`
-  cannot match across the underscore of `alix_coordination_run` /
-  `alix_verify_claim`. A successful `verify.claim` call counts as verification
-  evidence after the mutation, alongside a shell command matching
-  `VERIFICATION_COMMAND_RE`.
-- A final answer that repeats the last tool result is not a synthesis: the loop
-  re-prompts once (bounded) and otherwise terminates `completed_unverified`
-  with `reason: "tool_result_echo"` recorded on `completion.claim_rejected`.
-  Quoting a short result inside real prose stays accepted (the echo must
-  dominate the answer or match it exactly).
-- Tool-selection shadow instrumentation (T0-b): every executed call appends a
-  `tool.selection.observed` event (`buildSelectionObservation`) recording the
-  frozen candidate surface, the chosen candidate, the resolved executor, and three *separate*
-  signals — `selection.outcome` (`novel` | `redundant` by executor+args
-  signature), `execution.status` (`success` | `repaired` | `failed`), and
-  `evidence.contribution` (`contributed` | `none` | `unknown`). Keeping them
-  apart is deliberate: a novel successful call is not automatically useful, and
-  `contributed` here only means "returned content, not a provable no-op" — real
-  contribution is a labelling step over recorded traces. Nothing reads
-  it — the deterministic gates decide as before. It scores the choice that RAN;
-  ranking an alternative selector needs replay over recorded state
-  (`src/decision/replay/*`, `src/runtime/replay-executor.ts`), and the
-  capability-applicable subset is not tracked separately yet, so a scoping
-  mistake cannot yet be distinguished from a ranking mistake. A
-  `tool-selection` `DecisionType` is deliberately not added: `decision/config.ts`
-  forces a route for every new type, and there is no selection engine to route
-  to until the experiment justifies one.
-- A surface that cannot offer a requirement-closing tool says so TO THE MODEL,
-  not only to telemetry. `surfaceGapsForTurn` classifies each miss
-  (`scoper-excluded` = reachable but deprioritised, `absent-upstream` = never a
-  candidate), and `renderSurfaceBlockNotice` turns any `absent-upstream` gap into
-  a `<surface_constraint>` message pushed before the first model turn. Without
-  it the model cannot distinguish "impossible here" from "read the file
-  instead": cohort `t3d-2026-09-28-c` measured 6 of 8 verification-shaped scopes
-  answering "run pnpm typecheck:unused" by inspection, with no error and no
-  statement that the check never ran. `scoper-excluded` is deliberately NOT
-  surfaced — the tool was reachable, so telling the model it cannot run would be
-  a false constraint. The read-only exclusion that causes this lives in
-  `src/run/helpers.ts` (`buildReadOnlyToolFilter`), which is the single
-  derivation shared with `agent-loop.ts` and `session/setup.ts`.
-- The frozen surface is the surface the model was actually offered — scoped core
-  + extended, which includes the MCP entries this task admitted — not the
-  builtin-only provider list. It is frozen once per scope through
-  `freezeToolCandidates` (`src/decision/tool-selection-candidates.ts`): identity
-  is `candidateId` (`builtin:<name>`, `mcp:<short hash of the handle>`),
-  descriptors are sanitized and bounded, and an MCP handle appears ONLY in the
-  local-only `candidateBindings` (candidateId -> model/executor name). Both
-  `offered` and the recorded `ranking`/`scoping`/`requirementCandidates`/
-  `chosenCandidateId` use candidate ids, so no field can carry a handle
-  (`mcp__<opaque>`) into a projection. The same offered name twice is one
-  candidate; two different names sharing an id fails closed.
-- The recorded `ranking` has two named keys: `scoper` (the scoper's relevance
-  ordering — NOT a next-tool preference) and `mcpSelector` (the
-  MCP selector's own scores on its own scale). They are never interleaved, and
-  neither may be presented as "the deterministic selector baseline".
-- The `scoper` ordering is **content-token IDF over the offered surface**, not
-  a raw overlap count. A raw count scored connectives as content: T3 finding 8
-  recorded `create_hook` above `file_read` for a read-and-summarize prompt,
-  and reproduced on this tool set `grep_search` FIRST on four pure function
-  words with zero content tokens. IDF alone does not fix it — over 21 long
-  descriptions the grammatical commoners are lexically rare, so `it` (df 4) and
-  `does` (df 2) outrank `read` (df 6) — hence the English `FUNCTION_WORDS` set
-  in `src/config/tool-scoping.ts` on top. That set is English-scoped; a
-  non-English surface degrades to the IDF half, never to a wrong ADMISSION.
-- **The weighting applies to the ranking ONLY.** Admission stays a raw
-  `matched.length > 0` test, deliberately: which tools are offered is a product
-  decision, and a connective-only match dropping a tool from the surface is a
-  far larger change than F8 describes. `tests/config/tool-scoping-ranking.vitest.ts`
-  re-implements the old admission rule and asserts the two agree exactly — if
-  that test fails, the surface has changed.
-- Final prose that promises another agent action (for example, "Next, I'm
-  surfacing...") is a continuation, not a completion. The task loop re-prompts
-  within its existing bound and records `completed_unverified` if the promise
-  persists.
-- The last-attempt `alix_coordination_run` outcome gates completion INDEPENDENTLY
-  of objective-text matching: `runTaskLoop` tracks a per-invocation
-  `coordinationRunFailed` flag (set on error, cleared by a later success) and
-  every completed-status emission consults it — Path A trust gate and
-  trackCompleted via `objectiveEvidenceGaps(..., { coordinationRunFailed })`,
-  verification-pass Path B via an explicit bounded-retry gate
-  (`source: "coordination_failed"`), shell-complete and research-limit
-  returns via a conditional `completed_unverified` reason. A failed run must
-  never surface `task.done` / `graph.completed` / `workflow.completed` /
-  `session.ended: completed`.
+## Local Contracts
 
-**Verification:**
+- **Resolve telemetry against the offered surface.** `resolveToolExecutionName`
+  labels hooks, evidence, and selection observations; `handleToolCall` in
+  `src/run/event-handlers.ts` performs dispatch. Both use
+  `resolveExecutableToolName` over
+  `buildOfferedExecutableTools(wireTools, mcpToolIndex)`, never the
+  relevance-truncated `selectedTools` list. The call site is pinned by
+  `tests/run/task-loop-shed-tool.vitest.ts` with an empty selector list.
+- **Keep callable and dispatch identities separate.** `toolCall.name` and
+  `usedTools` hold exact model-facing names. `isCompletionToolName` checks that
+  vocabulary; runtime trace consumers use `isCompletionExecName`. Resolution
+  must not rewrite the original call. See
+  `tests/agents/exact-tool-name-resolver.vitest.ts`.
+- `../task-loop.ts` re-exports the public surface; do not add logic there.
+- Keep every module, including the orchestrator `main.ts`, within 1,500 lines;
+  extract phases rather than inlining.
+- The unindented `runTaskLoop` body contains inner statements at column zero;
+  do not infer top-level declarations from indentation alone.
+- Relative imports: `../../` → `src/`, `../` → `src/run/`.
+- Execution-state emission is opt-in and fail-soft.
+  `initExecutionStateEmission` runs once at loop start and must not throw into
+  the loop or change behavior when `ALIX_EXECUTION_STATE_EMIT` is unset.
+- Explicit coordinated-worker objectives require `alix_coordination_run`
+  evidence and worker outcomes. A successful invocation alone is insufficient:
+  resolve its run identity and require terminal execution, generated aggregate,
+  known outcome, and matching verification evidence. Missing objective evidence
+  yields `completed_unverified` after bounded retries; synthesis prompts must
+  not assert completion before evidence exists.
+- **Mutation evidence is outcome-based and tri-state.** `isMutationEvidence`
+  rejects explicit `changed: false` and empty `changedFiles`, including identical
+  `alix_file_create` content and no-op `alix_patch_apply` calls. Absent `changed`
+  remains undecided and counts, including `alix_file_delete` results.
+  `src/run/event-handlers.ts` and `successfulToolEvidence.push` preserve the flag
+  unchanged. See `tests/run/mutation-evidence.vitest.ts`.
+- Verification runs against `deps.cwd`, the actual agent working tree, never a
+  literal dot or stash-hidden edits. See `src/skills/AGENTS.md`.
+- **Verification detection is independent of mutation.** Negated verification
+  cancels the requirement; a later affirmative overrides negation. Do not OR
+  those clauses or require a mutation verb. See
+  `tests/run/verification-detection.test.ts`.
+- Objective requirement detection normalizes model-facing tool names before
+  matching action words. `alix_verify_claim` counts as verification after
+  mutation, as does a shell command matching `VERIFICATION_COMMAND_RE`.
+- Tool-result echoes are not synthesis. Re-prompt once, then terminate
+  `completed_unverified` with a tool-result-echo rejection reason if the echo
+  persists. A short quotation within substantive prose stays accepted.
+- Tool-selection instrumentation records the frozen offered surface, chosen
+  candidate, resolved executor, and separate novelty, execution, and evidence
+  signals in `tool.selection.observed`. Novel successful output does not prove
+  usefulness; contribution labels require trace review. Instrumentation must
+  not drive deterministic gates. Alternative selectors need recorded-state
+  replay; capability-applicable subsets are not separately tracked. Do not add
+  a selection decision type without an engine and justified experiment.
+- `surfaceGapsForTurn` distinguishes reachable-but-deprioritized scoper gaps
+  from absent-upstream tools. `renderSurfaceBlockNotice` emits a surface
+  constraint before the first model turn only for absent-upstream gaps; never
+  misreport a reachable tool as unavailable. `buildReadOnlyToolFilter` in
+  `src/run/helpers.ts` is the single derivation shared with legacy and session
+  routes.
+- Freeze the actual scoped core + extended surface, including admitted MCP
+  entries, once per scope with `freezeToolCandidates`. Use `candidateId` for
+  offered/ranking/scoping/requirements/chosen identities; bounded sanitized
+  descriptors cannot carry opaque handles into projections. Handles remain in
+  local-only `candidateBindings`. Duplicate offered names collapse; distinct
+  names sharing an identity fail closed.
+- Recorded ranking keeps `scoper` relevance ordering and `mcpSelector` scores
+  separate; neither is a deterministic next-tool baseline and scores are never
+  interleaved.
+- Scoper ranking uses content-token IDF plus English `FUNCTION_WORDS` filtering
+  in `src/config/tool-scoping.ts`. Non-English surfaces degrade to IDF without
+  changing admission. Weighting affects ranking only: admission remains raw
+  token overlap. `tests/config/tool-scoping-ranking.vitest.ts` pins exact parity.
+- Final prose promising another agent action is continuation. Re-prompt within
+  existing bounds; persistent promises terminate `completed_unverified`.
+- `coordinationUnverified` tracks the latest coordination call's error or
+  unverified run, independently of objective text, and clears only after a
+  verified run. All completion routes consult it: objective evidence gates,
+  verification-pass retries, shell completion, and research-limit returns.
+  Failed or unverified coordination cannot emit completed task, graph,
+  workflow, or session state.
+
+## Work Guidance
+
+- Add phases to their owning modules; keep the orchestrator and public barrel thin.
+- Update observation forwarding, evidence gates, and their regression coverage
+  together when changing tool-result or completion contracts.
+
+## Verification
+
 - `tests/run/*.vitest.ts`, `tests/providers/task-loop-truncation.vitest.ts`,
   `tests/runtime/parallel-tool-execution.vitest.ts`,
   `tests/events/token-calibration.vitest.ts`, `tests/tracing/*.vitest.ts`,
   `tests/execution-state-emitter.vitest.ts` (emitter phase),
   `tests/execution-state-phase.vitest.ts` (shared instance, turn reconcile,
   shadow emit, live-send request).
+
+## Child DOX Index
+
+None.

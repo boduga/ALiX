@@ -1,10 +1,12 @@
 # DOX — Agent session
 
-**Purpose:** `AgentSession` — the shared session engine for `run`, `run --chat`,
-and the TUI. Extracted from the former `../session.ts` megafile (#717);
-`../session.ts` is now a re-export barrel so existing import paths are unchanged.
+## Purpose
 
-**Ownership:**
+`AgentSession` — the shared session engine for `run`, `run --chat`,
+and the TUI. `../session.ts` preserves public imports as a re-export barrel.
+
+## Ownership
+
 - `types.ts` — `SessionPhase`, `Message`, `ToolExecution`, `AgentTurnResult`,
   `ToolResult`, `AgentSessionEvents`, `AgentSessionState`, `AgentSessionConfig`,
   `PlanConfig`, `ChatConfig`, `PersistenceConfig`, `EventConfig`, `ToolConfig`,
@@ -37,13 +39,13 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
   that creates the `SessionState` and wires the returned `AgentSession` to the
   module-level phase factories.
 
-**Local Contracts:**
+## Local Contracts
+
 - `../session.ts` re-exports the public surface via `export *`; do not add logic
   there.
-- **#717 5b done:** `AgentSessionBuilder.build()` is decomposed. All shared
-  mutable state lives in `SessionState` (state.ts); phases are module-level
-  factories that take that state explicitly. `main.ts` is ≤ the 1,500-line
-  orchestrator threshold. Do not reintroduce a closure-factory `build()`.
+- `AgentSessionBuilder.build()` is a thin coordinator. Shared mutable state lives
+  in `SessionState`; module-level phase factories take it explicitly. Keep
+  `main.ts` within 1,500 lines; do not reintroduce a closure-factory build method.
 - New phase modules are internal (not re-exported by the barrel). Public symbols
   (`AgentSessionBuilder`, `SessionPhase`, the `setup*` helpers, etc.) stay
   re-exported through `../session.ts`.
@@ -69,7 +71,16 @@ and the TUI. Extracted from the former `../session.ts` megafile (#717);
 - `completed_unverified` is a failed terminal outcome. Session wrappers must
   emit failed task/graph/workflow state for it, never completed state.
 
-**Verification:**
+## Work Guidance
+
+- Preserve the local contracts when changing implementation or verification.
+
+## Verification
+
 - `tests/agent/*.vitest.ts`, `tests/agent/session-skills.test.ts`,
   `tests/agent/self-capabilities.test.ts`, `tests/session-resume.vitest.ts`,
   `tests/tracing/langfuse-boundary.vitest.ts`.
+
+## Child DOX Index
+
+None.

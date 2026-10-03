@@ -1,8 +1,6 @@
 # DOX — Decision CLI commands
 
-**Purpose:** `alix decision <subcommand>` handlers. Extracted from the former
-`../decision.ts` megafile (#717); `../decision.ts` is now a re-export barrel so
-existing import paths are unchanged.
+**Purpose:** `alix decision <subcommand>` handlers. `../decision.ts` is the compatibility re-export barrel.
 
 **Ownership:**
 - `shared.ts` — `.alix` path constants + `buildDecisionInfrastructure`
@@ -15,7 +13,7 @@ existing import paths are unchanged.
 - `main.ts` — `handleDecisionCommand` dispatcher.
 
 **Local Contracts:**
-- Each module stays ≤ 1,000 lines (dispatcher threshold, #717).
+- Each module stays ≤ 1,000 lines.
 - `../decision.ts` re-exports `handleDecisionCommand`; do not add logic there.
 - `runReview` validates `--lens` (and exits 1) **before** any provider/store
   setup — enforced behaviorally by
@@ -25,3 +23,5 @@ existing import paths are unchanged.
 **Verification:**
 - `tests/adaptation/*.vitest.ts` (governance review, decision context, queue).
 - `node dist/src/cli.js decision <subcommand>` smoke.
+
+**Child DOX Index:** none.

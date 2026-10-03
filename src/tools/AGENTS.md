@@ -1,10 +1,13 @@
 # DOX — Tools
 
-**Purpose:** The model-callable tool surface — how a tool call is authorized,
+## Purpose
+
+The model-callable tool surface — how a tool call is authorized,
 resolved to a router, executed, and turned into a `ToolResult` the loop can
 reason about.
 
-**Ownership:**
+## Ownership
+
 - `tool-registry.ts` — Capability cards for every tool: canonical name,
   capability id, policy key, risk, and whether it mutates.
 - `tool-router.ts` — `FileToolRouter` (file/patch/schedule) and the other
@@ -25,28 +28,23 @@ reason about.
 - `ignore.ts` — Shared ignore rules for every workspace walk.
 - `self-extend/` — hook and skill authoring plus extension inspection, routed by
   `SelfExtendToolRouter`. The executor ids are `hook.create`, `skill.create`,
-  `extension.list`, and `extension.inspect`; the model-facing names are in
-  `src/agents/tool-manifest.ts`. This is a recorded divergence from the
-  `<domain>.<action>` executor shape used by the rest of the surface, so a
-  future rename must move all four together.
+  `extension.list`, and `extension.inspect`; model-facing names are in
+  `src/agents/tool-manifest.ts`. Change the mappings together when renaming.
 
 ## Local Contracts
 
-- **The registry is the only list of tools.** 24 entries, each pairing an
-  internal executor ID with its capability id, policy key, risk, and `mutates`
-  flag. `ALIX_BUILTIN_EXECUTORS` (`src/agents/tool-manifest.ts`) is the
+- **The registry owns routed tool metadata.** Each entry pairs an internal
+  executor ID with its capability id, policy key, risk, and `mutates` flag. `ALIX_BUILTIN_EXECUTORS` (`src/agents/tool-manifest.ts`) is the
   model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
   tool that is not in the manifest has no name the model can call and no type
-  that admits it. A registry entry with no manifest counterpart is a defect —
-  `dir.search` was exactly that, dispatchable with no name, and was deleted.
+  that admits it. Every registry entry must have a manifest counterpart.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`
   authorizes through `PolicyGate` before any router sees a call. A router's own
   checks are a SECOND, narrower safety net — never the authorization.
 - **Owned-write authorization is not decided here.** `isOwnedWriteTarget` in
   `tool-router.ts` calls `isWithinOwnedScope`, the single matcher also used by
   the gate. Both points MUST call that one function; neither may re-normalize,
-  because the gate running first means a divergence silently denies every owned
-  write the router would have allowed. The contract is owned by
+  because the gate runs first. The contract is owned by
   `src/ownership/AGENTS.md` — read it there, not here.
 - **Containment belongs to `WorkspacePathResolver`.** `execute()` runs
   `checkPath` for every path argument before dispatch, which resolves symlinks

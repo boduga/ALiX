@@ -11,9 +11,9 @@ why* — the decisions, invariants, and acceptance criteria. **Plans** record
 
 | Path | Contents |
 |------|----------|
-| `specs/YYYY-MM-DD-<topic>-design.md` | One feature's design/spec (54 present). |
-| `plans/YYYY-MM-DD-<topic>.md` | One feature's implementation plan or as-built record (81 present). |
-| `plans/archived/` | Superseded plans kept for history (1 present). |
+| `specs/YYYY-MM-DD-<topic>-design.md` | One feature's design/spec. |
+| `plans/YYYY-MM-DD-<topic>.md` | One feature's implementation plan or as-built record. |
+| `plans/archived/` | Superseded plans kept for history. |
 
 There is no index file: discovery is by dated filename and by the spec↔plan
 links the documents themselves carry.
@@ -30,8 +30,7 @@ links the documents themselves carry.
   traceable to the decisions it implements.
 - **Approved decisions are amended, not rewritten.** When design changes after
   approval, record it as an explicit dated amendment section alongside the new
-  value and rationale (precedent: §3.1 "Post-review amendments" in the
-  claim-verification spec). Silent rewrites lose the history that explains why
+  value and rationale. Silent rewrites lose the history that explains why
   a decision looks odd later.
 - **Shipped plans become as-built records.** Update the `Status` header with
   the PR numbers and stop treating them as instructions — read them as history.

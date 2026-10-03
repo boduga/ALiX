@@ -1,8 +1,6 @@
 # DOX — Adaptation CLI commands
 
-**Purpose:** `alix adaptation <subcommand>` handlers. Extracted from the former
-`../adaptation.ts` megafile (#717); `../adaptation.ts` is now a re-export barrel
-so existing import paths (`src/cli.ts`, tests) are unchanged.
+**Purpose:** `alix adaptation <subcommand>` handlers. `../adaptation.ts` is the compatibility re-export barrel.
 
 **Ownership:**
 - `shared.ts` — `.alix` path constants (`PROPOSALS_DIR`, `EFFECTIVENESS_DIR`,
@@ -19,7 +17,7 @@ so existing import paths (`src/cli.ts`, tests) are unchanged.
 - `main.ts` — `handleAdaptationCommand` dispatcher.
 
 **Local Contracts:**
-- Each module stays ≤ 1,000 lines (leaf-extraction threshold, #717).
+- Each module stays ≤ 1,000 lines.
 - `../adaptation.ts` re-exports `handleAdaptationCommand` and `selectApplier`;
   do not add logic there.
 - `apply` routes through `ApprovalGate.apply` — never calls an applier directly.
@@ -34,3 +32,5 @@ so existing import paths (`src/cli.ts`, tests) are unchanged.
 **Verification:**
 - `tests/cli/commands/adaptation*.vitest.ts` — full subcommand surface.
 - `tests/adaptation/governance-sentinels.vitest.ts` — applier boundaries.
+
+**Child DOX Index:** none.
