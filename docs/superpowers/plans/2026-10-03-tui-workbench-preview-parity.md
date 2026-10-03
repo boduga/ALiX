@@ -16,7 +16,7 @@ Implementation progress:
 - Phase 1 source/fallback audit complete: every image datum has an existing projection source or explicit unavailable fallback, per the phase exit. Active-tool elapsed time is clock-sampled from its authoritative start; snapshot nesting is detached. Current worker-context consumption and patch/write line counts remain unavailable, not readiness blockers. Existing file reads do not execute requested line ranges; later painters must label them as requested. Live view integration belongs to the corresponding region phases.
 - Phase 2 geometry complete: shared named regions, left roster/center transcript/right inspector reservation at ≥160×36, full-width bounded composer, pane clipping, semantic resize anchors and matching hardware caret. Inspector section data, preview controls and coordination launch remain pending.
 - Phase 3 chrome complete: cyan brand/live PREVIEW badge, responsive workspace/mode/session-roster groups, accented keyboard hints, uppercase right-aligned counters, explicit unavailable telemetry and close/cancel/decision priority. Semantic theme alternatives and unchanged-row diff behavior verified.
-- Operator branding amendment: bold cyan three-row block title uses the existing header rows on ≥120×12 Unicode surfaces; compact title remains for narrower/shorter/ASCII terminals. Header divider removed without moving panes or composer.
+- Operator branding amendment (refined to one row): bold cyan single-row text title replaces the block banner at every width. Header divider removed without moving panes or composer.
 - Phases 4–10 pending.
 
 ## Objective

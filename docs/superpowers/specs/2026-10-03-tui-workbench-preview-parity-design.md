@@ -120,3 +120,13 @@ Preview chrome retains three header rows and one footer row so pane geometry and
 ## 2026-10-03 Operator branding amendment
 
 Operator requests threefold title sizing, bold weight and removal of the line below it. The ANSI cell canvas cannot change font size per label, so wide/tall Unicode surfaces use a bold cyan three-row block-letter ALiX WORKBENCH banner inside the existing header budget. Compact/ASCII surfaces retain the bold text title. The horizontal header divider is removed at every width; pane and composer geometry do not move. Live metadata remains readable beside the banner.
+
+
+## 2026-10-03 Two-row branding refinement
+
+Operator supersedes the three-row branding amendment with a two-row bold cyan banner. The third reserved header row stays blank; metadata, compact/ASCII fallback thresholds, removed divider and pane/composer geometry stay unchanged.
+
+
+## 2026-10-03 Single-row branding refinement
+
+Operator supersedes block-banner sizing with one bold cyan text row: ALiX WORKBENCH. The divider remains removed, and existing metadata wrapping and body/composer geometry remain unchanged.
