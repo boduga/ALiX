@@ -705,6 +705,8 @@ export class ToolExecutor {
     // Build and emit tool.completed or tool.failed event
     if (result.kind === "success") {
       const completedPayload: ToolCompletedPayload = {
+        ...(typeof result.observedLineCount === "number" && Number.isSafeInteger(result.observedLineCount) && result.observedLineCount >= 0
+          ? { observedLineCount: result.observedLineCount } : {}),
         toolCallId,
         toolName: name,
         status: "success",

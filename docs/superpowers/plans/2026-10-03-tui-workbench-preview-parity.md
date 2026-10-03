@@ -12,7 +12,8 @@ Implementation progress:
 - Phase 1 partial: semantic theme and lifecycle labels implemented with truecolor, ANSI-16, monochrome and ASCII/Unicode capability choices. Existing region painters are not switched yet; visual parity remains pending.
 - Phase 1 dependency readiness: task rows preserve structured dependency IDs and distinguish dependency/approval waits from running work; coordination assignment events supply these facts and the task drawer reports waiting totals.
 - Phase 1 tool-card readiness: shared traces and Workbench tool items preserve bounded requested path/range, call identity, start time and explicit observed counts. Replay and version-one checkpoints preserve detached metadata; previews never supply inferred counts.
-- Open Phase 1 gates: live observed-count producers, current-context measurement and future live adapters. Existing file reads do not execute requested line ranges; later painters must label them as requested.
+- Phase 1 live-read readiness: file reads measure actual LF-delimited returned lines and executor completion events carry those counts before preview truncation, including known zero for empty files. Patch/write counts remain unavailable without their own authoritative producer.
+- Open Phase 1 gates: current-context measurement and future live adapters. Existing file reads do not execute requested line ranges; later painters must label them as requested.
 - Phases 2–10 pending. No new pane geometry, controls, inspector or coordination launch shipped.
 
 ## Objective

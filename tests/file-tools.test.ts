@@ -18,6 +18,21 @@ test("readFile returns content", async () => {
   }
 });
 
+test("readFile measures actual LF-delimited returned lines", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-file-lines-"));
+  try {
+    for (const [content, expected] of [["", 0], ["one", 1], ["one\n", 1], ["one\ntwo", 2], ["one\r\ntwo\r\n", 2], ["\n", 1], ["one\n\n", 2]] as const) {
+      await writeFile(join(dir, "lines.txt"), content);
+      const result = await readFile({ root: dir, path: "lines.txt" });
+      assert.equal(result.kind, "success");
+      assert.equal(result.content, content);
+      assert.equal(result.observedLineCount, expected);
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("readFile returns error for missing file", async () => {
   const result = await readFile({ root: "/tmp", path: "nonexistent-file-xyz.ts" });
   assert.equal(result.kind, "error");
