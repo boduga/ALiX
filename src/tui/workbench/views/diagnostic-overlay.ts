@@ -81,14 +81,16 @@ export function paintWorkbenchDiagnosticOverlay(
   const top = rect.headerH + 1;
   const inner = width - 2;
   for (let row = 0; row < height; row++) rect.canvas.write(left, top + row, ' '.repeat(width));
-  const title = overlay === 'diff' ? ' DIFFS ' : overlay === 'review' ? ' REVIEW ' : overlay === 'diagnostics' ? ' DIAGNOSTICS ' : ' HELP ';
+  const title = overlay === 'diff' ? ' DIFFS ' : overlay === 'review' ? ' REVIEW ' : overlay === 'diagnostics' ? ' DIAGNOSTICS ' : overlay === 'coordination' ? ' COORDINATION RUN ' : ' HELP ';
   rect.canvas.write(left, top, `\x1b[36m╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮${RESET}`);
   for (let row = 1; row < height - 1; row++) {
     rect.canvas.write(left, top + row, `\x1b[36m│${RESET}`);
     rect.canvas.write(left + width - 1, top + row, `\x1b[36m│${RESET}`);
   }
   rect.canvas.write(left, top + height - 1, `\x1b[36m╰${'─'.repeat(inner)}╯${RESET}`);
-  const lines = overlay === 'help'
+  const lines = overlay === 'coordination'
+    ? ['Coordination setup (read-only preview)', '', 'Run launching is not enabled on this surface yet.', 'Inspect existing workers with Ctrl+A and tasks with Ctrl+T.', 'Read existing runs: alix coordination list', '', 'Esc closes this guide without starting work.']
+    : overlay === 'help'
     ? ['Enter submit / queue', 'Shift+Enter newline', 'Esc close / cancel', 'Ctrl+A agents · Ctrl+T tasks · Ctrl+R artifacts', 'Ctrl+O details · Shift+Tab permission', '/agents · /tasks · /artifacts', '/diagnostics · /diff · /review · /help']
     : overlay === 'diagnostics'
       ? buildWorkbenchDiagnosticLines(diagnostics)

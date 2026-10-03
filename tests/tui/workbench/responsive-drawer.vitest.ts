@@ -24,10 +24,10 @@ describe('Workbench responsive drawer', () => {
   });
 
   it('renders agent state, operation, and ownership', () => {
-    const canvas = new TerminalCanvas(140, 24);
-    const layout = resolveWorkbenchLayout(140, 'agents');
+    const canvas = new TerminalCanvas(200, 44);
+    const layout = resolveWorkbenchLayout(200, 'agents');
     paintRosterDrawer({
-      canvas, terminalColumns: 140, top: 3, bottom: 18, layout,
+      canvas, terminalColumns: 200, top: 3, bottom: 38, layout,
       agents: { active: 1, totals: { agents: 1, running: 1, waitingApproval: 0, stalled: 0, tokenCoverage: 1, costCoverage: 1 }, agents: [{
         agentId: 'a1', role: 'worker', state: 'tool_running', currentOperation: 'Editing composer',
         coordinationRunId: 'coord-1', assignedAgentId: 'alix#2', taskLabel: 'Finish Workbench',
@@ -40,14 +40,15 @@ describe('Workbench responsive drawer', () => {
       selectedAgentId: 'a1',
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('AGENTS  1 active');
-    expect(frame).toContain('worker · tool_running');
+    expect(frame).toContain('AGENTS & TASKS');
+    expect(frame).toContain('alix#2 RUNNING');
     expect(frame).toContain('run coord-1 · assigned alix#2');
-    expect(frame).toContain('›● worker · tool_running');
+    expect(frame).toContain('›● alix#2 RUNNING');
     expect(frame).toContain('Editing composer');
     expect(frame).toContain('tool patch.apply · 2.5s');
     expect(frame).toContain('model qwen-test');
-    expect(frame).toContain('tokens 500 / 1,000 (50%)');
+    expect(frame).toContain('tokens 500');
+    expect(frame).not.toContain('(50%)');
     expect(frame).toContain('cost $0.0000');
     expect(frame).toContain('owns src/tui');
   });
@@ -66,8 +67,8 @@ describe('Workbench responsive drawer', () => {
       tasks: null,
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('researcher · thinking');
-    expect(frame).toContain('⚠ possibly stalled');
+    expect(frame).toContain('researcher RUNNING');
+    expect(frame).toContain('STALLED');
   });
 
   it('renders structured task ownership and progress', () => {
@@ -86,9 +87,12 @@ describe('Workbench responsive drawer', () => {
       selectedTaskId: 'task-1',
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('TASKS  1 running · 1 queued · 0 blocked');
+    expect(frame).toContain('TASKS');
+    expect(frame).toContain('1 running');
+    expect(frame).toContain('0 queued');
+    expect(frame).toContain('0 blocked');
     expect(frame).toContain('● Finish Workbench');
-    expect(frame).toContain('running · agent agent-1');
+    expect(frame).toContain('RUNNING • agent agent-1');
     expect(frame).toContain('run coord-1 · assigned alix#2');
     expect(frame).toContain('Rendering task cards');
     expect(frame).toContain('owns src/tui');
@@ -124,12 +128,12 @@ describe('Workbench responsive drawer', () => {
       tasks: null, selectedAgentId: 'a2', agentScrollOffset: 1,
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).not.toContain('first · thinking');
-    expect(frame).toContain('›● second · thinking');
+    expect(frame).not.toContain('first RUNNING');
+    expect(frame).toContain('›● second RUNNING');
   });
 
   it('keeps all four workers visible while expanding only the selected worker', () => {
-    const canvas = new TerminalCanvas(72, 20);
+    const canvas = new TerminalCanvas(72, 34);
     const agents = Array.from({ length: 4 }, (_, index) => ({
       agentId: `worker-${index + 1}`,
       role: `worker-${index + 1}`,
@@ -145,17 +149,17 @@ describe('Workbench responsive drawer', () => {
       canvas,
       terminalColumns: 72,
       top: 3,
-      bottom: 18,
+      bottom: 31,
       layout: resolveWorkbenchLayout(72, 'agents'),
       agents: { active: 4, totals: { agents: 4, running: 4, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 }, agents },
       tasks: null,
       selectedAgentId: 'worker-2',
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    for (let index = 1; index <= 4; index++) expect(frame).toContain(`worker-${index} · thinking`);
+    for (let index = 1; index <= 4; index++) expect(frame).toContain(`worker-${index} RUNNING`);
     expect(frame).toContain('operation-2');
-    expect(frame).not.toContain('operation-1');
-    expect(frame).toContain('↑↓ select · [ ] run · Esc close');
+    expect(frame).toContain('operation-1');
+    expect(frame).toContain('↑↓ select • [ ] run • Esc close');
   });
 
   it('filters by run, exposes aggregate selection, and collapses the roster', () => {
@@ -171,10 +175,10 @@ describe('Workbench responsive drawer', () => {
       tasks: null, selectedRunId: 'r2', agentRosterExpanded: false,
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('RUN r2 · [ ] switch');
-    expect(frame).toContain('›◉ All agents');
+    expect(frame).toContain('RUN r2');
+    expect(frame).toContain('›○ All agents');
     expect(frame).toContain('Enter to expand roster');
-    expect(frame).not.toContain('a1 · thinking');
+    expect(frame).not.toContain('a1 RUNNING');
   });
 
   it('marks the selected task and names ownership conflicts', () => {
@@ -190,7 +194,7 @@ describe('Workbench responsive drawer', () => {
     });
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('›! Write shared files');
-    expect(frame).toContain('⚠ OWNERSHIP CONFLICT');
+    expect(frame).toContain('OWNERSHIP CONFLICT');
     expect(frame).toContain('1 blocked');
   });
 

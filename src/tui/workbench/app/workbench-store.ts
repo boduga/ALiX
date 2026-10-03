@@ -106,7 +106,7 @@ export function reduceWorkbenchUiState(
       return { ...state, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };
     }
     case 'overlay.close':
-      return state.overlayStack.length === 0 ? state : { ...state, focus: 'composer', overlayStack: [] };
+      return state.overlayStack.length === 0 ? state : { ...state, focus: state.drawer === 'closed' ? 'composer' : 'drawer', overlayStack: [] };
     case 'transcript.mode':
       return { ...state, transcriptMode: action.mode };
     case 'dimensions.set':

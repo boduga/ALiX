@@ -130,3 +130,8 @@ Operator supersedes the three-row branding amendment with a two-row bold cyan ba
 ## 2026-10-03 Single-row branding refinement
 
 Operator supersedes block-banner sizing with one bold cyan text row: ALiX WORKBENCH. The divider remains removed, and existing metadata wrapping and body/composer geometry remain unchanged.
+
+
+## 2026-10-03 Phase 4 roster amendment
+
+Agent rows join task subtitles and dependency labels by explicit execution/task/run identity, preserve duplicate roles and retries, and use semantic lifecycle colors plus words/glyphs. Wide selections receive a cyan outline/fill; shorter viewports prioritize a visible selected row. Number keys 1–9, slash aggregate selection and c coordination guidance apply only to the focused agents drawer. The coordination entry opens read-only guidance until the Phase 9 launcher is implemented; it never launches execution or consumes composer text. Esc restores an open drawer after closing guidance. Current context utilization is not inferred from lifetime token usage or window capacity.
