@@ -1,7 +1,7 @@
 export type WorkbenchFocus = 'composer' | 'transcript' | 'drawer' | 'modal';
 export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks' | 'artifacts';
 export type WorkbenchTranscriptMode = 'compact' | 'detailed' | 'raw';
-export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help';
+export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help' | 'coordination';
 
 export interface ComposerState {
   readonly text: string;

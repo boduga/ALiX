@@ -124,15 +124,18 @@ describe('four-worker Workbench end-to-end', () => {
       expect(taskSnapshot.tasks.every((task) => task.state === 'completed')).toBe(true);
       expect(artifactSnapshot).toMatchObject({ artifacts: 4, results: 0, failed: 0 });
 
-      const canvas = new TerminalCanvas(72, 20);
+      const canvas = new TerminalCanvas(72, 34);
       paintRosterDrawer({
-        canvas, terminalColumns: 72, top: 3, bottom: 18,
+        canvas, terminalColumns: 72, top: 3, bottom: 31,
         layout: resolveWorkbenchLayout(72, 'agents'), agents: agentSnapshot, tasks: taskSnapshot,
         artifacts: artifactSnapshot, selectedRunId: run.id,
       });
       const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-      for (let number = 1; number <= 4; number++) expect(frame).toContain(`worker · completed`);
-      expect(frame.match(/worker · completed/g)).toHaveLength(4);
+      for (let number = 1; number <= 4; number++) {
+        expect(frame).toContain(`alix#${number} COMPLETED`);
+        expect(frame).toContain(`Report ${number}`);
+      }
+      expect(frame.match(/COMPLETED/g)).toHaveLength(4);
     } finally {
       await scheduler.shutdown();
     }

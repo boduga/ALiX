@@ -26,6 +26,9 @@ export type WorkbenchInputIntent =
   | { readonly type: 'drawer.move'; readonly direction: -1 | 1 }
   | { readonly type: 'run.move'; readonly direction: -1 | 1 }
   | { readonly type: 'agentRoster.toggle' }
+  | { readonly type: 'agent.shortcut'; readonly index: number }
+  | { readonly type: 'agent.aggregate' }
+  | { readonly type: 'coordination.inspect' }
   | { readonly type: 'drawer.close' }
   | { readonly type: 'unhandled' };
 
@@ -49,6 +52,11 @@ export function routeWorkbenchInput(
     if (key === 'ArrowDown' || key === 'j') return { type: 'drawer.move', direction: 1 };
     if (key === '[') return { type: 'run.move', direction: -1 };
     if (key === ']') return { type: 'run.move', direction: 1 };
+    if (context.drawer === 'agents') {
+      if (/^[1-9]$/.test(key)) return { type: 'agent.shortcut', index: Number(key) };
+      if (key === '/') return { type: 'agent.aggregate' };
+      if (key === 'c') return { type: 'coordination.inspect' };
+    }
     if (context.drawer === 'agents' && key === 'Enter') return { type: 'agentRoster.toggle' };
     return { type: 'unhandled' };
   }

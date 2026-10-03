@@ -14,6 +14,39 @@ const context = (overrides: Partial<Parameters<typeof routeWorkbenchInput>[1]> =
 });
 
 describe('routeWorkbenchInput', () => {
+  const rosterKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', 'c'];
+  const rosterContexts = [
+    { label: 'agents drawer', drawer: 'agents', focus: 'drawer', result: 'roster' },
+    { label: 'tasks drawer', drawer: 'tasks', focus: 'drawer', result: 'blocked' },
+    { label: 'artifacts drawer', drawer: 'artifacts', focus: 'drawer', result: 'blocked' },
+    { label: 'composer', drawer: 'closed', focus: 'composer', result: 'text' },
+    { label: 'unfocused agents', drawer: 'agents', focus: 'composer', result: 'text' },
+    { label: 'closed persistent roster', drawer: 'closed', focus: 'drawer', result: 'text' },
+    { label: 'modal', drawer: 'agents', focus: 'modal', overlayOpen: true, result: 'blocked' },
+    { label: 'overlay above agents', drawer: 'agents', focus: 'drawer', overlayOpen: true, result: 'blocked' },
+  ] as const;
+
+  it.each(rosterContexts)('routes roster shortcuts only in focused agents: $label', ({ label: _label, result, ...overrides }) => {
+    for (const key of rosterKeys) {
+      const expected = result === 'blocked' ? { type: 'unhandled' }
+        : result === 'text' ? { type: 'composer.insert', text: key }
+        : key === '/' ? { type: 'agent.aggregate' }
+        : key === 'c' ? { type: 'coordination.inspect' }
+        : { type: 'agent.shortcut', index: Number(key) };
+      expect(routeWorkbenchInput(key, context(overrides)), `${key} in ${_label}`).toEqual(expected);
+    }
+  });
+
+  it.each(rosterContexts)('preserves approval decision priority: $label', ({ label: _label, result: _result, ...overrides }) => {
+    const pending = context({ ...overrides, approvalPending: true });
+    expect(routeWorkbenchInput('a', pending)).toEqual({ type: 'approval.resolve', decision: 'approved' });
+    expect(routeWorkbenchInput('d', pending)).toEqual({ type: 'approval.resolve', decision: 'denied' });
+  });
+
+  it.each(['0', '10', 'C'])('rejects non-shortcut %s in agents drawer', (key) => {
+    expect(routeWorkbenchInput(key, context({ drawer: 'agents', focus: 'drawer' }))).toEqual({ type: 'unhandled' });
+  });
+
   it.each(['Shift+Enter', 'Backspace', 'Delete', 'Ctrl+o', 'Ctrl+a', 'Ctrl+t', 'Ctrl+r', 'Shift+Tab', 'Enter', 'Tab'])('blocks %s behind diagnostic overlays', (key) => {
     expect(routeWorkbenchInput(key, context({ overlayOpen: true }))).toEqual({ type: 'unhandled' });
   });

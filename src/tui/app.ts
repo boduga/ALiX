@@ -848,6 +848,21 @@ export class TuiApp {
         this.workbenchStore.dispatch({ type: 'drawer.close' });
         this.paintFullFrame();
         return true;
+      case 'agent.shortcut': {
+        const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
+        const selected = agents[intent.index - 1];
+        if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: Math.max(0, intent.index - 2) });
+        this.paintFullFrame();
+        return true;
+      }
+      case 'agent.aggregate':
+        this.workbenchStore.dispatch({ type: 'agent.select', agentId: undefined, scrollOffset: 0 });
+        this.paintFullFrame();
+        return true;
+      case 'coordination.inspect':
+        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'coordination' });
+        this.paintFullFrame();
+        return true;
       case 'drawer.move': {
         if (state.drawer === 'agents') {
           const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);

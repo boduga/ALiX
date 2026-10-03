@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–3 geometry/chrome complete. Phases 4–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–4 geometry/chrome/roster complete. Phases 5–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -17,7 +17,8 @@ Implementation progress:
 - Phase 2 geometry complete: shared named regions, left roster/center transcript/right inspector reservation at ≥160×36, full-width bounded composer, pane clipping, semantic resize anchors and matching hardware caret. Inspector section data, preview controls and coordination launch remain pending.
 - Phase 3 chrome complete: cyan brand/live PREVIEW badge, responsive workspace/mode/session-roster groups, accented keyboard hints, uppercase right-aligned counters, explicit unavailable telemetry and close/cancel/decision priority. Semantic theme alternatives and unchanged-row diff behavior verified.
 - Operator branding amendment (refined to one row): bold cyan single-row text title replaces the block banner at every width. Header divider removed without moving panes or composer.
-- Phases 4–10 pending.
+- Phase 4 roster complete: identity-joined agent/task rows, lifecycle words and glyphs, aggregate counts, scoped shortcuts, selected outlines/fill, reference dividers and bounded scrolling. Coordination guidance is read-only; launching remains Phase 9.
+- Phases 5–10 pending.
 
 ## Objective
 
@@ -123,7 +124,7 @@ Each ID in a grouped range inherits the same responsible boundary, planned test 
 | --- | --- | --- | --- |
 | V01–V04 | model/preview-theme.ts plus region painters | preview-theme.vitest.ts: fallback glyph width, lifecycle text and bounded color capabilities pass; region goldens pending | Pending integration |
 | H01–H06, F01–F06 | model/operator-shell.ts; views/operator-shell.ts | operator-shell.vitest.ts; input-router.vitest.ts for key behavior | Pending |
-| L01–L11 | views/roster-drawer.ts; agent/task projections | responsive-drawer.vitest.ts; agent-task-projections.vitest.ts; work-surface-integration.vitest.ts | Pending |
+| L01–L11 | views/roster-drawer.ts; agent/task projections | preview-roster.vitest.ts; responsive-drawer.vitest.ts; roster-shortcuts-integration.vitest.ts; four-worker-e2e.vitest.ts | Phase 4 rendering/interaction passed; final captures Phase 10 |
 | T01–T10, T15–T17 | conversation projection; scrollback; proposed transcript toolbar | preview-fixture.vitest.ts covers all pictured groups; workbench-scrollback.vitest.ts and conversation-projection.vitest.ts rendering extensions pending | Pending |
 | T11–T14 | proposed views/tool-card.ts; transcript model/projection | preview-fixture.vitest.ts covers lifecycle/ranges/counts; proposed tool-card.vitest.ts for geometry | Pending |
 | R01–R16 | proposed agent-inspector model/projection/view | preview-fixture.vitest.ts covers source facts; proposed agent-inspector.vitest.ts for joins/rendering | Pending |
@@ -270,7 +271,9 @@ Exit: canonical chrome matches image hierarchy; no narrow collisions; totals fol
 
 ### Phase 4 — Left agents/tasks roster
 
-Dependencies: 2–3. Coverage: L01–L11.
+Status: Complete 2026-10-03. Dependencies: 2–3. Coverage: L01–L11.
+
+Evidence: 307 affected Vitest cases verified (306 passed in the broad run; the updated four-worker rendering assertion passed its focused rerun). Build, unused-code and dead-module checks passed. Eight-size real PTY resize/caret checks passed, including 1×1 recovery. Spec-compliance and code-quality review passed. Identity joins reject ambiguous/wrong-run matches; short drawers retain selected agents/tasks; ASCII/monochrome states remain readable. Coordination entry opens read-only guidance, with execution deferred to Phase 9. TUI DOX updated; root and documentation-parent contracts unchanged because scope and hierarchy are unchanged.
 
 1. Add aggregate/coordinator/worker rows, dots, words, number shortcuts, two-line tasks, dividers and selected outline/fill.
 2. Join task labels/dependencies with agents using identity; preserve duplicate roles/retries.
