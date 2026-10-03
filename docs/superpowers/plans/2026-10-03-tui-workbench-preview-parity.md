@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phase 0 and theme foundations underway. Remaining phases pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete. Phases 2–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -9,11 +9,11 @@ Implementation progress:
 
 - Plan baseline committed as 00b2677a on feat/tui-workbench-preview-parity.
 - Phase 0 foundations: reference provenance/design decisions, event fixture and coverage ownership below. Fixture carries 38 actual events, five current agents/three running, 13 pictured transcript groups, two evidenced artifacts, and a distinct active write with 18 seconds elapsed.
-- Phase 1 partial: semantic theme and lifecycle labels implemented with truecolor, ANSI-16, monochrome and ASCII/Unicode capability choices. Existing region painters are not switched yet; visual parity remains pending.
+- Phase 1 theme readiness complete: semantic theme and lifecycle labels implemented with truecolor, ANSI-16, monochrome and ASCII/Unicode capability choices. Existing region painters are not switched yet; visual parity remains pending.
 - Phase 1 dependency readiness: task rows preserve structured dependency IDs and distinguish dependency/approval waits from running work; coordination assignment events supply these facts and the task drawer reports waiting totals.
 - Phase 1 tool-card readiness: shared traces and Workbench tool items preserve bounded requested path/range, call identity, start time and explicit observed counts. Replay and version-one checkpoints preserve detached metadata; previews never supply inferred counts.
 - Phase 1 live-read readiness: file reads measure actual LF-delimited returned lines and executor completion events carry those counts before preview truncation, including known zero for empty files. Patch/write counts remain unavailable without their own authoritative producer.
-- Open Phase 1 gates: current-context measurement and future live adapters. Existing file reads do not execute requested line ranges; later painters must label them as requested.
+- Phase 1 source/fallback audit complete: every image datum has an existing projection source or explicit unavailable fallback, per the phase exit. Active-tool elapsed time is clock-sampled from its authoritative start; snapshot nesting is detached. Current worker-context consumption and patch/write line counts remain unavailable, not readiness blockers. Existing file reads do not execute requested line ranges; later painters must label them as requested. Live view integration belongs to the corresponding region phases.
 - Phases 2–10 pending. No new pane geometry, controls, inspector or coordination launch shipped.
 
 ## Objective
@@ -220,6 +220,25 @@ Dependencies: 0. Coverage: V01–V04; provenance for all data-bearing IDs.
 4. Test malformed/missing fields, replay idempotence, known zeros, call/actor correlation and canonical names.
 
 Exit: every datum has verified source or unavailable fallback; no new callable aliases. Commit: feat(tui): prepare preview read models.
+
+Phase 1 final source/fallback audit:
+
+| Image datum | Source / readiness | Missing-data resolution |
+| --- | --- | --- |
+| Workspace, permission mode | Dashboard/operator shell snapshot and explicit live mode | No invented workspace or policy authority; region phase tests must distinguish unavailable snapshots. |
+| Agent identity, role, model, state, task | Canonical roster events, usage resolved-model metadata, separate task projection | Missing model/task remains unavailable; display labels never become callable aliases. |
+| Dependencies and waiting | Coordination assignment dependency IDs and typed waiting states | Missing relationship remains unknown; no dependency inferred from prose. |
+| Time and live activity | Event timestamps, active call identity/start, snapshot clock | Current elapsed advances without tool output and never changes progress time; absent active call means no measured live tool. |
+| Tool path, requested range, observed lines | Bounded requested-event metadata; full-read result count → completion event → shared trace | Requested range is labeled requested. Missing path/range stays absent; patch/write counts show unavailable. No preview recount. |
+| User-safe activity prose | Structured progress operation; fixture transcript groups | Never synthesize private reasoning; live transcript grouping integrates in Phase 5. |
+| Approvals | Authoritative approval projection and preserved pending-card snapshot | Unknown/stale snapshot differs from authoritative empty; Phase 7 paints the availability state. |
+| Artifacts | Strictly scoped artifact projection and existing bounded preview | Missing evidence is no artifact; no file read from painters. |
+| Agent tokens and cost | Agent-scoped usage, known totals/coverage, explicit zero | Partial coverage stays explicit; absent cost/token value remains unavailable. |
+| Current context consumption | No worker-correlated current-consumption measurement; context budget/assembly events carry invocation identity only | Unavailable. Capacity and lifetime usage are not consumption. Future measurement needs its own producer/correlation contract. |
+| Footer tokens/files/events | Existing session metrics, mutation facts, EventLog total count | Never use artifact count as file-change count or agent tokens as session total. Missing session metrics require unavailable presentation in Phase 3. |
+| Theme/glyph/label capabilities | Tested semantic palette, ANSI-16/monochrome and ASCII/Unicode choices | Status labels remain readable without color; painter integration remains region work. |
+
+Verification: preview fixture, theme, task/agent, metadata/replay/checkpoint, live-read producer and bootstrap tests. These establish readiness, not geometry or visual parity.
 
 ### Phase 2 — Responsive geometry
 

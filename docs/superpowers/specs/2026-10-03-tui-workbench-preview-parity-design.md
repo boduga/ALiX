@@ -99,3 +99,9 @@ Requested ranges remain request facts, not proof of executed ranges: existing fi
 Full file reads now supply observed line counts from returned content, and the executor preserves valid counts in completion events before preview truncation. Empty content yields zero; LF separates lines and a trailing LF does not create an extra line. CRLF therefore has the same line count as LF. End-to-end tests compare a 142-line actual read with requested 1–200 and a shorter telemetry preview.
 
 The earlier producer caveat is retired for full file reads only. Patch/write counts remain absent without an authoritative producer; requested ranges remain unexecuted request facts. This telemetry adds no file access, range execution or permission changes.
+
+## 2026-10-03 amendment — Phase 1 readiness closure
+
+Phase 1 exits on a verified source **or an explicit unavailable fallback** for each datum; it does not require creating measurements absent from the runtime. The plan's final audit maps every data-bearing image field to its source/fallback. Current worker context consumption and patch/write line counts remain unavailable. Existing context budget/assembly events have invocation identity rather than worker identity, so their tallies cannot safely become selected-worker current-context measurements. Capacity and lifetime usage remain distinct.
+
+Roster snapshots now derive active elapsed time from the supplied clock and authoritative tool start, without rewriting progress timestamps or prior snapshots. Nested ownership, usage and active-tool data are detached. This retires the elapsed-sampling caveat in the starting readiness table. View adapters and painters integrate these prepared read models in their region phases; three-pane geometry and visual parity remain pending.
