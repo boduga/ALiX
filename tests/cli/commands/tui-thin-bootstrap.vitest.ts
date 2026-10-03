@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -194,5 +195,30 @@ describe('runTui bootstrap (thin)', () => {
     } finally {
       await rm(sessionDir, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * The TUI is the ONLY caller that wants capability definitions to persist in
+ * the repository across sessions, so it names that directory rather than
+ * inheriting the service default — which is now a temp dir, making every other
+ * caller (chiefly tests) safe by construction instead of by discipline.
+ *
+ * This pins the persistence half of that trade. Removing the option would not
+ * fail any behavioural test: the TUI would simply stop reading and writing
+ * `tool.*` definitions, and the loss is invisible until a session starts with
+ * an empty palette. The capability-store defect this generalises was originally
+ * diagnosed by hand, twice.
+ */
+describe('capability catalog persistence', () => {
+  it('the TUI names the repository catalogDir explicitly', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src', 'cli', 'commands', 'tui.ts'),
+      'utf8',
+    );
+    const construction = /new CapabilityService\(undefined, \{([\s\S]{0,600}?)\}\)/.exec(source);
+    expect(construction, 'the TUI CapabilityService construction must be findable').not.toBeNull();
+    expect(construction![1]).toContain('catalogDir');
+    expect(construction![1]).toContain('.alix');
   });
 });

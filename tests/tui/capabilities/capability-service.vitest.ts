@@ -1,5 +1,8 @@
 // tests/tui/capabilities/capability-service.vitest.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   CapabilityService, setCapabilityService, getCapabilityService, clearCapabilityService,
 } from '../../../src/tui/capabilities/capability-service.js';
@@ -14,11 +17,22 @@ describe('CapabilityService', () => {
   let presenter: InvocationPresenter;
   let log: FakeEventLog;
 
-  beforeEach(() => { presenter = { present: vi.fn(async () => {}) }; log = new FakeEventLog(); clearCapabilityService(); });
+  // MUST be a temp dir, never the platform's `process.cwd()` default. This
+  // test seeds registry-derived `tool.*` definitions, which is exactly what
+  // wrote rows into the repository's real `.alix/capabilities` store — those
+  // rows outlive the run and resurface as phantom parity mismatches in
+  // unrelated tests.
+  let tmpCatalogDir: string;
+  beforeEach(() => {
+    presenter = { present: vi.fn(async () => {}) };
+    log = new FakeEventLog();
+    tmpCatalogDir = mkdtempSync(join(tmpdir(), 'cap-catalog-'));
+    clearCapabilityService();
+  });
   afterEach(() => clearCapabilityService());
 
   it('wireInitialCapabilities registers core + registry-derived tool definitions', async () => {
-    const svc = new CapabilityService(presenter, { eventLog: log as never });
+    const svc = new CapabilityService(presenter, { eventLog: log as never, catalogDir: tmpCatalogDir });
     await svc.ready();
     expect(svc.find('core.session.list')).toBeDefined();
     expect(svc.query({ kinds: ['core'] }).length).toBeGreaterThanOrEqual(1);
@@ -31,7 +45,7 @@ describe('CapabilityService', () => {
   });
 
   it('invoke() presents automatically', async () => {
-    const svc = new CapabilityService(presenter, { eventLog: log as never });
+    const svc = new CapabilityService(presenter, { eventLog: log as never, catalogDir: tmpCatalogDir });
     await svc.ready();
     const inv = svc.invoke('core.session.list', {});
     expect(inv).toBeDefined();
@@ -40,7 +54,7 @@ describe('CapabilityService', () => {
   });
 
   it('bridges capability events into the EventLog', async () => {
-    const svc = new CapabilityService(presenter, { eventLog: log as never });
+    const svc = new CapabilityService(presenter, { eventLog: log as never, catalogDir: tmpCatalogDir });
     await svc.ready();
     await svc.invoke('core.session.list', {}).wait();
     expect(log.events.length).toBeGreaterThan(0);
