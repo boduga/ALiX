@@ -109,6 +109,12 @@ export function reduceWorkbenchUiState(
       return state.overlayStack.length === 0 ? state : { ...state, focus: state.drawer === 'closed' ? 'composer' : 'drawer', overlayStack: [] };
     case 'transcript.mode':
       return { ...state, transcriptMode: action.mode };
+    case 'transcript.filter':
+      return { ...state, transcriptFilter: action.filter };
+    case 'transcript.scope.toggle':
+      return { ...state, transcriptScope: state.transcriptScope === 'selected' ? 'all' : 'selected' };
+    case 'transcript.follow':
+      return { ...state, followTail: action.followTail };
     case 'dimensions.set':
       return { ...state, dimensions: { columns: action.columns, rows: action.rows } };
   }

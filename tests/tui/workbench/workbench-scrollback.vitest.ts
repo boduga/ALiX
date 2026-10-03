@@ -8,6 +8,8 @@ import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-tra
 import type { ViewInputContext, ViewRenderContext } from '../../../src/tui/views/types.js';
 import { AgentView } from '../../../src/tui/views/agent-view.js';
 import { buildWorkbenchScrollbackLines } from '../../../src/tui/workbench/views/workbench-scrollback.js';
+import { getWorkbenchPreviewTheme } from '../../../src/tui/workbench/model/preview-theme.js';
+import { stripAnsi } from '../../../src/tui/box.js';
 import { createInitialWorkbenchUiState } from '../../../src/tui/workbench/model/ui-state.js';
 
 const fixturePath = fileURLToPath(new URL('../../fixtures/tui/workbench-third-trace.json', import.meta.url));
@@ -93,7 +95,7 @@ describe('Workbench scrollback', () => {
     const text = lines.map((line) => line.text).join('\n');
 
     expect(text).toContain('Read README.md');
-    expect(text.match(/ALiX/g)).toHaveLength(1);
+    expect(lines.filter((line) => line.kind === 'agent' && line.isFirst)).toHaveLength(2);
     expect(text).toContain('✓ file.read');
     expect(text).toContain('✗ file.read');
     expect(text).toContain('Access denied: path is outside workspace');
@@ -120,10 +122,13 @@ describe('Workbench scrollback', () => {
     };
     const narrow = buildWorkbenchScrollbackLines(renderContext, 20);
     const wide = buildWorkbenchScrollbackLines(renderContext, 90);
-    expect(narrow.filter((line) => line.kind === 'streaming').map((line) => line.wrappedOffset)).toEqual([0, 1, 2, 3]);
-    expect(narrow.filter((line) => line.kind === 'streaming').every((line) => line.itemId === 'streaming:worker-1')).toBe(true);
-    expect(wide.find((line) => line.kind === 'streaming')?.itemId).toBe('streaming:worker-1');
-    expect(narrow[0]?.itemId).toBe('scope:agent:worker-1');
+    const streamRows = narrow.filter((line) => line.kind === 'streaming');
+    expect(streamRows.map((line) => line.wrappedOffset)).toEqual(streamRows.map((_, index) => index));
+    expect(streamRows[0]?.text).toContain('??:??:??');
+    expect(streamRows.at(-1)?.isLast).toBe(true);
+    expect(narrow.filter((line) => line.kind === 'streaming').every((line) => line.itemId === 'streaming:all')).toBe(true);
+    expect(wide.find((line) => line.kind === 'streaming')?.itemId).toBe('streaming:all');
+    expect(narrow[0]?.itemId).toBe('scope:all');
   });
 
   it('preserves selected-agent focus after the drawer closes and supports aggregate view', () => {
@@ -133,7 +138,7 @@ describe('Workbench scrollback', () => {
     ];
     const renderContext = context('compact', [], trace);
     (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
-      ...createInitialWorkbenchUiState(), drawer: 'agents', focus: 'drawer', selectedAgentId: 'agent-1',
+      ...createInitialWorkbenchUiState(), drawer: 'agents', focus: 'drawer', selectedAgentId: 'agent-1', transcriptScope: 'selected',
     };
     const focused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
     expect(focused).toContain('focused agent: agent-1');
@@ -141,7 +146,7 @@ describe('Workbench scrollback', () => {
     expect(focused).not.toContain('shell.run');
 
     (renderContext as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
-      ...createInitialWorkbenchUiState(), selectedAgentId: 'agent-1',
+      ...createInitialWorkbenchUiState(), selectedAgentId: 'agent-1', transcriptScope: 'selected',
     };
     const stillFocused = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
     expect(stillFocused).not.toContain('shell.run');
@@ -253,4 +258,102 @@ describe('Workbench scrollback', () => {
     expect(lines.filter((line) => line.kind === 'approvalCard')).toHaveLength(6);
     expect(lines.every((line) => line.itemId === 'pending-approval:approval-lag')).toBe(true);
   });
+});
+
+describe('preview transcript columns', () => {
+  const timeline: TimelineEntry[] = [{
+    id: 'safe-progress', kind: 'agent.progress', actor: 'agent', agentId: 'worker-1', sessionId: 's',
+    startedAt: Date.parse('2026-10-03T10:14:25.000Z'), userSafe: true,
+    text: 'Reading current sidebar component for context.界界界', sourceEvents: { firstSequence: 3 },
+  }];
+  it('aligns timestamp/actor/body and wraps continuations under content', () => {
+    const lines = buildWorkbenchScrollbackLines(context('compact', timeline, []), 72).filter((line) => line.kind === 'activity');
+    expect(stripAnsi(lines[0]!.text)).toMatch(/^\[10:14:25\] worker-1/);
+    expect(lines.length).toBeGreaterThan(1);
+    const contentOffset = stripAnsi(lines[0]!.text).indexOf('Reading');
+    expect(stripAnsi(lines[1]!.text).startsWith(' '.repeat(contentOffset))).toBe(true);
+    expect(lines.every((line) => line.previewFormatted && line.itemId === 'conversation-safe-progress')).toBe(true);
+  });
+  it('stacks metadata above body in narrow transcript', () => {
+    const lines = buildWorkbenchScrollbackLines(context('compact', timeline, []), 30).filter((line) => line.kind === 'activity');
+    expect(stripAnsi(lines[0]!.text)).toBe('[10:14:25] worker-1');
+    expect(stripAnsi(lines[1]!.text)).toMatch(/^  Reading/);
+    expect(lines.every((line) => stripAnsi(line.text).length <= 30)).toBe(true);
+  });
+  it('keeps pending approval visible across unrelated selection and category', () => {
+    const ctx = context('compact', [], []);
+    (ctx as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = {
+      ...createInitialWorkbenchUiState(), transcriptScope: 'selected', selectedAgentId: 'worker-1', transcriptFilter: 'response',
+    };
+    (ctx.perTab as PerTabState).pendingApprovals = [{ id: 'approval', toolName: 'file.write', target: 'src/sidebar.ts', requestedAt: 1, agentId: 'worker-2' }];
+    expect(buildWorkbenchScrollbackLines(ctx, 90).some((line) => line.kind === 'approvalCard')).toBe(true);
+  });
+  it('suppresses landed streaming duplicate and streaming outside response categories', () => {
+    const ctx = context('compact', [{ id: 'landed', kind: 'agent.response', sessionId: 's', startedAt: 1, text: 'Finished safely.', sourceEvents: { firstSequence: 1 } }], []);
+    (ctx.perTab as PerTabState).streamingText = 'Finished safely.';
+    expect(buildWorkbenchScrollbackLines(ctx, 90).some((line) => line.kind === 'streaming')).toBe(false);
+    (ctx.perTab as PerTabState).streamingText = 'Next unfinished response';
+    (ctx as { workbenchUiState?: ReturnType<typeof createInitialWorkbenchUiState> }).workbenchUiState = { ...createInitialWorkbenchUiState(), transcriptFilter: 'tool' };
+    expect(buildWorkbenchScrollbackLines(ctx, 90).some((line) => line.kind === 'streaming')).toBe(false);
+  });
+});
+
+
+it.each([
+  ['coordinator', 'waiting_dependency', 'purple'],
+  ['worker', 'waiting', 'yellow'],
+  ['worker', 'waiting_dependency', 'yellow'],
+  ['worker', 'waiting_approval', 'yellow'],
+  ['worker', 'thinking', 'teal'],
+] as const)('colors authoritative %s/%s actor while preserving Markdown emphasis', (role, state, color) => {
+  const timeline: TimelineEntry[] = [
+    { id: 'state', kind: 'agent.state_changed', agentId: 'worker-1', sessionId: 's', startedAt: 1, activityState: 'waiting_dependency', sourceEvents: { firstSequence: 1 } },
+    { id: 'safe', kind: 'agent.progress', agentId: 'worker-1', sessionId: 's', startedAt: 2, userSafe: true, text: '**Safe** activity label', sourceEvents: { firstSequence: 2 } },
+  ];
+  const ctx = context('compact', timeline, []);
+  const coloredContext: ViewRenderContext = { ...ctx, snap: { ...ctx.snap, runtime: {
+    ...ctx.snap.runtime!, agents: {
+      agents: [{ agentId: 'worker-1', role, state, ownedPaths: [], startedAt: 1, lastProgressAt: 1, usage: {} }],
+      active: 1, totals: { agents: 1, running: 0, waitingApproval: 0, stalled: 0, tokenCoverage: 0, costCoverage: 0 },
+    },
+  } } };
+  const line = buildWorkbenchScrollbackLines(coloredContext, 90).find((row) => stripAnsi(row.text).includes('Safe'))!;
+  const p = getWorkbenchPreviewTheme().palette;
+  expect(line.text).toContain(`${p[color]}worker-1`);
+  expect(line.text).toContain(`${p.yellow}WAITING`);
+  expect(line.text).toContain('\x1b[1mSafe');
+  expect(stripAnsi(line.text)).toContain('Safe activity label');
+});
+
+it.each([
+  ['success', '✓', 'green'],
+  ['failure', '✗', 'red'],
+  [undefined, '✓', undefined],
+  [undefined, '✗', undefined],
+] as const)('colors outcome glyph only from explicit %s evidence', (verifiedOutcome, glyph, color) => {
+  const timeline: TimelineEntry[] = [{
+    id: 'outcome', kind: 'agent.progress', sessionId: 's', startedAt: 1,
+    userSafe: true, text: `${glyph} 4 agents initialized`,
+    ...(verifiedOutcome !== undefined ? { verifiedOutcome } : {}),
+    sourceEvents: { firstSequence: 1 },
+  }];
+  const line = buildWorkbenchScrollbackLines(context('compact', timeline, []), 90)[0]!;
+  const p = getWorkbenchPreviewTheme().palette;
+  expect(stripAnsi(line.text)).toContain(`${glyph} 4 agents initialized`);
+  if (color) expect(line.text).toContain(`${p[color]}${glyph}`);
+  else {
+    expect(line.text).not.toContain(`${p.green}${glyph}`);
+    expect(line.text).not.toContain(`${p.red}${glyph}`);
+  }
+});
+
+
+it('adds typed outcome badge when prose has none and never duplicates existing glyph', () => {
+  for (const text of ['Workers initialized', '✓ Workers initialized']) {
+    const timeline: TimelineEntry[] = [{ id: 'outcome', kind: 'agent.progress', sessionId: 's', startedAt: 1,
+      userSafe: true, text, verifiedOutcome: 'success', sourceEvents: { firstSequence: 1 } }];
+    const line = buildWorkbenchScrollbackLines(context('compact', timeline, []), 90)[0]!;
+    expect(stripAnsi(line.text).match(/✓/g)).toHaveLength(1);
+    expect(line.text).toContain(`${getWorkbenchPreviewTheme().palette.green}✓`);
+  }
 });

@@ -807,7 +807,7 @@ export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'cha
   const vp = surface ? { ...baseViewport, scrollbackRows: surface.geometry.regions.transcriptBody.height } : baseViewport;
   const allLines = kind === 'agent'
     ? (ctx.workbenchEnabled
-      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+      ? buildWorkbenchScrollbackLines(ctx, Math.max(1, dimensions.columns - 2))
       : buildAgentScrollbackLines(ctx, vp.textWidth))
     : buildChatScrollbackLines(ctx, vp.textWidth);
   return Math.max(0, allLines.length - vp.scrollbackRows);

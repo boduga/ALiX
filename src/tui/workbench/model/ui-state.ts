@@ -1,6 +1,8 @@
 export type WorkbenchFocus = 'composer' | 'transcript' | 'drawer' | 'modal';
 export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks' | 'artifacts';
 export type WorkbenchTranscriptMode = 'compact' | 'detailed' | 'raw';
+export type WorkbenchTranscriptFilter = 'all' | 'response' | 'tool' | 'activity' | 'error';
+export type WorkbenchTranscriptScope = 'all' | 'selected';
 export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help' | 'coordination';
 
 export interface ComposerState {
@@ -18,6 +20,8 @@ export interface WorkbenchUiState {
   readonly focus: WorkbenchFocus;
   readonly overlayStack: readonly WorkbenchOverlay[];
   readonly transcriptMode: WorkbenchTranscriptMode;
+  readonly transcriptFilter: WorkbenchTranscriptFilter;
+  readonly transcriptScope: WorkbenchTranscriptScope;
   readonly selectedItemId?: string;
   /** Undefined means the aggregate across every coordination run. */
   readonly selectedRunId?: string;
@@ -41,6 +45,8 @@ export function createInitialWorkbenchUiState(
     focus: 'composer',
     overlayStack: [],
     transcriptMode: 'compact',
+    transcriptFilter: 'all',
+    transcriptScope: 'all',
     agentRosterExpanded: true,
     drawer: 'closed',
     drawerScrollOffset: 0,

@@ -1,4 +1,4 @@
-import type { QueuedMessage, WorkbenchDrawer, WorkbenchFocus, WorkbenchOverlay, WorkbenchTranscriptMode } from './ui-state.js';
+import type { QueuedMessage, WorkbenchDrawer, WorkbenchFocus, WorkbenchOverlay, WorkbenchTranscriptMode, WorkbenchTranscriptFilter } from './ui-state.js';
 
 export type WorkbenchUiAction =
   | { readonly type: 'composer.insert'; readonly text: string }
@@ -21,4 +21,7 @@ export type WorkbenchUiAction =
   | { readonly type: 'overlay.toggle'; readonly overlay: WorkbenchOverlay }
   | { readonly type: 'overlay.close' }
   | { readonly type: 'transcript.mode'; readonly mode: WorkbenchTranscriptMode }
+  | { readonly type: 'transcript.filter'; readonly filter: WorkbenchTranscriptFilter }
+  | { readonly type: 'transcript.scope.toggle' }
+  | { readonly type: 'transcript.follow'; readonly followTail: boolean }
   | { readonly type: 'dimensions.set'; readonly columns: number; readonly rows: number };

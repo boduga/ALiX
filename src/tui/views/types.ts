@@ -55,6 +55,10 @@ export interface ViewRenderContext {
   readonly themeName?: string;
   /** Enables the conversation-first semantic transcript during migration. */
   readonly workbenchEnabled?: boolean;
+  /** Presentation-only count of new semantic items while follow is paused. */
+  readonly workbenchNewItems?: number;
+  /** Frame-local wrapped rows shared with semantic anchor reconciliation. */
+  readonly workbenchLines?: readonly import('./bottom-anchored-viewport.js').ScrollbackLine[];
   /** Phase 6 (D6/D9): projected chat/agent sub-session runtime snapshots. */
   readonly runtime?: PerTabRuntime;
   /** Slash-command completion strip, present only while slash mode is active. */

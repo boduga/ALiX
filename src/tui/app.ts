@@ -32,7 +32,7 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
-import { approvalVisibleTo, artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
+import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
 
 export interface TuiAppOptions {
@@ -536,17 +536,31 @@ export class TuiApp {
     // ── Escape cancels the in-flight agent turn (Task 6.1) ───────────
     // Claude-Code-style stop key: while an agent turn is executing (across
     // any tab — the run keeps streaming in the background), Escape requests
-    // cancellation of that turn. It is consumed ONLY when a cancellable turn
-    // is actually running (`cancelActiveTurn` armed); otherwise Escape falls
+    // cancellation of that turn. A focused Workbench drawer closes first;
+    // otherwise a cancellable turn consumes Escape (`cancelActiveTurn` armed).
+    // When no turn is active, Escape falls
     // through to the existing handlers (palette dismissal above already
     // claimed it when the modal is open).
     if (key === '\x1b' || key === 'Escape') {
+      if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
+        const workbench = this.workbenchStore.snapshot();
+        if (workbench.focus === 'drawer' && workbench.drawer !== 'closed') {
+          this.handleWorkbenchAgentInput('Escape');
+          return;
+        }
+      }
       if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
         this.paintFullFrame();
         return;
       }
       // An idle agent surface stays in place; Escape is not a tab switch.
-      if (this.state.activeTab === 'agent') return;
+      if (this.state.activeTab === 'agent') {
+        if (this.opts.workbenchEnabled && this.workbenchStore.snapshot().focus === 'transcript') {
+          this.workbenchStore.dispatch({ type: 'focus.set', focus: 'composer' });
+          this.paintFullFrame();
+        }
+        return;
+      }
     }
     if (this.opts.workbenchEnabled && key === '\x03' && this.sessionDispatchActive && !this.workbenchCancelArmed) {
       if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Ctrl+C')) {
@@ -777,6 +791,26 @@ export class TuiApp {
     });
 
     switch (intent.type) {
+      case 'focus.set':
+        this.workbenchStore.dispatch(intent);
+        this.paintFullFrame();
+        return true;
+      case 'transcript.filter':
+      case 'transcript.scope.toggle':
+        this.workbenchStore.dispatch(intent);
+        if (state.followTail) this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        return true;
+      case 'transcript.follow.toggle': {
+        const followTail = !state.followTail;
+        // Capture the currently visible bottom before stopping automatic follow.
+        if (state.followTail) this.resetScrollOffsetToBottom('agent');
+        this.workbenchStore.dispatch({ type: 'transcript.follow', followTail });
+        perTab.pinnedBottom = followTail;
+        if (followTail) this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        return true;
+      }
       case 'composer.insert':
         this.workbenchStore.dispatch({ type: 'composer.insert', text: intent.text });
         this.syncWorkbenchComposer();
@@ -918,7 +952,7 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'approval.resolve': {
-        const target = perTab.pendingApprovals.find((approval) => approvalVisibleTo(approval, state.selectedAgentId)) ?? fallbackTarget;
+        const target = perTab.pendingApprovals[0] ?? fallbackTarget;
         if (!target) return false;
         if (this.pendingApprovalDecisions.has(target.id)) return true;
         this.pendingApprovalDecisions.add(target.id);
@@ -1429,6 +1463,10 @@ export class TuiApp {
    * Reads the live `ViewRenderContext` via the frame painter.
    */
   private resetScrollOffsetToBottom(tab: 'agent' | 'chat'): void {
+    if (this.opts.workbenchEnabled && tab === 'agent') {
+      this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: true });
+      this.state.views.agent.pinnedBottom = true;
+    }
     const ctx = this.framePainter.buildViewRenderContext(tab);
     this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
   }
@@ -1448,6 +1486,7 @@ export class TuiApp {
         const per = this.state.views[tab];
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
+          if (this.opts.workbenchEnabled && tab === 'agent') per.pinnedBottom = this.workbenchStore.snapshot().followTail;
           const ctx = this.framePainter.buildViewRenderContext(tab);
           const bottomAnchor = computeBottomAnchor(ctx, tab);
           const step = action.offset - per.scrollOffset;
@@ -1473,6 +1512,9 @@ export class TuiApp {
           }
           // else (pinned && action.offset === 0): ArrowDown pressed while
           // already pinned — no-op, stays pinned.
+          if (this.opts.workbenchEnabled && tab === 'agent') {
+            this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: per.pinnedBottom });
+          }
           this.paintFullFrame();
           break;
         }
@@ -1650,6 +1692,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
   if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
   if (s === '\x12') return 'Ctrl+r';   // Ctrl+R — Workbench artifact/result drawer
+  if (s === '\x06') return 'Ctrl+f';   // Ctrl+F — Workbench composer/transcript focus
   // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
   // Shift+Enter. A plain Enter remains submission.
   if (s === '\x1b[13;2u' || s === '\x1b[27;2;13~') return 'Shift+Enter';
