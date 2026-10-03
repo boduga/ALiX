@@ -467,13 +467,71 @@ for (const file of changedFiles) {
   spliced.push(...detectSplicedBullets(file, content.split("\n")));
 }
 
+/**
+ * The audit's verdict. Computed ONCE, then rendered and exited from.
+ *
+ * The exit decision used to be re-derived independently by each output mode —
+ * a nested ternary in the JSON path, an if/else chain in the human path — with
+ * nothing asserting they agreed. They drifted, and the drift shipped twice: a
+ * permanently red `dox-claims` lane on `main`, then a red lane on every PR that
+ * legitimately touched no contract. A named verdict with one decision point
+ * makes that class of bug unrepresentable.
+ */
+const EXIT = Object.freeze({
+  /** Claims were audited and they resolve. */
+  CLEAN: 0,
+  /** Claims were audited and at least one does not resolve. */
+  VIOLATION: 1,
+  /** Nothing was audited and that is NOT because there was nothing to audit. */
+  VACUOUS: 2,
+});
+
+/**
+ * Why the run audited nothing, when it did.
+ *
+ * Two cases make "nothing to audit" the complete and correct answer rather than
+ * a green that verified nothing, and they are the reason this script cannot be
+ * reduced to "audited 0 files => fail":
+ *
+ *   1. base === head. The post-merge run on `main`, where `main...HEAD` is empty
+ *      BY CONSTRUCTION. Failing it means the lane can never pass on the default
+ *      branch, and a permanently red lane trains everyone to ignore it.
+ *   2. The range changes files, none of them AGENTS.md. A test-only or
+ *      code-only PR legitimately edits no contract.
+ *
+ * VACUOUS is reserved for the genuinely suspicious case: refs that DIFFER while
+ * the range changes nothing at all — a stale branch, a wrong base, or the wrong
+ * checkout. That is the misconfiguration the original guard existed for, and
+ * `git diff base...head` ignoring the working tree is why it matters: without
+ * the worktree union, a dirty tree full of new claims reads as "0 files".
+ */
+function decideExit(input) {
+  const { problems, spliced, changedFiles, anyChangedFiles, baseSha, headSha } = input;
+  if (problems.length || spliced.length) return { code: EXIT.VIOLATION, why: "violations found" };
+  if (changedFiles.size > 0) return { code: EXIT.CLEAN, why: `${changedFiles.size} contract file(s) audited` };
+  if (baseSha === headSha) return { code: EXIT.CLEAN, why: "base and head are the same commit" };
+  if (anyChangedFiles.size > 0) {
+    return { code: EXIT.CLEAN, why: `${anyChangedFiles.size} file(s) changed, none a contract` };
+  }
+  return { code: EXIT.VACUOUS, why: "refs differ but nothing changed at all" };
+}
+
+const exitInfo = decideExit({ problems, spliced, changedFiles, anyChangedFiles, baseSha, headSha });
+
 if (asJson) {
   console.log(JSON.stringify(
-    { base, head, checked, files: [...changedFiles], problems, spliced, baseline: baseline.size, vacuous: changedFiles.size === 0 },
+    {
+      base, head, checked, files: [...changedFiles], problems, spliced,
+      baseline: baseline.size,
+      // The machine-readable verdict, from the same decision the exit uses.
+      exit: exitInfo.code,
+      exitWhy: exitInfo.why,
+      vacuous: exitInfo.code === EXIT.VACUOUS,
+    },
     null,
     2,
   ));
-  process.exit(problems.length || spliced.length ? 1 : changedFiles.size === 0 ? (baseSha === headSha || anyChangedFiles.size > 0 ? 0 : 2) : 0);
+  process.exit(exitInfo.code);
 }
 
 console.log(
@@ -492,7 +550,7 @@ if (spliced.length) {
 if (problems.length) {
   console.error(`UNBACKED CLAIMS (${problems.length}):`);
   for (const p of problems) console.error(`  - ${p.file}\n      ${p.why}  ${p.token}`);
-  process.exit(1);
+  process.exit(exitInfo.code);
 }
 // A clean run that audited NOTHING is not a pass — with TWO exceptions, both
 // cases where "nothing to audit" is the complete and correct answer rather than
@@ -513,27 +571,15 @@ if (problems.length) {
 // Exit 2 is reserved for the genuinely suspicious case: refs that DIFFER while
 // the range changes nothing at all — a stale branch, a wrong base, or the wrong
 // checkout. That is the misconfiguration the vacuous-pass guard exists for.
-if (changedFiles.size === 0) {
-  if (baseSha === headSha) {
-    console.log(
-      `DOX claim/code audit: base and head are both ${headSha.slice(0, 8)} — nothing to audit.\n` +
-        "  This is the expected post-merge result on the default branch, not a vacuous pass.",
-    );
-    process.exit(0);
-  }
-  if (anyChangedFiles.size > 0) {
-    console.log(
-      `DOX claim/code audit: ${anyChangedFiles.size} file(s) changed, none of them AGENTS.md — nothing to audit.\n` +
-        "  The branch edits no contract, so there is no claim to check. Not a vacuous pass.",
-    );
-    process.exit(0);
-  }
+if (exitInfo.code === EXIT.VACUOUS) {
+  // The ONE place the suspicious case is explained, and the only remaining
+  // hand-written branch: everything else exits above, via `exitInfo`.
   console.error(
     "NOTHING AUDITED: no AGENTS.md changed between the resolved refs or in the working tree.\n" +
-      "  That is a vacuous pass, not a clean one. Re-run with an explicit range\n" +
-      "  (--base/--head) on a branch that actually edits a contract.",
+      "  That is a vacuous pass, not a clean one — refs differ but nothing changed at all.\n" +
+      "  Re-run with an explicit range (--base/--head) on a branch that actually edits a contract.",
   );
-  process.exit(2);
+  process.exit(exitInfo.code);
 }
 console.log(
   `OK: ${checked} claim token(s) across ${changedFiles.size} AGENTS.md file(s) resolve to the branch's own content.`,
