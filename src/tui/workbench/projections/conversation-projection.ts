@@ -1,3 +1,4 @@
+import { cloneToolCardMetadata } from '../../runtime/execution-trace.js';
 import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 import { isCompletionExecName } from '../../../agents/tool-manifest.js';
 import type { TimelineEntry } from '../../runtime/timeline-builder.js';
@@ -55,6 +56,8 @@ function cloneTool(entry: ExecutionTraceEntry): ToolItem {
   return {
     id: entry.id,
     name: toolName(entry.title),
+    startedAt: entry.startedAt,
+    ...(entry.toolMetadata !== undefined ? { metadata: cloneToolCardMetadata(entry.toolMetadata) } : {}),
     status: entry.status,
     ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
     ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
