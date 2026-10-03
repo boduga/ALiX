@@ -115,3 +115,8 @@ Three persistent panes activate at ≥160 columns and ≥36 rows. At ≥120 colu
 ## 2026-10-03 Phase 3 chrome implementation amendment
 
 Preview chrome retains three header rows and one footer row so pane geometry and composer anchoring stay stable. Wide terminals place branding, live PREVIEW badge and workspace/mode/session-roster groups on the first row; narrower terminals move workspace and warning/count groups to the second. Demonstration presentation explicitly opts into CONCEPT PREVIEW. Footer hints use accent keys and whole groups; decisions and close/cancel outrank optional telemetry. Session-scoped counters preserve missing values as unavailable and explicit zero as known. Header/footer use semantic theme tokens with explicit monochrome/ASCII alternatives; other region painters integrate theme in their own phases.
+
+
+## 2026-10-03 Operator branding amendment
+
+Operator requests threefold title sizing, bold weight and removal of the line below it. The ANSI cell canvas cannot change font size per label, so wide/tall Unicode surfaces use a bold cyan three-row block-letter ALiX WORKBENCH banner inside the existing header budget. Compact/ASCII surfaces retain the bold text title. The horizontal header divider is removed at every width; pane and composer geometry do not move. Live metadata remains readable beside the banner.
