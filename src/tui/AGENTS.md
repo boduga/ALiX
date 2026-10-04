@@ -63,6 +63,8 @@
 - Workbench transcript wrapping, full-width composer rows, scroll anchors, and terminal cursor placement derive from the same named responsive region geometry. Drawer writes stay within their body region, including short windows.
 - Unpinned Workbench resize preserves the semantic transcript item and nearest wrapped offset in a presentation-only frame cache; manual scroll deltas still apply and operator selection/state is not rewritten.
 - Workbench frames are row-diffed against the previous frame, and composer cursor math uses grapheme display width rather than UTF-16 length.
+- Canvas writes segment each plain-text run once between ANSI sequences. Never re-segment a shrinking suffix for every cell: quadratic paint work blocks raw keyboard input. Preserve complete graphemes, style resets and clipping when optimizing rendering.
+- Printable ASCII bypasses Unicode segmentation; controls and non-ASCII text retain full grapheme handling. Input performance regressions must exercise raw keystrokes through full frame composition, with deterministic work bounds alongside measured latency.
 - Canvas cells reserve terminal display columns for complete graphemes, so wide
   characters and emoji cannot shift adjacent Workbench chrome or split across
   frame patches. Shared terminal-text helpers live at `src/tui/terminal-text.ts`.

@@ -1,6 +1,10 @@
 const combining = /[\p{Mark}\u200d\ufe0e\ufe0f]/u;
 
 export function graphemes(text: string): readonly string[] {
+  // Printable ASCII cannot contain combined clusters. Avoid constructing an
+  // ICU segmenter for the common terminal/code path; controls (including
+  // CRLF) and all Unicode still use the full grapheme implementation.
+  if (/^[\x20-\x7e]*$/.test(text)) return Array.from(text);
   const Segmenter = (Intl as unknown as { Segmenter?: new (...args: any[]) => { segment(value: string): Iterable<{ segment: string }> } }).Segmenter;
   if (Segmenter) return [...new Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((part) => part.segment);
   return Array.from(text);
