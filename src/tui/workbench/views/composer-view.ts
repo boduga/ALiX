@@ -25,8 +25,15 @@ export function layoutComposer(text: string, columns: number, maxRows = 5, curso
   const safeCursor = Math.max(0, Math.min(cursor, text.length));
   const cursorLines = text.slice(0, safeCursor).split('\n');
   const cursorWrapped = cursorLines.flatMap((line) => wrapDisplayText(line, contentWidth));
-  const absoluteCursorRow = Math.max(0, cursorWrapped.length - 1);
-  const cursorColumn = displayWidth(cursorWrapped[absoluteCursorRow] ?? '');
+  let absoluteCursorRow = Math.max(0, cursorWrapped.length - 1);
+  let cursorColumn = displayWidth(cursorWrapped[absoluteCursorRow] ?? '');
+  // A full content row leaves no insertion cell before the right border.
+  // Move its caret to the next wrapped row, adding an empty row at the end.
+  if (cursorColumn >= contentWidth) {
+    absoluteCursorRow += 1;
+    cursorColumn = 0;
+    if (wrapped.length <= absoluteCursorRow) wrapped.push('');
+  }
   const rowLimit = Math.max(1, maxRows);
   const maxHiddenRows = Math.max(0, wrapped.length - rowLimit);
   const hiddenRows = Math.min(maxHiddenRows, Math.max(0, absoluteCursorRow - rowLimit + 1));

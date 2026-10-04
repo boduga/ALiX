@@ -22,6 +22,47 @@ afterEach(() => {
 const strip = (value: string) => value.replace(/\x1b\[[0-9;]*m/gu, '');
 
 describe('Workbench pane integration', () => {
+  it.each([[200,44],[134,33],[80,24],[12,9]])('paints full cyan composer box and bounded exact placeholder at %ix%i', (columns, rows) => {
+    const { state } = createWorkbenchRenderHarness();
+    const canvas = new TerminalCanvas(columns, rows);
+    const ui = createInitialWorkbenchUiState({ columns, rows });
+    new AgentView().render({ canvas, snap: state.lastSnapshot!, dimensions: { columns, rows }, perTab: createInitialPerTabState(), workbenchEnabled: true, workbenchUiState: ui, runtime: { agent: null, chat: null } });
+    const frame = strip(canvas.renderFrame()).split('\n');
+    const { geometry } = layoutWorkbenchSurface('', { columns, rows }, 'closed');
+    const line = frame[geometry.regions.composerContent.y]!;
+    expect(line.startsWith('│> ')).toBe(true);
+    expect(line.endsWith('│')).toBe(true);
+    expect(line.slice(3, -1).trimEnd()).toBe('Add your next instruction...'.slice(0, columns - 4));
+    expect(frame[geometry.topBorderRow]).toBe('╭' + '─'.repeat(columns - 2) + '╮');
+  });
+
+  it.each(['x'.repeat(76), '界'.repeat(38)])('keeps exact-full-row caret inside composer border: %s', text => {
+    dimensions(80,24);
+    const { app, state, paint, output } = createWorkbenchRenderHarness();
+    const ui = (app as any).workbenchStore;
+    ui.dispatch({ type: 'composer.replace', text });
+    state.views.agent.inputBuffer = text;
+    paint();
+    const { geometry, composer } = layoutWorkbenchSurface(text, { columns:80, rows:24 }, 'closed');
+    expect(composer.cursorColumn).toBe(0);
+    expect(output.writes.at(-1)).toBe(`\x1b[${geometry.regions.composerContent.y + composer.cursorRow + 1};4H`);
+  });
+
+  it.each(['help', 'inspector', 'diagnostics'])('keeps overlay and approval out of composer on a short terminal: %s', overlay => {
+    dimensions(80,12);
+    const { app, state, paint } = createWorkbenchRenderHarness();
+    const ui = (app as any).workbenchStore;
+    ui.dispatch({ type: 'composer.replace', text: 'editable draft' });
+    ui.dispatch({ type: 'overlay.toggle', overlay });
+    state.views.agent.inputBuffer = 'editable draft';
+    state.views.agent.pendingApprovals = [{ id: 'pending', toolName: 'shell.run', target: 'approval target', requestedAt: 1 }];
+    paint();
+    const frame = strip((app as any).framePainter.previousWorkbenchFrame).split('\n');
+    const { geometry } = layoutWorkbenchSurface('editable draft', { columns:80,rows:12 }, 'closed');
+    expect(frame[geometry.regions.composerContent.y]).toContain('editable draft');
+    expect(frame[geometry.topBorderRow]).toBe('╭' + '─'.repeat(78) + '╮');
+  });
+
   it('uses full transcript width for the same bottom anchor as the painted surface', () => {
     const { state } = createWorkbenchRenderHarness();
     const perTab = createInitialPerTabState();

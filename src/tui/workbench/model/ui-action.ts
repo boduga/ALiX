@@ -20,6 +20,7 @@ export type WorkbenchUiAction =
   | { readonly type: 'selection.reconcile'; readonly runIds: readonly string[]; readonly agentIds: readonly string[]; readonly taskIds: readonly string[]; readonly artifactIds?: readonly string[] }
   | { readonly type: 'overlay.toggle'; readonly overlay: WorkbenchOverlay }
   | { readonly type: 'overlay.close' }
+  | { readonly type: 'overlay.scroll'; readonly delta: number }
   | { readonly type: 'transcript.mode'; readonly mode: WorkbenchTranscriptMode }
   | { readonly type: 'transcript.filter'; readonly filter: WorkbenchTranscriptFilter }
   | { readonly type: 'transcript.scope.toggle' }

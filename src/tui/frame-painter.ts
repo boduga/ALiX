@@ -17,6 +17,8 @@ import { buildWorkbenchScrollbackLines } from './workbench/views/workbench-scrol
 import { reconcileWorkbenchScrollAnchor } from './workbench/layout/scroll-anchor.js';
 import type { ScrollbackLine } from './views/bottom-anchored-viewport.js';
 import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
+import { buildAgentInspectorModel } from './workbench/model/agent-inspector.js';
+import { paintAgentInspector } from './workbench/views/agent-inspector.js';
 import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
@@ -42,6 +44,8 @@ export interface FramePainterDeps {
  *  overlay, header, tabs, status row, and cursor placement. Read-only over
  *  the state/views/runtimes supplied through deps. */
 export class FramePainter {
+  /** Presentation-only wrapped overlay bound, refreshed on each frame. */
+  overlayScrollLimit = 0;
   private previousWorkbenchFrame: string | null = null;
   private scrollAnchor: { lines: readonly ScrollbackLine[]; requestedOffset: number; resolvedOffset: number; scope: string } | null = null;
   private pausedTranscript: { scope: string; seen: Set<string>; appended: Set<string> } | null = null;
@@ -180,11 +184,20 @@ export class FramePainter {
     const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const workbench = this.deps.workbenchState?.();
-      paintWorkbenchDiagnosticOverlay(
-        rect,
+      const overlayBody = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, workbench?.drawer ?? 'closed', workbench?.composer.cursor).geometry.regions.body;
+      const overlayRect: CanvasRect = { ...rect, headerH: overlayBody.y, footerH: 0, height: Math.max(0, overlayBody.y + overlayBody.height - 1) };
+      this.overlayScrollLimit = 0;
+      if (workbench?.overlayStack.at(-1) === 'inspector') {
+        const { geometry } = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, workbench.drawer, workbench.composer.cursor);
+        const body = geometry.regions.body;
+        for (let row = body.y; row < body.y + body.height; row++) viewCanvas.write(0, row, ' '.repeat(body.width));
+        paintAgentInspector(viewCanvas, body, buildAgentInspectorModel(s.lastSnapshot, workbench));
+      } else this.overlayScrollLimit = paintWorkbenchDiagnosticOverlay(
+        overlayRect,
         workbench?.overlayStack[workbench.overlayStack.length - 1],
         s.lastSnapshot.runtime?.diffs,
         {
+          scrollOffset: workbench?.overlayScrollOffset,
           agents: s.lastSnapshot.runtime?.agents,
           tasks: s.lastSnapshot.runtime?.tasks,
           artifacts: s.lastSnapshot.runtime?.artifacts,
@@ -193,6 +206,12 @@ export class FramePainter {
           selectedTaskId: workbench?.selectedTaskId,
         },
       );
+    }
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && this.deps.workbenchState?.().overlayStack.length) {
+      const pending = s.views.agent.pendingApprovals.length ? s.views.agent.pendingApprovals : s.lastSnapshot.approvals?.pending ?? [];
+      const body = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, this.deps.workbenchState?.().drawer ?? 'closed').geometry.regions.body;
+      const approvalRect = { ...rect, headerH: body.y, footerH: 0, height: Math.max(0, body.y + body.height - 1) };
+      paintWorkbenchApprovalDialog(approvalRect, pending[0], pending.length, s.lastSnapshot.generatedAt);
     }
     if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
       paintWorkbenchApprovalDialog(
@@ -367,7 +386,7 @@ export class FramePainter {
           s.views.agent,
           liveMode,
           chromeState?.queuedMessages.length ?? 0,
-          { closeSurface: Boolean(chromeState && (chromeState.drawer !== 'closed' || chromeState.overlayStack.length > 0)) },
+          { closeSurface: Boolean(chromeState && (chromeState.drawer !== 'closed' || chromeState.overlayStack.length > 0)), focus: chromeState?.focus, drawer: chromeState?.drawer, inspectorOpen: chromeState?.overlayStack.at(-1) === 'inspector' },
         ),
       });
     }
