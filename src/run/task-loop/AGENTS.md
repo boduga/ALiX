@@ -94,6 +94,7 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- `onToolResult` passes full successful model-facing result text to an invocation-local observer before telemetry previews truncate it. Observer failures cannot change execution; verification consumers must not substitute preview events for retrieved evidence.
 - Tool-selection instrumentation records the frozen offered surface, chosen
   candidate, resolved executor, and separate novelty, execution, and evidence
   signals in `tool.selection.observed`. Novel successful output does not prove
