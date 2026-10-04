@@ -10,6 +10,7 @@ import select
 import signal
 import struct
 import subprocess
+import sys
 import termios
 import time
 
@@ -18,7 +19,8 @@ master, slave = pty.openpty()
 def size(columns, rows):
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', rows, columns, 0, 0))
 size(200, 44)
-process = subprocess.Popen(['node', 'dist/tests/fixtures/tui/workbench-geometry-pty.js'],
+entry = sys.argv[1] if len(sys.argv) > 1 else 'dist/tests/fixtures/tui/workbench-geometry-pty.js'
+process = subprocess.Popen(['node', entry],
                            cwd=ROOT, stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
 
 def frame(columns, rows):

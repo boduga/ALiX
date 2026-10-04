@@ -21,6 +21,80 @@ function mutateRange(value: unknown): void {
 }
 
 describe('typed tool-card event metadata', () => {
+  it.each([[7, '7'], [{}, '[object Object]'], [['read'], 'read'], [true, 'true'], [7, 'tool.output:2']] as const)
+    ('does not coerce malformed call identity %j into valid string %s, including after checkpoint restore', (malformed, valid) => {
+      const builder = new IncrementalExecutionTraceBuilder();
+      builder.update([request(1, valid)]);
+      const original = builder.snapshot()[0];
+      builder.update([event(2, 'tool.output', { toolCallId: malformed, agentId: 'frontend', outputPreview: 'wrong identity' }),
+        event(3, 'tool.completed', { toolCallId: malformed, agentId: 'frontend', observedLineCount: 999 })]);
+      expect(builder.snapshot().find(row => row.toolMetadata?.toolCallId === valid)).toEqual(original);
+      const restored = new IncrementalExecutionTraceBuilder();
+      restored.importState(builder.exportState());
+      restored.update([event(4, 'tool.failed', { toolCallId: malformed, agentId: 'frontend', error: 'wrong identity' })]);
+      expect(restored.snapshot().find(row => row.toolMetadata?.toolCallId === valid)).toEqual(original);
+      restored.update([event(5, 'tool.completed', { toolCallId: valid, agentId: 'frontend', observedLineCount: 142 })]);
+      expect(restored.snapshot().find(row => row.toolMetadata?.toolCallId === valid)).toMatchObject({ status: 'completed', toolMetadata: { observedLineCount: 142 } });
+    });
+
+  it('preserves independent legacy events without call identities', () => {
+    const trace = buildExecutionTrace([event(1, 'tool.started', { toolName: 'file.read' }),
+      event(2, 'tool.started', { toolName: 'file.read' }), event(3, 'tool.completed', { toolName: 'file.read' })]);
+    expect(trace).toHaveLength(3);
+    expect(trace.filter(row => row.status === 'running')).toHaveLength(2);
+    expect(trace.every(row => row.toolMetadata === undefined)).toBe(true);
+  });
+  it('keeps cancellation terminal without terminating another invocation', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([request(), request(2, 'other'), event(3, 'tool.output', { toolCallId: 'read', outputPreview: 'partial' }),
+      event(4, 'tool.completed', { toolCallId: 'read', agentId: 'frontend', status: 'cancelled', durationMs: 3000 })]);
+    expect(builder.snapshot().find(row => row.toolMetadata?.toolCallId === 'read')).toMatchObject({
+      status: 'cancelled', detail: 'partial', durationMs: 3000, sourceEvents: { firstSequence: 1, lastSequence: 4 },
+    });
+    expect(builder.snapshot().find(row => row.toolMetadata?.toolCallId === 'other')?.status).toBe('running');
+    const restored = new IncrementalExecutionTraceBuilder();
+    restored.importState(builder.exportState());
+    restored.update([event(5, 'tool.output', { toolCallId: 'read', outputPreview: 'late' }),
+      event(6, 'tool.started', { toolCallId: 'read', agentId: 'frontend' })]);
+    expect(restored.snapshot()).toEqual(builder.snapshot());
+  });
+
+  it('rejects a different authoritative actor before changing progress, request metadata or terminal state', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([request()]);
+    const before = builder.snapshot();
+    builder.update([
+      event(2, 'tool.output', { toolCallId: 'read', agentId: 'backend', outputPreview: 'wrong actor output' }),
+      event(3, 'tool.requested', { toolCallId: 'read', agentId: 'backend', argsPreview: { path: 'wrong.ts', startLine: 20, endLine: 30 } }),
+      event(4, 'tool.completed', { toolCallId: 'read', agentId: 'backend', observedLineCount: 999 }),
+    ]);
+    expect(builder.snapshot()).toEqual(before);
+    const resumed = new IncrementalExecutionTraceBuilder();
+    resumed.importState(builder.exportState());
+    resumed.update([event(5, 'tool.output', { toolCallId: 'read', agentId: 'frontend', outputPreview: 'correct' }),
+      event(6, 'tool.completed', { toolCallId: 'read', agentId: 'frontend', observedLineCount: 142 })]);
+    expect(resumed.snapshot()).toMatchObject([{ status: 'completed', agentId: 'frontend', detail: 'correct',
+      toolMetadata: { path: 'src/sidebar.ts', observedLineCount: 142 }, sourceEvents: { firstSequence: 1, lastSequence: 6 } }]);
+  });
+
+  it('deduplicates orphan terminals and refuses late progress after checkpoint restore', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([event(1, 'tool.failed', { toolCallId: 'orphan', agentId: 'frontend', error: 'original' })]);
+    const before = builder.snapshot();
+    const resumed = new IncrementalExecutionTraceBuilder();
+    resumed.importState(builder.exportState());
+    const late = [event(2, 'tool.completed', { toolCallId: 'orphan', agentId: 'frontend', observedLineCount: 999 }),
+      event(3, 'tool.requested', { toolCallId: 'orphan', agentId: 'frontend', argsPreview: { path: 'late.ts' } }),
+      event(4, 'tool.started', { toolCallId: 'orphan', agentId: 'frontend' }),
+      event(5, 'tool.output', { toolCallId: 'orphan', agentId: 'frontend', outputPreview: 'late' })];
+    for (const target of [builder, resumed]) {
+      target.update(late);
+      expect(target.snapshot()).toEqual(before);
+      target.update([request(6, 'new-call')]);
+      expect(target.snapshot()).toHaveLength(2);
+    }
+  });
+
   it('preserves requested range separately from observed count and start time', () => {
     const trace = buildExecutionTrace([request(), event(2, 'tool.started', { toolCallId: 'read' }), completed]);
     expect(trace[0]).toMatchObject({ status: 'completed', startedAt: 1000,

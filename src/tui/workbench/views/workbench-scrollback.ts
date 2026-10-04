@@ -3,8 +3,9 @@ import type { ScrollbackLine } from '../../views/bottom-anchored-viewport.js';
 import { wrapText } from '../../views/wrap-text.js';
 import type { ViewRenderContext } from '../../views/types.js';
 import { ConversationProjection } from '../projections/conversation-projection.js';
-import type { TranscriptItem, ToolItem, TranscriptMode } from '../model/transcript-item.js';
+import type { TranscriptItem, TranscriptMode } from '../model/transcript-item.js';
 import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
+import { buildWorkbenchToolCardLines } from './tool-card.js';
 import { getTranscriptFocusAgentId, transcriptItemMatchesFilter } from '../model/transcript-filter.js';
 import { displayWidth, truncateDisplayText, wrapDisplayText } from '../../terminal-text.js';
 import { stripAnsi } from '../../box.js';
@@ -53,7 +54,7 @@ function appendPreviewRows(out: ScrollbackLine[], kind: string, body: string, wi
   if (width >= 72) {
     const prefix = `${time} ${actorColumn}${' '.repeat(18 - displayWidth(actorColumn))} ${safeStatus}${' '.repeat(10 - displayWidth(safeStatus))} `;
     const styledPrefix = `${p.muted}${time}${reset} ${actorColor}${actorColumn}${reset}${' '.repeat(18 - displayWidth(actorColumn))} ${statusColor}${safeStatus}${reset}${' '.repeat(10 - displayWidth(safeStatus))} `;
-    const rows = bodyRows(Math.max(1, width - displayWidth(prefix)));
+    const rows = markedBody ? bodyRows(Math.max(1, width - displayWidth(prefix))) : [''];
     rows.forEach((text, index) => out.push({ kind, text: `${index === 0 ? styledPrefix : ' '.repeat(displayWidth(prefix))}${p.foreground}${text}${reset}`, isFirst: index === 0, ...(index === 0 && (kind === 'user' || kind === 'agent') ? { gutter: kind === 'user' ? 'YOU' : 'ALiX' } : {}) }));
   } else {
     const metadata = `${time} ${actor}${status ? ` ${safeStatus}` : ''}`;
@@ -75,21 +76,6 @@ function tagRows(out: ScrollbackLine[], start: number, itemId: string): void {
 
 function appendSeparator(out: ScrollbackLine[], itemId: string): void {
   if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false, itemId: `separator:${itemId}`, wrappedOffset: 0 });
-}
-
-function toolMarker(tool: ToolItem): string {
-  switch (tool.status) {
-    case 'running': return '→';
-    case 'completed': return '✓';
-    case 'failed': return '✗';
-    case 'cancelled': return '○';
-  }
-}
-
-function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
-  if (pendingApprovalTool === tool.name && tool.status === 'running') return `→ ${tool.name} · approval required`;
-  const duration = tool.durationMs === undefined ? '' : ` · ${tool.durationMs}ms`;
-  return `${toolMarker(tool)} ${tool.name}${duration}`;
 }
 
 /**
@@ -152,12 +138,11 @@ export function buildWorkbenchScrollbackLines(
       case 'tool-group':
         for (const tool of item.tools) {
           if (filter === 'error' && tool.status !== 'failed') continue;
-          appendPreviewRows(out, 'toolCall', toolSummary(tool, pendingApprovalTool), textWidth, { ...item, startedAt: tool.startedAt ?? item.startedAt }, ctx);
-          if ((mode === 'detailed' || tool.status === 'failed') && tool.detail) {
-            wrapText(`  ${tool.detail}`, textWidth).forEach((text) => {
-              out.push({ kind: tool.status === 'failed' ? 'approval' : 'context', text, isFirst: false });
-            });
-          }
+          const toolStart = out.length;
+          appendPreviewRows(out, 'toolCall', '', textWidth, { ...item, startedAt: tool.startedAt ?? item.startedAt }, ctx);
+          out.push(...buildWorkbenchToolCardLines(tool, { width: textWidth, indent: textWidth >= 72 ? 41 : 2, mode,
+            approvalPending: pendingApprovalTool === tool.name }));
+          tagRows(out, toolStart, `tool:${tool.id}`);
         }
         break;
       case 'approval':
@@ -202,7 +187,7 @@ export function buildWorkbenchScrollbackLines(
         break;
       }
     }
-    tagRows(out, start, item.id);
+    if (item.kind !== 'tool-group') tagRows(out, start, item.id);
   }
 
   // Runtime projection and timeline sampling can arrive in adjacent frames.

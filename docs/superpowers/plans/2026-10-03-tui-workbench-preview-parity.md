@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–5 geometry/chrome/roster/transcript complete. Phases 6–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–6 geometry/chrome/roster/transcript/tool cards complete. Phases 7–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -19,7 +19,8 @@ Implementation progress:
 - Operator branding amendment (refined to one row): bold cyan single-row text title replaces the block banner at every width. Header divider removed without moving panes or composer.
 - Phase 4 roster complete: identity-joined agent/task rows, lifecycle words and glyphs, aggregate counts, scoped shortcuts, selected outlines/fill, reference dividers and bounded scrolling. Coordination guidance is read-only; launching remains Phase 9.
 - Phase 5 transcript complete: independent all/selected-agent scope and categories, UTC actor/status prefixes, user-safe activity, explicit outcome badges, cyan frame/chips and authoritative follow with semantic anchors/new-item counts. Global approval cards and their decisions remain aligned; raw Escape closes a drawer before foreground cancellation.
-- Phases 6–10 pending.
+- Phase 6 tool cards complete: bounded outlined cards, TOOL badges, lifecycle outcomes, requested metadata, observed counts and connector guides. Per-call identities survive details mode; cancellation and orphan/late/mismatched events preserve truthful outcomes. Live names remain exact trace labels.
+- Phases 7–10 pending.
 
 ## Objective
 
@@ -127,7 +128,7 @@ Each ID in a grouped range inherits the same responsible boundary, planned test 
 | H01–H06, F01–F06 | model/operator-shell.ts; views/operator-shell.ts | operator-shell.vitest.ts; input-router.vitest.ts for key behavior | Pending |
 | L01–L11 | views/roster-drawer.ts; agent/task projections | preview-roster.vitest.ts; responsive-drawer.vitest.ts; roster-shortcuts-integration.vitest.ts; four-worker-e2e.vitest.ts | Phase 4 rendering/interaction passed; final captures Phase 10 |
 | T01–T10, T15–T17 | conversation projection; scrollback; transcript toolbar | transcript-preview.vitest.ts; transcript-toolbar.vitest.ts; transcript-follow.vitest.ts; pane-integration.vitest.ts; real controls/resize PTY | Phase 5 rendering/interaction passed; final captures Phase 10 |
-| T11–T14 | proposed views/tool-card.ts; transcript model/projection | preview-fixture.vitest.ts covers lifecycle/ranges/counts; proposed tool-card.vitest.ts for geometry | Pending |
+| T11–T14 | views/tool-card.ts; transcript model/projection | tool-card.vitest.ts; tool-card-pane.vitest.ts; tool-card-metadata.vitest.ts; executor-cancel-events.vitest.ts; real tool-card resize PTY | Phase 6 rendering/lifecycle passed; final captures Phase 10 |
 | R01–R16 | proposed agent-inspector model/projection/view | preview-fixture.vitest.ts covers source facts; proposed agent-inspector.vitest.ts for joins/rendering | Pending |
 | C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; actual PTY additions pending | Pending |
 
@@ -299,7 +300,9 @@ Exit: every §3 prose group appears once; category membership positive/negative 
 
 ### Phase 6 — Tool cards and connectors
 
-Dependencies: 5. Coverage: T11–T14, F02 behavior.
+Status: Complete 2026-10-03. Dependencies: 5. Coverage: T11–T14, F02 behavior.
+
+Evidence: 658 affected Vitest cases and 13 executor event cases passed. Build, unused-code and dead-module checks passed. Both reference cards render event-backed requested/observed facts; full-pane tests verify clipping in compact and detailed modes. Real PTY verified eight sizes, including one-cell and short terminals, plus production focus/filter/scope/follow and cleanup. Run tool-card resize checks with `python3 tests/manual/run-workbench-geometry-pty.py dist/tests/fixtures/tui/workbench-tool-cards-pty.js` after build. Spec-compliance and code-quality review passed. TUI/tools DOX updated; root and documentation-parent contracts remain unchanged because their scope/hierarchy did not change. Final visual capture comparison remains Phase 10.
 
 1. Render TOOL badges, tool labels, lifecycle outcomes, metadata, right counts and connector guides.
 2. Distinguish requested ranges from observed counts; never count truncated preview as full output.
