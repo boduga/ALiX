@@ -526,7 +526,7 @@ export class TuiApp {
     // non-cycling here — completion is the more useful primary action.
     // The operator can refine the buffer with more letters and press Tab
     // again to re-complete against the new ranking.
-    if (this.slash.active()) {
+    if (this.slash.active() && (!this.opts.workbenchEnabled || this.workbenchStore.snapshot().focus === 'composer')) {
       if (key === 'Tab') {
         if (this.slash.complete()) this.paintFullFrame();
         return;
@@ -544,7 +544,7 @@ export class TuiApp {
     if (key === '\x1b' || key === 'Escape') {
       if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
         const workbench = this.workbenchStore.snapshot();
-        if (workbench.focus === 'drawer' && workbench.drawer !== 'closed') {
+        if (workbench.drawer !== 'closed') {
           this.handleWorkbenchAgentInput('Escape');
           return;
         }
@@ -671,7 +671,7 @@ export class TuiApp {
           this.paintFullFrame();
           return;
         }
-        if (this.slash.active()) {
+        if (this.slash.active() && (!this.opts.workbenchEnabled || this.workbenchStore.snapshot().focus === 'composer')) {
           void this.submitSlashCommand();
           this.paintFullFrame();
           return;
@@ -785,12 +785,20 @@ export class TuiApp {
       slashActive: this.slash.active(),
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
       overlayOpen: state.overlayStack.length > 0,
+      inspectorOpen: state.overlayStack.at(-1) === 'inspector',
       transcriptMode: state.transcriptMode,
       drawer: state.drawer,
       focus: state.focus,
     });
 
     switch (intent.type) {
+      case 'overlay.scroll': {
+        const limit = this.framePainter.overlayScrollLimit;
+        const next = Math.max(0, Math.min(limit, Math.min(limit, state.overlayScrollOffset) + intent.delta));
+        this.workbenchStore.dispatch({ type: 'overlay.scroll', delta: next - state.overlayScrollOffset });
+        this.paintFullFrame();
+        return true;
+      }
       case 'focus.set':
         this.workbenchStore.dispatch(intent);
         this.paintFullFrame();
@@ -838,11 +846,15 @@ export class TuiApp {
           this.paintFullFrame();
           return true;
         }
-        this.workbenchStore.dispatch({ type: 'composer.clear' });
         void this.submitSlashCommand();
         this.paintFullFrame();
         return true;
       case 'turn.submit': {
+        if (!this.state.lastSnapshot) {
+          this.slash.hint = 'Submission unavailable; instruction retained.';
+          this.paintFullFrame();
+          return true;
+        }
         const text = state.composer.text;
         this.workbenchStore.dispatch({ type: 'composer.clear' });
         this.syncWorkbenchComposer();
@@ -874,7 +886,12 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
+      case 'inspector.open':
+        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'inspector' });
+        this.paintFullFrame();
+        return true;
       case 'drawer.toggle':
+        if (state.overlayStack.at(-1) === 'inspector') this.workbenchStore.dispatch({ type: 'overlay.close' });
         this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
         this.paintFullFrame();
         return true;
@@ -1052,7 +1069,12 @@ export class TuiApp {
     }
     const selected = matches[Math.min(this.slash.selection, matches.length - 1)]!;
     const text = parsed.rest.trim() || selected.name;
+    if (!this.state.lastSnapshot || this.sessionDispatchActive) {
+      this.slash.hint = 'Submission unavailable; instruction retained.';
+      return;
+    }
     this.slash.hint = null;
+    if (this.opts.workbenchEnabled) this.workbenchStore.dispatch({ type: 'composer.clear' });
     perTab.inputBuffer = '';
     // T437 (spec #429 slice 8): slash-command submission re-pins the
     // scrollback to bottom. Distinct from auto-re-pin on system events
@@ -1076,7 +1098,7 @@ export class TuiApp {
     await this.dispatchToSession(
       text, 'agent', perTab,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
-      '[agent]', undefined, skills,
+      '[agent]', undefined, skills, buf,
     );
   }
 
@@ -1121,6 +1143,7 @@ export class TuiApp {
     /** Wall-clock race for the CHAT path only. `undefined` for the agent path. */
     timeoutMs?: number,
     skills?: string[],
+    retainedText = text,
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     if (this.sessionDispatchActive) return;
@@ -1144,6 +1167,7 @@ export class TuiApp {
       perTab.streamingText = undefined;
     }
     let partialStreamed: string | undefined;
+    let accepted = false;
     try {
       for (const fn of candidates) {
         if (!fn) continue;
@@ -1163,6 +1187,8 @@ export class TuiApp {
             return false;
           };
           if (noHelp(result.summary)) continue;
+          accepted = true;
+          if (this.opts.workbenchEnabled && kind === 'agent') this.slash.hint = null;
           summary = result.summary;
           lastAgentProse = result.lastAgentProse;
           // Capture plan content and structured tasks from the session turn result
@@ -1196,12 +1222,13 @@ export class TuiApp {
           // candidate. A user cancel must never read as "(agent error…)" or
           // "timed out".
           if (isCancellationError(err)) {
+            accepted = true;
             summary = this.opts.agentSession?.getLastCancelSummary?.() ?? 'Cancelled';
             break;
           }
           // Stderr is independent of the TUI render — even if paintFullFrame
           // fails for some reason, the operator sees the failure here.
-          process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
+          if (!(this.opts.workbenchEnabled && kind === 'agent')) process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
           summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
           // Try the next candidate rather than giving up.
         }
@@ -1214,6 +1241,15 @@ export class TuiApp {
         perTab.streamingActive = false;
         perTab.streamingText = undefined;
       }
+    }
+    if (!accepted && this.opts.workbenchEnabled && kind === 'agent') {
+      const restored = !this.workbenchStore.snapshot().composer.text;
+      if (restored) {
+        this.workbenchStore.dispatch({ type: 'composer.replace', text: retainedText });
+        this.syncWorkbenchComposer();
+      }
+      const feedback = restored ? 'Submission failed; instruction retained for retry.' : 'Submission failed; newer draft kept. Original remains in transcript.';
+      summary = summary === `${fallbackPrefix} ${text}` ? feedback : `${summary}\n${feedback}`;
     }
     // Fail-soft: keep the tokens already streamed visible when the turn
     // errored/timed out, prefixed to the stamped entry (no orphan line).
@@ -1685,6 +1721,8 @@ function parseKey(buf: Buffer): string | null {
   // chars) and a submitted Enter is silently dropped with the composer intact.
   if (s === '\r' || s === '\n' || s === '\r\n') return 'Enter';
   if (s === '\x1b') return 'Escape';
+  if (s === '\x1b[5~') return 'PageUp';
+  if (s === '\x1b[6~') return 'PageDown';
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
@@ -1692,6 +1730,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
   if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
   if (s === '\x12') return 'Ctrl+r';   // Ctrl+R — Workbench artifact/result drawer
+  if (s === '\x05') return 'Ctrl+e';   // Ctrl+E — selected-agent inspector
   if (s === '\x06') return 'Ctrl+f';   // Ctrl+F — Workbench composer/transcript focus
   // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
   // Shift+Enter. A plain Enter remains submission.

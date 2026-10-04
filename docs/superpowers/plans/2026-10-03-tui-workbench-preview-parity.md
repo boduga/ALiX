@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–7 geometry/chrome/roster/transcript/tool cards/inspector complete. Phases 8–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–8 geometry/chrome/roster/transcript/tool cards/inspector/composer controls complete. Phases 9–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -21,7 +21,7 @@ Implementation progress:
 - Phase 5 transcript complete: independent all/selected-agent scope and categories, UTC actor/status prefixes, user-safe activity, explicit outcome badges, cyan frame/chips and authoritative follow with semantic anchors/new-item counts. Global approval cards and their decisions remain aligned; raw Escape closes a drawer before foreground cancellation.
 - Phase 6 tool cards complete: bounded outlined cards, TOOL badges, lifecycle outcomes, requested metadata, observed counts and connector guides. Per-call identities survive details mode; cancellation and orphan/late/mismatched events preserve truthful outcomes. Live names remain exact trace labels.
 - Phase 7 inspector complete: snapshot-only selected-agent joins, five reference sections, clock-derived active activity, correlated terminal suppression and explicit unavailable/zero/partial telemetry. Task wrapping and section collapse remain bounded; hiding preserves selected identity.
-- Phases 8–10 pending.
+- Phase 8 composer/keyboard complete: cyan boxed prompt/placeholder, preserved Unicode insertion, inspector entry and bounded artifact actions, contextual shortcuts/help, approval overlay priority and failed-submission retention. Coordination launching and final visual acceptance remain Phases 9–10.
 
 ## Objective
 
@@ -131,7 +131,7 @@ Each ID in a grouped range inherits the same responsible boundary, planned test 
 | T01–T10, T15–T17 | conversation projection; scrollback; transcript toolbar | transcript-preview.vitest.ts; transcript-toolbar.vitest.ts; transcript-follow.vitest.ts; pane-integration.vitest.ts; real controls/resize PTY | Phase 5 rendering/interaction passed; final captures Phase 10 |
 | T11–T14 | views/tool-card.ts; transcript model/projection | tool-card.vitest.ts; tool-card-pane.vitest.ts; tool-card-metadata.vitest.ts; executor-cancel-events.vitest.ts; real tool-card resize PTY | Phase 6 rendering/lifecycle passed; final captures Phase 10 |
 | R01–R16 | model/agent-inspector.ts; views/agent-inspector.ts | agent-inspector.vitest.ts; pane-integration.vitest.ts; selected-fixture inspector resize PTY | Phase 7 rendering/joins passed; final captures Phase 10 |
-| C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; actual PTY additions pending | Pending |
+| C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; pane-integration.vitest.ts; workbench-phase8-pty.ts | Phase 8 rendering/interaction passed; final captures Phase 10 |
 
 Paths in this table are relative to src/tui/workbench or tests/tui/workbench. Phase 10 attaches captures and per-ID pass/fail evidence to these assignments.
 
@@ -327,6 +327,10 @@ Evidence: 663 affected Vitest cases verified, including 16 inspector cases and C
 Exit: every label/value verified; completed call never remains active; unknown cost/context never become zero. Commit: feat(tui): add agent inspector.
 
 ### Phase 8 — Composer and keyboard integration
+
+Status: Complete. Spec-compliance and subsequent code-quality review passed. Final Workbench/CLI bootstrap suite: 402 tests passed; TUI Node suite: 211 passed. Broad TUI suite initially passed 1,276/1,282; three new frame-extraction tests were corrected and passed, daemon timing and inherited VISUAL editor cases passed on focused rerun. The pre-existing approval-status row assertion in agent-view-bottom-anchored.vitest.ts remains failing; this phase does not alter that status placement.
+
+Evidence: build, unused-code and dead-module checks passed. Rebuilt real PTY passed 200×44 and 134×33 raw input, paste, grapheme/caret, focus/filter/follow, inspector/artifacts, cancellation-port and terminal cleanup checks; eight-size resize/caret recovery passed through 1×1. Run `python3 tests/manual/run-workbench-phase8-pty.py` after build. Exact-full-row insertion, failed-candidate fallback, newer-draft preservation, approval overlays, short-window composer bounds, saturated help scrolling and close-before-cancel across drawer focus have regressions. Cancellation reaches the existing runtime port; scheduler cancellation verification belongs to Phase 9. TUI DOX and dated design amendment updated; root and documentation-parent scope/hierarchy remain unchanged. Final visual comparison remains Phase 10.
 
 Dependencies: 3–7. Coverage: C01–C03, F01–F04 and all controls/shortcuts.
 

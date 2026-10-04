@@ -113,8 +113,17 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   if (model.agents?.knownCostUsd !== undefined) {
     counters.push({ text: `COST $${model.agents.knownCostUsd.toFixed(4)}${model.agents.costCoverage < model.agents.total ? '+' : ''}`, color: palette.foreground });
   }
-  const escape = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : '';
+  const escape = model.escapeAction === 'close' ? 'Esc close' : model.running ? 'Esc cancel' : model.focus === 'transcript' ? 'Esc type' : '';
   let hints = ['Tab views', 'Ctrl+O details', 'Ctrl+R artifacts', ...(escape ? [escape] : [])];
+  if (model.focus === 'composer') hints.push('Ctrl+F transcript', 'Ctrl+E inspector');
+  if (model.focus === 'transcript') {
+    hints = ['Ctrl+F type', '1-5 filters', 's scope', 'f follow', 'Ctrl+O details', ...(escape ? [escape] : [])];
+  } else if (model.focus === 'drawer') {
+    hints = ['Up/Down select', ...(model.drawer === 'agents' ? ['1-9 agents', '/ all', 'c coordinate'] : []),
+      'Ctrl+F transcript', ...(escape ? [escape] : [])];
+  } else if (model.focus === 'modal') {
+    hints = [...(model.inspectorOpen ? ['Ctrl+R artifacts'] : []), ...(escape ? [escape] : [])];
+  }
   if (model.queuedMessages > 0) hints.push(`${model.queuedMessages} queued`);
   if (model.approval) {
     hints = [`${model.approval.count} ${model.approval.count === 1 ? 'approval' : 'approvals'}`, model.approval.toolName, 'a approve', 'd deny', ...(escape ? [escape] : [])];
@@ -133,7 +142,7 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   // Accent keys without changing group widths or clipping key names.
   let hintX = 1;
   for (const hint of hints) {
-    const key = /^(Ctrl\+\w|Tab|Esc|a|d)(?= )/u.exec(hint)?.[0];
+    const key = /^(Ctrl\+\w|Tab|Esc|Up\/Down|[1-9]-[1-9]|\/|[adsfc])(?= )/u.exec(hint)?.[0];
     if (key) canvas.write(hintX, height - 1, `${palette.cyan}${key}${RESET}`);
     hintX += displayWidth(hint) + displayWidth(separator);
   }

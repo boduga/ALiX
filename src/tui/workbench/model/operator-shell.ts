@@ -18,6 +18,9 @@ export interface OperatorShellSnapshot {
   readonly queuedMessages: number;
   readonly escapeAction?: 'close' | 'cancel' | 'none';
   readonly demo?: boolean;
+  readonly focus?: 'composer' | 'transcript' | 'drawer' | 'modal';
+  readonly drawer?: 'closed' | 'agents' | 'tasks' | 'artifacts';
+  readonly inspectorOpen?: boolean;
   readonly approval?: OperatorShellApproval;
   readonly agents?: {
     readonly active: number;
@@ -40,7 +43,7 @@ export function projectOperatorShell(
   agentState: PerTabState,
   liveMode?: 'auto' | 'ask' | 'bypass',
   queuedMessages = 0,
-  presentation: { readonly closeSurface?: boolean; readonly demo?: boolean } = {},
+  presentation: { readonly closeSurface?: boolean; readonly demo?: boolean; readonly focus?: OperatorShellSnapshot['focus']; readonly drawer?: OperatorShellSnapshot['drawer']; readonly inspectorOpen?: boolean } = {},
 ): OperatorShellSnapshot {
   const pending = agentState.pendingApprovals ?? [];
   const oldest = pending[0];
@@ -63,6 +66,9 @@ export function projectOperatorShell(
     queuedMessages,
     escapeAction: presentation.closeSurface ? 'close' : snap.session !== null && snap.session.phase !== SessionPhase.Idle ? 'cancel' : 'none',
     ...(presentation.demo ? { demo: true } : {}),
+    ...(presentation.focus ? { focus: presentation.focus } : {}),
+    ...(presentation.drawer ? { drawer: presentation.drawer } : {}),
+    ...(presentation.inspectorOpen ? { inspectorOpen: true } : {}),
     ...(approval ? { approval } : {}),
     ...(roster ? { agents: {
       active: roster.active,

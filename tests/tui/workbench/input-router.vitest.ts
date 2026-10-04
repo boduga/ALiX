@@ -30,9 +30,21 @@ describe('routeWorkbenchInput', () => {
       expect(routeWorkbenchInput(key, context({ focus: 'drawer', drawer: 'tasks' }))).toEqual({ type: 'unhandled' });
       expect(routeWorkbenchInput(key, context({ focus: 'modal', overlayOpen: true }))).toEqual({ type: 'unhandled' });
     }
-    expect(routeWorkbenchInput('Ctrl+f', context({ focus: 'drawer', drawer: 'agents' }))).toEqual({ type: 'unhandled' });
+    expect(routeWorkbenchInput('Ctrl+f', context({ focus: 'drawer', drawer: 'agents' }))).toEqual({ type: 'focus.set', focus: 'transcript' });
     expect(routeWorkbenchInput('Ctrl+f', context({ focus: 'modal', overlayOpen: true }))).toEqual({ type: 'unhandled' });
   });
+  it('keeps pictured controls global outside overlays and approval details actionable above overlays', () => {
+    for (const focus of ['composer', 'drawer', 'transcript'] as const) {
+      const ctx = context({ focus, drawer: 'agents' });
+      expect(routeWorkbenchInput('Ctrl+e', ctx)).toEqual({ type: 'inspector.open' });
+      expect(routeWorkbenchInput('Ctrl+o', ctx)).toEqual({ type: 'transcript.toggle' });
+      expect(routeWorkbenchInput('Shift+Tab', ctx)).toEqual({ type: 'permission.cycle' });
+    }
+    expect(routeWorkbenchInput('Ctrl+o', context({ overlayOpen: true, approvalPending: true }))).toEqual({ type: 'transcript.toggle' });
+    expect(routeWorkbenchInput('Ctrl+o', context({ overlayOpen: true }))).toEqual({ type: 'unhandled' });
+    expect(routeWorkbenchInput('Ctrl+r', context({ overlayOpen: true, inspectorOpen: true }))).toEqual({ type: 'drawer.toggle', drawer: 'artifacts' });
+  });
+
   const rosterKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', 'c'];
   const rosterContexts = [
     { label: 'agents drawer', drawer: 'agents', focus: 'drawer', result: 'roster' },

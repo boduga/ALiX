@@ -103,8 +103,10 @@ export function reduceWorkbenchUiState(
     }
     case 'overlay.toggle': {
       const current = state.overlayStack[state.overlayStack.length - 1];
-      return { ...state, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };
+      return { ...state, overlayScrollOffset: 0, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };
     }
+    case 'overlay.scroll':
+      return { ...state, overlayScrollOffset: Math.max(0, Math.min(10000, state.overlayScrollOffset + action.delta)) };
     case 'overlay.close':
       return state.overlayStack.length === 0 ? state : { ...state, focus: state.drawer === 'closed' ? 'composer' : 'drawer', overlayStack: [] };
     case 'transcript.mode':

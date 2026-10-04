@@ -26,7 +26,20 @@ describe('Workbench diagnostic overlays', () => {
     );
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(frame).toContain('Ctrl+R artifacts');
-    expect(frame).toContain('/diagnostics · /diff · /review · /help');
+    expect(frame).toContain('/diagnostics');
+    expect(frame).toContain('/diff · /review · /help');
+  });
+
+  it('makes all help bindings accessible by wrapped scrolling on narrow screens', () => {
+    const pages: string[] = [];
+    for (let offset = 0; offset < 65; offset++) {
+      const canvas = new TerminalCanvas(42, 16);
+      paintWorkbenchDiagnosticOverlay({ canvas, width: 42, height: 16, headerH: 3, footerH: 5 }, 'help', null, { scrollOffset: offset });
+      pages.push(canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, ''));
+    }
+    const all = pages.join(' ');
+    for (const key of ['Ctrl+E', 'Ctrl+F', '1–5', 'Shift+Tab', 'Enter expand', 'Ctrl+C', '/help', 'foreground']) expect(all).toContain(key);
+    expect(all).toContain('scroll');
   });
 
   it('correlates failures to the selected run and gives CLI-first recovery guidance', () => {
@@ -64,6 +77,7 @@ describe('Workbench diagnostic overlays', () => {
       },
     );
     const frame = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
-    expect(frame).toContain('✗ task failed · 調査調査…');
+    expect(frame).toContain('✗ task failed · 調査調査調');
+    expect(frame).toContain('査調査調査調査 · task-wide');
   });
 });

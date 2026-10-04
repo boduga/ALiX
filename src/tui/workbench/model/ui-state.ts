@@ -3,7 +3,7 @@ export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks' | 'artifacts';
 export type WorkbenchTranscriptMode = 'compact' | 'detailed' | 'raw';
 export type WorkbenchTranscriptFilter = 'all' | 'response' | 'tool' | 'activity' | 'error';
 export type WorkbenchTranscriptScope = 'all' | 'selected';
-export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help' | 'coordination';
+export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help' | 'coordination' | 'inspector';
 
 export interface ComposerState {
   readonly text: string;
@@ -18,6 +18,7 @@ export interface QueuedMessage {
 
 export interface WorkbenchUiState {
   readonly focus: WorkbenchFocus;
+  readonly overlayScrollOffset: number;
   readonly overlayStack: readonly WorkbenchOverlay[];
   readonly transcriptMode: WorkbenchTranscriptMode;
   readonly transcriptFilter: WorkbenchTranscriptFilter;
@@ -44,6 +45,7 @@ export function createInitialWorkbenchUiState(
   return {
     focus: 'composer',
     overlayStack: [],
+    overlayScrollOffset: 0,
     transcriptMode: 'compact',
     transcriptFilter: 'all',
     transcriptScope: 'all',

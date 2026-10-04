@@ -10,10 +10,10 @@ describe('layoutComposer', () => {
 
   it('wraps long input and retains only the newest bounded rows', () => {
     const layout = layoutComposer('abcdefghijkl', 8, 2);
-    expect(layout.rows).toEqual(['efgh', 'ijkl']);
-    expect(layout.hiddenRows).toBe(1);
+    expect(layout.rows).toEqual(['ijkl', '']);
+    expect(layout.hiddenRows).toBe(2);
     expect(layout.cursorRow).toBe(1);
-    expect(layout.cursorColumn).toBe(4);
+    expect(layout.cursorColumn).toBe(0);
   });
 
   it('follows a cursor positioned inside wrapped Unicode input', () => {

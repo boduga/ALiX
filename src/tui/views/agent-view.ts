@@ -185,13 +185,20 @@ export class AgentView implements TuiView {
     if (composer) {
       const firstRow = geometry!.regions.composerContent.y;
       const prefixWidth = geometry!.composerPrefixWidth;
+      const theme = getWorkbenchPreviewTheme();
+      const { palette, glyphs } = theme;
+      const boxed = geometry!.regions.composer.height >= composer.rows.length + 2;
       for (let index = 0; index < composer.rows.length; index++) {
         const prefix = index === 0
-          ? (composer.hiddenRows > 0 ? ' … ' : ' › ').slice(0, prefixWidth)
+          ? (composer.hiddenRows > 0 ? ' … ' : ' > ').slice(0, prefixWidth)
           : ' '.repeat(prefixWidth);
-        frameCanvas.write(0, firstRow + index, `\x1b[33m${prefix}${RESET}${composer.rows[index] ?? ''}`);
+        const content = !buf && index === 0 ? `${palette.muted}Add your next instruction...${RESET}` : composer.rows[index] ?? '';
+        frameCanvas.write(0, firstRow + index, `${palette.cyan}${prefix}${RESET}${content}`);
+        if (boxed) {
+          frameCanvas.write(0, firstRow + index, `${palette.cyan}${glyphs.vertical}${RESET}`);
+          frameCanvas.write(geometry!.regions.composer.width - 1, firstRow + index, `${palette.cyan}${glyphs.vertical}${RESET}`);
+        }
       }
-      frameCanvas.write(Math.min(geometry!.regions.composer.width - 1, prefixWidth + composer.cursorColumn), firstRow + composer.cursorRow, `\x1b[7m ${RESET}`);
     } else {
       c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
       c.write(vp.promptCol, vp.panelRow, buf);
@@ -203,8 +210,13 @@ export class AgentView implements TuiView {
     // prompt so the rules read as part of the panel; on a tall terminal
     // the slash strip overlays the bottom rule's first row — acceptable
     // because the strip is intentionally visually loud.
-    const border = `\x1b[90m${'─'.repeat(geometry?.regions.composer.width ?? surfaceDimensions.columns)}\x1b[0m`;
-    if (!geometry || geometry.regions.composer.height >= composer!.rows.length + 2) {
+    if (geometry && geometry.regions.composer.height >= composer!.rows.length + 2) {
+      const { palette, glyphs } = getWorkbenchPreviewTheme();
+      const inner = Math.max(0, geometry.regions.composer.width - 2);
+      frameCanvas.write(0, vp.topBorderRow, `${palette.cyan}${glyphs.topLeft}${glyphs.horizontal.repeat(inner)}${glyphs.topRight}${RESET}`);
+      frameCanvas.write(0, vp.bottomBorderRow, `${palette.cyan}${glyphs.bottomLeft}${glyphs.horizontal.repeat(inner)}${glyphs.bottomRight}${RESET}`);
+    } else if (!geometry) {
+      const border = `\x1b[90m${'─'.repeat(surfaceDimensions.columns)}${RESET}`;
       frameCanvas.write(0, vp.topBorderRow, border);
       frameCanvas.write(0, vp.bottomBorderRow, border);
     }

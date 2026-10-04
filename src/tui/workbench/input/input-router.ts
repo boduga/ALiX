@@ -4,6 +4,7 @@ export interface WorkbenchInputContext {
   readonly slashActive: boolean;
   readonly approvalPending?: boolean;
   readonly overlayOpen?: boolean;
+  readonly inspectorOpen?: boolean;
   readonly transcriptMode: 'compact' | 'detailed' | 'raw';
   readonly drawer: 'closed' | 'agents' | 'tasks' | 'artifacts';
   readonly focus: 'composer' | 'transcript' | 'drawer' | 'modal';
@@ -21,6 +22,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'approval.resolve'; readonly decision: 'approved' | 'denied' }
   | { readonly type: 'permission.cycle' }
   | { readonly type: 'overlay.close' }
+  | { readonly type: 'overlay.scroll'; readonly delta: number }
   | { readonly type: 'transcript.toggle' }
   | { readonly type: 'focus.set'; readonly focus: 'composer' | 'transcript' }
   | { readonly type: 'transcript.filter'; readonly filter: 'all' | 'response' | 'tool' | 'activity' | 'error' }
@@ -33,6 +35,7 @@ export type WorkbenchInputIntent =
   | { readonly type: 'agent.shortcut'; readonly index: number }
   | { readonly type: 'agent.aggregate' }
   | { readonly type: 'coordination.inspect' }
+  | { readonly type: 'inspector.open' }
   | { readonly type: 'drawer.close' }
   | { readonly type: 'unhandled' };
 
@@ -44,9 +47,18 @@ export function routeWorkbenchInput(
   if (context.approvalPending && (key === 'a' || key === 'd')) {
     return { type: 'approval.resolve', decision: key === 'a' ? 'approved' : 'denied' };
   }
+  if (context.inspectorOpen && key === 'Ctrl+r') return { type: 'drawer.toggle', drawer: 'artifacts' };
   if (context.overlayOpen) {
+    if (context.approvalPending && key === 'Ctrl+o') return { type: 'transcript.toggle' };
+    if (key === 'ArrowUp' || key === 'PageUp') return { type: 'overlay.scroll', delta: key === 'PageUp' ? -8 : -1 };
+    if (key === 'ArrowDown' || key === 'PageDown') return { type: 'overlay.scroll', delta: key === 'PageDown' ? 8 : 1 };
     return key === 'Escape' ? { type: 'overlay.close' } : { type: 'unhandled' };
   }
+  if (key === 'Escape' && context.drawer !== 'closed') return { type: 'drawer.close' };
+  if (key === 'Ctrl+e') return { type: 'inspector.open' };
+  if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
+  if (key === 'Shift+Tab') return { type: 'permission.cycle' };
+  if (key === 'Ctrl+f') return { type: 'focus.set', focus: context.focus === 'transcript' ? 'composer' : 'transcript' };
   if (key === 'Ctrl+a') return { type: 'drawer.toggle', drawer: 'agents' };
   if (key === 'Ctrl+t') return { type: 'drawer.toggle', drawer: 'tasks' };
   if (key === 'Ctrl+r') return { type: 'drawer.toggle', drawer: 'artifacts' };
@@ -65,13 +77,11 @@ export function routeWorkbenchInput(
     return { type: 'unhandled' };
   }
   if (context.focus === 'modal') return { type: 'unhandled' };
-  if (key === 'Ctrl+f') return { type: 'focus.set', focus: context.focus === 'transcript' ? 'composer' : 'transcript' };
   if (context.focus === 'transcript') {
     const filters = ['all', 'response', 'tool', 'activity', 'error'] as const;
     if (/^[1-5]$/.test(key)) return { type: 'transcript.filter', filter: filters[Number(key) - 1]! };
     if (key === 's') return { type: 'transcript.scope.toggle' };
     if (key === 'f') return { type: 'transcript.follow.toggle' };
-    if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
     if (key === 'Escape') return context.turnActive ? { type: 'turn.cancel' } : { type: 'focus.set', focus: 'composer' };
     return { type: 'unhandled' };
   }
@@ -82,8 +92,6 @@ export function routeWorkbenchInput(
   if (key === 'ArrowRight') return { type: 'composer.move', direction: 'right' };
   if (key === 'Home') return { type: 'composer.move', direction: 'start' };
   if (key === 'End') return { type: 'composer.move', direction: 'end' };
-  if (key === 'Ctrl+o') return { type: 'transcript.toggle' };
-  if (key === 'Shift+Tab') return { type: 'permission.cycle' };
   if (key === 'Escape') {
     return context.turnActive ? { type: 'turn.cancel' } : { type: 'unhandled' };
   }

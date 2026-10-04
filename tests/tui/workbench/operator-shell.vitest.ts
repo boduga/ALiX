@@ -30,6 +30,42 @@ function snapshot(): DashboardSnapshot {
 }
 
 describe('Agent Workbench operator shell', () => {
+  it.each([
+    ['transcript', 'closed', ['1-5 filters', 's scope', 'f follow', 'Esc type']],
+    ['drawer', 'agents', ['Up/Down select', '1-9 agents', '/ all', 'c coordinate', 'Esc close']],
+    ['drawer', 'tasks', ['Up/Down select', 'Esc close']],
+    ['modal', 'closed', ['Esc close']],
+  ] as const)('describes actual controls in %s focus with %s drawer', (focus, drawer, expected) => {
+    const canvas = new TerminalCanvas(200, 44);
+    const model = projectOperatorShell(snapshot(), createInitialPerTabState(), undefined, 0,
+      { focus, drawer, closeSurface: focus !== 'transcript' });
+    paintOperatorShell({ canvas, width: 200, height: 44, model });
+    const footer = visible(canvas.renderFrame()).split('\n')[43]!;
+    for (const hint of expected) expect(footer).toContain(hint);
+    if (drawer !== 'agents') expect(footer).not.toContain('c coordinate');
+    if (focus === 'modal') expect(footer).not.toContain('Ctrl+R artifacts');
+  });
+
+  it('advertises artifact navigation in the inspector modal', () => {
+    const canvas = new TerminalCanvas(200, 44);
+    paintOperatorShell({ canvas, width: 200, height: 44,
+      model: projectOperatorShell(snapshot(), createInitialPerTabState(), undefined, 0,
+        { focus: 'modal', inspectorOpen: true, closeSurface: true }) });
+    expect(visible(canvas.renderFrame()).split('\n')[43]).toContain('Ctrl+R artifacts');
+  });
+
+  it('keeps approval decisions ahead of focused transcript shortcuts', () => {
+    const state = createInitialPerTabState();
+    state.pendingApprovals = [{ id: 'ap', toolName: 'shell.run', target: 'test', requestedAt: 1 }];
+    const canvas = new TerminalCanvas(64, 24);
+    paintOperatorShell({ canvas, width: 64, height: 24,
+      model: projectOperatorShell(snapshot(), state, undefined, 0, { focus: 'transcript' }) });
+    const footer = visible(canvas.renderFrame()).split('\n')[23]!;
+    expect(footer).toContain('a approve');
+    expect(footer).toContain('d deny');
+    expect(footer).not.toContain('1-5 filters');
+  });
+
   it('projects and paints preview chrome', () => {
     const canvas = new TerminalCanvas(200, 44);
     const state = createInitialPerTabState();
