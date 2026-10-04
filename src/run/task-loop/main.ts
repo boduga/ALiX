@@ -255,6 +255,8 @@ post_task?: { command: string; reason: string }[];
    * milestones.
    */
   onProgress?: (kind: import("../../agent/agent-liveness.js").AgentProgressKind, description?: string) => void;
+  /** Invocation-local full successful result evidence; observer failures are isolated. */
+  onToolResult?: (toolName: string, content: string) => void;
   currentIntent?: AgentIntent;
   /** T4: harness-side parallel dispatch policy. Defaults to allowParallel:true maxParallel:4. */
   toolExecutionPolicy?: ToolExecutionPolicy;
@@ -1354,6 +1356,10 @@ if (toolCalls.length === 0) {
   ): Promise<void> {
     progressLedger.recordToolCall(toolCall.name, toolCall.summary, !toolResult.error);
     if (!toolResult.error) toolCallsSinceCheckpoint++;
+    if (toolResult.succeeded === true && typeof toolResult.message?.content === "string") {
+      try { deps.onToolResult?.(toolCall.name, toolResultBody(toolResult.message.content)); }
+      catch { /* Observers cannot change execution or completion. */ }
+    }
 
     // Progress: a tool finished executing (strongest discrete liveness signal
     // after a model response — the agent is actively doing work).

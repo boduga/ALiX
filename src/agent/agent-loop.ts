@@ -523,6 +523,7 @@ ${approvedPlanContent}`);
     context: taskContext,
     cancellationToken,
     cancelSignal: opts?.signal,
+    onToolResult: opts?.onToolResult,
   };
 
   // Emit task.started before entering the task loop
