@@ -12,6 +12,8 @@ import { SessionPhase } from '../../agent/session.js';
 import { layoutWorkbenchSurface } from '../workbench/views/composer-view.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 import { formatActivityElapsed } from '../../agent/agent-activity.js';
+import { buildAgentInspectorModel } from '../workbench/model/agent-inspector.js';
+import { paintAgentInspector } from '../workbench/views/agent-inspector.js';
 import { approvalVisibleTo } from '../workbench/model/selection.js';
 
 /**
@@ -175,7 +177,7 @@ export class AgentView implements TuiView {
         frameCanvas.write(pane.x, row, rows[row] ?? '');
       }
       const inspector = geometry.regions.inspector;
-      if (inspector && inspector.height > 0) frameCanvas.drawBox(inspector.x, inspector.y, inspector.width, inspector.height, 'AGENT DETAILS');
+      if (inspector && inspector.height > 0) paintAgentInspector(frameCanvas, inspector, buildAgentInspectorModel(ctx.snap, ctx.workbenchUiState));
     }
 
     // Input panel at panelRow.

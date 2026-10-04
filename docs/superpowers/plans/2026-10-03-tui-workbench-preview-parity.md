@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–6 geometry/chrome/roster/transcript/tool cards complete. Phases 7–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–7 geometry/chrome/roster/transcript/tool cards/inspector complete. Phases 8–10 pending their exit gates.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -20,7 +20,8 @@ Implementation progress:
 - Phase 4 roster complete: identity-joined agent/task rows, lifecycle words and glyphs, aggregate counts, scoped shortcuts, selected outlines/fill, reference dividers and bounded scrolling. Coordination guidance is read-only; launching remains Phase 9.
 - Phase 5 transcript complete: independent all/selected-agent scope and categories, UTC actor/status prefixes, user-safe activity, explicit outcome badges, cyan frame/chips and authoritative follow with semantic anchors/new-item counts. Global approval cards and their decisions remain aligned; raw Escape closes a drawer before foreground cancellation.
 - Phase 6 tool cards complete: bounded outlined cards, TOOL badges, lifecycle outcomes, requested metadata, observed counts and connector guides. Per-call identities survive details mode; cancellation and orphan/late/mismatched events preserve truthful outcomes. Live names remain exact trace labels.
-- Phases 7–10 pending.
+- Phase 7 inspector complete: snapshot-only selected-agent joins, five reference sections, clock-derived active activity, correlated terminal suppression and explicit unavailable/zero/partial telemetry. Task wrapping and section collapse remain bounded; hiding preserves selected identity.
+- Phases 8–10 pending.
 
 ## Objective
 
@@ -129,7 +130,7 @@ Each ID in a grouped range inherits the same responsible boundary, planned test 
 | L01–L11 | views/roster-drawer.ts; agent/task projections | preview-roster.vitest.ts; responsive-drawer.vitest.ts; roster-shortcuts-integration.vitest.ts; four-worker-e2e.vitest.ts | Phase 4 rendering/interaction passed; final captures Phase 10 |
 | T01–T10, T15–T17 | conversation projection; scrollback; transcript toolbar | transcript-preview.vitest.ts; transcript-toolbar.vitest.ts; transcript-follow.vitest.ts; pane-integration.vitest.ts; real controls/resize PTY | Phase 5 rendering/interaction passed; final captures Phase 10 |
 | T11–T14 | views/tool-card.ts; transcript model/projection | tool-card.vitest.ts; tool-card-pane.vitest.ts; tool-card-metadata.vitest.ts; executor-cancel-events.vitest.ts; real tool-card resize PTY | Phase 6 rendering/lifecycle passed; final captures Phase 10 |
-| R01–R16 | proposed agent-inspector model/projection/view | preview-fixture.vitest.ts covers source facts; proposed agent-inspector.vitest.ts for joins/rendering | Pending |
+| R01–R16 | model/agent-inspector.ts; views/agent-inspector.ts | agent-inspector.vitest.ts; pane-integration.vitest.ts; selected-fixture inspector resize PTY | Phase 7 rendering/joins passed; final captures Phase 10 |
 | C01–C03 | views/composer-view.ts; input/input-router.ts; app/workbench-store.ts | composer-view.vitest.ts; input-router.vitest.ts; work-surface-integration.vitest.ts; actual PTY additions pending | Pending |
 
 Paths in this table are relative to src/tui/workbench or tests/tui/workbench. Phase 10 attaches captures and per-ID pass/fail evidence to these assignments.
@@ -313,7 +314,9 @@ Exit: both reference cards match structure; orphan events cannot mutate other ca
 
 ### Phase 7 — Selected-agent inspector
 
-Dependencies: 4–6. Coverage: R01–R16.
+Status: Complete 2026-10-03. Dependencies: 4–6. Coverage: R01–R16.
+
+Evidence: 663 affected Vitest cases verified, including 16 inspector cases and CLI bootstrap coverage. Build, unused-code and dead-module checks passed. Selected-fixture PTY verifies all five sections at persistent-pane sizes, selection retention across eight resize sizes, caret bounds and cleanup; production controls PTY preserves composer/transcript/drawer focus and filtering. Run inspector resize checks with `python3 tests/manual/run-workbench-geometry-pty.py dist/tests/fixtures/tui/workbench-inspector-pty.js` after build. Spec-compliance and code-quality review passed after task wrapping, global approval labeling, explicit task mismatch handling and header alignment fixes. TUI DOX updated; root/documentation-parent scope and hierarchy unchanged. Final visual comparison remains Phase 10; inspector focus/actions remain Phase 8.
 
 1. Pure joined read model for selected agent/task, active tool, approvals, artifacts and usage.
 2. Render sections/dividers in exact order: AGENT DETAILS → LIVE ACTIVITY → APPROVALS → ARTIFACTS → USAGE.
