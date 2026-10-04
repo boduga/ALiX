@@ -145,3 +145,9 @@ Initialization success badges require explicit verifiedOutcome metadata. The con
 ## 2026-10-03 Phase 6 tool-card amendment
 
 Tool cards use outlined bounded rows, cyan TOOL badges, explicit lifecycle outcomes, requested path/range metadata and independently observed counts. Unknown counts remain unavailable. Per-invocation scroll identities persist across details mode; long paths and details are bounded before wrapping and terminal controls are discarded. Live tool labels remain exact trace labels; the reference's illustrative file.write label is an explicit concept-fixture option only. Correlated cancelled completion events preserve cancellation; wrong-actor, malformed-identity and late closed-call facts cannot change another card. Orphan terminal correlation survives newly exported checkpoints.
+
+## 2026-10-03 Phase 7 inspector amendment
+
+The right pane now joins immutable agent, task, trace, approval, artifact and usage snapshots by execution identity. Its sections follow the reference order and retain header alignment with roster/transcript. Aggregate, missing selection and unavailable snapshots are distinct; explicit missing task selection never substitutes another task. Uncorrelated approvals remain visible with an explicit Global label. Artifact filtering remains strict and inspection uses existing Ctrl+R without painter file reads.
+
+Active elapsed time derives from the supplied snapshot clock and authoritative start, including clock-only updates; correlated terminal trace facts suppress stale active-tool data. Context remains unavailable because current projections provide capacity, not current consumption. Known zero and partial aggregate token/cost totals are explicit. Bounded task wrapping and section collapse handle short regions; responsive hiding preserves selected identity. Inspector focus/actions remain Phase 8.
