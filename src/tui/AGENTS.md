@@ -24,6 +24,8 @@
 - UI actions reach runtime through explicit controller/port boundaries.
 - Compact transcripts show operator work and outcomes. Routine context assembly, raw lifecycle plumbing, and the `alix_done` tool are details, not default content.
 - Detailed transcript mode may reveal bounded lifecycle diagnostics but must preserve the same underlying audit correlation.
+- `src/tui/workbench/views/tool-card.ts` owns bounded outlined tool cards and connector guides. Each invocation retains its own scroll identity across details mode. Live labels remain exact trace labels; illustrative aliases require explicit concept presentation. Requested ranges and observed counts stay separately labeled; absent metadata renders unavailable. Sanitize event-provided terminal controls and bound paths and output before wrapping.
+- Tool traces accept string call identities without coercion. Mismatched authoritative agents cannot alter another call; closed calls, including orphan terminals, ignore late lifecycle facts across checkpoint replay. Cancelled completion facts remain cancelled rather than successful.
 - Agent activity and agent liveness are distinct: activity says what is happening; liveness says whether progress is healthy.
 - Never render model-private reasoning. User-safe activity labels are allowed.
 - The composer and cancellation path remain usable while a turn is active.

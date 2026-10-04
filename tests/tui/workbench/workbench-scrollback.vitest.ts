@@ -96,8 +96,9 @@ describe('Workbench scrollback', () => {
 
     expect(text).toContain('Read README.md');
     expect(lines.filter((line) => line.kind === 'agent' && line.isFirst)).toHaveLength(2);
-    expect(text).toContain('✓ file.read');
-    expect(text).toContain('✗ file.read');
+    expect(text).toContain('file.read');
+    expect(text).toContain('✓ success');
+    expect(text).toContain('✗ failed');
     expect(text).toContain('Access denied: path is outside workspace');
     expect(text).not.toContain('context assembled');
     expect(text).not.toContain('context snapshot created');
@@ -210,14 +211,15 @@ describe('Workbench scrollback', () => {
 
     const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
 
-    expect(text).toContain('shell.run · approval required');
+    expect(text).toContain('shell.run');
+    expect(text).toContain('approval required');
     expect(text).toContain('APPROVAL REQUIRED · shell.run');
     expect(text).toContain('for b in llama-cli; do command -v "$b"; done');
     expect(text).toContain('pending');
     expect(text).toContain('id approval-1');
     expect(text).toContain('a approve · d deny');
     expect(text.match(/APPROVAL REQUIRED/gu)).toHaveLength(1);
-    expect(text.indexOf('shell.run · approval required')).toBeLessThan(text.indexOf('APPROVAL REQUIRED · shell.run'));
+    expect(text.indexOf('approval required')).toBeLessThan(text.indexOf('APPROVAL REQUIRED · shell.run'));
     expect(text).not.toContain('✓ shell.run');
     expect(text).not.toContain('full raw shell command');
     expect(buildWorkbenchScrollbackLines(renderContext, 90).some((line) => (
@@ -238,7 +240,8 @@ describe('Workbench scrollback', () => {
 
     const text = buildWorkbenchScrollbackLines(renderContext, 90).map((line) => line.text).join('\n');
 
-    expect(text).toContain('✓ shell.run · 1ms');
+    expect(text).toContain('✓ success');
+    expect(text).toContain('duration: 1ms');
     expect(text.match(/shell\.run · approval required/gu)).toBeNull();
     expect(text).toContain('APPROVAL REQUIRED · shell.run');
   });
@@ -355,5 +358,22 @@ it('adds typed outcome badge when prose has none and never duplicates existing g
     const line = buildWorkbenchScrollbackLines(context('compact', timeline, []), 90)[0]!;
     expect(stripAnsi(line.text).match(/✓/g)).toHaveLength(1);
     expect(line.text).toContain(`${getWorkbenchPreviewTheme().palette.green}✓`);
+  }
+});
+
+it('keeps adjacent card anchors keyed to individual calls through detail expansion', () => {
+  const trace: ExecutionTraceEntry[] = [
+    { id: 'call-a', kind: 'tool', status: 'completed', title: 'tool.file.read', startedAt: 1, detail: 'one result', sourceEvents: { firstSequence: 1, lastSequence: 2 } },
+    { id: 'call-b', kind: 'tool', status: 'running', title: 'tool.alix_patch_apply', startedAt: 3, detail: 'two result', sourceEvents: { firstSequence: 3 } },
+  ];
+  const compact = buildWorkbenchScrollbackLines(context('compact', [], trace), 116);
+  const detailed = buildWorkbenchScrollbackLines(context('detailed', [], trace), 116);
+  for (const id of ['tool:call-a', 'tool:call-b']) {
+    const compactRows = compact.filter((row) => row.itemId === id);
+    const detailedRows = detailed.filter((row) => row.itemId === id);
+    expect(compactRows.length).toBeGreaterThan(0);
+    expect(detailedRows.length).toBeGreaterThan(compactRows.length);
+    expect(detailedRows.map((row) => row.wrappedOffset)).toEqual(detailedRows.map((_, index) => index));
+    expect(detailedRows.filter((row) => stripAnsi(row.text).includes('TOOL'))).toHaveLength(1);
   }
 });

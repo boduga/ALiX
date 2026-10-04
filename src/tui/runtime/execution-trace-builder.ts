@@ -90,7 +90,7 @@ function kindOf(type: string): ExecutionTraceKind | null {
  *  capability. Only `invocationId` correlates a capability lifecycle. */
 function keyOf(type: string, payload: Record<string, unknown>, seq: number): string {
   if (type.startsWith('capability.')) return String(payload.invocationId ?? `${type}:${seq}`);
-  if (type.startsWith('tool.')) return String(payload.toolCallId ?? `${type}:${seq}`);
+  if (type.startsWith('tool.')) return typeof payload.toolCallId === 'string' ? payload.toolCallId : `${type}:${seq}`;
   if (type.startsWith('runtime.phase')) return String(payload.timingId ?? payload.operation ?? payload.phase ?? `${type}:${seq}`);
   if (type === 'agent.session.phase_changed') return String(payload.phase ?? payload.to ?? `${type}:${seq}`);
   if (type === 'workflow.created' || type === 'workflow.completed') return String(payload.workflowId ?? 'workflow');
@@ -196,9 +196,18 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
     const key = keyOf(e.type, payload, seqNum);
     const ts = Date.parse(e.timestamp) || 0;
     const isTerminal = TERMINAL_TYPES.has(e.type);
+    const mapKey = `${kind}:${key}`;
+    if (kind === 'tool') {
+      if (payload.toolCallId != null && typeof payload.toolCallId !== 'string') continue;
+      // Call IDs identify one invocation. Late facts cannot reopen it, and
+      // another authoritative actor cannot append to or terminate its card.
+      if (state.closedByKey.has(mapKey)) continue;
+      const open = state.openByKey.get(mapKey);
+      if (open?.agentId !== undefined && typeof payload.agentId === 'string' && payload.agentId.length > 0
+          && payload.agentId !== open.agentId) continue;
+    }
 
     if (!isTerminal) {
-      const mapKey = `${kind}:${key}`;
       let o = state.openByKey.get(mapKey);
       if (!o) {
         o = {
@@ -223,9 +232,9 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       continue;
     }
 
-    const mapKey = `${kind}:${key}`;
     const o = state.openByKey.get(mapKey);
-    const status: ExecutionTraceEntry['status'] = STATUS_BY_TYPE[e.type] ?? 'completed';
+    const status: ExecutionTraceEntry['status'] = kind === 'tool' && e.type === TOOL_EVENT_TYPES.COMPLETED && payload.status === 'cancelled'
+      ? 'cancelled' : STATUS_BY_TYPE[e.type] ?? 'completed';
     // Resolve the lifecycle id: the open lifecycle's id, or — for a NEW-seq
     // duplicate whose open entry was deleted on an earlier close — the
     // previously-closed lifecycle's id via key correlation. Fall back to a
@@ -257,6 +266,10 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       state.openByKey.delete(mapKey);
     } else {
       // A terminal event without a recorded open — synthesize a completed entry.
+      if (kind === 'tool') {
+        state.closedFirstSequences.add(id);
+        state.closedByKey.set(mapKey, id);
+      }
       state.terminalById.set(id, {
         id, kind, status, title: titleOf(kind, e.type, payload),
         ...(kind === 'tool' ? { toolMetadata: toolCardMetadata(e.type, payload) } : {}),
