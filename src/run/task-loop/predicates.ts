@@ -281,8 +281,26 @@ export function findUnsubstantiatedClaims(text: string, usedTools: Set<string>):
 
 /** First-person future work means the model has not supplied a final answer. */
 export function hasPendingAgentAction(text: string): boolean {
-  return /\bI(?:['’]m| am)\s+(?:surfacing|registering|writing|creating|sending|verifying|checking|reporting|summarizing|running|reading|adding|updating|finishing|publishing|committing|pushing|listing|showing|reviewing)\b/i.test(text) ||
-    /\bI(?:['’]ll| will)\s+(?:surface|register|write|create|send|verify|check|report|summari[sz]e|run|read|add|update|finish|publish|commit|push|list|show|review)\b/i.test(text);
+  // Quoted examples and retrieved text describe someone else's promise.
+  const prose = text
+    .replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '')
+    .replace(/^\s*>.*$/gm, '')
+    .replace(/`[^`]*`|"[^"\n]*"|“[^”\n]*”/g, '')
+    .replace(/(^|\s)'[^\n]*?'(?=\s|[.,;:]|$)/g, '$1');
+  return prose.split(/[.!?\n]+/).some(clause => {
+    // An offer conditional on a later operator request is not unfinished work.
+    if (/\bif (?:you (?:ask|want|need|request)|requested|needed)|\bwhen (?:you ask|requested)\b/i.test(clause)) return false;
+    const ownFuture = /\bI(?:['’]ll| will)\s+/i;
+    const ownProgress = /\bI(?:['’]m| am)\s+/i;
+    const genericAction = /^(?!(?:no|not|nothing)\b)(?:\S+\s+){0,5}(?:read|check|checks|verification|review|look|pass|test|tests|confirmation)\b/i;
+    if (new RegExp(ownProgress.source + '(?:surfacing|registering|writing|creating|sending|verifying|checking|reporting|summarizing|running|reading|adding|updating|finishing|publishing|committing|pushing|listing|showing|reviewing)\\b', 'i').test(clause) ||
+      new RegExp(ownFuture.source + '(?:surface|register|write|create|send|verify|check|report|summari[sz]e|run|read|add|update|finish|publish|commit|push|list|show|review)\\b', 'i').test(clause)) return true;
+    for (const match of clause.matchAll(/\bI(?:['’]ll| will|['’]m| am)\s+(?:do|doing|perform|performing|take|taking|carry out)\s+/gi)) {
+      const start = match.index + match[0].length;
+      if (genericAction.test(clause.slice(start, start + 256))) return true;
+    }
+    return false;
+  });
 }
 
 export type SuccessfulToolEvidence = {
@@ -332,21 +350,7 @@ export const COORDINATION_EVIDENCE_GAP = "a successful coordination run with wor
 /** Exec name of the coordination tool (provider-facing `alix_coordination_run`). */
 export const COORDINATION_RUN_TOOL_NAME = "coordination.run";
 
-/**
- * Bare continuation cues — a turn whose entire message is one of these
- * carries no objective of its own ("continue", "proceed", ...). Anchored
- * so contentful turns ("continue the report", "finalize the migration")
- * never match. "done"/"finish" are deliberately excluded: they are stop
- * signals, not continuations.
- */
-
-export const CONTINUATION_RE = /^(?:continue|next(?:\s+step)?|proceed|go\s+on|keep\s+going|carry\s+on|finalize)\.?$/i;
-
-/** True when the turn text is a bare continuation cue with no objective. */
-
-export function isContinuationMessage(text: string): boolean {
-  return CONTINUATION_RE.test(text.trim());
-}
+export { CONTINUATION_RE, isContinuationMessage } from './continuation.js';
 
 export function objectiveEvidenceRequirements(task: string, taskType = "unknown"): { mutation: boolean; verification: boolean; coordination: boolean } {
   // Model-facing tool names carry the action ("alix_coordination_run",

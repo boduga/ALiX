@@ -25,6 +25,7 @@ import {
   COORDINATION_EVIDENCE_GAP,
   VERIFICATION_EVIDENCE_GAP,
   isToolResultEcho,
+  hasPendingAgentAction,
   objectiveEvidenceGaps,
   objectiveEvidenceRequirements,
 } from '../../src/run/task-loop/predicates.js';
@@ -44,6 +45,7 @@ import { TaskStateMachine, RunLimiter } from '../../src/autonomy/state-machine.j
 import { ScopeTracker } from '../../src/autonomy/scope-tracker.js';
 import { MemoryStore } from '../../src/utils/memory/store.js';
 import type { MutationSessionState } from '../../src/run.js';
+import { CancellationToken } from '../../src/runtime/cancellation-token.js';
 
 type RecordedRequest = {
   systemPrompt: string;
@@ -259,6 +261,30 @@ async function makeTestDeps(overrides: {
 
 const NO_COORD_TASK = 'Prepare the release notes summary.';
 
+describe('pending agent action vocabulary', () => {
+  it.each([
+    '**Next:** I’ll do one final confirmation read, then write the summary.',
+    "I'll perform the final check before reporting.",
+    'I will take another look and finish the report.',
+    'Inspection complete. I’ll take that as confirmed, and I’ll do one final read before reporting.',
+    "The report is complete. Next, I'm checking one detail.",
+  ])('detects unfinished own work: %s', text => expect(hasPendingAgentAction(text)).toBe(true));
+  it.each([
+    'Inspection complete. I checked the implementation and found bounded rendering.',
+    'I will not perform another check; all requested evidence is recorded.',
+    'Inspection complete. I’m available if you need changes.',
+    'Inspection complete. I’ll take that as confirmed.',
+    'Inspection complete. I’ll do better next time.',
+    "Inspection complete. I'm doing no further checks.",
+    'Inspection complete. If you ask for changes, I’ll review them.',
+    'Inspection complete. The old reply said "I’ll read the file next", which was misleading.',
+    "Inspection complete. The old reply said 'I'll read the file next', which was misleading.",
+    'Inspection complete.\n> I’ll read the file next\nThat quoted promise was never performed.',
+    'Inspection complete. The fixture contains `I’ll read the file next`.',
+    'Inspection complete.\n```text\nI’ll read the file next\n```',
+  ])('accepts completed prose without an own pending action: %s', text => expect(hasPendingAgentAction(text)).toBe(false));
+});
+
 describe('objectiveEvidenceGaps accepts delegated workspace mutation', () => {
   const DELEGATED_TASK = 'Create the file .tmp/out/project.md with four coordinated workers.';
 
@@ -395,6 +421,103 @@ describe('objectiveEvidenceGaps coordination-failure flag', () => {
 });
 
 describe('runTaskLoop coordination-failure completion gate', () => {
+  it.each(['no-tools', 'done', 'shell', 'research'] as const)('bounds persistent promises to completed_unverified on %s route', async route => {
+    const pending = "Inspection complete. I'll read one more file before writing the summary.";
+    const read = { name: 'alix_file_read', id: 'read', args: { path: 'fixture.txt' } };
+    const turns: ScriptedTurn[] = route === 'research'
+      ? [{ toolCalls: Array.from({ length: 3 }, (_, i) => ({ ...read, id: `research-${i}` })) }, { text: pending }]
+      : [{ text: pending, ...(route === 'done' ? { toolCalls: [{ name: 'alix_done', id: 'done-pending', args: {} }] } : route === 'shell' ? { toolCalls: [read] } : {}) }];
+    const provider = createScriptedProvider(turns);
+    const { deps, log } = await makeTestDeps({ provider, task: 'Inspect performance and report the result.', taskType: route === 'research' ? 'research' : 'docs',
+      providerTools: [doneTool, { name: 'alix_file_read', description: 'Read', input_schema: { type: 'object', properties: {} } }],
+      executor: makeExecutor([]), maxIterations: 8 });
+    if (route === 'shell') deps.readOnly = true;
+    const result = await runTaskLoop(deps);
+    expect(result.reason).toBe('completed_unverified');
+    expect(result.summary).toContain('Task remains incomplete');
+    expect(provider.requests).toHaveLength(route === 'research' ? 4 : 3);
+    const ended = (await log.readAll()).filter(event => event.type === 'session.ended');
+    expect(ended.every(event => (event.payload as { reason?: string }).reason === 'completed_unverified')).toBe(true);
+  });
+
+  it('executes genuine action calls paired with future prose before final synthesis', async () => {
+    const executed: string[] = [];
+    const provider = createScriptedProvider([
+      { text: "I'll read the implementation now.", toolCalls: [{ name: 'alix_file_read', id: 'actual-read', args: { path: 'fixture.txt' } }] },
+      { text: 'Inspection complete. The implementation uses bounded row diffs.' },
+    ]);
+    const { deps } = await makeTestDeps({ provider, task: 'Inspect implementation.', providerTools: [{ name: 'alix_file_read', description: 'Read', input_schema: { type: 'object', properties: {} } }],
+      executor: { execute: async ({ name }: { name: string }) => { executed.push(name); return { kind: 'success', output: 'real fixture content' }; } } as unknown as TaskLoopDeps['executor'] });
+    const result = await runTaskLoop(deps);
+    expect(executed).toEqual(['file.read']);
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toContain('bounded row diffs');
+  });
+
+  it.each([1, 4])('keeps cancellation authoritative when the provider returns a promise (maxIterations: %s)', async maxIterations => {
+    const token = new CancellationToken();
+    const provider = createScriptedProvider([{ text: "Inspection complete. I'll read one more file." }]);
+    const original = provider.complete.bind(provider);
+    provider.complete = async request => { const response = await original(request); token.cancel('operator stopped'); return response; };
+    const { deps, log } = await makeTestDeps({ provider, task: 'Inspect implementation.', maxIterations });
+    deps.cancellationToken = token;
+    await expect(runTaskLoop(deps)).rejects.toMatchObject({ kind: 'ExecutionCancelledError' });
+    expect((await log.readAll()).some(event => event.type === 'session.ended' && (event.payload as { reason?: string }).reason === 'completed')).toBe(false);
+  });
+
+  it.skipIf(process.platform === 'win32')('verification passing does not finish a pending promised action', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'alix-pending-verification-'));
+    writeFileSync(join(cwd, 'package.json'), JSON.stringify({ name: 'fixture', scripts: { lint: 'node -e "process.exit(0)"' } }));
+    const previous = process.cwd(); process.chdir(cwd);
+    try {
+      const provider = createScriptedProvider([
+        { toolCalls: [{ name: 'alix_file_read', id: 'initial', args: { path: 'fixture.txt' } }] },
+        { text: "Inspection complete. I'll do one final confirmation read." },
+      ]);
+      const { deps } = await makeTestDeps({ provider, task: 'Inspect implementation and report findings.', taskType: 'bugfix',
+        providerTools: [{ name: 'alix_file_read', description: 'Read', input_schema: { type: 'object', properties: {} } }], executor: makeExecutor([]), maxIterations: 7, cwd });
+      deps.sessionState.changed.add('src/app.ts');
+      const result = await runTaskLoop(deps);
+      expect(result.reason).toBe('completed_unverified');
+      expect(result.summary).toContain('Task remains incomplete');
+      expect(provider.requests).toHaveLength(4);
+    } finally { process.chdir(previous); rmSync(cwd, { recursive: true, force: true }); }
+  });
+
+  it('continues after a real progress checkpoint instead of completing its Next promise', async () => {
+    const provider = createScriptedProvider([
+      { toolCalls: Array.from({ length: 5 }, (_, index) => ({ name: 'alix_file_read', id: `read-${index}`, args: { path: `file-${index}.txt` } })) },
+      { text: '**Progress:** Inspection complete.\n\n**Next:** I’ll do one final confirmation read, then write the summary.' },
+      { toolCalls: [{ name: 'alix_file_read', id: 'confirmation', args: { path: 'final.txt' } }] },
+      { text: 'Inspection complete. Final confirmation establishes bounded rendering and responsive input.' },
+    ]);
+    const { deps, log } = await makeTestDeps({ provider, task: 'Inspect TUI performance and report findings.',
+      providerTools: [doneTool, { name: 'alix_file_read', description: 'Read a file', input_schema: { type: 'object', properties: {} } }],
+      executor: makeExecutor([]), maxIterations: 7 });
+    const result = await runTaskLoop(deps);
+    expect(result.summary).toContain('Final confirmation establishes');
+    expect(provider.requests[1]?.messages.some(message => typeof message.content === 'string' && message.content.includes('[Progress checkpoint'))).toBe(true);
+    expect((await log.readAll()).some(event => event.type === 'completion.claim_rejected' && (event.payload as { reason?: string }).reason === 'pending_action')).toBe(true);
+  });
+
+  it.each(['no-tools', 'done'] as const)('continues the observed markdown checkpoint promise on %s completion route', async (route) => {
+    const checkpoint = '**Progress:** Inspection complete.\n\n**Next:** I’ll do one final confirmation read of the relevant implementation, then write the summary.';
+    const provider = createScriptedProvider([
+      { text: checkpoint, ...(route === 'done' ? { toolCalls: [{ name: 'alix_done', id: 'done-checkpoint', args: {} }] } : {}) },
+      { toolCalls: [{ name: 'alix_file_read', id: 'confirm', args: { path: 'src/tui/app.ts' } }] },
+      { text: 'Inspection complete. The implementation confirms bounded rendering and responsive input.' },
+    ]);
+    const { deps, log } = await makeTestDeps({ provider, task: 'Inspect TUI performance and report findings.',
+      providerTools: [doneTool, { name: 'alix_file_read', description: 'Read a file', input_schema: { type: 'object', properties: {} } }],
+      executor: makeExecutor([]), maxIterations: 5 });
+    const result = await runTaskLoop(deps);
+    expect(result.reason).toBe('completed');
+    expect(result.summary).toContain('bounded rendering');
+    expect(provider.requests).toHaveLength(3);
+    const events = await log.readAll();
+    expect(events.some(event => event.type === 'completion.claim_rejected' && (event.payload as {reason?:string}).reason === 'pending_action')).toBe(true);
+  });
+
   // This suite asserts a selection observation reaches the log, and tracing is
   // off by default. Opt in for the run, then restore.
   let traceWasSet: string | undefined;
