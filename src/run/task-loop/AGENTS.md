@@ -32,6 +32,15 @@ barrel preserving public import paths.
   (assembly + tool-schema reservation + context events + preflight).
 - `verification-phase.ts` — `runIterationVerification`: end-of-iteration
   verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
+- `completion-phase.ts` — `runNoToolsCompletion` and `runDeferredCompletion`:
+  no-tool verification/repair and explicit-done/shell completion routes;
+  shared `CompletionState` returns iteration counters on every exit.
+  `coordinationRunIsVerified` checks persisted coordination completion evidence.
+- `pending-action-phase.ts` — `gatePendingAgentAction`: shared bounded rejection
+  of final prose promising unfinished operator-authorized work.
+- `continuation.ts` — dependency-free `isContinuationMessage` and
+  `CONTINUATION_RE` shared by session input routing and task-loop evidence;
+  `predicates.ts` re-exports both for import compatibility.
 - `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
   (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
   `ExecutionStateEmitter`; inert/fail-soft otherwise.
@@ -94,6 +103,7 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- `onToolResult` passes full successful model-facing result text to an invocation-local observer before telemetry previews truncate it. Observer failures cannot change execution; verification consumers must not substitute preview events for retrieved evidence.
 - Tool-selection instrumentation records the frozen offered surface, chosen
   candidate, resolved executor, and separate novelty, execution, and evidence
   signals in `tool.selection.observed`. Novel successful output does not prove
@@ -122,6 +132,12 @@ barrel preserving public import paths.
   token overlap. `tests/config/tool-scoping-ranking.vitest.ts` pins exact parity.
 - Final prose promising another agent action is continuation. Re-prompt within
   existing bounds; persistent promises terminate `completed_unverified`.
+  Apply the shared gate before no-tool, research-limit, verification-pass,
+  explicit-done and shell completion; execute genuine action calls before
+  assessing their completion. Ignore quoted examples, code and conditional
+  offers of later help. Generic do/perform/take wording requires an actual
+  unfinished action, not a conversational acknowledgment. Check cancellation
+  at completion phase entry, including the last allowed iteration.
 - `coordinationUnverified` tracks the latest coordination call's error or
   unverified run, independently of objective text, and clears only after a
   verified run. All completion routes consult it: objective evidence gates,

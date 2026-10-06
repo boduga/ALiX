@@ -94,6 +94,8 @@ export type RunOpts = {
   parentRunId?: string;
   /** External operator cancellation propagated through provider and tool calls. */
   signal?: AbortSignal;
+  /** Invocation-local successful model-facing result evidence, before telemetry truncation. */
+  onToolResult?: (toolName: string, content: string) => void;
   injectedContext?: {
     kind: string;
     content: string;

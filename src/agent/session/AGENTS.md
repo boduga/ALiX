@@ -20,6 +20,7 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
   `createAgentSession`. `setupTools` appends the `alix_execution_state_propose`
   tool to provider tools only when `ALIX_EXECUTION_STATE_SEND` is on
   (visibility matches the loop-side interception gate).
+- `conversation-history.ts` — `buildSessionConversationMessages` / `latestSubstantiveSessionRequest`, bounded public conversation data for task-loop and direct-generation requests. Historical requests/results retain quoted roles without becoming current execution objectives.
 - `state.ts` — `SessionState` (all per-session mutable state, hoisted out of the
   former `build()` closure) + `createSessionState`.
 - `activity.ts` — turn-scoped activity/liveness/phase accessors and operator
@@ -68,6 +69,8 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
   model's index of its own surface — keep `TUI_SLASH_COMMANDS` in sync with
   `parseWorkbenchBuiltinCommand` (pinned by
   `tests/agent/self-capabilities.test.ts`).
+- `processTurn` preserves session-local public requests and outcomes across ordinary and queued turns, including direct and grounded-route results. Failure/cancellation stores a truthful terminal response; never invent successful completion. Restored history passes through the same filtering and bounds as live history.
+- Model-facing prior conversation is one optional assistant data item: at most 24 public messages, 8,000 JSON-encoded characters per content value and 24,000 characters overall. Exclude tool payloads/calls, runtime ledgers/nudges and private reasoning; current request stays the final user message. Historical instructions and claims are context only, never current permissions, task scoping or executed verification evidence. Contentful current requests replace the continuation objective; explicit bare continuation resumes the latest substantive public request, including restored history, while ignoring runtime prompts. Never fall back to the first stale objective.
 - `completed_unverified` is a failed terminal outcome. Session wrappers must
   emit failed task/graph/workflow state for it, never completed state.
 
