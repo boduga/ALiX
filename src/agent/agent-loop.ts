@@ -74,6 +74,7 @@ async function runTaskCore(cwd: string, task: string, opts?: RunOpts, onStream?:
     // successful run completion from the trace's perspective.
     traceOutcome = {
       status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+      output: result.summary,
       endedAt: Date.now(),
     };
     return result;

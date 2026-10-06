@@ -58,6 +58,15 @@ barrel preserving public import paths.
 
 ## Local Contracts
 
+- **Pattern store path derives from the session path shape.** `evaluatePattern`
+  records outcomes at `<root>/.alix/patterns`, the store the governance CLI
+  (`src/cli/commands/governance/main.ts`) and the context compiler
+  (`src/repomap/context-compiler.ts`) read. The root is derived by locating
+  `.alix/sessions` inside the resolved `sessionDir`, never by counting `..`
+  segments: `sessionDir` is `<root>/.alix/sessions/<id>`, and a mis-counted
+  relative chain writes a second `.alix` tree inside the sessions directory.
+  When `sessionDir` does not match that shape the pattern write is skipped;
+  the `context.pattern_evaluated` outcome event still appends.
 - **Resolve telemetry against the offered surface.** `resolveToolExecutionName`
   labels hooks, evidence, and selection observations; `handleToolCall` in
   `src/run/event-handlers.ts` performs dispatch. Both use

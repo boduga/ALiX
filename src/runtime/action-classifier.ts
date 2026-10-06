@@ -69,7 +69,7 @@ export interface ActionClassification {
 
 import type { ModelAdapter } from "../providers/types.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
-import { isShellTask } from "../task-classifier.js";
+import { hasNaturalLanguageTail, isShellTask } from "../task-classifier.js";
 
 // ─────────────────────────────────────────────────────────────────────
 // Arithmetic parser
@@ -626,7 +626,7 @@ const RETRIEVAL_SIGNALS: readonly RegExp[] = [
  * workspace_action dominates this family — "run ls on my repo" still
  * classifies as workspace_action (see trigger-precedence test).
  */
-const SHELL_EXECUTION_ANCHORS: readonly RegExp[] = [
+const SHELL_COMMAND_ANCHORS: readonly RegExp[] = [
   // Bare shell commands (read/observe). Anchored with `^` so "list of
   // bugs in the repo" does not match (it would only match if we
   // accepted "list" as an alias for ls, which we don't). Negative
@@ -643,8 +643,19 @@ const SHELL_EXECUTION_ANCHORS: readonly RegExp[] = [
   // service, crontab. Word boundary `\b` after the subcommand token
   // prevents `\S+` from backtracking through English-connective tails.
   /^\s*(?:git|docker|kubectl|helm|terraform|aws|gcloud|az|ssh|scp|rsync|brew|apt|apt-get|yum|dnf|pacman|snap|systemctl|service|crontab)\s+\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+];
+
+// SHELL_COMMAND_ANCHORS open with the command itself, so their argument tail
+// is additionally checked by `hasNaturalLanguageTail`: "Find every file under
+// src/ …" opens with a real command word but its tail is English prose, and
+// must reach the agent (as `workspace_action`) instead of `shell.run` with a
+// 2-iteration cap. The connectors the per-anchor lookahead already rejects
+// are a subset of that check — the shape test catches the rest.
+const SHELL_WRAPPER_ANCHORS: readonly RegExp[] = [
   // Prefixed-command forms — natural-language wrappers around a command.
   // "run npm test", "execute the build", "exec ls -la", "use bash to …".
+  // These are prose BY DESIGN, so they are intentionally kept outside
+  // SHELL_COMMAND_ANCHORS and never passed to hasNaturalLanguageTail.
   // Word boundary `\b` after the command token prevents `\S+` from
   // backtracking through English-connective tails like "and fix failures".
   /^\s*(?:run|execute|exec|invoke|fire|trigger|spawn)\s+(?:a|an|the|my|some)?\s*\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
@@ -776,11 +787,18 @@ export function classifyAction(input: string): ActionClassification {
   }
 
   // 5. Shell execution — run a command, observe its output. Anchored
-  //    regex family (SHELL_EXECUTION_ANCHORS). Surfaces the intent
+  //    regex family (SHELL_COMMAND_ANCHORS / SHELL_WRAPPER_ANCHORS).
+  //    Surfaces the intent
   //    deterministically so the closed-world invariant test can pin
   //    the (shell_execution, tool) chain at Layer 1 → Layer 3 without
   //    relying on the Layer-2 isShellTask lens inside the agent loop.
-  if (hasAny(trimmed, SHELL_EXECUTION_ANCHORS)) {
+  //    Only the command-anchored family carries the prose-tail check;
+  //    the wrapper family is natural language by design.
+  if (
+    (hasAny(trimmed, SHELL_COMMAND_ANCHORS) &&
+      !hasNaturalLanguageTail(trimmed)) ||
+    hasAny(trimmed, SHELL_WRAPPER_ANCHORS)
+  ) {
     return {
       intent: "shell_execution",
       reason: "prompt is a shell command or dev-tool subcommand request",

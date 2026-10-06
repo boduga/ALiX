@@ -117,12 +117,49 @@ const READ_ONLY_PATTERNS = [
 
 
 /**
+ * Plain-English tokens after the command word that mark the prompt as an
+ * instruction rather than a command invocation. Argument tokens (flags,
+ * paths, globs, numbers) never count — only bare words do.
+ */
+const PROSE_TOKEN_THRESHOLD = 3;
+
+/**
+ * True when a prompt that opens with a command word continues in natural
+ * language instead of command arguments.
+ *
+ * `SHELL_PATTERNS` is anchored to bare command words, so unguarded it also
+ * matches English imperatives that merely begin with one: "Find every file
+ * under src/ …" matches `^find`, which forced the prompt onto `shell.run`
+ * and capped it at 2 iterations instead of running as a normal task.
+ *
+ * Argument tokens are rejected by the plain-word shape below: flags (`-la`),
+ * paths (`src/`, `package.json`), numbers, globs and quoted strings all fail
+ * it, so `cat package.json`, `find . -name '*.ts'` and `grep foo src/` keep
+ * their argument tails. Three or more consecutive plain words is prose.
+ *
+ * Deliberately shape-based, not word-list based: an English-word allow/deny
+ * list would need perpetual maintenance and would reject real commands such
+ * as `cat the file`.
+ */
+export function hasNaturalLanguageTail(prompt: string): boolean {
+  const tokens = prompt.trim().split(/\s+/).slice(1);
+  let plain = 0;
+  for (const token of tokens) {
+    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(token)) plain += 1;
+  }
+  return plain >= PROSE_TOKEN_THRESHOLD;
+}
+
+/**
  * Returns true if the prompt is a bare shell command (ls, cat, pwd, etc.).
  * These are executed in read-only mode — no write tools.
  */
 export function isShellTask(prompt: string): boolean {
   const stripped = prompt.replace(/^['"]|['"]$/g, "");
-  return SHELL_PATTERNS.some((p) => p.test(stripped));
+  return (
+    SHELL_PATTERNS.some((p) => p.test(stripped)) &&
+    !hasNaturalLanguageTail(stripped)
+  );
 }
 
 /**

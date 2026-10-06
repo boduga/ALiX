@@ -115,7 +115,7 @@ export async function processChat(
       // is a successful invocation.
       result.reason === "chat-error"
         ? { status: "error", error: result.summary, endedAt: Date.now() }
-        : { status: "success", endedAt: Date.now() },
+        : { status: "success", output: result.summary, endedAt: Date.now() },
     () => processChatBody(state, message, chatContext),
   );
 }
