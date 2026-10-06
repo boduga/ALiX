@@ -296,6 +296,11 @@ describe("runPlanPhase gate integration", () => {
     const scriptBody = `import { writeFileSync } from "node:fs";\nwriteFileSync(process.argv[2], "# Edited\\n\\n- new step\\n");\n`;
     await writeFile(editorScript, scriptBody, "utf8");
     const origEditor = process.env.EDITOR;
+    const origVisual = process.env.VISUAL;
+    // openPlanInEditor prefers $VISUAL over $EDITOR: a leaked VISUAL (e.g.
+    // nano in dev shells) would shadow the fake editor below and the edit
+    // round-trip would silently keep the original content.
+    delete process.env.VISUAL;
     process.env.EDITOR = `${process.execPath} ${editorScript}`;
 
     const { TuiPlanApprovalGate } = await loadGate();
@@ -327,7 +332,10 @@ describe("runPlanPhase gate integration", () => {
       expect((result as any).planContent).toContain("new step");
     } finally {
       clearInterval(inflate);
-      process.env.EDITOR = origEditor;
+      if (origVisual === undefined) delete process.env.VISUAL;
+      else process.env.VISUAL = origVisual;
+      if (origEditor === undefined) delete process.env.EDITOR;
+      else process.env.EDITOR = origEditor;
     }
   });
 });
