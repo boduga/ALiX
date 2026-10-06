@@ -5,7 +5,7 @@ import { handleSkillsDistillFromTraces } from "./distill-from-traces.js";
 
 export type SkillsCommand =
   | { type: "help" }
-  | { type: "available" }
+  | { type: "available"; refresh?: boolean }
   | { type: "install"; opts: InstallOptions }
   | { type: "run"; name: string; script: string; args: string[]; project: boolean; global: boolean }
   | { type: "distill-from-traces"; args: string[] }
@@ -23,7 +23,7 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
   const { flags, positional, from } = parseSkillsArgs(args);
   const sub = positional[0] ?? "";
   if (sub === "available" || flags.has("--available")) {
-    return { type: "available" };
+    return flags.has("--refresh") ? { type: "available", refresh: true } : { type: "available" };
   }
   if (sub === "marketplace") {
     const action = positional[1] ?? "list";
@@ -99,7 +99,7 @@ export async function runSkillsCommand(args: string[]): Promise<void> {
   const cmd = resolveSkillsCommand(args);
   switch (cmd.type) {
     case "available":
-      await listAvailableSkills();
+      await listAvailableSkills(undefined, { refresh: cmd.refresh });
       return;
     case "install":
       await runInstall(cmd.opts);

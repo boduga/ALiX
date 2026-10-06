@@ -47,6 +47,83 @@ export function marketplacesPath(homeDir?: string): string {
   return join(homeDir ?? process.env.HOME ?? "", ".alix", "marketplaces.json");
 }
 
+/** Absolute path to the marketplace index cache file for a given home dir. */
+export function marketplaceIndexPath(homeDir?: string): string {
+  return join(homeDir ?? process.env.HOME ?? "", ".alix", "marketplace-index.json");
+}
+
+/** Default `listRepoSkills` cache TTL (1h, mirroring model-discovery). */
+export const MARKETPLACE_INDEX_TTL_MS = 3_600_000;
+
+const MARKETPLACE_INDEX_VERSION = 1;
+
+interface MarketplaceIndexEntry {
+  fetchedAt: number;
+  /** Limit the cached list was fetched with; a larger request refetches. */
+  limit: number;
+  skills: RepoSkill[];
+}
+
+interface MarketplaceIndexFile {
+  version: number;
+  entries: Record<string, MarketplaceIndexEntry>;
+}
+
+function isIndexEntry(e: unknown): e is MarketplaceIndexEntry {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    typeof (e as MarketplaceIndexEntry).fetchedAt === "number" &&
+    typeof (e as MarketplaceIndexEntry).limit === "number" &&
+    Array.isArray((e as MarketplaceIndexEntry).skills)
+  );
+}
+
+/** Read the disk index cache; null on missing/corrupt/wrong-shape (never throws). */
+async function readMarketplaceIndex(homeDir?: string): Promise<MarketplaceIndexFile | null> {
+  let raw: string;
+  try {
+    raw = await readFile(marketplaceIndexPath(homeDir), "utf8");
+  } catch {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<MarketplaceIndexFile>;
+    if (parsed?.version !== MARKETPLACE_INDEX_VERSION) return null;
+    if (typeof parsed.entries !== "object" || parsed.entries === null || Array.isArray(parsed.entries)) {
+      return null;
+    }
+    for (const entry of Object.values(parsed.entries)) {
+      if (!isIndexEntry(entry)) return null;
+    }
+    return parsed as MarketplaceIndexFile;
+  } catch {
+    return null;
+  }
+}
+
+async function readIndexEntry(key: string, homeDir?: string): Promise<MarketplaceIndexEntry | null> {
+  const index = await readMarketplaceIndex(homeDir);
+  const entry = index?.entries[key];
+  return entry && isIndexEntry(entry) ? entry : null;
+}
+
+/** Best-effort cache write — a failed write must never throw the listing. */
+async function writeIndexEntry(key: string, skills: RepoSkill[], limit: number, homeDir?: string): Promise<void> {
+  try {
+    const index = (await readMarketplaceIndex(homeDir)) ?? {
+      version: MARKETPLACE_INDEX_VERSION,
+      entries: {},
+    };
+    index.entries[key] = { fetchedAt: Date.now(), limit, skills };
+    const p = marketplaceIndexPath(homeDir);
+    await mkdir(dirname(p), { recursive: true });
+    await writeFile(p, JSON.stringify(index, null, 2) + "\n", "utf8");
+  } catch {
+    // Best-effort: cache write failures never break the listing.
+  }
+}
+
 function isMarketplace(m: unknown): m is Marketplace {
   return (
     typeof m === "object" &&
@@ -217,12 +294,44 @@ function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
  * sequentially (capped at opts.limit ?? 50 successfully parsed) and validated
  * as a skill manifest. Throws when the trees API call fails; raw-fetch or
  * parse failures for individual skills are skipped.
+ *
+ * Results are cached on disk (`marketplace-index.json`, TTL 1h by default).
+ * A fresh entry is served with zero fetches unless opts.refresh is set or
+ * the request limit exceeds the cached fetch limit; a
+ * fetch failure serves a stale entry when one exists (model-discovery
+ * precedent). A corrupt cache file is ignored and overwritten.
  */
-export async function listRepoSkills(repoUrl: string, opts?: { limit?: number }): Promise<RepoSkill[]> {
+export async function listRepoSkills(
+  repoUrl: string,
+  opts?: { limit?: number; refresh?: boolean; homeDir?: string; ttlMs?: number },
+): Promise<RepoSkill[]> {
+  const limit = opts?.limit ?? 50;
+  const refresh = opts?.refresh ?? false;
+  const ttlMs = opts?.ttlMs ?? MARKETPLACE_INDEX_TTL_MS;
+  const key = normalizeUrl(repoUrl);
+  const staleEntry = await readIndexEntry(key, opts?.homeDir);
+  // A cached list fetched with a smaller limit is a miss for a larger
+  // request — serving it sliced would silently truncate the listing.
+  if (!refresh && staleEntry && limit <= staleEntry.limit && Date.now() - staleEntry.fetchedAt < ttlMs) {
+    return staleEntry.skills.slice(0, limit);
+  }
+  try {
+    const fresh = await fetchRepoSkills(repoUrl, limit);
+    await writeIndexEntry(key, fresh, limit, opts?.homeDir);
+    return fresh;
+  } catch (e) {
+    if (staleEntry) {
+      return staleEntry.skills.slice(0, limit);
+    }
+    throw e;
+  }
+}
+
+/** Uncached `listRepoSkills` fetch path (trees walk + sequential raw fetches). */
+async function fetchRepoSkills(repoUrl: string, limit: number): Promise<RepoSkill[]> {
   const { owner, repo } = parseRepoUrl(repoUrl);
   const treesUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
   const res = await fetchJson<TreesResponse>(treesUrl);
-  const limit = opts?.limit ?? 50;
   const results: RepoSkill[] = [];
   for (const entry of res.tree ?? []) {
     if (entry.type !== "blob" || !entry.path.endsWith("/SKILL.md")) continue;
@@ -457,12 +566,16 @@ function truncate(text: string, max: number): string {
 /** Print skills across marketplaces, grouped, tolerating per-marketplace failures. */
 export async function listAvailableSkills(
   marketplaces?: Marketplace[],
-  opts?: { limit?: number },
+  opts?: { limit?: number; refresh?: boolean; homeDir?: string },
 ): Promise<void> {
-  const mps = marketplaces ?? (await loadMarketplaces());
+  const mps = marketplaces ?? (await loadMarketplaces(opts?.homeDir));
   for (const mp of mps) {
     try {
-      const skills = await listRepoSkills(mp.url, { limit: opts?.limit });
+      const skills = await listRepoSkills(mp.url, {
+        limit: opts?.limit,
+        refresh: opts?.refresh,
+        homeDir: opts?.homeDir,
+      });
       console.log(`\n${mp.name} (${mp.url}):`);
       for (const skill of skills) {
         console.log(`  ${skill.name.padEnd(24)} ${truncate(skill.description, 120)}`);

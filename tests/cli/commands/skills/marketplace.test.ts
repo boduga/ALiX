@@ -187,6 +187,13 @@ describe("listRepoSkills", () => {
 
   afterEach(() => {
     globalThis.fetch = origFetch;
+    restoreTestHome(testDir);
+  });
+
+  beforeEach(() => {
+    // Isolate the disk index cache (HOME) per test so same-URL cases
+    // with different mocked trees never serve each other's entries.
+    useTestHome(testDir);
   });
 
   it("includes skills/SKILL.md and excludes dot/tool dirs", async () => {
@@ -455,8 +462,15 @@ describe("fetchSkillPackage", () => {
 describe("listAvailableSkills", () => {
   const origFetch = globalThis.fetch;
 
+  beforeEach(() => {
+    // Isolate the disk index cache (HOME) per test — the "good" repo URL
+    // recurs across cases with different mocked bodies.
+    useTestHome(testDir);
+  });
+
   afterEach(() => {
     globalThis.fetch = origFetch;
+    restoreTestHome(testDir);
   });
 
   it("tolerates a failing marketplace and prints the good one", async () => {
