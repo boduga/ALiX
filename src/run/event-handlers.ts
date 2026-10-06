@@ -333,6 +333,8 @@ export async function handleToolCall(
   continue?: boolean;
   completed?: boolean;
   summary?: string;
+  /** Explicit executor outcome for invocation-local evidence observers. */
+  succeeded?: boolean;
   error?: { message: string; retryable?: boolean };
   /** Propagated from a successful result so completion evidence can record
    *  what the call changed (e.g. a coordination run's worker-written files). */
@@ -384,6 +386,7 @@ export async function handleToolCall(
     try {
       const output = await boundTool.handler((toolCall.args ?? {}) as Record<string, unknown>);
       return {
+        succeeded: true,
         message: {
           role: "user",
           content: buildCorrelatedToolResultMessage(toolCall.id, output, correlation),
@@ -568,6 +571,7 @@ export async function handleToolCall(
   const correlatedContent = buildCorrelatedToolResultMessage(toolCall.id, resultContent, correlation);
   return {
     message: { role: "user", content: correlatedContent },
+    succeeded: execResult.kind === "success",
     ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
     // `changed` is tri-state and must stay that way across this boundary.
     // Collapsing "the tool set no flag" into `false` erases the difference

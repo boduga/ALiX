@@ -11,12 +11,15 @@ import type { WorkerCollaborationAPI } from "./worker-collaboration-api.js";
 import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaboration-types.js";
 import { createCollaborationTools } from "../tools/collaboration-tools.js";
 import type { BoundTool } from "../tools/collaboration-tools.js";
+import { renderWorkerExecutionPrompt, type WorkerDependencyResult } from "./coordination-worker-context.js";
+import { captureWorkerEventLog, reviewDefaultWorkerResult } from "./default-worker-review.js";
 
 export type WorkerExecutionContext = {
   run: CoordinationRun;
   sessionId: string;
   cwd: string;
   config: AlixConfig;
+  dependencyResults?: WorkerDependencyResult[];
   collaboration?: {
     api: WorkerCollaborationAPI;
     manifest: WorkerContextManifest;
@@ -91,12 +94,16 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
         boundTools = createCollaborationTools(context.collaboration.api);
       }
 
-      const result = await runTask(context.cwd, worker.goalPrompt, {
+      const captured = captureWorkerEventLog(await initSharedEventLog(context.cwd, context.sessionId));
+      const toolEvidence: string[] = [];
+      const result = await runTask(context.cwd, renderWorkerExecutionPrompt(worker, context), {
+        signal,
+        onToolResult: (name, content) => { toolEvidence.push(`Tool ${name}:\n${content}`); },
         sessionMode: context.config.permissions.sessionMode ?? "ask",
         sharedSession: {
           sessionId: context.sessionId,
           sessionDir: join(context.cwd, ".alix", "sessions", context.sessionId),
-          eventLog: await initSharedEventLog(context.cwd, context.sessionId),
+          eventLog: captured.log,
         },
         injectedContext: context.collaboration
           ? {
@@ -112,17 +119,21 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
       });
 
       if (signal.aborted) {
-        return { outcome: "failure", failureKind: "timeout", error: "Execution cancelled" };
+        return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };
       }
 
-      return {
-        outcome: "success",
-        summary: result.summary,
-        outputPath: result.sessionId,
-      };
+      if (result.reason !== "completed") {
+        return {
+          outcome: "failure", failureKind: "execution_error",
+          summary: result.summary, outputPath: result.sessionId,
+          error: `Worker execution did not complete (${result.reason ?? "missing completion reason"}): ${result.summary}`,
+        };
+      }
+
+      return await reviewDefaultWorkerResult(worker, context, result, captured.events, captured.log, signal, toolEvidence);
     } catch (error) {
       if (signal.aborted) {
-        return { outcome: "failure", failureKind: "timeout", error: "Execution cancelled" };
+        return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled" };
       }
       return {
         outcome: "failure",

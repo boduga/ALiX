@@ -81,11 +81,12 @@ export class CapabilityService {
       catalogDir: opts.catalogDir ?? mkdtempSync(join(tmpdir(), "alix-cap-catalog-")),
     };
     // Locked ruling #12 — the platform requires an authoritative EventLog.
-    // When the TUI service was constructed without one, construct a no-op
-    // EventLog scoped to the current working directory so the platform can
-    // wire the same instance into the service. The TUI's own `eventLog` opt
-    // (when supplied) takes precedence — both land in the same EventLog.
-    const eventLog = this.opts.eventLog ?? new EventLog(this.opts.cwd);
+    // When the TUI service is constructed without one, give the platform a
+    // throwaway EventLog under the temp dir — the same default `catalogDir`
+    // takes above — so an un-wired caller never writes `events.jsonl` into
+    // the process cwd. The TUI's own `eventLog` opt (when supplied) takes
+    // precedence — both land in the same EventLog.
+    const eventLog = this.opts.eventLog ?? new EventLog(mkdtempSync(join(tmpdir(), "alix-cap-events-")));
     this.opts.eventLog = eventLog;
     this.platform = new CapabilityPlatform({
       eventLog,

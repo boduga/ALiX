@@ -205,6 +205,35 @@ describe('explicit mutation target extraction', () => {
   });
 });
 
+describe('full tool evidence observer', () => {
+  it.each(['success', 'denied'] as const)('uses %s envelope, never denial keywords in content', async kind => {
+    const tools: ToolDef[] = [{ name: 'alix_file_read', description: 'Read source file', input_schema: { type: 'object', properties: {} } }];
+    const provider = createMockProvider({ toolCalls0: [{ name: 'alix_file_read', id: 'source', args: { path: 'source.md' } }], responseText1: 'Read completed with available evidence.' });
+    const { deps, cleanup } = await makeTestDeps({ provider, providerTools: tools, task: 'Read source file and report facts', executor: { execute: async () => kind === 'success' ? { kind, content: 'Access denied is a phrase documented in this file.' } : { kind, reason: 'Protected path' } } as unknown as TaskLoopDeps['executor'] });
+    const observed: string[] = [];
+    Object.assign(deps, { onToolResult: (_name: string, body: string) => { observed.push(body); } });
+    try { await runTaskLoop(deps); expect(observed).toHaveLength(kind === 'success' ? 1 : 0); }
+    finally { cleanup(); }
+  });
+  it.each([false, true])('retains facts beyond telemetry previews; observer throws=%s', async throws => {
+    const content = 'Background '.repeat(40) + 'Bola Ahmed Tinubu https://statehouse.gov.ng/';
+    const tools: ToolDef[] = [{ name: 'alix_file_read', description: 'Read source file', input_schema: { type: 'object', properties: {} } }];
+    const provider = createMockProvider({ toolCalls0: [{ name: 'alix_file_read', id: 'source', args: { path: 'source.md' } }], responseText1: 'Reviewed source file and gathered supporting facts.' });
+    const { deps, cleanup } = await makeTestDeps({ provider, providerTools: tools, task: 'Read source file and report facts', executor: { execute: async () => ({ kind: 'success', content }) } as unknown as TaskLoopDeps['executor'] });
+    const observed: string[] = [];
+    Object.assign(deps, { onToolResult: (toolName: string, body: string) => {
+      expect(toolName).toBe('alix_file_read'); observed.push(body);
+      if (throws) throw new Error('observer unavailable');
+    } });
+    try {
+      await runTaskLoop(deps);
+      expect(observed).toHaveLength(1);
+      expect(observed[0]).toContain('https://statehouse.gov.ng/');
+      expect(observed[0]).toContain(content);
+    } finally { cleanup(); }
+  });
+});
+
 describe('Task 8: shed-tool reintroduce-on-call', () => {
   it('reintroduces a shed tool when the model calls it, retries once, and logs it', async () => {
     // providerTools contains all known tools; core is derived by scopeToolsByTask
