@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
-import { useTestHome, restoreTestHome } from "./test-helpers.js";
+import { useTestHome, restoreTestHome, skillBody, treeResponse, mockFetch } from "./test-helpers.js";
 import {
   listRepoSkills,
   listAvailableSkills,
@@ -11,43 +11,6 @@ import {
 
 const testDir = join(process.cwd(), ".test-alix-marketplace-cache");
 const REPO = "https://github.com/acme/skills";
-
-function skillBody(name: string): string {
-  return `---\nname: ${name}\ndescription: ${name} test skill\n---\nBody.\n`;
-}
-
-function treeResponse(entries: { path: string }[]): Response {
-  return new Response(
-    JSON.stringify({
-      sha: "abc",
-      url: "u",
-      tree: entries.map((e) => ({
-        path: e.path,
-        mode: "100644",
-        type: "blob",
-        sha: "s",
-        url: "u",
-        size: 1,
-      })),
-    }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
-}
-
-/** Mock fetch: trees API → tree; raw keys in `raw` → body; else 404. Counts calls. */
-function mockFetch(tree: { path: string }[], raw: Record<string, string>, counter: { calls: number }) {
-  globalThis.fetch = (async (input: unknown) => {
-    counter.calls++;
-    const url = String(input);
-    if (url.includes("api.github.com")) return treeResponse(tree);
-    for (const [key, body] of Object.entries(raw)) {
-      if (url.includes(key)) {
-        return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
-      }
-    }
-    return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
-  }) as typeof fetch;
-}
 
 function writeIndex(obj: unknown): void {
   mkdirSync(join(testDir, ".alix"), { recursive: true });

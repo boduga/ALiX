@@ -309,19 +309,19 @@ export async function listRepoSkills(
   const refresh = opts?.refresh ?? false;
   const ttlMs = opts?.ttlMs ?? MARKETPLACE_INDEX_TTL_MS;
   const key = normalizeUrl(repoUrl);
-  const staleEntry = await readIndexEntry(key, opts?.homeDir);
+  const cachedEntry = await readIndexEntry(key, opts?.homeDir);
   // A cached list fetched with a smaller limit is a miss for a larger
   // request — serving it sliced would silently truncate the listing.
-  if (!refresh && staleEntry && limit <= staleEntry.limit && Date.now() - staleEntry.fetchedAt < ttlMs) {
-    return staleEntry.skills.slice(0, limit);
+  if (!refresh && cachedEntry && limit <= cachedEntry.limit && Date.now() - cachedEntry.fetchedAt < ttlMs) {
+    return cachedEntry.skills.slice(0, limit);
   }
   try {
     const fresh = await fetchRepoSkills(repoUrl, limit);
     await writeIndexEntry(key, fresh, limit, opts?.homeDir);
     return fresh;
   } catch (e) {
-    if (staleEntry) {
-      return staleEntry.skills.slice(0, limit);
+    if (cachedEntry) {
+      return cachedEntry.skills.slice(0, limit);
     }
     throw e;
   }

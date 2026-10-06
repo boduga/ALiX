@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { useTestHome, restoreTestHome } from "./test-helpers.js";
+import { useTestHome, restoreTestHome, skillBody, treeResponse, mockFetch } from "./test-helpers.js";
 import {
   DEFAULT_MARKETPLACES,
   loadMarketplaces,
@@ -22,10 +22,6 @@ import {
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
 
-function skillBody(name: string): string {
-  return `---\nname: ${name}\ndescription: ${name} test skill\n---\nBody.\n`;
-}
-
 /** Run fn while capturing console.log output, then restore. */
 async function captureLog<T>(fn: () => Promise<T>): Promise<{ lines: string[]; result: T }> {
   const orig = console.log;
@@ -37,36 +33,6 @@ async function captureLog<T>(fn: () => Promise<T>): Promise<{ lines: string[]; r
   } finally {
     console.log = orig;
   }
-}
-
-function treeResponse(entries: { path: string }[]): Response {
-  return new Response(
-    JSON.stringify({
-      sha: "abc",
-      url: "u",
-      tree: entries.map((e) => ({
-        path: e.path,
-        mode: "100644",
-        type: "blob",
-        sha: "s",
-        url: "u",
-        size: 1,
-      })),
-    }),
-    { status: 200, headers: { "content-type": "application/json" } },
-  );
-}
-
-/** Mock fetch so api.github.com returns `tree`, raw.githubusercontent.com returns `raw` bodies. */
-function mockPackageFetch(tree: { path: string }[], raw: Record<string, string>) {
-  globalThis.fetch = (async (input: unknown) => {
-    const url = String(input);
-    if (url.includes("api.github.com")) return treeResponse(tree);
-    for (const [key, body] of Object.entries(raw)) {
-      if (url.includes(key)) return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
-    }
-    return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
-  }) as typeof fetch;
 }
 
 describe("marketplace persistence", () => {
@@ -170,20 +136,6 @@ describe("addMarketplace validation", () => {
 describe("listRepoSkills", () => {
   const origFetch = globalThis.fetch;
   const REPO = "https://github.com/acme/skills";
-
-  /** Stub fetch: trees API → tree; raw.githubusercontent for keys in `raw` → body (may be invalid); else 404. */
-  function mockFetch(tree: { path: string }[], raw: Record<string, string>) {
-    globalThis.fetch = (async (input: unknown) => {
-      const url = String(input);
-      if (url.includes("api.github.com")) return treeResponse(tree);
-      for (const [key, body] of Object.entries(raw)) {
-        if (url.includes(key)) {
-          return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
-        }
-      }
-      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
-    }) as typeof fetch;
-  }
 
   afterEach(() => {
     globalThis.fetch = origFetch;
@@ -750,7 +702,7 @@ describe("resolveSkillPackageInMarketplaces", () => {
   });
 
   it("returns the full package from a marketplace that has skills/<name>/", async () => {
-    mockPackageFetch(
+    mockFetch(
       [{ path: "skills/xlsx/SKILL.md" }, { path: "skills/xlsx/scripts/recalc.py" }],
       {
         "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: X\n---\nBody.\n",
@@ -765,7 +717,7 @@ describe("resolveSkillPackageInMarketplaces", () => {
   });
 
   it("returns null when no marketplace has the skill as a package (single-file fallback)", async () => {
-    mockPackageFetch([{ path: "README.md" }], {});
+    mockFetch([{ path: "README.md" }], {});
     const hit = await resolveSkillPackageInMarketplaces("nope", mps);
     assert.equal(hit, null);
   });
