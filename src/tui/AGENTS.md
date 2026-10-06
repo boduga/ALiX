@@ -28,6 +28,13 @@
 - Workbench `Enter` submits while idle and queues a follow-up while a foreground turn is active; queued messages drain FIFO only after the prior turn settles. `Shift+Enter` inserts a newline. First-press `Ctrl+C` cancels active foreground work before the legacy exit path may run.
 - Agent lifecycle state, model identity, ownership, and task assignment come from canonical `agent.*` events. Legacy `subagent.*` events remain projection-compatible during migration.
 - Coordination workers keep `worker.id` as their unique roster execution identity. Chat coordination plans inherit the active parent session, and their canonical `agent.*` lifecycle events retain that session instead of a tool/manager-internal id, so session-scoped roster, task, result, and artifact projections observe them. Optional `coordinationRunId`, planner-assigned agent label, and task label flow as presentation metadata; the TUI never reads `CoordinationStore` as a second truth source.
+- `DaemonAgentSession` receives the TUI session id from the composition root (`runTui`) as a required constructor argument and never derives one itself. `getSessionId()` and `getState().sessionId` stay that value for the session's life, including after the daemon reports a server-assigned id: session identity names the `.alix/sessions/<id>` directory the events land in, and a second clock read or a daemon-side id would stamp events and filter approvals against an id that   directory does not carry.
+- `CapabilityService` constructed with no `eventLog` falls back to a throwaway
+  `EventLog` under the OS temp dir, the same default `catalogDir` takes. It
+  never falls back to `process.cwd()` or the `cwd` option: capability
+  registration appends synchronously at construction, so a cwd fallback writes
+  an `events.jsonl` of unowned `capability.*` events into whatever directory
+  the caller happened to launch from.
 - Agent/task projections deduplicate by stable event identity, not sequence position. An `approval.requested` or durable `approval.created` event carrying an authoritative `agentId` moves that roster entry to non-terminal `waiting_approval`; duplicate creation facts for the same `approvalId` do not overwrite its prior active state, and matching `approval.resolved` restores that state.
 - Coordination retry results marked `attemptTerminal: false` remain non-terminal in agent/task projections; the scheduler's canonical lifecycle event is authoritative for final completion, failure, or dependency blocking.
 - Task rows derive ownership and current progress only from structured task, lifecycle, progress, and ownership events; display text is never parsed back into task state.

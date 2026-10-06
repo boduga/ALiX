@@ -480,7 +480,10 @@ export class LangfuseTraceClient implements TraceClient {
         ...defined({ error: this.captureError(outcome.error) }),
       };
       try {
-        record.root.update({ metadata: { alix } });
+        record.root.update({
+          metadata: { alix },
+          ...defined({ output: this.captureRunBody(outcome.output) }),
+        });
         record.root.otelSpan.setStatus({
           code:
             outcome.status === "error"
@@ -664,6 +667,10 @@ export class LangfuseTraceClient implements TraceClient {
    * Create the run's root span observation, tagged with the run's trace-level
    * attributes (title + session) via `propagateAttributes` so every observation
    * in this trace carries them (v5 observations-first model).
+   *
+   * The root carries the run's task as its input so the trace opens on what
+   * was asked of it; the matching output is set at `endRun` from the run
+   * outcome. Both go through {@link captureRunBody}.
    */
   private observeRoot(
     input: TraceRunInput,
@@ -682,7 +689,10 @@ export class LangfuseTraceClient implements TraceClient {
       () =>
         startObservation(
           name,
-          { metadata: { alix } },
+          defined({
+            metadata: { alix },
+            input: this.captureRunBody(input.task),
+          }),
           {
             asType: "span",
             ...(isFiniteNumber(input.startedAt)
@@ -807,6 +817,20 @@ export class LangfuseTraceClient implements TraceClient {
   }
 
   // --- capture integration ---------------------------------------------------
+
+  /**
+   * Run-root input/output body text (the run's task and final summary).
+   *
+   * Captured at "truncated" under the message budget — the same policy
+   * `buildRunAlix` already applies to `task`, so the root's visible input and
+   * the task recorded in `metadata.alix` never diverge in redaction or
+   * length. Redaction precedes truncation (capture.ts). Empty/absent text is
+   * reported as absent so the observation never carries a blank field.
+   */
+  private captureRunBody(text: string | undefined): string | undefined {
+    if (text === undefined || text === "") return undefined;
+    return captureString(text, "truncated", { maxChars: this.maxMessageChars });
+  }
 
   /** Model output text capture — no dedicated config mode exists; see report. */
   private captureModelOutput(outcome: SpanOutcome): string | undefined {

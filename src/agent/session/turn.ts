@@ -115,6 +115,7 @@ export async function processTurn(
     "processTurn ended before its outcome could be recorded",
     (result) => ({
       status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+      output: result.summary,
       endedAt: Date.now(),
     }),
     () => processTurnBody(state, message, runId, options),

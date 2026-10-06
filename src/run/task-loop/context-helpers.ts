@@ -9,7 +9,7 @@
  */
 
 import "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import "node:crypto";
 import type { NormalizedMessage } from "../../providers/types.js";
 import type { EventLog } from "../../events/event-log.js";
@@ -200,15 +200,28 @@ export async function evaluatePattern(
 const { extractSessionOutcome } = await import("../../context/session-outcome.js");
 const { PatternRegistry } = await import("../../context/pattern-registry.js");
 
-const patternsDir = join(sessionDir, "..", ".alix", "patterns");
-const registry = new PatternRegistry(patternsDir);
-
 const outcome = await extractSessionOutcome(sessionDir);
-await registry.recordOutcome(taskType as TaskType, {
-  success: outcome.success,
-  iterations: outcome.iterations,
-  totalTokens: outcome.totalTokens,
-});
+// Pattern outcomes live at `<workspace-root>/.alix/patterns` — the same
+// store the governance CLI and the context compiler read. Derive the root
+// from the session path instead of counting `..` segments: sessionDir is
+// `<root>/.alix/sessions/<id>`, and a mis-counted relative chain writes a
+// second `.alix` tree inside the sessions directory. Best-effort: when
+// sessionDir does not match that shape, skip the write rather than record
+// outcomes somewhere unexpected. The outcome event below still fires.
+const segments = resolve(sessionDir).split(sep);
+const alixAt = segments.lastIndexOf(".alix");
+const patternsRoot = alixAt >= 0 && segments[alixAt + 1] === "sessions"
+  ? segments.slice(0, alixAt).join(sep)
+  : undefined;
+
+if (patternsRoot) {
+  const registry = new PatternRegistry(join(patternsRoot, ".alix", "patterns"));
+  await registry.recordOutcome(taskType as TaskType, {
+    success: outcome.success,
+    iterations: outcome.iterations,
+    totalTokens: outcome.totalTokens,
+  });
+}
 
 await log.append({
   sessionId: session.sessionId,
