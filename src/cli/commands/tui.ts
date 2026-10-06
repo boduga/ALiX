@@ -329,6 +329,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         cwd,
         null,
         opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+        sessionId,
       );
     } else {
       // Resolve the process TraceClient once (memoized factory: Noop when
