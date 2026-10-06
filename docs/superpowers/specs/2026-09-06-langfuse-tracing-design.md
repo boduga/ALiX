@@ -242,6 +242,20 @@ The exact schemas should be derived from existing normalized runtime types where
 
 ---
 
+## Amendment — 2026-10-06: RunOutcome.output
+
+`output?: string` added to `RunOutcome` alongside the approved `status` /
+`error?` fields above (which are unchanged); the root-span input/output wiring
+lives in `langfuse-client.ts` and `types.ts`. The value is emitted as
+`result.summary` from turn/chat/agent-loop and forwarded as `modelSpanOutput`
+through provider `complete()` and `stream()`.
+
+Rationale: without a run-level output the trace records that a run completed
+but not what it produced; the optional field keeps existing readers working
+while letting completed runs carry their summary.
+
+---
+
 ## Opaque handles
 
 `TraceRun` and `TraceSpan` are opaque ALiX handles.

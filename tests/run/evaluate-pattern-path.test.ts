@@ -8,10 +8,10 @@ import { evaluatePattern } from "../../src/run/task-loop/context-helpers.js";
 type SessionInfo = { sessionId: string; actor: "system" };
 
 function fakeLog() {
-  const appended: Array<{ type: string }> = [];
+  const appended: Array<{ type: string; payload?: Record<string, unknown> }> = [];
   return {
     appended,
-    log: { append: async (e: { type: string }) => { appended.push(e); } } as never,
+    log: { append: async (e: { type: string; payload?: Record<string, unknown> }) => { appended.push(e); } } as never,
   };
 }
 
@@ -33,6 +33,7 @@ describe("evaluatePattern pattern-store path", () => {
     );
     assert.equal(appended.length, 1, "outcome event must still be appended");
     assert.equal(appended[0]!.type, "context.pattern_evaluated");
+    assert.equal(appended[0]!.payload?.["patternRecorded"], true);
   });
 
   it("skips the pattern write when sessionDir is not <root>/.alix/sessions/<id>", async () => {
@@ -43,5 +44,8 @@ describe("evaluatePattern pattern-store path", () => {
 
     assert.ok(!existsSync(join(root, ".alix")), "no pattern store may be created for an unrecognised sessionDir");
     assert.equal(appended.length, 1, "outcome event is independent of the pattern write");
+    assert.equal(appended[0]!.type, "context.pattern_evaluated");
+    assert.equal(appended[0]!.payload?.["patternRecorded"], false);
+    assert.equal(appended[0]!.payload?.["patternSkipReason"], "sessionDir not under .alix/sessions");
   });
 });

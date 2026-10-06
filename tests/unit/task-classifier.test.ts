@@ -78,6 +78,21 @@ describe("isShellTask — command vs. prose", () => {
 
   it("flags three or more consecutive plain-English words", () => {
     assert.strictEqual(hasNaturalLanguageTail("echo hello"), false);
+    // Non-plain tokens reset the run: total-count would see 3+ plains here.
+    assert.strictEqual(hasNaturalLanguageTail("echo hi | grep foo"), false);
+    assert.strictEqual(hasNaturalLanguageTail("ls foo bar -la baz"), false);
+    // All-plain tails ARE consecutive prose per the documented semantic
+    // ("cat the file" is the known shape-based tradeoff): "a b c" is a run
+    // of 3, so this stays true even after the consecutive-run fix.
+    assert.strictEqual(hasNaturalLanguageTail("cat a b c"), true);
+    assert.strictEqual(hasNaturalLanguageTail("find every file under src"), true);
     assert.strictEqual(hasNaturalLanguageTail(PROSE_IMPERATIVE), true);
+  });
+
+  it("keeps multi-argument commands on shell routing", () => {
+    assert.strictEqual(isShellTask("echo hi | grep foo"), true);
+    assert.strictEqual(isShellTask("ls foo bar -la baz"), true);
+    // All-plain tails remain prose (not shell) — documented tradeoff above.
+    assert.strictEqual(isShellTask("cat a b c"), false);
   });
 });

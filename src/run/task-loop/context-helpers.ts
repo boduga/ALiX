@@ -189,6 +189,9 @@ export function toBudgetedItems(
 /**
  * Evaluates the pattern for the completed task and records the outcome.
  * Uses the pattern registry to track which context selection strategies work best.
+ * Skip contract: when sessionDir is not `<root>/.alix/sessions/<id>` the
+ * pattern-registry write is skipped but the `context.pattern_evaluated` event
+ * still appends with `patternRecorded: false` and a `patternSkipReason`.
  */
 export async function evaluatePattern(
   log: EventLog,
@@ -232,6 +235,10 @@ await log.append({
     success: outcome.success,
     iterations: outcome.iterations,
     tokenUsage: outcome.totalTokens,
+    patternRecorded: patternsRoot !== undefined,
+    ...(patternsRoot === undefined
+      ? { patternSkipReason: "sessionDir not under .alix/sessions" }
+      : {}),
   },
 });
   } catch {

@@ -57,7 +57,9 @@ barrel preserving public import paths.
   segments: `sessionDir` is `<root>/.alix/sessions/<id>`, and a mis-counted
   relative chain writes a second `.alix` tree inside the sessions directory.
   When `sessionDir` does not match that shape the pattern write is skipped;
-  the `context.pattern_evaluated` outcome event still appends.
+  the `context.pattern_evaluated` outcome event still appends with
+  `patternRecorded: false` and `patternSkipReason: "sessionDir not under
+  .alix/sessions"` (recorded path sets `patternRecorded: true`).
 - **Resolve telemetry against the offered surface.** `resolveToolExecutionName`
   labels hooks, evidence, and selection observations; `handleToolCall` in
   `src/run/event-handlers.ts` performs dispatch. Both use

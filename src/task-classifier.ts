@@ -145,9 +145,14 @@ export function hasNaturalLanguageTail(prompt: string): boolean {
   const tokens = prompt.trim().split(/\s+/).slice(1);
   let plain = 0;
   for (const token of tokens) {
-    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(token)) plain += 1;
+    if (/^[A-Za-z][A-Za-z0-9_-]*$/.test(token)) {
+      plain += 1;
+      if (plain >= PROSE_TOKEN_THRESHOLD) return true;
+    } else {
+      plain = 0;
+    }
   }
-  return plain >= PROSE_TOKEN_THRESHOLD;
+  return false;
 }
 
 /**
