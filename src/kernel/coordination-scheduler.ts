@@ -10,6 +10,7 @@
 import "node:crypto";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
+import { loadWorkerDependencyResults } from "./coordination-worker-context.js";
 import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
@@ -331,9 +332,11 @@ export class CoordinationScheduler {
       }
 
       // Collaboration context
+      let collaboration: WorkerExecutionContext["collaboration"];
       if (this.deps.collaborationContextFactory && worker.dependencies.length > 0) {
         try {
           const ctx = await this.deps.collaborationContextFactory(run, worker);
+          collaboration = ctx;
           // Persist manifest
           const manifestRef = await (ctx.manifest?.runId
             ? new CollaborationStore(this.deps.cwd, run.id).persistManifest(ctx.manifest)
@@ -394,7 +397,7 @@ export class CoordinationScheduler {
 
       // Start tracked execution
       const controller = new AbortController();
-      const execPromise = this.executeWorker(runId, worker.id, controller.signal);
+      const execPromise = this.executeWorker(runId, worker.id, controller.signal, collaboration);
       this.activeExecutions.set(worker.id, { workerId: worker.id, runId, controller, promise: execPromise, startedAt: performance.now() });
       execPromise.finally(() => this.activeExecutions.delete(worker.id));
     }
@@ -467,7 +470,7 @@ export class CoordinationScheduler {
     return false;
   }
 
-  private async executeWorker(runId: string, workerId: string, signal: AbortSignal): Promise<void> {
+  private async executeWorker(runId: string, workerId: string, signal: AbortSignal, collaboration?: WorkerExecutionContext["collaboration"]): Promise<void> {
     const run = await this.deps.store.loadWithRetry(runId);
     if (!run) {
       // Orphan guard: execution never started but tick already dispatched this
@@ -489,6 +492,8 @@ export class CoordinationScheduler {
       const baseConfig = await this.deps.configProvider();
       const context: WorkerExecutionContext = {
         run, sessionId: run.sessionId, cwd: this.deps.cwd,
+        dependencyResults: await loadWorkerDependencyResults(run, worker, this.resultStore),
+        collaboration,
         // The run's persisted approval mode wins over the host's current
         // config so a resumed/daemon-ticked run keeps the semantics it
         // was started with.
