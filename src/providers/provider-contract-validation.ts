@@ -7,7 +7,7 @@
 // Wrapper preserves the full ModelAdapter interface.
 // No streaming validation yet — stream() and negotiate() pass through.
 
-import type { ModelAdapter, ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ModelAdapter, ModelCallOptions, NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
 import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
@@ -191,6 +191,31 @@ function outcomeForError(e: unknown, endedAt: number): SpanOutcome {
 }
 
 /**
+ * Span output for a model response: its text plus any tool calls it emitted.
+ *
+ * Text alone is the normal answer, but a model that answers with tool calls
+ * reports empty `text` (`finishReason: "tool_calls"`), so recording text only
+ * left the generation with no output at all — in that case the tool calls
+ * ARE the output. Both halves are kept when a model emits both. A response
+ * with neither keeps its previous empty-string output. The result still
+ * passes through the adapter's capture policy (redaction then truncation) in
+ * `captureModelOutput` before it reaches the SDK.
+ */
+function modelSpanOutput(
+  text: string,
+  toolCalls?: readonly ToolCall[],
+): string {
+  const calls =
+    toolCalls !== undefined && toolCalls.length > 0
+      ? toolCalls
+          .map((call) => `${call.name}(${JSON.stringify(call.args)})`)
+          .join("\n")
+      : undefined;
+  if (!text) return calls ?? "";
+  return calls === undefined ? text : `${text}\n${calls}`;
+}
+
+/**
  * Fail-closed output ceiling: never send a provider more max_tokens than
  * the adapter declares it accepts. The budget layer sizes requests from
  * the context window alone (its `outputTokenLimit ... when known` input is
@@ -288,7 +313,7 @@ export function withProviderContracts(
         const validated = validateNormalizedResponse(response);
         endModelSpan(span, {
           status: "success",
-          output: validated.text,
+          output: modelSpanOutput(validated.text, validated.toolCalls),
           reasoning: validated.reasoning,
           inputTokens: validated.usage?.inputTokens,
           outputTokens: validated.usage?.outputTokens,
@@ -347,6 +372,7 @@ export function withProviderContracts(
 
             let outputText = "";
             let reasoningText = "";
+            const toolCalls: ToolCall[] = [];
             let inputTokens: number | undefined;
             let outputTokens: number | undefined;
             let finishReason: string | undefined;
@@ -366,6 +392,8 @@ export function withProviderContracts(
                     outputText += chunk.text;
                   } else if (chunk.type === "reasoning_delta") {
                     reasoningText += chunk.text;
+                  } else if (chunk.type === "tool_call") {
+                    toolCalls.push(chunk.toolCall);
                   } else if (chunk.type === "usage") {
                     inputTokens = chunk.usage.inputTokens;
                     outputTokens = chunk.usage.outputTokens;
@@ -382,7 +410,7 @@ export function withProviderContracts(
               }
               terminal = {
                 status: "success",
-                output: outputText,
+                output: modelSpanOutput(outputText, toolCalls),
                 reasoning: reasoningText,
                 inputTokens,
                 outputTokens,

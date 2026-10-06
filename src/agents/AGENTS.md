@@ -10,6 +10,7 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `tool-name-resolver.ts` resolves ONLY the exact names offered in the current turn. Executor IDs are never accepted from a caller.
 - `tool-policy.ts` applies role-based tool access.
 - `subagent-cli.ts` builds and runs worker turns.
+- `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
 - Collaboration handlers live in `src/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 
 ## Local Contracts
@@ -32,6 +33,8 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
   execution and is not a read-only permission guarantee.
 - Bound `alix_collaboration_*` definitions bypass `filterTools` and deliberately
   belong to neither role set.
+- Worker findings preserve substantive model text plus bounded, explicitly untrusted executed tool evidence. All result payload families use `toolResultText`; preliminary commentary must not discard retrieved facts or URLs.
+- Coordinated workers treat ownership scopes as permission limits. Write workers must demonstrate a mutation, but need not write every permitted file. Completion review checks requested deliverables against executed evidence and persisted output content, including confirmed deletions. Invalid, unsupported, or failed reviews preserve mutation evidence and return partial/failure rather than success. Review summaries precede raw evidence so downstream budgets retain the substantive answer.
 
 ## Work Guidance
 

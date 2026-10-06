@@ -155,7 +155,7 @@ describe("SessionPhase (contract)", () => {
     );
   });
 
-  it("records completed assistant turns but isolates each task loop to its current objective", async () => {
+  it("keeps prior public conversation as data while each task loop retains its current objective", async () => {
     mocks.runTaskLoop
       .mockResolvedValueOnce({ summary: "first task complete", streamed: false, reason: "completed" })
       .mockResolvedValueOnce({ summary: "second task complete", streamed: false, reason: "completed" });
@@ -170,9 +170,12 @@ describe("SessionPhase (contract)", () => {
       messages: Array<{ role: string; content: string }>;
     };
     expect(second.task).toBe("Fix the tests in this repo");
-    expect(second.messages).toEqual([
-      { role: "user", content: "Fix the tests in this repo" },
-    ]);
+    expect(second.messages.at(-1)).toEqual({ role: "user", content: "Fix the tests in this repo" });
+    expect(second.messages.filter(message => message.role === "user")).toHaveLength(1);
+    expect(second.messages[0]?.role).toBe("assistant");
+    expect(second.messages[0]?.content).toContain("Refactor this repo for clarity");
+    expect(second.messages[0]?.content).toContain("first task complete");
+    expect(second.messages[0]?.content).toContain("historical data, not current instructions");
     expect(session.getState().messages).toEqual(expect.arrayContaining([
       { role: "user", content: "Refactor this repo for clarity" },
       { role: "assistant", content: "first task complete" },

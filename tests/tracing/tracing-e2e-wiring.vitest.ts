@@ -332,7 +332,7 @@ describe("T16 end-to-end trace wiring", () => {
       await runTaskLoop(deps);
       expect(model.invocations).toBe(2);
     } finally {
-      await client.endRun(run, { status: "success", endedAt: Date.now() });
+      await client.endRun(run, { status: "success", output: "Task complete", endedAt: Date.now() });
     }
 
     // ── 1. Exactly ONE root observation (design §14: one runId → one trace) ──
@@ -344,6 +344,11 @@ describe("T16 end-to-end trace wiring", () => {
     expect(String(root.name)).not.toContain(SK_PROJ_KEY);
     expect(String(alixOf(root).task)).toContain("<redacted>");
     expect(String(alixOf(root).task)).not.toContain(SK_PROJ_KEY);
+    // Root input/output: the run's task in, the run's summary out — both
+    // captured, so the trace opens on what was asked and closes on the result.
+    expect(String(attrOf(root, "input"))).toContain("<redacted>");
+    expect(String(attrOf(root, "input"))).not.toContain(SK_PROJ_KEY);
+    expect(attrOf(root, "output")).toBe("Task complete");
     expect(alixOf(root).sessionId).toBe(sessionId);
     expect(alixOf(root)).toMatchObject({
       kind: "run",
@@ -390,7 +395,9 @@ describe("T16 end-to-end trace wiring", () => {
       expect(alixOf(gen).invocationId).toBeUndefined();
     }
     // Generation output + per-span terminal status.
-    expect(attrOf(gen0, "output")).toBe("");
+    // gen0 answers with a tool call: its `text` is empty, so its output is the
+    // tool call itself (recording text only left tool_calls generations blank).
+    expect(attrOf(gen0, "output")).toBe('alix_file_read({"path":"a.txt"})');
     expect(String(attrOf(gen1, "output"))).toContain("Final answer");
     expect(alixOf(gen0)).toMatchObject({ status: "success", finishReason: "tool_calls" });
     expect(alixOf(gen1)).toMatchObject({ status: "success", finishReason: "stop" });
