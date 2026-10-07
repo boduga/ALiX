@@ -125,6 +125,7 @@ Default section order:
 - Prefer subagent-driven development with spec-compliance review followed by code-quality review.
 - Use CLI-first workflows for approvals and audit.
 - Commit early, push often; tag baseline milestones.
+- Provider secrets (incl. Langfuse keys) live in the credential store (`~/.config/alix/config.json` `apiKeys`), never in env files or the repo. Rotation = update store entries; no code or config-file changes needed.
 
 ## Runtime Contracts
 
