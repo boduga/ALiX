@@ -1,11 +1,27 @@
 import type { DashboardSnapshot } from '../../snapshot.js';
 import type { PerTabState } from '../../state.js';
 import { SessionPhase } from '../../../agent/session.js';
+import type { AgentLivenessState } from '../../../agent/agent-liveness.js';
 
 export interface OperatorShellApproval {
   readonly count: number;
   readonly toolName: string;
 }
+
+/**
+ * Top status line facts. Structured timestamps only — painters format the
+ * elapsed text at paint time so the line reads from a fresh clock.
+ */
+export type OperatorShellStatus =
+  | { readonly kind: 'approval-wait'; readonly requestedAt: number }
+  | {
+      readonly kind: 'liveness';
+      readonly startedAt: number;
+      readonly lastProgressAt: number;
+      readonly state: AgentLivenessState;
+      readonly lastProgressKind?: string;
+      readonly lastProgressDescription?: string;
+    };
 
 export interface OperatorShellSnapshot {
   readonly workspace: string;
@@ -22,6 +38,7 @@ export interface OperatorShellSnapshot {
   readonly drawer?: 'closed' | 'agents' | 'tasks' | 'artifacts';
   readonly inspectorOpen?: boolean;
   readonly approval?: OperatorShellApproval;
+  readonly status?: OperatorShellStatus;
   readonly agents?: {
     readonly active: number;
     readonly total: number;
@@ -54,22 +71,39 @@ export function projectOperatorShell(
       }
     : undefined;
   const roster = snap.runtime?.agents;
+  const running = snap.session !== null && snap.session.phase !== SessionPhase.Idle;
+  const liveness = snap.session?.liveness;
+  // A pending approval REPLACES generic running liveness in the top status
+  // line; liveness surfaces only while running with a snapshot present.
+  const status: OperatorShellSnapshot['status'] = oldest
+    ? { kind: 'approval-wait', requestedAt: oldest.requestedAt }
+    : running && liveness
+      ? {
+          kind: 'liveness',
+          startedAt: liveness.startedAt,
+          lastProgressAt: liveness.lastProgressAt,
+          state: liveness.state,
+          lastProgressKind: liveness.lastProgressKind,
+          lastProgressDescription: liveness.lastProgressDescription,
+        }
+      : undefined;
 
   return {
     workspace: snap.cwd,
     mode: liveMode ?? snap.session?.mode ?? 'auto',
     transcriptMode: agentState.transcriptMode ?? 'compact',
-    running: snap.session !== null && snap.session.phase !== SessionPhase.Idle,
+    running,
     tokensUsed: snap.runtime?.metrics?.tokensUsed,
     filesTouched: snap.session?.filesTouched,
     eventCount: snap.runtime?.totalEventCount,
     queuedMessages,
-    escapeAction: presentation.closeSurface ? 'close' : snap.session !== null && snap.session.phase !== SessionPhase.Idle ? 'cancel' : 'none',
+    escapeAction: presentation.closeSurface ? 'close' : running ? 'cancel' : 'none',
     ...(presentation.demo ? { demo: true } : {}),
     ...(presentation.focus ? { focus: presentation.focus } : {}),
     ...(presentation.drawer ? { drawer: presentation.drawer } : {}),
     ...(presentation.inspectorOpen ? { inspectorOpen: true } : {}),
     ...(approval ? { approval } : {}),
+    ...(status ? { status } : {}),
     ...(roster ? { agents: {
       active: roster.active,
       total: roster.totals.agents,

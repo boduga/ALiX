@@ -86,23 +86,29 @@ export class AgentView implements TuiView {
     // clock has no meaning here — a long-horizon run can stream for minutes —
     // so the line surfaces elapsed time + time since the last progress mark,
     // escalating to a warning when the run appears stalled. Never a kill.
-    const ses = ctx.snap.session;
-    const liveness = ses?.liveness;
-    const selectedAgentId = ctx.workbenchEnabled ? undefined : ctx.workbenchUiState?.selectedAgentId;
-    const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
-    if (pendingApproval) {
-      const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
-      c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
-    } else if (liveness && ses?.phase !== SessionPhase.Idle) {
-      const idle = Date.now() - liveness.lastProgressAt;
-      let lifeLine = `\x1b[36mRUNNING ${formatActivityElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatActivityElapsed(idle)} ago`;
-      if (liveness.state !== 'healthy') {
-        const kind = liveness.lastProgressKind ?? 'no activity';
-        const desc = liveness.lastProgressDescription ?? '';
-        const flag = liveness.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
-        lifeLine += ` | \x1b[33m⚠ ${flag}\x1b[0m (${kind}${desc ? `: ${desc}` : ''})`;
+    // Workbench geometry: the top status line (approval elapsed / running
+    // liveness) is painted by the operator shell on header row 1 — chrome
+    // owns it, and this staged write would be wiped by the toolbar/pane paint
+    // before the blit. Legacy mode keeps the write as-is.
+    if (!geometry) {
+      const ses = ctx.snap.session;
+      const liveness = ses?.liveness;
+      const selectedAgentId = ctx.workbenchEnabled ? undefined : ctx.workbenchUiState?.selectedAgentId;
+      const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
+      if (pendingApproval) {
+        const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
+        c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
+      } else if (liveness && ses?.phase !== SessionPhase.Idle) {
+        const idle = Date.now() - liveness.lastProgressAt;
+        let lifeLine = `\x1b[36mRUNNING ${formatActivityElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatActivityElapsed(idle)} ago`;
+        if (liveness.state !== 'healthy') {
+          const kind = liveness.lastProgressKind ?? 'no activity';
+          const desc = liveness.lastProgressDescription ?? '';
+          const flag = liveness.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
+          lifeLine += ` | \x1b[33m⚠ ${flag}\x1b[0m (${kind}${desc ? `: ${desc}` : ''})`;
+        }
+        c.write(0, STATUS_ROW - 1, lifeLine);
       }
-      c.write(0, STATUS_ROW - 1, lifeLine);
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).

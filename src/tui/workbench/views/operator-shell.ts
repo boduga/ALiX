@@ -1,8 +1,9 @@
 import type { TerminalCanvas } from '../../canvas.js';
 import { RESET } from '../../ansi-constants.js';
-import type { OperatorShellSnapshot } from '../model/operator-shell.js';
+import type { OperatorShellSnapshot, OperatorShellStatus } from '../model/operator-shell.js';
 import { displayWidth, graphemes, graphemeWidth } from '../render/terminal-text.js';
 import { getWorkbenchPreviewTheme, type WorkbenchPreviewTheme } from '../model/preview-theme.js';
+import { formatActivityElapsed } from '../../../agent/agent-activity.js';
 
 export interface PaintOperatorShellInput {
   readonly canvas: TerminalCanvas;
@@ -52,6 +53,59 @@ function partsWidth(parts: readonly ChromePart[], separator: string): number {
     + Math.max(0, parts.length - 1) * displayWidth(separator);
 }
 
+interface StatusPart {
+  readonly text: string;
+  readonly open: string;
+  readonly close: string;
+}
+
+/**
+ * Formats the top status line byte-for-byte like AgentView's legacy status
+ * write: yellow approval-wait, cyan RUNNING with the ⚠ SLOW/POSSIBLY
+ * STALLED suffix. Elapsed text is computed from the paint-time clock.
+ */
+function buildStatusParts(status: OperatorShellStatus, now: number): readonly StatusPart[] {
+  if (status.kind === 'approval-wait') {
+    return [{ text: `WAITING FOR APPROVAL · ${formatActivityElapsed(now - status.requestedAt)}`, open: '\x1b[33m', close: RESET }];
+  }
+  const parts: StatusPart[] = [
+    { text: `RUNNING ${formatActivityElapsed(now - status.startedAt)}`, open: '\x1b[36m', close: '\x1b[0m' },
+    { text: ` | progress ${formatActivityElapsed(now - status.lastProgressAt)} ago`, open: '', close: '' },
+  ];
+  if (status.state !== 'healthy') {
+    const kind = status.lastProgressKind ?? 'no activity';
+    const desc = status.lastProgressDescription ?? '';
+    const flag = status.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
+    parts.push({ text: ' | ', open: '', close: '' });
+    parts.push({ text: `⚠ ${flag}`, open: '\x1b[33m', close: '\x1b[0m' });
+    parts.push({ text: ` (${kind}${desc ? `: ${desc}` : ''})`, open: '', close: '' });
+  }
+  return parts;
+}
+
+function joinStatusParts(parts: readonly StatusPart[], maxWidth: number): string {
+  const full = parts.map((part) => `${part.open}${part.text}${part.close}`).join('');
+  const plainWidth = parts.reduce((sum, part) => sum + displayWidth(part.text), 0);
+  if (plainWidth <= maxWidth) return full;
+  // Width pressure truncates the status, never the right-aligned row-1 facts.
+  const budget = maxWidth === 1 ? 0 : maxWidth - 1;
+  let used = 0;
+  let out = '';
+  let stopped = false;
+  for (const part of parts) {
+    if (stopped) break;
+    out += part.open;
+    for (const grapheme of graphemes(part.text)) {
+      const next = graphemeWidth(grapheme);
+      if (used + next > budget) { stopped = true; break; }
+      out += grapheme;
+      used += next;
+    }
+    if (!stopped) out += part.close;
+  }
+  return `${out}${RESET}…`;
+}
+
 /** Preview chrome preserves the shared three-row header and one-row footer. */
 export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const { canvas, width, height, model } = input;
@@ -74,6 +128,9 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
   const factsWidth = partsWidth(facts, ' | ');
   const brandWidth = partsWidth(brandParts, '  ');
   const available = budget - brandWidth - 3 - factsWidth - 3;
+  // Column where right-aligned row-1 content begins (narrow chrome only);
+  // the top status line must never paint past it.
+  let rowOneRightStart = width;
   if (available >= 12) {
     const path = fitEnd(model.workspace, available - 11);
     const workspace: ChromePart = { text: `workspace: ${path}`, color: palette.cyan };
@@ -100,7 +157,26 @@ export function paintOperatorShell(input: PaintOperatorShellInput): void {
     if (path) {
       canvas.write(1, 1, `${palette.muted}workspace: ${palette.cyan}${path}${RESET}`);
     }
-    if (countWidth && countWidth <= budget) paintParts(canvas, 1, width - countWidth - 1, rowFacts, ' | ', palette.muted);
+    if (countWidth && countWidth <= budget) {
+      rowOneRightStart = width - countWidth - 1;
+      paintParts(canvas, 1, rowOneRightStart, rowFacts, ' | ', palette.muted);
+    }
+  }
+
+  // Top status line on header row 1, left side: chrome owns it in Workbench
+  // (agent-view keeps the write only for legacy mode). Approval wait and
+  // running liveness never share the line — approval replaced liveness at
+  // projection time.
+  if (model.status) {
+    const hasRowOneFacts = rowOneRightStart < width;
+    const statusWidth = hasRowOneFacts ? rowOneRightStart - 2 : width - 1;
+    if (statusWidth > 0) {
+      const parts = buildStatusParts(model.status, Date.now());
+      if (parts.length > 0) {
+        canvas.write(1, 1, ' '.repeat(statusWidth));
+        canvas.write(1, 1, joinStatusParts(parts, statusWidth));
+      }
+    }
   }
 
   const count = (value: number | undefined): string => value === undefined ? 'unavailable' : value.toLocaleString('en-US');

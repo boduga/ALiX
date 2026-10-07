@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
 import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
 import { createInitialPerTabState, SessionPhase } from '../../../src/tui/state.js';
@@ -64,6 +64,50 @@ describe('Agent Workbench operator shell', () => {
     expect(footer).toContain('a approve');
     expect(footer).toContain('d deny');
     expect(footer).not.toContain('1-5 filters');
+  });
+
+  it('paints the running liveness line on header row 1', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(60_000);
+    const snap = snapshot();
+    const running = {
+      ...snap,
+      session: {
+        ...snap.session!,
+        phase: SessionPhase.Executing,
+        liveness: { startedAt: 0, idleMs: 3_000, progressCount: 4, lastProgressAt: 57_000, state: 'healthy' as const },
+      },
+    };
+    const canvas = new TerminalCanvas(120, 30);
+
+    paintOperatorShell({ canvas, width: 120, height: 30, model: projectOperatorShell(running, createInitialPerTabState()) });
+
+    const rows = visible(canvas.renderFrame()).split('\n');
+    expect(rows[1]).toContain('RUNNING 1m 00s | progress 3s ago');
+    expect(rows[1]).not.toContain('WAITING FOR APPROVAL');
+    vi.restoreAllMocks();
+  });
+
+  it('replaces the running liveness line with an approval wait', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(60_000);
+    const snap = snapshot();
+    const running = {
+      ...snap,
+      session: {
+        ...snap.session!,
+        phase: SessionPhase.Executing,
+        liveness: { startedAt: 0, idleMs: 1_000, progressCount: 4, lastProgressAt: 59_000, state: 'healthy' as const },
+      },
+    };
+    const state = createInitialPerTabState();
+    state.pendingApprovals = [{ id: 'ap', toolName: 'shell.run', target: 'test', requestedAt: 7_000 }];
+    const canvas = new TerminalCanvas(120, 30);
+
+    paintOperatorShell({ canvas, width: 120, height: 30, model: projectOperatorShell(running, state) });
+
+    const rows = visible(canvas.renderFrame()).split('\n');
+    expect(rows[1]).toContain('WAITING FOR APPROVAL · 53s');
+    expect(rows[1]).not.toContain('RUNNING');
+    vi.restoreAllMocks();
   });
 
   it('projects and paints preview chrome', () => {
