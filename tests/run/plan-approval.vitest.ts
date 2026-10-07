@@ -87,6 +87,13 @@ describe("runApprovalLoop", () => {
     // for terminal input (an orphan process that keeps the vitest fork worker
     // alive and blocks pool shutdown — the source of the 6h CI hang).
     const origEditor = process.env.EDITOR;
+    const origVisual = process.env.VISUAL;
+    // openPlanInEditor prefers $VISUAL over $EDITOR: a leaked VISUAL (e.g.
+    // nano in dev shells) would shadow the bogus editor below. With no TTY
+    // nano exits at once and the missing-file check masks the leak — but on
+    // a TTY-attached runner it would open interactively and hang (the 6h CI
+    // hang class documented above).
+    delete process.env.VISUAL;
     process.env.EDITOR = "/definitely/not/a/real/editor";
     try {
       const result = await runApprovalLoop(
@@ -100,6 +107,8 @@ describe("runApprovalLoop", () => {
       // After edit → editor fails → re-loop → second round returns approve
       expect(result.action).toBe("approved");
     } finally {
+      if (origVisual === undefined) delete process.env.VISUAL;
+      else process.env.VISUAL = origVisual;
       if (origEditor === undefined) delete process.env.EDITOR;
       else process.env.EDITOR = origEditor;
     }
