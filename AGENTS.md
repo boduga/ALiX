@@ -215,10 +215,10 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/prompts/AGENTS.md` | Prompt registry — static prompt ids, versions, token accounting, snapshot hashes |
 | `src/policy/AGENTS.md` | Policy rules, RuleEvaluator, RuntimeGate, default policies, loader |
 | `src/registry/AGENTS.md` | Agent/tool cards, CardRegistry, CapabilityResolver, card loader |
-| `src/contracts/AGENTS.md` | Type-only authority boundaries — domain schemas, R1 ports, barrel |
+| `src/contracts/AGENTS.md` | Type-only authority boundaries — domain schemas, R1 ports, R2 runtime-event envelope, barrel |
 | `src/approvals/AGENTS.md` | Approval queue, ApprovalStore |
 | `src/audit/AGENTS.md` | Audit trail — JSONL append-only store |
-| `src/storage/AGENTS.md` | Storage primitives — shared JSONL store/parser/stream, atomic JSON files |
+| `src/storage/AGENTS.md` | Storage primitives — shared JSONL store/parser/stream, atomic JSON files, R2 transactional runtime ledger |
 | `src/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
 | `src/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |

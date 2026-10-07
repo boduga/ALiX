@@ -23,3 +23,6 @@ export * from "./model-resolver.js";
 export * from "./context-compiler.js";
 export * from "./tool-capability-registry.js";
 export * from "./metrics-sink.js";
+
+// R2 canonical runtime-event envelope (ledger fact shape).
+export * from "./runtime-event.js";
