@@ -12,6 +12,8 @@ import { stripAnsi } from '../../box.js';
 import { renderResponse } from '../../blocks/render.js';
 import { getTheme } from '../../blocks/theme.js';
 import { getWorkbenchPreviewTheme } from '../model/preview-theme.js';
+import type { TimelineEntry } from '../../runtime/timeline-builder.js';
+import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 
 export interface WorkbenchScrollbackLine extends ScrollbackLine {
   readonly previewFormatted?: true;
@@ -85,7 +87,91 @@ function appendSeparator(out: ScrollbackLine[], itemId: string): void {
  * viewport, input panel, plans, streaming, and activity contracts remain
  * stable.
  */
-export function buildWorkbenchScrollbackLines(
+/**
+ * Tick-safe memo for the history portion of the scrollback.
+ *
+ * Only the trailing live-activity row depends on the clock
+ * (`formatActivityLine(activity, Date.now())`); every history line derives
+ * deterministically from content inputs (timeline/trace extents, mode,
+ * filter, focus, theme, approvals, roster states, streaming text, width).
+ * So a clock-only repaint reuses the cached history lines and rebuilds just
+ * the tail — no whole-history re-projection/re-wrap per tick (Phase 10.4).
+ *
+ * Invalidation is content-based (never reference identity): any content
+ * change alters the key and rebuilds. Cached lines are plain data (no ctx
+ * refs), so sharing them across paints cannot leak or mutate state.
+ * Single entry is enough — paints are sequential and repeat the same state.
+ */
+interface ScrollbackCacheEntry {
+  key: string;
+  lines: WorkbenchScrollbackLine[];
+}
+
+let scrollbackCache: ScrollbackCacheEntry | undefined;
+
+function timelineFingerprint(timeline: readonly TimelineEntry[]): string {
+  // Full text/detail content (not lengths): same-length edits (e.g. a glyph
+  // swap ✓→✗ in tests, or a corrected word) must invalidate. Event-sourced
+  // timelines are append-only in practice, but the key must not assume that.
+  return `${timeline.length}|${timeline
+    .map((e) =>
+      [
+        e.id,
+        e.kind,
+        e.actor ?? '',
+        e.agentId ?? '',
+        e.sessionId,
+        e.startedAt,
+        e.text ?? '',
+        e.userSafe ?? '',
+        e.activityState ?? '',
+        e.verifiedOutcome ?? '',
+        e.detail ?? '',
+        e.planTasks?.map((t) => `${t.index}:${t.status}:${t.title}`).join(',') ?? '',
+      ].join(','),
+    )
+    .join(';')}`;
+}
+
+function traceFingerprint(trace: readonly ExecutionTraceEntry[]): string {
+  return `${trace.length}|${trace
+    .map((e) =>
+      [e.id, e.kind, e.status, e.title, e.agentId ?? '', e.startedAt, e.detail ?? '', JSON.stringify(e.toolMetadata ?? null)].join(','),
+    )
+    .join(';')}`;
+}
+
+function scrollbackCacheKey(ctx: ViewRenderContext, textWidth: number): string {
+  const ui = ctx.workbenchUiState;
+  const perTab = ctx.perTab;
+  const timeline = ctx.runtime?.agent?.timeline ?? [];
+  const trace = ctx.snap.runtime?.trace ?? [];
+  const approvals = perTab.pendingApprovals ?? [];
+  const agents = ctx.snap.runtime?.agents?.agents ?? [];
+  const theme = getWorkbenchPreviewTheme();
+  return [
+    textWidth,
+    perTab.transcriptMode ?? 'compact',
+    ui?.transcriptFilter ?? 'all',
+    getTranscriptFocusAgentId(ui) ?? '',
+    ctx.themeName ?? '',
+    theme.glyphMode,
+    JSON.stringify(theme.palette),
+    timelineFingerprint(timeline),
+    traceFingerprint(trace),
+    approvals.map((a) => `${a.id}:${a.toolName}:${a.target}`).join(','),
+    perTab.streamingText ?? '',
+    agents.map((a) => `${a.agentId}:${a.state}:${a.assignedAgentId ?? ''}:${a.role ?? ''}`).join(','),
+  ].join('\u0000');
+}
+
+/**
+ * Clock-free history portion: projection, wrap, approval cards, streaming
+ * text. Safe to memoize — every input that can change its output is part of
+ * the cache key (see scrollbackCacheKey). The live activity row is NOT here;
+ * see buildScrollbackTail.
+ */
+function buildStableScrollbackLines(
   ctx: ViewRenderContext,
   textWidth: number,
 ): WorkbenchScrollbackLine[] {
@@ -223,11 +309,33 @@ export function buildWorkbenchScrollbackLines(
     }, ctx);
     if (out.length > start) out[out.length - 1]!.isLast = true;
     tagRows(out, start, `streaming:${focusAgentId ?? 'all'}`);
-  } else if (!streaming && (filter === 'all' || filter === 'activity') && !focusAgentId) {
+  }
+
+  return out.map((line) => ({ ...line, previewFormatted: true as const }));
+}
+
+/**
+ * Clock-dependent tail: the live activity row. `formatActivityLine` reads
+ * `Date.now()`, so this is rebuilt on every call while the stable history
+ * above is served from cache. `hasStable` reproduces the separator rule
+ * (no leading separator on an otherwise empty transcript).
+ */
+function buildScrollbackTail(
+  ctx: ViewRenderContext,
+  textWidth: number,
+  filter: string,
+  focusAgentId: string | undefined,
+  hasStable: boolean,
+): WorkbenchScrollbackLine[] {
+  const out: ScrollbackLine[] = [];
+  const streaming = ctx.perTab.streamingText;
+  if (!streaming && (filter === 'all' || filter === 'activity') && !focusAgentId) {
     const activity = ctx.snap.session?.activity;
     const activityText = activity ? formatActivityLine(activity, Date.now()) : undefined;
     if (activityText) {
-      appendSeparator(out, `activity:${focusAgentId ?? 'all'}`);
+      if (hasStable) {
+        out.push({ kind: 'user', text: '', isFirst: false, itemId: `separator:activity:${focusAgentId ?? 'all'}`, wrappedOffset: 0 });
+      }
       const start = out.length;
       wrapText(activityText, textWidth).forEach((text, index) => {
         out.push({ kind: 'activity', text, isFirst: index === 0, ...(index === 0 ? { gutter: 'ALiX' } : {}) });
@@ -235,6 +343,30 @@ export function buildWorkbenchScrollbackLines(
       tagRows(out, start, `activity:${focusAgentId ?? 'all'}`);
     }
   }
-
   return out.map((line) => ({ ...line, previewFormatted: true as const }));
+}
+
+/**
+ * Builds the workbench transcript scrollback lines with a tick-safe memo.
+ *
+ * The history portion is cached by content key; only the live activity tail
+ * is rebuilt per call. A clock-only repaint therefore reuses the cached
+ * line objects (observable via reference equality) instead of
+ * re-projecting and re-wrapping the whole history (Phase 10.4).
+ */
+export function buildWorkbenchScrollbackLines(
+  ctx: ViewRenderContext,
+  textWidth: number,
+): WorkbenchScrollbackLine[] {
+  const key = scrollbackCacheKey(ctx, textWidth);
+  let stable = scrollbackCache?.key === key ? scrollbackCache.lines : undefined;
+  if (!stable) {
+    stable = buildStableScrollbackLines(ctx, textWidth);
+    scrollbackCache = { key, lines: stable };
+  }
+  const filter = ctx.workbenchUiState?.transcriptFilter ?? 'all';
+  const focusAgentId = getTranscriptFocusAgentId(ctx.workbenchUiState);
+  const tail = buildScrollbackTail(ctx, textWidth, filter, focusAgentId, stable.length > 0);
+  if (tail.length === 0) return stable;
+  return [...stable, ...tail];
 }
