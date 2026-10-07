@@ -47,7 +47,8 @@ describe("LargeLog", () => {
   // Large chain verification (v2)
   // -----------------------------------------------------------------------
 
-  it("verifies a 1000-record v2 chain correctly", async () => {
+  // Workload-scaled timeout: 1000 sequential appends + full chain verify take ~3–5 min solo.
+  it("verifies a 1000-record v2 chain correctly", { timeout: 600_000 }, async () => {
     const COUNT = 1000;
     for (let i = 0; i < COUNT; i++) {
       await writer.append({

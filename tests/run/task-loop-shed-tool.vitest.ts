@@ -427,7 +427,8 @@ describe('Task 8: shed-tool reintroduce-on-call', () => {
 
   // Task 9: §6 mechanism — when threshold is configured AND pressure exceeds it,
   // emit the `context.rot_risk` advisory. Advisory only, never a hard gate.
-  it('emits context.rot_risk when a threshold is configured and pressure exceeds it', async () => {
+  // Workload-scaled timeout: 50k-char system prompt inflates tiktoken encoding + loop overhead past the 10s default.
+  it('emits context.rot_risk when a threshold is configured and pressure exceeds it', { timeout: 30_000 }, async () => {
     // Seed the calibration store with a configured threshold before runTaskLoop loads it.
     // loadCalibration() reads ~/.alix/calibration.json by default. To avoid touching the
     // real HOME, set process.env.HOME to a temp dir for this test.

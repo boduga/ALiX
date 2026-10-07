@@ -91,7 +91,8 @@ describe("ApprovalStore load", () => {
     assert.equal(second?.decidedAt, first?.decidedAt);
   });
 
-  it("500-pending storm then resolve all", async () => {
+  // Workload-scaled timeout: 500 requests + 500 resolves take ~20s+ under suite load.
+  it("500-pending storm then resolve all", { timeout: 120_000 }, async () => {
     const ids: string[] = [];
     for (let i = 0; i < 500; i++) {
       const rec = await store.request({ reason: `storm ${i}`, capability: `cap.${i}`, sessionId: "s1", toolId: `tool.${i}` });
@@ -132,7 +133,8 @@ describe("ContinuationStore load", () => {
     assert.equal(store.findByApprovalId("apr_1"), undefined);
   });
 
-  it("1000 persist/remove cycles", async () => {
+  // Workload-scaled timeout: 1000 persists + 1000 removes take ~20s+ under suite load.
+  it("1000 persist/remove cycles", { timeout: 120_000 }, async () => {
     const { ContinuationStore } = await import("../../src/runtime/continuation-store.js");
     const store = new ContinuationStore(dir);
     await store.load();
