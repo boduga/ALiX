@@ -18,6 +18,7 @@ Type-only authority boundaries and schema contracts. No runtime, no I/O.
 - `context-compiler.ts` — provenance-aware outbound context with explicit redaction claim.
 - `tool-capability-registry.ts` — one tool/capability catalogue contract.
 - `metrics-sink.ts` — one metric observation contract.
+- `runtime-event.ts` — R2 canonical runtime-event envelope (`RuntimeEvent`, `RuntimeActorType`): entity-versioned facts with causation/correlation ids and actor provenance; the shape the transactional ledger stores.
 
 ## Local Contracts
 
