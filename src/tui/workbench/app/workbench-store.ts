@@ -7,6 +7,13 @@ export function reduceWorkbenchUiState(
   action: WorkbenchUiAction,
 ): WorkbenchUiState {
   switch (action.type) {
+    case 'coordination.edit': {
+      if (state.coordination.phase === 'submitting') return state;
+      const edited = reduceWorkbenchUiState({ ...state, composer: state.coordination.draft }, action.edit);
+      return { ...state, coordination: { draft: edited.composer, phase: 'idle' } };
+    }
+    case 'coordination.status':
+      return { ...state, coordination: { ...state.coordination, phase: action.phase, message: action.message } };
     case 'composer.insert': {
       const before = state.composer.text.slice(0, state.composer.cursor);
       const after = state.composer.text.slice(state.composer.cursor);

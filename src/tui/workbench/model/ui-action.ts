@@ -1,10 +1,14 @@
-import type { QueuedMessage, WorkbenchDrawer, WorkbenchFocus, WorkbenchOverlay, WorkbenchTranscriptMode, WorkbenchTranscriptFilter } from './ui-state.js';
+import type { CoordinationEntryState, QueuedMessage, WorkbenchDrawer, WorkbenchFocus, WorkbenchOverlay, WorkbenchTranscriptMode, WorkbenchTranscriptFilter } from './ui-state.js';
 
-export type WorkbenchUiAction =
+export type ComposerEditAction =
   | { readonly type: 'composer.insert'; readonly text: string }
   | { readonly type: 'composer.backspace' }
   | { readonly type: 'composer.delete' }
-  | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' }
+  | { readonly type: 'composer.move'; readonly direction: 'left' | 'right' | 'start' | 'end' };
+
+export type WorkbenchUiAction = ComposerEditAction
+  | { readonly type: 'coordination.edit'; readonly edit: ComposerEditAction }
+  | { readonly type: 'coordination.status'; readonly phase: CoordinationEntryState['phase']; readonly message?: string }
   | { readonly type: 'composer.clear' }
   | { readonly type: 'composer.replace'; readonly text: string }
   | { readonly type: 'queue.add'; readonly message: QueuedMessage }

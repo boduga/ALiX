@@ -34,6 +34,7 @@ import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
+import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -786,12 +787,21 @@ export class TuiApp {
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
       overlayOpen: state.overlayStack.length > 0,
       inspectorOpen: state.overlayStack.at(-1) === 'inspector',
+      coordinationOpen: state.overlayStack.at(-1) === 'coordination',
+      coordinationBusy: state.coordination.phase === 'submitting',
       transcriptMode: state.transcriptMode,
       drawer: state.drawer,
       focus: state.focus,
     });
 
     switch (intent.type) {
+      case 'coordination.edit':
+        this.workbenchStore.dispatch(intent);
+        this.paintFullFrame();
+        return true;
+      case 'coordination.submit':
+        void this.submitWorkbenchCoordination();
+        return true;
       case 'overlay.scroll': {
         const limit = this.framePainter.overlayScrollLimit;
         const next = Math.max(0, Math.min(limit, Math.min(limit, state.overlayScrollOffset) + intent.delta));
@@ -912,6 +922,9 @@ export class TuiApp {
         return true;
       case 'coordination.inspect':
         this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'coordination' });
+        if (!this.opts.agentSession?.runCoordination) this.workbenchStore.dispatch({
+          type: 'coordination.status', phase: 'idle', message: 'Coordination launch unavailable in this session.',
+        });
         this.paintFullFrame();
         return true;
       case 'drawer.move': {
@@ -1004,6 +1017,48 @@ export class TuiApp {
 
   private syncWorkbenchComposer(): void {
     this.state.views.agent.inputBuffer = this.workbenchStore.snapshot().composer.text;
+  }
+
+  /** Explicit launch reuses foreground dispatch, approvals, cancellation and FIFO draining. */
+  private async submitWorkbenchCoordination(): Promise<void> {
+    const entry = this.workbenchStore.snapshot().coordination;
+    const goal = entry.draft.text;
+    const error = validateCoordinationObjective(goal);
+    const port = this.opts.agentSession?.runCoordination?.bind(this.opts.agentSession);
+    if (this.sessionDispatchActive || entry.phase === 'submitting') {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: entry.phase,
+        message: 'Work is active; wait for it to finish or cancel before launching.' });
+    } else if (error || !port || !this.state.lastSnapshot) {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: 'idle',
+        message: error ?? 'Coordination launch unavailable; objective retained.' });
+    } else {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: 'submitting', message: 'Starting coordinated work…' });
+      this.workbenchCancelArmed = false;
+      this.paintFullFrame();
+      this.timelineEmitter.emitTimelineLog('user', `Coordination objective: ${goal}`, this.opts.agentSessionId);
+      // Failed launch retains only the isolated objective draft. Returning a
+      // truthful failure result prevents generic composer-restoration fallback.
+      await this.dispatchToSession(goal, 'agent', this.state.views.agent, [async () => {
+        try {
+          const result = await port({ goal });
+          const phase = result.reason === 'completed' ? 'completed'
+            : result.reason === 'cancelled' ? 'cancelled'
+            : result.reason === 'completed_unverified' || !result.reason ? 'unverified' : 'failed';
+          this.workbenchStore.dispatch({ type: 'coordination.status', phase,
+            message: phase === 'completed' ? 'Verified coordination complete; results in transcript.'
+              : phase === 'unverified' ? 'Coordination remains unverified; inspect the transcript.'
+              : phase === 'cancelled' ? 'Coordination cancelled.' : 'Coordination failed; objective retained for retry.' });
+          return result;
+        } catch (err) {
+          const cancelled = isCancellationError(err);
+          const summary = cancelled ? this.opts.agentSession?.getLastCancelSummary?.() ?? 'Cancelled'
+            : `Coordination failed: ${err instanceof Error ? err.message : String(err)}`;
+          this.workbenchStore.dispatch({ type: 'coordination.status', phase: cancelled ? 'cancelled' : 'failed', message: summary });
+          return { summary, reason: cancelled ? 'cancelled' : 'failed' };
+        }
+      }], '[coordination]');
+    }
+    this.paintFullFrame();
   }
 
   private openWorkbenchBuiltinSurface(text: string): boolean {
@@ -1661,7 +1716,13 @@ export class TuiApp {
     this.pasteChunks = [];
     if (!text) return;
     if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
-        && this.workbenchStore.snapshot().overlayStack.length > 0) return;
+        && this.workbenchStore.snapshot().overlayStack.length > 0) {
+      if (this.workbenchStore.snapshot().overlayStack.at(-1) === 'coordination') {
+        this.workbenchStore.dispatch({ type: 'coordination.edit', edit: { type: 'composer.insert', text } });
+        this.paintFullFrame();
+      }
+      return;
+    }
     if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
       this.workbenchStore.dispatch({ type: 'composer.insert', text });
       this.syncWorkbenchComposer();

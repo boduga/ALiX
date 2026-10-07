@@ -686,9 +686,11 @@ export class CoordinationScheduler {
       totalDispatched += result.dispatched.length;
 
       if (result.runStatus === "completed") {
+        await this.maybeFinalizeRun(runId);
         return { runId, finalStatus: "completed", stopReason: "completed", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
       if (result.runStatus === "failed") {
+        await this.maybeFinalizeRun(runId);
         return { runId, finalStatus: "failed", stopReason: "failed", cycles, dispatched: totalDispatched, failed: totalFailed, durationMs: performance.now() - start };
       }
       if (result.runStatus === "cancelled") {

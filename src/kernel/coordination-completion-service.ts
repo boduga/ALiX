@@ -92,7 +92,7 @@ export class CoordinationCompletionService {
       }
 
       // Emit event — exactly once, by the attach winner
-      this.deps.eventLog?.append({
+      await this.deps.eventLog?.append({
         sessionId: run.sessionId,
         actor: "coordination",
         type: "coordination.aggregate.completed",

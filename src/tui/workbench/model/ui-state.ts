@@ -10,6 +10,12 @@ export interface ComposerState {
   readonly cursor: number;
 }
 
+export interface CoordinationEntryState {
+  readonly draft: ComposerState;
+  readonly phase: 'idle' | 'submitting' | 'completed' | 'unverified' | 'failed' | 'cancelled';
+  readonly message?: string;
+}
+
 export interface QueuedMessage {
   readonly id: string;
   readonly text: string;
@@ -35,6 +41,7 @@ export interface WorkbenchUiState {
   readonly drawerScrollOffset: number;
   readonly followTail: boolean;
   readonly composer: ComposerState;
+  readonly coordination: CoordinationEntryState;
   readonly queuedMessages: readonly QueuedMessage[];
   readonly dimensions: { readonly columns: number; readonly rows: number };
 }
@@ -54,6 +61,7 @@ export function createInitialWorkbenchUiState(
     drawerScrollOffset: 0,
     followTail: true,
     composer: { text: '', cursor: 0 },
+    coordination: { draft: { text: '', cursor: 0 }, phase: 'idle' },
     queuedMessages: [],
     dimensions,
   };

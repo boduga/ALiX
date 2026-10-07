@@ -5,6 +5,8 @@ export interface WorkbenchInputContext {
   readonly approvalPending?: boolean;
   readonly overlayOpen?: boolean;
   readonly inspectorOpen?: boolean;
+  readonly coordinationOpen?: boolean;
+  readonly coordinationBusy?: boolean;
   readonly transcriptMode: 'compact' | 'detailed' | 'raw';
   readonly drawer: 'closed' | 'agents' | 'tasks' | 'artifacts';
   readonly focus: 'composer' | 'transcript' | 'drawer' | 'modal';
@@ -35,6 +37,8 @@ export type WorkbenchInputIntent =
   | { readonly type: 'agent.shortcut'; readonly index: number }
   | { readonly type: 'agent.aggregate' }
   | { readonly type: 'coordination.inspect' }
+  | { readonly type: 'coordination.submit' }
+  | { readonly type: 'coordination.edit'; readonly edit: import('../model/ui-action.js').ComposerEditAction }
   | { readonly type: 'inspector.open' }
   | { readonly type: 'drawer.close' }
   | { readonly type: 'unhandled' };
@@ -48,6 +52,19 @@ export function routeWorkbenchInput(
     return { type: 'approval.resolve', decision: key === 'a' ? 'approved' : 'denied' };
   }
   if (context.inspectorOpen && key === 'Ctrl+r') return { type: 'drawer.toggle', drawer: 'artifacts' };
+  if (context.coordinationOpen) {
+    if (key === 'Escape') return { type: 'overlay.close' };
+    if (context.approvalPending && key === 'Ctrl+o') return { type: 'transcript.toggle' };
+    if (key === 'Enter') return { type: 'coordination.submit' };
+    if (context.coordinationBusy) return { type: 'unhandled' };
+    if (key === 'Shift+Enter') return { type: 'coordination.edit', edit: { type: 'composer.insert', text: '\n' } };
+    if (key === 'Backspace') return { type: 'coordination.edit', edit: { type: 'composer.backspace' } };
+    if (key === 'Delete') return { type: 'coordination.edit', edit: { type: 'composer.delete' } };
+    const direction = key === 'ArrowLeft' ? 'left' : key === 'ArrowRight' ? 'right' : key === 'Home' ? 'start' : key === 'End' ? 'end' : undefined;
+    if (direction) return { type: 'coordination.edit', edit: { type: 'composer.move', direction } };
+    if (isPrintableGrapheme(key)) return { type: 'coordination.edit', edit: { type: 'composer.insert', text: key } };
+    return { type: 'unhandled' };
+  }
   if (context.overlayOpen) {
     if (context.approvalPending && key === 'Ctrl+o') return { type: 'transcript.toggle' };
     if (key === 'ArrowUp' || key === 'PageUp') return { type: 'overlay.scroll', delta: key === 'PageUp' ? -8 : -1 };

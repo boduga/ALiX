@@ -6,6 +6,7 @@ import type { TaskRosterSnapshot } from '../model/task-roster.js';
 import type { WorkbenchArtifactSnapshot } from '../model/artifact-inspection.js';
 import type { WorkbenchOverlay } from '../model/ui-state.js';
 import { truncateDisplayText, wrapDisplayText } from '../render/terminal-text.js';
+import { paintCoordinationEntry } from './coordination-entry.js';
 
 export interface WorkbenchDiagnosticInput {
   readonly scrollOffset?: number;
@@ -75,6 +76,11 @@ export function paintWorkbenchDiagnosticOverlay(
   diffs: WorkbenchDiffSnapshot | null | undefined,
   diagnostics: WorkbenchDiagnosticInput = {},
 ): number {
+  if (overlay === 'coordination') {
+    paintCoordinationEntry(rect, { draft: { text: '', cursor: 0 }, phase: 'idle',
+      message: 'Launch requires a connected runtime session.' }, 'mode unavailable');
+    return 0;
+  }
   if (!overlay || rect.width < 30 || rect.height - rect.headerH - rect.footerH < 4) return 0;
   const width = Math.min(88, rect.width - 4);
   const height = Math.min(18, rect.height - rect.headerH - rect.footerH);
@@ -82,17 +88,15 @@ export function paintWorkbenchDiagnosticOverlay(
   const top = rect.headerH + 1;
   const inner = width - 2;
   for (let row = 0; row < height; row++) rect.canvas.write(left, top + row, ' '.repeat(width));
-  const title = overlay === 'diff' ? ' DIFFS ' : overlay === 'review' ? ' REVIEW ' : overlay === 'diagnostics' ? ' DIAGNOSTICS ' : overlay === 'coordination' ? ' COORDINATION RUN ' : ' HELP ';
+  const title = overlay === 'diff' ? ' DIFFS ' : overlay === 'review' ? ' REVIEW ' : overlay === 'diagnostics' ? ' DIAGNOSTICS ' : ' HELP ';
   rect.canvas.write(left, top, `\x1b[36m╭${title}${'─'.repeat(Math.max(0, inner - title.length))}╮${RESET}`);
   for (let row = 1; row < height - 1; row++) {
     rect.canvas.write(left, top + row, `\x1b[36m│${RESET}`);
     rect.canvas.write(left + width - 1, top + row, `\x1b[36m│${RESET}`);
   }
   rect.canvas.write(left, top + height - 1, `\x1b[36m╰${'─'.repeat(inner)}╯${RESET}`);
-  const lines = overlay === 'coordination'
-    ? ['Coordination setup (read-only preview)', '', 'Run launching is not enabled on this surface yet.', 'Inspect existing workers with Ctrl+A and tasks with Ctrl+T.', 'Read existing runs: alix coordination list', '', 'Esc closes this guide without starting work.']
-    : overlay === 'help'
-    ? ['Enter submit / queue · Shift+Enter newline', 'Tab views · Shift+Tab permission · Ctrl+O details', 'Ctrl+A agents · Ctrl+T tasks · Ctrl+R artifacts', 'Ctrl+E inspector · inspector Ctrl+R artifacts', 'Ctrl+F transcript / composer (also from drawers)', 'Transcript: 1–5 filters · s scope · f follow', 'Drawers: ↑/↓ or j/k select · [ and ] runs', 'Agents: 1–9 select · / all · c coordination guide · Enter expand', 'Composer: ←/→ graphemes · Home/End · Backspace/Delete', 'Slash: Tab complete · Shift+Tab previous · Enter submit', 'Bracketed paste inserts text; never submits', 'Esc closes surface first; otherwise cancels active turn', 'Ctrl+C cancels active turn first; then exits', '/agents · /tasks · /artifacts · /diagnostics', '/diff · /review · /help', 'Composer always targets foreground session']
+  const lines = overlay === 'help'
+    ? ['Enter submit / queue · Shift+Enter newline', 'Tab views · Shift+Tab permission · Ctrl+O details', 'Ctrl+A agents · Ctrl+T tasks · Ctrl+R artifacts', 'Ctrl+E inspector · inspector Ctrl+R artifacts', 'Ctrl+F transcript / composer (also from drawers)', 'Transcript: 1–5 filters · s scope · f follow', 'Drawers: ↑/↓ or j/k select · [ and ] runs', 'Agents: 1–9 select · / all · c coordination objective · Enter expand', 'Composer: ←/→ graphemes · Home/End · Backspace/Delete', 'Slash: Tab complete · Shift+Tab previous · Enter submit', 'Bracketed paste inserts text; never submits', 'Esc closes surface first; otherwise cancels active turn', 'Ctrl+C cancels active turn first; then exits', '/agents · /tasks · /artifacts · /diagnostics', '/diff · /review · /help', 'Coordination: Enter launch · Shift+Enter newline · Esc close', 'Composer always targets foreground session']
     : overlay === 'diagnostics'
       ? buildWorkbenchDiagnosticLines(diagnostics)
     : [

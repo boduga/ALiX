@@ -272,6 +272,8 @@ post_task?: { command: string; reason: string }[];
    */
   cancelSignal?: AbortSignal;
   executionState?: ExecutionStateEmitter | null;
+  /** Internal fixed coordination intent; never an arbitrary operator-supplied tool name. */
+  coordinationKickoff?: import('../../agent/session/types.js').CoordinationRunRequest;
 }
 
 /**
@@ -346,6 +348,9 @@ onProgress,
     fallbackFull,
     provenance: scopingProvenance,
   } = scopeToolsByTask(providerTools, mcpToolIndex, task, taskType);
+  if (deps.coordinationKickoff && ![...coreTools, ...extendedTools].some(tool => tool.name === 'alix_coordination_run')) {
+    throw new Error('Coordination execution is unavailable: its exact tool is not offered on this surface.');
+  }
   // Requirement-derived candidates for the shadow observation: what ALiX
   // believed this objective required, distinct from what the scoper offered.
   const requirementCandidatesForTurn = buildRequirementCandidates(
@@ -850,8 +855,12 @@ const runModelTurn = async (
 // A provider/model call begins and no content has arrived yet — surface the
 // design's WAITING_FOR_PROVIDER row (closest reachable mapping of "provider
 // accepted request, no content"); the first visible chunk moves to STREAMING.
-onProgress?.("model_requested", model.name);
-const generation = await runModelTurn(liveSend?.messages ?? messages);
+if (!(i === 0 && deps.coordinationKickoff)) onProgress?.("model_requested", model.name);
+const generation = i === 0 && deps.coordinationKickoff
+  ? { text: '', reasoning: '', toolCalls: [{ id: `coordination-${randomUUID()}`, name: 'alix_coordination_run',
+      args: { ...deps.coordinationKickoff, sessionMode: config.permissions.sessionMode ?? 'auto' } }],
+      usage: undefined, resolvedModel: undefined, finishReason: 'tool_calls' }
+  : await runModelTurn(liveSend?.messages ?? messages);
 text = generation.text;
 reasoning = generation.reasoning;
 toolCalls = generation.toolCalls;

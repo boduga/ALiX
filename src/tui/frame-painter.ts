@@ -20,6 +20,7 @@ import { diffFrameRows, renderFramePatches } from './workbench/render/frame-diff
 import { buildAgentInspectorModel } from './workbench/model/agent-inspector.js';
 import { paintAgentInspector } from './workbench/views/agent-inspector.js';
 import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
+import { paintCoordinationEntry } from './workbench/views/coordination-entry.js';
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
  *  reaches into the god class. */
@@ -46,6 +47,7 @@ export interface FramePainterDeps {
 export class FramePainter {
   /** Presentation-only wrapped overlay bound, refreshed on each frame. */
   overlayScrollLimit = 0;
+  private coordinationCaret?: { row: number; column: number };
   private previousWorkbenchFrame: string | null = null;
   private scrollAnchor: { lines: readonly ScrollbackLine[]; requestedOffset: number; resolvedOffset: number; scope: string } | null = null;
   private pausedTranscript: { scope: string; seen: Set<string>; appended: Set<string> } | null = null;
@@ -124,6 +126,7 @@ export class FramePainter {
 
   /** Build a complete frame containing all regions and write it to stdout. */
   paintFullFrame(): void {
+    this.coordinationCaret = undefined;
     const s = this.deps.state();
     if (!s.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
@@ -192,6 +195,9 @@ export class FramePainter {
         const body = geometry.regions.body;
         for (let row = body.y; row < body.y + body.height; row++) viewCanvas.write(0, row, ' '.repeat(body.width));
         paintAgentInspector(viewCanvas, body, buildAgentInspectorModel(s.lastSnapshot, workbench));
+      } else if (workbench?.overlayStack.at(-1) === 'coordination') {
+        this.coordinationCaret = paintCoordinationEntry(overlayRect, workbench.coordination,
+          this.deps.opts.agentSession?.getMode?.() ?? 'mode unavailable');
       } else this.overlayScrollLimit = paintWorkbenchDiagnosticOverlay(
         overlayRect,
         workbench?.overlayStack[workbench.overlayStack.length - 1],
@@ -429,6 +435,12 @@ export class FramePainter {
       // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (13)
       // mirrors `PROMPT_COL` in AgentView.render.
       if (this.deps.opts.workbenchEnabled) {
+        const pending = s.views.agent.pendingApprovals.length || s.lastSnapshot?.approvals?.pending.length
+          || this.deps.planApprovalGate.getPending();
+        if (this.coordinationCaret && !pending) {
+          this.deps.output.write(`\x1b[${this.coordinationCaret.row + 1};${this.coordinationCaret.column + 1}H`);
+          return;
+        }
         const { composer, geometry } = layoutWorkbenchSurface(
           s.views.agent.inputBuffer, dims,
           this.deps.workbenchState?.().drawer ?? 'closed',

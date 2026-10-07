@@ -75,7 +75,12 @@
   `CoordinationStore.attachAggregateIfUnfinalized` checks and attaches under
   the per-run lock and source fingerprint. Concurrent finalizers return the
   same winning aggregate and emit one completed-aggregate event. A changed
-  replan fingerprint permits new finalization.
+  replan fingerprint permits new finalization. `runUntilIdle` awaits
+  finalization on completed/failed termination, and
+  `CoordinationCompletionService.finalize` awaits the
+  `coordination.aggregate.completed` append, so verification evidence is
+  durable before a blocking driver returns; tick and worker paths stay
+  fire-and-forget.
 - Aggregation failure emits independent evidence without changing execution
   status. Verification derives from persisted fields and the matching aggregate
   event across loop, tools, view, collaboration context, and CLI; no stored

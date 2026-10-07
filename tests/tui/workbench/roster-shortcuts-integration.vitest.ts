@@ -39,7 +39,7 @@ describe('roster shortcuts at app boundary', () => {
     internal.handleWorkbenchAgentInput('ArrowDown');
     expect(store.snapshot().selectedAgentId).toBe('worker-10');
   });
-  it('opens coordination guide without submitting or changing composer', () => {
+  it('opens coordination objective without submitting or changing composer', () => {
     const { internal, store } = harness();
     store.dispatch({ type: 'composer.replace', text: 'keep instruction' });
     internal.handleWorkbenchAgentInput('Ctrl+a');
@@ -54,12 +54,12 @@ describe('roster shortcuts at app boundary', () => {
     internal.handleWorkbenchAgentInput('2');
     expect(store.snapshot().selectedAgentId).toBe('worker-2');
   });
-  it('renders honest read-only coordination guidance', () => {
+  it('renders objective entry with truthful missing-runtime feedback', () => {
     const canvas = new TerminalCanvas(100, 30);
     paintWorkbenchDiagnosticOverlay({ canvas, width: 100, height: 30, headerH: 3, footerH: 1 }, 'coordination', null);
     const text = canvas.renderFrame().replace(/\x1b\[[0-9;]*m/gu, '');
     expect(text).toContain('COORDINATION RUN');
-    expect(text).toContain('Run launching is not enabled');
-    expect(text).toContain('alix coordination list');
+    expect(text).toContain('Describe the coordinated work');
+    expect(text).toContain('Launch requires a connected runtime session.');
   });
 });
