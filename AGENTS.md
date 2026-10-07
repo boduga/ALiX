@@ -215,6 +215,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/prompts/AGENTS.md` | Prompt registry — static prompt ids, versions, token accounting, snapshot hashes |
 | `src/policy/AGENTS.md` | Policy rules, RuleEvaluator, RuntimeGate, default policies, loader |
 | `src/registry/AGENTS.md` | Agent/tool cards, CardRegistry, CapabilityResolver, card loader |
+| `src/contracts/AGENTS.md` | Type-only authority boundaries — domain schemas, R1 ports, barrel |
 | `src/approvals/AGENTS.md` | Approval queue, ApprovalStore |
 | `src/audit/AGENTS.md` | Audit trail — JSONL append-only store |
 | `src/storage/AGENTS.md` | Storage primitives — shared JSONL store/parser/stream, atomic JSON files |
