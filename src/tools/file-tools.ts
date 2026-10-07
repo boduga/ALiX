@@ -205,7 +205,13 @@ export async function readFile(args: { root: string; path: string }): Promise<To
       { maxRetries: 1, baseDelayMs: 200 },
       (d) => diagSink.emit(d),
     );
-    return { kind: "success", content };
+    // Count actual returned text, before executor preview truncation. A trailing
+    // LF terminates its line rather than introducing an extra empty line.
+    let observedLineCount = content.length === 0 || content.endsWith("\n") ? 0 : 1;
+    for (let offset = 0; offset < content.length; offset++) {
+      if (content.charCodeAt(offset) === 10) observedLineCount++;
+    }
+    return { kind: "success", content, observedLineCount };
   } catch (err) {
     return { kind: "error", message: err instanceof Error ? err.message : String(err) };
   }

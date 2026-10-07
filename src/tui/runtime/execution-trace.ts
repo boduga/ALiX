@@ -14,6 +14,23 @@ export const STATUS_GLYPH: Record<ExecutionTraceStatus, string> = {
   cancelled: '○',
 };
 
+/** Bounded event facts for a single tool invocation; requested ranges are not execution evidence. */
+export interface ToolCardMetadata {
+  readonly toolCallId: string;
+  readonly path?: string;
+  readonly requestedRange?: { readonly startLine: number; readonly endLine: number };
+  readonly observedLineCount?: number;
+}
+
+export function cloneToolCardMetadata(value: ToolCardMetadata): ToolCardMetadata {
+  return {
+    toolCallId: value.toolCallId,
+    ...(value.path !== undefined ? { path: value.path } : {}),
+    ...(value.requestedRange !== undefined ? { requestedRange: { ...value.requestedRange } } : {}),
+    ...(value.observedLineCount !== undefined ? { observedLineCount: value.observedLineCount } : {}),
+  };
+}
+
 /**
  * One lifecycle unit of execution telemetry. Immutable, detached DTO: the
  * builder copies fields out of the raw EventLog events; nothing here holds a
@@ -30,6 +47,7 @@ export interface ExecutionTraceEntry {
   /** One-line title — "tool.search", "Policy: Allow", "core.session.list". */
   readonly title: string;
   readonly agentId?: string;
+  readonly toolMetadata?: ToolCardMetadata;
   readonly detail?: string;
   readonly startedAt: number;
   readonly completedAt?: number;

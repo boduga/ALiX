@@ -24,6 +24,7 @@ import type { SubagentTask, AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import type { WorkerAssignment } from "./coordination-types.js";
 import { roleForWorker } from "./worker-role.js";
+import { renderWorkerExecutionPrompt } from "./coordination-worker-context.js";
 import type {
   CoordinationWorkerExecutor,
   WorkerExecutionContext,
@@ -49,13 +50,15 @@ export function taskForWorker(
   worker: WorkerAssignment,
   sessionId: string,
   cwd: string,
+  context?: WorkerExecutionContext,
 ): SubagentTask {
   const role = roleForWorker(worker);
   const mode = role === "worker" ? ("write" as const) : ("read_only" as const);
   const ownedPaths = role === "worker" ? ownedPathsForWorker(worker) : undefined;
+  const objective = context ? renderWorkerExecutionPrompt(worker, context) : worker.goalPrompt;
   const prompt = ownedPaths?.length
-    ? `${worker.goalPrompt}\n\nOwned paths (write only inside these): ${ownedPaths.join(", ")}`
-    : worker.goalPrompt;
+    ? `${objective}\n\nOwned paths (write only inside these; do not change unrelated files): ${ownedPaths.join(", ")}`
+    : objective;
   return {
     id: worker.id,
     role,
@@ -118,7 +121,7 @@ export class SubagentWorkerExecutor implements CoordinationWorkerExecutor {
     if (signal.aborted) {
       return { outcome: "failure", failureKind: "cancelled", error: "Execution cancelled before start" };
     }
-    const task = taskForWorker(worker, context.sessionId, context.cwd);
+    const task = taskForWorker(worker, context.sessionId, context.cwd, context);
     const taskId = task.id || randomUUID();
     const onAbort = (): void => {
       this.manager.cancel(taskId);

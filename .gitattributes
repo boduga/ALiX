@@ -1,0 +1,4 @@
+# Deterministic byte content lives here: golden captures must never be
+# line-ending-converted by checkout (Windows autocrlf turns every golden
+# red). Everything else follows the platform/user default.
+tests/tui/workbench/__goldens__/*.txt text eol=lf

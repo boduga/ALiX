@@ -18,13 +18,11 @@ Purpose: an independent behavioral-evaluation harness that runs scripted task ca
 | `evals-runner.ts` | `runEvalCase`, `runEvalSuite`, `installEvalConfig`, `installSeed`, `saveRun`, `loadPreviousRuns`; isolated cwd + `.alix/evals/<runId>.json` persistence |
 | `dataset-eval.ts` | P4 model-running loop over corpus incidents: candidate prompt per task, LLM-judge 0..1 scores (`eval:<name>`), fail-open per incident. Judge is a direction check, not a verified fix — the gate decides. Feeds score.mjs batch + eval-gate.mjs. |
 
-Concretely, the provider emits `alix_file_create` / `alix_file_delete` / `alix_patch_apply`, and the manifest resolves them to the executor IDs `file.create` / `file.delete` / `patch.apply`. That mapping is stated here in prose rather than in a contract bullet for the reason given under Local Contracts.
-
 CLI: `src/cli/commands/evals.ts` (`alix evals run [--suite behavioral] [--driver delegate|main-loop|both] [--json] [--synthetic]`, plus `alix evals run-dataset --mirror <file> --prompt-name <n> (--prompt-text <t> | --prompt-file <f>) [--scores-out <f>]` for the dataset loop), dispatched from `src/cli.ts` (`alix evals`). `run-dataset` runs nightly via system cron (example in the handler header), never in the hot loop.
 
 ## Local Contracts
 
-- **Wire tool names:** the scripted provider emits the canonical model-facing `alix_*` names; `src/agents/tool-manifest.ts` owns the mapping from those to internal executor IDs. A scenario must never hardcode an executor ID — `check:dox` fails CI when a contract bullet names one, because a bullet is read as instruction to call it.
+- **Wire tool names:** the scripted provider emits the canonical model-facing `alix_*` names; `src/agents/tool-manifest.ts` owns the mapping from those to internal executor IDs. Scenarios must never hardcode internal executor IDs.
 - **Registry-mode provider caching:** `src/providers/registry.ts` keeps a never-cleared `providerCache`. So the scripted provider (constructed without an explicit scenario) reads steps lazily from the carrier on each `complete()`/`stream()` — never from constructor state. Never pass `{steps}` when registering providers.
 - **Delegation transport:** scenario is serialized into the subagent child env as `ALIX_EVAL_SCENARIO` via `SubagentTask.scriptedScenarioJson`; `SubagentManager.spawn` injects it. The child's registry-mode provider hydrates from env on first access. In-process main-loop cases instead call `setScriptedScenario(...)` / `clearScriptedScenario(...)` around `runTask`.
 - **Tools auto-approval** (main-loop mutation) requires BOTH `permissions.default: "allow"` in `.alix/config.json` AND `sessionMode: "bypass"` in run opts. `installEvalConfig` sets the former; the main-loop driver sets the latter.
@@ -47,8 +45,8 @@ CLI: `src/cli/commands/evals.ts` (`alix evals run [--suite behavioral] [--driver
 pnpm test:evals                     # unit tests for evaluators/providers/drivers/runner
 pnpm build                          # typecheck + build (must be green)
 # live behavioral run:
-alix evals run --suite behavioral            # 7/7 PASS
-alix evals run --suite behavioral --synthetic  # adds 2 honesty fixtures (FAIL, dishonest)
+alix evals run --suite behavioral            # execute behavioral cases
+alix evals run --suite behavioral --synthetic  # include synthetic honesty fixtures
 ```
 
 ## Child DOX Index

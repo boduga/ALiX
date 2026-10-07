@@ -3,8 +3,15 @@ import { AgentView } from '../../../src/tui/views/agent-view.js';
 import { GUTTER_WIDTH } from '../../../src/tui/views/scroll-math.js';
 import { MockCanvas } from './helpers/mock-canvas.js';
 import type { ViewRenderContext } from '../../../src/tui/views/types.js';
-import { createInitialPerTabState } from '../../../src/tui/state.js';
-import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+import { createInitialPerTabState, SessionPhase } from '../../../src/tui/state.js';
+import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import type { DashboardSnapshot } from '../../../src/tui/snapshot.js';
+import { projectOperatorShell } from '../../../src/tui/workbench/model/operator-shell.js';
+import { paintOperatorShell } from '../../../src/tui/workbench/views/operator-shell.js';
+
+function visible(frame: string): string {
+  return frame.replace(/\x1b\[[0-9;]*m/gu, '');
+}
 
 // Cast factory: MockCanvas is intentionally minimal (only captures write()).
 // renderBottomAnchoredSlice only invokes write() via the kindStyles callbacks
@@ -152,28 +159,35 @@ describe('AgentView bottom-anchored render', () => {
   });
 
   it('replaces running liveness with approval-aware elapsed status', () => {
+    // The workbench top status line is owned by the operator shell chrome
+    // (header row 1), not by AgentView's staged canvas — the toolbar/pane
+    // paint and transcript-only blit would erase a view write there.
     vi.spyOn(Date, 'now').mockReturnValue(60_000);
-    const base = ctx({ rows: 30 });
-    (base.perTab as ReturnType<typeof createInitialPerTabState>).pendingApprovals = [{
+    const state = createInitialPerTabState();
+    state.pendingApprovals = [{
       id: 'approval-1', toolName: 'shell.run', target: 'docker --version', requestedAt: 7_000,
     }];
-    const c: ViewRenderContext = {
-      ...base,
-      workbenchEnabled: true,
-      snap: {
-        session: {
-          phase: 'Executing',
-          liveness: { startedAt: 0, lastProgressAt: 59_000, state: 'healthy' },
-        },
-        runtime: null,
-      } as never,
-    };
+    const snap = {
+      generatedAt: 1,
+      cwd: '/workspace/projects/ALiX',
+      session: {
+        mode: 'auto', phase: SessionPhase.Executing, version: 'test',
+        startedAt: 1, turns: 1, filesTouched: 0,
+        liveness: { startedAt: 0, lastProgressAt: 59_000, state: 'healthy' },
+      },
+      runtime: null,
+      daemon: null,
+      approvals: null,
+      sops: null,
+      policy: null,
+    } as unknown as DashboardSnapshot;
+    const frame = new TerminalCanvas(120, 30);
 
-    view.render(c);
+    paintOperatorShell({ canvas: frame, width: 120, height: 30, model: projectOperatorShell(snap, state) });
 
-    const status = (c.canvas as unknown as MockCanvas).writes.filter((write) => write.y === 3).map((write) => write.text).join(' ');
-    expect(status).toContain('WAITING FOR APPROVAL · 53s');
-    expect(status).not.toContain('RUNNING');
+    const rows = visible(frame.renderFrame()).split('\n');
+    expect(rows[1]).toContain('WAITING FOR APPROVAL · 53s');
+    expect(rows[1]).not.toContain('RUNNING');
     vi.restoreAllMocks();
   });
 

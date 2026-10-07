@@ -1,12 +1,16 @@
 # DOX — Inspector Server
 
-**Purpose:** HTTP server for the Inspector web UI — serves static files, SSE event streams, JSON API endpoints.
+## Purpose
 
-**Ownership:**
+HTTP server for the Inspector web UI — serves static files, SSE event streams, JSON API endpoints.
+
+## Ownership
+
 - `server.ts` — Route dispatch + handlers: sessions (SSE, snapshot, comparison), graphs (list, projection), registry (agents, tools), policy (rules, eval), approvals, audit.
 - `coordination-routes.ts` — Coordination API: read-only GET views plus the gated execution POSTs (run/cancel, background dispatch).
 
-**Local Contracts:**
+## Local Contracts
+
 - Data API routes are read-only GET except for: the read-only evidence-integrity
   verification endpoint, and the coordination execution endpoints
   (`POST /api/coordination/run`, `POST /api/coordination/:runId/cancel`).
@@ -41,14 +45,20 @@
 - All data sourced from `.alix/` directory on disk.
 - CORS is not set on API routes (same-origin in production).
 
-**Work Guidance:**
+## Work Guidance
+
 - Adding a new API route means adding a new `if (url.pathname === ...)` block in `server.ts`, or a branch in `registerCoordinationRoutes()` for `/api/coordination/*` paths (plus a `route-policy.ts` descriptor — the coverage test enforces it).
 - New read-only endpoints are preferred over write endpoints; new execution POSTs need the `coordination:execute`-style permission gate, not just a descriptor.
 - Error responses use consistent JSON shape: `{ error: string }`.
 
-**Verification:**
+## Verification
+
 - `tests/server/server.test.ts` — HTTP smoke tests for registry, graph list, policy, approvals, audit endpoints.
 - `tests/server/auth-routes.test.ts` — session exchange/logout plus required-mode
   Bearer, cookie, permission, SSE, route-registration, and revocation behavior.
 - `tests/security/inspector/authorization.test.ts` and
   `tests/security/inspector/auth-service.test.ts` — authorization and token/session-principal validation.
+
+## Child DOX Index
+
+None.

@@ -1,0 +1,36 @@
+ [1mALiX WORKBENCH[0m  PREVIEW                                                                                    workspace: /workspace | auto | 5 agents . 3 running 
+                                                                                                                                                                
+                                                                                                                                                                
++-[1m AGENTS & TASKS [0m-------------+  LIVE TRANSCRIPT                                                              Auto-follow: ON  +AGENT DETAILS-----------------+
+|                              |  [1m[1 ALL][0m (2 RESPONSE) (3 TOOL) (4 ACTIVITY) (5 ERROR)                                          |Name        frontend-agent    |
+|  o All agents              / |  All agents . compact . Ctrl+F transcript                                                      |Model       fixture-coding-mo~|
+|   5 agents . 3 running       |                                                                                                |State       executing         |
+| ---------------------------- |                                                                                                |Task        Implement responsi|
+|  * Orchestrator RUNNING    1 |                                                                                                |            ve sidebar        |
+|   Coordinating execution     |                                                                                                |------------------------------|
+| ---------------------------- |                                                                                                |LIVE ACTIVITY                 |
+|  * backend-agent RUNNING   2 |                                                                                                |Tool        patch.apply       |
+|   Build API endpoints        |                                                                                                |Started     10:14:28          |
+|                              |                                                                                                |Elapsed     00:18             |
++------------------------------+                                                                                                |Status      Rendering the sel~|
+| >* frontend-agent RUNNING  3 |                                                                                                |------------------------------|
+|   Implement responsive side~ |                                                                                                |APPROVALS                     |
++------------------------------+                                                                                                |Approvals unavailable         |
+|   run preview-run            |                                                                                                |------------------------------|
+|   Rendering the selected ag~ |                                                                                                |ARTIFACTS                     |
+|                              |                                                                                                |sidebar-layout.test.ts        |
+|  ! test-agent WAITING      4 |                                                                                                |right-sidebar.ts              |
+|   Depends on frontend-agent  |                                                                                                |------------------------------|
+| ---------------------------- |                                                                                                |USAGE                         |
+|  + review-agent COMPLETED  5 |                                                                                                |Tokens      7,352             |
+|   Review changes and summar~ |                                                                                                |Context     unavailable       |
+| ---------------------------- |                                                                                                |Cost        unavailable       |
+| o Coordination Run         c |                                                                                                |                              |
+|   Run setup (read-only)      |                                                                                                |                              |
+|                              |                                                                                                |                              |
+| Up/Down select . [ ] run . ~ |                                                                                                |                              |
++------------------------------+                                                                                                +------------------------------+
+                                                                                                                                                                
+                                                                                                                                                                
+                                                                                                                                                                
+ Tab views . Ctrl+O details . Ctrl+R artifacts . Ctrl+F transcript . Ctrl+E inspector                       TOKENS unavailable | FILES 0 | EVENTS 38 | AGENTS 5 

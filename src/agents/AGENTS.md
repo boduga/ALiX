@@ -10,19 +10,37 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `tool-name-resolver.ts` resolves ONLY the exact names offered in the current turn. Executor IDs are never accepted from a caller.
 - `tool-policy.ts` applies role-based tool access.
 - `subagent-cli.ts` builds and runs worker turns.
+- `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
 - Collaboration handlers live in `src/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 
 ## Local Contracts
 
-- Built-in model names come from the manifest; capability and executor IDs stay internal, and `pnpm check:dox` fails CI if a model-facing contract bullet names one (`scripts/check-dox-claims.mjs`). Prose describing code may still name an executor — that is correct. Every built-in now has DISTINCT model-facing and executor vocabularies: there is no entry whose model-facing name equals its executor id, and adding one is a defect. The state-proposal tool was the last such entry; its executor id is stated in `src/agents/tool-manifest.ts` rather than here, because this bullet is read as instruction and `check:dox` correctly rejects an executor id in that position.
-- Worker turns accept only exact offered names, including bound collaboration tools.
-- MCP model handles are opaque `mcp__*` values scoped to the current discovery/turn registry. Search names may rank tools but never resolve calls.
-- **ONE vocabulary for tool names.** A tool has exactly one callable name: the `alix_*` form offered this turn. Executor IDs are the code's internal dispatch identity and are NEVER accepted from a caller — `resolveExecutableToolName` rejects them even when that tool was offered. It previously carried a documented-executor alias bridging the two; the alias was removed once every model-facing contract bullet named the `alix_*` tool, because it no longer bridged anything real and only widened the accepted surface. MCP handles are the one exception, and it is not a naming choice: they are minted per turn and cannot be pre-declared, so a discovered `mcp.*` executor name stays an accepted equivalent spelling, still gated on an `mcp__`-named, `mcp.`-executing offered entry. A wrong name costs one turn and is self-correcting — the rejection message names the callable options — so the narrow surface is the intended failure mode, not a defect. Pinned by `tests/agents/exact-tool-name-resolver.vitest.ts` (which asserts every built-in executor ID is rejected even when offered) and `tests/run/tool-hallucination-guard.vitest.ts`.
-- Unknown, legacy, and unoffered names fail closed. A rejection emits `tool.rejected` with the RAW requested name — the only place that name survives, since `ToolExecutor` records the post-resolution executor. `filterTools` classifies by role category through two hand-maintained sets in `tool-policy.ts` (`NON_WRITE_TOOLS`, `WRITE_TOOLS`) and denies anything unlisted, so every `alix_*` name in `ALIX_BUILTIN_EXECUTORS` must appear in exactly one set or be handled inline — `tests/agents/tool-policy.test.ts` scans for drift. The sets are a role-category classification, NOT a second copy of the manifest: `NON_WRITE_TOOLS` is deliberately not called "read-only" because it contains `alix_shell_run` (arbitrary command execution, separately `ask`-gated) and the coordination/state readers. The `alix_collaboration_*` tools are in neither set on purpose — they reach a worker only as bound tools, which bypass `filterTools` entirely.
+- Built-in callable names come from `ALIX_BUILTIN_EXECUTORS`; capability and
+  executor IDs stay internal. Every built-in has distinct callable and dispatch
+  names. `pnpm check:dox` checks model-facing contract vocabulary.
+- Main and worker turns accept exact names offered in the current turn,
+  including bound collaboration tools; unknown, legacy, executor, and unoffered
+  names fail closed. Rejections emit the raw requested name in `tool.rejected`;
+  executor telemetry records the resolved identity.
+- MCP callable handles are opaque per-turn `mcp__*` values from discovery.
+  Search names rank tools but do not resolve calls. The exact offered handle
+  is the authoritative model-facing name. Never accept its discovered executor
+  as an alias, even when the corresponding handle is offered.
+- `filterTools` classifies roles through `NON_WRITE_TOOLS` and `WRITE_TOOLS`
+  and denies unlisted entries. Every manifest name must occur in exactly one
+  set or have explicit inline handling; `tests/agents/tool-policy.test.ts`
+  checks drift. The non-write category includes approval-gated arbitrary shell
+  execution and is not a read-only permission guarantee.
+- Bound `alix_collaboration_*` definitions bypass `filterTools` and deliberately
+  belong to neither role set.
+- Worker findings preserve substantive model text plus bounded, explicitly untrusted executed tool evidence. All result payload families use `toolResultText`; preliminary commentary must not discard retrieved facts or URLs.
+- Coordinated workers treat ownership scopes as permission limits. Write workers must demonstrate a mutation, but need not write every permitted file. Completion review checks requested deliverables against executed evidence and persisted output content, including confirmed deletions. Invalid, unsupported, or failed reviews preserve mutation evidence and return partial/failure rather than success. Review summaries precede raw evidence so downstream budgets retain the substantive answer.
 
 ## Work Guidance
 
-Concretely: the state-proposal tool is offered to the model as `alix_execution_state_propose` and dispatches under the executor id `execution_state.propose`. It is intercepted in `src/run/event-handlers.ts` before the router and has no registry entry, so its executor id never reaches dispatch — which is why the two vocabularies diverging is safe here in a way it would not be for a routed tool.
+The `alix_execution_state_propose` tool is intercepted in
+`src/run/event-handlers.ts` before the router. It has no registry entry; its
+internal identity is defined in the manifest.
 
 - Update the manifest, resolver, worker boundary, prompts, and cutover fixtures together when changing model-facing names.
 - Run GitNexus impact analysis before editing functions, classes, or methods; inspect high-risk results before proceeding.

@@ -602,7 +602,32 @@ export class ToolExecutor {
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
-    let result = await this.router.execute(request);
+    let result: ToolResult;
+    try {
+      result = await this.router.execute(request);
+    } catch (error) {
+      if (isCancellationError(error)) {
+        // Cancellation is a terminal outcome, never a tool failure. Keep the
+        // original cancellation even if persistence of its telemetry fails.
+        try {
+          await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, {
+            toolCallId,
+            toolName: name,
+            status: "cancelled",
+            durationMs: Date.now() - startedAt,
+            canonicalCapability,
+            argumentHash,
+            executionId: correlation.executionId,
+            invocationId: correlation.invocationId,
+            ...agentPayload,
+            ...(request.replayId ? { replayId: request.replayId } : {}),
+          });
+        } catch {
+          // Telemetry cannot reclassify an operator cancellation as failure.
+        }
+      }
+      throw error;
+    }
 
     // Append repair hint to success output. Routed through `toolResultText`
     // rather than hand-picking `output`/`content`: those two are only two of
@@ -705,6 +730,8 @@ export class ToolExecutor {
     // Build and emit tool.completed or tool.failed event
     if (result.kind === "success") {
       const completedPayload: ToolCompletedPayload = {
+        ...(typeof result.observedLineCount === "number" && Number.isSafeInteger(result.observedLineCount) && result.observedLineCount >= 0
+          ? { observedLineCount: result.observedLineCount } : {}),
         toolCallId,
         toolName: name,
         status: "success",

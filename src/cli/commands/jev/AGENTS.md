@@ -1,13 +1,13 @@
 # DOX — `alix jev` (Decision Subsystem Operator Surface)
 
-**Purpose:** Operator surface for the decision subsystem (J4/J5). Read-only inspection, outcome labelling, calibration, threshold-profile lifecycle, and offline replay. This is the only way to operate the subsystem today — nothing is wired into the agent runtime.
+**Purpose:** Operator surface for the decision subsystem (J4/J5). Read-only inspection, outcome labelling, calibration, threshold-profile lifecycle, and offline replay. The claim-verification tool is wired into the agent surface; this CLI owns operator inspection, evaluation, and profile lifecycle.
 
 **Ownership:**
 - `main.ts` — `dispatchJevCommand(args, opts?)` (optional `{ cwd }` overrides state-path resolution, defaults to `process.cwd()`; throws `JevOperatorError` on usage errors, testable) and `handleJevCommand` (prints one line and exits 1 on operator errors).
 - `ops.ts` — status, labels, dataset/reliability, threshold-profile list/derive/promote/rollback (derive dispatches accuracy-sweep vs reliability), disagreements (`groupChoiceByEngine`/`buildDisagreements`), two-stage blind label-pair (`prepareLabelPair`/`commitLabelPair`); `JevOperatorError`; `loadAlixConfig`/`loadDecisionConfig`.
 - `replay-ops.ts` — corpus → fixtures, `makeExecutor` (local | jev), `runReplay` (with optional compare + gate).
 - `render.ts` — pure formatters (status, dataset, reliability bins, profiles, replay, disagreements, label-pair evidence/reveal).
-- `../../../cli/commands/jev.ts` — barrel re-exporting `handleJevCommand`.
+- `../jev.ts` — barrel re-exporting `handleJevCommand`.
 
 **Commands:**
 - `status` — routes, enabled flags, remote opt-in, key presence, journal/label counts, profiles, shipped defaults.
@@ -22,7 +22,7 @@
 
 **Local Contracts:**
 - State lives under `.alix/decisions/`: `decisions.jsonl` (journal), `labels.jsonl`, `profiles.json`, `fixtures/*.json`.
-- Everything is read-only except `profile derive` (writes a shadow profile) and `profile promote` / `rollback`. **Promotion requires `--approve`** and records `--approved-by`: it changes which items get selected, so it is a governance action (arch §10), not a config edit.
+- Inspection and replay are read-only. `label` and `label-pair` append labels; `dataset --out` writes an export; `fixture build` writes fixtures; `profile derive` writes a shadow profile; `profile promote` and `rollback` update the registry. **Promotion requires `--approve`** and records `--approved-by`: it changes which items get selected, so it is a governance action (arch §10), not a config edit.
 - **`profile derive` dispatch.** Export the dataset once, then: when a registered accuracy-sweep path exists for the (decision, engine) pair — today `claim-verification`+`local` only — AND none of the samples carries a native score (or the journal is empty), derive via the sweep (corpus cases, accuracy provenance, works with zero samples). Otherwise derive via `computeReliability` + `deriveThresholdProfile`, keeping the exact existing error surfaces (`asOperatorError`: "no samples…", "…carry a native score"). `computeReliability` itself is unchanged, and the `reliability` command still refuses scoreless samples — that refusal is semantically correct for a scored report. JEV-9: no other engine ever takes the sweep path.
 - The shipped threshold defaults live in code as `shadow` and are shown for orientation only — they are never applied and cannot be promoted (no provenance). Rollback therefore has nothing to restore until two calibrated profiles exist; that is correct, not a gap.
 - Subsystem validation errors (calibration/profile) are presented as single-line operator errors via `asOperatorError`; anything else is a bug and propagates.

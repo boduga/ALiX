@@ -10,6 +10,7 @@
 
 - Keep changes focused — one feature or fix per PR
 - Write tests for new code (we use `node:test`)
+- Timing-sensitive tests must declare an explicit `timeout` with a workload-rationale comment (see `tests/soak/store-load.test.ts`), so slow runners don't turn them into flakes
 - Ensure `npm test` passes before submitting
 
 ## Commit Style

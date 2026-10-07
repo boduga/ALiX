@@ -6,8 +6,7 @@ import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 import type { TimelineEntry } from '../runtime/timeline-builder.js';
 import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
-import { layoutComposer } from '../workbench/views/composer-view.js';
-import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
+import { layoutWorkbenchSurface } from '../workbench/views/composer-view.js';
 
 /** Shared TUI layout geometry. Single source of truth — the views, app.ts,
  *  and scroll-math all compute panelRow/scrollbackTop/textWidth
@@ -800,20 +799,15 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
  *  Convenience wrapper used by the views' render branch and by app.ts on
  *  End/clear/tab-switch. */
 export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat'): number {
-  const dimensions = kind === 'agent' && ctx.workbenchEnabled
-    ? resolveWorkbenchSurfaceGeometry(
-        ctx.dimensions.columns,
-        ctx.dimensions.rows,
-        ctx.workbenchUiState?.drawer ?? 'closed',
-      ).dimensions
-    : ctx.dimensions;
-  const composerRows = kind === 'agent' && ctx.workbenchEnabled
-    ? layoutComposer(ctx.perTab.inputBuffer, dimensions.columns).rows.length
-    : 1;
-  const vp = computeViewport(dimensions, kind, composerRows);
+  const surface = kind === 'agent' && ctx.workbenchEnabled
+    ? layoutWorkbenchSurface(ctx.perTab.inputBuffer, ctx.dimensions, ctx.workbenchUiState?.drawer ?? 'closed', ctx.workbenchUiState?.composer.cursor)
+    : null;
+  const dimensions = surface?.geometry.dimensions ?? ctx.dimensions;
+  const baseViewport = computeViewport(dimensions, kind, surface?.composer.rows.length ?? 1);
+  const vp = surface ? { ...baseViewport, scrollbackRows: surface.geometry.regions.transcriptBody.height } : baseViewport;
   const allLines = kind === 'agent'
     ? (ctx.workbenchEnabled
-      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+      ? buildWorkbenchScrollbackLines(ctx, Math.max(1, dimensions.columns - 2))
       : buildAgentScrollbackLines(ctx, vp.textWidth))
     : buildChatScrollbackLines(ctx, vp.textWidth);
   return Math.max(0, allLines.length - vp.scrollbackRows);

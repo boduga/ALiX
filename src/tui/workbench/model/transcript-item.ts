@@ -1,4 +1,4 @@
-import type { ExecutionTraceStatus } from '../../runtime/execution-trace.js';
+import type { ExecutionTraceStatus, ToolCardMetadata } from '../../runtime/execution-trace.js';
 import type { PlanTask } from '../../../planning/plan-task.js';
 
 export type TranscriptMode = 'compact' | 'detailed';
@@ -28,6 +28,8 @@ export interface AssistantMessageItem extends TranscriptItemBase {
 export interface ToolItem {
   readonly id: string;
   readonly name: string;
+  readonly startedAt?: number;
+  readonly metadata?: ToolCardMetadata;
   readonly status: ExecutionTraceStatus;
   readonly detail?: string;
   readonly durationMs?: number;
@@ -62,7 +64,15 @@ export interface DiagnosticItem extends TranscriptItemBase {
   readonly text: string;
 }
 
+export interface ActivityItem extends TranscriptItemBase {
+  readonly kind: 'activity';
+  readonly text: string;
+  readonly status?: string;
+  readonly verifiedOutcome?: 'success' | 'failure';
+}
+
 export type TranscriptItem =
+  | ActivityItem
   | UserTurnItem
   | AssistantMessageItem
   | ToolGroupItem

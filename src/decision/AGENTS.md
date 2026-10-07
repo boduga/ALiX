@@ -5,7 +5,7 @@
 **Ownership:**
 - `contracts.ts` — Choice/Score/Noul native result types + provenance (incl. optional provider `usage`) + strict validators (no coerce, JEV-1).
 - `registry.ts` — DecisionEngine contract + EngineRegistry; local baseline pre-registered (`createDefaultRegistry({ claimThreshold? })`); remote resolves only with explicit opt-in.
-- `config.ts` — DecisionConfig skeleton (standalone in J0a; canonical AlixConfig wiring later) + local-first defaults + pure validator.
+- `config.ts` — DecisionConfig + canonical AlixConfig decision-section wiring + local-first defaults + pure validator.
 - `projector.ts` — Projector contract + projectForRemote (project -> gate -> seal).
 - `boundary.ts` — Remote-boundary gates + seal/verify (secret/shape/size/depth, fail-closed).
 - `journal.ts` — Journal schema + recordDecision + JSONL store + queries + separate debug retention.
@@ -110,7 +110,7 @@
   recorded-response fixtures under exact `(tool, argsSignature)` matching, and a
   miss is `unknown` — never a live call, never an upgraded evidence claim.
 - Threshold profiles are versioned and engine-specific; a fallback engine uses its own profile or fails closed (JEV-9).
-- No runtime wiring until projection/redaction/journal/fallback are tested; `PolicyGate`/`createProvider`/loader stay untouched by decision work.
+- New runtime wiring requires tested projection/redaction/journal/fallback boundaries. The claim-verification tool is wired; other activation seams remain separately gated. Decision work must not alter `PolicyGate`, `createProvider`, or the loader.
 
 **Work Guidance:**
 - New decision = projector (decision folder owns its schema) + route policy + executor mapping + journaled attempts. Reuse `projectForRemote`, `buildPlan`/`executeWithFallback`, `recordDecision`, `runClaimVerificationShadow` as the shadow template.

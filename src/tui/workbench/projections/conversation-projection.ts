@@ -1,3 +1,4 @@
+import { cloneToolCardMetadata } from '../../runtime/execution-trace.js';
 import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 import { isCompletionExecName } from '../../../agents/tool-manifest.js';
 import type { TimelineEntry } from '../../runtime/timeline-builder.js';
@@ -55,6 +56,8 @@ function cloneTool(entry: ExecutionTraceEntry): ToolItem {
   return {
     id: entry.id,
     name: toolName(entry.title),
+    startedAt: entry.startedAt,
+    ...(entry.toolMetadata !== undefined ? { metadata: cloneToolCardMetadata(entry.toolMetadata) } : {}),
     status: entry.status,
     ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
     ...(entry.durationMs !== undefined ? { durationMs: entry.durationMs } : {}),
@@ -79,6 +82,7 @@ export class ConversationProjection {
   project(input: ConversationProjectionInput): ConversationSnapshot {
     const candidates: Candidate[] = [];
     let hiddenDiagnostics = 0;
+    const activityStates = new Map<string, string>();
 
     for (const entry of input.timeline) {
       const text = entry.text ?? '';
@@ -102,6 +106,16 @@ export class ConversationProjection {
         entry.kind === 'agent.response'
       ) {
         if (text.trim()) candidates.push({ ...base, kind: 'assistant', text });
+        continue;
+      }
+
+      if (entry.kind === 'agent.progress' && entry.userSafe === true && text.trim()) {
+        candidates.push({ ...base, kind: 'activity', text, ...(entry.verifiedOutcome !== undefined ? { verifiedOutcome: entry.verifiedOutcome } : {}), ...(entry.agentId && activityStates.has(entry.agentId) ? { status: activityStates.get(entry.agentId)! } : {}) });
+        continue;
+      }
+      if (entry.kind === 'agent.state_changed' && entry.activityState) {
+        if (entry.agentId) activityStates.set(entry.agentId, entry.activityState);
+        candidates.push({ ...base, kind: 'activity', text: '', status: entry.activityState });
         continue;
       }
 
@@ -170,7 +184,7 @@ export class ConversationProjection {
 
     candidates.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
     const visibleCandidates = input.focusAgentId
-      ? candidates.filter((candidate) => candidate.agentId === undefined || candidate.agentId === input.focusAgentId)
+      ? candidates.filter((candidate) => candidate.kind === 'approval' || candidate.agentId === undefined || candidate.agentId === input.focusAgentId)
       : candidates;
 
     const items: TranscriptItem[] = [];
@@ -183,6 +197,7 @@ export class ConversationProjection {
       if (
         candidate.kind === 'assistant' &&
         previous?.kind === 'assistant' &&
+        candidate.agentId === previous.agentId &&
         normalizedText(candidate.text) === normalizedText(previous.text)
       ) {
         const merged: AssistantMessageItem = {

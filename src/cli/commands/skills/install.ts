@@ -22,6 +22,8 @@ import {
 export interface InstallOptions {
   list?: boolean;
   available?: boolean;
+  /** Bypass the `available` disk index cache and refetch. */
+  refresh?: boolean;
   /** Remove an installed skill from the scoped store. */
   remove?: boolean;
   name?: string;
@@ -159,6 +161,7 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
     force: flags.has("--force"),
     project,
     global,
+    ...(flags.has("--refresh") ? { refresh: true as const } : {}),
   };
 }
 
@@ -254,7 +257,7 @@ export async function runInstall(opts: InstallOptions, overrides?: { cwd?: strin
 
   // Show available skills across registered marketplaces
   if (opts.available) {
-    await listAvailableSkills();
+    await listAvailableSkills(undefined, { refresh: opts.refresh });
     return;
   }
 
@@ -349,7 +352,7 @@ export function printSkillsHelp(): void {
   console.log(`ALiX Skills
 
 Usage:
-  alix skills available                              List skills available from registered marketplaces
+  alix skills available [--refresh]                List skills available from registered marketplaces (cached 1h; --refresh bypasses cache)
   alix skills install <name> [--project|--global]    Install a skill from a registered marketplace
   alix skills install <name> --from <path|url> [--project|--global]
                                                      Install a skill from a local dir/file or https URL

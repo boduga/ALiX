@@ -16,12 +16,12 @@ the code).
 | `ALiX-Jev-Engineering-HandOff.md` | Context, locked decisions, constraints, implementation boundaries. |
 | `ALiX-Jev-Implementation-Plan.md` | Phases J0–J6, tasks, exit criteria, PR strategy, stop conditions. |
 | `ALiX-Jev-J0-Integration-Points.md` | The read-only inventory of classifier/routing/governance seams. |
-| `Jev-Vendor-Research.md` | **Dated third-party snapshot** of what TypeSafe claims about Jev: what it is, pricing, versions, limits, evals, and the primary sources each claim came from. Vendor statements, NOT ALiX state. The only doc here that CITES sources for its claims. |
+| `Jev-Vendor-Research.md` | **Dated third-party snapshot** of what TypeSafe claims about Jev: what it is, pricing, versions, limits, evals, and the primary sources for each claim. Vendor statements, not ALiX state. |
 | `ALiX-Jev-Status.md` | **Current state**: what landed, what is live-verified, what is deliberately not done, the shipped wiring decision and how to activate it, caveats. |
 | `T3-selection-evaluation-preregistration.md` | The **frozen** T3 evaluation contract: eligibility tracks + exclusion codes, blind appropriateness labelling, outcome/gap-closure labels, the 30-scope/10-disagreement checkpoint. Amendments go in its own table. |
 | `T3-d-corpus-collection-runbook.md` | The T3-d **procedure**: cohort header + immutability rule, the 40-task family matrix (no expected winning tool encoded), the per-run steps, tagging rules, failure/retry rules, and the ledger schema (collection facts vs label state). Policy stays in the pre-registration. |
 | `cohorts/<cohortId>.header.json`, `cohorts/<cohortId>.ledger.jsonl` | Per-cohort collection artifacts: the immutable identity header and one row per frozen scope. Collection facts only; labels live in the labelling store and are joined later. |
-| `T3-final-report-t3d-2026-09-28-c.md` | The T3 result: blind selection-time appropriateness (14 disagreements) and offline outcome-level gap closure (32 scopes), plus completion, latency, the represented-family limitation, and the ordered next work. Supersedes the checkpoint report of the same cohort. |
+| `T3-final-report-t3d-2026-09-28-c.md` | The T3 result: blind selection-time appropriateness and offline outcome-level gap closure, completion, latency, represented-family limitations, and next work. Supersedes the checkpoint report of the same cohort. |
 | `cohorts/<cohortId>.corpus.json`, `cohorts/<cohortId>.labels.jsonl`, `cohorts/<cohortId>.closeout.md` | The frozen corpus (the artifact — re-scoring is not idempotent), the committed label records, and the closeout with findings + evidence hashes. |
 
 ## Local Contracts
@@ -49,12 +49,9 @@ the code).
   identity rather than replacing the failure, so completion rates stay honest.
 - **`Jev-Vendor-Research.md` is a vendor record, never a status source.** Its
   pricing, version, and limit figures are a snapshot dated in the document's own
-  `Date:` header and WILL drift — `jev-1.13.0` was current when written, while
-  the code deliberately pins `JEV_DEFAULT_MODEL = "jev-latest"`. Treat it as
+  `Date:` header and may drift; current engine configuration lives in code. Treat it as
   background on what the vendor said, never as ALiX state: where the two could
-  be confused, the code and `ALiX-Jev-Status.md` win. Its value is provenance —
-  it is the only doc here that records which PRIMARY source each claim came
-  from, so a later disagreement can be traced rather than argued.
+  be confused, the code and `ALiX-Jev-Status.md` win. Preserve primary-source provenance so later disagreements can be traced.
 - **Name collision:** `src/cli/commands/decision/` is the governance-lens CLI
   and is unrelated to `src/decision/`. The Jev surface is `alix jev`.
 
@@ -78,17 +75,19 @@ alix jev status
 # Local replay is free; confirms corpora and baselines still behave
 alix jev replay --engine local --compare local
 
-# Confirm nothing in the runtime imports the decision subsystem (status §1).
-# Import-specific: a bare "decision/" grep also matches comments.
-grep -rn 'from "[^"]*decision/' src/agent src/runtime src/policy src/providers src/kernel
+# Confirm agent/runtime/policy/provider/kernel modules do not directly import decision code.
+# Tool handlers and run/observability candidate tracing have separate allowed boundaries.
+rg -n 'from "[^"]*decision/' src/agent src/runtime src/policy src/providers src/kernel
 ```
 
 `journal records: 0` means the tool is **wired but not activated (or not yet
 used) here** — default `mode: "baseline"` journals nothing; a non-zero count
 means experiment pairs are accumulating and §5 of the status doc owns the gate.
-The grep must stay empty: `src/tools` reaches `src/decision` through the tool
-handler by design, but agent/runtime/policy/providers/kernel never import it.
-If the grep returns an import, status §1 is stale and must be corrected.
+The search must stay empty for the listed directories. Tool handlers may call
+decision services; run and observability modules may import frozen-candidate
+trace types and helpers. These imports do not activate the offline scorer.
+A new direct import in a listed directory requires boundary review and a
+corresponding status update.
 
 ## Child DOX Index
 

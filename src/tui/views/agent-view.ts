@@ -3,14 +3,17 @@ import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult,
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
 import { renderSlashOverlay } from './slash-overlay.js';
 import { buildAgentScrollbackLines, computeViewport, GUTTER_WIDTH } from './scroll-math.js';
-import { buildWorkbenchScrollbackLines } from '../workbench/views/workbench-scrollback.js';
+import { buildWorkbenchScrollbackLines, type WorkbenchScrollbackLine } from '../workbench/views/workbench-scrollback.js';
+import { paintTranscriptToolbar } from '../workbench/views/transcript-toolbar.js';
+import { getWorkbenchPreviewTheme } from '../workbench/model/preview-theme.js';
 import { RESET } from '../ansi-constants.js';
-import type { TerminalCanvas } from '../canvas.js';
+import { TerminalCanvas } from '../canvas.js';
 import { SessionPhase } from '../../agent/session.js';
-import { layoutComposer } from '../workbench/views/composer-view.js';
-import { resolveWorkbenchSurfaceGeometry } from '../workbench/layout/responsive-layout.js';
+import { layoutWorkbenchSurface } from '../workbench/views/composer-view.js';
 import { paintRosterDrawer } from '../workbench/views/roster-drawer.js';
 import { formatActivityElapsed } from '../../agent/agent-activity.js';
+import { buildAgentInspectorModel } from '../workbench/model/agent-inspector.js';
+import { paintAgentInspector } from '../workbench/views/agent-inspector.js';
 import { approvalVisibleTo } from '../workbench/model/selection.js';
 
 /**
@@ -41,16 +44,23 @@ export class AgentView implements TuiView {
   readonly id: TabId = 'agent';
 
   render(ctx: ViewRenderContext): ViewRenderResult {
-    const c = ctx.canvas!;
-    const geometry = ctx.workbenchEnabled
-      ? resolveWorkbenchSurfaceGeometry(ctx.dimensions.columns, ctx.dimensions.rows, ctx.workbenchUiState?.drawer ?? 'closed')
+    const frameCanvas = ctx.canvas!;
+    const surface = ctx.workbenchEnabled
+      ? layoutWorkbenchSurface(ctx.perTab.inputBuffer, ctx.dimensions, ctx.workbenchUiState?.drawer ?? 'closed', ctx.workbenchUiState?.composer.cursor)
       : null;
+    const geometry = surface?.geometry ?? null;
     const responsive = geometry?.layout ?? null;
     const surfaceDimensions = geometry?.dimensions ?? ctx.dimensions;
-    const composer = ctx.workbenchEnabled
-      ? layoutComposer(ctx.perTab.inputBuffer, surfaceDimensions.columns, 5, ctx.workbenchUiState?.composer.cursor)
-      : null;
-    const vp = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
+    const composer = surface?.composer ?? null;
+    const c = geometry ? new TerminalCanvas(surfaceDimensions.columns, surfaceDimensions.rows) : frameCanvas;
+    const baseViewport = computeViewport(surfaceDimensions, 'agent', composer?.rows.length ?? 1);
+    const vp = geometry ? { ...baseViewport,
+      panelRow: geometry.panelRow, topBorderRow: geometry.topBorderRow, bottomBorderRow: geometry.bottomBorderRow,
+      scrollbackTop: geometry.regions.transcriptBody.y,
+      scrollbackBottom: geometry.regions.transcriptBody.y + geometry.regions.transcriptBody.height - 1,
+      scrollbackRows: geometry.regions.transcriptBody.height,
+      textWidth: Math.max(1, surfaceDimensions.columns - 2),
+    } : baseViewport;
     const STATUS_ROW = 4;              // status line + intent badge row
     // Stage-gutter left column: blank under slice #2; stage labels in slice #3.
     // Marker sits at column `gutter`, content text starts at `gutter + 2`. The
@@ -76,39 +86,55 @@ export class AgentView implements TuiView {
     // clock has no meaning here — a long-horizon run can stream for minutes —
     // so the line surfaces elapsed time + time since the last progress mark,
     // escalating to a warning when the run appears stalled. Never a kill.
-    const ses = ctx.snap.session;
-    const liveness = ses?.liveness;
-    const selectedAgentId = ctx.workbenchUiState?.selectedAgentId;
-    const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
-    if (pendingApproval) {
-      const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
-      c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
-    } else if (liveness && ses?.phase !== SessionPhase.Idle) {
-      const idle = Date.now() - liveness.lastProgressAt;
-      let lifeLine = `\x1b[36mRUNNING ${formatActivityElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatActivityElapsed(idle)} ago`;
-      if (liveness.state !== 'healthy') {
-        const kind = liveness.lastProgressKind ?? 'no activity';
-        const desc = liveness.lastProgressDescription ?? '';
-        const flag = liveness.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
-        lifeLine += ` | \x1b[33m⚠ ${flag}\x1b[0m (${kind}${desc ? `: ${desc}` : ''})`;
+    // Workbench geometry: the top status line (approval elapsed / running
+    // liveness) is painted by the operator shell on header row 1 — chrome
+    // owns it, and this staged write would be wiped by the toolbar/pane paint
+    // before the blit. Legacy mode keeps the write as-is.
+    if (!geometry) {
+      const ses = ctx.snap.session;
+      const liveness = ses?.liveness;
+      const selectedAgentId = ctx.workbenchEnabled ? undefined : ctx.workbenchUiState?.selectedAgentId;
+      const pendingApproval = ctx.perTab.pendingApprovals?.find((approval) => approvalVisibleTo(approval, selectedAgentId));
+      if (pendingApproval) {
+        const elapsed = formatActivityElapsed(Date.now() - pendingApproval.requestedAt);
+        c.write(0, STATUS_ROW - 1, `\x1b[33mWAITING FOR APPROVAL · ${elapsed}${RESET}`);
+      } else if (liveness && ses?.phase !== SessionPhase.Idle) {
+        const idle = Date.now() - liveness.lastProgressAt;
+        let lifeLine = `\x1b[36mRUNNING ${formatActivityElapsed(Date.now() - liveness.startedAt)}\x1b[0m | progress ${formatActivityElapsed(idle)} ago`;
+        if (liveness.state !== 'healthy') {
+          const kind = liveness.lastProgressKind ?? 'no activity';
+          const desc = liveness.lastProgressDescription ?? '';
+          const flag = liveness.state === 'stalled' ? 'POSSIBLY STALLED' : 'SLOW';
+          lifeLine += ` | \x1b[33m⚠ ${flag}\x1b[0m (${kind}${desc ? `: ${desc}` : ''})`;
+        }
+        c.write(0, STATUS_ROW - 1, lifeLine);
       }
-      c.write(0, STATUS_ROW - 1, lifeLine);
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).
-    const allLines: ScrollbackLine[] = ctx.workbenchEnabled
-      ? buildWorkbenchScrollbackLines(ctx, vp.textWidth)
+    const allLines: readonly ScrollbackLine[] = ctx.workbenchEnabled
+      ? (vp.scrollbackRows > 0 ? ctx.workbenchLines ?? buildWorkbenchScrollbackLines(ctx, vp.textWidth) : [])
       : buildAgentScrollbackLines(ctx, vp.textWidth);
 
     if (ctx.workbenchEnabled) {
-      const mode = ctx.perTab.transcriptMode ?? 'compact';
-      const label = mode === 'compact' ? 'compact' : 'details';
-      c.write(Math.max(0, surfaceDimensions.columns - label.length - 12), STATUS_ROW, `\x1b[90m${label} · Ctrl+O${RESET}`);
+      const toolbar = geometry!.regions.transcriptToolbar;
+      for (let row = toolbar.y; row < toolbar.y + toolbar.height; row++) c.write(0, row, ' '.repeat(surfaceDimensions.columns));
+      const pane = geometry!.regions.transcript;
+      if (pane.width >= 2 && pane.height >= 2) {
+        const color = getWorkbenchPreviewTheme().palette.cyan;
+        c.write(0, pane.y, `${color}╭${'─'.repeat(pane.width - 2)}╮${RESET}`);
+        for (let row = pane.y + 1; row < pane.y + pane.height - 1; row++) {
+          c.write(0, row, `${color}│${RESET}`);
+          c.write(pane.width - 1, row, `${color}│${RESET}`);
+        }
+        c.write(0, pane.y + pane.height - 1, `${color}╰${'─'.repeat(pane.width - 2)}╯${RESET}`);
+      }
+      paintTranscriptToolbar(c, { ...toolbar, x: 0 }, ctx.workbenchUiState, ctx.workbenchNewItems);
     }
 
     // Branch on pinnedBottom: pinned recomputes bottomAnchor fresh,
     // unpinned uses captured scrollOffset (absolute window-start index).
-    const effectiveOffset = ctx.perTab.pinnedBottom
+    const effectiveOffset = (ctx.workbenchEnabled ? ctx.workbenchUiState?.followTail ?? ctx.perTab.pinnedBottom : ctx.perTab.pinnedBottom)
       ? Math.max(0, allLines.length - vp.scrollbackRows)
       : ctx.perTab.scrollOffset;
 
@@ -130,27 +156,55 @@ export class AgentView implements TuiView {
       context:  (l, rowY) => this.renderContextLine(l, rowY, c, gutter),
     };
 
+    if (ctx.workbenchEnabled) {
+      const palette = getWorkbenchPreviewTheme().palette;
+      for (const kind of Object.keys(kindStyles)) kindStyles[kind] = (line, rowY) => {
+        if (!(line as WorkbenchScrollbackLine).previewFormatted) return;
+        const color = kind === 'approval' || kind === 'approvalCard' ? palette.yellow
+          : kind === 'context' ? palette.muted : kind === 'user' ? palette.foreground : palette.teal;
+        c.write(Math.min(1, surfaceDimensions.columns - 1), rowY, `${color}${line.text}${RESET}`);
+      };
+    }
+
     renderBottomAnchoredSlice({
       canvas: c,
       allLines,
       top: vp.scrollbackTop,
       bottomRow: vp.scrollbackBottom,
       offset: effectiveOffset,
-      columns: ctx.dimensions.columns,
+      columns: surfaceDimensions.columns,
       kindStyles,
     });
+
+    if (geometry) {
+      const rows = c.renderFrame().split('\n');
+      const pane = geometry.regions.transcript;
+      for (let row = pane.y; row < pane.y + pane.height; row++) {
+        frameCanvas.write(pane.x, row, rows[row] ?? '');
+      }
+      const inspector = geometry.regions.inspector;
+      if (inspector && inspector.height > 0) paintAgentInspector(frameCanvas, inspector, buildAgentInspectorModel(ctx.snap, ctx.workbenchUiState));
+    }
 
     // Input panel at panelRow.
     const buf = ctx.perTab.inputBuffer;
     if (composer) {
-      const firstRow = vp.panelRow - composer.rows.length + 1;
+      const firstRow = geometry!.regions.composerContent.y;
+      const prefixWidth = geometry!.composerPrefixWidth;
+      const theme = getWorkbenchPreviewTheme();
+      const { palette, glyphs } = theme;
+      const boxed = geometry!.regions.composer.height >= composer.rows.length + 2;
       for (let index = 0; index < composer.rows.length; index++) {
         const prefix = index === 0
-          ? (composer.hiddenRows > 0 ? ' … ' : ' › ')
-          : '   ';
-        c.write(0, firstRow + index, `\x1b[33m${prefix}${RESET}${composer.rows[index] ?? ''}`);
+          ? (composer.hiddenRows > 0 ? ' … ' : ' > ').slice(0, prefixWidth)
+          : ' '.repeat(prefixWidth);
+        const content = !buf && index === 0 ? `${palette.muted}Add your next instruction...${RESET}` : composer.rows[index] ?? '';
+        frameCanvas.write(0, firstRow + index, `${palette.cyan}${prefix}${RESET}${content}`);
+        if (boxed) {
+          frameCanvas.write(0, firstRow + index, `${palette.cyan}${glyphs.vertical}${RESET}`);
+          frameCanvas.write(geometry!.regions.composer.width - 1, firstRow + index, `${palette.cyan}${glyphs.vertical}${RESET}`);
+        }
       }
-      c.write(3 + composer.cursorColumn, firstRow + composer.cursorRow, `\x1b[7m ${RESET}`);
     } else {
       c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
       c.write(vp.promptCol, vp.panelRow, buf);
@@ -162,21 +216,29 @@ export class AgentView implements TuiView {
     // prompt so the rules read as part of the panel; on a tall terminal
     // the slash strip overlays the bottom rule's first row — acceptable
     // because the strip is intentionally visually loud.
-    const border = `\x1b[90m${'─'.repeat(surfaceDimensions.columns)}\x1b[0m`;
-    c.write(0, vp.topBorderRow, border);
-    c.write(0, vp.bottomBorderRow, border);
+    if (geometry && geometry.regions.composer.height >= composer!.rows.length + 2) {
+      const { palette, glyphs } = getWorkbenchPreviewTheme();
+      const inner = Math.max(0, geometry.regions.composer.width - 2);
+      frameCanvas.write(0, vp.topBorderRow, `${palette.cyan}${glyphs.topLeft}${glyphs.horizontal.repeat(inner)}${glyphs.topRight}${RESET}`);
+      frameCanvas.write(0, vp.bottomBorderRow, `${palette.cyan}${glyphs.bottomLeft}${glyphs.horizontal.repeat(inner)}${glyphs.bottomRight}${RESET}`);
+    } else if (!geometry) {
+      const border = `\x1b[90m${'─'.repeat(surfaceDimensions.columns)}${RESET}`;
+      frameCanvas.write(0, vp.topBorderRow, border);
+      frameCanvas.write(0, vp.bottomBorderRow, border);
+    }
 
     // Slash strip directly BELOW the panel.
     if (ctx.slash) {
-      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow: vp.panelRow, columns: surfaceDimensions.columns });
+      renderSlashOverlay({ canvas: frameCanvas, slash: ctx.slash, panelRow: vp.panelRow, columns: geometry?.regions.composer.width ?? surfaceDimensions.columns });
     }
 
     if (responsive) {
       paintRosterDrawer({
-        canvas: c,
+        canvas: frameCanvas,
+        left: geometry?.regions.roster?.x ?? geometry?.regions.overlay?.x,
         terminalColumns: ctx.dimensions.columns,
-        top: 3,
-        bottom: vp.topBorderRow - 1,
+        top: geometry?.regions.body.y ?? 3,
+        bottom: geometry ? geometry.regions.body.y + geometry.regions.body.height - 1 : vp.topBorderRow - 1,
         layout: responsive,
         agents: ctx.snap.runtime?.agents ?? null,
         tasks: ctx.snap.runtime?.tasks ?? null,

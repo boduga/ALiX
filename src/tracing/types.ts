@@ -199,6 +199,12 @@ export interface RunOutcome {
   status: RunStatus;
   /** Error message when status === "error". */
   error?: string;
+  /**
+   * The run's final user-visible result text (the turn summary), when one
+   * exists. Recorded as the run root observation's output so the trace shows
+   * what the run produced; capture (redaction + truncation) applies.
+   */
+  output?: string;
   /** Epoch milliseconds at run end, when known. */
   endedAt?: number;
 }
