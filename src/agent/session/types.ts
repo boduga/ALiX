@@ -299,9 +299,17 @@ export interface ToolConfig {
   tools?: import("../../providers/types.js").ToolDef[];
 }
 
+export interface CoordinationRunRequest {
+  readonly goal: string;
+  /** Integer worker concurrency, 1–8. Omitted keeps the runtime default. */
+  readonly maxConcurrency?: number;
+}
+
 export interface AgentSession {
   /** Process one user message through the agent loop. */
   processTurn(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
+  /** Explicit operator coordination intent; uses the existing governed turn/tool path. */
+  runCoordination?(request: CoordinationRunRequest): Promise<AgentTurnResult>;
   /**
    * Process one user message through the lightweight chat path.
    *

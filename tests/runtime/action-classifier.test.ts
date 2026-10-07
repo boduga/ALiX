@@ -764,6 +764,12 @@ describe("classifyAction — shell-execution recognition contract (T9 #385)", ()
       { prompt: "2 + 2", because: "pure arithmetic dominates" },
       { prompt: "what's in package.json", because: "natural-language state, not bare command" },
       { prompt: "list of bugs in the repo", because: "natural-language phrasing, not a shell command" },
+      {
+        prompt:
+          'Find every file under src/ that mentions "RunOutcome", read the three most relevant, and tell me which modules consume it.',
+        because:
+          "opens with a real command word ('find') but the tail is English prose — Layer-2 prose-tail guard (was shell_execution, capped at 2 iterations)",
+      },
     ];
 
     for (const { prompt, because } of NEGATIVE_CASES) {
@@ -944,6 +950,17 @@ describe("classifyAction — read-only-analysis recognition contract", () => {
         }
       });
     }
+
+    // A prose imperative that merely OPENS with a command word must not be
+    // forced onto shell.run: that route sets turnShellTask, which caps the
+    // run at 2 iterations (turn.ts) and killed a search → read → synthesize
+    // task before it could answer. It must reach the agent instead.
+    it("taskRouter(research imperative starting 'Find every file…') does not resolve to kind:'tool'", async () => {
+      const route = await taskRouter(
+        'Find every file under src/ that mentions "RunOutcome", read the three most relevant, and tell me which modules consume it.',
+      );
+      assert.notEqual(route.kind, "tool");
+    });
   });
 });
 

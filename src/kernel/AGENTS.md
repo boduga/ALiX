@@ -25,6 +25,8 @@
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.
 - `worker-executor.ts` — In-process runTask executor (CLI default)
+- `coordination-worker-context.ts` — Original run objective and bounded, identity-validated direct dependency results supplied to both worker executors.
+- `default-worker-review.ts` — Invocation-local event capture and objective review for in-process workers; full tool evidence comes from the task-loop observer, not telemetry previews.
 
 ## Local Contracts
 
@@ -52,9 +54,11 @@
 - Auxiliary nodes are not workers. When a goal declares owned paths, the stated worker count is satisfied by the 1:1 path→writer mapping, and a node that claims no declared path is allowed when it is read-only or a writer whose mentions are only declared files inside a declared directory (directory prep, verification). A writer that names an undeclared file, or references no declared location, still blocks planning. Auxiliary writers are scoped to the declared directory they touch, never to broad domain defaults.
 - A rejected coordination plan is retryable: the goal text is the caller's own input, so `alix_coordination_run` returns `retryable: true` with a recovery hint (one owned path per worker; auxiliary steps do not count as workers) instead of a fatal verdict.
 - Direct graph dependencies with explicit single-file outputs enter the consumer worker's `Input paths:` manifest and persisted `inputPaths` as full workspace-relative paths. The subagent receives this structured list and resolves only uniquely matching bare read filenames. Ordering-only dependencies and vague ownership scopes never fabricate input files.
+- Every worker receives the original run objective alongside its assigned task. Scheduler dispatch loads actual direct-dependency findings through `CoordinationResultStore`, validates run/worker/agent/attempt identity, and supplies bounded summaries with URLs, uncertainty and explicit missing-result warnings as untrusted data. Result references alone are not findings; workers never read protected result paths directly. Collaboration snapshots are passed to execution rather than merely persisted.
 - A coordination subagent's `partial` result is an execution failure, eligible for bounded retry. Only a `success` result completes a worker and contributes to a successful aggregate.
 - Graph strategy is inferred from dependency shape (`>=2` dependency-free roots → `hybrid`, else `sequential`), never from a model-supplied `strategy` label.
 - Coordination workers are ordered by `serializeOverlappingWriters`: any two writers whose ownership claims overlap (a vague `**` claim overlaps all) get a dependency edge; disjoint writers and read-only workers stay parallel.
+- Planned worker spawn and task-assignment events carry copied dependency IDs; dependency-bearing assignments explicitly publish dependency-waiting state.
 - Coordination plans publish queued/dependency-waiting canonical `agent.*` lifecycle rows before dispatch. Retry-attempt results are non-terminal presentation facts; only scheduler exhaustion/completion publishes terminal worker state, and dependency failure publishes an explicit blocked state.
 - Write workers reserve their final two model iterations for mutation/completion tools while owned outputs remain unwritten, preventing broad reconnaissance from consuming the entire bounded iteration budget.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
@@ -71,7 +75,12 @@
   `CoordinationStore.attachAggregateIfUnfinalized` checks and attaches under
   the per-run lock and source fingerprint. Concurrent finalizers return the
   same winning aggregate and emit one completed-aggregate event. A changed
-  replan fingerprint permits new finalization.
+  replan fingerprint permits new finalization. `runUntilIdle` awaits
+  finalization on completed/failed termination, and
+  `CoordinationCompletionService.finalize` awaits the
+  `coordination.aggregate.completed` append, so verification evidence is
+  durable before a blocking driver returns; tick and worker paths stay
+  fire-and-forget.
 - Aggregation failure emits independent evidence without changing execution
   status. Verification derives from persisted fields and the matching aggregate
   event across loop, tools, view, collaboration context, and CLI; no stored

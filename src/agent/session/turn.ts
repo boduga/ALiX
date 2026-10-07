@@ -25,6 +25,7 @@ import type { MutationSessionState } from "../../run.js";
 import "../agent.js";
 import { withTraceRun } from "../run-root.js";
 import { runTaskLoop } from "../../run/task-loop.js";
+import { isContinuationMessage } from "../../run/task-loop/continuation.js";
 import {
   createExecutionStateEmitter,
   reconcileTurnArtifacts,
@@ -61,11 +62,13 @@ import { TaskStateMachine, RunLimiter } from "../../autonomy/state-machine.js";
 import { FAILURE_REASONS } from "../system-prompt.js";
 import { buildSessionStreamHandler, emitSessionEvents, isCancellationError, livenessEventType } from "./helpers.js";
 import { buildSkillsSection, resolveDirectOutputCeiling, resolveExplicitSkills, setupWorkflow, spliceExplicitIntoFirstTurn, spliceSkillsSection } from "./setup.js";
-import { AgentTurnResult, Message, SessionPhase } from "./types.js";
+import { AgentTurnResult, Message, SessionPhase, type CoordinationRunRequest } from "./types.js";
 
+import { buildSessionConversationMessages, latestSubstantiveSessionRequest } from './conversation-history.js';
 import type { SessionState } from "./state.js";
 import { advancePhase, cancellationInProgress, feedActivity, getPhase } from "./activity.js";
 import { initialize } from "./init.js";
+import { acquireSessionTurn } from './turn-guard.js';
 
 export function createFreshSessionState(): MutationSessionState {
   return {
@@ -91,11 +94,28 @@ export function extractToolCallsFromMessages(msgs: Message[]): ToolCall[] {
   return calls;
 }
 
+type TurnOptions = { skills?: string[]; coordination?: CoordinationRunRequest };
+
+export async function runCoordination(state: SessionState, request: CoordinationRunRequest): Promise<AgentTurnResult> {
+  const goal = typeof request?.goal === 'string' ? request.goal.trim() : '';
+  if (!goal) throw new Error('Coordination requires a non-empty objective.');
+  const maxConcurrency = request.maxConcurrency;
+  if (maxConcurrency !== undefined && (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 8)) {
+    throw new Error('Coordination concurrency must be an integer from 1 to 8.');
+  }
+  if (state.config.readOnly) throw new Error('Coordination execution is unavailable in a read-only session.');
+  return processTurn(state, `Run a multi-worker coordination run for this objective:\n${goal}`, {
+    coordination: { goal, ...(maxConcurrency !== undefined ? { maxConcurrency } : {}) },
+  });
+}
+
 export async function processTurn(
   state: SessionState,
   message: string,
-  options?: { skills?: string[] },
+  options?: TurnOptions,
 ): Promise<AgentTurnResult> {
+  const release = acquireSessionTurn(state);
+  try {
   const runId = `run-${randomUUID().slice(0, 8)}`;
   const traceRun = state.traceClient.startRun({
     runId,
@@ -109,23 +129,34 @@ export async function processTurn(
   // file (see src/agent/run-root.ts): body result mapped to success/error,
   // an escaping throw classified cancellation-vs-error, endRun exactly
   // once via the finally. Tracing failures never alter the turn.
-  return withTraceRun(
+  const result = await withTraceRun(
     state.traceClient,
     traceRun,
     "processTurn ended before its outcome could be recorded",
     (result) => ({
       status: FAILURE_REASONS.has(result.reason ?? "") ? "error" : "success",
+      output: result.summary,
       endedAt: Date.now(),
     }),
     () => processTurnBody(state, message, runId, options),
   );
+  // Direct and grounded routes bypass the loop's history commit. Keep their
+  // public outcomes on this same session so later agent turns can refer back.
+  if (result.reason === 'direct' || result.reason === 'grounded_chat') {
+    state.messages.push({ role: 'user', content: message }, { role: 'assistant', content: result.summary });
+    if (!isContinuationMessage(message)) state.sessionGoal = message;
+  }
+  return result;
+  } finally {
+    release();
+  }
 }
 
 export async function processTurnBody(
   state: SessionState,
   message: string,
   runId: string,
-  options?: { skills?: string[] },
+  options?: TurnOptions,
 ): Promise<AgentTurnResult> {
   // The turn's execution context (same identity the root wrapper's startRun
   // used). Threaded into classifier, direct-generation, grounded-chat and
@@ -162,7 +193,7 @@ export async function processTurnBody(
       )
     : null;
 
-  const route = await taskRouter(message, {
+  const route = options?.coordination ? { kind: 'agent' as const } : await taskRouter(message, {
     classifierProvider: classifierProvider ?? undefined,
     // Enables model-based classifier spans under the run's trace when the
     // low-confidence fallback fires (R1, §18 coverage for the classifier).
@@ -239,7 +270,7 @@ export async function processTurnBody(
     const genResponse = await (useStream && genProvider.stream
       ? streamToResponse(genProvider, {
           systemPrompt: directSystemPrompt,
-          messages: [{ role: "user", content: route.prompt }],
+          messages: buildSessionConversationMessages(state.messages, route.prompt),
           maxOutputTokens: genMaxOutputTokens,
           context: turnContext,
         }, {
@@ -252,7 +283,7 @@ export async function processTurnBody(
         })
       : genProvider.complete({
           systemPrompt: directSystemPrompt,
-          messages: [{ role: "user", content: route.prompt }],
+          messages: buildSessionConversationMessages(state.messages, route.prompt),
           maxOutputTokens: genMaxOutputTokens,
           context: turnContext,
         })
@@ -407,11 +438,17 @@ export async function processTurnBody(
   // conversation history persists. Keeping the first message here made
   // later turns inherit stale task classification/tool scoping and made
   // their audit records point at an already-completed workflow.
+  const turnObjective = isContinuationMessage(message)
+    ? latestSubstantiveSessionRequest(state.messages, isContinuationMessage)
+      ?? latestSubstantiveSessionRequest([{ role: 'user', content: state.currentTask }], isContinuationMessage)
+      ?? message
+    : message;
   state.currentTask = message;
-  const turnTaskType = classifyTask(message);
-  const turnDepth = detectResearchDepth(message);
-  const turnShellTask = route.kind === "tool" || isShellTask(message);
-  const turnReadOnlyTask = isReadOnlyTask(message) || turnShellTask;
+  state.sessionGoal = turnObjective;
+  const turnTaskType = classifyTask(turnObjective);
+  const turnDepth = detectResearchDepth(turnObjective);
+  const turnShellTask = route.kind === "tool" || isShellTask(turnObjective);
+  const turnReadOnlyTask = isReadOnlyTask(turnObjective) || turnShellTask;
 
   if (continuingAgentSession) {
     const nextWorkflow = await setupWorkflow(state.ctx, state.session.sessionId, message);
@@ -431,6 +468,8 @@ export async function processTurnBody(
     type: "agent.session.turn.started",
     payload: { turn: state.turnCount, message },
   });
+
+  const conversationMessages = buildSessionConversationMessages(state.messages, message);
 
   // Push user message to accumulated messages
   state.messages.push({ role: "user", content: message });
@@ -697,19 +736,16 @@ export async function processTurnBody(
       provider: state.ctx.provider,
       providerTools: state.providerTools,
       mcpToolIndex: state.mcpToolIndex,
-      // Agent executions are objective-scoped. Keep the accumulated
-      // conversation for the session UI/audit trail, but give the task
-      // loop only the current objective. The lightweight chat path below
-      // still receives full chat history, so conversational continuity is
-      // preserved where it belongs without allowing completed agent turns
-      // to leak into a later task's summary.
-      messages: [{ role: "user", content: message }],
+      // Historical conversation is bounded public data, never a replayed
+      // objective/tool transcript. The current request remains authoritative.
+      messages: conversationMessages,
       sessionState,
       stateMachine,
       scope: state.ctx.scope,
       session: state.session,
       log: state.ctx.log,
       executor: state.ctx.toolExecutor,
+      coordinationKickoff: options?.coordination,
       mcpDiscovery: state.mcpDiscovery,
       selectedTools: state.selectedTools,
       hooks: state.hooks,
@@ -725,6 +761,7 @@ export async function processTurnBody(
       memoryStore: state.ctx.memoryStore,
       sessionId: state.ctx.sessionId,
       sessionDir: state.ctx.sessionDir,
+      cwd: state.config.cwd,
       systemPrompt: state.systemPrompt,
       onStream: livenessOnStream,
       hookRunner: state.ctx.hookRunner,
@@ -893,6 +930,9 @@ export async function processTurnBody(
     // Persist the failure/cancellation-path rows: the success-path flush
     // below is never reached when the loop throws.
     await flushMetrics();
+    state.messages.push({ role: 'assistant', content: isCancellationError(err)
+      ? state.lastCancelSummary ?? 'Cancelled'
+      : `Execution failed: ${err instanceof Error ? err.message : String(err)}` });
     state.turnCount++;
     state.activeActivity = undefined;
     throw err;

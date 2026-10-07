@@ -1,46 +1,83 @@
 import { formatActivityLine } from '../../views/activity-line.js';
 import type { ScrollbackLine } from '../../views/bottom-anchored-viewport.js';
 import { wrapText } from '../../views/wrap-text.js';
-import { renderResponse } from '../../blocks/render.js';
-import { getTheme } from '../../blocks/theme.js';
 import type { ViewRenderContext } from '../../views/types.js';
 import { ConversationProjection } from '../projections/conversation-projection.js';
-import type { ToolItem, TranscriptMode } from '../model/transcript-item.js';
+import type { TranscriptItem, TranscriptMode } from '../model/transcript-item.js';
 import { buildWorkbenchApprovalCardLines } from './approval-dialog.js';
-import { approvalVisibleTo } from '../model/selection.js';
+import { buildWorkbenchToolCardLines } from './tool-card.js';
+import { getTranscriptFocusAgentId, transcriptItemMatchesFilter } from '../model/transcript-filter.js';
+import { displayWidth, truncateDisplayText, wrapDisplayText } from '../../terminal-text.js';
+import { stripAnsi } from '../../box.js';
+import { renderResponse } from '../../blocks/render.js';
+import { getTheme } from '../../blocks/theme.js';
+import { getWorkbenchPreviewTheme } from '../model/preview-theme.js';
+import type { TimelineEntry } from '../../runtime/timeline-builder.js';
+import type { ExecutionTraceEntry } from '../../runtime/execution-trace.js';
 
-function appendRendered(
-  out: ScrollbackLine[],
-  kind: 'user' | 'agent',
-  text: string,
-  width: number,
-  themeName?: string,
-): void {
-  const theme = themeName ? getTheme(themeName) : undefined;
-  const rows = renderResponse(text, width, theme);
-  rows.forEach((row: any, index: number) => {
-    out.push({
-      kind,
-      text: row.text,
-      isFirst: index === 0,
-      ...(index === 0 ? { gutter: kind === 'user' ? 'YOU' : 'ALiX' } : {}),
-    });
-  });
+export interface WorkbenchScrollbackLine extends ScrollbackLine {
+  readonly previewFormatted?: true;
 }
 
-function toolMarker(tool: ToolItem): string {
-  switch (tool.status) {
-    case 'running': return '→';
-    case 'completed': return '✓';
-    case 'failed': return '✗';
-    case 'cancelled': return '○';
+function transcriptActor(item: TranscriptItem, ctx: ViewRenderContext): string {
+  if (item.kind === 'user') return 'YOU';
+  if (!item.agentId) return 'ALiX';
+  const agent = ctx.snap.runtime?.agents?.agents.find((agent) => agent.agentId === item.agentId);
+  return agent?.assignedAgentId ?? item.agentId;
+}
+
+function formatTranscriptTime(startedAt: number): string {
+  const date = new Date(startedAt);
+  return startedAt > 0 && Number.isFinite(date.getTime()) ? date.toISOString().slice(11, 19) : '??:??:??';
+}
+
+function appendPreviewRows(out: ScrollbackLine[], kind: string, body: string, width: number, item: TranscriptItem, ctx: ViewRenderContext, status = ''): void {
+  const p = getWorkbenchPreviewTheme().palette;
+  const reset = '\x1b[0m';
+  const outcome = item.kind === 'activity' ? item.verifiedOutcome : undefined;
+  const outcomeGlyph = outcome === 'success' ? '✓' : outcome === 'failure' ? '✗' : undefined;
+  const markedBody = outcomeGlyph && !body.startsWith(outcomeGlyph) ? `${outcomeGlyph} ${body}` : body;
+  const bodyRows = (columns: number): readonly string[] => renderResponse(markedBody, columns, ctx.themeName ? getTheme(ctx.themeName) : undefined)
+    .flatMap((row) => displayWidth(stripAnsi(row.text)) <= columns ? [row.text] : wrapDisplayText(stripAnsi(row.text), columns))
+    .map((text, index) => index === 0 && outcome !== undefined
+      ? text.replace(outcome === 'success' ? /^✓/ : /^✗/, (glyph) => `${outcome === 'success' ? p.green : p.red}${glyph}${p.foreground}`)
+      : text);
+  const agent = item.agentId ? ctx.snap.runtime?.agents?.agents.find((agent) => agent.agentId === item.agentId) : undefined;
+  const actorColor = agent?.role === 'coordinator' || agent?.role === 'orchestrator' ? p.purple
+    : item.kind === 'user' ? p.foreground
+    : agent && ['waiting', 'waiting_dependency', 'waiting_approval'].includes(agent.state) ? p.yellow : p.teal;
+  const actor = transcriptActor(item, ctx).replace(/[\x00-\x1f\x7f]/g, '');
+  const time = `[${formatTranscriptTime(item.startedAt)}]`;
+  const actorColumn = truncateDisplayText(actor, 18);
+  const safeStatus = truncateDisplayText(stripAnsi(status).replace(/[\x00-\x1f\x7f]/g, ''), 10);
+  const statusColor = /^(WAITING|APPROVAL|PARTIAL|CANCELLING)$/.test(safeStatus) ? p.yellow
+    : /^(RUNNING|STARTING|VERIFYING)$/.test(safeStatus) ? p.green
+    : safeStatus === 'FAILED' ? p.red : safeStatus === 'COMPLETED' ? p.purple : p.muted;
+  if (width >= 72) {
+    const prefix = `${time} ${actorColumn}${' '.repeat(18 - displayWidth(actorColumn))} ${safeStatus}${' '.repeat(10 - displayWidth(safeStatus))} `;
+    const styledPrefix = `${p.muted}${time}${reset} ${actorColor}${actorColumn}${reset}${' '.repeat(18 - displayWidth(actorColumn))} ${statusColor}${safeStatus}${reset}${' '.repeat(10 - displayWidth(safeStatus))} `;
+    const rows = markedBody ? bodyRows(Math.max(1, width - displayWidth(prefix))) : [''];
+    rows.forEach((text, index) => out.push({ kind, text: `${index === 0 ? styledPrefix : ' '.repeat(displayWidth(prefix))}${p.foreground}${text}${reset}`, isFirst: index === 0, ...(index === 0 && (kind === 'user' || kind === 'agent') ? { gutter: kind === 'user' ? 'YOU' : 'ALiX' } : {}) }));
+  } else {
+    const metadata = `${time} ${actor}${status ? ` ${safeStatus}` : ''}`;
+    const metadataRows = wrapDisplayText(metadata, width);
+    metadataRows.forEach((text, index) => out.push({ kind, text: metadataRows.length === 1
+      ? `${p.muted}${time}${reset} ${actorColor}${actor}${reset}${status ? ` ${statusColor}${safeStatus}${reset}` : ''}`
+      : `${actorColor}${text}${reset}`, isFirst: index === 0 }));
+    const indent = width > 2 ? '  ' : '';
+    bodyRows(Math.max(1, width - indent.length)).forEach((text) => out.push({ kind, text: `${indent}${p.foreground}${text}${reset}`, isFirst: false }));
   }
 }
 
-function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
-  if (pendingApprovalTool === tool.name && tool.status === 'running') return `→ ${tool.name} · approval required`;
-  const duration = tool.durationMs === undefined ? '' : ` · ${tool.durationMs}ms`;
-  return `${toolMarker(tool)} ${tool.name}${duration}`;
+function tagRows(out: ScrollbackLine[], start: number, itemId: string): void {
+  for (let index = start; index < out.length; index++) {
+    out[index]!.itemId = itemId;
+    out[index]!.wrappedOffset = index - start;
+  }
+}
+
+function appendSeparator(out: ScrollbackLine[], itemId: string): void {
+  if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false, itemId: `separator:${itemId}`, wrappedOffset: 0 });
 }
 
 /**
@@ -50,15 +87,99 @@ function toolSummary(tool: ToolItem, pendingApprovalTool?: string): string {
  * viewport, input panel, plans, streaming, and activity contracts remain
  * stable.
  */
-export function buildWorkbenchScrollbackLines(
+/**
+ * Tick-safe memo for the history portion of the scrollback.
+ *
+ * Only the trailing live-activity row depends on the clock
+ * (`formatActivityLine(activity, Date.now())`); every history line derives
+ * deterministically from content inputs (timeline/trace extents, mode,
+ * filter, focus, theme, approvals, roster states, streaming text, width).
+ * So a clock-only repaint reuses the cached history lines and rebuilds just
+ * the tail — no whole-history re-projection/re-wrap per tick (Phase 10.4).
+ *
+ * Invalidation is content-based (never reference identity): any content
+ * change alters the key and rebuilds. Cached lines are plain data (no ctx
+ * refs), so sharing them across paints cannot leak or mutate state.
+ * Single entry is enough — paints are sequential and repeat the same state.
+ */
+interface ScrollbackCacheEntry {
+  key: string;
+  lines: WorkbenchScrollbackLine[];
+}
+
+let scrollbackCache: ScrollbackCacheEntry | undefined;
+
+function timelineFingerprint(timeline: readonly TimelineEntry[]): string {
+  // Full text/detail content (not lengths): same-length edits (e.g. a glyph
+  // swap ✓→✗ in tests, or a corrected word) must invalidate. Event-sourced
+  // timelines are append-only in practice, but the key must not assume that.
+  return `${timeline.length}|${timeline
+    .map((e) =>
+      [
+        e.id,
+        e.kind,
+        e.actor ?? '',
+        e.agentId ?? '',
+        e.sessionId,
+        e.startedAt,
+        e.text ?? '',
+        e.userSafe ?? '',
+        e.activityState ?? '',
+        e.verifiedOutcome ?? '',
+        e.detail ?? '',
+        e.planTasks?.map((t) => `${t.index}:${t.status}:${t.title}`).join(',') ?? '',
+      ].join(','),
+    )
+    .join(';')}`;
+}
+
+function traceFingerprint(trace: readonly ExecutionTraceEntry[]): string {
+  return `${trace.length}|${trace
+    .map((e) =>
+      [e.id, e.kind, e.status, e.title, e.agentId ?? '', e.startedAt, e.detail ?? '', JSON.stringify(e.toolMetadata ?? null)].join(','),
+    )
+    .join(';')}`;
+}
+
+function scrollbackCacheKey(ctx: ViewRenderContext, textWidth: number): string {
+  const ui = ctx.workbenchUiState;
+  const perTab = ctx.perTab;
+  const timeline = ctx.runtime?.agent?.timeline ?? [];
+  const trace = ctx.snap.runtime?.trace ?? [];
+  const approvals = perTab.pendingApprovals ?? [];
+  const agents = ctx.snap.runtime?.agents?.agents ?? [];
+  const theme = getWorkbenchPreviewTheme();
+  return [
+    textWidth,
+    perTab.transcriptMode ?? 'compact',
+    ui?.transcriptFilter ?? 'all',
+    getTranscriptFocusAgentId(ui) ?? '',
+    ctx.themeName ?? '',
+    theme.glyphMode,
+    JSON.stringify(theme.palette),
+    timelineFingerprint(timeline),
+    traceFingerprint(trace),
+    approvals.map((a) => `${a.id}:${a.toolName}:${a.target}`).join(','),
+    perTab.streamingText ?? '',
+    agents.map((a) => `${a.agentId}:${a.state}:${a.assignedAgentId ?? ''}:${a.role ?? ''}`).join(','),
+  ].join('\u0000');
+}
+
+/**
+ * Clock-free history portion: projection, wrap, approval cards, streaming
+ * text. Safe to memoize — every input that can change its output is part of
+ * the cache key (see scrollbackCacheKey). The live activity row is NOT here;
+ * see buildScrollbackTail.
+ */
+function buildStableScrollbackLines(
   ctx: ViewRenderContext,
   textWidth: number,
-): ScrollbackLine[] {
+): WorkbenchScrollbackLine[] {
   const out: ScrollbackLine[] = [];
   const mode: TranscriptMode = ctx.perTab.transcriptMode ?? 'compact';
-  const focusAgentId = ctx.workbenchUiState?.selectedAgentId;
-  const pendingApprovals = (ctx.perTab.pendingApprovals ?? [])
-    .filter((approval) => approvalVisibleTo(approval, focusAgentId));
+  const focusAgentId = getTranscriptFocusAgentId(ctx.workbenchUiState);
+  const filter = ctx.workbenchUiState?.transcriptFilter ?? 'all';
+  const pendingApprovals = ctx.perTab.pendingApprovals ?? [];
   const pendingApproval = pendingApprovals[0];
   const pendingApprovalTool = pendingApproval?.toolName;
   let inlineApprovalRendered = false;
@@ -70,38 +191,44 @@ export function buildWorkbenchScrollbackLines(
   });
 
   if (focusAgentId) {
+    const start = out.length;
     wrapText(`focused agent: ${focusAgentId}`, textWidth).forEach((text, index) => {
       out.push({ kind: 'context', text, isFirst: index === 0 });
     });
+    tagRows(out, start, `scope:agent:${focusAgentId}`);
   }
   if (!focusAgentId && ctx.workbenchUiState) {
-    const aggregate = ctx.workbenchUiState.selectedRunId
-      ? `all agents · run ${ctx.workbenchUiState.selectedRunId}`
-      : 'all agents';
+    const start = out.length;
+    const aggregate = 'all agents';
     wrapText(aggregate, textWidth).forEach((text, index) => {
       out.push({ kind: 'context', text, isFirst: index === 0 });
     });
+    tagRows(out, start, 'scope:all');
   }
 
   for (const item of conversation.items) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    if (!transcriptItemMatchesFilter(item, filter)) continue;
+    appendSeparator(out, item.id);
+    const start = out.length;
 
     switch (item.kind) {
       case 'user':
-        appendRendered(out, 'user', item.text, textWidth, ctx.themeName);
+        appendPreviewRows(out, 'user', item.text, textWidth, item, ctx);
         break;
       case 'assistant':
-        appendRendered(out, 'agent', item.text, textWidth, ctx.themeName);
+        appendPreviewRows(out, 'agent', item.text, textWidth, item, ctx);
+        break;
+      case 'activity':
+        appendPreviewRows(out, 'activity', item.text, textWidth, item, ctx, item.status ? ({ thinking: 'RUNNING', tool_running: 'RUNNING', waiting_dependency: 'WAITING', waiting_approval: 'APPROVAL' } as Readonly<Record<string, string>>)[item.status] ?? item.status.toUpperCase() : '');
         break;
       case 'tool-group':
         for (const tool of item.tools) {
-          const lines = wrapText(toolSummary(tool, pendingApprovalTool), textWidth);
-          lines.forEach((text, index) => out.push({ kind: 'toolCall', text, isFirst: index === 0 }));
-          if ((mode === 'detailed' || tool.status === 'failed') && tool.detail) {
-            wrapText(`  ${tool.detail}`, textWidth).forEach((text) => {
-              out.push({ kind: tool.status === 'failed' ? 'approval' : 'context', text, isFirst: false });
-            });
-          }
+          if (filter === 'error' && tool.status !== 'failed') continue;
+          const toolStart = out.length;
+          appendPreviewRows(out, 'toolCall', '', textWidth, { ...item, startedAt: tool.startedAt ?? item.startedAt }, ctx);
+          out.push(...buildWorkbenchToolCardLines(tool, { width: textWidth, indent: textWidth >= 72 ? 41 : 2, mode,
+            approvalPending: pendingApprovalTool === tool.name }));
+          tagRows(out, toolStart, `tool:${tool.id}`);
         }
         break;
       case 'approval':
@@ -135,28 +262,26 @@ export function buildWorkbenchScrollbackLines(
             out.push({ kind: 'plan', text, isFirst: false });
           });
         }
-        if (item.text) appendRendered(out, 'agent', item.text, textWidth, ctx.themeName);
+        if (item.text) appendPreviewRows(out, 'agent', item.text, textWidth, item, ctx);
         break;
       case 'phase':
-        wrapText(`◇ ${item.phase}`, textWidth).forEach((text, index) => {
-          out.push({ kind: 'context', text, isFirst: index === 0 });
-        });
+        appendPreviewRows(out, 'context', item.phase, textWidth, item, ctx);
         break;
       case 'diagnostic': {
         const marker = item.severity === 'error' ? '✗' : item.severity === 'warning' ? '!' : '·';
-        wrapText(`${marker} ${item.text}`, textWidth).forEach((text, index) => {
-          out.push({ kind: item.severity === 'error' ? 'approval' : 'context', text, isFirst: index === 0 });
-        });
+        appendPreviewRows(out, item.severity === 'error' ? 'approval' : 'context', `${marker} ${item.text}`, textWidth, item, ctx);
         break;
       }
     }
+    if (item.kind !== 'tool-group') tagRows(out, start, item.id);
   }
 
   // Runtime projection and timeline sampling can arrive in adjacent frames.
   // Preserve the authoritative pending action even before its semantic event
   // becomes visible; once present, the branch above places it in exact order.
   if (pendingApproval && !inlineApprovalRendered) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+    appendSeparator(out, `pending-approval:${pendingApproval.id}`);
+    const start = out.length;
     buildWorkbenchApprovalCardLines(
       pendingApproval,
       pendingApprovals.length,
@@ -169,29 +294,79 @@ export function buildWorkbenchScrollbackLines(
         ...(index === 0 ? { gutter: 'APPROVAL' } : {}),
       });
     });
+    tagRows(out, start, `pending-approval:${pendingApproval.id}`);
   }
 
   const streaming = ctx.perTab.streamingText;
-  if (streaming) {
-    if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
-    const lines = wrapText(streaming, textWidth);
-    lines.forEach((text, index) => out.push({
-      kind: 'streaming',
-      text,
-      isFirst: index === 0,
-      isLast: index === lines.length - 1,
-      ...(index === 0 ? { gutter: 'ALiX' } : {}),
-    }));
-  } else {
+  const latestProse = [...conversation.items].reverse().find((item) => item.kind === 'assistant' || item.kind === 'user');
+  const streamAlreadyLanded = latestProse?.kind === 'assistant' && latestProse.text.trim().replace(/\s+/g, ' ') === streaming?.trim().replace(/\s+/g, ' ');
+  if (streaming && !streamAlreadyLanded && (filter === 'all' || filter === 'response') && !focusAgentId) {
+    appendSeparator(out, `streaming:${focusAgentId ?? 'all'}`);
+    const start = out.length;
+    appendPreviewRows(out, 'streaming', streaming, textWidth, {
+      id: 'live-stream', kind: 'assistant', text: streaming, startedAt: 0,
+      sourceEvents: { firstSequence: 0, lastSequence: 0 },
+    }, ctx);
+    if (out.length > start) out[out.length - 1]!.isLast = true;
+    tagRows(out, start, `streaming:${focusAgentId ?? 'all'}`);
+  }
+
+  return out.map((line) => ({ ...line, previewFormatted: true as const }));
+}
+
+/**
+ * Clock-dependent tail: the live activity row. `formatActivityLine` reads
+ * `Date.now()`, so this is rebuilt on every call while the stable history
+ * above is served from cache. `hasStable` reproduces the separator rule
+ * (no leading separator on an otherwise empty transcript).
+ */
+function buildScrollbackTail(
+  ctx: ViewRenderContext,
+  textWidth: number,
+  filter: string,
+  focusAgentId: string | undefined,
+  hasStable: boolean,
+): WorkbenchScrollbackLine[] {
+  const out: ScrollbackLine[] = [];
+  const streaming = ctx.perTab.streamingText;
+  if (!streaming && (filter === 'all' || filter === 'activity') && !focusAgentId) {
     const activity = ctx.snap.session?.activity;
     const activityText = activity ? formatActivityLine(activity, Date.now()) : undefined;
     if (activityText) {
-      if (out.length > 0) out.push({ kind: 'user', text: '', isFirst: false });
+      if (hasStable) {
+        out.push({ kind: 'user', text: '', isFirst: false, itemId: `separator:activity:${focusAgentId ?? 'all'}`, wrappedOffset: 0 });
+      }
+      const start = out.length;
       wrapText(activityText, textWidth).forEach((text, index) => {
         out.push({ kind: 'activity', text, isFirst: index === 0, ...(index === 0 ? { gutter: 'ALiX' } : {}) });
       });
+      tagRows(out, start, `activity:${focusAgentId ?? 'all'}`);
     }
   }
+  return out.map((line) => ({ ...line, previewFormatted: true as const }));
+}
 
-  return out;
+/**
+ * Builds the workbench transcript scrollback lines with a tick-safe memo.
+ *
+ * The history portion is cached by content key; only the live activity tail
+ * is rebuilt per call. A clock-only repaint therefore reuses the cached
+ * line objects (observable via reference equality) instead of
+ * re-projecting and re-wrapping the whole history (Phase 10.4).
+ */
+export function buildWorkbenchScrollbackLines(
+  ctx: ViewRenderContext,
+  textWidth: number,
+): WorkbenchScrollbackLine[] {
+  const key = scrollbackCacheKey(ctx, textWidth);
+  let stable = scrollbackCache?.key === key ? scrollbackCache.lines : undefined;
+  if (!stable) {
+    stable = buildStableScrollbackLines(ctx, textWidth);
+    scrollbackCache = { key, lines: stable };
+  }
+  const filter = ctx.workbenchUiState?.transcriptFilter ?? 'all';
+  const focusAgentId = getTranscriptFocusAgentId(ctx.workbenchUiState);
+  const tail = buildScrollbackTail(ctx, textWidth, filter, focusAgentId, stable.length > 0);
+  if (tail.length === 0) return stable;
+  return [...stable, ...tail];
 }

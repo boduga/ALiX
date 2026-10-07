@@ -293,6 +293,90 @@ describe("withProviderContracts model spans — complete()", () => {
     expect(recorder.ended[0]!.outcome.status).toBe("error");
   });
 
+  it("records tool calls as span output when the response text is empty", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        complete: async () => ({
+          text: "",
+          toolCalls: [{ id: "c1", name: "alix_file_read", args: { path: "a.txt" } }],
+          finishReason: "tool_calls",
+        }),
+      }),
+    );
+
+    const response = await wrapped.complete(request());
+    // The provider response is unchanged — only the recorded span output grew.
+    expect(response.text).toBe("");
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome).toMatchObject({
+      status: "success",
+      output: 'alix_file_read({"path":"a.txt"})',
+      finishReason: "tool_calls",
+    });
+  });
+
+  it("records text and tool calls together when the response carries both", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        complete: async () => ({
+          text: "Reading the file now.",
+          toolCalls: [{ id: "c1", name: "alix_file_read", args: { path: "a.txt" } }],
+          finishReason: "tool_calls",
+        }),
+      }),
+    );
+
+    const response = await wrapped.complete(request());
+    // The provider response is untouched — only the span output grows.
+    expect(response.text).toBe("Reading the file now.");
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome.output).toBe(
+      'Reading the file now.\nalix_file_read({"path":"a.txt"})',
+    );
+  });
+
+  it("joins multiple tool calls as span output when the response text is empty", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        complete: async () => ({
+          text: "",
+          toolCalls: [
+            { id: "c1", name: "alix_file_read", args: { path: "a.txt" } },
+            { id: "c2", name: "alix_grep_search", args: { pattern: "TODO" } },
+          ],
+          finishReason: "tool_calls",
+        }),
+      }),
+    );
+
+    await wrapped.complete(request());
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome.output).toBe(
+      'alix_file_read({"path":"a.txt"})\nalix_grep_search({"pattern":"TODO"})',
+    );
+  });
+
+  it("records an empty span output when the response has neither text nor tool calls", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        complete: async () =>
+          ({ text: "", toolCalls: [], finishReason: "stop" }) satisfies NormalizedResponse,
+      }),
+    );
+
+    await wrapped.complete(request());
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome.output).toBe("");
+  });
+
   it("fails open when startModelSpan throws — provider result is unaffected", async () => {
     const recorder = new RecordingTraceClient();
     recorder.failStartModelSpan = true;
@@ -362,6 +446,60 @@ describe("withProviderContracts model spans — stream()", () => {
     expect(recorder.started).toHaveLength(1);
     expect(recorder.ended).toHaveLength(1);
     expect(recorder.ended[0]!.outcome.status).toBe("cancelled");
+  });
+
+  it("records emitted tool calls as span output when the stream carries no text", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        stream: () =>
+          fromChunks([
+            {
+              type: "tool_call",
+              toolCall: { id: "c1", name: "alix_file_read", args: { path: "a.txt" } },
+            },
+            { type: "done", finishReason: "tool_calls" },
+          ]),
+      }),
+    );
+
+    const chunks = await collect(wrapped.stream!(request()));
+    expect(chunks.map((c) => c.type)).toEqual(["tool_call", "done"]);
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome).toMatchObject({
+      status: "success",
+      output: 'alix_file_read({"path":"a.txt"})',
+      finishReason: "tool_calls",
+    });
+  });
+
+  it("records streamed text together with emitted tool calls as span output", async () => {
+    const recorder = new RecordingTraceClient();
+    enable(recorder);
+    const wrapped = withProviderContracts(
+      fakeAdapter({
+        stream: () =>
+          fromChunks([
+            { type: "text_delta", text: "Checking the file " },
+            {
+              type: "tool_call",
+              toolCall: { id: "c1", name: "alix_file_read", args: { path: "a.txt" } },
+            },
+            { type: "done", finishReason: "tool_calls" },
+          ]),
+      }),
+    );
+
+    const chunks = await collect(wrapped.stream!(request()));
+    expect(chunks.map((c) => c.type)).toEqual(["text_delta", "tool_call", "done"]);
+    // One span for the whole stream; text first, tool calls appended.
+    expect(recorder.started).toHaveLength(1);
+    expect(recorder.ended).toHaveLength(1);
+    expect(recorder.ended[0]!.outcome.output).toBe(
+      'Checking the file \nalix_file_read({"path":"a.txt"})',
+    );
+    expect(recorder.ended[0]!.outcome.finishReason).toBe("tool_calls");
   });
 
   it("emits one success span for an empty (completed) stream", async () => {

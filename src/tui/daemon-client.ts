@@ -155,12 +155,18 @@ export class DaemonAgentSession implements AgentSession {
     private cwd: string,
     private socketPath: string | null,
     private sessionMode: string,
+    /**
+     * TUI-local session identity — the `.alix/sessions/<id>` directory name
+     * owned by the composition root. Required rather than defaulted: session
+     * identity must come from the run that created the directory, never from
+     * a second clock read inside this class. A per-class `Date.now()` runs
+     * after `runTui` already mkdir'd the directory, so every event stamped
+     * through `getSessionId()` lands in that directory under a foreign id,
+     * and approval filtering compares against an id no approval carries.
+     */
+    private readonly localSessionId: string,
   ) {
-    // Plain timestamp — the session-id prefix scheme (tui-/daemon-/run-)
-    // was redundant: the *mode* is already shown separately in the header,
-    // and a unique search key matters more than the prefix. The daemon
-    // may overwrite this with a server-assigned UUID on first response.
-    this.id = `${Date.now()}`;
+    this.id = localSessionId;
   }
 
   getMode(): "auto" | "ask" | "bypass" {
@@ -184,9 +190,15 @@ export class DaemonAgentSession implements AgentSession {
     return readVersionCached();
   }
 
-  getSessionId(): string { return this.id; }
+  /**
+   * Stable for the life of the session. The daemon may hand back a
+   * server-assigned id on `close` (`this.id`), but that id is daemon-side
+   * correlation state: it never names the local directory these events are
+   * appended to, so it must not surface as the session identity.
+   */
+  getSessionId(): string { return this.localSessionId; }
   getPhase(): SessionPhase { return this._phase; }
-  getState(): any { return { sessionId: this.id, messages: [], toolHistory: [], turnCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; }
+  getState(): any { return { sessionId: this.localSessionId, messages: [], toolHistory: [], turnCount: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; }
   async save(): Promise<void> {}
   async resume(_id: string): Promise<void> {}
 

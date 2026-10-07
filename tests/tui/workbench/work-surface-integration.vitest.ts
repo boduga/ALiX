@@ -45,6 +45,184 @@ function type(internal: { handleRaw(buffer: Buffer): void }, text: string): void
 }
 
 describe('Workbench work surface integration', () => {
+  it('opens inspector without executing, restores drawer, opens bounded artifacts', () => {
+    const turn = vi.fn(async () => ({ summary: 'unused' }));
+    const { internal } = makeWorkbench(turn);
+    type(internal, 'draft c / 123 ad?');
+    internal.handleRaw(Buffer.from('\x01'));
+    internal.handleRaw(Buffer.from('\x05'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ focus: 'modal', overlayStack: ['inspector'], drawer: 'agents' });
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ focus: 'drawer', overlayStack: [], drawer: 'agents' });
+    internal.handleRaw(Buffer.from('\x05'));
+    internal.handleRaw(Buffer.from('\x12'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ focus: 'drawer', overlayStack: [], drawer: 'artifacts', composer: { text: 'draft c / 123 ad?' } });
+    expect(turn).not.toHaveBeenCalled();
+  });
+
+  it('keeps invalid slash text and restores failed submitted instruction without raw stderr', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write');
+    const turn = vi.fn(async () => { throw new Error('provider unavailable'); });
+    const { internal } = makeWorkbench(turn);
+    type(internal, '/');
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('/');
+    internal.workbenchStore.dispatch({ type: 'composer.replace', text: 'retry instruction' });
+    internal.getStateForTest().views.agent.inputBuffer = 'retry instruction';
+    internal.handleRaw(Buffer.from('\r'));
+    await vi.waitFor(() => expect(internal.getWorkbenchStateForTest().composer.text).toBe('retry instruction'));
+    expect(turn).toHaveBeenCalledWith('retry instruction');
+    expect(stderr.mock.calls.flat().join('')).not.toContain('[alix-tui] agent submit error');
+    stderr.mockRestore();
+  });
+
+  it('retains later draft when foreground submission fails', async () => {
+    let reject!: (err: Error) => void;
+    const pending = new Promise<any>((_resolve, fail) => { reject = fail; });
+    const { internal } = makeWorkbench(() => pending);
+    type(internal, 'first'); internal.handleRaw(Buffer.from('\r'));
+    type(internal, 'later draft'); reject(new Error('offline'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('later draft');
+  });
+
+  it('restores only after every candidate fails; successful fallback leaves composer clear', async () => {
+    const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const dispatch = (app as any).dispatchToSession.bind(app);
+    await dispatch('original', 'agent', internal.getStateForTest().views.agent, [async () => { throw new Error('first failed'); }, async () => ({ summary: 'fallback accepted' })], '[agent]');
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('');
+    await dispatch('no provider', 'agent', internal.getStateForTest().views.agent, [], '[agent]');
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('no provider');
+  });
+
+  it.each(['inspector', 'help', 'diagnostics'])('paints preserved authoritative approval above %s overlay', (overlay) => {
+    const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.getStateForTest().views.agent.pendingApprovals = [{ id: 'pending-card', toolName: 'shell.run', target: 'check workspace', requestedAt: 1 }];
+    internal.workbenchStore.dispatch({ type: 'overlay.toggle', overlay });
+    (app as any).paintFullFrame();
+    const frame = ((app as any).output as MockOutput).writes.join('').replace(/\x1b\[[0-9;]*m/gu, '');
+    expect(frame).toContain('APPROVAL REQUIRED');
+    expect(frame).toContain('pending-card');
+    expect(frame).toContain('a approve · d deny');
+  });
+
+  it('bounds help scroll at visible end so one Up immediately changes content', () => {
+    const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'help' });
+    (app as any).paintFullFrame();
+    for (let i = 0; i < 20; i++) internal.handleRaw(Buffer.from('\x1b[6~'));
+    const max = (app as any).framePainter.overlayScrollLimit;
+    expect(max).toBeGreaterThan(0);
+    expect(internal.getWorkbenchStateForTest().overlayScrollOffset).toBe(max);
+    internal.handleRaw(Buffer.from('\x1b[A'));
+    expect(internal.getWorkbenchStateForTest().overlayScrollOffset).toBe(max - 1);
+  });
+
+  it.each([false,true])('closes an open drawer before cancel after Ctrl+F changes focus (active: %s)', active => {
+    const pending = deferred<any>(); const cancel = vi.fn(() => true);
+    const { internal } = makeWorkbench(() => pending.promise, cancel);
+    if (active) { type(internal, 'work'); internal.handleRaw(Buffer.from('\r')); }
+    internal.handleRaw(Buffer.from('\x01'));
+    internal.handleRaw(Buffer.from('\x06'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'agents', focus: 'transcript' });
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'closed', focus: 'composer' });
+    expect(cancel).not.toHaveBeenCalled();
+    pending.resolve({ summary: 'done' });
+  });
+
+  it('closes an idle drawer through raw Escape', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    internal.handleRaw(Buffer.from('\x01'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'agents', focus: 'drawer' });
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'closed', focus: 'composer' });
+  });
+
+  it('closes an active drawer before a second Escape cancels the foreground turn', async () => {
+    const pending = deferred<any>();
+    const cancel = vi.fn(() => true);
+    const { internal } = makeWorkbench(() => pending.promise, cancel);
+    type(internal, 'work');
+    internal.handleRaw(Buffer.from('\r'));
+    internal.handleRaw(Buffer.from('\x01'));
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({ drawer: 'closed', focus: 'composer' });
+    expect(cancel).not.toHaveBeenCalled();
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(cancel).toHaveBeenCalledWith('operator pressed Escape');
+    pending.resolve({ summary: 'cancelled' });
+  });
+  it.each([true, false])('resolves the globally displayed approval while inspecting another worker (frontend pending: %s)', async frontendPending => {
+    const tryHandleCommand = vi.fn(async () => ({ handled: true, message: 'approved' }));
+    const { app, internal } = makeWorkbench(async () => ({ summary: 'unused' }), vi.fn(() => false), { tryHandleCommand });
+    const backend = { id: 'ap-backend', toolName: 'shell.run', target: 'backend check', requestedAt: 1, agentId: 'backend' };
+    const frontend = { id: 'ap-frontend', toolName: 'shell.run', target: 'frontend check', requestedAt: 2, agentId: 'frontend' };
+    internal.getStateForTest().views.agent.pendingApprovals = [backend, ...(frontendPending ? [frontend] : [])];
+    internal.workbenchStore.dispatch({ type: 'agent.select', agentId: 'frontend', scrollOffset: 0 });
+    internal.workbenchStore.dispatch({ type: 'transcript.scope.toggle' });
+    internal.workbenchStore.dispatch({ type: 'transcript.filter', filter: 'error' });
+    const output = (app as any).output as MockOutput;
+    (app as any).paintFullFrame();
+    expect(output.writes.join('').replace(/\x1b\[[0-9;]*m/gu, '')).toContain('ap-backend');
+    internal.handleRaw(Buffer.from('a'));
+    await vi.waitFor(() => expect(tryHandleCommand).toHaveBeenCalledWith('/approve ap-backend'));
+    expect(tryHandleCommand).toHaveBeenCalledTimes(1);
+    expect(internal.getStateForTest().views.agent.pendingApprovals[0].id).toBe('ap-backend');
+  });
+  it('keeps transcript controls separate from composer and inspector selection', () => {
+    const processTurn = vi.fn(async () => ({ summary: 'unused' }));
+    const { internal } = makeWorkbench(processTurn);
+    type(internal, '12345sf');
+    expect(internal.getWorkbenchStateForTest().composer.text).toBe('12345sf');
+    internal.workbenchStore.dispatch({ type: 'agent.select', agentId: 'frontend', scrollOffset: 0 });
+    internal.handleRaw(Buffer.from('\x06'));
+    expect(internal.getWorkbenchStateForTest().focus).toBe('transcript');
+    internal.handleRaw(Buffer.from('3'));
+    internal.handleRaw(Buffer.from('s'));
+    internal.handleRaw(Buffer.from('f'));
+    expect(internal.getWorkbenchStateForTest()).toMatchObject({
+      transcriptFilter: 'tool', transcriptScope: 'selected', followTail: false,
+      selectedAgentId: 'frontend', composer: { text: '12345sf' },
+    });
+    expect(internal.getStateForTest().views.agent.pinnedBottom).toBe(false);
+    internal.handleRaw(Buffer.from('f'));
+    expect(internal.getWorkbenchStateForTest().followTail).toBe(true);
+    expect(internal.getStateForTest().views.agent.pinnedBottom).toBe(true);
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(internal.getWorkbenchStateForTest().focus).toBe('composer');
+    expect(processTurn).not.toHaveBeenCalled();
+  });
+
+  it('synchronizes follow with manual scroll and End while transcript focused', () => {
+    const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
+    const per = internal.getStateForTest().views.agent;
+    (internal as unknown as { agentRuntime: unknown }).agentRuntime = {
+      timeline: Array.from({ length: 60 }, (_, index) => ({ id: `message-${index}`, kind: 'agent.response',
+        text: `message ${index}`, startedAt: index, sessionId: 'test', sourceEvents: { firstSequence: index + 1 } })), trace: [],
+    };
+    internal.handleRaw(Buffer.from('\x06'));
+    internal.handleRaw(Buffer.from('\x1b[A'));
+    expect(internal.getWorkbenchStateForTest().followTail).toBe(false);
+    expect(per.pinnedBottom).toBe(false);
+    expect(per.scrollOffset).toBeGreaterThan(0);
+    internal.handleRaw(Buffer.from('\x1b[F'));
+    expect(internal.getWorkbenchStateForTest().followTail).toBe(true);
+    expect(per.pinnedBottom).toBe(true);
+  });
+
+  it('preserves active Escape cancellation while transcript focused', async () => {
+    const pending = deferred<any>();
+    const cancel = vi.fn(() => true);
+    const { internal } = makeWorkbench(() => pending.promise, cancel);
+    type(internal, 'work');
+    internal.handleRaw(Buffer.from('\r'));
+    internal.handleRaw(Buffer.from('\x06'));
+    internal.handleRaw(Buffer.from('\x1b'));
+    expect(cancel).toHaveBeenCalledWith('operator pressed Escape');
+    expect(internal.getWorkbenchStateForTest().focus).toBe('transcript');
+    pending.resolve({ summary: 'cancelled' });
+  });
   it('opens artifact inspection and navigates correlated results', () => {
     const { internal } = makeWorkbench(async () => ({ summary: 'unused' }));
     internal.getStateForTest().lastSnapshot.runtime = {

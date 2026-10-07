@@ -32,6 +32,15 @@ barrel preserving public import paths.
   (assembly + tool-schema reservation + context events + preflight).
 - `verification-phase.ts` — `runIterationVerification`: end-of-iteration
   verification + repair loop (returns an `earlyReturn` RunResult on repair limit).
+- `completion-phase.ts` — `runNoToolsCompletion` and `runDeferredCompletion`:
+  no-tool verification/repair and explicit-done/shell completion routes;
+  shared `CompletionState` returns iteration counters on every exit.
+  `coordinationRunIsVerified` checks persisted coordination completion evidence.
+- `pending-action-phase.ts` — `gatePendingAgentAction`: shared bounded rejection
+  of final prose promising unfinished operator-authorized work.
+- `continuation.ts` — dependency-free `isContinuationMessage` and
+  `CONTINUATION_RE` shared by session input routing and task-loop evidence;
+  `predicates.ts` re-exports both for import compatibility.
 - `execution-state-phase.ts` — `initExecutionStateEmission`: opt-in
   (`ALIX_EXECUTION_STATE_EMIT=1`) bootstrap + objective emission through the
   `ExecutionStateEmitter`; inert/fail-soft otherwise.
@@ -49,6 +58,17 @@ barrel preserving public import paths.
 
 ## Local Contracts
 
+- **Pattern store path derives from the session path shape.** `evaluatePattern`
+  records outcomes at `<root>/.alix/patterns`, the store the governance CLI
+  (`src/cli/commands/governance/main.ts`) and the context compiler
+  (`src/repomap/context-compiler.ts`) read. The root is derived by locating
+  `.alix/sessions` inside the resolved `sessionDir`, never by counting `..`
+  segments: `sessionDir` is `<root>/.alix/sessions/<id>`, and a mis-counted
+  relative chain writes a second `.alix` tree inside the sessions directory.
+  When `sessionDir` does not match that shape the pattern write is skipped;
+  the `context.pattern_evaluated` outcome event still appends with
+  `patternRecorded: false` and `patternSkipReason: "sessionDir not under
+  .alix/sessions"` (recorded path sets `patternRecorded: true`).
 - **Resolve telemetry against the offered surface.** `resolveToolExecutionName`
   labels hooks, evidence, and selection observations; `handleToolCall` in
   `src/run/event-handlers.ts` performs dispatch. Both use
@@ -76,6 +96,7 @@ barrel preserving public import paths.
   known outcome, and matching verification evidence. Missing objective evidence
   yields `completed_unverified` after bounded retries; synthesis prompts must
   not assert completion before evidence exists.
+- Internal `TaskLoopDeps.coordinationKickoff` supplies one fixed exact `alix_coordination_run` on the first iteration instead of provider choice. It must already exist in the normal scoped offered surface; unavailable tools reject before generation or dispatch. The common tool handler retains policy/approval/cancellation, evidence and aggregate verification; later synthesis follows the normal loop. This is not a generic injected-tool API.
 - **Mutation evidence is outcome-based and tri-state.** `isMutationEvidence`
   rejects explicit `changed: false` and empty `changedFiles`, including identical
   `alix_file_create` content and no-op `alix_patch_apply` calls. Absent `changed`
@@ -94,6 +115,7 @@ barrel preserving public import paths.
 - Tool-result echoes are not synthesis. Re-prompt once, then terminate
   `completed_unverified` with a tool-result-echo rejection reason if the echo
   persists. A short quotation within substantive prose stays accepted.
+- `onToolResult` passes full successful model-facing result text to an invocation-local observer before telemetry previews truncate it. Observer failures cannot change execution; verification consumers must not substitute preview events for retrieved evidence.
 - Tool-selection instrumentation records the frozen offered surface, chosen
   candidate, resolved executor, and separate novelty, execution, and evidence
   signals in `tool.selection.observed`. Novel successful output does not prove
@@ -122,6 +144,12 @@ barrel preserving public import paths.
   token overlap. `tests/config/tool-scoping-ranking.vitest.ts` pins exact parity.
 - Final prose promising another agent action is continuation. Re-prompt within
   existing bounds; persistent promises terminate `completed_unverified`.
+  Apply the shared gate before no-tool, research-limit, verification-pass,
+  explicit-done and shell completion; execute genuine action calls before
+  assessing their completion. Ignore quoted examples, code and conditional
+  offers of later help. Generic do/perform/take wording requires an actual
+  unfinished action, not a conversational acknowledgment. Check cancellation
+  at completion phase entry, including the last allowed iteration.
 - `coordinationUnverified` tracks the latest coordination call's error or
   unverified run, independently of objective text, and clears only after a
   verified run. All completion routes consult it: objective evidence gates,

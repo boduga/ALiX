@@ -478,6 +478,78 @@ describe("LangfuseTraceClient · run registry", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Root input/output capture (TraceRunInput.task in, RunOutcome.output out)
+// ---------------------------------------------------------------------------
+
+describe("LangfuseTraceClient · root input/output capture", () => {
+  beforeEach(resetFakeState);
+
+  it("omits the root output attribute when the outcome carries no output", () => {
+    const { client } = makeClient();
+    const run = client.startRun(runInput());
+    client.endRun(run, { status: "success" });
+
+    const obs = rootObs("run-test1234");
+    expect(obs).toBeDefined();
+    expect(attrOfObs(obs!, "output")).toBeUndefined();
+  });
+
+  it("omits the root output attribute when the outcome output is an empty string", () => {
+    const { client } = makeClient();
+    const run = client.startRun(runInput());
+    client.endRun(run, { status: "success", output: "" });
+
+    expect(attrOfObs(rootObs("run-test1234")!, "output")).toBeUndefined();
+  });
+
+  it("records a non-empty root output and redacts secrets inside it", () => {
+    const { client } = makeClient();
+    const run = client.startRun(runInput());
+    client.endRun(run, {
+      status: "success",
+      output: `Rotated credentials. Was ${SK_PROJ_KEY} before.`,
+    });
+
+    const out = String(attrOfObs(rootObs("run-test1234")!, "output"));
+    expect(out).toContain("<redacted>");
+    expect(out).not.toContain(SK_PROJ_KEY);
+  });
+
+  it("truncates a long root output to the configured message limit", () => {
+    const { client } = makeClient({
+      capture: { messages: "truncated", maxMessageChars: 100 },
+    });
+    const run = client.startRun(runInput());
+    client.endRun(run, { status: "success", output: "x".repeat(500) });
+
+    expect(String(attrOfObs(rootObs("run-test1234")!, "output"))).toHaveLength(100);
+  });
+
+  it("records the run task as the root input", () => {
+    const { client } = makeClient();
+    client.startRun(runInput({ task: "Ship the tracing fix" }));
+
+    expect(attrOfObs(rootObs("run-test1234")!, "input")).toBe("Ship the tracing fix");
+  });
+
+  it("omits the root input attribute when the run has no task", () => {
+    const { client } = makeClient();
+    client.startRun(runInput({ task: undefined }));
+
+    expect(attrOfObs(rootObs("run-test1234")!, "input")).toBeUndefined();
+  });
+
+  it("redacts the root input before it reaches the SDK", () => {
+    const { client } = makeClient();
+    client.startRun(runInput({ task: `Verify auth ${SK_PROJ_KEY}` }));
+
+    const input = String(attrOfObs(rootObs("run-test1234")!, "input"));
+    expect(input).toContain("<redacted>");
+    expect(input).not.toContain(SK_PROJ_KEY);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Span lifecycle + idempotency + unknown-run noops
 // ---------------------------------------------------------------------------
 

@@ -52,3 +52,32 @@ describe('TimelineBuilder durable state (Phase 6.5)', () => {
     expect(b.snapshot()).toEqual([]);
   });
 });
+
+
+describe('safe activity checkpoint validation', () => {
+  it.each([
+    { userSafe: 'true' }, { userSafe: 1 }, { userSafe: null },
+    { verifiedOutcome: true }, { verifiedOutcome: 'completed' }, { verifiedOutcome: {} },
+    { activityState: {} }, { activityState: 1 }, { activityState: 'private thought' },
+  ])('rejects malformed activity metadata without replacing durable entries: %j', (metadata) => {
+    const b = new TimelineBuilder('chat-1');
+    b.update([evt(1, 'chat.message', 'preserved')]);
+    const before = b.snapshot();
+    expect(() => b.importState({ version: 1, entries: [{
+      id: 'unsafe', kind: 'agent.state_changed', sessionId: 'chat-1', startedAt: 2,
+      sourceEvents: { firstSequence: 2 }, ...metadata,
+    }] })).toThrow('malformed entry');
+    expect(b.snapshot()).toEqual(before);
+  });
+  it('accepts version-one legacy entries and typed activity metadata', () => {
+    const b = new TimelineBuilder('chat-1');
+    b.importState({ version: 1, entries: [
+      { id: 'legacy', kind: 'agent.message', sessionId: 'chat-1', startedAt: 1, text: 'old', sourceEvents: { firstSequence: 1 } },
+      { id: 'safe', kind: 'agent.progress', sessionId: 'chat-1', startedAt: 2, text: 'Inspecting', userSafe: true, verifiedOutcome: 'success', sourceEvents: { firstSequence: 2 } },
+      { id: 'state', kind: 'agent.state_changed', sessionId: 'chat-1', startedAt: 3, activityState: 'waiting_dependency', sourceEvents: { firstSequence: 3 } },
+    ] });
+    expect(b.snapshot()).toHaveLength(3);
+    expect(b.snapshot()[1]).toMatchObject({ userSafe: true, verifiedOutcome: 'success' });
+    expect(b.snapshot()[2]).toMatchObject({ activityState: 'waiting_dependency' });
+  });
+});

@@ -20,6 +20,8 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
   `createAgentSession`. `setupTools` appends the `alix_execution_state_propose`
   tool to provider tools only when `ALIX_EXECUTION_STATE_SEND` is on
   (visibility matches the loop-side interception gate).
+- `conversation-history.ts` — `buildSessionConversationMessages` / `latestSubstantiveSessionRequest`, bounded public conversation data for task-loop and direct-generation requests. Historical requests/results retain quoted roles without becoming current execution objectives.
+- `turn-guard.ts` — `acquireSessionTurn`, one foreground owner across public agent, chat and explicit coordination submission, released on every outcome.
 - `state.ts` — `SessionState` (all per-session mutable state, hoisted out of the
   former `build()` closure) + `createSessionState`.
 - `activity.ts` — turn-scoped activity/liveness/phase accessors and operator
@@ -68,6 +70,10 @@ and the TUI. `../session.ts` preserves public imports as a re-export barrel.
   model's index of its own surface — keep `TUI_SLASH_COMMANDS` in sync with
   `parseWorkbenchBuiltinCommand` (pinned by
   `tests/agent/self-capabilities.test.ts`).
+- `processTurn` preserves session-local public requests and outcomes across ordinary and queued turns, including direct and grounded-route results. Failure/cancellation stores a truthful terminal response; never invent successful completion. Restored history passes through the same filtering and bounds as live history.
+- Optional `AgentSession.runCoordination` accepts only a non-empty objective and optional integer concurrency from 1 to 8. It enters the existing turn lifecycle with one fixed `alix_coordination_run` kickoff; no model selection, arbitrary tool invocation, permission override or new scheduler. Explicit read-only configuration denies launch; existing offered/scoped tool admission, policy, approvals and goal-derived classification remain authoritative. Runtime supplies current session mode; cancellation uses the existing active-turn signal.
+- `processTurn` passes `cwd: state.config.cwd` into `runTaskLoop`, so the loop's coordination completion check and repository verification target the session workspace, never ambient `process.cwd()`.
+- Model-facing prior conversation is one optional assistant data item: at most 24 public messages, 8,000 JSON-encoded characters per content value and 24,000 characters overall. Exclude tool payloads/calls, runtime ledgers/nudges and private reasoning; current request stays the final user message. Historical instructions and claims are context only, never current permissions, task scoping or executed verification evidence. Contentful current requests replace the continuation objective; explicit bare continuation resumes the latest substantive public request, including restored history, while ignoring runtime prompts. Never fall back to the first stale objective.
 - `completed_unverified` is a failed terminal outcome. Session wrappers must
   emit failed task/graph/workflow state for it, never completed state.
 

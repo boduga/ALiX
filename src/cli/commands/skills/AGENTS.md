@@ -11,7 +11,7 @@ and distill mined trace candidates into candidate skills.
 | `distill-from-traces.ts` | `alix skills distill-from-traces --candidates <file>` (P3 loop closure over `distillMinedCandidates`); pure `parseDistillArgs` (throws usage) kept testable apart from the exiting handler |
 | `install.ts` | Install/remove + `printSkillsHelp` (lists every subcommand) |
 | `run-skill.ts` | `alix skills run` sandboxed script execution + script-path resolution |
-| `marketplace.ts` | Marketplace registry commands |
+| `marketplace.ts` | Marketplace registry commands + `available` disk index cache (`marketplace-index.json`) |
 | `net.ts` | Skill fetching (`fetchText`/`fetchJson`, GitHub URL shaping): https-only, every host validated through the shared `tools/web-fetch` network policy, redirects re-validated per hop |
 
 ## Local Contracts
@@ -24,6 +24,14 @@ and distill mined trace candidates into candidate skills.
   `printSkillsHelp` line in the same change.
 - **Operator context:** distill/eval commands run nightly/operator-gated
   with write creds or local files — never in the hot loop.
+- **Marketplace index cache:** `alix skills available` caches per-repo listings
+  on disk at `~/.alix/marketplace-index.json` (`{ version: 1, entries:
+  { <normalizedRepoUrl>: { fetchedAt, limit, skills } } }`, keys via `normalizeUrl`
+  so add/remove needs no invalidation). TTL default 1h (`ttlMs` override);
+  `alix skills available --refresh` bypasses the cache; fetch failures serve
+  a stale entry when one exists, else throw (per-marketplace catch in
+  `listAvailableSkills` preserved); corrupt cache files are ignored and
+  overwritten; cache writes are best-effort and never throw.
 - **Network policy:** skill fetches stay https-only and reject private/
   non-resolving destinations via the shared alix_web_fetch validator; the
   agent-loop `alix_web_fetch` additionally pins each connection to the

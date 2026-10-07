@@ -7,6 +7,13 @@ export function reduceWorkbenchUiState(
   action: WorkbenchUiAction,
 ): WorkbenchUiState {
   switch (action.type) {
+    case 'coordination.edit': {
+      if (state.coordination.phase === 'submitting') return state;
+      const edited = reduceWorkbenchUiState({ ...state, composer: state.coordination.draft }, action.edit);
+      return { ...state, coordination: { draft: edited.composer, phase: 'idle' } };
+    }
+    case 'coordination.status':
+      return { ...state, coordination: { ...state.coordination, phase: action.phase, message: action.message } };
     case 'composer.insert': {
       const before = state.composer.text.slice(0, state.composer.cursor);
       const after = state.composer.text.slice(state.composer.cursor);
@@ -103,12 +110,20 @@ export function reduceWorkbenchUiState(
     }
     case 'overlay.toggle': {
       const current = state.overlayStack[state.overlayStack.length - 1];
-      return { ...state, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };
+      return { ...state, overlayScrollOffset: 0, focus: current === action.overlay ? 'composer' : 'modal', overlayStack: current === action.overlay ? [] : [action.overlay] };
     }
+    case 'overlay.scroll':
+      return { ...state, overlayScrollOffset: Math.max(0, Math.min(10000, state.overlayScrollOffset + action.delta)) };
     case 'overlay.close':
-      return state.overlayStack.length === 0 ? state : { ...state, focus: 'composer', overlayStack: [] };
+      return state.overlayStack.length === 0 ? state : { ...state, focus: state.drawer === 'closed' ? 'composer' : 'drawer', overlayStack: [] };
     case 'transcript.mode':
       return { ...state, transcriptMode: action.mode };
+    case 'transcript.filter':
+      return { ...state, transcriptFilter: action.filter };
+    case 'transcript.scope.toggle':
+      return { ...state, transcriptScope: state.transcriptScope === 'selected' ? 'all' : 'selected' };
+    case 'transcript.follow':
+      return { ...state, followTail: action.followTail };
     case 'dimensions.set':
       return { ...state, dimensions: { columns: action.columns, rows: action.rows } };
   }

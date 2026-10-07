@@ -1,6 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { classifyTask, detectResearchDepth } from "../../src/task-classifier.js";
+import {
+  classifyTask,
+  detectResearchDepth,
+  hasNaturalLanguageTail,
+  isShellTask,
+} from "../../src/task-classifier.js";
 
 describe("classifyTask", () => {
   it("returns research for research patterns", () => {
@@ -40,5 +45,54 @@ describe("detectResearchDepth", () => {
     assert.strictEqual(detectResearchDepth("research auth tokens"), "quick");
     assert.strictEqual(detectResearchDepth("find all JWT usages"), "quick");
     assert.strictEqual(detectResearchDepth("search for docs"), "quick");
+  });
+});
+describe("isShellTask — command vs. prose", () => {
+  const PROSE_IMPERATIVE =
+    'Find every file under src/ that mentions "RunOutcome", read the three most\n' +
+    "relevant, and tell me: which modules consume it and what would break if I\n" +
+    "added a new required field. No edits.";
+
+  it("still matches bare commands and argument tails", () => {
+    assert.strictEqual(isShellTask("ls"), true);
+    assert.strictEqual(isShellTask("pwd"), true);
+    assert.strictEqual(isShellTask("cat package.json"), true);
+    assert.strictEqual(isShellTask("grep foo src/"), true);
+    assert.strictEqual(isShellTask("find . -name '*.ts'"), true);
+    assert.strictEqual(isShellTask("du -sh ."), true);
+    assert.strictEqual(isShellTask("ping -c 1 localhost"), true);
+  });
+
+  it("rejects an English imperative that merely opens with a command word", () => {
+    assert.strictEqual(isShellTask(PROSE_IMPERATIVE), false);
+    assert.strictEqual(isShellTask("Find all TODOs in src and summarize them"), false);
+    assert.strictEqual(isShellTask("Sort the entries by creation date"), false);
+  });
+
+  it("treats flags, paths and globs as argument tokens, not prose", () => {
+    assert.strictEqual(hasNaturalLanguageTail("ls -la src/"), false);
+    assert.strictEqual(hasNaturalLanguageTail("cat package.json"), false);
+    assert.strictEqual(hasNaturalLanguageTail("find . -name '*.ts'"), false);
+    assert.strictEqual(hasNaturalLanguageTail("npm run build"), false);
+  });
+
+  it("flags three or more consecutive plain-English words", () => {
+    assert.strictEqual(hasNaturalLanguageTail("echo hello"), false);
+    // Non-plain tokens reset the run: total-count would see 3+ plains here.
+    assert.strictEqual(hasNaturalLanguageTail("echo hi | grep foo"), false);
+    assert.strictEqual(hasNaturalLanguageTail("ls foo bar -la baz"), false);
+    // All-plain tails ARE consecutive prose per the documented semantic
+    // ("cat the file" is the known shape-based tradeoff): "a b c" is a run
+    // of 3, so this stays true even after the consecutive-run fix.
+    assert.strictEqual(hasNaturalLanguageTail("cat a b c"), true);
+    assert.strictEqual(hasNaturalLanguageTail("find every file under src"), true);
+    assert.strictEqual(hasNaturalLanguageTail(PROSE_IMPERATIVE), true);
+  });
+
+  it("keeps multi-argument commands on shell routing", () => {
+    assert.strictEqual(isShellTask("echo hi | grep foo"), true);
+    assert.strictEqual(isShellTask("ls foo bar -la baz"), true);
+    // All-plain tails remain prose (not shell) — documented tradeoff above.
+    assert.strictEqual(isShellTask("cat a b c"), false);
   });
 });
