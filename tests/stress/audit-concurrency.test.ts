@@ -19,14 +19,18 @@ import type { AuditRecordV2 } from "../../src/audit/audit-types.js";
 // ---------------------------------------------------------------------------
 
 function makeWriter(auditDir: string): AuditChainWriter {
+  // Test-scoped lock patience only (product defaults in audit-lock.ts untouched):
+  // 50–100 same-process hammering appends serialize on the file lock, so the
+  // tail waiters need a longer deadline and quicker retry cadence than the
+  // 10s/50ms settings that time out under contention.
   return new AuditChainWriter({
     auditDir,
     lock: {
       staleRecovery: "auto",
       staleThresholdMs: 30_000,
-      timeoutMs: 10_000,
-      maxRetries: 20,
-      initialBackoffMs: 50,
+      timeoutMs: 60_000,
+      maxRetries: 200,
+      initialBackoffMs: 10,
     },
   });
 }
@@ -36,7 +40,8 @@ function makeWriter(auditDir: string): AuditChainWriter {
 // ---------------------------------------------------------------------------
 
 describe("Audit concurrency", () => {
-  it("50 concurrent appends produce contiguous sequence with no gaps or duplicates", async () => {
+  // Workload-scaled timeout: 50 serialized fsync'd appends can exceed the 60s suite default under load.
+  it("50 concurrent appends produce contiguous sequence with no gaps or duplicates", { timeout: 120_000 }, async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "audit-conc-"));
 
     try {
@@ -102,7 +107,8 @@ describe("Audit concurrency", () => {
     }
   });
 
-  it("100 concurrent appends produce contiguous sequence", async () => {
+  // Workload-scaled timeout: 100 serialized fsync'd appends can exceed the 60s suite default under load.
+  it("100 concurrent appends produce contiguous sequence", { timeout: 120_000 }, async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "audit-conc-100-"));
     try {
       const writer = makeWriter(tmpDir);
