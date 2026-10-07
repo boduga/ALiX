@@ -288,21 +288,33 @@ function renderDiff(scenario: string, expected: string[], actual: string[]): str
 }
 
 /**
+ * Goldens are LF on disk (enforced by .gitattributes), but a foreign
+ * checkout (e.g. Windows autocrlf) may hand us CRLF — normalize on read so
+ * the suite is checkout-proof rather than checkout-dependent.
+ */
+function readGolden(file: string): string {
+  return readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+}
+
+/**
  * Compare a rendered frame against `tests/tui/workbench/__goldens__/<scenario>.txt`.
  * With `UPDATE_GOLDENS=1` the golden is (re)written and the check passes with
  * a loud console note; otherwise a mismatch throws a bounded unified diff.
  */
 export function expectGolden(scenario: string, actual: string): void {
   const file = goldenFile(scenario);
+  // Frames render LF; normalize defensively so a regenerated golden is
+  // always LF-stable regardless of host.
+  const normalized = actual.replace(/\r\n/g, '\n');
   if (updating()) {
-    const previous = existsSync(file) ? readFileSync(file, 'utf8') : null;
+    const previous = existsSync(file) ? readGolden(file) : null;
     mkdirSync(GOLDEN_DIR, { recursive: true });
     // Atomic replace: a crashed/interrupted run can never leave a truncated
     // golden behind — readers only ever see the complete tmp file renamed in.
     const tmp = `${file}.tmp`;
-    writeFileSync(tmp, actual, 'utf8');
+    writeFileSync(tmp, normalized, 'utf8');
     renameSync(tmp, file);
-    const state = previous === null ? 'created' : previous === actual ? 'unchanged' : 'UPDATED';
+    const state = previous === null ? 'created' : previous === normalized ? 'unchanged' : 'UPDATED';
     // Direct stderr write: vitest.config.mts swallows console.* via onConsoleLog.
     process.stderr.write(`[parity-goldens] UPDATE_GOLDENS=1: ${scenario} ${state} -> ${GOLDEN_RELATIVE_DIR}/${scenario}.txt\n`);
     return;
@@ -312,7 +324,7 @@ export function expectGolden(scenario: string, actual: string): void {
       `missing golden "${scenario}" - regenerate with: UPDATE_GOLDENS=1 npx vitest run tests/tui/workbench/parity-goldens.vitest.ts`,
     );
   }
-  const expected = readFileSync(file, 'utf8');
-  if (expected === actual) return;
-  throw new Error(`golden mismatch: ${scenario}\n${renderDiff(scenario, expected.split('\n'), actual.split('\n'))}`);
+  const expected = readGolden(file);
+  if (expected === normalized) return;
+  throw new Error(`golden mismatch: ${scenario}\n${renderDiff(scenario, expected.split('\n'), normalized.split('\n'))}`);
 }
