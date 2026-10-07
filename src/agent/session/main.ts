@@ -26,9 +26,10 @@ import {
   getLiveness,
   getPhase,
 } from "./activity.js";
-import { processTurn } from "./turn.js";
+import { processTurn, runCoordination } from "./turn.js";
 import { processChat } from "./chat.js";
 import { resumeSession } from "./resume.js";
+import { acquireSessionTurn } from './turn-guard.js';
 
 export class AgentSessionBuilder {
   private config: Partial<AgentSessionConfig>;
@@ -147,7 +148,11 @@ export class AgentSessionBuilder {
 
     return {
       processTurn: (message, options) => processTurn(state, message, options),
-      processChat: (message) => processChat(state, message),
+      runCoordination: (request) => runCoordination(state, request),
+      processChat: async (message) => {
+        const release = acquireSessionTurn(state);
+        try { return await processChat(state, message); } finally { release(); }
+      },
       getSessionId,
       getMode,
       setMode,

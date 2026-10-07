@@ -93,22 +93,27 @@ export class TerminalCanvas {
         }
       }
 
-      const grapheme = graphemes(text.slice(i))[0];
-      if (!grapheme) break;
-      const span = Math.max(0, graphemeWidth(grapheme));
-      i += grapheme.length;
-      if (span === 0) continue;
-      if (currentX < 0) {
+      // Segment a plain-text run once. Re-segmenting each shrinking suffix
+      // makes full-frame painting quadratic and blocks keyboard delivery.
+      const nextEscape = text.indexOf("\x1b", i + 1);
+      const runEnd = nextEscape < 0 ? text.length : nextEscape;
+      for (const grapheme of graphemes(text.slice(i, runEnd))) {
+        if (currentX >= this.width) return;
+        const span = Math.max(0, graphemeWidth(grapheme));
+        i += grapheme.length;
+        if (span === 0) continue;
+        if (currentX < 0) {
+          currentX += span;
+          continue;
+        }
+        if (currentX + span > this.width) return;
+        for (let offset = 0; offset < span; offset++) {
+          this.buffer[y][currentX + offset] = offset === 0
+            ? createCell(grapheme, activeAnsi, span)
+            : createCell('', activeAnsi, 0, true);
+        }
         currentX += span;
-        continue;
       }
-      if (currentX + span > this.width) break;
-      for (let offset = 0; offset < span; offset++) {
-        this.buffer[y][currentX + offset] = offset === 0
-          ? createCell(grapheme, activeAnsi, span)
-          : createCell('', activeAnsi, 0, true);
-      }
-      currentX += span;
     }
   }
 

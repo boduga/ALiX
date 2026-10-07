@@ -96,6 +96,7 @@ barrel preserving public import paths.
   known outcome, and matching verification evidence. Missing objective evidence
   yields `completed_unverified` after bounded retries; synthesis prompts must
   not assert completion before evidence exists.
+- Internal `TaskLoopDeps.coordinationKickoff` supplies one fixed exact `alix_coordination_run` on the first iteration instead of provider choice. It must already exist in the normal scoped offered surface; unavailable tools reject before generation or dispatch. The common tool handler retains policy/approval/cancellation, evidence and aggregate verification; later synthesis follows the normal loop. This is not a generic injected-tool API.
 - **Mutation evidence is outcome-based and tri-state.** `isMutationEvidence`
   rejects explicit `changed: false` and empty `changedFiles`, including identical
   `alix_file_create` content and no-op `alix_patch_apply` calls. Absent `changed`

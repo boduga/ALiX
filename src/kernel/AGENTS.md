@@ -58,6 +58,7 @@
 - A coordination subagent's `partial` result is an execution failure, eligible for bounded retry. Only a `success` result completes a worker and contributes to a successful aggregate.
 - Graph strategy is inferred from dependency shape (`>=2` dependency-free roots → `hybrid`, else `sequential`), never from a model-supplied `strategy` label.
 - Coordination workers are ordered by `serializeOverlappingWriters`: any two writers whose ownership claims overlap (a vague `**` claim overlaps all) get a dependency edge; disjoint writers and read-only workers stay parallel.
+- Planned worker spawn and task-assignment events carry copied dependency IDs; dependency-bearing assignments explicitly publish dependency-waiting state.
 - Coordination plans publish queued/dependency-waiting canonical `agent.*` lifecycle rows before dispatch. Retry-attempt results are non-terminal presentation facts; only scheduler exhaustion/completion publishes terminal worker state, and dependency failure publishes an explicit blocked state.
 - Write workers reserve their final two model iterations for mutation/completion tools while owned outputs remain unwritten, preventing broad reconnaissance from consuming the entire bounded iteration budget.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
@@ -74,7 +75,12 @@
   `CoordinationStore.attachAggregateIfUnfinalized` checks and attaches under
   the per-run lock and source fingerprint. Concurrent finalizers return the
   same winning aggregate and emit one completed-aggregate event. A changed
-  replan fingerprint permits new finalization.
+  replan fingerprint permits new finalization. `runUntilIdle` awaits
+  finalization on completed/failed termination, and
+  `CoordinationCompletionService.finalize` awaits the
+  `coordination.aggregate.completed` append, so verification evidence is
+  durable before a blocking driver returns; tick and worker paths stay
+  fire-and-forget.
 - Aggregation failure emits independent evidence without changing execution
   status. Verification derives from persisted fields and the matching aggregate
   event across loop, tools, view, collaboration context, and CLI; no stored

@@ -62,12 +62,13 @@ import { TaskStateMachine, RunLimiter } from "../../autonomy/state-machine.js";
 import { FAILURE_REASONS } from "../system-prompt.js";
 import { buildSessionStreamHandler, emitSessionEvents, isCancellationError, livenessEventType } from "./helpers.js";
 import { buildSkillsSection, resolveDirectOutputCeiling, resolveExplicitSkills, setupWorkflow, spliceExplicitIntoFirstTurn, spliceSkillsSection } from "./setup.js";
-import { AgentTurnResult, Message, SessionPhase } from "./types.js";
+import { AgentTurnResult, Message, SessionPhase, type CoordinationRunRequest } from "./types.js";
 
 import { buildSessionConversationMessages, latestSubstantiveSessionRequest } from './conversation-history.js';
 import type { SessionState } from "./state.js";
 import { advancePhase, cancellationInProgress, feedActivity, getPhase } from "./activity.js";
 import { initialize } from "./init.js";
+import { acquireSessionTurn } from './turn-guard.js';
 
 export function createFreshSessionState(): MutationSessionState {
   return {
@@ -93,11 +94,28 @@ export function extractToolCallsFromMessages(msgs: Message[]): ToolCall[] {
   return calls;
 }
 
+type TurnOptions = { skills?: string[]; coordination?: CoordinationRunRequest };
+
+export async function runCoordination(state: SessionState, request: CoordinationRunRequest): Promise<AgentTurnResult> {
+  const goal = typeof request?.goal === 'string' ? request.goal.trim() : '';
+  if (!goal) throw new Error('Coordination requires a non-empty objective.');
+  const maxConcurrency = request.maxConcurrency;
+  if (maxConcurrency !== undefined && (!Number.isInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > 8)) {
+    throw new Error('Coordination concurrency must be an integer from 1 to 8.');
+  }
+  if (state.config.readOnly) throw new Error('Coordination execution is unavailable in a read-only session.');
+  return processTurn(state, `Run a multi-worker coordination run for this objective:\n${goal}`, {
+    coordination: { goal, ...(maxConcurrency !== undefined ? { maxConcurrency } : {}) },
+  });
+}
+
 export async function processTurn(
   state: SessionState,
   message: string,
-  options?: { skills?: string[] },
+  options?: TurnOptions,
 ): Promise<AgentTurnResult> {
+  const release = acquireSessionTurn(state);
+  try {
   const runId = `run-${randomUUID().slice(0, 8)}`;
   const traceRun = state.traceClient.startRun({
     runId,
@@ -129,13 +147,16 @@ export async function processTurn(
     if (!isContinuationMessage(message)) state.sessionGoal = message;
   }
   return result;
+  } finally {
+    release();
+  }
 }
 
 export async function processTurnBody(
   state: SessionState,
   message: string,
   runId: string,
-  options?: { skills?: string[] },
+  options?: TurnOptions,
 ): Promise<AgentTurnResult> {
   // The turn's execution context (same identity the root wrapper's startRun
   // used). Threaded into classifier, direct-generation, grounded-chat and
@@ -172,7 +193,7 @@ export async function processTurnBody(
       )
     : null;
 
-  const route = await taskRouter(message, {
+  const route = options?.coordination ? { kind: 'agent' as const } : await taskRouter(message, {
     classifierProvider: classifierProvider ?? undefined,
     // Enables model-based classifier spans under the run's trace when the
     // low-confidence fallback fires (R1, §18 coverage for the classifier).
@@ -724,6 +745,7 @@ export async function processTurnBody(
       session: state.session,
       log: state.ctx.log,
       executor: state.ctx.toolExecutor,
+      coordinationKickoff: options?.coordination,
       mcpDiscovery: state.mcpDiscovery,
       selectedTools: state.selectedTools,
       hooks: state.hooks,
@@ -739,6 +761,7 @@ export async function processTurnBody(
       memoryStore: state.ctx.memoryStore,
       sessionId: state.ctx.sessionId,
       sessionDir: state.ctx.sessionDir,
+      cwd: state.config.cwd,
       systemPrompt: state.systemPrompt,
       onStream: livenessOnStream,
       hookRunner: state.ctx.hookRunner,

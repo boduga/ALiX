@@ -1,11 +1,19 @@
 export type WorkbenchFocus = 'composer' | 'transcript' | 'drawer' | 'modal';
 export type WorkbenchDrawer = 'closed' | 'agents' | 'tasks' | 'artifacts';
 export type WorkbenchTranscriptMode = 'compact' | 'detailed' | 'raw';
-export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help';
+export type WorkbenchTranscriptFilter = 'all' | 'response' | 'tool' | 'activity' | 'error';
+export type WorkbenchTranscriptScope = 'all' | 'selected';
+export type WorkbenchOverlay = 'diff' | 'review' | 'diagnostics' | 'help' | 'coordination' | 'inspector';
 
 export interface ComposerState {
   readonly text: string;
   readonly cursor: number;
+}
+
+export interface CoordinationEntryState {
+  readonly draft: ComposerState;
+  readonly phase: 'idle' | 'submitting' | 'completed' | 'unverified' | 'failed' | 'cancelled';
+  readonly message?: string;
 }
 
 export interface QueuedMessage {
@@ -16,8 +24,11 @@ export interface QueuedMessage {
 
 export interface WorkbenchUiState {
   readonly focus: WorkbenchFocus;
+  readonly overlayScrollOffset: number;
   readonly overlayStack: readonly WorkbenchOverlay[];
   readonly transcriptMode: WorkbenchTranscriptMode;
+  readonly transcriptFilter: WorkbenchTranscriptFilter;
+  readonly transcriptScope: WorkbenchTranscriptScope;
   readonly selectedItemId?: string;
   /** Undefined means the aggregate across every coordination run. */
   readonly selectedRunId?: string;
@@ -30,6 +41,7 @@ export interface WorkbenchUiState {
   readonly drawerScrollOffset: number;
   readonly followTail: boolean;
   readonly composer: ComposerState;
+  readonly coordination: CoordinationEntryState;
   readonly queuedMessages: readonly QueuedMessage[];
   readonly dimensions: { readonly columns: number; readonly rows: number };
 }
@@ -40,12 +52,16 @@ export function createInitialWorkbenchUiState(
   return {
     focus: 'composer',
     overlayStack: [],
+    overlayScrollOffset: 0,
     transcriptMode: 'compact',
+    transcriptFilter: 'all',
+    transcriptScope: 'all',
     agentRosterExpanded: true,
     drawer: 'closed',
     drawerScrollOffset: 0,
     followTail: true,
     composer: { text: '', cursor: 0 },
+    coordination: { draft: { text: '', cursor: 0 }, phase: 'idle' },
     queuedMessages: [],
     dimensions,
   };

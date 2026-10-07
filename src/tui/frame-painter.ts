@@ -10,12 +10,17 @@ import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PaletteController } from './palette-controller.js';
 import { projectOperatorShell } from './workbench/model/operator-shell.js';
 import { paintOperatorShell } from './workbench/views/operator-shell.js';
-import { layoutComposer } from './workbench/views/composer-view.js';
-import { resolveWorkbenchSurfaceGeometry } from './workbench/layout/responsive-layout.js';
+import { layoutWorkbenchSurface } from './workbench/views/composer-view.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
 import { paintWorkbenchApprovalDialog } from './workbench/views/approval-dialog.js';
+import { buildWorkbenchScrollbackLines } from './workbench/views/workbench-scrollback.js';
+import { reconcileWorkbenchScrollAnchor } from './workbench/layout/scroll-anchor.js';
+import type { ScrollbackLine } from './views/bottom-anchored-viewport.js';
 import { diffFrameRows, renderFramePatches } from './workbench/render/frame-differ.js';
+import { buildAgentInspectorModel } from './workbench/model/agent-inspector.js';
+import { paintAgentInspector } from './workbench/views/agent-inspector.js';
 import { paintWorkbenchDiagnosticOverlay } from './workbench/views/diagnostic-overlay.js';
+import { paintCoordinationEntry } from './workbench/views/coordination-entry.js';
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
  *  reaches into the god class. */
@@ -40,7 +45,12 @@ export interface FramePainterDeps {
  *  overlay, header, tabs, status row, and cursor placement. Read-only over
  *  the state/views/runtimes supplied through deps. */
 export class FramePainter {
+  /** Presentation-only wrapped overlay bound, refreshed on each frame. */
+  overlayScrollLimit = 0;
+  private coordinationCaret?: { row: number; column: number };
   private previousWorkbenchFrame: string | null = null;
+  private scrollAnchor: { lines: readonly ScrollbackLine[]; requestedOffset: number; resolvedOffset: number; scope: string } | null = null;
+  private pausedTranscript: { scope: string; seen: Set<string>; appended: Set<string> } | null = null;
 
   constructor(private readonly deps: FramePainterDeps) {}
 
@@ -116,6 +126,7 @@ export class FramePainter {
 
   /** Build a complete frame containing all regions and write it to stdout. */
   paintFullFrame(): void {
+    this.coordinationCaret = undefined;
     const s = this.deps.state();
     if (!s.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
@@ -126,7 +137,7 @@ export class FramePainter {
     // width/height for their scrollback — the previous 75/25 split and
     // vertical divider are gone.
     const viewCanvas = new TerminalCanvas(dims.columns, dims.rows);
-    const viewCtx: ViewRenderContext = {
+    let viewCtx: ViewRenderContext = {
       snap: s.lastSnapshot,
       dimensions: { columns: dims.columns, rows: dims.rows },
       perTab: s.views[s.activeTab],
@@ -140,6 +151,32 @@ export class FramePainter {
       runtime: { chat: this.deps.chatRuntime(), agent: this.deps.agentRuntime() },
       slash: this.deps.computeSlashStrip() ?? undefined,
     };
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      const surface = layoutWorkbenchSurface(viewCtx.perTab.inputBuffer, dims, viewCtx.workbenchUiState?.drawer ?? 'closed', viewCtx.workbenchUiState?.composer.cursor);
+      const state = viewCtx.workbenchUiState;
+      const scope = JSON.stringify([state?.transcriptScope, state?.transcriptScope === 'selected' ? state.selectedAgentId : undefined, state?.transcriptFilter, viewCtx.perTab.transcriptMode]);
+      const followTail = state?.followTail ?? viewCtx.perTab.pinnedBottom;
+      viewCtx = { ...viewCtx, perTab: { ...viewCtx.perTab, pinnedBottom: followTail } };
+      if (followTail) { this.scrollAnchor = null; this.pausedTranscript = null; }
+      else if (surface.geometry.regions.transcriptBody.height > 0) {
+        const lines = buildWorkbenchScrollbackLines(viewCtx, Math.max(1, surface.geometry.dimensions.columns - 2));
+        const requestedOffset = viewCtx.perTab.scrollOffset;
+        const previous = this.scrollAnchor;
+        const resolvedOffset = previous
+          ? requestedOffset === previous.requestedOffset
+            ? reconcileWorkbenchScrollAnchor(previous.lines, previous.resolvedOffset, lines)
+            : Math.max(0, Math.min(lines.length - 1, previous.resolvedOffset + requestedOffset - previous.requestedOffset))
+          : requestedOffset;
+        this.scrollAnchor = { lines, requestedOffset, resolvedOffset, scope };
+        const ids = new Set(lines.flatMap(line => line.itemId && !/^(separator:|scope:|activity:|streaming:)/.test(line.itemId) ? [line.itemId] : []));
+        if (!this.pausedTranscript || this.pausedTranscript.scope !== scope) this.pausedTranscript = { scope, seen: ids, appended: new Set() };
+        else for (const id of ids) if (!this.pausedTranscript.seen.has(id)) {
+          this.pausedTranscript.seen.add(id);
+          this.pausedTranscript.appended.add(id);
+        }
+        viewCtx = { ...viewCtx, workbenchLines: lines, workbenchNewItems: this.pausedTranscript.appended.size, perTab: { ...viewCtx.perTab, scrollOffset: resolvedOffset } };
+      }
+    } else { this.scrollAnchor = null; this.pausedTranscript = null; }
     this.deps.views()[s.activeTab]!.render(viewCtx);
 
     // Plan approval card — drawn into the same canvas as the active view.
@@ -150,11 +187,23 @@ export class FramePainter {
     const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
       const workbench = this.deps.workbenchState?.();
-      paintWorkbenchDiagnosticOverlay(
-        rect,
+      const overlayBody = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, workbench?.drawer ?? 'closed', workbench?.composer.cursor).geometry.regions.body;
+      const overlayRect: CanvasRect = { ...rect, headerH: overlayBody.y, footerH: 0, height: Math.max(0, overlayBody.y + overlayBody.height - 1) };
+      this.overlayScrollLimit = 0;
+      if (workbench?.overlayStack.at(-1) === 'inspector') {
+        const { geometry } = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, workbench.drawer, workbench.composer.cursor);
+        const body = geometry.regions.body;
+        for (let row = body.y; row < body.y + body.height; row++) viewCanvas.write(0, row, ' '.repeat(body.width));
+        paintAgentInspector(viewCanvas, body, buildAgentInspectorModel(s.lastSnapshot, workbench));
+      } else if (workbench?.overlayStack.at(-1) === 'coordination') {
+        this.coordinationCaret = paintCoordinationEntry(overlayRect, workbench.coordination,
+          this.deps.opts.agentSession?.getMode?.() ?? 'mode unavailable');
+      } else this.overlayScrollLimit = paintWorkbenchDiagnosticOverlay(
+        overlayRect,
         workbench?.overlayStack[workbench.overlayStack.length - 1],
         s.lastSnapshot.runtime?.diffs,
         {
+          scrollOffset: workbench?.overlayScrollOffset,
           agents: s.lastSnapshot.runtime?.agents,
           tasks: s.lastSnapshot.runtime?.tasks,
           artifacts: s.lastSnapshot.runtime?.artifacts,
@@ -163,6 +212,12 @@ export class FramePainter {
           selectedTaskId: workbench?.selectedTaskId,
         },
       );
+    }
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && this.deps.workbenchState?.().overlayStack.length) {
+      const pending = s.views.agent.pendingApprovals.length ? s.views.agent.pendingApprovals : s.lastSnapshot.approvals?.pending ?? [];
+      const body = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, this.deps.workbenchState?.().drawer ?? 'closed').geometry.regions.body;
+      const approvalRect = { ...rect, headerH: body.y, footerH: 0, height: Math.max(0, body.y + body.height - 1) };
+      paintWorkbenchApprovalDialog(approvalRect, pending[0], pending.length, s.lastSnapshot.generatedAt);
     }
     if (this.deps.opts.workbenchEnabled && s.activeTab !== 'agent') {
       paintWorkbenchApprovalDialog(
@@ -327,6 +382,7 @@ export class FramePainter {
     // banner and status counters without changing shared viewport geometry.
     // Other tabs and non-Workbench sessions keep the established chrome.
     if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent') {
+      const chromeState = this.deps.workbenchState?.();
       paintOperatorShell({
         canvas: c,
         width: dims.columns,
@@ -335,9 +391,18 @@ export class FramePainter {
           snap,
           s.views.agent,
           liveMode,
-          this.deps.workbenchState?.().queuedMessages.length ?? 0,
+          chromeState?.queuedMessages.length ?? 0,
+          { closeSurface: Boolean(chromeState && (chromeState.drawer !== 'closed' || chromeState.overlayStack.length > 0)), focus: chromeState?.focus, drawer: chromeState?.drawer, inspectorOpen: chromeState?.overlayStack.at(-1) === 'inspector' },
         ),
       });
+    }
+
+    if (this.deps.opts.workbenchEnabled && s.activeTab === 'agent' && dims.rows < 8) {
+      // Tiny windows reserve their editable region after global chrome composition.
+      const { geometry } = layoutWorkbenchSurface(s.views.agent.inputBuffer, dims, this.deps.workbenchState?.().drawer ?? 'closed', this.deps.workbenchState?.().composer.cursor);
+      const rows = viewCanvas.renderFrame().split('\n');
+      const composer = geometry.regions.composer;
+      for (let row = composer.y; row < composer.y + composer.height; row++) c.write(0, row, rows[row] ?? '');
     }
 
     const renderedFrame = c.renderFrame();
@@ -370,20 +435,20 @@ export class FramePainter {
       // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (13)
       // mirrors `PROMPT_COL` in AgentView.render.
       if (this.deps.opts.workbenchEnabled) {
-        const surface = resolveWorkbenchSurfaceGeometry(
-          dims.columns,
-          dims.rows,
+        const pending = s.views.agent.pendingApprovals.length || s.lastSnapshot?.approvals?.pending.length
+          || this.deps.planApprovalGate.getPending();
+        if (this.coordinationCaret && !pending) {
+          this.deps.output.write(`\x1b[${this.coordinationCaret.row + 1};${this.coordinationCaret.column + 1}H`);
+          return;
+        }
+        const { composer, geometry } = layoutWorkbenchSurface(
+          s.views.agent.inputBuffer, dims,
           this.deps.workbenchState?.().drawer ?? 'closed',
-        ).dimensions;
-        const composer = layoutComposer(
-          s.views.agent.inputBuffer,
-          surface.columns,
-          5,
           this.deps.workbenchState?.().composer.cursor,
         );
-        const vp = computeViewport(surface, 'agent', composer.rows.length);
-        const firstRow = vp.panelRow - composer.rows.length + 1;
-        this.deps.output.write(`\x1b[${firstRow + composer.cursorRow + 1};${3 + composer.cursorColumn + 1}H`);
+        const firstRow = geometry.regions.composerContent.y;
+        const column = Math.min(geometry.regions.composer.width - 1, geometry.composerPrefixWidth + composer.cursorColumn);
+        this.deps.output.write(`\x1b[${firstRow + composer.cursorRow + 1};${column + 1}H`);
       } else {
         const bufLen = s.views.agent.inputBuffer.length;
         const vp = computeViewport(dims, 'agent');

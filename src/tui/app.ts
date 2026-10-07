@@ -32,8 +32,9 @@ import { WorkbenchStore } from './workbench/app/workbench-store.js';
 import { routeWorkbenchInput } from './workbench/input/input-router.js';
 import { parseWorkbenchBuiltinCommand } from './workbench/input/builtin-command.js';
 import type { WorkbenchUiState } from './workbench/model/ui-state.js';
-import { approvalVisibleTo, artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
+import { artifactItemsFrom, coordinationRunIds, visibleArtifacts, visibleForRun } from './workbench/model/selection.js';
 import { isPrintableGrapheme } from './workbench/render/terminal-text.js';
+import { validateCoordinationObjective } from './workbench/views/coordination-entry.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -526,7 +527,7 @@ export class TuiApp {
     // non-cycling here — completion is the more useful primary action.
     // The operator can refine the buffer with more letters and press Tab
     // again to re-complete against the new ranking.
-    if (this.slash.active()) {
+    if (this.slash.active() && (!this.opts.workbenchEnabled || this.workbenchStore.snapshot().focus === 'composer')) {
       if (key === 'Tab') {
         if (this.slash.complete()) this.paintFullFrame();
         return;
@@ -536,17 +537,31 @@ export class TuiApp {
     // ── Escape cancels the in-flight agent turn (Task 6.1) ───────────
     // Claude-Code-style stop key: while an agent turn is executing (across
     // any tab — the run keeps streaming in the background), Escape requests
-    // cancellation of that turn. It is consumed ONLY when a cancellable turn
-    // is actually running (`cancelActiveTurn` armed); otherwise Escape falls
+    // cancellation of that turn. A focused Workbench drawer closes first;
+    // otherwise a cancellable turn consumes Escape (`cancelActiveTurn` armed).
+    // When no turn is active, Escape falls
     // through to the existing handlers (palette dismissal above already
     // claimed it when the modal is open).
     if (key === '\x1b' || key === 'Escape') {
+      if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
+        const workbench = this.workbenchStore.snapshot();
+        if (workbench.drawer !== 'closed') {
+          this.handleWorkbenchAgentInput('Escape');
+          return;
+        }
+      }
       if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Escape')) {
         this.paintFullFrame();
         return;
       }
       // An idle agent surface stays in place; Escape is not a tab switch.
-      if (this.state.activeTab === 'agent') return;
+      if (this.state.activeTab === 'agent') {
+        if (this.opts.workbenchEnabled && this.workbenchStore.snapshot().focus === 'transcript') {
+          this.workbenchStore.dispatch({ type: 'focus.set', focus: 'composer' });
+          this.paintFullFrame();
+        }
+        return;
+      }
     }
     if (this.opts.workbenchEnabled && key === '\x03' && this.sessionDispatchActive && !this.workbenchCancelArmed) {
       if (this.opts.agentSession?.cancelActiveTurn?.('operator pressed Ctrl+C')) {
@@ -657,7 +672,7 @@ export class TuiApp {
           this.paintFullFrame();
           return;
         }
-        if (this.slash.active()) {
+        if (this.slash.active() && (!this.opts.workbenchEnabled || this.workbenchStore.snapshot().focus === 'composer')) {
           void this.submitSlashCommand();
           this.paintFullFrame();
           return;
@@ -771,12 +786,49 @@ export class TuiApp {
       slashActive: this.slash.active(),
       approvalPending: perTab.pendingApprovals.length > 0 || fallbackTarget !== undefined,
       overlayOpen: state.overlayStack.length > 0,
+      inspectorOpen: state.overlayStack.at(-1) === 'inspector',
+      coordinationOpen: state.overlayStack.at(-1) === 'coordination',
+      coordinationBusy: state.coordination.phase === 'submitting',
       transcriptMode: state.transcriptMode,
       drawer: state.drawer,
       focus: state.focus,
     });
 
     switch (intent.type) {
+      case 'coordination.edit':
+        this.workbenchStore.dispatch(intent);
+        this.paintFullFrame();
+        return true;
+      case 'coordination.submit':
+        void this.submitWorkbenchCoordination();
+        return true;
+      case 'overlay.scroll': {
+        const limit = this.framePainter.overlayScrollLimit;
+        const next = Math.max(0, Math.min(limit, Math.min(limit, state.overlayScrollOffset) + intent.delta));
+        this.workbenchStore.dispatch({ type: 'overlay.scroll', delta: next - state.overlayScrollOffset });
+        this.paintFullFrame();
+        return true;
+      }
+      case 'focus.set':
+        this.workbenchStore.dispatch(intent);
+        this.paintFullFrame();
+        return true;
+      case 'transcript.filter':
+      case 'transcript.scope.toggle':
+        this.workbenchStore.dispatch(intent);
+        if (state.followTail) this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        return true;
+      case 'transcript.follow.toggle': {
+        const followTail = !state.followTail;
+        // Capture the currently visible bottom before stopping automatic follow.
+        if (state.followTail) this.resetScrollOffsetToBottom('agent');
+        this.workbenchStore.dispatch({ type: 'transcript.follow', followTail });
+        perTab.pinnedBottom = followTail;
+        if (followTail) this.resetScrollOffsetToBottom('agent');
+        this.paintFullFrame();
+        return true;
+      }
       case 'composer.insert':
         this.workbenchStore.dispatch({ type: 'composer.insert', text: intent.text });
         this.syncWorkbenchComposer();
@@ -804,11 +856,15 @@ export class TuiApp {
           this.paintFullFrame();
           return true;
         }
-        this.workbenchStore.dispatch({ type: 'composer.clear' });
         void this.submitSlashCommand();
         this.paintFullFrame();
         return true;
       case 'turn.submit': {
+        if (!this.state.lastSnapshot) {
+          this.slash.hint = 'Submission unavailable; instruction retained.';
+          this.paintFullFrame();
+          return true;
+        }
         const text = state.composer.text;
         this.workbenchStore.dispatch({ type: 'composer.clear' });
         this.syncWorkbenchComposer();
@@ -840,12 +896,35 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       }
+      case 'inspector.open':
+        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'inspector' });
+        this.paintFullFrame();
+        return true;
       case 'drawer.toggle':
+        if (state.overlayStack.at(-1) === 'inspector') this.workbenchStore.dispatch({ type: 'overlay.close' });
         this.workbenchStore.dispatch({ type: 'drawer.toggle', drawer: intent.drawer });
         this.paintFullFrame();
         return true;
       case 'drawer.close':
         this.workbenchStore.dispatch({ type: 'drawer.close' });
+        this.paintFullFrame();
+        return true;
+      case 'agent.shortcut': {
+        const agents = visibleForRun(this.state.lastSnapshot?.runtime?.agents?.agents ?? [], state.selectedRunId);
+        const selected = agents[intent.index - 1];
+        if (selected) this.workbenchStore.dispatch({ type: 'agent.select', agentId: selected.agentId, scrollOffset: Math.max(0, intent.index - 2) });
+        this.paintFullFrame();
+        return true;
+      }
+      case 'agent.aggregate':
+        this.workbenchStore.dispatch({ type: 'agent.select', agentId: undefined, scrollOffset: 0 });
+        this.paintFullFrame();
+        return true;
+      case 'coordination.inspect':
+        this.workbenchStore.dispatch({ type: 'overlay.toggle', overlay: 'coordination' });
+        if (!this.opts.agentSession?.runCoordination) this.workbenchStore.dispatch({
+          type: 'coordination.status', phase: 'idle', message: 'Coordination launch unavailable in this session.',
+        });
         this.paintFullFrame();
         return true;
       case 'drawer.move': {
@@ -903,7 +982,7 @@ export class TuiApp {
         this.paintFullFrame();
         return true;
       case 'approval.resolve': {
-        const target = perTab.pendingApprovals.find((approval) => approvalVisibleTo(approval, state.selectedAgentId)) ?? fallbackTarget;
+        const target = perTab.pendingApprovals[0] ?? fallbackTarget;
         if (!target) return false;
         if (this.pendingApprovalDecisions.has(target.id)) return true;
         this.pendingApprovalDecisions.add(target.id);
@@ -938,6 +1017,48 @@ export class TuiApp {
 
   private syncWorkbenchComposer(): void {
     this.state.views.agent.inputBuffer = this.workbenchStore.snapshot().composer.text;
+  }
+
+  /** Explicit launch reuses foreground dispatch, approvals, cancellation and FIFO draining. */
+  private async submitWorkbenchCoordination(): Promise<void> {
+    const entry = this.workbenchStore.snapshot().coordination;
+    const goal = entry.draft.text;
+    const error = validateCoordinationObjective(goal);
+    const port = this.opts.agentSession?.runCoordination?.bind(this.opts.agentSession);
+    if (this.sessionDispatchActive || entry.phase === 'submitting') {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: entry.phase,
+        message: 'Work is active; wait for it to finish or cancel before launching.' });
+    } else if (error || !port || !this.state.lastSnapshot) {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: 'idle',
+        message: error ?? 'Coordination launch unavailable; objective retained.' });
+    } else {
+      this.workbenchStore.dispatch({ type: 'coordination.status', phase: 'submitting', message: 'Starting coordinated work…' });
+      this.workbenchCancelArmed = false;
+      this.paintFullFrame();
+      this.timelineEmitter.emitTimelineLog('user', `Coordination objective: ${goal}`, this.opts.agentSessionId);
+      // Failed launch retains only the isolated objective draft. Returning a
+      // truthful failure result prevents generic composer-restoration fallback.
+      await this.dispatchToSession(goal, 'agent', this.state.views.agent, [async () => {
+        try {
+          const result = await port({ goal });
+          const phase = result.reason === 'completed' ? 'completed'
+            : result.reason === 'cancelled' ? 'cancelled'
+            : result.reason === 'completed_unverified' || !result.reason ? 'unverified' : 'failed';
+          this.workbenchStore.dispatch({ type: 'coordination.status', phase,
+            message: phase === 'completed' ? 'Verified coordination complete; results in transcript.'
+              : phase === 'unverified' ? 'Coordination remains unverified; inspect the transcript.'
+              : phase === 'cancelled' ? 'Coordination cancelled.' : 'Coordination failed; objective retained for retry.' });
+          return result;
+        } catch (err) {
+          const cancelled = isCancellationError(err);
+          const summary = cancelled ? this.opts.agentSession?.getLastCancelSummary?.() ?? 'Cancelled'
+            : `Coordination failed: ${err instanceof Error ? err.message : String(err)}`;
+          this.workbenchStore.dispatch({ type: 'coordination.status', phase: cancelled ? 'cancelled' : 'failed', message: summary });
+          return { summary, reason: cancelled ? 'cancelled' : 'failed' };
+        }
+      }], '[coordination]');
+    }
+    this.paintFullFrame();
   }
 
   private openWorkbenchBuiltinSurface(text: string): boolean {
@@ -1003,7 +1124,12 @@ export class TuiApp {
     }
     const selected = matches[Math.min(this.slash.selection, matches.length - 1)]!;
     const text = parsed.rest.trim() || selected.name;
+    if (!this.state.lastSnapshot || this.sessionDispatchActive) {
+      this.slash.hint = 'Submission unavailable; instruction retained.';
+      return;
+    }
     this.slash.hint = null;
+    if (this.opts.workbenchEnabled) this.workbenchStore.dispatch({ type: 'composer.clear' });
     perTab.inputBuffer = '';
     // T437 (spec #429 slice 8): slash-command submission re-pins the
     // scrollback to bottom. Distinct from auto-re-pin on system events
@@ -1027,7 +1153,7 @@ export class TuiApp {
     await this.dispatchToSession(
       text, 'agent', perTab,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
-      '[agent]', undefined, skills,
+      '[agent]', undefined, skills, buf,
     );
   }
 
@@ -1072,6 +1198,7 @@ export class TuiApp {
     /** Wall-clock race for the CHAT path only. `undefined` for the agent path. */
     timeoutMs?: number,
     skills?: string[],
+    retainedText = text,
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     if (this.sessionDispatchActive) return;
@@ -1095,6 +1222,7 @@ export class TuiApp {
       perTab.streamingText = undefined;
     }
     let partialStreamed: string | undefined;
+    let accepted = false;
     try {
       for (const fn of candidates) {
         if (!fn) continue;
@@ -1114,6 +1242,8 @@ export class TuiApp {
             return false;
           };
           if (noHelp(result.summary)) continue;
+          accepted = true;
+          if (this.opts.workbenchEnabled && kind === 'agent') this.slash.hint = null;
           summary = result.summary;
           lastAgentProse = result.lastAgentProse;
           // Capture plan content and structured tasks from the session turn result
@@ -1147,12 +1277,13 @@ export class TuiApp {
           // candidate. A user cancel must never read as "(agent error…)" or
           // "timed out".
           if (isCancellationError(err)) {
+            accepted = true;
             summary = this.opts.agentSession?.getLastCancelSummary?.() ?? 'Cancelled';
             break;
           }
           // Stderr is independent of the TUI render — even if paintFullFrame
           // fails for some reason, the operator sees the failure here.
-          process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
+          if (!(this.opts.workbenchEnabled && kind === 'agent')) process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
           summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
           // Try the next candidate rather than giving up.
         }
@@ -1165,6 +1296,15 @@ export class TuiApp {
         perTab.streamingActive = false;
         perTab.streamingText = undefined;
       }
+    }
+    if (!accepted && this.opts.workbenchEnabled && kind === 'agent') {
+      const restored = !this.workbenchStore.snapshot().composer.text;
+      if (restored) {
+        this.workbenchStore.dispatch({ type: 'composer.replace', text: retainedText });
+        this.syncWorkbenchComposer();
+      }
+      const feedback = restored ? 'Submission failed; instruction retained for retry.' : 'Submission failed; newer draft kept. Original remains in transcript.';
+      summary = summary === `${fallbackPrefix} ${text}` ? feedback : `${summary}\n${feedback}`;
     }
     // Fail-soft: keep the tokens already streamed visible when the turn
     // errored/timed out, prefixed to the stamped entry (no orphan line).
@@ -1414,6 +1554,10 @@ export class TuiApp {
    * Reads the live `ViewRenderContext` via the frame painter.
    */
   private resetScrollOffsetToBottom(tab: 'agent' | 'chat'): void {
+    if (this.opts.workbenchEnabled && tab === 'agent') {
+      this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: true });
+      this.state.views.agent.pinnedBottom = true;
+    }
     const ctx = this.framePainter.buildViewRenderContext(tab);
     this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
   }
@@ -1433,6 +1577,7 @@ export class TuiApp {
         const per = this.state.views[tab];
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
+          if (this.opts.workbenchEnabled && tab === 'agent') per.pinnedBottom = this.workbenchStore.snapshot().followTail;
           const ctx = this.framePainter.buildViewRenderContext(tab);
           const bottomAnchor = computeBottomAnchor(ctx, tab);
           const step = action.offset - per.scrollOffset;
@@ -1458,6 +1603,9 @@ export class TuiApp {
           }
           // else (pinned && action.offset === 0): ArrowDown pressed while
           // already pinned — no-op, stays pinned.
+          if (this.opts.workbenchEnabled && tab === 'agent') {
+            this.workbenchStore.dispatch({ type: 'transcript.follow', followTail: per.pinnedBottom });
+          }
           this.paintFullFrame();
           break;
         }
@@ -1568,7 +1716,13 @@ export class TuiApp {
     this.pasteChunks = [];
     if (!text) return;
     if (this.opts.workbenchEnabled && this.state.activeTab === 'agent'
-        && this.workbenchStore.snapshot().overlayStack.length > 0) return;
+        && this.workbenchStore.snapshot().overlayStack.length > 0) {
+      if (this.workbenchStore.snapshot().overlayStack.at(-1) === 'coordination') {
+        this.workbenchStore.dispatch({ type: 'coordination.edit', edit: { type: 'composer.insert', text } });
+        this.paintFullFrame();
+      }
+      return;
+    }
     if (this.opts.workbenchEnabled && this.state.activeTab === 'agent') {
       this.workbenchStore.dispatch({ type: 'composer.insert', text });
       this.syncWorkbenchComposer();
@@ -1628,6 +1782,8 @@ function parseKey(buf: Buffer): string | null {
   // chars) and a submitted Enter is silently dropped with the composer intact.
   if (s === '\r' || s === '\n' || s === '\r\n') return 'Enter';
   if (s === '\x1b') return 'Escape';
+  if (s === '\x1b[5~') return 'PageUp';
+  if (s === '\x1b[6~') return 'PageDown';
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
@@ -1635,6 +1791,8 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\x01') return 'Ctrl+a';   // Ctrl+A — Workbench agent drawer
   if (s === '\x14') return 'Ctrl+t';   // Ctrl+T — Workbench task drawer
   if (s === '\x12') return 'Ctrl+r';   // Ctrl+R — Workbench artifact/result drawer
+  if (s === '\x05') return 'Ctrl+e';   // Ctrl+E — selected-agent inspector
+  if (s === '\x06') return 'Ctrl+f';   // Ctrl+F — Workbench composer/transcript focus
   // Kitty keyboard protocol and xterm modifyOtherKeys encodings for
   // Shift+Enter. A plain Enter remains submission.
   if (s === '\x1b[13;2u' || s === '\x1b[27;2;13~') return 'Shift+Enter';

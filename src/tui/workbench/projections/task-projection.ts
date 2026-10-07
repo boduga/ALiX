@@ -21,6 +21,12 @@ function terminal(value: unknown): WorkbenchTaskState {
   }
 }
 
+function dependencies(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))]
+    : undefined;
+}
+
 export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
   private readonly byId = new Map<string, TaskSummary>();
   private readonly seen = new Set<string>();
@@ -35,14 +41,18 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
       const at = Date.parse(event.timestamp) || 0;
       const previous = this.byId.get(id);
       if (event.type === 'subagent.started' || event.type === 'agent.task_assigned') {
+        const dependencyIds = dependencies(p.dependencyIds);
         this.byId.set(id, {
           taskId: id,
           agentId: typeof p.agentId === 'string' ? p.agentId : previous?.agentId ?? id,
           ...(typeof p.coordinationRunId === 'string' ? { coordinationRunId: p.coordinationRunId } : previous?.coordinationRunId ? { coordinationRunId: previous.coordinationRunId } : {}),
           ...(typeof p.assignedAgentId === 'string' ? { assignedAgentId: p.assignedAgentId } : previous?.assignedAgentId ? { assignedAgentId: previous.assignedAgentId } : {}),
           title: typeof p.prompt === 'string' ? p.prompt : typeof p.title === 'string' ? p.title : previous?.title ?? id,
-          state: event.type === 'agent.task_assigned' ? 'assigned' : 'running',
+          state: p.state === 'waiting_dependency' || p.state === 'waiting_approval' ? p.state
+            : event.type === 'agent.task_assigned' ? 'assigned' : 'running',
           ...(typeof p.blockReason === 'string' ? { blockReason: p.blockReason } : {}),
+          ...(dependencyIds !== undefined ? { dependencyIds }
+            : previous?.dependencyIds !== undefined ? { dependencyIds: previous.dependencyIds } : {}),
           ownedPaths: Array.isArray(p.ownedPaths) ? p.ownedPaths.filter((v): v is string => typeof v === 'string') : previous?.ownedPaths ?? [],
           createdAt: previous?.createdAt ?? at,
           updatedAt: at,
@@ -55,6 +65,7 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
         const explicitlyBlocked = p.state === 'blocked';
         const state = explicitlyBlocked || (!hasExplicitState && typeof p.blockReason === 'string') ? 'blocked'
           : p.state === 'queued' || p.state === 'starting' ? 'assigned'
+          : p.state === 'waiting_dependency' || p.state === 'waiting_approval' ? p.state
           : p.state === 'completed' || p.state === 'partial' || p.state === 'failed' || p.state === 'cancelled'
             ? terminal(p.state)
             : 'running';
@@ -95,12 +106,16 @@ export class TaskProjection implements ProjectionBuilder<TaskRosterSnapshot> {
   }
 
   snapshot(): TaskRosterSnapshot {
-    const tasks = [...this.byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.taskId.localeCompare(b.taskId));
+    const tasks = [...this.byId.values()]
+      .sort((a, b) => a.createdAt - b.createdAt || a.taskId.localeCompare(b.taskId))
+      .map(task => ({ ...task, ownedPaths: [...task.ownedPaths],
+        ...(task.dependencyIds !== undefined ? { dependencyIds: [...task.dependencyIds] } : {}) }));
     return {
       tasks,
       queued: tasks.filter((task) => task.state === 'queued' || task.state === 'assigned').length,
       running: tasks.filter((task) => task.state === 'running').length,
       blocked: tasks.filter((task) => task.state === 'blocked').length,
+      waiting: tasks.filter((task) => task.state === 'waiting_dependency' || task.state === 'waiting_approval').length,
     };
   }
 

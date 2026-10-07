@@ -139,12 +139,20 @@ export class AgentRosterProjection implements ProjectionBuilder<AgentRosterSnaps
   snapshot(now = Date.now(), thresholds: AgentLivenessThresholds = DEFAULT_LIVENESS_THRESHOLDS): AgentRosterSnapshot {
     const agents = [...this.byId.values()]
       .map((agent): AgentSummary => {
-        if (terminalStates.has(agent.state) || stallExemptStates.has(agent.state)) return agent;
-        const idleMs = Math.max(0, now - agent.lastProgressAt);
+        const sampledAt = Number.isFinite(now) ? now : agent.lastProgressAt;
+        const detached: AgentSummary = {
+          ...agent,
+          ownedPaths: [...agent.ownedPaths],
+          usage: { ...agent.usage },
+          ...(agent.activeTool ? { activeTool: { ...agent.activeTool,
+            elapsedMs: Math.max(0, sampledAt - agent.activeTool.startedAt) } } : {}),
+        };
+        if (terminalStates.has(agent.state) || stallExemptStates.has(agent.state)) return detached;
+        const idleMs = Math.max(0, sampledAt - agent.lastProgressAt);
         const state = idleMs >= thresholds.stalledAfterMs
           ? 'stalled'
           : idleMs >= thresholds.warningAfterMs ? 'warning' : 'healthy';
-        return { ...agent, liveness: { state, idleMs } };
+        return { ...detached, liveness: { state, idleMs } };
       })
       .sort((a, b) => a.startedAt - b.startedAt || a.agentId.localeCompare(b.agentId));
     const tokenValues = agents.flatMap((agent) => {

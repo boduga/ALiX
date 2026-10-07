@@ -32,7 +32,7 @@ export function buildWorkbenchApprovalCardLines(
 /** Paint the oldest authoritative pending approval without mutating it. */
 export function paintWorkbenchApprovalDialog(
   rect: CanvasRect,
-  approval: ApprovalRecordSnapshot | undefined,
+  approval: ApprovalRecordSnapshot | Pick<ApprovalRecordSnapshot, 'id' | 'toolName' | 'target' | 'requestedAt'> | undefined,
   totalPending: number,
   now = Date.now(),
 ): void {

@@ -75,6 +75,8 @@ export type ToolOutputPayload = {
 };
 
 export type ToolCompletedPayload = {
+  /** Actual returned-text measurement, absent for tools without a producer. */
+  observedLineCount?: number;
   toolCallId: string;
   toolName: string;
   status: "success" | "cancelled";
