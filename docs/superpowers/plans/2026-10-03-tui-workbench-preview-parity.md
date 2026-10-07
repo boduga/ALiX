@@ -368,7 +368,7 @@ Dependencies: 0–9. Coverage: every ID.
 
 Exit: all IDs have evidence; no required check outstanding; operator can navigate/filter/follow/inspect/approve/queue/cancel/coordinately execute actual work. Commit: test(tui): gate preview parity rollout.
 
-Evidence (as-built 2026-10-07, PR: pending — branch `feat/tui-parity-phase10`):
+Evidence (as-built 2026-10-07, PR #856):
 - Item 1: 18 cell/ANSI goldens (`tests/tui/workbench/__goldens__/`, full plan:181 matrix incl. canonical 200×44 + boundary sizes; `UPDATE_GOLDENS=1` regeneration idempotent, sha256-verified; IDs in test titles) + fixed-font PNG evidence (`tests/manual/render-golden-png.py`, Pillow 10.2.0, DejaVuSansMono recorded in `__goldens__/capture-settings.md`; existence-gated in vitest, no pixel gate per "image pixels do not prescribe terminal columns").
 - Item 2: 14 scenario tests (`parity-scenarios.vitest.ts`, gap matrix documented: empty/aggregate rendered inspector, long-name bounding, 7-state lifecycle words, stale-vs-none approvals, deny e2e, unavailable-vs-zero usage/cost, deleted artifacts; rest pre-covered by the 36 existing suites).
 - Item 3: 17 charset/mode tests (`parity-charset.vitest.ts`: displayWidth bounds at 4 widths, CJK input graphemes, unicode-vs-ascii per painter, painter-level no-truecolor in ansi16/mono, non-TTY byte-identical render, 1049/2004 restoration pairing + zero raw-mode on non-TTY).
