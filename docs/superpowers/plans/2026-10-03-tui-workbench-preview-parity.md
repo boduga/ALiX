@@ -1,6 +1,6 @@
 # TUI Workbench preview parity — phased implementation plan
 
-Status: Implementation authorized 2026-10-03; Phases 0–1 readiness complete; Phases 2–8 geometry/chrome/roster/transcript/tool cards/inspector/composer controls complete. Phases 9–10 pending their exit gates.
+Status: Implementation authorized 2026-10-03; Phases 0–9 complete (Phase 9 evidence below); Phase 10 evidence attached per item (see Phase 10 evidence note). Feature gate (`workbenchEnabled`) retained until parity evidence — no rollout change.
 Design: [2026-10-03-tui-workbench-preview-parity-design.md](../specs/2026-10-03-tui-workbench-preview-parity-design.md).
 Baseline: cd7fadeed127a6c0918c4bbb10414531b9ed7f70, PR #848 merged.
 Reference: [ALiX Workbench Terminal Preview](../../../ALiX%20Workbench%20Terminal%20Preview.png), 1774 × 887 pixels. Preserve and track the byte-identical original with Phase 0.
@@ -17,7 +17,7 @@ Implementation progress:
 - Phase 2 geometry complete: shared named regions, left roster/center transcript/right inspector reservation at ≥160×36, full-width bounded composer, pane clipping, semantic resize anchors and matching hardware caret. Inspector section data, preview controls and coordination launch remain pending.
 - Phase 3 chrome complete: cyan brand/live PREVIEW badge, responsive workspace/mode/session-roster groups, accented keyboard hints, uppercase right-aligned counters, explicit unavailable telemetry and close/cancel/decision priority. Semantic theme alternatives and unchanged-row diff behavior verified.
 - Operator branding amendment (refined to one row): bold cyan single-row text title replaces the block banner at every width. Header divider removed without moving panes or composer.
-- Phase 4 roster complete: identity-joined agent/task rows, lifecycle words and glyphs, aggregate counts, scoped shortcuts, selected outlines/fill, reference dividers and bounded scrolling. Coordination guidance is read-only; launching remains Phase 9.
+- Phase 4 roster complete: identity-joined agent/task rows, lifecycle words and glyphs, aggregate counts, scoped shortcuts, selected outlines/fill, reference dividers and bounded scrolling. Coordination guidance is read-only; launching landed in Phase 9 (see Phase 9 evidence).
 - Phase 5 transcript complete: independent all/selected-agent scope and categories, UTC actor/status prefixes, user-safe activity, explicit outcome badges, cyan frame/chips and authoritative follow with semantic anchors/new-item counts. Global approval cards and their decisions remain aligned; raw Escape closes a drawer before foreground cancellation.
 - Phase 6 tool cards complete: bounded outlined cards, TOOL badges, lifecycle outcomes, requested metadata, observed counts and connector guides. Per-call identities survive details mode; cancellation and orphan/late/mismatched events preserve truthful outcomes. Live names remain exact trace labels.
 - Phase 7 inspector complete: snapshot-only selected-agent joins, five reference sections, clock-derived active activity, correlated terminal suppression and explicit unavailable/zero/partial telemetry. Task wrapping and section collapse remain bounded; hiding preserves selected identity.
@@ -353,6 +353,8 @@ Dependencies: 8. Coverage: L10 and live cross-pane state.
 
 Exit: scripted four-worker runtime drives the same UI models; cancellation reaches runtime; success prose or successful call alone never yields verified completion. Commit: feat(tui): connect coordination entry.
 
+Evidence (as-built 2026-10-07): delivered in PR #850 (feat(tui): preview parity workbench + phase-9 coordination, merge `7db0e370`) — coordination objective entry modal (store/input/paint/validation), `AgentSession.runCoordination` port, `TaskLoopDeps.coordinationKickoff`, `turn-guard` single-foreground-owner, four-worker runtime integration tests (real handlers + scheduler, reclaim/resume, verified-aggregate gating), plus seam fixes (cwd verification root, awaited finalization, execution-trace harness, chrome-owned top status line). Spec-compliance + code-quality reviews passed (incl. HIGH-impact `runUntilIdle` await: no new throw path, no deadlock). TUI DOX updated.
+
 ### Phase 10 — Complete parity acceptance and rollout
 
 Dependencies: 0–9. Coverage: every ID.
@@ -365,6 +367,21 @@ Dependencies: 0–9. Coverage: every ID.
 6. Update owning DOX/help and accepted spec amendments; retain feature gate until parity evidence. Mark plan as-built with PRs; retain limitations until evidence retires them.
 
 Exit: all IDs have evidence; no required check outstanding; operator can navigate/filter/follow/inspect/approve/queue/cancel/coordinately execute actual work. Commit: test(tui): gate preview parity rollout.
+
+Evidence (as-built 2026-10-07, PR: pending — branch `feat/tui-parity-phase10`):
+- Item 1: 18 cell/ANSI goldens (`tests/tui/workbench/__goldens__/`, full plan:181 matrix incl. canonical 200×44 + boundary sizes; `UPDATE_GOLDENS=1` regeneration idempotent, sha256-verified; IDs in test titles) + fixed-font PNG evidence (`tests/manual/render-golden-png.py`, Pillow 10.2.0, DejaVuSansMono recorded in `__goldens__/capture-settings.md`; existence-gated in vitest, no pixel gate per "image pixels do not prescribe terminal columns").
+- Item 2: 14 scenario tests (`parity-scenarios.vitest.ts`, gap matrix documented: empty/aggregate rendered inspector, long-name bounding, 7-state lifecycle words, stale-vs-none approvals, deny e2e, unavailable-vs-zero usage/cost, deleted artifacts; rest pre-covered by the 36 existing suites).
+- Item 3: 17 charset/mode tests (`parity-charset.vitest.ts`: displayWidth bounds at 4 widths, CJK input graphemes, unicode-vs-ascii per painter, painter-level no-truecolor in ansi16/mono, non-TTY byte-identical render, 1049/2004 restoration pairing + zero raw-mode on non-TTY).
+- Item 4: perf budgets (`parity-perf.vitest.ts`, 4,501-line history: paint p50 ~30ms asserted ≤3200ms/op, keystroke ≤3600ms, grapheme bytes ≤150000; tick repaints ≤6 rows; first paint ≤ terminal-rows bound; identical repaint = cursor-only) + tick-rebuild fix (content-keyed scrollback memo; paint p50 264ms → ~30ms; `[TODO plan-violation]` test flipped to ref-sharing assertion).
+- Item 5: typecheck/build/typecheck:unused/check:dox green; full TUI suite green; detect_changes + impact analysis on the scrollback change (HIGH, reviewed); legacy views untouched (non-workbench rendering byte-identical).
+- Item 6: feature gate (`workbenchEnabled`) retained — no rollout change. DOX: `src/tui/AGENTS.md` chrome-ownership bullet; this plan marked as-built.
+
+Retained limitations (until evidence retires them):
+- Transcript rows are not theme-injectable (`workbench-scrollback.ts` + agent-view call sites hardcode defaults) — mono/ansi16 evidence is region-painter-scoped; full-frame transcript mono unproven.
+- Roster artifacts drawer hardcodes gray/border glyphs (not capability-aware).
+- Operator-shell status colors hardcoded (yellow/cyan) — mono leak on those paths (tests scope "theme-controlled painters").
+- Real terminal restoration (alt-buffer/raw) is PTY-only, owned by `tests/manual/run-workbench-*`.
+- Inspector task-overflow `' more'` suffix never renders (cosmetic, `agent-inspector.ts:65`).
 
 ## 6. Dependency and review sequence
 
