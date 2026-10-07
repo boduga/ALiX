@@ -221,6 +221,15 @@ describe("coordination terminal finalization", () => {
     const scheduler = schedulerFor(cwd, store, recorder.log);
     await scheduler.tick(runId);
     await waitUntil(async () => (await store.load(runId))?.aggregateResultRef !== undefined, 8_000);
+    // Wait for the EVENT, not just the store write (same lesson as the first
+    // test in this file): the eventsBefore snapshot below is only meaningful
+    // once the first finalize's emission has landed. Polling only the store
+    // lets a still-in-flight append be counted against the direct call below
+    // (observed as "1 !== 0" twice under full-suite load).
+    await waitUntil(
+      () => recorder.appended.filter((e) => e.type === "coordination.aggregate.completed").length >= 1,
+      8_000,
+    );
 
     const { CoordinationCompletionService } = await import("../../src/kernel/coordination-completion-service.js");
     const { ResultAggregator } = await import("../../src/kernel/coordination-result-aggregator.js");
