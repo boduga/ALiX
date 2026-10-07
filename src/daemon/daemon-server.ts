@@ -468,6 +468,19 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     route = await taskRouter(task);
   }
 
+  // R1.5: one project ApprovalStore for BOTH branches — non-agent route tool
+  // behaviors and the agent runTask path. Previously neither had one, so every
+  // ask-mode decision failed closed headless (or, on the agent path with
+  // sessionMode bypass, silently allowed).
+  const { ApprovalStore } = await import("../approvals/approval-store.js");
+  let daemonApprovalStore: InstanceType<typeof ApprovalStore> | undefined;
+  try {
+    daemonApprovalStore = new ApprovalStore(requestCwd);
+    await daemonApprovalStore.load();
+  } catch {
+    daemonApprovalStore = undefined;
+  }
+
   try {
     // Route execution — tool/chat/grounded_chat/direct cross the RuntimeExecutor
     // seam via DaemonRuntimeExecutor (which delegates to the shared behaviors);
@@ -487,6 +500,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         // Config is loaded exactly once by the executor and shared into the
         // context from the same cached instance.
         config: await daemonExecutor.getConfig(),
+        ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       };
       await executeRoute(route, runtimeCtx, daemonExecutor);
       registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
@@ -495,7 +509,13 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       return;
     }
 
-    // Agent route — runTask path
+    // Agent route — runTask path.
+    // R1.5 fail-closed: this path used to run `sessionMode: "bypass"` with no
+    // approval store, so every ask silently became allow. The project
+    // ApprovalStore (created above, shared with the route branch) is wired and
+    // ask-mode holds: state-changing tools mint a durable pending approval
+    // (operator-resolvable via `alix approvals`) instead of executing
+    // ungoverned; a broken store still fails closed at the gate.
     const { loadConfig } = await import("../config/loader.js");
     await loadConfig(requestCwd);
     const { runTask } = await import("../run.js");
@@ -504,7 +524,8 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     const result = await runTask(requestCwd, task, {
       planApprovalMode: "deferred",
       streaming: true,
-      sessionMode: "bypass",
+      sessionMode: "ask",
+      ...(daemonApprovalStore ? { approvalStore: daemonApprovalStore } : {}),
       skipContext: true,
       sharedSession: {
         sessionId,

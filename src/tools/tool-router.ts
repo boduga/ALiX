@@ -271,6 +271,18 @@ export class FileToolRouter implements ToolRouter {
         if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
           return { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." };
         }
+        // R1.5: parity with file.create's overwrite backstop — a caller
+        // operating under declared ownership may only delete inside its own
+        // scope. Uses the shared matcher (no re-normalization); the gate
+        // already ran first, this is the second, narrower net.
+        if (request.ownedPaths?.length && !this.isOwnedWriteTarget(request, resolvedPath)) {
+          return {
+            kind: "error",
+            message: `Delete target is outside owned scope: ${path}`,
+            retryable: false,
+            hint: "Workers may only delete files inside their declared owned paths.",
+          };
+        }
         const { rm } = await import("node:fs/promises");
         try {
           await rm(resolvedPath);

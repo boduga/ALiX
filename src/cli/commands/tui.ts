@@ -385,7 +385,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // config is deliberately Record<string, any> here (loadConfig may fall back
   // to a stub); ToolExecutor reads fields defensively, so a type-only cast at
   // this boundary is safe and matches other call sites' typed config.
-  const toolExecutor = new ToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd());
+  // R1.5: the session's approvalStore is wired so capability-invoked tools
+  // mint resolvable approvals instead of headless denies.
+  const toolExecutor = new ToolExecutor(config as import('../../config/schema.js').AlixConfig, eventLog, process.cwd(), undefined, undefined, undefined, undefined, approvalStore);
   capabilityService = new CapabilityService(undefined, {
     eventLog,
     sessionId: currentSessionId,

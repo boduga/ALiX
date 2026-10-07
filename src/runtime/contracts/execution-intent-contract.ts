@@ -109,6 +109,13 @@ export type ExecutionIntent = Readonly<{
   approvalReference: string;
   approvedBy: string;
   approvedAt: string;
+  /**
+   * Who/what actually authorized this intent (R1.5). Synthesized governor
+   * approvals are `"system"` — never `"operator"` — so X-series self-approval
+   * can never be read as an operator decision. See
+   * `src/contracts/authorized-execution-port.ts`.
+   */
+  authorizationSource?: import("../../contracts/authorized-execution-port.js").AuthorizationSource;
   intentHash: string;
 }>;
 

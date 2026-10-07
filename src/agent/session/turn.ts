@@ -357,6 +357,9 @@ export async function processTurnBody(
       sessionDir: state.ctx.sessionDir,
       eventLog: state.ctx.log,
       config: state.ctx.config,
+      // R1.5: route tool behaviors build their ToolExecutor from this context —
+      // without the store, ask-mode route tools fell back to headless denies.
+      approvalStore: state.config.approvalStore,
       onRouteDiagnostic: state.config.onRouteDiagnostic,
       // External (grounded) turns make a real model choice among the web tools
       // they offer — give that choice a scope instead of leaving external

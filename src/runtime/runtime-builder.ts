@@ -48,7 +48,19 @@ export class RuntimeBuilder {
     // Build checkpoint manager and tool executor
     this._checkpointManager = new CheckpointManager(sessionDir);
     await this._checkpointManager.init();
-    this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root);
+    // R1.5: wire the project approval store so ask-mode tool calls mint
+    // resolvable pending approvals instead of headless fail-closed denies.
+    // Fail-open to undefined (legacy deny) if the approvals dir is broken —
+    // a broken store must never kill the run before it starts.
+    let approvalStore: import("../approvals/approval-store.js").ApprovalStore | undefined;
+    try {
+      const { ApprovalStore } = await import("../approvals/approval-store.js");
+      approvalStore = new ApprovalStore(this._root);
+      await approvalStore.load();
+    } catch {
+      approvalStore = undefined;
+    }
+    this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root, undefined, undefined, undefined, undefined, approvalStore);
 
     // Build context compiler — max-token budget from the canonical models
     // source (§10), never the derived `model` projection.

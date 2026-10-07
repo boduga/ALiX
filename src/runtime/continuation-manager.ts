@@ -19,6 +19,7 @@ export interface ContinuationManagerDeps {
     args: Record<string, unknown>;
     agentId?: string;
     source?: string;
+    approvalId?: string;
   }) => Promise<{ kind: string; output?: string; content?: string; message?: string }>;
 }
 
@@ -37,6 +38,11 @@ export class ContinuationManager {
     }
     if (approval.status !== "approved") {
       return { resumed: false, error: `Approval ${approvalId} status is '${approval.status}', not 'approved'` };
+    }
+    // R1.5: authorization must still be valid — an expired approval never
+    // resumes, even if its status was not re-derived yet.
+    if (approval.expiresAt && new Date(approval.expiresAt).getTime() <= Date.now()) {
+      return { resumed: false, error: `Approval ${approvalId} expired at ${approval.expiresAt}` };
     }
 
     // 2. Look up continuation
@@ -84,10 +90,12 @@ export class ContinuationManager {
     // 4. Remove continuation (one-shot)
     await this.deps.continuationStore.remove(approvalId);
 
-    // 5. Re-execute (pass agentId through for ownership check)
+    // 5. Re-execute (pass agentId through for ownership check; approvalId so
+    // the executor can independently re-validate the durable authorization).
     const result = await this.deps.executeTool({
       ...cont.toolCall,
       source: "continuation-resume",
+      approvalId,
     });
     if (result.kind === "success") {
       // Emit approval.resumed + continuation.consumed

@@ -35,6 +35,12 @@ export type ToolCallRequest = {
    */
   source?: string;
   /**
+   * Durable approval id backing a `continuation-resume`. The executor
+   * re-validates it (still `approved`, not expired) before dispatch — a
+   * caller-set `source` alone is not authorization (R1.5).
+   */
+  approvalId?: string;
+  /**
    * Operator-cancel signal (Task 6.1 tool propagation). When supplied, an
    * interruptible tool (e.g. a spawned shell.run) maps an abort onto its own
    * kill/cancel path and surfaces the outcome as an ExecutionCancelledError —

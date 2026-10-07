@@ -108,10 +108,11 @@ export async function handleGraphRun(args: string[]): Promise<void> {
   const registry = await loadCardRegistry(cwd);
   const approvalStore = new ApprovalStore(cwd);
   await approvalStore.load();
-  const enforce = args.includes("--enforce-capabilities");
-  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
+  // R1.5: enforcement is always on (the constructor default); the legacy
+  // --enforce-capabilities flag is accepted as a no-op for compatibility.
+  const executor = new GraphExecutor(cwd, { registry, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
   console.log(`Executing graph: ${graphId}`);
-  if (enforce) console.log("  (capability enforcement enabled)");
+  console.log("  (capability enforcement active)");
   console.log();
   const result = await executor.execute(graphId);
   for (const nr of result.results) {

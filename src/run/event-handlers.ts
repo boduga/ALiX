@@ -383,6 +383,46 @@ export async function handleToolCall(
 
   const boundTool = deps.boundTools?.find((tool) => tool.definition.name === toolCall.name);
   if (boundTool) {
+    // R1.5: bound tools carry a policy decision before dispatch — the same
+    // gate every routed tool passes. allow → run; ask → durable approval wait;
+    // deny/unknown → denial. The handler never runs ungoverned.
+    const auth = await deps.executor.authorizeBoundTool({
+      toolCallId: toolCall.id,
+      name: toolCall.name,
+      args: (toolCall.args ?? {}) as Record<string, unknown>,
+      sessionId: deps.session.sessionId,
+    });
+    let authorized = auth.decision === "allow";
+    if (auth.decision === "ask") {
+      if (auth.approvalId) {
+        deps.onProgress?.("approval_pending", execName);
+        const approvalId = auth.approvalId;
+        const outcome = await waitForApproval(approvalId, deps);
+        authorized = outcome === "approved";
+        await deps.log.append({
+          sessionId: deps.session.sessionId,
+          actor: "system",
+          type: "approval.resolved",
+          payload: { approvalId, outcome },
+        });
+      } else {
+        // ask without a durable pending record (no approval store) → fail closed
+        authorized = false;
+      }
+    }
+    if (!authorized) {
+      const reason =
+        auth.decision === "ask"
+          ? `Approval ${auth.approvalId ?? ""} not granted for ${toolCall.name}`.trim()
+          : `Denied by policy: ${auth.reason}`;
+      return {
+        message: {
+          role: "user",
+          content: buildCorrelatedToolResultMessage(toolCall.id, `Access denied: ${reason}`, correlation),
+        },
+        succeeded: false,
+      };
+    }
     try {
       const output = await boundTool.handler((toolCall.args ?? {}) as Record<string, unknown>);
       return {

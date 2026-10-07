@@ -152,7 +152,10 @@ describe("handleToolCall unknown-tool guard", () => {
   });
 
   it("dispatches canonical offered collaboration tools through their bound handler", async () => {
-    const executor = { execute: vi.fn() };
+    const executor = {
+      execute: vi.fn(),
+      authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "allow", reason: "Allowed by tool policy (mode: bypass)" }),
+    };
     const handler = vi.fn().mockResolvedValue(JSON.stringify({ findingId: "finding-1" }));
     const name = "alix_collaboration_publish_finding";
     const deps = Object.assign(makeDeps(executor), {
@@ -160,9 +163,68 @@ describe("handleToolCall unknown-tool guard", () => {
       boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
     });
     const result = await handleToolCall({ id: "collab-1", name, args: { title: "Fact" } }, deps, [], []);
+    expect(executor.authorizeBoundTool).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith({ title: "Fact" });
     expect(executor.execute).not.toHaveBeenCalled();
     expect(result.message?.content).toContain('{"findingId":"finding-1"}');
+  });
+
+  it("denies a bound collaboration tool when the policy gate denies", async () => {
+    // R1.5: bound tools are authorized before dispatch — a denial must never
+    // reach the handler.
+    const executor = {
+      execute: vi.fn(),
+      authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "deny", reason: "Path is protected" }),
+    };
+    const handler = vi.fn();
+    const name = "alix_collaboration_publish_finding";
+    const deps = Object.assign(makeDeps(executor), {
+      offeredTools: [{ name }],
+      boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+    });
+    const result = await handleToolCall({ id: "collab-deny", name, args: { title: "No" } }, deps, [], []);
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.message?.content).toContain("Access denied");
+    expect(result.message?.content).toContain("Path is protected");
+    expect(result.succeeded).toBe(false);
+  });
+
+  it("fails closed when a bound tool asks but no durable approval backs it", async () => {
+    // R1.5: ask without an approval id (no approval store) must not run the
+    // handler — missing governance dependency fails closed.
+    const executor = {
+      execute: vi.fn(),
+      authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "ask", reason: "Approval required" }),
+    };
+    const handler = vi.fn();
+    const name = "alix_collaboration_publish_finding";
+    const deps = Object.assign(makeDeps(executor), {
+      offeredTools: [{ name }],
+      boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+    });
+    const result = await handleToolCall({ id: "collab-ask", name, args: { title: "No" } }, deps, [], []);
+    expect(handler).not.toHaveBeenCalled();
+    expect(result.message?.content).toContain("Access denied");
+    expect(result.succeeded).toBe(false);
+  });
+
+  it("runs a bound tool only after its durable approval resolves approved", async () => {
+    const executor = {
+      execute: vi.fn(),
+      authorizeBoundTool: vi.fn().mockResolvedValue({ decision: "ask", approvalId: "apr-1", reason: "Pending approval: apr-1" }),
+      getApproval: vi.fn().mockReturnValue({ status: "approved" }),
+    };
+    const handler = vi.fn().mockResolvedValue("published");
+    const name = "alix_collaboration_publish_finding";
+    const deps = Object.assign(makeDeps(executor), {
+      offeredTools: [{ name }],
+      boundTools: [{ definition: { name, description: "Publish finding", inputSchema: { type: "object", properties: {} } }, handler }],
+    });
+    const result = await handleToolCall({ id: "collab-approve", name, args: { title: "Yes" } }, deps, [], []);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(result.message?.content).toContain("published");
+    expect((deps.log.append as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .some((c) => ((c[0] as { type?: string }).type === "approval.resolved"))).toBe(true);
   });
 
   it("short-circuits repeated identical read-only search calls", async () => {
