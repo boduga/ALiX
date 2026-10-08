@@ -23,22 +23,26 @@ import type {
 } from "./collaboration-types.js";
 
 // ─── R2.10 dual-write status (per workspace) ─────────────────────────
-type CollaborationLedgerStatus = { appends: number; failures: number; lastError?: string };
+type CollaborationLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
 const statusByCwd = new Map<string, CollaborationLedgerStatus>();
 
 function statusFor(cwd: string): CollaborationLedgerStatus {
   let s = statusByCwd.get(cwd);
   if (!s) {
-    s = { appends: 0, failures: 0 };
+    s = { appends: 0, failures: 0, projectionFailures: 0 };
     statusByCwd.set(cwd, s);
   }
   return s;
 }
 
-/** Observable dual-write health (R2: failures must never be silent). */
+/** Observable authority health (R2: failures must never be silent). */
 export function collaborationLedgerStatus(cwd: string): CollaborationLedgerStatus {
   const s = statusFor(cwd);
-  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+  return {
+    ...s,
+    ...(s.lastError !== undefined ? { lastError: s.lastError } : {}),
+    ...(s.lastProjectionError !== undefined ? { lastProjectionError: s.lastProjectionError } : {}),
+  };
 }
 
 /** Reset counters (tests). */
@@ -101,7 +105,32 @@ export class CollaborationStore {
     }
   }
 
+  /**
+   * R2.16 authority read: rebuild from the ledger (`collab:<runId>` namespaced
+   * entity). The file projection covers only legacy states with zero ledger
+   * facts. Ledger db errors count and THROW — never masked by a file
+   * fallback.
+   */
   private async loadState(): Promise<void> {
+    let last: ReturnType<ReturnType<typeof getSharedLedger>["lastEvent"]>;
+    try {
+      last = getSharedLedger(this.cwd).lastEvent(`collab:${this.runId}`, "collaborationState");
+    } catch (err) {
+      const s = statusFor(this.cwd);
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+    if (last) {
+      const payload = last.payload as { state?: CollaborationState } | null;
+      if (!payload?.state) {
+        throw new Error(`collaboration ledger event for ${this.runId} missing state payload`);
+      }
+      this.state = normalizeStateV1_0(payload.state);
+      return;
+    }
+
+    // Legacy projection-only state.
     if (!existsSync(this.statePath)) {
       this.state = { ...createDefaultState(), runId: this.runId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       return;
@@ -129,7 +158,12 @@ export class CollaborationStore {
    * serialization as JSON). JSON stays authoritative in this phase;
    * failures are counted, never thrown into worker coordination.
    */
-  private mirrorState(): void {
+  /**
+   * R2.16 append the post-mutation state — THE COMMIT (ledger is
+   * authoritative). Must run BEFORE the file write. Failure counts, then
+   * THROWS: no JSON-only collaboration state can exist.
+   */
+  private appendStateFact(): void {
     const s = statusFor(this.cwd);
     try {
       const ledger = getSharedLedger(this.cwd);
@@ -156,14 +190,18 @@ export class CollaborationStore {
         },
         expectedVersion: expected,
       });
-      if (res.ok) s.appends += 1;
-      else {
-        s.failures += 1;
-        s.lastError = `${res.reason}: ${res.detail}`;
+      if (res.ok) {
+        s.appends += 1;
+        return;
       }
+      s.failures += 1;
+      s.lastError = `${res.reason}: ${res.detail}`;
+      throw new Error(`collaboration ledger append failed (${res.reason}): ${res.detail}`);
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("collaboration ledger append failed")) throw err;
       s.failures += 1;
       s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
   }
 
@@ -175,8 +213,16 @@ export class CollaborationStore {
       await this.loadState();
       const result = await fn(this.state);
       this.state.revision++;
-      await this.saveState();
-      this.mirrorState();
+      // R2.16 authority: append FIRST (throws on failure → in-memory bump is
+      // discarded on the next loadState), then the projection (tolerated).
+      this.appendStateFact();
+      try {
+        await this.saveState();
+      } catch (err) {
+        const s = statusFor(this.cwd);
+        s.projectionFailures += 1;
+        s.lastProjectionError = err instanceof Error ? err.message : String(err);
+      }
       return result;
     } finally {
       lock.release();

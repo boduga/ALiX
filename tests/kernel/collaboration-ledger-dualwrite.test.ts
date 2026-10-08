@@ -3,7 +3,7 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -43,7 +43,7 @@ function ensureRunDir(dir: string, runId: string): void {
   mkdirSync(join(dir, ".alix", "coordination", "shared", runId), { recursive: true });
 }
 
-describe("collaboration ledger dual-write (R2.10)", () => {
+describe("collaboration ledger authority (R2.16)", () => {
   it("mutate mirrors created + updated; reconcile clean throughout", async () => {
     const dir = tmp();
     const runId = `run_${randomUUID()}`;
@@ -114,7 +114,7 @@ describe("collaboration ledger dual-write (R2.10)", () => {
     assert.equal(report.ok, false);
   });
 
-  it("ledger failure never breaks worker mutation and is observable", async () => {
+  it("append failure fails the worker mutation — no JSON-only state (R2.16 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
@@ -122,20 +122,57 @@ describe("collaboration ledger dual-write (R2.10)", () => {
     const runId = `run_${randomUUID()}`;
     const store = new CollaborationStore(dir, runId);
     ensureRunDir(dir, runId);
-    await store.mutate(() => undefined); // must not throw
+    await assert.rejects(() => store.mutate(() => undefined), /SQLITE|unable|not a database|ledger append failed/i);
 
     const status = collaborationLedgerStatus(dir);
-    assert.equal(status.failures, 1);
+    assert.equal(status.failures >= 1, true);
     assert.ok(status.lastError);
-
-    // JSON path intact.
-    const file = JSON.parse(readFileSync(stateFile(dir, runId), "utf-8")) as CollaborationState;
-    assert.equal(file.revision, 1);
+    // No projection commit either.
+    assert.ok(!existsSync(stateFile(dir, runId)));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated: ledger holds truth, read still works", async () => {
+    const dir = tmp();
+    const runId = `run_${randomUUID()}`;
+    // Occupy the state file path with a DIRECTORY so saveState fails.
+    mkdirSync(stateFile(dir, runId), { recursive: true });
+
+    const store = new CollaborationStore(dir, runId);
+    await store.mutate(() => undefined); // must NOT throw
+
+    const status = collaborationLedgerStatus(dir);
+    assert.equal(status.projectionFailures, 1);
+    assert.ok(status.lastProjectionError);
+    assert.equal(getSharedLedger(dir).entityVersion(`collab:${runId}`), 1);
+
+    const fresh = new CollaborationStore(dir, runId);
+    const rev = await fresh.read((state) => state.revision); // authority read
+    assert.equal(rev, 1);
+
+    rmSync(stateFile(dir, runId), { recursive: true, force: true });
     const report = await reconcileCollaborationLedger(dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("read prefers the LEDGER over a tampered state file", async () => {
+    const dir = tmp();
+    const runId = `run_${randomUUID()}`;
+    const store = new CollaborationStore(dir, runId);
+    ensureRunDir(dir, runId);
+    await store.mutate(() => undefined);
+    await store.mutate(() => undefined); // revision 2 in ledger + file
+
+    const path = stateFile(dir, runId);
+    const file = JSON.parse(readFileSync(path, "utf-8")) as CollaborationState;
+    file.revision = 99;
+    writeFileSync(path, JSON.stringify(file, null, 2));
+
+    const fresh = new CollaborationStore(dir, runId);
+    const rev = await fresh.read((state) => state.revision);
+    assert.equal(rev, 2); // ledger truth, not the tampered file
   });
 
   it("fresh workspace reconciles clean with zero states", async () => {
