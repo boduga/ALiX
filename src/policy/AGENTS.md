@@ -8,7 +8,7 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 
 - `policy-rule.ts` — PolicyRule type, matchPolicy(), validatePolicyRule()
 - `rule-evaluator.ts` — Pure first-match-wins evaluator (decoupled from runtime subsystems)
-- `runtime-gate.ts` — Two-layer gate: CapabilityResolver + RuleEvaluator + ApprovalStore
+- `runtime-gate.ts` — Graph-node authorization adapter (R3.7): capability coverage (CapabilityResolver) + the graph-specific approval reuse/create lifecycle, with every POLICY decision routed through the one `ExecutionAuthorization` boundary (the same service tools and coordination workers use). Not a second policy authority.
 - `policy-gate.ts` — PolicyGate, the single authoritative policy engine: tool-call and capability evaluation with approval lifecycle (binding-key reuse for coordination, capability reuse for capability asks, fresh approval per tool call in ask mode), plus TUI policy snapshots. Do not introduce a second policy authority.
 - `default-policies.ts` — 11 built-in rules (allow/ask/deny by risk level and capability)
 - `policy-loader.ts` — Load rules from `.alix/policies/*.json`, fall back to defaults
@@ -34,8 +34,8 @@ Policy rules, evaluation, and runtime enforcement — determines whether ALiX is
 ## Work Guidance
 
 - RuleEvaluator is pure logic — no side effects, no I/O. Keep it testable.
-- RuntimeGate is the integration point — it combines registry, policy, and approvals.
-- Adding a new policy rule type means updating `policy-rule.ts` (match fields), `default-policies.ts` (default instances), and `runtime-gate.ts` (if the evaluation logic changes).
+- RuntimeGate is the graph-node integration point — it combines registry coverage, the shared authorization boundary, and graph approval reuse/creation. Policy decisions go through `ExecutionAuthorization`; do not call `PolicyGate.evaluateCapability` directly from a graph path.
+- Adding a new policy rule type means updating `policy-rule.ts` (match fields), `default-policies.ts` (default instances), and the shared `ExecutionAuthorization`/`PolicyGate` path (if the evaluation logic changes).
 
 ## Verification
 

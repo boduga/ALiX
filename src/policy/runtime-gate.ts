@@ -1,8 +1,13 @@
 /**
- * runtime-gate.ts — Two-layer execution gate for graph nodes.
+ * runtime-gate.ts — Graph-node authorization adapter (R3.7).
  *
- * Layer 1: CapabilityResolver — does any agent/tool cover this capability?
- * Layer 2: PolicyGate — is this capability allowed by policy?
+ * Graph nodes are the sequential `alix graph` path; this module keeps the
+ * graph-specific lifecycle (capability coverage, approval reuse/creation,
+ * headless carve-out) but routes every POLICY decision through the ONE
+ * authorization boundary, `ExecutionAuthorization` — the same service tools
+ * and coordination workers use. `GraphExecutor` is a sequential graph CLI
+ * adapter, not a second scheduling authority (scheduling belongs to
+ * `CoordinationScheduler`).
  */
 import type { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities, type CapabilityResolution } from "../registry/capability-resolver.js";
@@ -11,6 +16,7 @@ import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { PolicyGate } from "./policy-gate.js";
 import type { AlixConfig } from "../config/schema.js";
+import { ExecutionAuthorization } from "../runtime/execution-authorization.js";
 
 export type RuntimeGateStatus = "ready" | "blocked" | "needs_approval";
 
@@ -31,6 +37,14 @@ export interface RuntimeGateInput {
   approvalStore?: ApprovalStore;
   auditStore?: AuditStore;
   config: AlixConfig;
+  /** Graph workspace root (required for the shared authorization boundary). */
+  cwd?: string;
+  /** Optional session identity passed to the authorization boundary. */
+  sessionId?: string;
+  /** Precomputed capability coverage (GraphExecutor computes it once). */
+  capabilityResolution?: CapabilityResolution;
+  /** Injected authorization boundary; defaults to one over `policyGate`. */
+  authorization?: ExecutionAuthorization;
 }
 
 export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<RuntimeGateDecision> {
@@ -39,7 +53,7 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
 
   // Layer 1: Capability coverage check
   if (caps.length > 0) {
-    const capResult = resolveCapabilities({
+    const capResult = input.capabilityResolution ?? resolveCapabilities({
       requiredCapabilities: caps,
       domain: node.domain,
       executionProfile: (node as any).executionProfile,
@@ -57,28 +71,40 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         reason: `Missing capabilities: ${capResult.missingCapabilities.join(", ")}`,
       };
     }
-    // Layer 2: Policy evaluation across all capabilities
-    // Apply the most restrictive decision: deny > ask > allow
+    // Layer 2: Policy evaluation across all capabilities, through the ONE
+    // authorization boundary. Apply the most restrictive: deny > ask > allow.
+    const authorization = input.authorization ?? new ExecutionAuthorization({ policyGate });
     let overall: { decision: "allow" | "ask" | "deny"; ruleId?: string; reason?: string; approvalId?: string } | undefined;
 
     for (const cap of caps) {
-      const decision = await policyGate.evaluateCapability({
+      const decision = await authorization.evaluate({
         requestId: `${node.graphId ?? "?"}:${node.id}:${cap}`,
         capability: cap,
+        cwd: input.cwd ?? "",
         sessionMode: config.permissions.sessionMode ?? "ask",
+        sessionId: input.sessionId ?? "",
         nodeId: node.id,
         graphId: node.graphId,
         source: "graph",
       });
-      if (decision.decision === "deny") {
-        overall = { decision: "deny", ruleId: decision.matchedRuleId, reason: decision.reason };
+      const ruleId = (decision as { policyRuleId?: string }).policyRuleId;
+      if (decision.status === "denied") {
+        overall = { decision: "deny", ruleId, reason: decision.reason };
         break;
       }
-      if (decision.decision === "ask" && (!overall || overall.decision === "allow")) {
-        overall = { decision: "ask", ruleId: decision.matchedRuleId, reason: decision.reason, approvalId: decision.approvalId };
+      if (decision.status === "approval_required" && (!overall || overall.decision === "allow")) {
+        // A real approval id only; the boundary substitutes "unknown" when the
+        // policy layer did not create one, which must fall through to the
+        // graph-specific reuse/create path below.
+        overall = {
+          decision: "ask",
+          ruleId,
+          reason: decision.reason,
+          approvalId: decision.approvalId !== "unknown" ? decision.approvalId : undefined,
+        };
       }
-      if (decision.decision === "allow" && !overall) {
-        overall = { decision: "allow", ruleId: decision.matchedRuleId, reason: decision.reason };
+      if (decision.status === "allowed" && !overall) {
+        overall = { decision: "allow", ruleId };
       }
     }
 

@@ -13,7 +13,7 @@ import type { TaskGraph, TaskNode, TaskNodeStatus } from "./task-graph.js";
 import "./task-graph.js";
 import type { RunResult } from "../run.js";
 import { CardRegistry } from "../registry/card-registry.js";
-import { resolveCapabilities } from "../registry/capability-resolver.js";
+import { resolveCapabilities, type CapabilityResolution } from "../registry/capability-resolver.js";
 import { runTask } from "../run.js";
 import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
 import type { PolicyGate } from "../policy/policy-gate.js";
@@ -147,15 +147,17 @@ export class GraphExecutor {
       let reason: string | undefined;
 
       let capabilityResolution: CapabilityPreflightResult | undefined;
+      let coverage: CapabilityResolution | undefined;
       if (node.requiredCapabilities && node.requiredCapabilities.length > 0) {
         try {
           const capRegistry = this.registry ?? new CardRegistry();
-          const capResult = resolveCapabilities({
+          coverage = resolveCapabilities({
             requiredCapabilities: node.requiredCapabilities,
             domain: node.domain,
             executionProfile: (node as any).executionProfile,
             registry: capRegistry,
           });
+          const capResult = coverage;
           const status = capResult.missingCapabilities.length > 0 ? "blocked"
             : capResult.warnings.length > 0 ? "needs_approval" : "ready";
           capabilityResolution = {
@@ -201,6 +203,9 @@ export class GraphExecutor {
           policyGate: this.policyGate!,
           config: this.config!,
           approvalStore: this.approvalStore,
+          cwd: this.cwd,
+          // Coverage was computed once above; never resolve twice per node.
+          capabilityResolution: coverage,
         });
 
         // Enrich capabilityResolution with gate result
@@ -324,6 +329,7 @@ export class GraphExecutor {
         policyGate: this.policyGate,
         config: this.config,
         approvalStore: this.approvalStore,
+        cwd: this.cwd,
       });
       if (gateResult.status !== "ready") {
         return {
