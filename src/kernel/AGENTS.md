@@ -174,6 +174,12 @@
   event across loop, tools, view, collaboration context, and CLI; no stored
   verified flag or session-terminal prerequisite is allowed. The session gate
   yields `completed_unverified` for missing evidence.
+- **One completion derivation (R3.6).** `deriveRunCompletion`
+  (`coordination-view.ts`) reads the run's session events and pairs the
+  aggregate-event match with the current source fingerprint; the task-loop
+  gate, coordination tools/CLI, collaboration context, and the run view all
+  call it. A site that assembles its own evidence pair can silently drop the
+  fingerprint check or read a stale event set — do not.
 - `deriveCoordinationEvidence` takes file.created/file.deleted/patch.changed_files
   events and worker-reported mutation paths; worker status and ownership grants
   are not evidence. Keep

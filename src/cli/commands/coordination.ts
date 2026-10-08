@@ -311,16 +311,9 @@ async function handleStatus(args: string[]): Promise<void> {
   // Derived completion. `Status` above is the terminal execution state only:
   // it does not imply the results were aggregated, that the outcome was
   // success, or that anything was verified.
-  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
-    await import("../../kernel/coordination-types.js");
-  const { computeAggregationSourceFingerprint } =
-    await import("../../kernel/coordination-aggregation-fingerprint.js");
-  const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
-  const completion = deriveCoordinationCompletion(run, {
-    currentFingerprint: computeAggregationSourceFingerprint(run),
-    aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, run.sessionId)),
-  });
-  console.log(`Completion: ${coordinationCompletionLabel(completion)}`);
+  const { deriveRunCompletion } = await import("../../kernel/coordination-view.js");
+  const { completion, label } = await deriveRunCompletion(cwd, run);
+  console.log(`Completion: ${label}`);
   console.log(
     `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
     `outcome=${completion.outcome} verification=${completion.verification}`,
