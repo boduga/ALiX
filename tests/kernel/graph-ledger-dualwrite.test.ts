@@ -3,7 +3,7 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -52,7 +52,7 @@ function graph(id: string, status: TaskGraph["status"] = "ready"): TaskGraph {
   } as unknown as TaskGraph;
 }
 
-describe("graph ledger dual-write (R2.7)", () => {
+describe("graph ledger authority (R2.13)", () => {
   it("persistGraph mirrors created; reconcile clean", async () => {
     const dir = tmp();
     const g = graph(`graph_${randomUUID()}`);
@@ -155,23 +155,55 @@ describe("graph ledger dual-write (R2.7)", () => {
     assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
   });
 
-  it("ledger failure never breaks graph persistence and is observable", async () => {
+  it("append failure fails the mutation — no JSON-only commit (R2.13 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
 
     const g = graph(`graph_${randomUUID()}`);
-    const path = await persistGraph(g, dir); // must not throw
-    assert.ok(path.endsWith(`${g.id}.json`));
-
-    const status = graphLedgerStatus(dir);
-    assert.equal(status.failures, 1);
-    assert.ok(status.lastError);
+    await assert.rejects(() => persistGraph(g, dir), /SQLITE|unable|not a database|ledger append failed/i);
+    assert.equal(graphLedgerStatus(dir).failures >= 1, true);
+    assert.ok(graphLedgerStatus(dir).lastError);
+    // Authoritative store unavailable → no projection commit either.
+    assert.ok(!existsSync(join(dir, ".alix", "graphs", `${g.id}.json`)));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated: ledger holds truth, loadGraph still works", async () => {
+    const dir = tmp();
+    const g = graph(`graph_${randomUUID()}`);
+    // Occupy the graph file path with a DIRECTORY so writeFile fails.
+    mkdirSync(join(dir, ".alix", "graphs", `${g.id}.json`), { recursive: true });
+
+    const path = await persistGraph(g, dir); // must NOT throw
+    assert.ok(path.endsWith(`${g.id}.json`));
+    assert.equal(graphLedgerStatus(dir).projectionFailures, 1);
+    assert.ok(graphLedgerStatus(dir).lastProjectionError);
+    assert.equal(getSharedLedger(dir).entityVersion(g.id), 1);
+
+    const { loadGraph } = await import("../../src/kernel/graph-executor.js");
+    const loaded = await loadGraph(g.id, dir);
+    assert.equal(loaded.status, "ready"); // authority read, no usable file
+
     const report = await reconcileGraphLedger(dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("loadGraph prefers the LEDGER over a tampered graph file", async () => {
+    const dir = tmp();
+    const g = graph(`graph_${randomUUID()}`, "ready");
+    await persistGraph(g, dir);
+
+    const filePath = join(dir, ".alix", "graphs", `${g.id}.json`);
+    const file = JSON.parse(readFileSync(filePath, "utf-8")) as TaskGraph;
+    file.status = "completed";
+    writeFileSync(filePath, JSON.stringify(file, null, 2));
+
+    const { loadGraph } = await import("../../src/kernel/graph-executor.js");
+    const loaded = await loadGraph(g.id, dir);
+    assert.equal(loaded.status, "ready"); // ledger truth, not the tampered file
   });
 
   it("fresh workspace reconciles clean with zero graphs", async () => {

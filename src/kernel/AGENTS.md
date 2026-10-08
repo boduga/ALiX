@@ -103,12 +103,17 @@
   — multi-domain ledgers share one workspace file, so unscoped reads mix
   domains (false orphans, wrong payload errors).
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
-- **Graph files dual-write to the R2 ledger (R2.7, strangler).** Every
-  graph-file write site mirrors immediately after the write:
-  `persistGraph` (planner), `rerunNode` graph+attempt writes (executor),
-  `markRunGraphCancelled` (resume). JSON stays authoritative in this phase;
-  mirror failures are counted in `graphLedgerStatus()` and reported by
-  reconciliation — never thrown into graph execution.
+- **The graph ledger is authoritative (R2.13); JSON files are a
+  compatibility projection.** `mirrorGraphToLedger`/
+  `mirrorGraphAttemptToLedger` append BEFORE each graph-file write — the
+  append IS the commit (counted, then THROWN; no JSON-only mutation);
+  projection writes are tolerated and counted via
+  `countGraphProjectionFailure`. Sites: `persistGraph` (planner),
+  `rerunNode` graph+attempt (executor), `markRunGraphCancelled` (resume,
+  still best-effort at the call site — append failures counted in
+  `graphLedgerStatus()` before the throw is absorbed). `loadGraph` reads
+  the ledger first (`lastEvent(graphId, "graph")`, file only for legacy
+  zero-fact graphs; ledger errors throw).
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.
 - Rerun attempts append to `.alix/graphs/<graphId>.runs.json`.
 - Terminal worker status patches (`completed`/`failed`/`pending` from `executeWorker`) go through bounded `patchWorkerWithRetry` (5 attempts, 50/100/200/400ms); `updateRun` retries transient in-lock loads via `loadWithRetry` (3×, 25/50ms) and all atomic writes go through `writeAtomic` (tmp+rename with EPERM/EACCES/EBUSY rename retry). A silent null from a transient read (e.g. Windows Defender EBUSY) must not orphan a worker as `running` and idle-stop `runUntilIdle`.

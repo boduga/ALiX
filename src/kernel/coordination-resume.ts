@@ -32,8 +32,10 @@ export async function markRunGraphCancelled(cwd: string, run: CoordinationRun): 
     if (graph.status === "cancelled") return;
     graph.status = "cancelled";
     graph.updatedAt = new Date().toISOString();
-    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    // R2.13: append first (counted even though this helper is best-effort),
+    // then the projection — outer catch keeps cancellation non-blocking.
     mirrorGraphToLedger(cwd, graph);
+    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
   } catch {
     // Observability only.
   }
