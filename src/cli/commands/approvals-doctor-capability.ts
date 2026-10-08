@@ -101,12 +101,39 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  console.log("Usage: alix approvals [list|pending|show|approve|deny]");
+  if (args[0] === "reconcile") {
+    // R2.4: read-only comparison of the approvals projection against the
+    // transactional ledger. Exit 1 on drift so scripts/CI can gate on it.
+    const { reconcileApprovalLedger } = await import("../../approvals/approval-ledger-reconcile.js");
+    const report = await reconcileApprovalLedger(cwd);
+    console.log(`Approvals ledger reconciliation`);
+    console.log(`  projection records: ${report.scannedRecords}`);
+    console.log(`  ledger entities:    ${report.ledgerEntities}`);
+    console.log(`  ledger events:      ${report.ledgerEventsRead}`);
+    console.log(`  truncated reads:    ${report.truncated}`);
+    const unknown = Object.entries(report.unknownEventTypes);
+    if (unknown.length > 0) {
+      console.log(`  unknown event types:`);
+      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+    }
+    if (report.issues.length === 0) {
+      console.log(`  issues:             none`);
+      process.exit(0);
+    }
+    console.log(`  issues:             ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.approvalId}: ${issue.detail}`);
+    }
+    process.exit(1);
+  }
+
+  console.log("Usage: alix approvals [list|pending|show|approve|deny|reconcile]");
   console.log("  list              List all approval requests");
   console.log("  pending           List pending approvals only");
   console.log('  show <id>         Show approval details');
   console.log('  approve <id>      Approve a pending request');
   console.log('  deny <id>         Deny a pending request');
+  console.log('  reconcile         Compare approvals projection against the R2 ledger');
   process.exit(0);
 }
 

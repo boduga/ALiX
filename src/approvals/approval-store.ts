@@ -17,6 +17,7 @@ import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../events/types.js";
+import { getSharedLedger } from "../storage/runtime-ledger.js";
 
 /** Compact the append-only journal once it reaches this many entries (#703). */
 const JOURNAL_COMPACT_THRESHOLD = 500;
@@ -64,6 +65,14 @@ export class ApprovalStore {
 
   /** Retention cap for terminal (non-pending/approved) records (#703). */
   private readonly maxTerminalRecords: number;
+  /**
+   * R2.4 dual-write counters (strangler): every mutation is mirrored to the
+   * transactional ledger after the JSON/journal write. Failures are counted
+   * and surfaced by `ledgerStatus()` + reconciliation — never silent.
+   */
+  private ledgerAppends = 0;
+  private ledgerFailures = 0;
+  private lastLedgerError: string | undefined;
 
   constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog; maxTerminalRecords?: number }) {
     this.cwd = cwd;
@@ -213,6 +222,86 @@ export class ApprovalStore {
   }
 
   /**
+   * R2.4 mirror one approval record to the transactional ledger. JSON is
+   * still authoritative in the dual-write phase; failures are counted, never
+   * thrown into the approval path, never silent.
+   */
+  private mirrorApproval(record: ApprovalRecord, kind: "created" | "updated"): void {
+    try {
+      const ledger = getSharedLedger(this.cwd);
+      const expected = ledger.entityVersion(record.id);
+      const eventType = kind === "created" && expected === 0 ? "approval.created" : "approval.updated";
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType,
+          schemaVersion: 1,
+          entityType: "approval",
+          entityId: record.id,
+          entityVersion: expected + 1,
+          correlationId: record.id,
+          sessionId: record.sessionId,
+          agentId: record.agentId,
+          actor: { type: "system", id: "approval-store" },
+          occurredAt: new Date().toISOString(),
+          recordedAt: new Date().toISOString(),
+          payload: { approval: record },
+        },
+        expectedVersion: expected,
+      });
+      if (res.ok) this.ledgerAppends += 1;
+      else {
+        this.ledgerFailures += 1;
+        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      this.ledgerFailures += 1;
+      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** R2.4 mirror a record removal (prune or delete) as a terminal fact. */
+  private mirrorApprovalRemoved(id: string): void {
+    try {
+      const ledger = getSharedLedger(this.cwd);
+      const expected = ledger.entityVersion(id);
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType: "approval.removed",
+          schemaVersion: 1,
+          entityType: "approval",
+          entityId: id,
+          entityVersion: expected + 1,
+          correlationId: id,
+          actor: { type: "system", id: "approval-store" },
+          occurredAt: new Date().toISOString(),
+          recordedAt: new Date().toISOString(),
+          payload: { removed: true },
+        },
+        expectedVersion: expected,
+      });
+      if (res.ok) this.ledgerAppends += 1;
+      else {
+        this.ledgerFailures += 1;
+        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      this.ledgerFailures += 1;
+      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Observable dual-write health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; lastError?: string } {
+    return {
+      appends: this.ledgerAppends,
+      failures: this.ledgerFailures,
+      ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+    };
+  }
+
+  /**
    * Acquire the per-file lock, load fresh, run a mutation, then persist.
    * Pure additions append to the journal (no snapshot rewrite); updates,
    * deletions, or retention pruning compact the snapshot (#703).
@@ -255,6 +344,19 @@ export class ApprovalStore {
       } else {
         await this.saveAtomic();
       }
+
+      // R2.4 dual-write: mirror the classified diff to the transactional
+      // ledger, still inside the per-file lock (same serialization as JSON).
+      const finalIds = new Set(this.approvals.map((r) => r.id));
+      for (const r of this.approvals) {
+        const prior = before.get(r.id);
+        if (prior === undefined) this.mirrorApproval(r, "created");
+        else if (prior !== JSON.stringify(r)) this.mirrorApproval(r, "updated");
+      }
+      for (const id of before.keys()) {
+        if (!finalIds.has(id)) this.mirrorApprovalRemoved(id);
+      }
+
       return result;
     } finally {
       lock.release();

@@ -81,3 +81,10 @@ export type ApprovalGroup = {
 export type ConsumeResult =
   | { consumed: true; record: ApprovalRecord }
   | { consumed: false; reason: string };
+
+/** Ledger event vocabulary for the approvals domain (R2.4). */
+export const APPROVAL_LEDGER_EVENT_TYPES = [
+  "approval.created",
+  "approval.updated",
+  "approval.removed",
+] as const;
