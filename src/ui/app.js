@@ -625,7 +625,7 @@ function renderSubagentTimeline(events) {
     <div class="timeline-item ${e.status ?? ''}">
       <span class="timestamp">${formatTime(e.timestamp)}</span>
       <span class="role badge ${e.role}">${e.role}</span>
-      <span class="type">${e.type.replace('subagent.', '')}</span>
+      <span class="type">${e.type.replace(/^(subagent|agent)\./, '')}</span>
       ${e.duration ? `<span class="duration">${e.duration}ms</span>` : ''}
     </div>
   `).join('');

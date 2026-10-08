@@ -22,7 +22,7 @@ one snapshot contract shared TUI + browser.
 | V5 | direct `ApprovalStore` read only in dead `src/tui/runtime-snapshot.ts:110-136`; active path is `runtime/approval-projection*.ts` (EventLog) | NO — R4.3 removed the dead direct read; the EventLog projection is the only path | — | `tests/tui/runtime/approval-projection*.vitest.ts` |
 | V6 | `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`); only some events relayed | NO — R4.4 declared the four stages (`NON_EVENTLOG_AUTHORITATIVE_STAGES`) non-EventLog authoritative; no canonical emitter exists, so it is a declared read model, not an inference | small | `tests/tui/runtime/evolution-*.vitest.ts`, `tests/tui/views/evolution-view.vitest.ts` |
 | V7 | `src/tui/runtime-collector.ts:380-436` `computeWorkflow`: boundaries canonical (`workflow.created/completed`), step counts HEURISTIC (`toolStartedCount`/`totalStepEvents`) | NO — R4.5 declared the tool/task step accounting a documented fallback (`WORKFLOW_STEP_FALLBACK_TYPES`); no canonical step emitter exists | `runtime-collector.ts:302` | `tests/tui/runtime/runtime-collector.vitest.ts` (new direct pins), `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67` |
-| V10 | `src/ui/projection.js` + `src/inspector/projection.ts` legacy-only vocab (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`); TUI timeline dual | YES | ui `app.js`, inspector `session-reader.ts` | `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts` |
+| V10 | `src/ui/projection.js` + `src/inspector/projection.ts` legacy-only vocab (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`); TUI timeline dual | NO — R4.6: browser reads canonical `context.bundle_compiled` and prefers canonical `agent.*` lifecycle (legacy `subagent.*` fallback); `VISIBLE_EVENTS` delivers canonical `agent.*`/`approval.*`. Verified `autonomy.scope_*`/`verification.check_*` are the emitted vocab for those concerns (no canonical alternative); canonical approvals already have their own API panel | ui `app.js`, inspector `session-reader.ts` | `tests/ui/projection.vitest.ts` (new running lane), `tests/inspector-projection.test.ts` |
 
 ## Sub-steps
 
@@ -34,7 +34,7 @@ one snapshot contract shared TUI + browser.
 | R4.3 | V5+V4: delete dead `src/tui/runtime-snapshot.ts` (+ its test) and the dead type barrel `src/tui/index.ts` re-exports; remove the 4 R4 allowlist entries in the same commit; migrate/remove value-test dependence on `store.ts`; then quarantine/delete `store.ts` once no value importers remain | ✅ |
 | R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ✅ |
 | R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ✅ |
-| R4.6 | V10: migrate `src/ui/projection.js` + `src/inspector/projection.ts` to the canonical vocab (or a shared projection port) so browser and TUI see one reality | ⬜ |
+| R4.6 | V10: migrate `src/ui/projection.js` + `src/inspector/projection.ts` to the canonical vocab (or a shared projection port) so browser and TUI see one reality | ✅ |
 | R4.7 | DOX (`src/tui/AGENTS.md` + `src/ui/AGENTS.md` + `src/inspector` if present) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*` | ⬜ |
 
 ### Notes / risks
@@ -79,8 +79,16 @@ Emitter check: no canonical `workflow.step_*` event exists (only `workflow.creat
 2. Added direct `computeWorkflow` tests in `tests/tui/runtime/runtime-collector.vitest.ts` (fallback vocabulary + derivation + completion boundary).
 3. DOX: added the "workflow step counts are a declared fallback" bullet to `src/tui/AGENTS.md`.
 
-## R4.6–R4.7
-- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts`.
+## R4.6 (V10) — ✅ done
+Recon: the browser's real divergences were a dead `context.bundle_created` read (never emitted) and a `subagent.*`-only agent timeline, plus `VISIBLE_EVENTS` omitting canonical events. `autonomy.scope_*`/`verification.check_*` are the emitted vocab for those concerns (no canonical alternative), and canonical PolicyGate approvals already have their own `/api/approvals` panel — so a full approvals remap would conflate scope expansion with approvals.
+1. `src/ui/projection.js`: `buildContext` reads canonical `context.bundle_compiled` (legacy `bundle_created` fallback); `projectSubagentEvents` prefers canonical `agent.*` lifecycle with legacy `subagent.*` fallback (no double projection on a dual-emitting runtime).
+2. `src/inspector/projection.ts`: mirrors the canonical `agent.*` preference; widened `SubagentEvent.type`.
+3. `src/server/server.ts`: `VISIBLE_EVENTS` now delivers canonical `agent.*` lifecycle + `approval.requested/resolved`.
+4. `src/ui/app.js`: subagent timeline strips both `subagent.`/`agent.` prefixes.
+5. Replaced the two inert `tests/ui/*.test.js` files (never compiled or run by any lane) with `tests/ui/projection.vitest.ts`, so the browser projection vocabulary actually runs in CI.
+6. DOX: updated `src/ui/AGENTS.md` (ownership, canonical-vocabulary contract, verification).
+
+## R4.7
 - **R4.7:** DOX (`src/tui/AGENTS.md`, `src/ui/AGENTS.md`, plus `src/server` if inspector routes change) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*`.
 
 ## Mechanics

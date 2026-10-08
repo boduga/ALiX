@@ -8,11 +8,12 @@ Browser-based session inspector for live event streaming, replay, graph executio
 
 - `index.html` — HTML shell and Inspector tab panels
 - `app.js` — Main driver: SSE connection, replay controls, rendering all panels
-- `projection.js` — Client-side event projection (buildUiProjection, createReplayState, visibleEventsForReplay)
+- `projection.js` — Client-side event projection (buildUiProjection, createReplayState, visibleEventsForReplay, projectSubagentEvents); reads the canonical event vocabulary (R4/V10).
 - `styles.css` — Dark-themed styling
 
 ## Local Contracts
 
+- **Canonical vocabulary (R4/V10).** Event-derived panels read the same canonical events the TUI reads. Context comes from `context.bundle_compiled` (`context.bundle_created` is a legacy fallback only); the agent timeline reads the canonical `agent.*` lifecycle and falls back to legacy `subagent.*` only when no canonical lifecycle event exists. `VISIBLE_EVENTS` in `server.ts` must deliver the canonical events the UI projects.
 - No build pipeline. Files are served statically by the server from `dist/src/ui/`.
 - Tab switching: `button.tab[data-panel="X"]` activates `section#panel-X`.
 - Replay: cursor-based, events sorted by seq, play/pause/step/speed controls.
@@ -30,6 +31,7 @@ Browser-based session inspector for live event streaming, replay, graph executio
 ## Verification
 
 - Manual verification via `alix serve` and browser inspection.
+- Run `npx vitest run tests/ui/projection.vitest.ts` for the browser projection vocabulary (context, agent lifecycle, replay).
 - Server HTTP tests in `tests/server/server.test.ts` validate API responses.
 
 ## Child DOX Index
