@@ -20,7 +20,7 @@ one snapshot contract shared TUI + browser.
 | V3 | `src/tui/app.ts:710-728` legacy `a`/`d`: optimistic `pendingApprovals.shift()` + synthetic `resolvedApprovals.unshift()` + `resolve()` (default `recordLocally`) | YES on legacy path. Workbench `:984-997` is clean (`recordLocally:false`, leaves projection untouched) | `TuiApp` active | workbench tests pin clean path; legacy optimistic block untested |
 | V4 | `src/tui/runtime-snapshot.ts:46` (`buildRuntimeSnapshot`) — **no `src/` importer**; `src/tui/store.ts` — type-only importers; `src/tui/index.ts:9-10` dead barrel | NO — R4.3 deleted `runtime-snapshot.ts`, `store.ts`, the empty `index.ts` barrel, their tests, and the 4 R4 allowlist entries | none | `tests/tui/trace-detail-panel.test.ts` (render-only, migrated), `tests/tui/ifamas-approval-context.test.ts` (local shape, migrated) |
 | V5 | direct `ApprovalStore` read only in dead `src/tui/runtime-snapshot.ts:110-136`; active path is `runtime/approval-projection*.ts` (EventLog) | NO — R4.3 removed the dead direct read; the EventLog projection is the only path | — | `tests/tui/runtime/approval-projection*.vitest.ts` |
-| V6 | `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`); only some events relayed | PARTIAL (intentional Q-C3a) | small | `tests/tui/runtime/evolution-*.vitest.ts`, `tests/tui/views/evolution-view.vitest.ts` |
+| V6 | `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`); only some events relayed | NO — R4.4 declared the four stages (`NON_EVENTLOG_AUTHORITATIVE_STAGES`) non-EventLog authoritative; no canonical emitter exists, so it is a declared read model, not an inference | small | `tests/tui/runtime/evolution-*.vitest.ts`, `tests/tui/views/evolution-view.vitest.ts` |
 | V7 | `src/tui/runtime-collector.ts:380-436` `computeWorkflow`: boundaries canonical (`workflow.created/completed`), step counts HEURISTIC (`toolStartedCount`/`totalStepEvents`) | PARTIAL | `runtime-collector.ts:302` | `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67` |
 | V10 | `src/ui/projection.js` + `src/inspector/projection.ts` legacy-only vocab (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`); TUI timeline dual | YES | ui `app.js`, inspector `session-reader.ts` | `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts` |
 
@@ -32,7 +32,7 @@ one snapshot contract shared TUI + browser.
 | R4.1 | V3: legacy `a`/`d` mirrors Workbench — guard `pendingApprovalDecisions`, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift; card clears only from the authoritative resolved projection | ⬜ |
 | R4.2 | V1: `FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed (`:200,:242-250,:393`) and the `agentSession` painter dep deleted. `SessionMetadata.sessionId` added, captured once by `SnapshotBuilder` from `getSessionId()`. Pins: builder captures sessionId; painter header renders the snapshot id | ✅ |
 | R4.3 | V5+V4: delete dead `src/tui/runtime-snapshot.ts` (+ its test) and the dead type barrel `src/tui/index.ts` re-exports; remove the 4 R4 allowlist entries in the same commit; migrate/remove value-test dependence on `store.ts`; then quarantine/delete `store.ts` once no value importers remain | ✅ |
-| R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ⬜ |
+| R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ✅ |
 | R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ⬜ |
 | R4.6 | V10: migrate `src/ui/projection.js` + `src/inspector/projection.ts` to the canonical vocab (or a shared projection port) so browser and TUI see one reality | ⬜ |
 | R4.7 | DOX (`src/tui/AGENTS.md` + `src/ui/AGENTS.md` + `src/inspector` if present) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*` | ⬜ |
@@ -66,10 +66,16 @@ one snapshot contract shared TUI + browser.
 4. Migrated `tests/tui/trace-detail-panel.test.ts` to render-only and `tests/tui/ifamas-approval-context.test.ts` to a local approval shape — neither imports the deleted store.
 5. DOX: added the "one TUI read model, no legacy store" contract bullet to `src/tui/AGENTS.md`.
 
-## R4.4–R4.7
-- **R4.4 (V6):** `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`). First check whether canonical evolution/decision emitters exist; if not, the honest fix is an explicit non-EventLog declaration + DOX claim, not an inference. Update `tests/tui/runtime/evolution-*` + `tests/tui/views/evolution-view.vitest.ts`.
+## R4.4 (V6) — ✅ done
+Emitter check: no canonical EventLog family exists for lifecycle/forecasts/correlations/decisions (only `capability.governance.proposal.*` + `...measurement.measured`). Declared the four stages non-EventLog authoritative rather than inventing inference.
+1. Added `NON_EVENTLOG_AUTHORITATIVE_STAGES` + explicit module-docstring statement to `src/tui/runtime/evolution/evolution-projection.ts`.
+2. Pinned the declaration in `tests/tui/runtime/evolution-projection.vitest.ts` (relay never feeds the declared stages).
+3. Added a wiring-site comment in `src/cli/commands/tui.ts`.
+4. DOX: added the "evolution-loop stages carry a declared source authority" bullet to `src/tui/AGENTS.md`.
+
+## R4.5–R4.7
 - **R4.5 (V7):** `computeWorkflow` (`src/tui/runtime-collector.ts:380-436`) infers step counts from tool/task events. Check for a `workflow.step_started` emitter first (only a test fabricates one today); if absent, keep tool counting as a documented fallback. Pins: `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67`.
-- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts`.
+- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.js`.
 - **R4.7:** DOX (`src/tui/AGENTS.md`, `src/ui/AGENTS.md`, plus `src/server` if inspector routes change) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*`.
 
 ## Mechanics
