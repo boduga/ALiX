@@ -9,7 +9,11 @@ plus the path-scope arithmetic both enforcement points share.
 ## Ownership
 
 - `path-scope.ts` — Path scope arithmetic. `normalizePathScope` (planning-side,
-  rejects `..` and uninterpretable wildcards) and `resolveOwnedScopePrefix` + `isWithinOwnedScope` (enforcement-side).
+  rejects `..` and uninterpretable wildcards) and `resolveOwnedScopePrefix` +
+  `isWithinOwnedScope` (enforcement-side). Planning-claim overlap
+  (`claimScopesOverlap`, R3.2) also lives here: planner serialization, lease
+  conflicts, and runtime authorization are three questions over ONE matcher
+  module and must not drift into disagreeing answers.
 - `ownership-registry.ts` — The registry of live ownership claims: which agent
   holds which paths, with lease ids.
 - `ownership-types.ts` — `PathScope`, `OwnershipScope`, `OwnershipMode`, `OwnershipStatus`, `OwnershipRecord`, `AcquireResult`, `OwnershipStore`, `OwnershipEventSink`.
@@ -27,6 +31,13 @@ plus the path-scope arithmetic both enforcement points share.
   (`src/tools/tool-router.ts`) both authorize the same `ownedPaths`, and the
   gate runs first. Both call `isWithinOwnedScope`; neither
   may grow a second matcher, and neither may re-normalize on its own.
+- **One durable registry, no ephemeral twins (R3.2).** `ownership-registry.ts`
+  is the only live claim store. `SubagentManager` acquires its chat-delegate
+  write leases on it at spawn (scope reduced with `resolveOwnedScopePrefix`,
+  released before `spawn` resolves); coordination tasks skip acquisition
+  because the scheduler pre-claims their leases. The former in-process map in
+  `SubagentManager` and `src/agents/ownership-registry.ts` are gone — do not
+  reintroduce a second registry for the same claims.
 - **A workspace-wide grant is a RULE, not a list of spellings.**
   `isWorkspaceWideGrant` treats `.` and any pattern made only of `*` segments as
   the whole workspace; derive the rule rather than enumerating spellings.

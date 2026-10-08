@@ -210,59 +210,52 @@
     "rule": "model-resolver-impls"
   },
   {
-    "imported": "src/agents/ownership-registry.ts",
-    "importer": "src/agent/agent.ts",
-    "reason": "R0 coordination overlap \u2014 ephemeral ownership registry in agent path",
-    "removalPhase": "R3",
-    "rule": "ownership-registry-construction"
-  },
-  {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/cli/commands/coordination.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/cli/commands/ownership.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/daemon/daemon-server.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/kernel/coordination-tools.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/kernel/coordination-view.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/observability/health-snapshot.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/server/coordination-routes.ts",
-    "reason": "R0 coordination overlap \u2014 durable registry construction site",
-    "removalPhase": "R3",
+    "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",
+    "removalPhase": "R6",
     "rule": "ownership-registry-construction"
   },
   {
@@ -726,5 +719,12 @@
     "reason": "R0 V4 \u2014 legacy snapshot path reads ContinuationStore directly",
     "removalPhase": "R4",
     "rule": "ui-store-imports"
+  },
+  {
+    "imported": "src/ownership/ownership-registry.ts",
+    "importer": "src/agents/subagent-manager.ts",
+    "reason": "R0 coordination overlap \u2014 R3 consolidation: SubagentManager spawn claims route through the durable registry, replacing the ephemeral in-process map",
+    "removalPhase": "R6",
+    "rule": "ownership-registry-construction"
   }
 ]

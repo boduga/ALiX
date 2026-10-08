@@ -13,6 +13,7 @@ import { compileOwnershipClaims } from "./ownership-claim-compiler.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "./coordination-types.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
+import { claimScopesOverlap } from "../ownership/path-scope.js";
 import type { TaskGraph, TaskNode } from "./task-graph.js";
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 import type { MutationClass } from "./mutation-classifier.js";
@@ -389,9 +390,9 @@ function claimsOverlap(
   left: readonly { path: string; recursive: boolean }[],
   right: readonly { path: string; recursive: boolean }[],
 ): boolean {
-  const contains = (claim: { path: string; recursive: boolean }, path: string): boolean =>
-    claim.path === "." || claim.path === path || (claim.recursive && path.startsWith(`${claim.path}/`));
-  return left.some(a => right.some(b => contains(a, b.path) || contains(b, a.path)));
+  // Matcher logic lives in src/ownership/path-scope.ts (ONE matcher module);
+  // this is only the pairwise fold over a worker's claim list.
+  return left.some(a => right.some(b => claimScopesOverlap(a, b)));
 }
 
 function dependsTransitively(workerId: string, targetId: string, byId: ReadonlyMap<string, WorkerAssignment>): boolean {

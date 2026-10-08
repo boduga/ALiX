@@ -77,7 +77,7 @@ export class RuntimeBuilder {
     // Build subagent manager (optional - only if enabled in config)
     let subagentManager: SubagentManager | undefined;
     if (config.subagents?.enabled) {
-      subagentManager = new SubagentManager({ sessionId, config, eventLog: this._eventLog });
+      subagentManager = new SubagentManager({ sessionId, cwd: this._root, config, eventLog: this._eventLog });
     }
     this._subagentManager = subagentManager;
 
