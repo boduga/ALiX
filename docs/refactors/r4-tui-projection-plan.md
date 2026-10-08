@@ -45,3 +45,36 @@ one snapshot contract shared TUI + browser.
   If an emitter is absent, the honest fix is a documented fallback + a DOX claim, not an inference.
 - V10 may need to be split: server projection first (shared TS), then `src/ui/projection.js`.
 - This is a presentation-only phase: no runtime authority changes.
+
+---
+
+# Resume here (fresh session)
+
+**Branch:** `refactor/r2-ledger` · **HEAD:** `c24c6c5c` (R4.2) · worktree clean · 34 commits ahead of `origin/main`.
+**Tags:** `r3-complete`, `r3-consolidation`, `r3-graph-executor-adapt` (rollback points).
+**Gates green at HEAD:** `pnpm test:node` 8496 pass / 0 fail · `pnpm test:vitest` 7133 pass / 0 fail · `pnpm typecheck` (`npx tsc -p tsconfig.json --noEmit`) · `npx tsc -p tsconfig.unused.json --noEmit` · `node scripts/check-dead-modules.mjs` · `node scripts/check-dox-claims.mjs --base origin/main`.
+
+## First actions in the new session
+1. Read this file, the root `AGENTS.md` (DOX rail + GitNexus rules), and `src/tui/AGENTS.md` before editing TUI.
+2. `git log --oneline origin/main..HEAD` + `git show` on `ab518661`/`c24c6c5c` (R4.1/R4.2) to re-anchor.
+3. Run GitNexus `impact` before editing a symbol; `detect_changes` before every commit.
+
+## R4.3 (V5+V4) — exact steps + gotchas
+1. Delete `src/tui/runtime-snapshot.ts` and `tests/tui/runtime-snapshot.test.ts` (no `src/` importer; V5's only direct `ApprovalStore` read is inside it).
+2. Remove the dead store re-exports from `src/tui/index.ts` (`TuiStore`/`TuiState`/`DaemonTaskSummary`/`PanelApprovalRecord`/`PanelRuntimeEvent`).
+3. Remove the 4 allowlist entries in `tests/architecture/r1-allowlist.json` flagged `removalPhase: R4` (reason "R0 V4 — legacy snapshot path reads ApprovalStore directly"); the shrink-only freeze test FAILS on stale entries, so this must land in the same commit.
+4. `src/tui/store.ts` then has only test value-importers: `tests/tui/store.test.ts`, `tests/tui/ifamas-approval-context.test.ts`, `tests/tui/trace-panel.test.ts`, `tests/tui/replays-panel.test.ts`, `tests/tui/batch-commands.test.ts`. Migrate the still-relevant assertions onto live projections, then delete `store.ts` + those tests (or quarantine with an explicit reason if they pin live behavior worth keeping).
+5. **Gotchas:** `check:dead` counts TEST importers, so a module imported only by its own test passes — deleting the module + test together is required to actually remove it. `src/tui/index.ts` is an ENTRYPOINT in `scripts/check-dead-modules.mjs`; if it ends up empty, either keep the empty barrel or delete it and drop its ENTRYPOINT line.
+
+## R4.4–R4.7
+- **R4.4 (V6):** `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`). First check whether canonical evolution/decision emitters exist; if not, the honest fix is an explicit non-EventLog declaration + DOX claim, not an inference. Update `tests/tui/runtime/evolution-*` + `tests/tui/views/evolution-view.vitest.ts`.
+- **R4.5 (V7):** `computeWorkflow` (`src/tui/runtime-collector.ts:380-436`) infers step counts from tool/task events. Check for a `workflow.step_started` emitter first (only a test fabricates one today); if absent, keep tool counting as a documented fallback. Pins: `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67`.
+- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts`.
+- **R4.7:** DOX (`src/tui/AGENTS.md`, `src/ui/AGENTS.md`, plus `src/server` if inspector routes change) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*`.
+
+## Mechanics
+- Golden regen: `UPDATE_GOLDENS=1 npx vitest run tests/tui/workbench/parity-goldens.vitest.ts --config vitest.config.mts` (inspect the diff; only the intended text should change).
+- Full gates after each step that touches code used by both lanes: `pnpm test:node` then `pnpm test:vitest`.
+- Known flake: `tests/governance/governance-report.test.ts` CLI spawn-budget (see `docs/known-flakes.md`); solo re-run + repeat lane confirms.
+- GitNexus index may lag a few commits (advisory); `node .gitnexus/run.cjs analyze --index-only` to refresh. FTS/BM25 was degraded on the last build (`Invalid UTF-8` in `Property.property_fts`) — `gitnexus analyze --repair-fts` if keyword search is needed; graph + embeddings are fine.
+- DOX owner rule: root `AGENTS.md` requires an impact check before symbol edits and `detect_changes` before commits.
