@@ -146,6 +146,7 @@ Usage:
   alix daemon status     Show daemon status
   alix daemon tasks      List daemon tasks (--status <filter>)
   alix daemon cancel <id>  Cancel a daemon task
+  alix daemon reconcile  Compare daemon task registry against the R2 ledger
   alix daemon doctor     Daemon health check
   alix submit "<task>"   Submit a task to the daemon
   alix runs list [--limit N] [--json]  List ledger entries (newest first)

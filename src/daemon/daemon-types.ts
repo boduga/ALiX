@@ -54,3 +54,10 @@ export type DaemonResponse =
    *  If execution failed, `text` is an error description prefixed with
    *  `[error]`; the requestId is still present so the client can match. */
   | { type: "direct.completed"; requestId: string; text: string };
+
+/** Ledger event vocabulary for the daemon-task domain (R2.9). */
+export const DAEMON_TASK_LEDGER_EVENT_TYPES = [
+  "daemonTask.created",
+  "daemonTask.updated",
+  "daemonTask.removed",
+] as const;
