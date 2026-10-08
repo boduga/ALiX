@@ -442,6 +442,13 @@
   },
   {
     "imported": "src/kernel/coordination-store.ts",
+    "importer": "src/kernel/coordination-ledger-reconcile.ts",
+    "reason": "R0 B1 \u2014 reconciliation reads the R0-flagged authoritative JSON store for comparison; drops when the ledger projection replaces store reads",
+    "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
+    "imported": "src/kernel/coordination-store.ts",
     "importer": "src/kernel/coordination-planner.ts",
     "reason": "R0 B1 \u2014 coordination fast path commits to JSON, events best-effort",
     "removalPhase": "R2",
