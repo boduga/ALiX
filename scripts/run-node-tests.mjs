@@ -29,7 +29,16 @@ if (!onlyManual && !includeSlow) {
   process.env.ALIX_SKIP_SLOW_TESTS = "1";
 }
 
-/** Recursively collect *.test.js files, honoring the manual/ filter. */
+/** Recursively collect *.test.js files, honoring the manual/ filter.
+ *
+ * soak/ and stress/ are timing-sensitive wall-clock suites with dedicated
+ * runners (`pnpm test:soak` / `pnpm test:stress`) and workload-scaled
+ * per-test budgets that only hold at low parallelism — they time out
+ * nondeterministically in this default multi-file lane. They stay opt-in,
+ * exactly like CI's test:node:ci filter which excludes soak/ outright.
+ */
+const TIMING_SENSITIVE = new Set(["soak", "stress"]);
+
 function collect(dir, out) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -37,6 +46,7 @@ function collect(dir, out) {
     if (st.isDirectory()) {
       const isManual = entry === "manual";
       if (onlyManual !== isManual) continue;
+      if (!onlyManual && !includeSlow && TIMING_SENSITIVE.has(entry)) continue;
       collect(full, out);
     } else if (entry.endsWith(".test.js")) {
       out.push(full);

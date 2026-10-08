@@ -69,7 +69,9 @@ describe("LargeLog", () => {
   // Verification memory stays bounded
   // -----------------------------------------------------------------------
 
-  it("memory stays bounded during verification of large log", async () => {
+  // Workload-scaled timeout: 100 appends + full chain verification take ~18s
+  // solo but 40s+ when the default node lane runs many files in parallel.
+  it("memory stays bounded during verification of large log", { timeout: 120_000 }, async () => {
     const COUNT = 100;
     for (let i = 0; i < COUNT; i++) {
       await writer.append({
