@@ -17,6 +17,7 @@ import type { CoordinationStore } from "./coordination-store.js";
 import type { CoordinationRun, WorkerAssignment, WorkerFailureProvenance } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import { shouldReclaimWorker } from "./owner-liveness.js";
+import { releaseWorkerLeases } from "./coordination-ownership.js";
 
 export interface Clock {
   now(): Date;
@@ -75,11 +76,12 @@ export async function reconcileCoordinationRun(
     })) continue;
 
     result.orphaned.push(worker.id);
-    await releaseWorkerLeases(deps, runId, worker);
+    await releaseWorkerLeases(deps.ownershipRegistry, worker);
     await deps.store.patchWorker(runId, worker.id, {
       status: "failed",
       blockReason: "orphaned" as any,
       failureKind: "orphaned" as any,
+      leaseIds: [],
       error: worker.executionOwnerId
         ? `Worker orphaned — host ${worker.executionOwnerId} is dead`
         : `Worker orphaned — heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
@@ -157,12 +159,4 @@ export async function reconcileCoordinationRun(
   const finalRun = await deps.store.load(runId);
   result.status = finalRun?.status ?? "unknown";
   return result;
-}
-
-async function releaseWorkerLeases(deps: ReconciliationDeps, runId: string, worker: WorkerAssignment): Promise<void> {
-  if (worker.leaseIds && worker.leaseIds.length > 0) {
-    const { releaseWorkerOwnership } = await import("./coordination-ownership.js");
-    await releaseWorkerOwnership(deps.ownershipRegistry, worker.leaseIds);
-    await deps.store.patchWorker(runId, worker.id, { leaseIds: [] } as any);
-  }
 }

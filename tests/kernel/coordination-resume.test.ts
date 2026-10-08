@@ -100,7 +100,7 @@ describe("coordination resume", () => {
     const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}` });
     await store.addWorker(run.id, dead);
 
-    const result = await reclaimDeadOwnerWorkers(store, run.id);
+    const result = await reclaimDeadOwnerWorkers(store, run.id, new OwnershipRegistry(cwd));
     assert.deepEqual(result.reclaimedWorkerIds, [dead.id]);
     const loaded = await store.load(run.id);
     const worker = loaded!.workers[0];
@@ -108,6 +108,32 @@ describe("coordination resume", () => {
     assert.equal(worker.attempt, 1);
     assert.equal(worker.executionOwnerId, undefined);
     assert.match(worker.error ?? "", /Reclaimed/);
+  });
+
+  it("releases held leases when reclaiming a dead-owner worker (R3.4)", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "inspector";
+    await store.save(run);
+    const registry = new OwnershipRegistry(cwd);
+    const acquired = await registry.acquire({
+      agentId: "alix#1",
+      scope: { kind: "path", root: join(cwd, "src"), recursive: true },
+      mode: "exclusive-write",
+      ttlMs: 60_000,
+    });
+    assert.equal(acquired.acquired, true);
+    const leaseId = acquired.record!.id;
+    const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}`, leaseIds: [leaseId] });
+    await store.addWorker(run.id, dead);
+
+    await reclaimDeadOwnerWorkers(store, run.id, registry);
+
+    // Releasing, not just forgetting: the registry record is terminal...
+    await registry.refresh();
+    assert.equal(registry.get(leaseId)?.status, "released");
+    // ...and the worker record no longer claims it.
+    const loaded = await store.load(run.id);
+    assert.deepEqual(loaded!.workers[0].leaseIds, []);
   });
 
   it("leaves live-owner and unknown-owner workers alone", async () => {
@@ -118,7 +144,7 @@ describe("coordination resume", () => {
     await store.addWorker(run.id, live);
     await store.addWorker(run.id, unknown);
 
-    const result = await reclaimDeadOwnerWorkers(store, run.id);
+    const result = await reclaimDeadOwnerWorkers(store, run.id, new OwnershipRegistry(cwd));
     assert.deepEqual(result.reclaimedWorkerIds, []);
     const loaded = await store.load(run.id);
     assert.ok(loaded!.workers.every(w => w.status === "running"));

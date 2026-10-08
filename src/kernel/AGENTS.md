@@ -30,6 +30,10 @@
 - `coordination-resume.ts` — Reclaim provably dead owners, find Inspector-hosted
   active runs, and cancel dead-host runs while releasing ownership leases and
   marking the persisted TaskGraph cancelled through `markRunGraphCancelled`.
+  `reclaimDeadOwnerWorkers` REQUIRES the ownership registry and releases each
+  reclaimed worker's leases through `releaseWorkerLeases` BEFORE clearing
+  `leaseIds` (R3.4 — the old signature cleared them and left live records
+  blocking later runs until TTL).
 - `replan-proposal-store.ts` — Atomic durable proposal lifecycle at
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.
@@ -75,6 +79,11 @@
   workers. The merged rule requires a provably dead owner (or ownerless +
   stale heartbeat) and never touches locally-active executions;
   `ReconciliationDeps` no longer carries `daemonInstanceId` for orphan checks.
+- **Leases release through ONE path (R3.4).** `releaseWorkerLeases`
+  (`coordination-ownership.ts`) releases a worker's leases and clears its
+  `leaseIds`; completion, cancellation, orphan recovery, and dead-owner
+  reclaim all call it. Clearing `leaseIds` without releasing leaves active
+  registry records that block every later run in the workspace until TTL.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before

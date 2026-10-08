@@ -14,7 +14,7 @@
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { DEFAULT_ORPHAN_THRESHOLD_MS, shouldReclaimWorker } from "./owner-liveness.js";
-import { releaseWorkerOwnership } from "./coordination-ownership.js";
+import { releaseWorkerLeases } from "./coordination-ownership.js";
 import type { CoordinationStore } from "./coordination-store.js";
 import type { CoordinationRun } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
@@ -53,10 +53,15 @@ export type ReclaimResult = {
  * `pending` (empty when nothing was reclaimable). Uses the ONE liveness
  * verdict (`shouldReclaimWorker`): provably dead owner, or ownerless with a
  * stale heartbeat — same rule reconciliation applies (R3.3).
+ *
+ * R3.4: the registry is REQUIRED. The old signature cleared `leaseIds`
+ * without releasing them, leaving active records that blocked later runs in
+ * the workspace until the TTL expired.
  */
 export async function reclaimDeadOwnerWorkers(
   store: CoordinationStore,
   runId: string,
+  ownershipRegistry: OwnershipRegistry,
   orphanThresholdMs: number = DEFAULT_ORPHAN_THRESHOLD_MS,
 ): Promise<ReclaimResult> {
   const run = await store.load(runId);
@@ -71,7 +76,9 @@ export async function reclaimDeadOwnerWorkers(
       locallyActive: false,
       orphanThresholdMs,
     })) continue;
-    // Owner provably gone (or ownerless + stale): reset for a bounded retry.
+    // Owner provably gone (or ownerless + stale): release its leases BEFORE
+    // clearing them, then reset for a bounded retry.
+    await releaseWorkerLeases(ownershipRegistry, worker);
     await store.patchWorker(runId, worker.id, {
       status: "pending",
       executionOwnerId: undefined,
@@ -136,12 +143,13 @@ export async function cancelDeadOwnerRuns(
       orphanThresholdMs,
     }))) continue;
     const deadOwner = runningWorkers[0]?.executionOwnerId ?? "unknown";
-    // Release the leases the dead host held. Clearing `leaseIds` without
-    // releasing them leaves active registry records behind, and every later
-    // run in the workspace collides with them until the TTL expires.
+    // Release the leases the dead host held through the single release path
+    // (R3.4). Clearing `leaseIds` without releasing them leaves active
+    // registry records behind, and every later run in the workspace collides
+    // with them until the TTL expires.
     if (ownershipRegistry) {
       for (const worker of run.workers) {
-        if (worker.leaseIds?.length) await releaseWorkerOwnership(ownershipRegistry, worker.leaseIds);
+        await releaseWorkerLeases(ownershipRegistry, worker);
       }
     }
     const updated = await store.updateRun(run.id, (current) => {
