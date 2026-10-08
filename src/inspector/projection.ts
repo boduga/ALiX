@@ -242,8 +242,25 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
   return snapshot;
 }
 
+/** Canonical multi-agent lifecycle (R4/V10). The runtime emits the `agent.*`
+ *  lifecycle alongside the legacy `subagent.*` vocabulary. When canonical
+ *  lifecycle events are present they are authoritative — legacy rows are
+ *  ignored so a dual-emitting runtime is not projected twice. */
+const AGENT_LIFECYCLE_TYPES = new Set([
+  "agent.spawned",
+  "agent.state_changed",
+  "agent.completed",
+  "agent.failed",
+  "agent.cancelled",
+]);
+const SUBAGENT_START_TYPES = new Set(["subagent.started", "agent.spawned"]);
+const SUBAGENT_SUCCESS_TYPES = new Set(["subagent.completed", "agent.completed"]);
+const SUBAGENT_FAILURE_TYPES = new Set(["subagent.failed", "agent.failed", "agent.cancelled"]);
+
 export type SubagentEvent = {
-  type: "subagent.started" | "subagent.completed" | "subagent.failed";
+  type:
+    | "subagent.started" | "subagent.result" | "subagent.completed" | "subagent.failed"
+    | "agent.spawned" | "agent.state_changed" | "agent.completed" | "agent.failed" | "agent.cancelled";
   subagentId: string;
   role: string;
   timestamp: string;
@@ -252,19 +269,28 @@ export type SubagentEvent = {
 };
 
 export function projectSubagentEvents(events: AlixEvent[]): SubagentEvent[] {
+  const useCanonical = events.some((e) => AGENT_LIFECYCLE_TYPES.has(e.type));
+  const isLegacy = (e: AlixEvent): boolean => e.actor === "subagent" && e.type.startsWith("subagent.");
   return events
-    .filter(e => e.actor === "subagent" && e.type.startsWith("subagent."))
-    .map(e => {
+    .filter((e) => (useCanonical ? AGENT_LIFECYCLE_TYPES.has(e.type) : isLegacy(e)))
+    .map((e) => {
       const payload = e.payload as Record<string, unknown>;
+      const subagentId = String(payload?.subagentId ?? payload?.agentId ?? "");
+      const started = events.find(
+        (x) =>
+          SUBAGENT_START_TYPES.has(x.type) &&
+          String((x.payload as Record<string, unknown>)?.subagentId ?? (x.payload as Record<string, unknown>)?.agentId ?? "") === subagentId,
+      );
+      const isTerminal = SUBAGENT_SUCCESS_TYPES.has(e.type) || SUBAGENT_FAILURE_TYPES.has(e.type);
       return {
         type: e.type as SubagentEvent["type"],
-        subagentId: String(payload?.subagentId ?? ""),
+        subagentId,
         role: String(payload?.role ?? ""),
         timestamp: e.timestamp,
-        duration: e.type === "subagent.completed"
-          ? new Date(e.timestamp).getTime() - new Date(events.find(x => x.type === "subagent.started" && (x.payload as Record<string, unknown>)?.subagentId === payload?.subagentId)?.timestamp ?? e.timestamp).getTime()
+        duration: isTerminal && started
+          ? new Date(e.timestamp).getTime() - new Date(started.timestamp).getTime()
           : undefined,
-        status: e.type === "subagent.completed" ? "success" : e.type === "subagent.failed" ? "failed" : undefined,
+        status: SUBAGENT_SUCCESS_TYPES.has(e.type) ? "success" : SUBAGENT_FAILURE_TYPES.has(e.type) ? "failed" : undefined,
       };
     });
 }

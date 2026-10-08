@@ -52,8 +52,13 @@ const VISIBLE_EVENTS = [
   "context.repo_map_created", "context.bundle_compiled",
   // Sessions
   "session.started", "session.ended",
-  // Subagents
+  // Subagents (legacy) — canonical agent.* lifecycle follows (R4/V10)
   "subagent.started", "subagent.result",
+  // Agent lifecycle (canonical; TUI parity)
+  "agent.spawned", "agent.state_changed", "agent.progress",
+  "agent.task_assigned", "agent.completed", "agent.failed", "agent.cancelled",
+  // Approvals (canonical; the event-derived panel shows scope expansion)
+  "approval.requested", "approval.resolved",
   // Files
   "file.created",
   // Patches
