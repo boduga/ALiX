@@ -8,8 +8,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { importedBindings } from "../helpers/import-graph.js";
-import type { PanelApprovalRecord } from "../../src/tui/store.js";
 import type { IfamasApprovalContext } from "../../src/tui/ifamas-panel.js";
+
+/** Display-layer approval shape exercised by the local renderer simulation below. */
+interface PanelApprovalRecord {
+  id: string;
+  capability?: string;
+  reason: string;
+  createdAt: string;
+  ifamasContext?: IfamasApprovalContext;
+}
 
 /** Simulates what the panel renderer does when displaying an approval with IFÁ-MAS context. */
 function renderApprovalWithContext(a: PanelApprovalRecord): string[] {

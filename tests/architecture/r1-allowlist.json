@@ -630,20 +630,6 @@
     "rule": "status-store-writes"
   },
   {
-    "imported": "src/approvals/approval-store.ts",
-    "importer": "src/tui/runtime-snapshot.ts",
-    "reason": "R0 V4 \u2014 legacy snapshot path reads ApprovalStore directly",
-    "removalPhase": "R4",
-    "rule": "status-store-writes"
-  },
-  {
-    "imported": "src/runtime/continuation-store.ts",
-    "importer": "src/tui/runtime-snapshot.ts",
-    "reason": "R0 V4 \u2014 legacy snapshot path reads ContinuationStore directly",
-    "removalPhase": "R4",
-    "rule": "status-store-writes"
-  },
-  {
     "imported": "src/workflow/state-file.ts",
     "importer": "src/workflow/coordinator.ts",
     "reason": "R0 B9 \u2014 workflow snapshot overwrite bypasses EventLog",
@@ -703,20 +689,6 @@
     "imported": "src/events/event-log.ts",
     "importer": "src/tui/runtime-collector.ts",
     "reason": "R0 TUI audit \u2014 canonical projection collector over EventLog",
-    "removalPhase": "R4",
-    "rule": "ui-store-imports"
-  },
-  {
-    "imported": "src/approvals/approval-store.ts",
-    "importer": "src/tui/runtime-snapshot.ts",
-    "reason": "R0 V4 \u2014 legacy snapshot path reads ApprovalStore directly",
-    "removalPhase": "R4",
-    "rule": "ui-store-imports"
-  },
-  {
-    "imported": "src/runtime/continuation-store.ts",
-    "importer": "src/tui/runtime-snapshot.ts",
-    "reason": "R0 V4 \u2014 legacy snapshot path reads ContinuationStore directly",
     "removalPhase": "R4",
     "rule": "ui-store-imports"
   },

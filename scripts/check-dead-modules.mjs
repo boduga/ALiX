@@ -38,7 +38,6 @@ const ENTRYPOINTS = new Set([
   "src/evolution/pattern-discovery/index.ts",
   "src/policy/index.ts",
   "src/run/index.ts",
-  "src/tui/index.ts",
   "src/utils/memory/index.ts",
 ]);
 
