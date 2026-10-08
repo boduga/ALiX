@@ -21,7 +21,7 @@ one snapshot contract shared TUI + browser.
 | V4 | `src/tui/runtime-snapshot.ts:46` (`buildRuntimeSnapshot`) — **no `src/` importer**; `src/tui/store.ts` — type-only importers; `src/tui/index.ts:9-10` dead barrel | NO — R4.3 deleted `runtime-snapshot.ts`, `store.ts`, the empty `index.ts` barrel, their tests, and the 4 R4 allowlist entries | none | `tests/tui/trace-detail-panel.test.ts` (render-only, migrated), `tests/tui/ifamas-approval-context.test.ts` (local shape, migrated) |
 | V5 | direct `ApprovalStore` read only in dead `src/tui/runtime-snapshot.ts:110-136`; active path is `runtime/approval-projection*.ts` (EventLog) | NO — R4.3 removed the dead direct read; the EventLog projection is the only path | — | `tests/tui/runtime/approval-projection*.vitest.ts` |
 | V6 | `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`); only some events relayed | NO — R4.4 declared the four stages (`NON_EVENTLOG_AUTHORITATIVE_STAGES`) non-EventLog authoritative; no canonical emitter exists, so it is a declared read model, not an inference | small | `tests/tui/runtime/evolution-*.vitest.ts`, `tests/tui/views/evolution-view.vitest.ts` |
-| V7 | `src/tui/runtime-collector.ts:380-436` `computeWorkflow`: boundaries canonical (`workflow.created/completed`), step counts HEURISTIC (`toolStartedCount`/`totalStepEvents`) | PARTIAL | `runtime-collector.ts:302` | `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67` |
+| V7 | `src/tui/runtime-collector.ts:380-436` `computeWorkflow`: boundaries canonical (`workflow.created/completed`), step counts HEURISTIC (`toolStartedCount`/`totalStepEvents`) | NO — R4.5 declared the tool/task step accounting a documented fallback (`WORKFLOW_STEP_FALLBACK_TYPES`); no canonical step emitter exists | `runtime-collector.ts:302` | `tests/tui/runtime/runtime-collector.vitest.ts` (new direct pins), `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67` |
 | V10 | `src/ui/projection.js` + `src/inspector/projection.ts` legacy-only vocab (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`); TUI timeline dual | YES | ui `app.js`, inspector `session-reader.ts` | `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts` |
 
 ## Sub-steps
@@ -33,7 +33,7 @@ one snapshot contract shared TUI + browser.
 | R4.2 | V1: `FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed (`:200,:242-250,:393`) and the `agentSession` painter dep deleted. `SessionMetadata.sessionId` added, captured once by `SnapshotBuilder` from `getSessionId()`. Pins: builder captures sessionId; painter header renders the snapshot id | ✅ |
 | R4.3 | V5+V4: delete dead `src/tui/runtime-snapshot.ts` (+ its test) and the dead type barrel `src/tui/index.ts` re-exports; remove the 4 R4 allowlist entries in the same commit; migrate/remove value-test dependence on `store.ts`; then quarantine/delete `store.ts` once no value importers remain | ✅ |
 | R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ✅ |
-| R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ⬜ |
+| R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ✅ |
 | R4.6 | V10: migrate `src/ui/projection.js` + `src/inspector/projection.ts` to the canonical vocab (or a shared projection port) so browser and TUI see one reality | ⬜ |
 | R4.7 | DOX (`src/tui/AGENTS.md` + `src/ui/AGENTS.md` + `src/inspector` if present) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*` | ⬜ |
 
@@ -73,9 +73,14 @@ Emitter check: no canonical EventLog family exists for lifecycle/forecasts/corre
 3. Added a wiring-site comment in `src/cli/commands/tui.ts`.
 4. DOX: added the "evolution-loop stages carry a declared source authority" bullet to `src/tui/AGENTS.md`.
 
-## R4.5–R4.7
-- **R4.5 (V7):** `computeWorkflow` (`src/tui/runtime-collector.ts:380-436`) infers step counts from tool/task events. Check for a `workflow.step_started` emitter first (only a test fabricates one today); if absent, keep tool counting as a documented fallback. Pins: `tests/tui/dashboard-renderer.vitest.ts:376-454`, `tests/tui/views/runtime-view.vitest.ts:67`.
-- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.js`.
+## R4.5 (V7) — ✅ done
+Emitter check: no canonical `workflow.step_*` event exists (only `workflow.created`/`workflow.completed`; the one `workflow.step_started` is a fabricated non-whitelisted type in a timeline test). Kept tool counting as a documented fallback rather than inventing steps.
+1. Added `WORKFLOW_STEP_FALLBACK_TYPES` + strengthened the `computeWorkflow` docstring in `src/tui/runtime-collector.ts`; the counter now derives from that declared set.
+2. Added direct `computeWorkflow` tests in `tests/tui/runtime/runtime-collector.vitest.ts` (fallback vocabulary + derivation + completion boundary).
+3. DOX: added the "workflow step counts are a declared fallback" bullet to `src/tui/AGENTS.md`.
+
+## R4.6–R4.7
+- **R4.6 (V10):** `src/ui/projection.js` + `src/inspector/projection.ts` are legacy-only (`tool.requested/completed`, `subagent.*`, `autonomy.scope_*`, `verification.check_*`). Migrate to the canonical vocab / shared projection; tests `tests/ui/projection.test.js`, `tests/ui-projection.test.js`, `tests/inspector-projection.test.ts`.
 - **R4.7:** DOX (`src/tui/AGENTS.md`, `src/ui/AGENTS.md`, plus `src/server` if inspector routes change) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*`.
 
 ## Mechanics
