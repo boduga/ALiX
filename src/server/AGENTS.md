@@ -39,7 +39,7 @@ HTTP server for the Inspector web UI — serves static files, SSE event streams,
   the server counts such failures and alerts on stderr.
 - SSE streams require authentication in required mode and serve session events
   with `Last-Event-ID` resume support.
-- `VISIBLE_EVENTS` filter controls which event types stream to the browser.
+- `VISIBLE_EVENTS` filter controls which event types stream to the browser; it delivers the canonical vocabulary (including `agent.*` lifecycle and `approval.*`) so the Inspector sees the same reality as the TUI (R4/V10).
 - Graph routes: `/api/graphs` (list), `/api/graphs/{id}/projection` (detail).
 - Policy routes: `/api/policy/rules`, `/api/policy/eval`.
 - All data sourced from `.alix/` directory on disk.

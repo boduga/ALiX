@@ -27,6 +27,11 @@
   version/session id/mode come from `snap.session` (`SessionMetadata.sessionId`,
   captured once by `SnapshotBuilder` from `getSessionId()`); a painter must not
   read the live `AgentSession` for them.
+- **Snapshot session source (R4/V2, accepted).** `snapshot-builder.ts` composes
+  runtime facts from the EventLog and captures session identity through
+  `SessionMetadata`; it still samples liveness/activity from the live
+  `AgentSession` because no EventLog source exists for them yet — accepted debt
+  until a session projection lands. Painters read only the composed snapshot.
 - **Approval decisions are never inferred locally (R4/V3).** Both the Workbench
   and legacy a/d handlers resolve through `approvalResolver.resolve(id, status,
   { recordLocally: false })` with a `pendingApprovalDecisions` guard; the
