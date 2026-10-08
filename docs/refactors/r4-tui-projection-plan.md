@@ -1,5 +1,6 @@
 # R4 — TUI / API Projection Convergence Plan
 
+**Status:** R4 complete — R4.1–R4.7 landed; tag `r4-complete`. Remaining accepted debt: V2 (snapshot session source).
 **Phase register:** R4 (after R3 complete, tags `r3-consolidation` / `r3-graph-executor-adapt` / `r3-complete`).
 **Provenance:** R0 audit §4 (V-findings) re-verified against current HEAD in this session; R0 line numbers
 had drifted, so this file records the verified current locations. Keep it current as sub-steps land.
@@ -15,9 +16,9 @@ one snapshot contract shared TUI + browser.
 
 | V | Current location | Still defective? | Importers | Tests |
 |---|---|---|---|---|
-| V1 | `src/tui/frame-painter.ts:242-250` (`getVersion/getSessionId/getMode` live reads), also `:200`, `:393` | YES — header prefers live `AgentSession` over the supplied snapshot (snapshot only a fallback) | `app.ts:30,195` (active legacy path) | `tests/tui/frame-painter-status-row.vitest.ts` pins the row, not live-vs-snapshot precedence |
-| V2 | `src/tui/snapshot-builder.ts:68-76` ctor takes `session` + `runtime`; `:136` `session.getState()`, `:182-199` live session reads | PARTIAL — session metadata live; runtime EventLog-derived; liveness/activity have no EventLog source | `cli/commands/tui.ts:9,375`; `app.ts:11`; `runtime/approval-projection-collector.ts:4` | `tests/tui/snapshot-builder.vitest.ts` pins both args |
-| V3 | `src/tui/app.ts:710-728` legacy `a`/`d`: optimistic `pendingApprovals.shift()` + synthetic `resolvedApprovals.unshift()` + `resolve()` (default `recordLocally`) | YES on legacy path. Workbench `:984-997` is clean (`recordLocally:false`, leaves projection untouched) | `TuiApp` active | workbench tests pin clean path; legacy optimistic block untested |
+| V1 | `src/tui/frame-painter.ts:242-250` (`getVersion/getSessionId/getMode` live reads), also `:200`, `:393` | NO — R4.2: header reads version/sessionId/mode only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed and the painter dep deleted | `app.ts:30,195` (active legacy path) | `tests/tui/frame-painter-status-row.vitest.ts` |
+| V2 | `src/tui/snapshot-builder.ts:68-76` ctor takes `session` + `runtime`; `:136` `session.getState()`, `:182-199` live session reads | ACCEPTED — session metadata is captured through `SnapshotBuilder` ports; runtime is EventLog-derived; liveness/activity have no EventLog source yet. Recorded as accepted debt until a session projection exists (presentation-only phase) | `cli/commands/tui.ts:9,375`; `app.ts:11`; `runtime/approval-projection-collector.ts:4` | `tests/tui/snapshot-builder.vitest.ts` pins both args |
+| V3 | `src/tui/app.ts:710-728` legacy `a`/`d`: optimistic `pendingApprovals.shift()` + synthetic `resolvedApprovals.unshift()` + `resolve()` (default `recordLocally`) | NO — R4.1: legacy a/d mirrors Workbench (`pendingApprovalDecisions` guard, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift) | `TuiApp` active | workbench tests pin clean path; legacy block now mirrors it |
 | V4 | `src/tui/runtime-snapshot.ts:46` (`buildRuntimeSnapshot`) — **no `src/` importer**; `src/tui/store.ts` — type-only importers; `src/tui/index.ts:9-10` dead barrel | NO — R4.3 deleted `runtime-snapshot.ts`, `store.ts`, the empty `index.ts` barrel, their tests, and the 4 R4 allowlist entries | none | `tests/tui/trace-detail-panel.test.ts` (render-only, migrated), `tests/tui/ifamas-approval-context.test.ts` (local shape, migrated) |
 | V5 | direct `ApprovalStore` read only in dead `src/tui/runtime-snapshot.ts:110-136`; active path is `runtime/approval-projection*.ts` (EventLog) | NO — R4.3 removed the dead direct read; the EventLog projection is the only path | — | `tests/tui/runtime/approval-projection*.vitest.ts` |
 | V6 | `src/tui/runtime/evolution/evolution-projection.ts:159-203` reads live `capabilityService.platform` + `RecommendationStore` JSONL (`cli/commands/tui.ts:155-198`); only some events relayed | NO — R4.4 declared the four stages (`NON_EVENTLOG_AUTHORITATIVE_STAGES`) non-EventLog authoritative; no canonical emitter exists, so it is a declared read model, not an inference | small | `tests/tui/runtime/evolution-*.vitest.ts`, `tests/tui/views/evolution-view.vitest.ts` |
@@ -29,13 +30,13 @@ one snapshot contract shared TUI + browser.
 | Step | Scope | Status |
 |---|---|---|
 | R4.0 | Persist this recon/plan | ✅ |
-| R4.1 | V3: legacy `a`/`d` mirrors Workbench — guard `pendingApprovalDecisions`, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift; card clears only from the authoritative resolved projection | ⬜ |
+| R4.1 | V3: legacy `a`/`d` mirrors Workbench — guard `pendingApprovalDecisions`, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift; card clears only from the authoritative resolved projection | ✅ |
 | R4.2 | V1: `FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed (`:200,:242-250,:393`) and the `agentSession` painter dep deleted. `SessionMetadata.sessionId` added, captured once by `SnapshotBuilder` from `getSessionId()`. Pins: builder captures sessionId; painter header renders the snapshot id | ✅ |
 | R4.3 | V5+V4: delete dead `src/tui/runtime-snapshot.ts` (+ its test) and the dead type barrel `src/tui/index.ts` re-exports; remove the 4 R4 allowlist entries in the same commit; migrate/remove value-test dependence on `store.ts`; then quarantine/delete `store.ts` once no value importers remain | ✅ |
 | R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ✅ |
 | R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ✅ |
 | R4.6 | V10: migrate `src/ui/projection.js` + `src/inspector/projection.ts` to the canonical vocab (or a shared projection port) so browser and TUI see one reality | ✅ |
-| R4.7 | DOX (`src/tui/AGENTS.md` + `src/ui/AGENTS.md` + `src/inspector` if present) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*` | ⬜ |
+| R4.7 | DOX (`src/tui/AGENTS.md` + `src/ui/AGENTS.md` + `src/inspector` if present) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*` | ✅ |
 
 ### Notes / risks
 
@@ -50,14 +51,20 @@ one snapshot contract shared TUI + browser.
 
 # Resume here (fresh session)
 
-**Branch:** `refactor/r2-ledger` · **HEAD:** `bd122e16` (R4.6) · worktree clean · 42 commits ahead of `origin/main`.
-**Tags:** `r3-complete`, `r3-consolidation`, `r3-graph-executor-adapt` (rollback points).
-**Gates green after R4.3:** `pnpm test:node` (only the known `governance-report` spawn-budget flake — passes solo) · `pnpm test:vitest` 7133 pass / 0 fail · `npx tsc -p tsconfig.json --noEmit` · `npx tsc -p tsconfig.unused.json --noEmit` · `node scripts/check-dead-modules.mjs` · `node scripts/check-dox-claims.mjs --base origin/main`.
+**Branch:** `refactor/r2-ledger` · **HEAD:** tag `r4-complete` · worktree clean.
+**Tags:** `r3-complete`, `r3-consolidation`, `r3-graph-executor-adapt`, `r4-complete` (rollback points).
+**Gates green at R4 complete:** `pnpm test:node` 8489 pass / 0 fail · `pnpm test:vitest` 7145 pass / 0 fail · `npx tsc -p tsconfig.json --noEmit` · `npx tsc -p tsconfig.unused.json --noEmit` · `node scripts/check-dead-modules.mjs` · `node scripts/check-dox-claims.mjs --base origin/main`.
 
 ## First actions in the new session
 1. Read this file, the root `AGENTS.md` (DOX rail + GitNexus rules), and `src/tui/AGENTS.md` before editing TUI.
 2. `git log --oneline origin/main..HEAD` to re-anchor.
 3. Run GitNexus `impact` before editing a symbol; `detect_changes` before every commit.
+
+## R4.1 (V3) — ✅ done
+Legacy `a`/`d` approval handling mirrors the Workbench: `pendingApprovalDecisions` guard, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift; the card clears only from the authoritative resolved projection (`ab518661`).
+
+## R4.2 (V1) — ✅ done
+`FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed and the painter dep deleted; `SessionMetadata.sessionId` captured once by `SnapshotBuilder` (`c24c6c5c`).
 
 ## R4.3 (V5+V4) — ✅ done
 1. Deleted `src/tui/runtime-snapshot.ts` (+ its test) and the empty `src/tui/index.ts` barrel (dropped its `check-dead` ENTRYPOINT).
@@ -88,8 +95,14 @@ Recon: the browser's real divergences were a dead `context.bundle_created` read 
 5. Replaced the two inert `tests/ui/*.test.js` files (never compiled or run by any lane) with `tests/ui/projection.vitest.ts`, so the browser projection vocabulary actually runs in CI.
 6. DOX: updated `src/ui/AGENTS.md` (ownership, canonical-vocabulary contract, verification).
 
-## R4.7
-- **R4.7:** DOX (`src/tui/AGENTS.md`, `src/ui/AGENTS.md`, plus `src/server` if inspector routes change) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r4-*`.
+## R4.7 — ✅ done
+1. DOX sweep: `src/tui/AGENTS.md` (R4/V2 accepted-debt bullet; R4/V1, V3, V4–V5, V6, V7 already recorded), `src/ui/AGENTS.md` (R4/V10), `src/server/AGENTS.md` (`VISIBLE_EVENTS` canonical delivery).
+2. Full gates: `pnpm test:node` 8489/0 · `pnpm test:vitest` 7145/0 · typecheck · unused · `check:dead` · `check:dox`.
+3. `detect_changes` clean at risk LOW.
+4. Tag `r4-complete` (rollback point). Accepted debt remaining: V2 (session projection).
+
+## Next phase
+R5 (tool-taxonomy unification) per `docs/refactors/r0-findings-r3-plan.md`.
 
 ## Mechanics
 - Golden regen: `UPDATE_GOLDENS=1 npx vitest run tests/tui/workbench/parity-goldens.vitest.ts --config vitest.config.mts` (inspect the diff; only the intended text should change).
