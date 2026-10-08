@@ -35,7 +35,7 @@ function requestInput(id: string) {
   };
 }
 
-describe("approvals ledger dual-write (R2.4)", () => {
+describe("approvals ledger authority (R2.5)", () => {
   it("create + resolve dual-write; journal fast-path recorded; reconcile clean", async () => {
     const dir = tmp();
     const store = new ApprovalStore(dir);
@@ -131,27 +131,74 @@ describe("approvals ledger dual-write (R2.4)", () => {
     assert.equal(report.ok, false);
   });
 
-  it("ledger failure never breaks the approval path and is observable", async () => {
+  it("append failure fails the mutation — no JSON-only commit (R2.5 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
 
     const store = new ApprovalStore(dir);
-    await store.load();
-    const a1 = await store.requestFresh(requestInput("headless")); // must not throw
-    assert.equal(a1.status, "pending");
-
-    const status = store.ledgerStatus();
-    assert.equal(status.failures, 1);
-    assert.ok(status.lastError);
-
-    // Record durable in the projection despite the mirror failure.
-    assert.ok(store.get(a1.id) ?? (await store.load(), store.get(a1.id)));
+    // load() itself must fail closed on a broken authoritative store —
+    // and the mutation must reject rather than commit JSON-only.
+    await assert.rejects(() => store.load(), /SQLITE|unable|not a database|runtime-ledger/i);
+    await assert.rejects(
+      () => store.requestFresh(requestInput("headless")),
+      /SQLITE|unable|not a database|runtime-ledger/i,
+    );
+    assert.equal(store.ledgerStatus().failures >= 1, true);
+    assert.ok(store.ledgerStatus().lastError);
+    // Authoritative store unavailable → no projection commit either.
+    assert.ok(!existsSync(join(dir, ".alix", "approvals", "approvals.json")));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated: ledger holds truth, load still works", async () => {
+    const dir = tmp();
+    const store = new ApprovalStore(dir);
+    await store.load();
+
+    // Deterministically break BOTH projection writers for this instance.
+    (store as unknown as { saveAtomic: () => Promise<void> }).saveAtomic = async () => {
+      throw new Error("projection boom");
+    };
+    (store as unknown as { appendJournal: () => Promise<void> }).appendJournal = async () => {
+      throw new Error("projection boom");
+    };
+
+    const a1 = await store.requestFresh(requestInput("no-projection")); // must NOT throw
+    assert.equal(a1.status, "pending");
+    assert.equal(store.ledgerStatus().projectionFailures, 1);
+    assert.ok(store.ledgerStatus().lastProjectionError);
+
+    // Authority read works with no projection file.
+    assert.equal(getSharedLedger(dir).entityVersion(a1.id), 1);
+    const reloaded = new ApprovalStore(dir);
+    await reloaded.load();
+    assert.equal(reloaded.get(a1.id)?.status, "pending");
+
     const report = await reconcileApprovalLedger(dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("load prefers the LEDGER over a tampered projection record", async () => {
+    const dir = tmp();
+    const store = new ApprovalStore(dir);
+    await store.load();
+    const a1 = await store.requestFresh(requestInput("tamper-load"));
+    await store.resolve(a1.id, "denied", "no");
+
+    // Flip the projection status behind the store's back.
+    const filePath = join(dir, ".alix", "approvals", "approvals.json");
+    const snapshot = JSON.parse(await (await import("node:fs/promises")).readFile(filePath, "utf-8"));
+    const list = Array.isArray(snapshot) ? snapshot : snapshot.approvals;
+    list.find((r: { id: string }) => r.id === a1.id).status = "approved";
+    await (await import("node:fs/promises")).writeFile(filePath, JSON.stringify(snapshot, null, 2));
+
+    const fresh = new ApprovalStore(dir);
+    await fresh.load();
+    assert.equal(fresh.get(a1.id)?.status, "denied"); // ledger truth, not tampered JSON
+    assert.equal(fresh.listPending().length, 0); // denied stays denied
   });
 
   it("fresh workspace reconciles clean with zero records", async () => {

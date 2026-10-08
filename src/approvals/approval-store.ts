@@ -66,13 +66,16 @@ export class ApprovalStore {
   /** Retention cap for terminal (non-pending/approved) records (#703). */
   private readonly maxTerminalRecords: number;
   /**
-   * R2.4 dual-write counters (strangler): every mutation is mirrored to the
-   * transactional ledger after the JSON/journal write. Failures are counted
-   * and surfaced by `ledgerStatus()` + reconciliation — never silent.
+   * R2.5 authority counters. The LEDGER append is the commit (append failure
+   * throws); the JSON/journal projection is best-effort — failures are
+   * counted here and surfaced by `ledgerStatus()` + reconciliation, never
+   * silent.
    */
   private ledgerAppends = 0;
   private ledgerFailures = 0;
   private lastLedgerError: string | undefined;
+  private projectionFailures = 0;
+  private lastProjectionError: string | undefined;
 
   constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog; maxTerminalRecords?: number }) {
     this.cwd = cwd;
@@ -112,40 +115,77 @@ export class ApprovalStore {
     return true;
   }
 
-  /** Load approvals from disk. */
+  /**
+   * Load approvals — LEDGER first (R2.5 authority). In-memory state is
+   * rebuilt from the latest ledger fact per approval; the JSON projection
+   * (snapshot + journal) is consulted only for legacy records with zero
+   * ledger facts. Groups remain projection-only. Ledger db errors THROW —
+   * an authoritative store is never masked by a JSON fallback.
+   */
   async load(): Promise<void> {
-    if (!existsSync(this.filePath)) {
-      this.approvals = [];
-      this.groups = [];
-    } else {
+    let latest: ReturnType<ReturnType<typeof getSharedLedger>["readLatestByEntityType"]>;
+    try {
+      const ledger = getSharedLedger(this.cwd);
+      latest = ledger.readLatestByEntityType("approval");
+    } catch (err) {
+      // Counted AND rethrown: a broken authoritative store must be visible.
+      this.ledgerFailures += 1;
+      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+    const fromLedger = new Map<string, ApprovalRecord>();
+    const removedIds = new Set<string>();
+    for (const event of latest) {
+      if (event.eventType === "approval.removed") {
+        removedIds.add(event.entityId);
+        continue;
+      }
+      const payload = event.payload as { approval?: ApprovalRecord } | null;
+      if (!payload?.approval) {
+        throw new Error(`approval ledger event for ${event.entityId} missing approval payload`);
+      }
+      fromLedger.set(event.entityId, payload.approval);
+    }
+
+    // Projection view (snapshot + journal replay) for legacy facts + groups.
+    const projectionRecords: ApprovalRecord[] = [];
+    this.groups = [];
+    if (existsSync(this.filePath)) {
       try {
         const raw = await readFile(this.filePath, "utf-8");
         const parsed = JSON.parse(raw);
-        // Support both old format (array) and new format ({ approvals, groups })
         if (Array.isArray(parsed)) {
-          this.approvals = (parsed as any[]).map(r =>
-            normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
-          );
-          this.groups = [];
+          for (const r of parsed as any[]) {
+            projectionRecords.push(normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() }));
+          }
         } else {
           const data = parsed as { approvals?: any[]; groups?: ApprovalGroup[] };
-          this.approvals = (data.approvals ?? []).map(r =>
-            normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
-          );
+          for (const r of data.approvals ?? []) {
+            projectionRecords.push(normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() }));
+          }
           this.groups = data.groups ?? [];
         }
       } catch {
-        this.approvals = [];
-        this.groups = [];
+        // corrupt snapshot — journal replay below may still contribute
       }
     }
-    // Replay the append-only journal on top of the snapshot (#703).
-    const journal = await this.readJournal();
-    for (const record of journal) {
-      const idx = this.approvals.findIndex((a) => a.id === record.id);
-      if (idx >= 0) this.approvals[idx] = record;
-      else this.approvals.push(record);
+    for (const record of await this.readJournal()) {
+      const idx = projectionRecords.findIndex((a) => a.id === record.id);
+      if (idx >= 0) projectionRecords[idx] = record;
+      else projectionRecords.push(record);
     }
+
+    // Merge: ledger wins over projection; tombstones suppress projection
+    // copies; zero-fact legacy records survive untouched.
+    const merged = new Map<string, ApprovalRecord>();
+    for (const r of projectionRecords) {
+      if (removedIds.has(r.id) || fromLedger.has(r.id)) continue;
+      merged.set(r.id, r);
+    }
+    for (const [id, r] of fromLedger) {
+      if (!removedIds.has(id)) merged.set(id, r);
+    }
+    this.approvals = [...merged.values()];
     this.rebuildIndexes();
   }
 
@@ -222,11 +262,11 @@ export class ApprovalStore {
   }
 
   /**
-   * R2.4 mirror one approval record to the transactional ledger. JSON is
-   * still authoritative in the dual-write phase; failures are counted, never
-   * thrown into the approval path, never silent.
+   * R2.5 append one approval fact — THE COMMIT (ledger is authoritative).
+   * Failure is counted, then THROWN: an unavailable authoritative store must
+   * never leave a JSON-only mutation behind.
    */
-  private mirrorApproval(record: ApprovalRecord, kind: "created" | "updated"): void {
+  private appendApprovalFact(record: ApprovalRecord, kind: "created" | "updated"): void {
     try {
       const ledger = getSharedLedger(this.cwd);
       const expected = ledger.entityVersion(record.id);
@@ -249,19 +289,23 @@ export class ApprovalStore {
         },
         expectedVersion: expected,
       });
-      if (res.ok) this.ledgerAppends += 1;
-      else {
-        this.ledgerFailures += 1;
-        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      if (res.ok) {
+        this.ledgerAppends += 1;
+        return;
       }
+      this.ledgerFailures += 1;
+      this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      throw new Error(`approval ledger append failed (${res.reason}): ${res.detail}`);
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("approval ledger append failed")) throw err;
       this.ledgerFailures += 1;
       this.lastLedgerError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
   }
 
-  /** R2.4 mirror a record removal (prune or delete) as a terminal fact. */
-  private mirrorApprovalRemoved(id: string): void {
+  /** R2.5 append a removal tombstone (prune or delete) — the commit. Throws on failure. */
+  private appendApprovalRemoved(id: string): void {
     try {
       const ledger = getSharedLedger(this.cwd);
       const expected = ledger.entityVersion(id);
@@ -281,23 +325,29 @@ export class ApprovalStore {
         },
         expectedVersion: expected,
       });
-      if (res.ok) this.ledgerAppends += 1;
-      else {
-        this.ledgerFailures += 1;
-        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      if (res.ok) {
+        this.ledgerAppends += 1;
+        return;
       }
+      this.ledgerFailures += 1;
+      this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      throw new Error(`approval ledger append failed (${res.reason}): ${res.detail}`);
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("approval ledger append failed")) throw err;
       this.ledgerFailures += 1;
       this.lastLedgerError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
   }
 
-  /** Observable dual-write health (R2: failures must never be silent). */
-  ledgerStatus(): { appends: number; failures: number; lastError?: string } {
+  /** Observable authority health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string } {
     return {
       appends: this.ledgerAppends,
       failures: this.ledgerFailures,
+      projectionFailures: this.projectionFailures,
       ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+      ...(this.lastProjectionError !== undefined ? { lastProjectionError: this.lastProjectionError } : {}),
     };
   }
 
@@ -333,28 +383,35 @@ export class ApprovalStore {
       const pruned = this.pruneTerminal();
       this.rebuildIndexes();
 
-      if (!mutatedExisting && !pruned && added.length > 0 && existsSync(this.filePath)) {
-        // Append-only fast path: no unrelated history rewritten. (The first
-        // write compacts so `approvals.json` exists for external readers.)
-        await this.appendJournal(added);
-        const journalLines = await this.journalLineCount();
-        if (journalLines >= JOURNAL_COMPACT_THRESHOLD) {
-          await this.saveAtomic();
-        }
-      } else {
-        await this.saveAtomic();
-      }
-
-      // R2.4 dual-write: mirror the classified diff to the transactional
-      // ledger, still inside the per-file lock (same serialization as JSON).
+      // R2.5 authority: the ledger append IS the commit — it runs BEFORE the
+      // projection and throws on failure (no JSON-only state can exist).
       const finalIds = new Set(this.approvals.map((r) => r.id));
       for (const r of this.approvals) {
         const prior = before.get(r.id);
-        if (prior === undefined) this.mirrorApproval(r, "created");
-        else if (prior !== JSON.stringify(r)) this.mirrorApproval(r, "updated");
+        if (prior === undefined) this.appendApprovalFact(r, "created");
+        else if (prior !== JSON.stringify(r)) this.appendApprovalFact(r, "updated");
       }
       for (const id of before.keys()) {
-        if (!finalIds.has(id)) this.mirrorApprovalRemoved(id);
+        if (!finalIds.has(id)) this.appendApprovalRemoved(id);
+      }
+
+      // Projection second: failure tolerated and counted — the ledger holds
+      // the truth and reconciliation reports projection drift for rebuild.
+      try {
+        if (!mutatedExisting && !pruned && added.length > 0 && existsSync(this.filePath)) {
+          // Append-only fast path: no unrelated history rewritten. (The first
+          // write compacts so `approvals.json` exists for external readers.)
+          await this.appendJournal(added);
+          const journalLines = await this.journalLineCount();
+          if (journalLines >= JOURNAL_COMPACT_THRESHOLD) {
+            await this.saveAtomic();
+          }
+        } else {
+          await this.saveAtomic();
+        }
+      } catch (err) {
+        this.projectionFailures += 1;
+        this.lastProjectionError = err instanceof Error ? err.message : String(err);
       }
 
       return result;
