@@ -112,6 +112,16 @@ export const EXECUTION_EVENT_TYPES = {
 const STATE_AFFECTING_TYPES = new Set<string>(Object.values(EXECUTION_EVENT_TYPES));
 
 /**
+ * R2.6: execution.* facts that are OUTCOME EVIDENCE, not state patches.
+ * The harness emits `execution.action_executed` alongside transitions; it
+ * must advance historyRevision/historyHash like other evidence (documented
+ * contract) instead of failing closed as an unsupported state event.
+ */
+const NON_STATE_EXECUTION_TYPES = new Set<string>([
+  "execution.action_executed",
+]);
+
+/**
  * Returns true for events that fold into ExecutionState. Evidence/other
  * history (e.g. tool.*) is ignored by the reducer but still advances
  * the checkpoint hash/revision for INV-P7.
@@ -519,6 +529,20 @@ export function applyEvent(
   if (reducer) {
     // clone is handled by reducer returning new object; ensure no mutation of original
     return reducer(state, ev);
+  }
+
+  // Evidence-style execution facts: validate-shaped, hash progress only.
+  if (NON_STATE_EXECUTION_TYPES.has(ev.type)) {
+    const p = requireRecord(ev.payload, `${ev.type} payload`, ev.seq, ev.id);
+    if (typeof p.kind !== "string" || p.kind.length === 0) {
+      throw new ProjectionError({
+        message: `${ev.type} payload requires kind`,
+        failedAtRevision: ev.seq,
+        eventId: ev.id,
+        reason: "action_executed evidence must name its kind",
+      });
+    }
+    return { ...state, historyRevision: ev.seq, historyHash: hashStep(state.historyHash, ev) };
   }
 
   if (ev.type.startsWith("execution.")) {

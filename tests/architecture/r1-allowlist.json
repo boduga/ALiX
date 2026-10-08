@@ -561,6 +561,13 @@
   },
   {
     "imported": "src/runtime/execution-state/execution-state-store.ts",
+    "importer": "src/runtime/execution-state/execution-ledger-reconcile.ts",
+    "reason": "R0 B7 \u2014 reconciliation reads the R0-flagged snapshot store for comparison; drops when the ledger projection replaces snapshot reads",
+    "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
+    "imported": "src/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime/execution-state/execution-state-emitter.ts",
     "reason": "R0 B7/B8 \u2014 snapshot-ahead-of-log divergence risk",
     "removalPhase": "R2",

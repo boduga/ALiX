@@ -40,7 +40,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { getSharedLedger } from "../../storage/runtime-ledger.js";
 import { dirname, join } from "node:path";
 import {
   EXECUTION_STATE_SCHEMA_VERSION,
@@ -143,7 +144,7 @@ function validateExecutionId(id: string): void {
   }
 }
 
-function stateFilePath(baseDir: string, executionId: string): string {
+export function stateFilePath(baseDir: string, executionId: string): string {
   validateExecutionId(executionId);
   // Base already points at .alix/executions — each execution is a subfolder.
   return join(baseDir, executionId, "state.json");
@@ -279,7 +280,19 @@ function readSnapshotFile(filePath: string): StateSnapshot {
  * The store never rewrites EventLog history; it only materializes a disposable snapshot.
  */
 export class ExecutionStateStore {
-  constructor(private readonly baseDir: string = ".alix/executions") {}
+  /** R2.6 dual-write counters (JSON authoritative this phase). */
+  private ledgerAppends = 0;
+  private ledgerFailures = 0;
+  private lastLedgerError: string | undefined;
+  /** Workspace root for the shared ledger (baseDir is <cwd>/.alix/executions). */
+  private readonly baseDirCwd: string;
+
+  constructor(private readonly baseDir: string = ".alix/executions") {
+    const execSuffix = join(".alix", "executions");
+    this.baseDirCwd = baseDir.endsWith(execSuffix)
+      ? baseDir.slice(0, baseDir.length - execSuffix.length).replace(/[\\/]+$/, "") || "."
+      : dirname(baseDir);
+  }
 
   // ── Load ───────────────────────────────────────────────────────
 
@@ -322,6 +335,51 @@ export class ExecutionStateStore {
    * Version monotonicity: new state's `version` must be `expectedVersion + 1` (or 0 for create).
    * No partial mutation on conflict — file is untouched.
    */
+  /**
+   * R2.6 dual-write: mirror the committed snapshot to the transactional
+   * ledger (entityType "execution", full state payload). JSON stays
+   * authoritative in this phase; failures are counted, never thrown.
+   */
+  private mirrorExecutionState(state: ExecutionState): void {
+    try {
+      const ledger = getSharedLedger(this.baseDirCwd);
+      const expected = ledger.entityVersion(state.executionId);
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType: expected === 0 ? "execution.state_created" : "execution.state_saved",
+          schemaVersion: 1,
+          entityType: "execution",
+          entityId: state.executionId,
+          entityVersion: expected + 1,
+          correlationId: state.executionId,
+          actor: { type: "system", id: "execution-state-store" },
+          occurredAt: new Date().toISOString(),
+          recordedAt: new Date().toISOString(),
+          payload: { state },
+        },
+        expectedVersion: expected,
+      });
+      if (res.ok) this.ledgerAppends += 1;
+      else {
+        this.ledgerFailures += 1;
+        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      this.ledgerFailures += 1;
+      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Observable dual-write health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; lastError?: string } {
+    return {
+      appends: this.ledgerAppends,
+      failures: this.ledgerFailures,
+      ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+    };
+  }
+
   save(
     state: ExecutionState,
     expectedVersion: number | null,
@@ -393,6 +451,8 @@ export class ExecutionStateStore {
 
     const content = JSON.stringify(persisted, null, 2) + "\n";
     atomicWriteFile(path, content);
+    // R2.6 dual-write: mirror the committed snapshot (JSON authoritative now).
+    this.mirrorExecutionState(state);
 
     return { committed: true, version: state.version };
   }
@@ -458,6 +518,16 @@ export class ExecutionStateStore {
     const historyRevision = events.length > 0 ? (events[events.length - 1]?.seq ?? events.length) : 0;
     const historyHash = computeHistoryHash(events);
 
+    // R2.6 version-checked rebuild: never let a replay overwrite a NEWER
+    // committed snapshot with an older projection (B7 — delete-then-write
+    // had no guard at all).
+    const existing = this.loadSnapshot(executionId);
+    if (existing && existing.state.version > state.version) {
+      throw new Error(
+        `Rebuild refused for ${executionId}: existing snapshot v${existing.state.version} is newer than projected v${state.version}`,
+      );
+    }
+
     // Delete existing snapshot (disposable) — EventLog untouched
     this.delete(executionId);
 
@@ -485,6 +555,7 @@ export class ExecutionStateStore {
     const path = stateFilePath(this.baseDir, executionId);
     const content = JSON.stringify(flatToPersist, null, 2) + "\n";
     atomicWriteFile(path, content);
+    this.mirrorExecutionState(state);
 
     return state;
   }
