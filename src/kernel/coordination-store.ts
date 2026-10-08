@@ -17,6 +17,30 @@ import { randomUUID } from "node:crypto";
 import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
+import { getSharedLedger } from "../storage/runtime-ledger.js";
+
+/** Event types this domain writes to the R2 ledger (reconciliation vocabulary). */
+export const COORDINATION_LEDGER_EVENT_TYPES = [
+  "coordination.run.created",
+  "coordination.run.persisted",
+  "coordination.run.deleted",
+] as const;
+export type CoordinationLedgerEventType = (typeof COORDINATION_LEDGER_EVENT_TYPES)[number];
+
+/** Authoritative projection fields mirrored into each ledger snapshot event. */
+function runLedgerSnapshot(run: CoordinationRun): Record<string, unknown> {
+  return {
+    status: run.status,
+    planRevision: run.planRevision ?? 0,
+    outcome: run.outcome ?? null,
+    aggregateResultRef: run.aggregateResultRef ?? null,
+    aggregateSourceFingerprint: run.aggregateSourceFingerprint ?? null,
+    aggregationFailure: run.aggregationFailure ?? null,
+    workerStatuses: Object.fromEntries(
+      run.workers.map(w => [w.id, { status: w.status, attempt: w.attempt ?? 0 }]),
+    ),
+  };
+}
 
 /**
  * Normalize a WorkerAssignment loaded from earlier coordination milestones.
@@ -51,10 +75,71 @@ export class CoordinationStore {
   /** Workspace root this store is scoped to (used by run-lifecycle helpers). */
   readonly cwd: string;
   private readonly baseDir: string;
+  /**
+   * R2 dual-write counters. JSON stays authoritative during strangler
+   * phases; ledger failures are counted here and surfaced by
+   * `ledgerStatus()` + reconciliation — never silently swallowed.
+   */
+  private ledgerAppends = 0;
+  private ledgerFailures = 0;
+  private lastLedgerError: string | undefined;
 
   constructor(cwd: string) {
     this.cwd = cwd;
     this.baseDir = join(cwd, ".alix", "coordination");
+  }
+
+  /**
+   * Dual-write one snapshot/terminal event to the transactional ledger.
+   * JSON is already written when this runs; ANY ledger failure (open,
+   * conflict, locked db) is counted — never thrown, never silent.
+   */
+  private dualWrite(runId: string, mode: "snapshot" | "deleted", payload: Record<string, unknown>, occurredAt: string): void {
+    try {
+      const ledger = getSharedLedger(this.cwd);
+      const expected = ledger.entityVersion(runId);
+      const eventType: CoordinationLedgerEventType =
+        mode === "deleted"
+          ? "coordination.run.deleted"
+          : expected === 0
+            ? "coordination.run.created"
+            : "coordination.run.persisted";
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType,
+          schemaVersion: 1,
+          entityType: "coordinationRun",
+          entityId: runId,
+          entityVersion: expected + 1,
+          coordinationRunId: runId,
+          correlationId: runId,
+          actor: { type: "system", id: "coordination-store" },
+          occurredAt,
+          recordedAt: new Date().toISOString(),
+          payload,
+        },
+        expectedVersion: expected,
+      });
+      if (res.ok) {
+        this.ledgerAppends += 1;
+      } else {
+        this.ledgerFailures += 1;
+        this.lastLedgerError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      this.ledgerFailures += 1;
+      this.lastLedgerError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  /** Observable dual-write health (R2: failures must never be silent). */
+  ledgerStatus(): { appends: number; failures: number; lastError?: string } {
+    return {
+      appends: this.ledgerAppends,
+      failures: this.ledgerFailures,
+      ...(this.lastLedgerError !== undefined ? { lastError: this.lastLedgerError } : {}),
+    };
   }
 
   private runPath(runId: string): string {
@@ -93,6 +178,8 @@ export class CoordinationStore {
     await this.ensureDir();
     run.updatedAt = new Date().toISOString();
     await this.writeAtomic(this.runPath(run.id), JSON.stringify(run, null, 2));
+    // R2 dual-write: genesis vs snapshot decided inside dualWrite's try.
+    this.dualWrite(run.id, "snapshot", runLedgerSnapshot(run), run.updatedAt);
   }
 
   /** Load a coordination run by ID. */
@@ -158,6 +245,7 @@ export class CoordinationStore {
     const path = this.runPath(runId);
     if (!existsSync(path)) return false;
     await unlink(path);
+    this.dualWrite(runId, "deleted", { deleted: true }, new Date().toISOString());
     return true;
   }
 
@@ -236,6 +324,8 @@ export class CoordinationStore {
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
       await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      // R2 dual-write inside the per-run lock — same serialization as the JSON.
+      this.dualWrite(runId, "snapshot", runLedgerSnapshot(run), run.updatedAt);
       return run;
     } finally {
       lock.release();
@@ -273,6 +363,7 @@ export class CoordinationStore {
       run.planRevision += 1;
       run.updatedAt = new Date().toISOString();
       await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      this.dualWrite(runId, "snapshot", runLedgerSnapshot(run), run.updatedAt);
       return run;
     } finally {
       lock.release();
@@ -348,6 +439,7 @@ export class CoordinationStore {
       run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
       await this.writeAtomic(this.runPath(runId), JSON.stringify(run, null, 2));
+      this.dualWrite(runId, "snapshot", runLedgerSnapshot(run), run.updatedAt);
       return { attached: true, run };
     } finally {
       lock.release();

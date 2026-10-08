@@ -94,6 +94,9 @@ export class RuntimeLedger {
     this.db = new Database(opts.dbPath);
     this.db.pragma("journal_mode = WAL");
     this.db.pragma("foreign_keys = ON");
+    // Multi-process writers (scheduler + CLI + Inspector hosts) share the
+    // project ledger file; wait instead of failing on a locked database.
+    this.db.pragma("busy_timeout = 5000");
     this.db.exec(SCHEMA);
   }
 
@@ -252,4 +255,30 @@ export class RuntimeLedger {
 /** Canonical project-scoped ledger path. */
 export function runtimeLedgerPath(cwd: string): string {
   return join(cwd, ".alix", "runtime-ledger.db");
+}
+
+// ── Shared connection cache ──────────────────────────────────────────
+// Dual-write callers (CoordinationStore instances are constructed at many
+// sites) open the ledger by cwd: one connection per path per process.
+// WAL + busy_timeout make cross-process access safe; tests isolate by cwd.
+const sharedLedgers = new Map<string, RuntimeLedger>();
+
+export function getSharedLedger(cwd: string): RuntimeLedger {
+  const key = runtimeLedgerPath(cwd);
+  let ledger = sharedLedgers.get(key);
+  if (!ledger) {
+    ledger = new RuntimeLedger({ dbPath: key });
+    sharedLedgers.set(key, ledger);
+  }
+  return ledger;
+}
+
+/** Close and forget the shared ledger for a cwd (tests / process shutdown). */
+export function closeSharedLedger(cwd: string): void {
+  const key = runtimeLedgerPath(cwd);
+  const ledger = sharedLedgers.get(key);
+  if (ledger) {
+    sharedLedgers.delete(key);
+    ledger.close();
+  }
 }
