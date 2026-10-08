@@ -161,6 +161,7 @@ Usage:
   alix approvals show <id>  Show approval details
   alix approvals approve <id> [--reason "..."]  Approve a pending request
   alix approvals deny <id> [--reason "..."]  Deny a pending request
+  alix approvals reconcile  Compare approvals projection against the R2 ledger
   alix schedule list     List approved scheduled jobs
   alix schedule show <name>  Show a scheduled job
   alix schedule run-now <name>  Enqueue one run now
