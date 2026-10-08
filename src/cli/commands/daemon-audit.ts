@@ -74,6 +74,32 @@ export async function handleDaemonRoot(args: string[]): Promise<void> {
     process.exit(0);
   }
 
+  if (args[0] === "reconcile") {
+    // R2.9: read-only comparison of the global daemon task registry against
+    // the per-user transactional ledger. Exit 1 on drift for CI gating.
+    const { reconcileDaemonTaskLedger } = await import("../../daemon/daemon-task-ledger-reconcile.js");
+    const report = await reconcileDaemonTaskLedger();
+    console.log(`Daemon task ledger reconciliation`);
+    console.log(`  registry records: ${report.scannedRecords}`);
+    console.log(`  ledger entities:  ${report.ledgerEntities}`);
+    console.log(`  ledger events:    ${report.ledgerEventsRead}`);
+    console.log(`  truncated reads:  ${report.truncated}`);
+    const unknown = Object.entries(report.unknownEventTypes);
+    if (unknown.length > 0) {
+      console.log(`  unknown event types:`);
+      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+    }
+    if (report.issues.length === 0) {
+      console.log(`  issues:           none`);
+      process.exit(0);
+    }
+    console.log(`  issues:           ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.taskId}: ${issue.detail}`);
+    }
+    process.exit(1);
+  }
+
   if (args[0] === "doctor") {
     const { existsSync, readFileSync } = await import("node:fs");
     const {  } = await import("node:path");
