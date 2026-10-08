@@ -19,6 +19,7 @@ import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
 import type { PolicyGate } from "../policy/policy-gate.js";
 import type { AlixConfig } from "../config/schema.js";
 import { ApprovalStore } from "../approvals/approval-store.js";
+import { mirrorGraphToLedger, mirrorGraphAttemptToLedger } from "./graph-ledger.js";
 
 export interface CapabilityPreflightResult {
   requiredCapabilities: string[];
@@ -368,6 +369,7 @@ export class GraphExecutor {
     const { existsSync } = await import("node:fs");
     const graphPath = join(this.cwd, ".alix", "graphs", `${graphId}.json`);
     await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    mirrorGraphToLedger(this.cwd, graph);
 
     // Append rerun attempt to .runs.json (for projection to read)
     const runsPath = join(this.cwd, ".alix", "graphs", `${graphId}.runs.json`);
@@ -388,6 +390,7 @@ export class GraphExecutor {
       error: reason,
     });
     await writeFile(runsPath, JSON.stringify(runs, null, 2), "utf-8");
+    mirrorGraphAttemptToLedger(this.cwd, graphId, runs[runs.length - 1]);
 
     
     return { nodeId: node.id, title: node.title, status, summary, reason, durationMs: Date.now() - startTime };

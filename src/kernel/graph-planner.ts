@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskGraph, TaskNode, GraphStrategy } from "./task-graph.js";
 import { WRITE_CAPABILITIES, RESEARCH_CAPABILITIES } from "./worker-role.js";
+import { mirrorGraphToLedger } from "./graph-ledger.js";
 
 export interface PlannerResult {
   graph: TaskGraph;
@@ -426,6 +427,8 @@ export async function persistGraph(graph: TaskGraph, cwd: string): Promise<strin
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
   const filePath = join(dir, `${graph.id}.json`);
   await writeFile(filePath, JSON.stringify(graph, null, 2), "utf-8");
+  // R2.7 dual-write: mirror the definition/status (JSON authoritative now).
+  mirrorGraphToLedger(cwd, graph);
   return filePath;
 }
 

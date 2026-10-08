@@ -464,3 +464,33 @@ export async function handleGraphExport(args: string[]): Promise<void> {
   process.exit(0);
 }
 
+/**
+ * R2.7: read-only comparison of graph JSON files against the transactional
+ * ledger. Exits 1 when drift is found so scripts/CI can gate on it.
+ */
+export async function handleGraphReconcile(_args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const { reconcileGraphLedger } = await import("../../kernel/graph-ledger-reconcile.js");
+  const report = await reconcileGraphLedger(cwd);
+  console.log(`Graph ledger reconciliation`);
+  console.log(`  graphs scanned:   ${report.scannedGraphs}`);
+  console.log(`  attempts scanned: ${report.scannedAttempts}`);
+  console.log(`  ledger graphs:     ${report.ledgerGraphs}`);
+  console.log(`  ledger attempts:   ${report.ledgerAttempts}`);
+  console.log(`  ledger events:     ${report.ledgerEventsRead}`);
+  console.log(`  truncated reads:   ${report.truncated}`);
+  const unknown = Object.entries(report.unknownEventTypes);
+  if (unknown.length > 0) {
+    console.log(`  unknown event types:`);
+    for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+  }
+  if (report.issues.length === 0) {
+    console.log(`  issues:            none`);
+    process.exit(0);
+  }
+  console.log(`  issues:            ${report.issues.length}`);
+  for (const issue of report.issues) {
+    console.log(`    [${issue.kind}] ${issue.graphId}: ${issue.detail}`);
+  }
+  process.exit(1);
+}

@@ -229,6 +229,12 @@ if (command === "graph" && args[0] === "export") {
   await handleGraphExport(args);
 }
 
+// --- alix graph reconcile --- compare graph files against the R2 ledger ---
+if (command === "graph" && args[0] === "reconcile") {
+  const { handleGraphReconcile } = await import("./cli/commands/graph.js");
+  await handleGraphReconcile(args);
+}
+
 // --- alix sop --- SOP management ---
 if (command === "sop") {
   const { handleSopCommand } = await import("./cli/commands/sop.js");
