@@ -109,7 +109,9 @@ export class ExecutionEvidenceStore {
           entityType: "executionEvidence",
           entityId: evidence.evidenceId,
           entityVersion: expected + 1,
-          correlationId: evidence.intentId,
+          // intentId is optional on hand-built fixtures — never let it
+          // produce a NULL correlation_id (NOT NULL column).
+          correlationId: evidence.intentId ?? evidence.evidenceId,
           actor: { type: "system", id: "execution-evidence-store" },
           occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
           recordedAt: new Date().toISOString(),
