@@ -7,7 +7,7 @@
 ## Ownership
 
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
-- `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
+- `graph-executor.ts` — Sequential graph-CLI adapter (`alix graph run`/`rerun`/`continue`, `sop run`) with capability coverage, policy enforcement, approval integration. NOT a scheduling authority — `CoordinationScheduler` is; node authorization goes through the one `ExecutionAuthorization` boundary via `evaluateRuntimeGate`.
 - `graph-ledger.ts` — R2.7/R2.13 graph-domain ledger writes (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent) — the ledger is AUTHORITATIVE, append failure counts then THROWS; `graphLedgerStatus(cwd)` surfaces counted appends/failures, and `countGraphProjectionFailure` counts tolerated JSON projection failures. `graphAttemptEntityId`/`parseGraphAttemptEntityId` are the one place the attempt entity id is encoded/decoded.
 - `graph-ledger-reconcile.ts` — read-only comparison of `.alix/graphs/*.json` + `*.runs.json` against the ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix graph reconcile` (exit 1 on drift).
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
@@ -43,7 +43,12 @@
 
 ## Local Contracts
 
-- GraphExecutor runs nodes sequentially, stops on first failure.
+- GraphExecutor runs nodes sequentially, stops on first failure. It is the
+  sequential graph-CLI adapter (R3.7), not a second scheduler: scheduling is
+  `CoordinationScheduler` alone, and graph-node authorization flows through the
+  one `ExecutionAuthorization` boundary (`evaluateRuntimeGate` adapts it to the
+  graph approval lifecycle). Capability coverage is computed once per node and
+  passed into the gate — never resolved twice.
 - **The coordination ledger is authoritative (R2.3); JSON is a compatibility
   projection.** Every mutation (`save`, `updateRun`,
   `updateRunWithRevisionCheck`, `attachAggregateIfUnfinalized`, `delete`)
