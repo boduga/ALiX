@@ -372,8 +372,7 @@ async function handleResults(args: string[]): Promise<void> {
   const { CoordinationStore } = await import("../../kernel/coordination-store.js");
   const { CoordinationResultStore } = await import("../../kernel/coordination-result-store.js");
   const { CoordinationAggregateStore } = await import("../../kernel/coordination-aggregate-store.js");
-  const { ResultAggregator } = await import("../../kernel/coordination-result-aggregator.js");
-  const { CoordinationCompletionService } = await import("../../kernel/coordination-completion-service.js");
+  const { createCompletionService } = await import("../../kernel/coordination-completion-service.js");
   const { ModelRunSynthesizer } = await import("../../kernel/coordination-run-synthesizer.js");
 
   const store = new CoordinationStore(cwd);
@@ -394,12 +393,11 @@ async function handleResults(args: string[]): Promise<void> {
   const run = await store.load(runId);
   if (!run) { console.error(`Run not found: ${runId}`); process.exit(1); }
 
-  const aggregator = new ResultAggregator(resultStore);
-  const completionService = new CoordinationCompletionService({
-    coordinationStore: store,
-    resultAggregator: aggregator,
+  const completionService = createCompletionService(cwd, {
+    store,
+    resultStore,
     aggregateStore,
-    synthesizer: synthesize ? new ModelRunSynthesizer() : undefined,
+    ...(synthesize ? { synthesizer: new ModelRunSynthesizer() } : {}),
   });
 
   const summary = await completionService.finalize(runId);

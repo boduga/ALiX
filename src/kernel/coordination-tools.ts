@@ -478,8 +478,7 @@ async function handleCoordinationResults(
   }
   const { CoordinationResultStore } = await import("./coordination-result-store.js");
   const { CoordinationAggregateStore } = await import("./coordination-aggregate-store.js");
-  const { ResultAggregator } = await import("./coordination-result-aggregator.js");
-  const { CoordinationCompletionService } = await import("./coordination-completion-service.js");
+  const { createCompletionService } = await import("./coordination-completion-service.js");
 
   const store = deps.store ?? new CoordinationStore(deps.cwd);
   const resultStore = new CoordinationResultStore(deps.cwd);
@@ -493,12 +492,7 @@ async function handleCoordinationResults(
   if (!run) {
     return { kind: "error", message: `Run not found: ${runId}`, retryable: false };
   }
-  const aggregator = new ResultAggregator(resultStore);
-  const completionService = new CoordinationCompletionService({
-    coordinationStore: store,
-    resultAggregator: aggregator,
-    aggregateStore,
-  });
+  const completionService = createCompletionService(deps.cwd, { store, resultStore, aggregateStore });
   const summary = await completionService.finalize(runId);
   const aggregateLines = summarizeAggregate(runId, summary);
   const finalized = await store.load(runId);

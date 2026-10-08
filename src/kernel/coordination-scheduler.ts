@@ -24,10 +24,7 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
-import { CoordinationCompletionService as CompletionService } from "./coordination-completion-service.js";
-import { CoordinationResultStore as CompletionResultStore } from "./coordination-result-store.js";
-import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
-import { ResultAggregator } from "./coordination-result-aggregator.js";
+import { createCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
 import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
@@ -1077,10 +1074,8 @@ export function createCoordinationScheduler(
   deps: Omit<CoordinationSchedulerDeps, "completionService">,
   options?: SchedulerOptions,
 ): CoordinationScheduler {
-  const completionService = new CompletionService({
-    coordinationStore: deps.store,
-    resultAggregator: new ResultAggregator(new CompletionResultStore(deps.cwd)),
-    aggregateStore: new CoordinationAggregateStore(deps.cwd),
+  const completionService = createCompletionService(deps.cwd, {
+    store: deps.store,
     ...(deps.eventLog ? { eventLog: deps.eventLog } : {}),
   });
   return new CoordinationScheduler({ ...deps, completionService }, options);

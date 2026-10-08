@@ -9,6 +9,7 @@
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { CoordinationFinalizationLock } from "./coordination-finalization-lock.js";
+import { CoordinationResultStore } from "./coordination-result-store.js";
 import { ResultAggregator } from "./coordination-result-aggregator.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
 import type { RunResultSummary } from "./coordination-result-types.js";
@@ -22,6 +23,38 @@ export type CoordinationCompletionServiceDeps = {
   synthesizer?: RunSynthesizer;
   eventLog?: EventLog;
 };
+
+export type CompletionServiceOptions = {
+  /** Reuse a caller-held coordination store instead of constructing one. */
+  store?: CoordinationStore;
+  /** Reuse a caller-held result store (wrapped in a fresh aggregator). */
+  resultStore?: CoordinationResultStore;
+  /** Reuse a caller-held aggregate store instead of constructing one. */
+  aggregateStore?: CoordinationAggregateStore;
+  eventLog?: EventLog;
+  synthesizer?: RunSynthesizer;
+};
+
+/**
+ * Build the production completion service (R3.5). THE single assembly site:
+ * `createCoordinationScheduler`, the `alix_coordination_results` tool, and the
+ * `alix coordination` CLI all finalize through a service built here. A
+ * hand-rolled `new CoordinationCompletionService(...)` elsewhere is a site
+ * whose aggregator/store wiring can drift from the factory's (and the
+ * construction-wiring test fails on it).
+ */
+export function createCompletionService(
+  cwd: string,
+  opts: CompletionServiceOptions = {},
+): CoordinationCompletionService {
+  return new CoordinationCompletionService({
+    coordinationStore: opts.store ?? new CoordinationStore(cwd),
+    resultAggregator: new ResultAggregator(opts.resultStore ?? new CoordinationResultStore(cwd)),
+    aggregateStore: opts.aggregateStore ?? new CoordinationAggregateStore(cwd),
+    ...(opts.synthesizer ? { synthesizer: opts.synthesizer } : {}),
+    ...(opts.eventLog ? { eventLog: opts.eventLog } : {}),
+  });
+}
 
 export class CoordinationCompletionService {
   constructor(private deps: CoordinationCompletionServiceDeps) {}
