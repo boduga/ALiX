@@ -34,6 +34,7 @@
   resolved projection.
 - **One TUI read model, no legacy store (R4/V4–V5).** Views read the immutable `RuntimeSnapshot` composed by `snapshot-builder.ts`; there is no second mutable TUI store and the TUI never reads `ApprovalStore` or `ContinuationStore` directly.
 - **Evolution-loop stages carry a declared source authority (R4/V6).** In `evolution-projection.ts`, `lifecycle`, `forecasts`, `correlations`, and `decisions` have no canonical EventLog emitter; their authority is the persisted canonical artifact read through `EvolutionReadSources` each cycle (`NON_EVENTLOG_AUTHORITATIVE_STAGES`). Only `measurements` and the A8 learning recompute are EventLog-relay-fed; the projection stays a read model over canonical artifacts.
+- **Workflow step counts are a declared fallback (R4/V7).** No canonical `workflow.step_*` event is emitted; `computeWorkflow` in `runtime-collector.ts` derives `currentStep`/`totalSteps` by counting `WORKFLOW_STEP_FALLBACK_TYPES` (`tool.*` + `task.ready`) since `workflow.created`. Consume a canonical step event here if one is ever added.
 - UI actions reach runtime through explicit controller/port boundaries.
 - Compact transcripts show operator work and outcomes. Routine context assembly, raw lifecycle plumbing, and the `alix_done` tool are details, not default content.
 - Detailed transcript mode may reveal bounded lifecycle diagnostics but must preserve the same underlying audit correlation.
