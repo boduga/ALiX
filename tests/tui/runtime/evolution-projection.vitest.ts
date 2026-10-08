@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EvolutionProjection } from '../../../src/tui/runtime/evolution/evolution-projection.js';
+import { EvolutionProjection, NON_EVENTLOG_AUTHORITATIVE_STAGES } from '../../../src/tui/runtime/evolution/evolution-projection.js';
 
 const now = 1_700_000_000_000;
 function clock(): number { return now; }
@@ -127,5 +127,31 @@ describe('EvolutionProjection', () => {
     p.ingestSessionless([measuredEvent(1, 'm1', 'cap-a')]);
     const snap = await p.snapshot();
     expect(snap.generatedAt).toBe(now);
+  });
+
+  it('declares the four non-EventLog authoritative stages and never feeds them from the relay (R4/V6)', async () => {
+    // The declaration is exact: only these four stages are artifact-authoritative.
+    expect([...NON_EVENTLOG_AUTHORITATIVE_STAGES]).toEqual([
+      'lifecycle',
+      'forecasts',
+      'correlations',
+      'decisions',
+    ]);
+
+    const p = makeProjection();
+    // A relay batch carrying BOTH event families the projection consumes.
+    p.ingestSessionless([measuredEvent(1, 'm1', 'cap-a'), submittedEvent(2, 'proposal-1', 'cap-a')]);
+    const snap = await p.snapshot();
+
+    // The relay populates its own stage...
+    expect(snap.stages.measurements.status).toBe('available');
+    // ...and never leaks into the declared non-EventLog stages. Their contents
+    // come only from the injected sources (forecasts/correlations/decisions
+    // return [] here; lifecycle returns one row).
+    expect(snap.stages.forecasts.status).toBe('empty');
+    expect(snap.stages.correlations.status).toBe('empty');
+    expect(snap.stages.decisions.status).toBe('empty');
+    expect(snap.stages.lifecycle.status).toBe('available');
+    expect(snap.stages.lifecycle.items).toHaveLength(1);
   });
 });
