@@ -41,3 +41,13 @@ if (existsSync(dbSrc)) {
     cpSync(resolve(dbSrc, file), resolve(dbDest, file));
   }
 }
+
+// Copy refine-strategy templates (read module-relative at runtime)
+const strategiesSrc = resolve(root, "src/run/task-loop/refine-strategies");
+const strategiesDest = resolve(root, "dist/src/run/task-loop/refine-strategies");
+mkdirSync(strategiesDest, { recursive: true });
+if (existsSync(strategiesSrc)) {
+  for (const file of readdirSync(strategiesSrc).filter((f) => f.endsWith(".md"))) {
+    cpSync(resolve(strategiesSrc, file), resolve(strategiesDest, file));
+  }
+}

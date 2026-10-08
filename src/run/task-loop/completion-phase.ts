@@ -6,7 +6,7 @@ import type { createContextPressureTracker } from '../context-pressure.js';
 import type { resolveModelConfig } from '../../config/model-resolver.js';
 import type { runHook } from '../../hooks/runner.js';
 import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from '../../verifier/verifier.js';
-import { buildRefinePrompt, selectStrategy } from '../../orchestrator/refine-strategies.js';
+import { buildRefinePrompt, selectStrategy } from './refine-strategies.js';
 import { DEFAULT_FACTORY_CONFIG } from '../../skills/dispatcher.js';
 import { evaluatePattern } from './context-helpers.js';
 import { gatePendingAgentAction } from './pending-action-phase.js';
