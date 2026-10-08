@@ -38,6 +38,7 @@ reason about.
   model-facing surface and `ToolName`/`ToolNameSchema` derive from it, so a
   tool that is not in the manifest has no name the model can call and no type
   that admits it. Every registry entry must have a manifest counterpart.
+- **One tool/capability catalogue (R5.3).** `tool-registry.ts` is the single catalogue and implements the `ToolCapabilityRegistry` R1 port via `createToolCapabilityRegistry()` (`resolve`/`list`). `card-registry.ts`, `mcp/registry.ts`, and `agents/tool-manifest.ts` adapt to or derive from it — none defines a parallel taxonomy. The freeze rule allows each cataloged definition only in its home module.
 - Full file reads measure LF-delimited lines from actual returned content before telemetry truncation. Empty content reports zero; a trailing LF terminates its line without adding an empty line. Successful completion events forward only nonnegative safe-integer measurements supplied by tools. Missing measurements stay absent; request ranges and output previews never establish counts.
 - Router cancellation emits a best-effort correlated cancelled completion event, then rethrows the original cancellation. Telemetry failure must not replace cancellation with failure; cancelled calls emit neither successful output nor failed-tool events.
 - **The policy gate runs first, and it is not optional.** `ToolExecutor`

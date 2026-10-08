@@ -1,6 +1,6 @@
 # R5 — Support Subsystem Convergence Plan
 
-**Status:** in progress — R5.0 (plan) ✅, R5.1 (egress redaction) ✅, R5.2 (`models.*` cutover) ✅.
+**Status:** in progress — R5.0 (plan) ✅, R5.1 (egress redaction) ✅, R5.2 (`models.*` cutover) ✅, R5.3a (tool catalogue taxonomy) ✅.
 **Phase register:** `docs/refactors/r0-findings-r3-plan.md` (R5 row + "R5 security note (do not lose)").
 **Provenance:** four read-only recon passes against HEAD `r4-complete` (`e9008d88`). Line numbers verified in that session.
 
@@ -87,7 +87,8 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | R5.0 | Persist this recon/plan | ✅ |
 | R5.1 | **Outbound redaction gate:** remote/local provider predicate + shared redactor applied to every provider-bound `systemPrompt`/`messages` before send; fail-closed for remote. Owner seams: `route-execution.ts`, `run/task-loop/main.ts`, `planner-model.ts`, `subagent-cli.ts` (and siblings). Tests assert a secret in assembled prompt never reaches a remote adapter. | ✅ |
 | R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ✅ |
-| R5.3 | **ONE tool/capability catalogue:** implement the `ToolCapabilityRegistry` port + MCP/manifest adapters; reconcile concrete MCP tools; resolve the 8 `direct-tool-dispatch` executor imports through a tool port; remove the tool-taxonomy + direct-dispatch `R5` allowlist entries. | ⬜ |
+| R5.3a | **ONE tool/capability catalogue (taxonomy):** wire the `ToolCapabilityRegistry` port over the canonical catalogue; scope the freeze rule (exempt each definition's home module); rename the collaborative-planner's colliding `CapabilityRegistry` interface; remove the 6 `tool-taxonomy-defs` entries. | ✅ |
+| R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ⬜ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ⬜ |
 | R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ⬜ |
 | R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ⬜ |
@@ -125,6 +126,14 @@ The freeze rule `model-resolver-impls` watched six exported symbol names across 
 4. Freeze rule: `DEF_RULES` gained an `exempt` list; `model-resolver-impls` now watches `createModelResolver` everywhere except `src/config/model-resolver.ts`, so a second resolver definition fails the freeze. Removed the 3 `model-resolver-impls` allowlist entries.
 5. Tests updated (`tests/config/model-resolver.test.ts`, `tests/decision/model-tier.test.ts`, `tests/config/hardware-detect.test.ts`, provider tests); DOX updated (`src/providers/AGENTS.md`, `src/decision/decisions/model-tier/AGENTS.md`).
 6. Deferred (documented): `providers/registry.ts`'s `config.name ?? config.model` is registry input normalization, not a canonical-`models` read; the `subagents.enabled` projection branches are loader-produced compatibility reads (a caller-facing migration, not a flat source-of-truth read) — left for a follow-up.
+
+## R5.3a (tool catalogue taxonomy) — ✅ done
+Same freeze-rule shape as R5.2: `tool-taxonomy-defs` watched five symbol names across all of `src` (its `files` field is dead), so the entries could only go by scoping the rule.
+1. `src/tools/tool-registry.ts` now implements the R1 `ToolCapabilityRegistry` port via `createToolCapabilityRegistry()` (`resolve`/`list` over the 24-entry catalogue) — the one tool/capability resolution surface.
+2. Renamed the collaborative-planner's colliding local `CapabilityRegistry` interface to `AgentCapabilityMap` (the only genuine name collision; updated `replan-impact-analyzer.ts` + a test).
+3. Freeze rule `tool-taxonomy-defs`: added the port symbol; every watched definition is now allowed only in its home module via `exempt` (rule-level file list). Removed the 6 `tool-taxonomy-defs` entries.
+4. Added `tests/tools/tool-capability-registry.vitest.ts` (port resolve/list shape) and DOX in `src/tools/AGENTS.md`.
+5. Deferred to **R5.3b**: the 8 `direct-tool-dispatch` entries (moving `hashArgs` out of `executor.ts`; routing `ToolExecutor` construction through a sanctioned seam) — an agent-execution-path change.
 
 ## Resume here (fresh session)
 

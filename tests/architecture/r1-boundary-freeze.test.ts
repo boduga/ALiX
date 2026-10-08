@@ -104,6 +104,11 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     marker: "definition:model-resolution",
   },
   "tool-taxonomy-defs": {
+    // R5.3 — one canonical tool catalogue (`src/tools/tool-registry.ts`,
+    // exposed through the ToolCapabilityRegistry port) plus the named
+    // subsystems that adapt to it. The watched definitions are allowed only in
+    // the home modules listed under `exempt` (rule-level, as `exempt` is a
+    // file list); a definition outside them fails the freeze.
     files: [
       "src/tools/tool-registry.ts",
       "src/capability/registry.ts",
@@ -113,10 +118,18 @@ const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: st
     ],
     symbols: [
       "buildDefaultToolIndex",
+      "createToolCapabilityRegistry",
       "ALIX_BUILTIN_EXECUTORS",
       "CapabilityRegistry",
       "CardRegistry",
       "McpToolRegistry",
+    ],
+    exempt: [
+      "src/tools/tool-registry.ts",
+      "src/capability/registry.ts",
+      "src/registry/card-registry.ts",
+      "src/mcp/registry.ts",
+      "src/agents/tool-manifest.ts",
     ],
     marker: "definition:tool-taxonomy",
   },

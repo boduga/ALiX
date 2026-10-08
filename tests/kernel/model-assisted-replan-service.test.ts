@@ -46,7 +46,7 @@ import type { ModelAssistedReplanServiceOptions } from "../../src/kernel/model-a
 import type { ApprovalStore } from "../../src/approvals/approval-store.js";
 import type { ApprovalRequestInput } from "../../src/approvals/approval-store.js";
 import type { ApprovalRecord, ConsumeResult } from "../../src/approvals/approval-types.js";
-import type { CapabilityRegistry } from "../../src/kernel/collaborative-planner.js";
+import type { AgentCapabilityMap } from "../../src/kernel/collaborative-planner.js";
 import type { CollaborationContextBudget } from "../../src/kernel/collaboration-context-builder.js";
 import type { OwnershipRegistry } from "../../src/ownership/ownership-registry.js";
 import type { CoordinationResultStore } from "../../src/kernel/coordination-result-store.js";
