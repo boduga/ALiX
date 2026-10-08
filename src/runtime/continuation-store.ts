@@ -10,6 +10,75 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { getSharedLedger } from "../storage/runtime-ledger.js";
+
+/** Ledger event vocabulary for the continuations domain (R2.8). */
+export const CONTINUATION_LEDGER_EVENT_TYPES = [
+  "continuation.created",
+  "continuation.updated",
+  "continuation.removed",
+] as const;
+
+// ─── R2.8 dual-write status (per workspace, like graph-ledger) ───────
+type ContinuationLedgerStatus = { appends: number; failures: number; lastError?: string };
+const statusByCwd = new Map<string, ContinuationLedgerStatus>();
+
+function statusFor(cwd: string): ContinuationLedgerStatus {
+  let s = statusByCwd.get(cwd);
+  if (!s) {
+    s = { appends: 0, failures: 0 };
+    statusByCwd.set(cwd, s);
+  }
+  return s;
+}
+
+export function continuationLedgerStatus(cwd: string): ContinuationLedgerStatus {
+  const s = statusFor(cwd);
+  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+}
+
+export function resetContinuationLedgerStatus(cwd: string): void {
+  statusByCwd.delete(cwd);
+}
+
+function mirrorContinuation(cwd: string, approvalId: string, kind: "created" | "removed", payload: Record<string, unknown>): void {
+  const s = statusFor(cwd);
+  try {
+    const ledger = getSharedLedger(cwd);
+    const expected = ledger.entityVersion(approvalId);
+    const eventType =
+      kind === "removed"
+        ? "continuation.removed"
+        : expected === 0
+          ? "continuation.created"
+          : "continuation.updated";
+    const res = ledger.append({
+      event: {
+        eventId: randomUUID(),
+        eventType,
+        schemaVersion: 1,
+        entityType: "continuation",
+        entityId: approvalId,
+        entityVersion: expected + 1,
+        correlationId: approvalId,
+        actor: { type: "system", id: "continuation-store" },
+        occurredAt: new Date().toISOString(),
+        recordedAt: new Date().toISOString(),
+        payload,
+      },
+      expectedVersion: expected,
+    });
+    if (res.ok) s.appends += 1;
+    else {
+      s.failures += 1;
+      s.lastError = `${res.reason}: ${res.detail}`;
+    }
+  } catch (err) {
+    s.failures += 1;
+    s.lastError = err instanceof Error ? err.message : String(err);
+  }
+}
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -42,8 +111,10 @@ export class ContinuationStore {
   private continuations: PendingContinuation[] = [];
   private dirty = false;
   private filePath: string;
+  private readonly cwd: string;
 
   constructor(cwd: string) {
+    this.cwd = cwd;
     this.filePath = join(cwd, ".alix", "approvals", "continuations.json");
   }
 
@@ -86,6 +157,9 @@ export class ContinuationStore {
     this.continuations.push(cont);
     this.dirty = true;
     await this.save();
+    // R2.8 dual-write: mirror after the file write (JSON authoritative now);
+    // failures counted, never thrown into the resume path.
+    mirrorContinuation(this.cwd, cont.approvalId, "created", { continuation: cont });
   }
 
   /** Find a continuation by approval ID. */
@@ -98,6 +172,8 @@ export class ContinuationStore {
     this.continuations = this.continuations.filter(c => c.approvalId !== approvalId);
     this.dirty = true;
     await this.save();
+    // R2.8: terminal tombstone so reconciliation knows removal was deliberate.
+    mirrorContinuation(this.cwd, approvalId, "removed", { removed: true });
   }
 
   /** List all continuations. */

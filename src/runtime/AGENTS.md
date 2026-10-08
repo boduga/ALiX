@@ -14,6 +14,8 @@ Runtime substrate — execution-state projection, state-aware prompt context, an
 - `context/` — State-aware prompt builder P+Σ+O+E+Tools (see `context/AGENTS.md`).
 - `tool-scheduler.ts` — Concurrency-aware ToolExecutionPolicy {allowParallel, maxParallel:4} + authoritative ToolConcurrency safe/exclusive (fail-closed unknown→serial), effectiveParallel=model&&harness&&safe, Promise.all chunked scheduler.
 - `tool-correlation.ts` — Result correlation: hierarchy executionId → invocationId → toolCallId, every parallel result retains all three so call_1 → result_1 never ambiguous; events carry hierarchy, messages retain correlation, next model turn receives full array.
+- `continuation-store.ts` — PendingContinuation persistence (`.alix/approvals/continuations.json`), keyed by approvalId. R2.8: `persist`/`remove` dual-write `continuation.created`/`updated`/`removed` to the transactional ledger (JSON authoritative this phase; failures counted in `continuationLedgerStatus(cwd)`, never thrown into the resume path).
+- `continuation-ledger-reconcile.ts` — read-only comparison of `continuations.json` vs ledger (argsHash/integrity fields compared; `missing_in_ledger` / `record_mismatch` / `projection_stale` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); surfaced in the `alix approvals reconcile` output alongside approvals.
 
 **Backends aggregated (7 sources):**
 1. `audit/audit.jsonl` — policy/runtime audit events
