@@ -3,7 +3,7 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -44,7 +44,7 @@ function state(executionId: string, version: number): ExecutionState {
   } as unknown as ExecutionState;
 }
 
-describe("execution-state ledger dual-write (R2.6)", () => {
+describe("execution-state ledger authority (R2.12)", () => {
   it("save mirrors create + update; reconcile clean", async () => {
     const dir = tmp();
     const storeDir = join(dir, ".alix", "executions");
@@ -109,7 +109,7 @@ describe("execution-state ledger dual-write (R2.6)", () => {
     assert.equal(report.ok, false);
   });
 
-  it("ledger failure never breaks the snapshot save (dual-write phase) and is observable", async () => {
+  it("append failure fails the mutation — no JSON-only commit (R2.12 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
@@ -117,16 +117,54 @@ describe("execution-state ledger dual-write (R2.6)", () => {
     const storeDir = join(dir, ".alix", "executions");
     const store = new ExecutionStateStore(storeDir);
     const id = `exec_${randomUUID()}`;
-    assert.equal(store.save(state(id, 0), null).committed, true); // must not throw
-
-    assert.equal(store.ledgerStatus().failures, 1);
+    assert.throws(() => store.save(state(id, 0), null), /SQLITE|unable|not a database|ledger append failed/i);
+    assert.equal(store.ledgerStatus().failures >= 1, true);
     assert.ok(store.ledgerStatus().lastError);
-    assert.ok(store.load(id)); // JSON path intact
+    // Authoritative store unavailable → no projection commit either.
+    assert.ok(!existsSync(join(storeDir, id, "state.json")));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated: ledger holds truth, load still works", async () => {
+    const dir = tmp();
+    const storeDir = join(dir, ".alix", "executions");
+    const store = new ExecutionStateStore(storeDir);
+    const id = `exec_${randomUUID()}`;
+    // Occupy the per-execution directory with a FILE so atomicWriteFile's
+    // mkdirSync fails — projection broken, ledger intact.
+    mkdirSync(storeDir, { recursive: true });
+    writeFileSync(join(storeDir, id), "not a directory");
+
+    assert.equal(store.save(state(id, 0), null).committed, true); // must NOT throw
+    assert.equal(store.ledgerStatus().projectionFailures, 1);
+    assert.ok(store.ledgerStatus().lastProjectionError);
+    assert.equal(getSharedLedger(dir).entityVersion(id), 1);
+
+    // Authority read works with no usable projection file.
+    assert.equal(store.load(id)?.version, 0);
+
     const report = await reconcileExecutionLedger(storeDir, dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("load prefers the LEDGER over a tampered projection file", async () => {
+    const dir = tmp();
+    const storeDir = join(dir, ".alix", "executions");
+    const store = new ExecutionStateStore(storeDir);
+    const id = `exec_${randomUUID()}`;
+    store.save(state(id, 0), null);
+    store.save(state(id, 1), 0);
+
+    // Flip the projection version behind the store's back.
+    const path = join(storeDir, id, "state.json");
+    const snap = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+    snap.version = 7;
+    writeFileSync(path, JSON.stringify(snap, null, 2));
+
+    const fresh = new ExecutionStateStore(storeDir);
+    assert.equal(fresh.load(id)?.version, 1); // ledger truth, not the tampered file
   });
 
   it("projector accepts execution.action_executed as evidence (replay no longer crashes)", () => {

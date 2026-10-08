@@ -13,7 +13,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { stateFilePath } from "./execution-state-store.js";
 import { executionStateStoreDir } from "./execution-state-emitter.js";
 import { getSharedLedger } from "../../storage/runtime-ledger.js";
@@ -189,5 +189,7 @@ function deriveCwd(storeDir: string): string {
     const stripped = storeDir.slice(0, storeDir.length - suffix.length).replace(/[\\/]+$/, "");
     return stripped || ".";
   }
-  return dirname(storeDir);
+  // Custom/test store dirs are their own ledger root (mirrors
+  // ExecutionStateStore.baseDirCwd — dirname() would desync the two).
+  return storeDir;
 }
