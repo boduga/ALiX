@@ -17,6 +17,8 @@ import { withTimeout } from "../runtime/side-effect-timeout.js";
 import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
 import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
 import { isCancellationError } from "../runtime/cancellation-token.js";
+import { isRemoteProvider } from "./provider-locality.js";
+import { redactOutboundRequest } from "./outbound-redaction.js";
 import { getProcessTraceClient } from "../tracing/client-factory.js";
 import type { TraceClient } from "../tracing/client.js";
 import type { ModelSpanInput, SpanOutcome, TraceRun, TraceSpan } from "../tracing/types.js";
@@ -301,15 +303,21 @@ export function withProviderContracts(
       let span: ModelSpanHandle = null;
       try {
         const validatedRequest = clampMaxOutputTokens(adapter, validateNormalizedRequest(request));
-        span = await beginModelSpan(adapter, request, callContext, false);
+        // R5.1 egress gate: redact secrets from provider-bound text before the
+        // physical request. Fail-closed on locality (unknown provider = remote).
+        const providerId = adapter.capabilities?.provider ?? adapter.id;
+        const dispatchedRequest = isRemoteProvider(providerId)
+          ? redactOutboundRequest(validatedRequest)
+          : validatedRequest;
+        span = await beginModelSpan(adapter, dispatchedRequest, callContext, false);
         const response = timeoutMs
           ? await withTimeout(
               `provider.complete:${adapter.id}`,
               timeoutMs,
-              () => adapter.complete(validatedRequest, options),
+              () => adapter.complete(dispatchedRequest, options),
               (d) => diagSink.emit(d),
             )
-          : await adapter.complete(validatedRequest, options);
+          : await adapter.complete(dispatchedRequest, options);
         const validated = validateNormalizedResponse(response);
         endModelSpan(span, {
           status: "success",
@@ -361,9 +369,14 @@ export function withProviderContracts(
             // One span per physical stream request, started before the
             // underlying stream and ended exactly once on stream termination
             // (natural completion / error / cancellation / consumer early-close).
-            const span = await beginModelSpan(adapter, request, callContext, true);
+            // R5.1 egress gate: redact secrets before the physical request.
+            const providerId = adapter.capabilities?.provider ?? adapter.id;
+            const dispatchedRequest = isRemoteProvider(providerId)
+              ? redactOutboundRequest(streamRequest)
+              : streamRequest;
+            const span = await beginModelSpan(adapter, dispatchedRequest, callContext, true);
 
-            const rawStream = adapter.stream!(streamRequest, options);
+            const rawStream = adapter.stream!(dispatchedRequest, options);
 
             // Wrap with idle timeout when configured
             const timedStream = streamIdleTimeoutMs
