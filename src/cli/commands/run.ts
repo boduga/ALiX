@@ -7,7 +7,7 @@ import type { TraceClient } from "../../tracing/client.js";
 import { loadConfig } from "../../config/loader.js";
 import type { TracingConfig } from "../../config/schema.js";
 import { ApiError } from "../../providers/base.js";
-import { tryResolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 import { parseRunArgs } from "../run-args.js";
 
 export async function handler(args: string[]): Promise<number> {
@@ -59,7 +59,7 @@ export async function handler(args: string[]): Promise<number> {
     let tracingConfig: TracingConfig | undefined;
     try {
       const loadedConfig = await loadConfig(process.cwd());
-      const defaultModel = tryResolveModelConfig(loadedConfig);
+      const defaultModel = createModelResolver(loadedConfig).resolve();
       if (defaultModel?.provider) {
         chatModelOpt = { chatModel: { provider: defaultModel.provider, model: defaultModel.name } };
       }

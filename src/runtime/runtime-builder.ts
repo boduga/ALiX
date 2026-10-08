@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AlixConfig } from "../config/schema.js";
 import { loadConfig } from "../config/loader.js";
-import { tryResolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
@@ -66,7 +66,7 @@ export class RuntimeBuilder {
     // source (§10), never the derived `model` projection.
     this._contextCompiler = new ContextCompiler({
       root: this._root,
-      maxTokens: tryResolveModelConfig(config)?.maxContextTokens,
+      maxTokens: createModelResolver(config).resolve()?.maxContextTokens,
       eventLog: this._eventLog,
       sessionId,
     });

@@ -27,7 +27,7 @@ import "../../runtime/task-router.js";
 import { transitionWorkflowStatus } from "../../kernel/workflow-run.js";
 import "../../repomap/context-compiler.js";
 import "../../config/context-limits.js";
-import { resolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 import "../../config/context-budget.js";
 import "../../utils/tokens.js";
 import "../../skills/dispatcher.js";
@@ -122,7 +122,7 @@ export async function initialize(state: SessionState): Promise<void> {
   // P5: Context limits + task classification — resolve the runtime model
   // from the canonical `models` object (§10.1/§10.2).
   const p5 = await setupContextLimits(
-    resolveModelConfig(state.ctx.config),
+    createModelResolver(state.ctx.config).require(),
     state.ctx.config.apiKeys,
     state.currentTask,
     state.config.readOnly,

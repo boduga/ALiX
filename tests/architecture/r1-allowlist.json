@@ -189,27 +189,6 @@
     "rule": "metrics-vocabs"
   },
   {
-    "imported": "definition:model-resolution",
-    "importer": "src/config/model-resolver.ts",
-    "reason": "R0 models \u2014 canonical resolver, unify via ModelResolver port",
-    "removalPhase": "R5",
-    "rule": "model-resolver-impls"
-  },
-  {
-    "imported": "definition:model-resolution",
-    "importer": "src/decision/decisions/model-tier/resolution.ts",
-    "reason": "R0 models \u2014 parallel tier resolver (fail-closed vs fallback), unify via ModelResolver port",
-    "removalPhase": "R5",
-    "rule": "model-resolver-impls"
-  },
-  {
-    "imported": "definition:model-resolution",
-    "importer": "src/providers/model-resolver.ts",
-    "reason": "R0 models \u2014 parallel policy-to-id resolver, unify via ModelResolver port",
-    "removalPhase": "R5",
-    "rule": "model-resolver-impls"
-  },
-  {
     "imported": "src/ownership/ownership-registry.ts",
     "importer": "src/cli/commands/coordination.ts",
     "reason": "R0 coordination overlap \u2014 durable registry construction site \u2014 retained through R3 (durable registry is the single authority); revisit at R6 physical moves",

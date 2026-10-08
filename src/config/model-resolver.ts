@@ -1,5 +1,6 @@
 import type { AlixConfig, ModelConfig, ModelTier } from "./schema.js";
 import { isValidModelConfig } from "./schema.js";
+import type { ModelResolver } from "../contracts/model-resolver.js";
 
 /** Canonical "no model configured" guidance — shared with the loader's richer message. */
 export const NO_MODEL_CONFIGURED_MESSAGE =
@@ -12,22 +13,9 @@ export const NO_MODEL_CONFIGURED_MESSAGE =
  */
 export type ModelSourceConfig = Pick<AlixConfig, "models">;
 
-/** Resolve the effective model, or `undefined` when none resolves (non-throwing). */
-export function tryResolveModelConfig(
-  config: ModelSourceConfig,
-  tier?: ModelTier,
-): ModelConfig | undefined {
-  const models = config.models;
-  const source =
-    tier === undefined || tier === "default"
-      ? models?.default
-      : models?.[tier] ?? models?.default;
-
-  return isValidModelConfig(source) ? { ...source } : undefined;
-}
-
 /**
- * Pure model resolver — the single reader runtime code uses to pick a model.
+ * The single canonical reader for `models.*`, exposed through the
+ * `ModelResolver` R1 port (`resolve` / `require`).
  *
  * Reads ONLY the canonical `models` object (single source of truth). It never
  * inspects the derived `model`/`subagents` compatibility projections or
@@ -43,17 +31,28 @@ export function tryResolveModelConfig(
  * fails the validity check) — matching the loader projection's semantics where
  * an explicit entry that names no provider/model does not silently fall back.
  *
- * Returns a defensive copy (§3.3) so callers cannot mutate the loaded
- * configuration by accident. Throws §3.4 when no valid model resolves (use
- * `tryResolveModelConfig` for an optional read).
+ * `resolve` returns a defensive copy (§3.3) so callers cannot mutate the loaded
+ * configuration by accident; `require` throws §3.4 when no valid model resolves.
  */
-export function resolveModelConfig(
-  config: ModelSourceConfig,
-  tier?: ModelTier,
-): ModelConfig {
-  const resolved = tryResolveModelConfig(config, tier);
-  if (!resolved) {
-    throw new Error(NO_MODEL_CONFIGURED_MESSAGE);
-  }
-  return resolved;
+export function createModelResolver(config: ModelSourceConfig): ModelResolver {
+  const resolve = (tier?: ModelTier): ModelConfig | undefined => {
+    const models = config.models;
+    const source =
+      tier === undefined || tier === "default"
+        ? models?.default
+        : models?.[tier] ?? models?.default;
+
+    return isValidModelConfig(source) ? { ...source } : undefined;
+  };
+
+  return {
+    resolve,
+    require(tier?: ModelTier): ModelConfig {
+      const resolved = resolve(tier);
+      if (!resolved) {
+        throw new Error(NO_MODEL_CONFIGURED_MESSAGE);
+      }
+      return resolved;
+    },
+  };
 }

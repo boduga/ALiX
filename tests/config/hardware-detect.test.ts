@@ -22,13 +22,18 @@ describe("hardware-detect", () => {
     assert.equal(typeof r.ollamaInstalled, "boolean");
     assert.equal(typeof r.ollamaRunning, "boolean");
   });
-  it("distinguishes configured vs hasKey for API providers", () => {
-    const config = { apiKeys: { anthropic: "sk-xxx" }, model: { provider: "openai", name: "gpt-4" } };
+  it("distinguishes configured vs hasKey for API providers from canonical models", () => {
+    const config = { apiKeys: { anthropic: "sk-xxx" }, models: { default: { provider: "openai", name: "gpt-4" } } };
     const r = detectSystem(config as any);
     assert.equal(r.apiProviders.anthropic?.hasKey, true);
     assert.equal(r.apiProviders.anthropic?.configured, true);
     assert.equal(r.apiProviders.openai?.hasKey, false);
     assert.equal(r.apiProviders.openai?.configured, true);
+  });
+  it("ignores the legacy config.model projection (canonical models.* only)", () => {
+    const config = { model: { provider: "openai", name: "gpt-4" } };
+    const r = detectSystem(config as any);
+    assert.equal(r.apiProviders.openai?.configured, false);
   });
   it("returns empty apiProviders without config", () => {
     assert.equal(Object.keys(detectSystem().apiProviders).length, 0);

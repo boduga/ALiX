@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { runTask } from "../../run.js";
 import { loadConfig } from "../../config/loader.js";
-import { resolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 
 export async function runDemo(): Promise<void> {
   const cwd = process.cwd();
@@ -29,7 +29,7 @@ export async function runDemo(): Promise<void> {
 
   const config = await loadConfig(cwd);
   const { resolveModelDescriptor } = await import("../../config/context-limits.js");
-  const resolved = resolveModelConfig(config);
+  const resolved = createModelResolver(config).require();
   const descriptor = await resolveModelDescriptor(resolved.provider, resolved.name, config.apiKeys);
   const { EventLog } = await import("../../events/event-log.js");
   const tuiLog = new EventLog(sessionDir);

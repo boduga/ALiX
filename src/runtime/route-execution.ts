@@ -13,7 +13,7 @@
 
 import type { TaskRoute } from "./task-router.js";
 import { buildExternalRetrievalPrompt } from "./route-prompts.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { ALIX_EXECUTOR_TO_MODEL_FACING } from "../agents/tool-manifest.js";
 import { resolveExecutableToolName } from "../agents/tool-name-resolver.js";
 import type { ModelAdapter, ToolDef } from "../providers/types.js";
@@ -51,7 +51,7 @@ export interface ExecutionDeps {
   renderApprovalPrompt?: boolean;
   /**
    * Test seam: override provider construction. Defaults to
-   * `createProvider(resolveModelConfig(config))`. Production adapters never
+   * `createProvider(createModelResolver(config).require())`. Production adapters never
    * set this — it exists so a test can hand the shared grounded_chat
    * behavior a provider that returns a tool call (e.g. to pin the
    * allowlist-rejection path without a network call).
@@ -103,7 +103,7 @@ export interface ToolExecutionDeps extends ExecutionDeps {
 async function makeProvider(config: any, deps: ExecutionDeps): Promise<ModelAdapter> {
   if (deps.providerFactory) return deps.providerFactory(config);
   const { createProvider } = await import("../providers/registry.js");
-  return createProvider(resolveModelConfig(config));
+  return createProvider(createModelResolver(config).require());
 }
 
 /**

@@ -4,7 +4,7 @@
 // Describes config — never resolves a request-specific concrete free model.
 
 import { buildFallbackChain } from "../providers/routing-adapter.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import type { AlixConfig } from "../config/schema.js";
 
 export type RoutingChainEntry = {
@@ -14,7 +14,7 @@ export type RoutingChainEntry = {
 };
 
 export function describeRoutingChain(config: AlixConfig): RoutingChainEntry[] {
-  const model = resolveModelConfig(config);
+  const model = createModelResolver(config).require();
   const fallbackModels = buildFallbackChain(model);
   const chain: RoutingChainEntry[] = [
     { provider: model.provider, model: model.name, role: "primary" },

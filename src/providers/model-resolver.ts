@@ -161,7 +161,7 @@ export async function discoverProviderModels(
   );
 }
 
-export function selectModelFromDiscovery(
+export function selectDiscoveredModel(
   policy: ModelSelectionPolicy,
   models: DiscoveredModel[],
   exclude: Set<string> = new Set(),
@@ -281,7 +281,7 @@ export function selectModelFromDiscovery(
   )[0];
 }
 
-export async function resolveModelSelectionId(
+export async function resolveSelectionModelId(
   policy: ModelSelectionPolicy,
   opts: {
     apiKey?: string;
@@ -303,7 +303,7 @@ export async function resolveModelSelectionId(
         );
 
   const resolved =
-    selectModelFromDiscovery(
+    selectDiscoveredModel(
       policy,
       models,
       accessRestrictedModelIds(),
@@ -345,10 +345,10 @@ function discoveredCapabilities(
  * Preserves the existing `openrouter/free` semantics (openrouter-provider.ts
  * `resolveConcreteModel`) where `needsTools` is forced true for the agent tab
  * and vision/structured-output come from the request. This is NOT policy
- * selection (which uses `selectModelFromDiscovery`). Broadened input type
+ * selection (which uses `selectDiscoveredModel`). Broadened input type
  * from `DiscoveredModel[]` only.
  */
-export function resolveConcreteFreeModel(
+export function resolveConcreteFreeSelection(
   models: DiscoveredModel[],
   requirements: ModelSelectionRequirements,
   exclude: Set<string> = new Set(),
