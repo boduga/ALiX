@@ -12,6 +12,7 @@ import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { loadWorkerDependencyResults } from "./coordination-worker-context.js";
 import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
+import { DEFAULT_ORPHAN_THRESHOLD_MS } from "./owner-liveness.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
 import type { ReconciliationResult as ReconcileResult } from "./coordination-reconciliation.js";
@@ -46,7 +47,9 @@ import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaborati
 export const MAX_COORDINATION_CONCURRENCY = 8;
 export const DEFAULT_OWNERSHIP_TTL_MS = 30 * 60_000;
 export const DEFAULT_OWNERSHIP_RENEW_INTERVAL_MS = 5 * 60_000;
-export const DEFAULT_ORPHAN_THRESHOLD_MS = 90_000;
+// R3.3: the orphan threshold is a liveness concern — owner-liveness.ts owns it;
+// re-exported here for existing scheduler consumers.
+export { DEFAULT_ORPHAN_THRESHOLD_MS };
 export const DEFAULT_MAX_DISPATCH_PER_TICK = 5;
 export const DEFAULT_RUN_POLL_INTERVAL_MS = 1_000;
 export const DEFAULT_MAX_IDLE_TICKS = 5;
@@ -176,7 +179,6 @@ export class CoordinationScheduler {
     const result = await reconcileCoordinationRun({
       store: this.deps.store,
       ownershipRegistry: this.deps.ownershipRegistry,
-      daemonInstanceId: this.deps.daemonInstanceId,
       orphanThresholdMs: this.options.orphanThresholdMs,
       clock: this.deps.clock,
       isApproved: async (worker: WorkerAssignment, run: CoordinationRun) => {
