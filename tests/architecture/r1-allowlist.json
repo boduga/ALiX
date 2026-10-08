@@ -616,48 +616,6 @@
     "rule": "status-store-writes"
   },
   {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/agents/tool-manifest.ts",
-    "reason": "R0 tools \u2014 parallel taxonomy, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/capability/registry.ts",
-    "reason": "R0 tools \u2014 parallel taxonomy, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/kernel/collaborative-planner.ts",
-    "reason": "R0 tools \u2014 local CapabilityRegistry interface (agentId map), same name as canonical class; R1 test-found, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/mcp/registry.ts",
-    "reason": "R0 tools \u2014 parallel taxonomy, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/registry/card-registry.ts",
-    "reason": "R0 tools \u2014 parallel taxonomy, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
-    "imported": "definition:tool-taxonomy",
-    "importer": "src/tools/tool-registry.ts",
-    "reason": "R0 tools \u2014 parallel taxonomy, unify via ToolCapabilityRegistry port",
-    "removalPhase": "R5",
-    "rule": "tool-taxonomy-defs"
-  },
-  {
     "imported": "src/events/event-log.ts",
     "importer": "src/tui/capabilities/capability-service.ts",
     "reason": "R0 TUI audit \u2014 EventLog bridge (platform events to log)",

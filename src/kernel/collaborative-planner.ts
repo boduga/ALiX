@@ -7,7 +7,7 @@
  *   alias registry to exact canonical IDs.
  * - `matchCapabilities` — matches required capabilities against agent
  *   capabilities using exact canonical ID equality (never substring matching).
- * - `CapabilityRegistry` — an interface mapping agent IDs to their capability
+ * - `AgentCapabilityMap` — an interface mapping agent IDs to their capability
  *   lists.
  * - `CollaborativePlanner` — wraps CoordinationPlanner with capability-based
  *   agent assignment and planning round construction.
@@ -79,7 +79,7 @@ export function matchCapabilities(
 /**
  * Maps agent IDs to their lists of declared capabilities.
  */
-export interface CapabilityRegistry {
+export interface AgentCapabilityMap {
   [agentId: string]: string[];
 }
 
@@ -92,7 +92,7 @@ export interface CollaborativePlannerOptions {
   /** Pool of available agent IDs for assignment. */
   agentPool: string[];
   /** Maps agent IDs to their declared capabilities (for bidding). */
-  agentCapabilities?: CapabilityRegistry;
+  agentCapabilities?: AgentCapabilityMap;
   /** Whether to enable capability-based bidding. Defaults to true. */
   enableBidding?: boolean;
 }
