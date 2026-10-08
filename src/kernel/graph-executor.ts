@@ -19,7 +19,7 @@ import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
 import type { PolicyGate } from "../policy/policy-gate.js";
 import type { AlixConfig } from "../config/schema.js";
 import { ApprovalStore } from "../approvals/approval-store.js";
-import { mirrorGraphToLedger, mirrorGraphAttemptToLedger } from "./graph-ledger.js";
+import { mirrorGraphToLedger, mirrorGraphAttemptToLedger, countGraphProjectionFailure } from "./graph-ledger.js";
 
 export interface CapabilityPreflightResult {
   requiredCapabilities: string[];
@@ -50,8 +50,18 @@ export interface ExecutorResult {
   graphStatus: "completed" | "failed";
 }
 
-/** Load a TaskGraph from disk. */
+/** Load a TaskGraph — LEDGER first (R2.13 authority); file only for legacy
+ *  graphs with zero ledger facts. Ledger errors throw (never masked). */
 export async function loadGraph(graphId: string, cwd: string): Promise<TaskGraph> {
+  const { getSharedLedger } = await import("../storage/runtime-ledger.js");
+  const last = getSharedLedger(cwd).lastEvent(graphId, "graph");
+  if (last) {
+    const payload = last.payload as { graph?: TaskGraph } | null;
+    if (!payload?.graph) {
+      throw new Error(`graph ledger event for ${graphId} missing graph payload`);
+    }
+    return payload.graph;
+  }
   const filePath = join(cwd, ".alix", "graphs", `${graphId}.json`);
   if (!existsSync(filePath)) throw new Error(`Graph not found: ${graphId} (${filePath})`);
   const raw = await readFile(filePath, "utf-8");
@@ -368,8 +378,13 @@ export class GraphExecutor {
     const { join } = await import("node:path");
     const { existsSync } = await import("node:fs");
     const graphPath = join(this.cwd, ".alix", "graphs", `${graphId}.json`);
-    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    // R2.13 authority: append first (throws on failure), projection counted.
     mirrorGraphToLedger(this.cwd, graph);
+    try {
+      await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    } catch (err) {
+      countGraphProjectionFailure(this.cwd, err);
+    }
 
     // Append rerun attempt to .runs.json (for projection to read)
     const runsPath = join(this.cwd, ".alix", "graphs", `${graphId}.runs.json`);
@@ -389,8 +404,13 @@ export class GraphExecutor {
       summary,
       error: reason,
     });
-    await writeFile(runsPath, JSON.stringify(runs, null, 2), "utf-8");
+    // R2.13: attempt fact is the commit; runs.json is the projection.
     mirrorGraphAttemptToLedger(this.cwd, graphId, runs[runs.length - 1]);
+    try {
+      await writeFile(runsPath, JSON.stringify(runs, null, 2), "utf-8");
+    } catch (err) {
+      countGraphProjectionFailure(this.cwd, err);
+    }
 
     
     return { nodeId: node.id, title: node.title, status, summary, reason, durationMs: Date.now() - startTime };
