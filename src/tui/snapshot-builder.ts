@@ -186,6 +186,7 @@ export class SnapshotBuilder {
         mode: (this.session as AgentSession).getMode?.() ?? 'auto',
         phase: (this.session as AgentSession).getPhase?.() ?? SessionPhase.Idle,
         version: (this.session as AgentSession).getVersion?.() ?? 'unknown',
+        sessionId: (this.session as AgentSession).getSessionId?.() ?? '',
         startedAt: Date.parse(state.createdAt) || Date.now(),
         turns: state.turnCount,
         currentIntent: state.currentIntent as AgentIntent | undefined,

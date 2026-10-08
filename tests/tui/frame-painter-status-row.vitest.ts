@@ -62,6 +62,38 @@ describe('FramePainter status row — phase radio strip (#433)', () => {
     };
   }
 
+  it('renders the session id from the snapshot, never from a live session (R4/V1)', async () => {
+    const builder = {
+      build: vi.fn(async () => ({
+        generatedAt: Date.now(),
+        session: {
+          mode: 'auto' as const,
+          phase: 'Idle',
+          version: '0.3.1',
+          sessionId: 'sess-snapshot-1',
+          startedAt: Date.now(),
+          turns: 0,
+        },
+        daemon: null,
+        approvals: null,
+        runtime: null,
+        sops: null,
+        policy: null,
+      })),
+      buildSync: vi.fn(() => null),
+    };
+    const metrics = { start: () => {}, stop: async () => {} };
+
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+    const it = internals(app);
+    it.setActiveTabForTest('agent');
+    await it.refresh();
+
+    const frame = captured.join('');
+    expect(frame).toContain('Session: sess-snapshot-1');
+  });
+
   it('renders the agent tab status row with no phase radio strip', async () => {
     const builder = {
       build: vi.fn(async () => ({

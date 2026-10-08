@@ -23,6 +23,15 @@
 
 - Runtime facts flow one way: EventLog/runtime projections → immutable snapshots → views.
 - Views and renderers never emit runtime events or infer successful runtime transitions.
+- **Painters read session identity only from the snapshot (R4/V1).** The header's
+  version/session id/mode come from `snap.session` (`SessionMetadata.sessionId`,
+  captured once by `SnapshotBuilder` from `getSessionId()`); a painter must not
+  read the live `AgentSession` for them.
+- **Approval decisions are never inferred locally (R4/V3).** Both the Workbench
+  and legacy a/d handlers resolve through `approvalResolver.resolve(id, status,
+  { recordLocally: false })` with a `pendingApprovalDecisions` guard; the
+  pending card clears only when `syncPendingApprovals` samples an authoritative
+  resolved projection.
 - UI actions reach runtime through explicit controller/port boundaries.
 - Compact transcripts show operator work and outcomes. Routine context assembly, raw lifecycle plumbing, and the `alix_done` tool are details, not default content.
 - Detailed transcript mode may reveal bounded lifecycle diagnostics but must preserve the same underlying audit correlation.

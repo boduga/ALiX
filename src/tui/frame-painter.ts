@@ -5,7 +5,6 @@ import { TAB_ORDER, type TabId, type TuiAppState } from './state.js';
 import type { ViewRenderContext, SlashStrip, TerminalDimensions, TuiView } from './views/types.js';
 import type { RuntimeSnapshot, DashboardSnapshot } from './snapshot.js';
 import type { IOutput } from './io.js';
-import type { AgentSession } from '../agent/session.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PaletteController } from './palette-controller.js';
 import { projectOperatorShell } from './workbench/model/operator-shell.js';
@@ -29,7 +28,6 @@ export interface FramePainterDeps {
   views: () => Record<TabId, TuiView>;
   opts: {
     themeName?: string;
-    agentSession?: AgentSession;
     workbenchEnabled?: boolean;
   };
   chatRuntime: () => RuntimeSnapshot | null;
@@ -196,8 +194,8 @@ export class FramePainter {
         for (let row = body.y; row < body.y + body.height; row++) viewCanvas.write(0, row, ' '.repeat(body.width));
         paintAgentInspector(viewCanvas, body, buildAgentInspectorModel(s.lastSnapshot, workbench));
       } else if (workbench?.overlayStack.at(-1) === 'coordination') {
-        this.coordinationCaret = paintCoordinationEntry(overlayRect, workbench.coordination,
-          this.deps.opts.agentSession?.getMode?.() ?? 'mode unavailable');
+          this.coordinationCaret = paintCoordinationEntry(overlayRect, workbench.coordination,
+          s.lastSnapshot.session?.mode ?? 'mode unavailable');
       } else this.overlayScrollLimit = paintWorkbenchDiagnosticOverlay(
         overlayRect,
         workbench?.overlayStack[workbench.overlayStack.length - 1],
@@ -239,15 +237,9 @@ export class FramePainter {
     for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
     // Row 1: left "ALiX TUI - Interactive Session" + centered tabs + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
-    const liveVersion: string | undefined =
-      this.deps.opts.agentSession?.getVersion?.();
-    const version = liveVersion || session?.version || 'unknown';
-    const liveSessionId: string | undefined =
-      this.deps.opts.agentSession?.getSessionId?.();
-    const sessionDisplay = liveSessionId || '(no session)';
-    const liveMode: 'auto' | 'ask' | 'bypass' | undefined =
-      this.deps.opts.agentSession?.getMode?.();
-    const sessionMode = liveMode ?? session?.mode ?? 'auto';
+    const version = session?.version || 'unknown';
+    const sessionDisplay = session?.sessionId || '(no session)';
+    const sessionMode: 'auto' | 'ask' | 'bypass' = session?.mode ?? 'auto';
     // Mode color: bypass = red (no safety), ask = green (cautious),
     // auto = orange (Claude-side heuristics). The colors signal the
     // operator's risk posture at a glance — bypass means "trust me",
@@ -390,7 +382,7 @@ export class FramePainter {
         model: projectOperatorShell(
           snap,
           s.views.agent,
-          liveMode,
+          sessionMode,
           chromeState?.queuedMessages.length ?? 0,
           { closeSurface: Boolean(chromeState && (chromeState.drawer !== 'closed' || chromeState.overlayStack.length > 0)), focus: chromeState?.focus, drawer: chromeState?.drawer, inspectorOpen: chromeState?.overlayStack.at(-1) === 'inspector' },
         ),

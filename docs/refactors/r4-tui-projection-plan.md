@@ -30,7 +30,7 @@ one snapshot contract shared TUI + browser.
 |---|---|---|
 | R4.0 | Persist this recon/plan | ✅ |
 | R4.1 | V3: legacy `a`/`d` mirrors Workbench — guard `pendingApprovalDecisions`, `resolve(..., {recordLocally:false})`, no optimistic shift/unshift; card clears only from the authoritative resolved projection | ⬜ |
-| R4.2 | V1: `FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); remove live `AgentSession` fallbacks (`:200,:242-250,:393`); pin precedence | ⬜ |
+| R4.2 | V1: `FramePainter` reads `version`/`sessionId`/`mode` only from the immutable snapshot (`snap.session`); live `AgentSession` reads removed (`:200,:242-250,:393`) and the `agentSession` painter dep deleted. `SessionMetadata.sessionId` added, captured once by `SnapshotBuilder` from `getSessionId()`. Pins: builder captures sessionId; painter header renders the snapshot id | ✅ |
 | R4.3 | V5+V4: delete dead `src/tui/runtime-snapshot.ts` (+ its test) and the dead type barrel `src/tui/index.ts` re-exports; remove the 4 R4 allowlist entries in the same commit; migrate/remove value-test dependence on `store.ts`; then quarantine/delete `store.ts` once no value importers remain | ⬜ |
 | R4.4 | V6: evolution projection — either add canonical EventLog sources for lifecycle/forecasts/correlations/decisions or explicitly declare them non-EventLog authoritative (decide after checking emitter availability) | ⬜ |
 | R4.5 | V7: consume a canonical workflow step event for `currentStep`/`totalSteps`; keep tool counting only as a documented fallback (needs an emitter — verify first) | ⬜ |

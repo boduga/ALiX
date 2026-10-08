@@ -537,7 +537,7 @@ describe('TuiApp approve/deny from scrolled-up position (AC#7)', () => {
     }];
   };
 
-  it('approve (a) resolves the oldest pending approval from a scrolled-up position', () => {
+  it('approve (a) routes the oldest pending approval from a scrolled-up position without inferring locally', () => {
     seedPending();
     internal.handleRaw(ARROW_UP); // scrolled away from bottom anchor
     const per = internal.getStateForTest().views.agent;
@@ -546,11 +546,14 @@ describe('TuiApp approve/deny from scrolled-up position (AC#7)', () => {
 
     internal.handleRaw(Buffer.from('a'));
 
-    expect(per.pendingApprovals).toHaveLength(0);
-    expect(per.resolvedApprovals[0]).toMatchObject({ id: 'a1', status: 'approved' });
+    // V3/R4: the decision is routed, but the local view is NOT mutated —
+    // the card clears only when the authoritative resolved projection is
+    // sampled (syncPendingApprovals).
+    expect(per.pendingApprovals).toHaveLength(1);
+    expect(per.resolvedApprovals).toEqual([]);
   });
 
-  it('deny (d) resolves the oldest pending approval from a scrolled-up position', () => {
+  it('deny (d) routes the oldest pending approval from a scrolled-up position without inferring locally', () => {
     seedPending();
     internal.handleRaw(ARROW_UP);
     const per = internal.getStateForTest().views.agent;
@@ -558,7 +561,7 @@ describe('TuiApp approve/deny from scrolled-up position (AC#7)', () => {
 
     internal.handleRaw(Buffer.from('d'));
 
-    expect(per.pendingApprovals).toHaveLength(0);
-    expect(per.resolvedApprovals[0]).toMatchObject({ id: 'a1', status: 'denied' });
+    expect(per.pendingApprovals).toHaveLength(1);
+    expect(per.resolvedApprovals).toEqual([]);
   });
 });
