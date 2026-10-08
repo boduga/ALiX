@@ -13,7 +13,7 @@ durable copy. Update it when phases change status.
 | R1 | 10 ports in `src/contracts/` + shrink-only arch freeze test (`tests/architecture/r1-boundary-freeze.test.ts` + `r1-allowlist.json`) | ✅ `b15f3747` |
 | R1.5 | Authorization containment: enforceCapabilities default ON, daemon ask+wired store, continuation revalidation, bound-tool policy gate, file.delete owned check, X-series `authorizationSource`, 4 executor sites wired | ✅ `ca27b8e1` |
 | R2 | Transactional ledger strangler → authority for 9 domains + 11 reconcile CLIs (audit excluded, documented) | ✅ tags `r2-ledger-authoritative` |
-| R3 | **Coordination consolidation** — detailed plan below | ⬜ |
+| R3 | **Coordination consolidation** — detailed plan below. Core R3.0–R3.6 + closure R3.8 landed; R3.7 (GraphExecutor) deferred to its own sub-phase | 🔄 core done |
 | R4 | TUI/API projection convergence: fix in order V3 success-inference, V1 live-session painter reads, V5 approval dual truth, V6 live evolution reads, V7 inferred workflow steps, V4 quarantine `runtime-snapshot.ts`/`store.ts`, legacy Inspector vocabulary; Workbench shows "unknown/awaiting canonical event", never infers; one snapshot contract shared TUI+browser | ⬜ |
 | R5 | Support subsystems: finish `models.*` cutover (3 resolvers → 1, kill flat reads); ONE tool/capability catalogue + MCP/manifest adapters; **outbound redaction gate before any remote-provider call = security correction, not cleanup**; one metric vocabulary (Node-native collectors; psutil refs in metrics doc are catalogue-only, Python) | ⬜ |
 | R6 | Physical directory moves into the 12-subsystem layout — LAST, mechanical after boundaries real | ⬜ |
@@ -158,8 +158,8 @@ after each.
 | R3.4 | Lease release: consolidate 4 paths → one `releaseWorkerLeases` helper (`coordination-ownership.ts`); FIX BUG `reclaimDeadOwnerWorkers` cleared `leaseIds` without registry release (now REQUIRES a registry and releases first) | ✅ |
 | R3.5 | Finalization: 3 hand-rolled service assemblies → one `createCompletionService` factory (scheduler factory + results tool + CLI); idempotency pinned by existing `coordination-finalization.test.ts` (double-finalize = 1 event) + new construction-wiring scan | ✅ |
 | R3.6 | Verification: extract `deriveRunCompletion` (`coordination-view.ts`) — the 5 byte-identical `readRunSessionEvents → deriveCoordinationCompletion → matchesAttachedAggregateEvent` sites (cli/coordination, collaboration-context-builder, coordination-view, coordination-tools, task-loop/completion-phase) all call it | ✅ |
-| R3.7 | GraphExecutor (2 executors: sequential graph-executor.ts:122 vs scheduler parallel ≤8) — own sub-phase: decide retire (route `alix graph run`/`sop run` through CoordinationPlanner+scheduler) vs adapt (thin sequential adapter). d=1 = 4 call sites, CRITICAL hub. Decision deferred until R3.2–R3.6 land | ⬜ |
-| R3.8 | DOX pass (root, src/kernel, src/ownership, src/agents) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r3-*` | ⬜ |
+| R3.7 | GraphExecutor (2 executors: sequential graph-executor.ts:122 vs scheduler parallel ≤8) — **deferred to its own sub-phase** (operator call): decide retire (route `alix graph run`/`sop run` through CoordinationPlanner+scheduler) vs adapt (thin sequential adapter). d=1 = 4 call sites, CRITICAL hub | ⏳ deferred |
+| R3.8 | DOX pass (kernel/ownership/agents/task-loop) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r3-consolidation` | ✅ |
 
 ## R3 impact notes (advisory — index stale at planning time)
 
