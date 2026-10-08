@@ -17,6 +17,7 @@ import type { CoordinationStore } from "./coordination-store.js";
 import type { CoordinationRun } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import type { TaskGraph } from "./task-graph.js";
+import { mirrorGraphToLedger } from "./graph-ledger.js";
 
 /**
  * Mark the run's persisted TaskGraph cancelled so the inspector and any
@@ -32,6 +33,7 @@ export async function markRunGraphCancelled(cwd: string, run: CoordinationRun): 
     graph.status = "cancelled";
     graph.updatedAt = new Date().toISOString();
     await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
+    mirrorGraphToLedger(cwd, graph);
   } catch {
     // Observability only.
   }

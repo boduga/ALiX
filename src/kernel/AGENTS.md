@@ -8,6 +8,8 @@
 
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
 - `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
+- `graph-ledger.ts` — R2.7 graph-domain dual-write to the transactional ledger (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent); `graphLedgerStatus(cwd)` surfaces counted failures (never thrown).
+- `graph-ledger-reconcile.ts` — read-only comparison of `.alix/graphs/*.json` + `*.runs.json` against the ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix graph reconcile` (exit 1 on drift).
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
 - `graph-planner.ts` — Model-based graph generation from goals (v2 prompt, capability catalog, deterministic normalize, one repair retry)
 - `coordination-planner.ts` — Graph → CoordinationRun/workers (registry-sourced cap normalize, goal-path ownership scopes, agentPool labels)
@@ -86,6 +88,12 @@
 - Write workers reserve their final two model iterations for mutation/completion tools while owned outputs remain unwritten, preventing broad reconnaissance from consuming the entire bounded iteration budget.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
 - `graph-projection.ts` returns `GraphRunProjection` with node status, timestamps, attempts.
+- **Graph files dual-write to the R2 ledger (R2.7, strangler).** Every
+  graph-file write site mirrors immediately after the write:
+  `persistGraph` (planner), `rerunNode` graph+attempt writes (executor),
+  `markRunGraphCancelled` (resume). JSON stays authoritative in this phase;
+  mirror failures are counted in `graphLedgerStatus()` and reported by
+  reconciliation — never thrown into graph execution.
 - All graph definitions persist to `.alix/graphs/<graphId>.json`.
 - Rerun attempts append to `.alix/graphs/<graphId>.runs.json`.
 - Terminal worker status patches (`completed`/`failed`/`pending` from `executeWorker`) go through bounded `patchWorkerWithRetry` (5 attempts, 50/100/200/400ms); `updateRun` retries transient in-lock loads via `loadWithRetry` (3×, 25/50ms) and all atomic writes go through `writeAtomic` (tmp+rename with EPERM/EACCES/EBUSY rename retry). A silent null from a transient read (e.g. Windows Defender EBUSY) must not orphan a worker as `running` and idle-stop `runUntilIdle`.
@@ -135,6 +143,7 @@
 - `tests/kernel/graph-executor.test.ts` — executor, sorting, enforcement, rerun
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
 - `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry
+- `tests/kernel/graph-ledger-dualwrite.test.ts` — graph/attempt mirrors, cancel mirror, reconciliation drift (legacy/tamper/attempt both directions), ledger-failure tolerance
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
