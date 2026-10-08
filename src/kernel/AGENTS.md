@@ -19,7 +19,14 @@
   coverage of an in-flight worker and the handler's awaited finalization.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
-- `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
+- `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
+  execution-owner liveness probe (unknown owners read alive), heartbeat
+  staleness (`heartbeatStale`; missing/unparseable = no evidence), and the
+  shared reclaim verdict `shouldReclaimWorker` — a `running`, not-locally-active
+  worker is reclaimable only when its owner is PROVABLY dead, or it is
+  ownerless with a stale heartbeat. `DEFAULT_ORPHAN_THRESHOLD_MS` lives here.
+  Reconciliation, resume, and dead-host sweeps all use this verdict; never
+  reintroduce a second liveness rule.
 - `coordination-resume.ts` — Reclaim provably dead owners, find Inspector-hosted
   active runs, and cancel dead-host runs while releasing ownership leases and
   marking the persisted TaskGraph cancelled through `markRunGraphCancelled`.
@@ -60,6 +67,14 @@
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.
   Scheduler `tick` and `runUntilIdle` treat cancelled runs as final.
+- **Worker liveness is ONE verdict (R3.3).** `shouldReclaimWorker` in
+  `owner-liveness.ts` merges the two pre-R3 rules (heartbeat staleness in
+  reconciliation, PID probe in resume) that disagreed: reconciliation used to
+  reclaim any stale different-owner worker — including a live-but-slow foreign
+  host's — while resume refused unknown owners and never reclaimed ownerless
+  workers. The merged rule requires a provably dead owner (or ownerless +
+  stale heartbeat) and never touches locally-active executions;
+  `ReconciliationDeps` no longer carries `daemonInstanceId` for orphan checks.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseOwnerPid, isPidAlive, isOwnerAlive } from "../../src/kernel/owner-liveness.js";
+import { parseOwnerPid, isPidAlive, isOwnerAlive, heartbeatStale, shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../../src/kernel/owner-liveness.js";
 import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/kernel/coordination-resume.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
@@ -35,6 +35,35 @@ describe("owner liveness", () => {
     assert.equal(isOwnerAlive("named-daemon"), true);
     assert.equal(isOwnerAlive(`web-${process.pid}`), true);
     assert.equal(isOwnerAlive(`web-${DEAD_PID}`), false);
+  });
+
+  it("heartbeatStale treats missing/unparseable timestamps as no evidence", () => {
+    const now = new Date();
+    assert.equal(heartbeatStale(undefined, 100, now), false);
+    assert.equal(heartbeatStale(null, 100, now), false);
+    assert.equal(heartbeatStale("not-a-date", 100, now), false);
+    assert.equal(heartbeatStale(new Date(now.getTime() - 1000).toISOString(), 100, now), true);
+    assert.equal(heartbeatStale(new Date(now.getTime()).toISOString(), 100, now), false);
+  });
+
+  it("shouldReclaimWorker is the ONE verdict: prove dead, or ownerless+stale", () => {
+    const stale = new Date(Date.now() - 2 * DEFAULT_ORPHAN_THRESHOLD_MS).toISOString();
+    const fresh = new Date().toISOString();
+    const base = { orphanThresholdMs: DEFAULT_ORPHAN_THRESHOLD_MS };
+    // not running → never
+    assert.equal(shouldReclaimWorker({ ...base, status: "pending", executionOwnerId: `web-${DEAD_PID}` }), false);
+    // locally active → never, regardless of owner/heartbeat
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", locallyActive: true, executionOwnerId: `web-${DEAD_PID}` }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", locallyActive: true, lastHeartbeatAt: stale }), false);
+    // owned worker: provably dead owner reclaims even with fresh heartbeat
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: `web-${DEAD_PID}`, lastHeartbeatAt: fresh }), true);
+    // owned worker: live or unknown owner never reclaims, however stale
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: `web-${process.pid}`, lastHeartbeatAt: stale }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: "other-daemon", lastHeartbeatAt: stale }), false);
+    // ownerless: stale reclaims, fresh/missing does not
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", lastHeartbeatAt: stale }), true);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", lastHeartbeatAt: fresh }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running" }), false);
   });
 });
 
