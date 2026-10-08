@@ -222,6 +222,7 @@ Single-context: read CONTEXT.md at the repo root and docs/adr/ when they exist; 
 | `src/server/AGENTS.md` | Inspector HTTP server, session reader, API routes |
 | `src/ui/AGENTS.md` | Inspector web UI — HTML, JS, CSS, projection |
 | `src/daemon/AGENTS.md` | Runtime daemon — manager, socket server, task registry, protocol |
+| `src/session/AGENTS.md` | Session persistence — messages/scope/state artifacts backed by the R2 ledger, session reconcile |
 | `src/runtime/AGENTS.md` | Runtime — execution-state, state-aware context builder, unified event index |
 | `src/run/task-loop/AGENTS.md` | Task loop — session-lifecycle/predicates/context-helpers/main submodules (`runTaskLoop`) |
 | `src/agent/session/AGENTS.md` | Agent session — types/helpers/setup/main submodules (`AgentSessionBuilder`) |
