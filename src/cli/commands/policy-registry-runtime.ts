@@ -367,10 +367,38 @@ export async function handleRuntimeRoot(args: string[]): Promise<void> {
     process.exit(execOk && replayOk && evidenceOk ? 0 : 1);
   }
 
-  console.log("Usage: alix runtime [events|timeline|reconcile-executions]");
+  if (args[0] === "reconcile-sessions") {
+    // R2.18: read-only comparison of session persistence artifacts against
+    // the transactional ledger. Exit 1 on drift for CI gating.
+    const { reconcileSessionLedger } = await import("../../session/session-ledger-reconcile.js");
+    const report = await reconcileSessionLedger(cwd);
+    console.log(`Session ledger reconciliation`);
+    console.log(`  sessions scanned:    ${report.scannedSessions}`);
+    console.log(`  messages scanned:    ${report.scannedMessages}`);
+    console.log(`  ledger message facts: ${report.ledgerMessageFacts}`);
+    console.log(`  ledger events:       ${report.ledgerEventsRead}`);
+    console.log(`  truncated reads:     ${report.truncated}`);
+    const unknown = Object.entries(report.unknownEventTypes);
+    if (unknown.length > 0) {
+      console.log(`  unknown event types:`);
+      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+    }
+    if (report.issues.length === 0) {
+      console.log(`  issues:              none`);
+      process.exit(0);
+    }
+    console.log(`  issues:              ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.sessionId}: ${issue.detail}`);
+    }
+    process.exit(1);
+  }
+
+  console.log("Usage: alix runtime [events|timeline|reconcile-executions|reconcile-sessions]");
   console.log("  events [--graph <g>] [--session <s>] [--approval <a>] [--action <a>] [--limit N]");
   console.log("  timeline <graphId>");
-  console.log("  reconcile-executions  Compare execution-state snapshots against the R2 ledger");
+  console.log("  reconcile-executions  Compare execution-state/replay/evidence against the R2 ledger");
+  console.log("  reconcile-sessions    Compare session persistence artifacts against the R2 ledger");
   process.exit(0);
 }
 
