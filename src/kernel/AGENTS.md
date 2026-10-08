@@ -31,18 +31,22 @@
 ## Local Contracts
 
 - GraphExecutor runs nodes sequentially, stops on first failure.
-- **Coordination store dual-writes to the R2 ledger (strangler step).** Every
-  JSON write (`save`, `updateRun`, `updateRunWithRevisionCheck`,
-  `attachAggregateIfUnfinalized`, `delete`) appends one
-  `coordination.run.{created,persisted,deleted}` snapshot event to the shared
-  transactional ledger (`src/storage/runtime-ledger.ts`, project
-  `.alix/runtime-ledger.db`) with optimistic entity-version CAS. JSON remains
-  authoritative during dual-write; ledger failures are counted in
-  `CoordinationStore.ledgerStatus()` and reported by reconciliation — never
-  thrown into the coordination path, never silent. Reconcile with
-  `alix coordination reconcile` (read-only; exit 1 on drift) or
-  `reconcileCoordinationLedger(cwd)` (`coordination-ledger-reconcile.ts`),
-  which also counts unknown event types and reports truncated reads.
+- **The coordination ledger is authoritative (R2.3); JSON is a compatibility
+  projection.** Every mutation (`save`, `updateRun`,
+  `updateRunWithRevisionCheck`, `attachAggregateIfUnfinalized`, `delete`)
+  appends a `coordination.run.{created,persisted,deleted}` event carrying the
+  FULL run record to the shared transactional ledger
+  (`src/storage/runtime-ledger.ts`, project `.alix/runtime-ledger.db`) BEFORE
+  writing the JSON file — the ledger append is the commit. Append failure
+  throws (an unavailable authoritative store must never fall back to a
+  JSON-only commit); projection write failure is tolerated and counted in
+  `ledgerStatus().projectionFailures`. Reads are ledger-first: `load`/`list`
+  reconstruct from the latest ledger event and fall back to JSON only for
+  legacy runs with zero ledger facts. Reconcile with `alix coordination
+  reconcile` (read-only; exit 1 on drift) or `reconcileCoordinationLedger(cwd)`
+  (`coordination-ledger-reconcile.ts`), which reports projection drift
+  (missing/stale/mismatch), counts unknown event types, and reports truncated
+  reads.
 - **Capability enforcement is ON by default (R1.5).** `enforceCapabilities`
   defaults to `true`; the composed gate (CapabilityResolver → RuntimeGate →
   ApprovalStore) evaluates before `runTask`. Missing policyGate/config blocks
@@ -137,7 +141,7 @@
 - `tests/kernel/subagent-worker-executor.test.ts` — role map, parallel, cancel
 - `tests/kernel/coordination-scheduler-replan.test.ts` — mid-execution replanning; waits on settled state (`waitUntil`), never a fixed sleep
 - `tests/kernel/replan-proposal-store.test.ts` — proposal CRUD; timestamp assertions use the injected clock
-- `tests/kernel/coordination-ledger-dualwrite.test.ts` — ledger dual-write on every store mutation, reconciliation drift detection (status/missing/orphan/unknown-type), ledger-failure tolerance
+- `tests/kernel/coordination-ledger-dualwrite.test.ts` — ledger-first authority (tampered projection ignored), append-failure fail-closed, projection-failure tolerance, legacy fallback, reconciliation drift (status/worker/missing/stale/unknown-type), delete semantics
 
 ## Child DOX Index
 
