@@ -12,6 +12,7 @@ function mkFakes() {
     getTurns: () => 3,
     getMode: () => 'auto' as const,
     getVersion: () => '1.0.0-test',
+    getSessionId: () => 'sess-1.0.0-test',
     getState: () => ({
       sessionId: 'test',
       messages: [],
@@ -61,6 +62,9 @@ describe('SnapshotBuilder.build — happy path', () => {
     expect(snap).not.toBeNull();
     expect(snap!.generatedAt).toBeGreaterThan(0);
     expect(snap!.session?.phase).toBe('Planning');
+    // R4/V1: the session id is captured into the snapshot so painters never
+    // read it live from AgentSession.
+    expect(snap!.session?.sessionId).toBe('sess-1.0.0-test');
     expect(snap!.daemon?.pid).toBe(42);
     expect(snap!.approvals?.totalPending).toBe(1);
   });

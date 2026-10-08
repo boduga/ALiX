@@ -195,7 +195,7 @@ export class TuiApp {
     this.framePainter = new FramePainter({
       state: () => this.state,
       views: () => this.views,
-      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession, workbenchEnabled: this.opts.workbenchEnabled },
+      opts: { themeName: this.opts.themeName, workbenchEnabled: this.opts.workbenchEnabled },
       chatRuntime: () => this.chatRuntime,
       agentRuntime: () => this.agentRuntime,
       computeSlashStrip: () => this.slash.computeStrip(),
