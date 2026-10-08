@@ -11,10 +11,47 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
 import { canonicalStringify } from "../security/audit/canonical-json.js";
 import { JsonlStore } from "../storage/jsonl-store.js";
+import { getSharedLedger } from "../storage/runtime-ledger.js";
+
+/** Ledger event vocabulary for the evidence domain (R2.11). */
+export const EVIDENCE_LEDGER_EVENT_TYPES = [
+  "evidence.recorded",
+] as const;
+
+// ─── R2.11 dual-write status (per workspace root) ────────────────────
+type EvidenceLedgerStatus = { appends: number; failures: number; lastError?: string };
+const statusByCwd = new Map<string, EvidenceLedgerStatus>();
+
+function statusFor(cwd: string): EvidenceLedgerStatus {
+  let s = statusByCwd.get(cwd);
+  if (!s) {
+    s = { appends: 0, failures: 0 };
+    statusByCwd.set(cwd, s);
+  }
+  return s;
+}
+
+/** Observable dual-write health (R2: failures must never be silent). */
+export function evidenceLedgerStatus(cwd: string): EvidenceLedgerStatus {
+  const s = statusFor(cwd);
+  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+}
+
+/** Reset counters (tests). */
+export function resetEvidenceLedgerStatus(cwd: string): void {
+  statusByCwd.delete(cwd);
+}
+
+/** Workspace root for the shared ledger: strip a trailing `.alix/<x>` segment. */
+function ledgerCwdFor(storeDir: string): string {
+  const parts = storeDir.split(/[\\/]/);
+  if (parts[parts.length - 2] === ".alix") return parts.slice(0, -2).join("/") || ".";
+  return storeDir;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -49,6 +86,40 @@ export class ExecutionEvidenceStore {
   async append(evidence: ExecutionEvidence): Promise<void> {
     this.ensureStoreDir();
     await this.store.appendRecord(evidence);
+    // R2.11 dual-write: mirror after the durable JSONL append (JSONL stays
+    // authoritative this phase); evidence is immutable, so an existing
+    // entity means the record was already mirrored (idempotent skip).
+    const cwd = ledgerCwdFor(this.storeDir);
+    const s = statusFor(cwd);
+    try {
+      const ledger = getSharedLedger(cwd);
+      const expected = ledger.entityVersion(evidence.evidenceId);
+      if (expected > 0) return;
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType: "evidence.recorded",
+          schemaVersion: 1,
+          entityType: "executionEvidence",
+          entityId: evidence.evidenceId,
+          entityVersion: 1,
+          correlationId: evidence.intentId,
+          actor: { type: "system", id: "execution-evidence-store" },
+          occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
+          recordedAt: new Date().toISOString(),
+          payload: { evidence },
+        },
+        expectedVersion: 0,
+      });
+      if (res.ok) s.appends += 1;
+      else {
+        s.failures += 1;
+        s.lastError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   // ---------------------------------------------------------------------------
