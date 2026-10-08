@@ -3,7 +3,7 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ContinuationStore, continuationLedgerStatus, resetContinuationLedgerStatus } from "../../src/runtime/continuation-store.js";
@@ -46,7 +46,7 @@ function cont(approvalId: string, argsHash = "hash-1"): PendingContinuation {
   };
 }
 
-describe("continuation ledger dual-write (R2.8)", () => {
+describe("continuation ledger authority (R2.14)", () => {
   it("persist mirrors created; remove mirrors tombstone; reconcile clean throughout", async () => {
     const dir = tmp();
     const store = new ContinuationStore(dir);
@@ -126,24 +126,58 @@ describe("continuation ledger dual-write (R2.8)", () => {
     assert.ok(kinds.includes("projection_stale"), JSON.stringify(report.issues));
   });
 
-  it("ledger failure never breaks persist/remove and is observable", async () => {
+  it("append failure fails the mutation — no JSON-only state (R2.14 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
 
     const store = new ContinuationStore(dir);
-    await store.load();
-    await store.persist(cont("apr_1")); // must not throw
-    assert.equal(store.findByApprovalId("apr_1")?.approvalId, "apr_1");
-
-    const status = continuationLedgerStatus(dir);
-    assert.equal(status.failures, 1);
-    assert.ok(status.lastError);
+    await assert.rejects(() => store.load(), /SQLITE|unable|not a database/i);
+    await assert.rejects(() => store.persist(cont("apr_1")), /SQLITE|unable|not a database|ledger append failed/i);
+    assert.equal(store.findByApprovalId("apr_1"), undefined); // memory untouched
+    assert.equal(continuationLedgerStatus(dir).failures >= 1, true);
+    assert.ok(continuationLedgerStatus(dir).lastError);
+    assert.ok(!existsSync(join(dir, ".alix", "approvals", "continuations.json")));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated: ledger holds truth, load still works", async () => {
+    const dir = tmp();
+    // Occupy the projection file path with a DIRECTORY so save() fails.
+    mkdirSync(join(dir, ".alix", "approvals", "continuations.json"), { recursive: true });
+
+    const store = new ContinuationStore(dir);
+    await store.load();
+    await store.persist(cont("apr_1")); // must NOT throw
+    assert.equal(continuationLedgerStatus(dir).projectionFailures, 1);
+    assert.equal(getSharedLedger(dir).entityVersion("apr_1"), 1);
+
+    const fresh = new ContinuationStore(dir);
+    await fresh.load();
+    assert.equal(fresh.findByApprovalId("apr_1")?.approvalId, "apr_1"); // authority read
+
+    rmSync(join(dir, ".alix", "approvals", "continuations.json"), { recursive: true, force: true });
     const report = await reconcileContinuationLedger(dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("load prefers the LEDGER over a tampered file record", async () => {
+    const dir = tmp();
+    const store = new ContinuationStore(dir);
+    await store.load();
+    await store.persist(cont("apr_1", "hash-good"));
+
+    // Tamper the projection argsHash behind the store's back.
+    const path = join(dir, ".alix", "approvals", "continuations.json");
+    const records = JSON.parse(readFileSync(path, "utf-8")) as PendingContinuation[];
+    records[0].toolCall!.argsHash = "hash-evil";
+    writeFileSync(path, JSON.stringify(records, null, 2));
+
+    const fresh = new ContinuationStore(dir);
+    await fresh.load();
+    assert.equal(fresh.findByApprovalId("apr_1")?.toolCall?.argsHash, "hash-good");
   });
 
   it("fresh workspace reconciles clean with zero records", async () => {

@@ -21,13 +21,13 @@ export const CONTINUATION_LEDGER_EVENT_TYPES = [
 ] as const;
 
 // ─── R2.8 dual-write status (per workspace, like graph-ledger) ───────
-type ContinuationLedgerStatus = { appends: number; failures: number; lastError?: string };
+type ContinuationLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
 const statusByCwd = new Map<string, ContinuationLedgerStatus>();
 
 function statusFor(cwd: string): ContinuationLedgerStatus {
   let s = statusByCwd.get(cwd);
   if (!s) {
-    s = { appends: 0, failures: 0 };
+    s = { appends: 0, failures: 0, projectionFailures: 0 };
     statusByCwd.set(cwd, s);
   }
   return s;
@@ -35,14 +35,23 @@ function statusFor(cwd: string): ContinuationLedgerStatus {
 
 export function continuationLedgerStatus(cwd: string): ContinuationLedgerStatus {
   const s = statusFor(cwd);
-  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+  return {
+    ...s,
+    ...(s.lastError !== undefined ? { lastError: s.lastError } : {}),
+    ...(s.lastProjectionError !== undefined ? { lastProjectionError: s.lastProjectionError } : {}),
+  };
 }
 
 export function resetContinuationLedgerStatus(cwd: string): void {
   statusByCwd.delete(cwd);
 }
 
-function mirrorContinuation(cwd: string, approvalId: string, kind: "created" | "removed", payload: Record<string, unknown>): void {
+/**
+ * R2.14 append a continuation fact — THE COMMIT (ledger is authoritative).
+ * Must run BEFORE the in-memory mutation + file write. Failure is counted,
+ * then THROWN so no JSON-only state can exist.
+ */
+function appendContinuation(cwd: string, approvalId: string, kind: "created" | "removed", payload: Record<string, unknown>): void {
   const s = statusFor(cwd);
   try {
     const ledger = getSharedLedger(cwd);
@@ -69,14 +78,18 @@ function mirrorContinuation(cwd: string, approvalId: string, kind: "created" | "
       },
       expectedVersion: expected,
     });
-    if (res.ok) s.appends += 1;
-    else {
-      s.failures += 1;
-      s.lastError = `${res.reason}: ${res.detail}`;
+    if (res.ok) {
+      s.appends += 1;
+      return;
     }
+    s.failures += 1;
+    s.lastError = `${res.reason}: ${res.detail}`;
+    throw new Error(`continuation ledger append failed (${res.reason}): ${res.detail}`);
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith("continuation ledger append failed")) throw err;
     s.failures += 1;
     s.lastError = err instanceof Error ? err.message : String(err);
+    throw err;
   }
 }
 
@@ -118,27 +131,63 @@ export class ContinuationStore {
     this.filePath = join(cwd, ".alix", "approvals", "continuations.json");
   }
 
-  /** Load continuations from disk. */
+  /**
+   * Load continuations — LEDGER first (R2.14 authority). The file projection
+   * is consulted only for legacy records with zero ledger facts; tombstones
+   * suppress stale file copies. Ledger db errors THROW (counted, never
+   * masked by a file fallback).
+   */
   async load(): Promise<void> {
-    if (!existsSync(this.filePath)) {
-      this.continuations = [];
-      this.dirty = false;
-      return;
-    }
+    const { getSharedLedger } = await import("../storage/runtime-ledger.js");
+    let latest: Array<{ eventType: string; entityId: string; payload: unknown }>;
     try {
-      const raw = await readFile(this.filePath, "utf-8");
-      this.continuations = (JSON.parse(raw) as PendingContinuation[]).map(c => {
-        // Mark legacy continuations missing agentId
-        if (c.toolCall && !c.toolCall.agentId) {
-          return { ...c, migrationIssue: "missing-agent-identity" as const };
-        }
-        return c;
-      });
-      this.dirty = false;
-    } catch {
-      this.continuations = [];
-      this.dirty = false;
+      latest = getSharedLedger(this.cwd).readLatestByEntityType("continuation");
+    } catch (err) {
+      const s = statusFor(this.cwd);
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
+
+    const fromLedger = new Map<string, PendingContinuation>();
+    const removedIds = new Set<string>();
+    for (const event of latest) {
+      if (event.eventType === "continuation.removed") {
+        removedIds.add(event.entityId);
+        continue;
+      }
+      const payload = event.payload as { continuation?: PendingContinuation } | null;
+      if (!payload?.continuation) {
+        throw new Error(`continuation ledger event for ${event.entityId} missing continuation payload`);
+      }
+      fromLedger.set(event.entityId, payload.continuation);
+    }
+
+    // Projection (file) for legacy records + new records not yet in ledger.
+    const fromFile: PendingContinuation[] = [];
+    if (existsSync(this.filePath)) {
+      try {
+        const raw = await readFile(this.filePath, "utf-8");
+        for (const c of JSON.parse(raw) as PendingContinuation[]) {
+          fromFile.push(c.toolCall && !c.toolCall.agentId
+            ? { ...c, migrationIssue: "missing-agent-identity" as const }
+            : c);
+        }
+      } catch {
+        // corrupt file — ledger view still applies
+      }
+    }
+
+    const merged = new Map<string, PendingContinuation>();
+    for (const c of fromFile) {
+      if (removedIds.has(c.approvalId) || fromLedger.has(c.approvalId)) continue;
+      merged.set(c.approvalId, c);
+    }
+    for (const [id, c] of fromLedger) {
+      if (!removedIds.has(id)) merged.set(id, c);
+    }
+    this.continuations = [...merged.values()];
+    this.dirty = false;
   }
 
   /** Persist to disk if dirty. */
@@ -154,12 +203,18 @@ export class ContinuationStore {
 
   /** Add a new continuation record. */
   async persist(cont: PendingContinuation): Promise<void> {
+    // R2.14 authority: the ledger append IS the commit — it runs BEFORE the
+    // in-memory mutation and file write and throws on failure.
+    appendContinuation(this.cwd, cont.approvalId, "created", { continuation: cont });
     this.continuations.push(cont);
     this.dirty = true;
-    await this.save();
-    // R2.8 dual-write: mirror after the file write (JSON authoritative now);
-    // failures counted, never thrown into the resume path.
-    mirrorContinuation(this.cwd, cont.approvalId, "created", { continuation: cont });
+    try {
+      await this.save();
+    } catch (err) {
+      const s = statusFor(this.cwd);
+      s.projectionFailures += 1;
+      s.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   /** Find a continuation by approval ID. */
@@ -169,11 +224,17 @@ export class ContinuationStore {
 
   /** Remove a continuation (one-shot — called after resume or denial). */
   async remove(approvalId: string): Promise<void> {
+    // R2.14 authority: tombstone first (throws on failure), then memory+file.
+    appendContinuation(this.cwd, approvalId, "removed", { removed: true });
     this.continuations = this.continuations.filter(c => c.approvalId !== approvalId);
     this.dirty = true;
-    await this.save();
-    // R2.8: terminal tombstone so reconciliation knows removal was deliberate.
-    mirrorContinuation(this.cwd, approvalId, "removed", { removed: true });
+    try {
+      await this.save();
+    } catch (err) {
+      const s = statusFor(this.cwd);
+      s.projectionFailures += 1;
+      s.lastProjectionError = err instanceof Error ? err.message : String(err);
+    }
   }
 
   /** List all continuations. */
