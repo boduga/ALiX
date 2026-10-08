@@ -95,9 +95,19 @@ const patchOnlyGovernor: TransitionGovernor = {
         }
       : { decision: "allow" },
 };
-function toProjectorEvents(events: readonly { seq: number; type: string; payload: unknown; id?: string }[]): ProjectorEvent[] {
+function toProjectorEvents(
+  events: readonly { seq: number; type: string; payload: unknown; id?: string }[],
+  executionId?: string,
+): ProjectorEvent[] {
   return events
-    .filter((e) => e.type.startsWith("execution."))
+    .filter((e) => {
+      if (!e.type.startsWith("execution.")) return false;
+      if (executionId === undefined) return true;
+      const tagged = (e.payload as { executionId?: unknown } | null)?.executionId;
+      // Include: matching tag, or untagged (legacy pre-tag histories).
+      // Exclude: positively tagged for a DIFFERENT execution (R2.6).
+      return tagged === undefined || tagged === null || tagged === executionId;
+    })
     .map((e) => ({ seq: e.seq, type: e.type, payload: e.payload, ...(e.id ? { id: e.id } : {}) }));
 }
 
@@ -135,7 +145,10 @@ export class ExecutionStateEmitter {
             sessionId: this.opts.sessionId,
             actor: "system",
             type: e.type,
-            payload: e.payload,
+            // R2.6: tag executionId on every emitted fact so replay can
+            // filter cross-execution contamination (session EventLogs are
+            // shared across executions).
+            payload: { ...(e.payload as Record<string, unknown>), executionId: this.opts.executionId },
           });
         }
       },
@@ -204,12 +217,15 @@ export class ExecutionStateEmitter {
         sessionId: this.opts.sessionId,
         actor: "system",
         type: STATUS_CHANGED,
-        payload: { status: "running" },
+        payload: { status: "running", executionId: this.opts.executionId },
       });
       const all = await this.opts.log.readAll();
+      // R2.6: replay only this execution's facts — a shared session EventLog
+      // can hold other executions' `execution.*` events; projecting them
+      // would collide on duplicate execution.created.
       this.store.rebuildFromEvents(
         this.opts.executionId,
-        toProjectorEvents(all),
+        toProjectorEvents(all, this.opts.executionId),
         (evs) => toExecutionState(project(evs as ProjectorEvent[])),
       );
     } catch (err) {

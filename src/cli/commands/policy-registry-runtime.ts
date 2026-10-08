@@ -300,9 +300,36 @@ export async function handleRuntimeRoot(args: string[]): Promise<void> {
     process.exit(0);
   }
 
-  console.log("Usage: alix runtime [events|timeline]");
+  if (args[0] === "reconcile-executions") {
+    // R2.6: read-only comparison of execution-state snapshots against the
+    // transactional ledger. Exit 1 on drift so scripts/CI can gate on it.
+    const { reconcileExecutionLedger } = await import("../../runtime/execution-state/execution-ledger-reconcile.js");
+    const report = await reconcileExecutionLedger();
+    console.log(`Execution-state ledger reconciliation`);
+    console.log(`  snapshots scanned: ${report.scannedSnapshots}`);
+    console.log(`  ledger entities:   ${report.ledgerEntities}`);
+    console.log(`  ledger events:     ${report.ledgerEventsRead}`);
+    console.log(`  truncated reads:   ${report.truncated}`);
+    const unknown = Object.entries(report.unknownEventTypes);
+    if (unknown.length > 0) {
+      console.log(`  unknown event types:`);
+      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+    }
+    if (report.issues.length === 0) {
+      console.log(`  issues:            none`);
+      process.exit(0);
+    }
+    console.log(`  issues:            ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.executionId}: ${issue.detail}`);
+    }
+    process.exit(1);
+  }
+
+  console.log("Usage: alix runtime [events|timeline|reconcile-executions]");
   console.log("  events [--graph <g>] [--session <s>] [--approval <a>] [--action <a>] [--limit N]");
   console.log("  timeline <graphId>");
+  console.log("  reconcile-executions  Compare execution-state snapshots against the R2 ledger");
   process.exit(0);
 }
 
