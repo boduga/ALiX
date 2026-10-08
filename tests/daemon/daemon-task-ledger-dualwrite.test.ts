@@ -39,7 +39,7 @@ afterEach(() => {
   rmSync(registryPath(), { force: true });
 });
 
-describe("daemon task registry ledger dual-write (R2.9)", () => {
+describe("daemon task registry ledger authority (R2.15)", () => {
   it("create + lifecycle updates mirror; reconcile clean", async () => {
     const reg = new TaskRegistry();
     await reg.load();
@@ -128,27 +128,52 @@ describe("daemon task registry ledger dual-write (R2.9)", () => {
     assert.equal(report.ok, false);
   });
 
-  it("ledger failure never breaks the registry and is observable", async () => {
+  it("append failure blocks the projection — no JSON-only state (R2.15 authority)", async () => {
     closeSharedLedger(testHome);
     mkdirSync(runtimeLedgerPath(testHome), { recursive: true });
 
     const reg = new TaskRegistry();
-    await reg.load();
-    const r = reg.create("headless", testHome); // must not throw
-    reg.update(r.id, { status: "running" });
-    await reg.flush();
+    await assert.rejects(() => reg.load(), /SQLITE|unable|not a database/i);
 
-    // JSON path intact despite the mirror failure.
-    const records = JSON.parse(readFileSync(registryPath(), "utf-8")) as Array<{ id: string }>;
-    assert.ok(records.some(x => x.id === r.id));
+    // Operator flow: ledger broken BEFORE startup → load throws (fail-closed).
+    const reg2 = new TaskRegistry();
+    await assert.rejects(async () => { await reg2.load(); }, /SQLITE|unable|not a database/i);
+
     const status = daemonTaskLedgerStatus();
     assert.equal(status.failures >= 1, true);
     assert.ok(status.lastError);
+    assert.ok(!existsSync(registryPath()));
 
     rmSync(runtimeLedgerPath(testHome), { recursive: true, force: true });
     const report = await reconcileDaemonTaskLedger(registryPath(), testHome);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    // No registry + no ledger facts (failed appends rolled back) → clean.
+    assert.ok(kinds.length === 0 || kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+  });
+
+  it("projection write failure is tolerated and counted; authority load still works", async () => {
+    const reg = new TaskRegistry();
+    await reg.load();
+    const r = reg.create("proj-fail", testHome);
+    // Occupy the registry FILE path with a DIRECTORY so rename fails.
+    rmSync(registryPath(), { force: true });
+    mkdirSync(registryPath(), { recursive: true });
+    await reg.flush();
+
+    const status = daemonTaskLedgerStatus();
+    assert.equal(status.projectionFailures >= 1, true);
+    assert.ok(status.lastProjectionError);
+    // Ledger fact exists (append-first) despite the projection failure.
+    assert.ok(getSharedLedger(testHome).entityVersion(r.id) >= 1);
+
+    rmSync(registryPath(), { recursive: true, force: true });
+    const fresh = new TaskRegistry();
+    await fresh.load();
+    assert.equal(fresh.get(r.id)?.task, "proj-fail"); // authority read
+
+    const report = await reconcileDaemonTaskLedger(registryPath(), testHome);
+    const kinds = report.issues.map(i => i.kind);
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
   });
 
   it("fresh registry reconciles clean with zero records", async () => {
