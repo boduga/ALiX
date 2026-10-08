@@ -151,7 +151,9 @@ export class CoordinationStore {
    * are never masked by a JSON fallback in an authoritative domain.
    */
   private loadFromLedger(runId: string): { kind: "run"; run: CoordinationRun } | { kind: "deleted" } | { kind: "legacy" } {
-    const last = getSharedLedger(this.cwd).lastEvent(runId);
+    // Scoped by entityType: the id space is shared with other domains
+    // (e.g. collaboration mirrors the same runId under its own type).
+    const last = getSharedLedger(this.cwd).lastEvent(runId, "coordinationRun");
     if (!last) return { kind: "legacy" };
     if (last.eventType === "coordination.run.deleted") return { kind: "deleted" };
     const payload = last.payload as { run?: CoordinationRun } | null;

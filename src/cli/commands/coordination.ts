@@ -457,13 +457,36 @@ async function handleReconcile(cwd: string): Promise<void> {
   }
   if (report.issues.length === 0) {
     console.log(`  issues:           none`);
-    process.exit(0);
+  } else {
+    console.log(`  issues:           ${report.issues.length}`);
+    for (const issue of report.issues) {
+      console.log(`    [${issue.kind}] ${issue.runId}: ${issue.detail}`);
+    }
   }
-  console.log(`  issues:           ${report.issues.length}`);
-  for (const issue of report.issues) {
-    console.log(`    [${issue.kind}] ${issue.runId}: ${issue.detail}`);
+
+  // R2.10: collaboration shared-state section (same workspace ledger).
+  const { reconcileCollaborationLedger } = await import("../../kernel/collaboration-ledger-reconcile.js");
+  const collab = await reconcileCollaborationLedger(cwd);
+  console.log(`\nCollaboration ledger reconciliation`);
+  console.log(`  states scanned:   ${collab.scannedStates}`);
+  console.log(`  ledger entities:  ${collab.ledgerEntities}`);
+  console.log(`  ledger events:    ${collab.ledgerEventsRead}`);
+  console.log(`  truncated reads:  ${collab.truncated}`);
+  const collabUnknown = Object.entries(collab.unknownEventTypes);
+  if (collabUnknown.length > 0) {
+    console.log(`  unknown event types:`);
+    for (const [type, count] of collabUnknown) console.log(`    ${type}: ${count}`);
   }
-  process.exit(1);
+  if (collab.issues.length === 0) {
+    console.log(`  issues:           none`);
+  } else {
+    console.log(`  issues:           ${collab.issues.length}`);
+    for (const issue of collab.issues) {
+      console.log(`    [${issue.kind}] ${issue.runId}: ${issue.detail}`);
+    }
+  }
+
+  process.exit(report.ok && collab.ok ? 0 : 1);
 }
 
 async function handleList(cwd: string): Promise<void> {

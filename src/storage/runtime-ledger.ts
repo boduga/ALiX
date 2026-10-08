@@ -194,13 +194,19 @@ export class RuntimeLedger {
 
   /**
    * Latest event for one entity (authority read). Null when the entity has
-   * no ledger facts (legacy/pre-ledger). Throws only on genuine db errors —
-   * callers in authoritative domains must not mask those.
+   * no ledger facts (legacy/pre-ledger). `entityType` scopes the lookup when
+   * id spaces of different domains could overlap — always pass it if the
+   * domain shares ids with another (e.g. coordination runId vs collab runId).
+   * Throws only on genuine db errors — authoritative callers must not mask those.
    */
-  lastEvent(entityId: string): (RuntimeEvent & { ledgerSeq: number }) | null {
-    const row = this.db
-      .prepare("SELECT * FROM runtime_events WHERE entity_id = ? ORDER BY ledger_seq DESC LIMIT 1")
-      .get(entityId) as Record<string, unknown> | undefined;
+  lastEvent(entityId: string, entityType?: string): (RuntimeEvent & { ledgerSeq: number }) | null {
+    const row = entityType !== undefined
+      ? this.db
+          .prepare("SELECT * FROM runtime_events WHERE entity_id = ? AND entity_type = ? ORDER BY ledger_seq DESC LIMIT 1")
+          .get(entityId, entityType) as Record<string, unknown> | undefined
+      : this.db
+          .prepare("SELECT * FROM runtime_events WHERE entity_id = ? ORDER BY ledger_seq DESC LIMIT 1")
+          .get(entityId) as Record<string, unknown> | undefined;
     return row ? this.rowToEvent(row) : null;
   }
 

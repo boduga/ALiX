@@ -213,3 +213,9 @@ export type CollaborationActor = {
   workerId: string;
   workerAttempt: number;
 };
+
+/** Ledger event vocabulary for the collaboration-state domain (R2.10). */
+export const COLLABORATION_LEDGER_EVENT_TYPES = [
+  "collaboration.state_created",
+  "collaboration.state_updated",
+] as const;
