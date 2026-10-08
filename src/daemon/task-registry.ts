@@ -34,22 +34,29 @@ export type DaemonTaskRecord = {
 };
 
 // ─── R2.9 dual-write status (global — one registry per user) ────────
-type DaemonLedgerStatus = { appends: number; failures: number; lastError?: string };
-let ledgerStatus: DaemonLedgerStatus = { appends: 0, failures: 0 };
+type DaemonLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
+let ledgerStatus: DaemonLedgerStatus = { appends: 0, failures: 0, projectionFailures: 0 };
 
 /** Observable dual-write health (R2: failures must never be silent). */
 export function daemonTaskLedgerStatus(): DaemonLedgerStatus {
-  return { ...ledgerStatus, ...(ledgerStatus.lastError !== undefined ? { lastError: ledgerStatus.lastError } : {}) };
+  return {
+    ...ledgerStatus,
+    ...(ledgerStatus.lastError !== undefined ? { lastError: ledgerStatus.lastError } : {}),
+    ...(ledgerStatus.lastProjectionError !== undefined ? { lastProjectionError: ledgerStatus.lastProjectionError } : {}),
+  };
 }
 
 /** Reset counters (tests). */
 export function resetDaemonTaskLedgerStatus(): void {
-  ledgerStatus = { appends: 0, failures: 0 };
+  ledgerStatus = { appends: 0, failures: 0, projectionFailures: 0 };
 }
 
 export class TaskRegistry {
   private tasks: DaemonTaskRecord[] = [];
   private filePath: string;
+  /** Ledger workspace captured at construction — never re-read at save time
+   *  (a later `HOME` swap must not redirect an in-flight save's mirror). */
+  private readonly ledgerCwd: string = homedir();
   private maxCompleted = 100;
   private savePromise: Promise<void> = Promise.resolve();
   /**
@@ -64,17 +71,59 @@ export class TaskRegistry {
     this.filePath = resolveDaemonTasksPath();
   }
 
+  /**
+   * R2.15 authority read: rebuild from the per-user ledger (daemon tasks
+   * are GLOBAL). The file projection covers only legacy records with zero
+   * ledger facts; tombstones suppress stale file copies. Ledger db errors
+   * count and THROW — never masked by a file fallback.
+   */
   async load(): Promise<void> {
-    if (!existsSync(this.filePath)) {
-      this.tasks = [];
-      this.lastMirrored = new Map();
-      return;
-    }
+    let latest: Array<{ eventType: string; entityId: string; payload: unknown }>;
     try {
-      this.tasks = JSON.parse(await readFile(this.filePath, "utf-8"));
-    } catch { this.tasks = []; }
-    // Durable state is the baseline — only future changes mirror.
-    this.lastMirrored = new Map(this.tasks.map(t => [t.id, JSON.stringify(t)]));
+      latest = getSharedLedger(this.ledgerCwd).readLatestByEntityType("daemonTask");
+    } catch (err) {
+      ledgerStatus.failures += 1;
+      ledgerStatus.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+
+    const fromLedger = new Map<string, DaemonTaskRecord>();
+    const removedIds = new Set<string>();
+    for (const event of latest) {
+      if (event.eventType === "daemonTask.removed") {
+        removedIds.add(event.entityId);
+        continue;
+      }
+      const payload = event.payload as { task?: DaemonTaskRecord } | null;
+      if (!payload?.task) {
+        throw new Error(`daemonTask ledger event for ${event.entityId} missing task payload`);
+      }
+      fromLedger.set(event.entityId, payload.task);
+    }
+
+    const fromFile: DaemonTaskRecord[] = [];
+    if (existsSync(this.filePath)) {
+      try {
+        fromFile.push(...(JSON.parse(await readFile(this.filePath, "utf-8")) as DaemonTaskRecord[]));
+      } catch { /* corrupt projection — ledger view still applies */ }
+    }
+
+    const merged = new Map<string, DaemonTaskRecord>();
+    for (const t of fromFile) {
+      if (removedIds.has(t.id) || fromLedger.has(t.id)) continue;
+      merged.set(t.id, t);
+    }
+    for (const [id, t] of fromLedger) {
+      if (!removedIds.has(id)) merged.set(id, t);
+    }
+    this.tasks = [...merged.values()];
+    // Authority-backed records are already mirrored; legacy file records
+    // mirror on their first future change.
+    this.lastMirrored = new Map(
+      [...merged.values()]
+        .filter(t => fromLedger.has(t.id))
+        .map(t => [t.id, JSON.stringify(t)]),
+    );
   }
 
   /**
@@ -84,7 +133,7 @@ export class TaskRegistry {
    */
   private mirrorDiff(): void {
     try {
-      const ledger = getSharedLedger(homedir());
+      const ledger = getSharedLedger(this.ledgerCwd);
       const currentIds = new Set<string>();
       for (const task of this.tasks) {
         currentIds.add(task.id);
@@ -116,6 +165,7 @@ export class TaskRegistry {
         } else {
           ledgerStatus.failures += 1;
           ledgerStatus.lastError = `${res.reason}: ${res.detail}`;
+          throw new Error(`daemonTask ledger append failed (${res.reason}): ${res.detail}`);
         }
       }
       for (const id of [...this.lastMirrored.keys()]) {
@@ -143,22 +193,32 @@ export class TaskRegistry {
         } else {
           ledgerStatus.failures += 1;
           ledgerStatus.lastError = `${res.reason}: ${res.detail}`;
+          throw new Error(`daemonTask ledger append failed (${res.reason}): ${res.detail}`);
         }
       }
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("daemonTask ledger append failed")) throw err;
       ledgerStatus.failures += 1;
       ledgerStatus.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
   }
 
   private async save(): Promise<void> {
-    const dir = join(this.filePath, "..");
-    if (!existsSync(dir)) await mkdir(dir, { recursive: true });
-    const tmp = this.filePath + ".tmp";
-    await writeFile(tmp, JSON.stringify(this.tasks, null, 2), "utf-8");
-    await rename(tmp, this.filePath);
-    // R2.9: JSON authoritative this phase — mirror only after the durable write.
+    // R2.15 authority: append the classified diff FIRST (throws on failure →
+    // enqueueSave logs and the projection is skipped — no JSON-only state).
     this.mirrorDiff();
+    try {
+      const dir = join(this.filePath, "..");
+      if (!existsSync(dir)) await mkdir(dir, { recursive: true });
+      const tmp = this.filePath + ".tmp";
+      await writeFile(tmp, JSON.stringify(this.tasks, null, 2), "utf-8");
+      await rename(tmp, this.filePath);
+    } catch (err) {
+      ledgerStatus.projectionFailures += 1;
+      ledgerStatus.lastProjectionError = err instanceof Error ? err.message : String(err);
+      throw err; // enqueueSave's catch logs it
+    }
   }
 
   /** Serialized write — ensures concurrent saves don't race. */
