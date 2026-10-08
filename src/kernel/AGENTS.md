@@ -87,15 +87,19 @@
 - Coordination plans publish queued/dependency-waiting canonical `agent.*` lifecycle rows before dispatch. Retry-attempt results are non-terminal presentation facts; only scheduler exhaustion/completion publishes terminal worker state, and dependency failure publishes an explicit blocked state.
 - Write workers reserve their final two model iterations for mutation/completion tools while owned outputs remain unwritten, preventing broad reconnaissance from consuming the entire bounded iteration budget.
 - `--enforce-capabilities` enables two-layer gate (CapabilityResolver + RuntimeGate).
-- **Collaboration state dual-writes to the R2 ledger (R2.10, strangler).**
-  `CollaborationStore.mutate` mirrors after every durable `state.json` write,
-  inside the per-run lock: `collaboration.state_created`/`state_updated`
-  (full `CollaborationState` payload). The ledger entity id is namespaced
+- **The collaboration ledger is authoritative (R2.16); `state.json` is a
+  compatibility projection.** `mutate` (per-run lock) appends
+  `collaboration.state_created`/`state_updated` (full `CollaborationState`)
+  BEFORE the file write — the append IS the commit (counted, then thrown;
+  the in-memory revision bump is discarded on the next `loadState`, so no
+  JSON-only state can exist); `saveState` failures are tolerated and counted
+  as `projectionFailures` in `collaborationLedgerStatus(cwd)`. `loadState`
+  reads the ledger first (`lastEvent("collab:<runId>",
+  "collaborationState")`; file only for legacy zero-fact states; ledger db
+  errors count and throw). The ledger entity id is namespaced
   `collab:<runId>` — `runtime_entities` keys by entity_id alone and the raw
-  runId belongs to the coordination domain; an unqualified id would collide
-  on version CAS. JSON authoritative this phase; failures counted in
-  `collaborationLedgerStatus(cwd)`, never thrown into worker coordination.
-  Reconciled as a section of `alix coordination reconcile`.
+  runId belongs to the coordination domain. Reconciled as a section of
+  `alix coordination reconcile`.
 - **Ledger reconcilers are scoped by entityType.** All seven domain
   reconcilers (`coordination`/`collaboration`/`approvals`/`continuations`/
   `execution`/`graphs`/`daemonTasks`) drain only their own entity types, and
@@ -164,7 +168,7 @@
 - `tests/kernel/graph-projection.test.ts` — projection reconstruction
 - `tests/kernel/graph-planner.test.ts` — plan generation, cap normalize, repair retry
 - `tests/kernel/graph-ledger-dualwrite.test.ts` — graph/attempt mirrors, cancel mirror, reconciliation drift (legacy/tamper/attempt both directions), ledger-failure tolerance
-- `tests/kernel/collaboration-ledger-dualwrite.test.ts` — state mirrors, namespaced entity id, reconciliation drift (legacy/tamper), ledger-failure tolerance
+- `tests/kernel/collaboration-ledger-dualwrite.test.ts` — authority reads over tampered files, append-fail fail-closed, projection-failure tolerance, namespaced entity id, reconciliation drift (legacy/tamper)
 - `tests/kernel/coordination-planner.test.ts` — workers, scopes, agentPool labels
 - `tests/kernel/coordination-scheduler.test.ts` — dispatch, watchdog, heartbeats
 - `tests/kernel/coordination-tools.test.ts` — chat handlers
