@@ -396,19 +396,10 @@ async function completionLines(
   run: { id: string; sessionId: string } & Parameters<typeof import("./coordination-types.js").deriveCoordinationCompletion>[0],
   cwd: string,
 ): Promise<string[]> {
-  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
-    await import("./coordination-types.js");
-  const { computeAggregationSourceFingerprint } = await import("./coordination-aggregation-fingerprint.js");
-  const { readRunSessionEvents } = await import("./coordination-view.js");
-  const completion = deriveCoordinationCompletion(run, {
-    currentFingerprint: computeAggregationSourceFingerprint(run as never),
-    aggregateEventMatches: matchesAttachedAggregateEvent(
-      run as never,
-      await readRunSessionEvents(cwd, run.sessionId),
-    ),
-  });
+  const { deriveRunCompletion } = await import("./coordination-view.js");
+  const { completion, label } = await deriveRunCompletion(cwd, run as never);
   return [
-    `Completion: ${coordinationCompletionLabel(completion)}`,
+    `Completion: ${label}`,
     `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
     `outcome=${completion.outcome} verification=${completion.verification}`,
   ];

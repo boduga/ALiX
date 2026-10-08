@@ -18,7 +18,7 @@ import {
 } from "./coordination-types.js";
 import { existsSync } from "node:fs";
 import { resolve, relative, isAbsolute, join } from "node:path";
-import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
+import type { CoordinationRun, CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import type { ConflictStatus, ConflictType, DetectionMethod } from "./collaboration-conflict-types.js";
@@ -173,6 +173,28 @@ export async function readRunSessionEvents(
   }
 }
 
+/**
+ * THE single coordination-completion derivation (R3.6). Reads the run's
+ * session events, pairs the aggregate-event match with the current source
+ * fingerprint, and derives execution/aggregation/outcome/verification. Every
+ * reader (task-loop completion, coordination tools/CLI, collaboration
+ * context, this view) uses this instead of re-assembling the evidence pair —
+ * a site that assembles its own pair can silently drop the fingerprint check
+ * or read a stale event set. `status`, worker prose, and any stored
+ * verified flag are never inputs.
+ */
+export async function deriveRunCompletion(
+  cwd: string,
+  run: CoordinationRun,
+): Promise<{ completion: CoordinationCompletion; label: string }> {
+  const rawSessionEvents = await readRunSessionEvents(cwd, run.sessionId);
+  const completion = deriveCoordinationCompletion(run, {
+    currentFingerprint: computeAggregationSourceFingerprint(run),
+    aggregateEventMatches: matchesAttachedAggregateEvent(run, rawSessionEvents),
+  });
+  return { completion, label: coordinationCompletionLabel(completion) };
+}
+
 export async function buildCoordinationRunView(
   runId: string,
   cwd: string,
@@ -184,11 +206,7 @@ export async function buildCoordinationRunView(
   // Completion dimensions. `status` is the legacy terminal execution state;
   // aggregation, outcome and verification are derived from the run record plus
   // the durable aggregate event, never from status alone.
-  const rawSessionEvents = await readRunSessionEvents(cwd, run.sessionId);
-  const completion = deriveCoordinationCompletion(run, {
-    currentFingerprint: computeAggregationSourceFingerprint(run),
-    aggregateEventMatches: matchesAttachedAggregateEvent(run, rawSessionEvents),
-  });
+  const { completion, label: completionLabel } = await deriveRunCompletion(cwd, run);
 
   // Run summary
   const runSummary: RunSummary = {
@@ -197,7 +215,7 @@ export async function buildCoordinationRunView(
     status: run.status,
     outcome: run.outcome,
     completion,
-    completionLabel: coordinationCompletionLabel(completion),
+    completionLabel,
     workerCount: run.workers.length,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
