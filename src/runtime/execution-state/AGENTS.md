@@ -36,7 +36,10 @@ Bounded decision-state projection — patch-only contract (EventLog authoritativ
   canonical `.alix/executions` layout strips to the workspace root, any
   custom/test dir IS its own root (`<dir>/.alix/runtime-ledger.db`) — never
   dirname(), which makes sibling dirs share one ledger. `stateFilePath` is
-  exported for the reconciler.
+  exported for the reconciler. `delete()` removes the projection FILE only —
+  authority facts persist, so `load()` still returns the state after a
+  delete (recovery without EventLog replay; projections self-heal on the
+  next save; `exists()` is the file-level check).
 - **`execution.action_executed` is evidence, not a state patch.** The
   projector accepts it via a non-state execution allowlist: payload must
   carry `kind`; it advances historyRevision/historyHash only (no version

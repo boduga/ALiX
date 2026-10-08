@@ -284,10 +284,11 @@ export class RealEventLogEnvironment {
     const rebuilt = project(projEvents);
     const stored = this.store.load(rebuilt.executionId);
     if (!stored) return false;
-    // Delete and rebuild
+    // Delete the PROJECTION and rebuild. R2.12: load() is
+    // ledger-authoritative, so it still returns the state after the file is
+    // gone — that IS the recovery property. What must be gone is the file.
     this.store.delete(rebuilt.executionId);
-    const afterDelete = this.store.load(rebuilt.executionId);
-    if (afterDelete !== null) return false;
+    if (this.store.exists(rebuilt.executionId)) return false;
     const rebuiltState = this.store.rebuildFromEvents(
       rebuilt.executionId,
       projEvents as unknown as { seq?: number; type?: string; id?: string }[],
