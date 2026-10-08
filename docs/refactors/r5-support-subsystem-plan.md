@@ -85,7 +85,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | Step | Scope | Status |
 |---|---|---|
 | R5.0 | Persist this recon/plan | ✅ |
-| R5.1 | **Outbound redaction gate:** remote/local provider predicate + shared redactor applied to every provider-bound `systemPrompt`/`messages` before send; fail-closed for remote. Owner seams: `route-execution.ts`, `run/task-loop/main.ts`, `planner-model.ts`, `subagent-cli.ts` (and siblings). Tests assert a secret in assembled prompt never reaches a remote adapter. | ⬜ |
+| R5.1 | **Outbound redaction gate:** remote/local provider predicate + shared redactor applied to every provider-bound `systemPrompt`/`messages` before send; fail-closed for remote. Owner seams: `route-execution.ts`, `run/task-loop/main.ts`, `planner-model.ts`, `subagent-cli.ts` (and siblings). Tests assert a secret in assembled prompt never reaches a remote adapter. | ✅ |
 | R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ⬜ |
 | R5.3 | **ONE tool/capability catalogue:** implement the `ToolCapabilityRegistry` port + MCP/manifest adapters; reconcile concrete MCP tools; resolve the 8 `direct-tool-dispatch` executor imports through a tool port; remove the tool-taxonomy + direct-dispatch `R5` allowlist entries. | ⬜ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ⬜ |
@@ -108,6 +108,14 @@ the redaction gate "a security correction, not cleanup" and a vulnerability clas
   register bullets; confirm classification before touching.
 - Presentation/authority boundary: R5 changes runtime behavior (redaction, dispatch, metrics), unlike
   the presentation-only R4.
+
+## R5.1 (egress redaction) — ✅ done
+Central gate: `withProviderContracts` (the wrapper every `createProvider` adapter passes through) redacts secrets from `systemPrompt`, message text content, and tool-result content before the physical provider call.
+1. Added `src/security/redaction/redactor.ts:redactText` — span-in-place redaction that preserves the full surrounding prompt (the existing `redactString` truncates to a preview, which would destroy a large system prompt); `redactString` now delegates to it.
+2. Added `src/providers/provider-locality.ts` (`isLocalProvider`/`isRemoteProvider`, fail-closed: unknown = remote) and `src/providers/outbound-redaction.ts` (`redactOutboundRequest`/`redactOutboundText`, strict `public` profile).
+3. Wired the gate into `withProviderContracts.complete`/`stream`; local providers (keyless + eval mock) pass through unredacted.
+4. Tests: `tests/providers/outbound-redaction.vitest.ts` (locality, request redaction, remote-vs-local through the wrapper for complete + stream) and `redactText` cases in `tests/security/redaction/redactor.test.ts`.
+5. DOX: added the outbound-redaction contract to `src/providers/AGENTS.md`.
 
 ## Resume here (fresh session)
 

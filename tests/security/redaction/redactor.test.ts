@@ -13,7 +13,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { SecretDetector } from "../../../src/security/redaction/secret-detector.js";
 import { createRedactionPolicy } from "../../../src/security/redaction/redaction-policy.js";
-import { redactValue } from "../../../src/security/redaction/redactor.js";
+import { redactValue, redactText } from "../../../src/security/redaction/redactor.js";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -301,5 +301,23 @@ describe("redactValue (core)", () => {
         (result.url as string).includes("[REDACTED_CREDENTIAL_URL]"),
       );
     });
+  });
+});
+
+describe("redactText (egress, in-place)", () => {
+  it("redacts a secret span without truncating the surrounding prompt", () => {
+    const longPrefix = "context ".repeat(200); // 1600 chars, well over MAX_SAFE_STRING_LENGTH
+    const longSuffix = "tail ".repeat(200);
+    const input = `${longPrefix}api_key = sk-abcdefghijklmnopqrstuvwxyz123456 ${longSuffix}`;
+    const result = redactText(input, policy, detector);
+    assert.ok(result.includes("[REDACTED_API_KEY]"), "secret span is replaced");
+    assert.ok(result.includes("context context"), "surrounding prefix survives");
+    assert.ok(result.includes("tail tail"), "surrounding suffix survives");
+    assert.ok(result.length > 1000, "the full prompt is preserved, not truncated to a preview");
+  });
+
+  it("returns the input unchanged when no secret is present", () => {
+    const input = "a perfectly ordinary system prompt with no secrets";
+    assert.equal(redactText(input, policy, detector), input);
   });
 });
