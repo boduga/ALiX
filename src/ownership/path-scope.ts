@@ -211,3 +211,21 @@ export function isWithinOwnedScope(
     return prefix !== undefined && isInside(prefix, resolvedTarget);
   });
 }
+
+// ─── Planning-side claim overlap ───────────────────────────────────────
+
+export type RawOwnershipClaim = { path: string; recursive: boolean };
+
+/**
+ * True when two workspace-relative planning claims can both cover some path.
+ * The planner's overlap question lives HERE (one matcher module) so planning
+ * serialization, lease conflicts, and runtime authorization cannot drift into
+ * three disagreeing answers. `path === "."` is the workspace-wide claim.
+ * Inputs are workspace-relative strings as captured by the planner; absolute
+ * or `..` shapes are rejected at claim-capture time, not here.
+ */
+export function claimScopesOverlap(a: RawOwnershipClaim, b: RawOwnershipClaim): boolean {
+  const contains = (claim: RawOwnershipClaim, path: string): boolean =>
+    claim.path === "." || claim.path === path || (claim.recursive && path.startsWith(`${claim.path}/`));
+  return contains(a, b.path) || contains(b, a.path);
+}

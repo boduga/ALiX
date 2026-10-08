@@ -34,7 +34,6 @@ export type AgentContext = {
   checkpointManager: CheckpointManager;
   memoryStore: MemoryStore;
   repoMap: Awaited<ReturnType<typeof buildRepoMapLite>> | undefined;
-  ownershipRegistry?: import("../agents/ownership-registry.js").OwnershipRegistry;
   mergeCoordinator?: import("../agents/merge-coordinator.js").MergeCoordinator;
   subagentManager?: import("../agents/subagent-manager.js").SubagentManager;
   scope: ScopeTracker;
@@ -146,28 +145,24 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   evictIfNeeded(getAlixSkillsDir(process.env.HOME ?? ""), { maxStore, maxCandidates: maxCandidates ?? 200 });
 
   // Initialize subagent infrastructure only if enabled
-  let ownershipRegistry: import("../agents/ownership-registry.js").OwnershipRegistry | undefined;
   let mergeCoordinator: import("../agents/merge-coordinator.js").MergeCoordinator | undefined;
   let subagentManager: import("../agents/subagent-manager.js").SubagentManager | undefined;
   let delegateHandler: ((args: Record<string, unknown>) => Promise<import("../tools/types.js").ToolResult>) | undefined;
 
   if (config.subagents?.enabled) {
     const { SubagentManager: SubagentManagerClass } = await import("../agents/subagent-manager.js");
-    const { OwnershipRegistry: OwnershipRegistryClass } = await import("../agents/ownership-registry.js");
     const { MergeCoordinator: MergeCoordinatorClass } = await import("../agents/merge-coordinator.js");
     const { createDelegateHandler: createDelegateHandlerFn } = await import("../agents/delegate-tool.js");
 
-    ownershipRegistry = new OwnershipRegistryClass();
+    // R3.2: spawn-time ownership claims go through the durable registry
+    // inside SubagentManager (no separate in-memory claim registry here).
     mergeCoordinator = new MergeCoordinatorClass();
-    subagentManager = new SubagentManagerClass({ sessionId, config, eventLog: log });
+    subagentManager = new SubagentManagerClass({ sessionId, cwd, config, eventLog: log });
     subagentManager.onResult((result) => {
       mergeCoordinator!.enqueue(result);
     });
     delegateHandler = createDelegateHandlerFn(subagentManager, (opts) => {
       const taskId = crypto.randomUUID();
-      if (opts.mode === "write" && opts.ownedPaths?.length) {
-        ownershipRegistry!.claim(taskId, opts.ownedPaths);
-      }
       return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
     });
   }
@@ -213,7 +208,6 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     checkpointManager,
     memoryStore,
     repoMap,
-    ownershipRegistry,
     mergeCoordinator,
     subagentManager,
     scope,

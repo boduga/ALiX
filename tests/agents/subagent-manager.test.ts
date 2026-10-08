@@ -1,5 +1,8 @@
-import { describe, it, beforeEach, test } from "node:test";
+import { describe, it, beforeEach, after, test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
 import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/config/schema.js";
 
@@ -16,6 +19,25 @@ const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
   critic: { provider: "ollama", name: "llama3.2:3b" },
 };
 
+const tmpCwds: string[] = [];
+/** Isolated workspace root so write-task leases never touch the repo. */
+function tmpCwd(): string {
+  const dir = mkdtempSync(join(tmpdir(), "alix-subagent-"));
+  tmpCwds.push(dir);
+  return dir;
+}
+after(() => {
+  for (const dir of tmpCwds) rmSync(dir, { recursive: true, force: true });
+});
+
+async function waitUntil(cond: () => boolean, ms = 5000): Promise<void> {
+  const start = Date.now();
+  while (!cond()) {
+    if (Date.now() - start > ms) throw new Error("waitUntil timed out");
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 function makeTask(overrides: Partial<SubagentTask> = {}): SubagentTask {
   return {
     id: "test-1",
@@ -31,10 +53,13 @@ function makeTask(overrides: Partial<SubagentTask> = {}): SubagentTask {
 
 describe("SubagentManager", () => {
   let manager: SubagentManager;
+  let cwd: string;
 
   beforeEach(() => {
+    cwd = tmpCwd();
     manager = new SubagentManager({
       sessionId: "test-session",
+      cwd,
       config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
       // Use node -e which exits immediately with code 0 — no real CLI needed
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
@@ -48,13 +73,54 @@ describe("SubagentManager", () => {
     assert.equal(result.role, "explorer");
   });
 
-  it("rejects overlapping owned paths at spawn time", async () => {
-    // Manually register ownership for task1 without spawning (avoids exit race)
-    const task1 = makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-1", ownedPaths: ["src/foo.ts"] });
-    (manager as any).ownershipRegistry.set("src/foo.ts", task1.id);
+  it("rejects overlapping owned paths at spawn time across manager instances", async () => {
+    // R3.2: overlap detection is the DURABLE registry, not an in-process map —
+    // the holder and the rejected spawn use different SubagentManager
+    // instances sharing one workspace root.
+    const holder = new SubagentManager({
+      sessionId: "holder-session",
+      cwd,
+      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
+    });
+    const holderResult = holder.spawn(
+      makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-1", ownedPaths: ["src/foo.ts"] }),
+    );
+    await waitUntil(() => (holder as unknown as { leasesByTask: Map<string, unknown> }).leasesByTask.size === 1);
 
     const task2 = makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-2", ownedPaths: ["src/foo.ts"] });
     await assert.rejects(async () => manager.spawn(task2), /overlapping ownership/i);
+
+    holder.cancel("overlap-task-1");
+    await assert.rejects(holderResult);
+    // Lease released on cancel → a fresh spawn on the same path succeeds.
+    const retry = await manager.spawn(
+      makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-3", ownedPaths: ["src/foo.ts"] }),
+    );
+    assert.equal(retry.status, "success");
+  });
+
+  it("skips durable acquisition for coordination tasks (scheduler pre-claims)", async () => {
+    const coordCwd = tmpCwd();
+    const coordManager = new SubagentManager({
+      sessionId: "coord-session",
+      cwd: coordCwd,
+      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
+      spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
+    });
+    const result = await coordManager.spawn(makeTask({
+      id: "coord-task",
+      role: "worker" as SubagentRole,
+      mode: "write" as const,
+      ownedPaths: ["src/bar.ts"],
+      coordinationRunId: "coord-run-1",
+    }));
+    assert.equal(result.status, "success");
+    assert.equal(
+      existsSync(join(coordCwd, ".alix", "ownership", "ownership.json")),
+      false,
+      "coordination tasks must not double-claim — the scheduler already holds their leases",
+    );
   });
 
   it("tracks concurrent subagents", async () => {
@@ -74,11 +140,14 @@ describe("SubagentManager", () => {
   });
 
   it("releases ownership on shutdown", async () => {
+    // spawn's resolution awaits the exit-path lease release, so by the time
+    // this returns the durable claim is gone; shutdown clears the rest.
     await manager.spawn(makeTask({ role: "worker" as SubagentRole, mode: "write" as const, ownedPaths: ["src/bar.ts"] }));
     manager.shutdown();
     // After shutdown, new tasks can claim the same paths
     const fresh = new SubagentManager({
       sessionId: "fresh-session",
+      cwd,
       config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
@@ -90,6 +159,7 @@ describe("SubagentManager", () => {
 test("manager resolves with the child's failed status instead of overriding to success", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
@@ -106,6 +176,7 @@ test("manager resolves with the child's failed status instead of overriding to s
 test("manager resolves with failed status even on exit 0 when the child reports failed", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
@@ -121,6 +192,7 @@ test("manager resolves with failed status even on exit 0 when the child reports 
 test("manager preserves child-reported partial status on exit 1", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
@@ -136,6 +208,7 @@ test("manager preserves child-reported partial status on exit 1", async () => {
 test("manager preserves child-reported partial status on exit 0", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
@@ -152,6 +225,7 @@ test("manager emits partial once without rewriting it as completed state", async
   const emitted: Array<{ type: string; payload: Record<string, unknown> }> = [];
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
     spawnOverride: {
@@ -188,6 +262,7 @@ test("manager shutdown emits cancellation without a later failed terminal", asyn
   const emitted: Array<{ type: string }> = [];
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     eventLog: { append: (entry: any) => { emitted.push(entry); return Promise.resolve(entry); } } as any,
     spawnOverride: { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] },
@@ -216,6 +291,7 @@ test("spawned subagent inherits the secret-service bus address but not ambient s
   try {
     const manager = new SubagentManager({
       sessionId: "s1",
+      cwd: tmpCwd(),
       config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
       spawnOverride: {
         command: process.execPath,
@@ -248,6 +324,7 @@ test("spawned subagent inherits the secret-service bus address but not ambient s
 test("coordination worker inherits store-resolved API keys over private fd 3", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: {
       subagents: TEST_SUBAGENT_CFG,
       apiKeys: { deepseek: "resolved-parent-secret" },
@@ -269,6 +346,7 @@ test("coordination worker inherits store-resolved API keys over private fd 3", a
 test("spawnMany runs specs in parallel and aligns results to input order", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
     spawnOverride: {
       command: process.execPath,
@@ -292,8 +370,15 @@ test("spawnMany runs specs in parallel and aligns results to input order", async
 test("spawnMany isolates a spawn rejection to a failed result", async () => {
   const manager = new SubagentManager({
     sessionId: "s1",
+    cwd: tmpCwd(),
     config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
-    spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
+    // Slow children: the first task must still hold its lease while the
+    // second task's acquisition runs (fast-exit children would release
+    // before the sibling acquire and hide the overlap).
+    spawnOverride: {
+      command: process.execPath,
+      args: ["-e", `await new Promise(r => setTimeout(r, 1000)); console.log(JSON.stringify({ status: "success", findings: [], events: [] }));`],
+    },
   });
   const results = await manager.spawnMany([
     makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "ok-1", ownedPaths: ["src/a.ts"] }),

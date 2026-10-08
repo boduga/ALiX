@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
 import { parseSessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
+import { OwnershipRegistry, type AcquireRequest } from "../ownership/ownership-registry.js";
+import { resolveOwnedScopePrefix } from "../ownership/path-scope.js";
 
 // Re-export types for consumers
 export type { SubagentTask, SubagentResult };
@@ -13,6 +15,12 @@ export type SubagentManagerOptions = {
   sessionId: string;
   /** Logical parent identity for Workbench hierarchy. Defaults to the session root. */
   parentAgentId?: string;
+  /**
+   * Workspace root captured at CONSTRUCTION. Registry files
+   * (`<cwd>/.alix/ownership/`) derive from it; per-task `task.cwd` wins for
+   * that task's claims. Never re-read from process.cwd() at write time.
+   */
+  cwd?: string;
   config?: AlixConfig;
   /** Override the spawned command for testing. Defaults to the alix CLI. */
   spawnOverride?: { command: string; args?: string[] };
@@ -84,35 +92,172 @@ function resolvedCredentialPayload(config: AlixConfig | undefined): string | und
   return Object.keys(apiKeys).length > 0 ? JSON.stringify(apiKeys) : undefined;
 }
 
+/** Renew active chat-delegate leases well inside the registry's 30-min TTL. */
+const LEASE_RENEW_INTERVAL_MS = 10 * 60 * 1000;
+
 export class SubagentManager {
   private running = new Map<string, RunningSubagent>();
-  private ownershipRegistry = new Map<string, string>(); // path -> subagentId
   private callbacks: SubagentResultCallback[] = [];
+  /**
+   * R3.2: ONE durable ownership authority. Spawn-time claims for chat-path
+   * write delegates acquire leases on the shared registry
+   * (`<cwd>/.alix/ownership/ownership.json`, cross-process lock) — the old
+   * in-process `Map<path, subagentId>` was a second, weaker registry (exact
+   * string keys only, died with the process, invisible to other hosts).
+   * Coordination tasks (`coordinationRunId`/`assignedAgentId` set) SKIP
+   * acquisition: the scheduler already pre-claims their leases before dispatch
+   * (`acquireWorkerOwnership`), under a different agentId.
+   */
+  private readonly registryCwd: string;
+  private readonly registries = new Map<string, OwnershipRegistry>();
+  private readonly leasesByTask = new Map<string, { cwd: string; ids: string[] }>();
+  private renewTimer?: ReturnType<typeof setInterval>;
+  /**
+   * Bumped by `shutdown()`. Because `spawn` now awaits lease acquisition
+   * before the child exists, a shutdown racing an in-flight spawn would
+   * otherwise kill nothing and orphan the child behind it: the spawn
+   * re-checks the epoch after acquisition and cancels itself instead.
+   */
+  private spawnEpoch = 0;
 
-  constructor(private options: SubagentManagerOptions) {}
+  constructor(private options: SubagentManagerOptions) {
+    this.registryCwd = resolve(options.cwd ?? process.cwd());
+  }
+
+  private registryFor(cwd: string): OwnershipRegistry {
+    const key = resolve(cwd);
+    let registry = this.registries.get(key);
+    if (!registry) {
+      registry = new OwnershipRegistry(key, { sessionId: this.options.sessionId });
+      this.registries.set(key, registry);
+    }
+    return registry;
+  }
+
+  /**
+   * Acquire exclusive-write leases for a chat-path write task's ownedPaths.
+   * Throws on conflict (overlapping ownership) or on an uninterpretable path —
+   * spawn never proceeds without the leases it depends on (fail closed).
+   */
+  private async acquireTaskOwnership(task: SubagentTask): Promise<void> {
+    if (task.mode !== "write" || !task.ownedPaths?.length) return;
+    if (task.coordinationRunId || task.assignedAgentId) return; // scheduler pre-claimed
+    const cwd = resolve(task.cwd ?? this.registryCwd);
+    const registry = this.registryFor(cwd);
+    const reqs: AcquireRequest[] = [];
+    for (const path of task.ownedPaths) {
+      // Enforcement-faithful scope: the same reduction PolicyGate and
+      // FileToolRouter apply to ownedPaths (`.`, `dir`, `dir/**`, file all
+      // reduce to a workspace prefix), so lease conflicts and runtime
+      // authorization agree on what a claim covers.
+      const prefix = resolveOwnedScopePrefix(path, cwd);
+      if (prefix === undefined) {
+        throw new Error(`Invalid ownership path '${path}' — cannot be reduced to a workspace scope`);
+      }
+      reqs.push({
+        agentId: task.id,
+        scope: { kind: "path", root: prefix, recursive: true },
+        mode: "exclusive-write",
+        taskId: task.id,
+        sessionId: this.options.sessionId,
+        reason: `Subagent ${task.id}`,
+      });
+    }
+    const results = await registry.acquireMany(reqs);
+    const acquired: string[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.acquired && result.record) {
+        acquired.push(result.record.id);
+        continue;
+      }
+      for (const id of acquired) {
+        await registry.release(id).catch(() => false); // best-effort rollback
+      }
+      const other = result.conflict?.conflictingRecords[0]?.agentId;
+      if (other) {
+        throw new Error(`Overlapping ownership: '${task.ownedPaths[i]}' is already owned by '${other}'`);
+      }
+      throw new Error(result.conflict?.reason ?? `Ownership acquisition failed for '${task.ownedPaths[i]}'`);
+    }
+    if (acquired.length > 0) {
+      this.leasesByTask.set(task.id, { cwd, ids: acquired });
+      this.ensureLeaseRenewal();
+    }
+  }
+
+  /** Release a task's leases. Idempotent; safe to call from exit/error paths. */
+  private async releaseTaskOwnership(taskId: string): Promise<void> {
+    const entry = this.leasesByTask.get(taskId);
+    if (!entry) return;
+    this.leasesByTask.delete(taskId);
+    const registry = this.registryFor(entry.cwd);
+    for (const id of entry.ids) {
+      await registry.release(id).catch(() => false); // TTL is the backstop
+    }
+  }
+
+  /**
+   * Keep running delegates' leases alive past the registry TTL (agents have
+   * unlimited lifetime). Renewals that find their record gone (released or
+   * expired externally) drop the id; the timer stops itself when no leases
+   * remain. `unref` so it never holds the process open.
+   */
+  private ensureLeaseRenewal(): void {
+    if (this.renewTimer) return;
+    this.renewTimer = setInterval(() => {
+      void (async () => {
+        for (const [taskId, entry] of [...this.leasesByTask]) {
+          const registry = this.registryFor(entry.cwd);
+          const kept: string[] = [];
+          for (const id of entry.ids) {
+            const ok = await registry.renew(id).catch(() => false);
+            if (ok) kept.push(id);
+          }
+          if (kept.length > 0) this.leasesByTask.set(taskId, { ...entry, ids: kept });
+          else this.leasesByTask.delete(taskId);
+        }
+        if (this.leasesByTask.size === 0 && this.renewTimer) {
+          clearInterval(this.renewTimer);
+          this.renewTimer = undefined;
+        }
+      })();
+    }, LEASE_RENEW_INTERVAL_MS);
+    this.renewTimer.unref?.();
+  }
 
   onResult(cb: SubagentResultCallback): void {
     this.callbacks.push(cb);
   }
 
   /**
-   * Spawn a subagent process. Throws if owned paths overlap with an active worker.
+   * Spawn a subagent process. For chat-path write tasks, acquires durable
+   * ownership leases first — rejects if owned paths overlap another agent's
+   * active claim, or if a path cannot be reduced to a workspace scope.
    */
-  spawn(task: SubagentTask): Promise<SubagentResult> {
+  async spawn(task: SubagentTask): Promise<SubagentResult> {
+    // Throws → the async function rejects (same rejection surface the old
+    // in-Promise overlap check produced; spawnMany maps it to a failed result).
+    const epoch = this.spawnEpoch;
+    await this.acquireTaskOwnership(task);
+    if (epoch !== this.spawnEpoch) {
+      // shutdown() raced this spawn while it awaited acquisition — cancel
+      // here (release leases, publish the cancelled lifecycle row) rather
+      // than spawning a child nothing will ever kill.
+      await this.releaseTaskOwnership(task.id);
+      const eventSessionId = task.eventSessionId ?? this.options.sessionId;
+      this.emitLifecycle("agent.cancelled", {
+        agentId: task.id,
+        parentAgentId: this.options.parentAgentId ?? `session:${eventSessionId}`,
+        taskId: task.id,
+        role: task.role,
+        state: "cancelled",
+        status: "cancelled",
+        operation: "Manager shutdown",
+      }, eventSessionId);
+      throw new Error("SubagentManager shut down during spawn");
+    }
     return new Promise((resolvePromise, reject) => {
-      if (task.mode === "write" && task.ownedPaths?.length) {
-        for (const path of task.ownedPaths) {
-          const owner = this.ownershipRegistry.get(path);
-          if (owner && owner !== task.id) {
-            reject(new Error(`Overlapping ownership: '${path}' is already owned by '${owner}'`));
-            return;
-          }
-        }
-        for (const path of task.ownedPaths) {
-          this.ownershipRegistry.set(path, task.id);
-        }
-      }
-
       try {
         // Resolve the model before publishing the spawn so the roster never
         // shows a fabricated or guessed model identity.
@@ -231,9 +376,11 @@ export class SubagentManager {
           child.stderr.on("data", (data: Buffer) => { stderr += data.toString(); });
         }
 
-        child.on("exit", (code: number | null) => {
+        child.on("exit", async (code: number | null) => {
           this.running.delete(task.id);
-          this.releaseOwnership(task);
+          // Await before resolving: callers that spawn a successor task for
+          // the same paths observe the lease release deterministically.
+          await this.releaseTaskOwnership(task.id);
 
           const exitCode = code ?? 1;
           // The subagent may write streaming output to stdout before
@@ -298,9 +445,9 @@ export class SubagentManager {
           }
         });
 
-        child.on("error", (err: Error) => {
+        child.on("error", async (err: Error) => {
           this.running.delete(task.id);
-          this.releaseOwnership(task);
+          await this.releaseTaskOwnership(task.id);
           if (!running.cancelled) {
             this.emitLifecycle("agent.failed", {
               ...lifecycleBase,
@@ -312,9 +459,9 @@ export class SubagentManager {
           reject(err);
         });
       } catch (err) {
-        // Spawn setup failed — release ownership so future delegate
-        // attempts don't hit "Overlapping ownership" for a dead subagent.
-        this.releaseOwnership(task);
+        // Spawn setup failed — release leases so future delegate attempts
+        // don't hit "Overlapping ownership" for a subagent that never ran.
+        void this.releaseTaskOwnership(task.id);
         reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
@@ -361,11 +508,15 @@ export class SubagentManager {
     }, running.task.eventSessionId ?? this.options.sessionId);
     terminateProcessTree(running.process);
     this.running.delete(taskId);
-    this.releaseOwnership(running.task);
+    // Kick release now (idempotent — the child's exit handler no-ops once the
+    // task's lease entry is gone), so an immediate successor spawn on the same
+    // paths serializes behind this release under the registry lock.
+    void this.releaseTaskOwnership(taskId);
     return true;
   }
 
   shutdown(): void {
+    this.spawnEpoch++;
     for (const [agentId, running] of this.running) {
       running.cancelled = true;
       this.emitLifecycle("agent.cancelled", {
@@ -380,15 +531,9 @@ export class SubagentManager {
       terminateProcessTree(running.process);
     }
     this.running.clear();
-    this.ownershipRegistry.clear();
-  }
-
-  private releaseOwnership(task: SubagentTask): void {
-    if (task.mode === "write" && task.ownedPaths?.length) {
-      for (const path of task.ownedPaths) {
-        this.ownershipRegistry.delete(path);
-      }
-    }
+    // Leases release via each child's exit handler; the TTL is the backstop
+    // for any exit event that never arrives. The renewal timer stops itself
+    // once the lease map empties.
   }
 
   private emitLifecycle(type: string, payload: Record<string, unknown>, sessionId = this.options.sessionId): void {
