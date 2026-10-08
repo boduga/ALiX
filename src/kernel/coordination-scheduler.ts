@@ -11,7 +11,7 @@ import "node:crypto";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { loadWorkerDependencyResults } from "./coordination-worker-context.js";
-import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
+import { acquireWorkerOwnership, releaseWorkerOwnership, releaseWorkerLeases, renewWorkerOwnership } from "./coordination-ownership.js";
 import { DEFAULT_ORPHAN_THRESHOLD_MS } from "./owner-liveness.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
@@ -657,7 +657,7 @@ export class CoordinationScheduler {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
-        await releaseWorkerOwnership(this.deps.ownershipRegistry, finalWorker.leaseIds);
+        await releaseWorkerLeases(this.deps.ownershipRegistry, finalWorker);
         await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });
       }
       // Check if run is now terminal
@@ -1027,7 +1027,7 @@ export class CoordinationScheduler {
     for (const worker of run.workers) {
       if (worker.status === "running" || worker.status === "pending" || worker.status === "ready") {
         if (worker.leaseIds && worker.leaseIds.length > 0) {
-          await releaseWorkerOwnership(this.deps.ownershipRegistry, worker.leaseIds);
+          await releaseWorkerLeases(this.deps.ownershipRegistry, worker);
         }
         await this.deps.store.patchWorker(runId, worker.id, {
           status: "cancelled", blockReason: "cancelled", leaseIds: [],

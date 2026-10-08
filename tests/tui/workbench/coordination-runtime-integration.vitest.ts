@@ -198,7 +198,7 @@ describe('Phase9 public coordination port with real handlers and scheduler', () 
     const planned = await f.plan('Resume existing report', 'alix', f.id, { sessionMode: 'ask', maxConcurrency: 1 });
     const worker = planned.run.workers[0]!;
     await f.store.patchWorker(planned.run.id, worker.id, { status: 'running', executionOwnerId: 'tool-99999999' });
-    const reclaimed = await reclaimDeadOwnerWorkers(f.store, planned.run.id);
+    const reclaimed = await reclaimDeadOwnerWorkers(f.store, planned.run.id, new OwnershipRegistry(f.cwd));
     expect(reclaimed.reclaimedWorkerIds).toEqual([worker.id]);
     const run = (await f.store.load(planned.run.id))!;
     expect(run).toMatchObject({ id: planned.run.id, sessionMode: 'ask', maxConcurrency: 1 });

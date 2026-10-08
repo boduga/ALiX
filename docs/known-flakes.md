@@ -65,3 +65,15 @@ Record which of these were checked and what they showed.
 - **Standalone result:** both pass
 - **Suspected cause:** shared module state (the `redactPayload` counter) interacting with parallel file execution order; unconfirmed
 - **Status:** watch — do not treat as a product defect without a second occurrence
+
+## Governance report — "CLI execution succeeds with valid bundle" (spawn-budget recurrence)
+
+- **Test:** `tests/governance/governance-report.test.ts` → `CLI execution succeeds with valid bundle` (spawns the CLI via `npx tsx`; 30 000 ms budget)
+- **Symptom:** `AssertionError: Expected exit 0, got 1. stderr: ` (empty) at 30 034 ms — the spawn-budget timeout, same class as the entry above, different subtest
+- **Frequency:** 1 of 2 full `pnpm test:node` runs during the R3.4 lease-release change set; standalone the file passed 18/18 (~51 s for the whole file, whose cases are real CLI subprocesses)
+- **Parallel-only:** Yes in this occurrence — the file's own cases run sequentially, so the 30 s budget was consumed by machine load from the surrounding lane, not by intra-file concurrency
+- **First observed:** 2026-10-08, during the R3-closure R3.4 change set (tree at `017e9c5b` + working diff)
+- **Standalone result:** `node --test dist/tests/governance/governance-report.test.js` → 18/18 pass
+- **Baseline check:** the failing command is `alix governance report` over a fixture bundle; none of the R3.4 files (coordination ownership/liveness/release paths) are on its dependency path, and node lanes were green at `017e9c5b` and `a79dc0cb`
+- **Suspected cause:** 30 s `npx tsx` spawn budget exceeded under full-lane load; the file legitimately takes ~51 s standalone
+- **Status:** watch — consistent with the existing governance-report entry (spawn-budget timing, not a wrong result). If it recurs, raise the named spawn budget rather than asserting anything new.

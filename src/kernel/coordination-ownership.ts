@@ -142,6 +142,27 @@ export async function releaseWorkerOwnership(
 }
 
 /**
+ * Release every lease a loaded worker record still holds, then clear
+ * `leaseIds` on that record (the caller persists it).
+ *
+ * THE single lease-release entry point (R3.4). Every path that clears a
+ * worker's `leaseIds` — terminal completion, cancellation, orphan recovery,
+ * dead-owner reclaim — must go through here first: clearing without
+ * releasing leaves active registry records behind, and later runs in the
+ * workspace collide with them until the leases' TTL expires.
+ */
+export async function releaseWorkerLeases(
+  registry: OwnershipRegistry,
+  worker: { leaseIds?: string[] },
+): Promise<{ released: string[]; failed: string[] }> {
+  const ids = worker.leaseIds ?? [];
+  if (ids.length === 0) return { released: [], failed: [] };
+  const result = await releaseWorkerOwnership(registry, ids);
+  worker.leaseIds = [];
+  return result;
+}
+
+/**
  * Renew all lease IDs. Respects boolean return of registry.renew().
  */
 export async function renewWorkerOwnership(

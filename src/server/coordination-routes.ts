@@ -525,7 +525,9 @@ export async function resumeInspectorRuns(cwd: string): Promise<number> {
   try {
     const { loadConfig } = await import("../config/loader.js");
     const { reclaimDeadOwnerWorkers, findResumableRuns } = await import("../kernel/coordination-resume.js");
+    const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
     const store = new CoordinationStore(cwd);
+    const ownershipRegistry = new OwnershipRegistry(cwd);
     const runIds = await findResumableRuns(store, ["inspector", "cli"]);
     if (runIds.length === 0) return 0;
 
@@ -533,8 +535,9 @@ export async function resumeInspectorRuns(cwd: string): Promise<number> {
     let resumed = 0;
     for (const runId of runIds) {
       // Reclaim before deciding: a run may be entirely owned by dead
-      // processes and otherwise look live.
-      await reclaimDeadOwnerWorkers(store, runId);
+      // processes and otherwise look live. Reclaim releases the dead
+      // host's leases through the single release path (R3.4).
+      await reclaimDeadOwnerWorkers(store, runId, ownershipRegistry);
       const run = await store.load(runId);
       if (!run) continue;
       // Only resume work that can still progress. A blocked run whose
