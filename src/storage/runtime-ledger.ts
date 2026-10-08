@@ -193,6 +193,32 @@ export class RuntimeLedger {
   }
 
   /**
+   * Latest event for one entity (authority read). Null when the entity has
+   * no ledger facts (legacy/pre-ledger). Throws only on genuine db errors —
+   * callers in authoritative domains must not mask those.
+   */
+  lastEvent(entityId: string): (RuntimeEvent & { ledgerSeq: number }) | null {
+    const row = this.db
+      .prepare("SELECT * FROM runtime_events WHERE entity_id = ? ORDER BY ledger_seq DESC LIMIT 1")
+      .get(entityId) as Record<string, unknown> | undefined;
+    return row ? this.rowToEvent(row) : null;
+  }
+
+  /**
+   * Latest event per entity for one entity type — the authority snapshot set
+   * used to reconstruct a domain without touching its legacy store.
+   */
+  readLatestByEntityType(entityType: string): Array<RuntimeEvent & { ledgerSeq: number }> {
+    const rows = this.db.prepare(`
+      SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY ledger_seq DESC) AS rn
+        FROM runtime_events WHERE entity_type = ?
+      ) WHERE rn = 1 ORDER BY ledger_seq ASC
+    `).all(entityType) as Record<string, unknown>[];
+    return rows.map((r) => this.rowToEvent(r));
+  }
+
+  /**
    * Replay in ledger-global order. Cursor is `ledger_seq` (opaque to
    * callers beyond "greater than"). Rows are returned as full envelopes
    * so a projector can rebuild without consulting any other store.

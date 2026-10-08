@@ -1,34 +1,39 @@
 // src/kernel/coordination-ledger-reconcile.ts
 //
-// R2 step 4 — compare the coordination JSON store against the transactional
-// ledger. Dual-write phase: JSON is authoritative; this reports drift so it
-// is observable instead of latent. Counts unknown event types and reports
-// read truncation (R2 exit conditions).
+// R2.3 — compare the coordination JSON compatibility projection against the
+// authoritative transactional ledger. Read-only: never mutates either side.
+// Counts unknown event types and reports read truncation (R2 exit conditions).
 //
-// Issue kinds:
-//   missing_in_ledger    — run JSON exists, zero ledger events (legacy run or
-//                          a dual-write failure window)
-//   status_mismatch      — JSON run.status differs from last snapshot event
-//   worker_status_mismatch — a worker's JSON status/attempt differs from the
-//                          last snapshot event
-//   plan_revision_mismatch — JSON planRevision differs from last snapshot
-//   version_behind       — last event entityVersion ≠ event count (lost events)
-//   orphan_in_ledger     — ledger entity with no run JSON and no delete event
-//   ledger_write_failed  — store reported dual-write failures in-process
-//                          (see CoordinationStore.ledgerStatus)
+// The ledger is truth. This reports projection drift:
+//   missing_in_ledger      — JSON projection exists, zero ledger facts
+//                            (legacy pre-ledger run)
+//   projection_missing     — live ledger entity with no JSON file
+//                            (projection write failed or file lost)
+//   projection_stale       — ledger says deleted, JSON file still present
+//   status_mismatch        — JSON status differs from the ledger run
+//   worker_status_mismatch — a worker's JSON status/attempt differs from
+//                            the ledger run
+//   plan_revision_mismatch — JSON planRevision differs from the ledger run
+//   version_behind         — last event entityVersion ≠ event count
+//   ledger_payload_invalid — live ledger event without a run payload
+//                            (store.load would throw the same error)
 
-import { CoordinationStore, COORDINATION_LEDGER_EVENT_TYPES } from "./coordination-store.js";
+import { readdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { COORDINATION_LEDGER_EVENT_TYPES } from "./coordination-store.js";
 import type { CoordinationRun } from "./coordination-types.js";
 import { getSharedLedger } from "../storage/runtime-ledger.js";
 
 export type ReconcileIssueKind =
   | "missing_in_ledger"
+  | "projection_missing"
+  | "projection_stale"
   | "status_mismatch"
   | "worker_status_mismatch"
   | "plan_revision_mismatch"
   | "version_behind"
-  | "orphan_in_ledger"
-  | "ledger_write_failed";
+  | "ledger_payload_invalid";
 
 export interface ReconcileIssue {
   runId: string;
@@ -37,7 +42,10 @@ export interface ReconcileIssue {
 }
 
 export interface ReconcileReport {
+  /** JSON projection files scanned. */
   scannedRuns: number;
+  /** Live (non-deleted) ledger entities. */
+  ledgerEntities: number;
   ledgerEventsRead: number;
   issues: ReconcileIssue[];
   /** eventType → count for types outside this domain's known vocabulary. */
@@ -58,8 +66,8 @@ interface LedgerEventRow {
 }
 
 /**
- * Drain ledger events for one domain with a bounded cursor walk so a huge
- * ledger cannot stall the caller; `truncated` becomes true if the cap is hit.
+ * Drain ledger events with a bounded cursor walk so a huge ledger cannot
+ * stall the caller; `truncated` becomes true if the cap is hit.
  */
 function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
   const ledger = getSharedLedger(cwd);
@@ -82,25 +90,33 @@ function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { event
   return { events, truncated: true };
 }
 
-interface SnapshotPayload {
-  status?: string;
-  planRevision?: number;
-  workerStatuses?: Record<string, { status?: string; attempt?: number }>;
+/** Read the JSON projection files directly — never through the authority read. */
+async function readProjectionRuns(cwd: string): Promise<CoordinationRun[]> {
+  const dir = join(cwd, ".alix", "coordination");
+  if (!existsSync(dir)) return [];
+  const files = await readdir(dir);
+  const runs: CoordinationRun[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const raw = await readFile(join(dir, file), "utf-8");
+      runs.push(JSON.parse(raw) as CoordinationRun);
+    } catch {
+      // corrupt projection file — reported by kind below as missing/invalid
+      // via its absence from this list; keep scanning.
+    }
+  }
+  return runs;
 }
 
 /**
- * Compare every coordination run JSON against the ledger. Read-only: never
- * mutates either side.
+ * Compare every JSON projection against the authoritative ledger.
  */
 export async function reconcileCoordinationLedger(cwd: string): Promise<ReconcileReport> {
   const issues: ReconcileIssue[] = [];
   const unknownEventTypes: Record<string, number> = {};
 
-  // JSON side
-  const store = new CoordinationStore(cwd);
-  const runs: CoordinationRun[] = await store.list();
-
-  // Ledger side (bounded drain)
+  const projections = await readProjectionRuns(cwd);
   const { events, truncated } = drainLedgerEvents(cwd);
 
   const byEntity = new Map<string, LedgerEventRow[]>();
@@ -113,15 +129,16 @@ export async function reconcileCoordinationLedger(cwd: string): Promise<Reconcil
     byEntity.set(e.entityId, list);
   }
 
-  const jsonRunIds = new Set<string>();
-  for (const run of runs) {
-    jsonRunIds.add(run.id);
+  const projectionIds = new Set<string>();
+  let liveEntities = 0;
+  for (const run of projections) {
+    projectionIds.add(run.id);
     const evts = byEntity.get(run.id);
     if (!evts || evts.length === 0) {
       issues.push({
         runId: run.id,
         kind: "missing_in_ledger",
-        detail: "run JSON exists with zero ledger events (legacy run or dual-write failure)",
+        detail: "JSON projection exists with zero ledger facts (legacy pre-ledger run)",
       });
       continue;
     }
@@ -133,69 +150,96 @@ export async function reconcileCoordinationLedger(cwd: string): Promise<Reconcil
         detail: `last entityVersion ${last.entityVersion} != event count ${evts.length}`,
       });
     }
-    const snap = (last.payload ?? {}) as SnapshotPayload;
-    if (last.eventType !== "coordination.run.deleted") {
-      if (snap.status !== undefined && snap.status !== run.status) {
+    if (last.eventType === "coordination.run.deleted") {
+      issues.push({
+        runId: run.id,
+        kind: "projection_stale",
+        detail: "ledger deleted this run but the JSON projection still exists",
+      });
+      continue;
+    }
+    const payload = last.payload as { run?: CoordinationRun } | null;
+    if (!payload?.run) {
+      issues.push({
+        runId: run.id,
+        kind: "ledger_payload_invalid",
+        detail: "live ledger event missing run payload — store.load would throw",
+      });
+      continue;
+    }
+    const ledgerRun = payload.run;
+    if (ledgerRun.status !== run.status) {
+      issues.push({
+        runId: run.id,
+        kind: "status_mismatch",
+        detail: `json=${run.status} ledger=${ledgerRun.status} (ledger authoritative)`,
+      });
+    }
+    if ((run.planRevision ?? 0) !== (ledgerRun.planRevision ?? 0)) {
+      issues.push({
+        runId: run.id,
+        kind: "plan_revision_mismatch",
+        detail: `json=${run.planRevision ?? 0} ledger=${ledgerRun.planRevision ?? 0}`,
+      });
+    }
+    const ledgerWorkers = new Map(ledgerRun.workers.map(w => [w.id, w]));
+    const projectionWorkers = new Map(run.workers.map(w => [w.id, w]));
+    const workerIds = new Set([...ledgerWorkers.keys(), ...projectionWorkers.keys()]);
+    for (const workerId of workerIds) {
+      const mirrored = ledgerWorkers.get(workerId);
+      const projected = projectionWorkers.get(workerId);
+      if (!projected) {
         issues.push({
           runId: run.id,
-          kind: "status_mismatch",
-          detail: `json=${run.status} ledger=${snap.status}`,
+          kind: "worker_status_mismatch",
+          detail: `worker ${workerId} present in ledger but absent from projection`,
         });
+        continue;
       }
-      if (typeof snap.planRevision === "number" && (run.planRevision ?? 0) !== snap.planRevision) {
+      if (!mirrored) {
         issues.push({
           runId: run.id,
-          kind: "plan_revision_mismatch",
-          detail: `json=${run.planRevision ?? 0} ledger=${snap.planRevision}`,
+          kind: "worker_status_mismatch",
+          detail: `worker ${workerId} present in projection but absent from ledger run`,
         });
+        continue;
       }
-      if (snap.workerStatuses) {
-        for (const worker of run.workers) {
-          const mirrored = snap.workerStatuses[worker.id];
-          if (!mirrored) {
-            issues.push({
-              runId: run.id,
-              kind: "worker_status_mismatch",
-              detail: `worker ${worker.id} absent from last ledger snapshot`,
-            });
-            continue;
-          }
-          if (mirrored.status !== worker.status || (mirrored.attempt ?? 0) !== (worker.attempt ?? 0)) {
-            issues.push({
-              runId: run.id,
-              kind: "worker_status_mismatch",
-              detail: `worker ${worker.id}: json={${worker.status},attempt=${worker.attempt ?? 0}} ledger={${mirrored.status},attempt=${mirrored.attempt ?? 0}}`,
-            });
-          }
-        }
+      if (mirrored.status !== projected.status || (mirrored.attempt ?? 0) !== (projected.attempt ?? 0)) {
+        issues.push({
+          runId: run.id,
+          kind: "worker_status_mismatch",
+          detail: `worker ${workerId}: json={${projected.status},attempt=${projected.attempt ?? 0}} ledger={${mirrored.status},attempt=${mirrored.attempt ?? 0}}`,
+        });
       }
     }
   }
 
-  // Orphans: ledger entities with no JSON run and no terminal delete event.
+  // Ledger side: live entities with no projection file, and payload sanity.
   for (const [entityId, evts] of byEntity) {
-    if (jsonRunIds.has(entityId)) continue;
     const last = evts[evts.length - 1];
     if (last.eventType === "coordination.run.deleted") continue;
+    liveEntities += 1;
+    if (projectionIds.has(entityId)) continue;
+    const payload = last.payload as { run?: CoordinationRun } | null;
+    if (!payload?.run) {
+      issues.push({
+        runId: entityId,
+        kind: "ledger_payload_invalid",
+        detail: "live ledger event missing run payload — store.load would throw",
+      });
+      continue;
+    }
     issues.push({
       runId: entityId,
-      kind: "orphan_in_ledger",
-      detail: `ledger has ${evts.length} event(s) but no run JSON (deleted outside the store or file lost)`,
-    });
-  }
-
-  const storeStatus = store.ledgerStatus();
-  if (storeStatus.failures > 0) {
-    issues.push({
-      runId: "*",
-      kind: "ledger_write_failed",
-      detail: `in-process dual-write failures=${storeStatus.failures} lastError=${storeStatus.lastError ?? "unknown"}`,
+      kind: "projection_missing",
+      detail: "live ledger run has no JSON projection file (projection write failed or file lost)",
     });
   }
 
   issues.sort((a, b) => a.runId.localeCompare(b.runId) || a.kind.localeCompare(b.kind));
   return {
-    scannedRuns: runs.length,
+    scannedRuns: projections.length,
+    ledgerEntities: liveEntities,
     ledgerEventsRead: events.length,
     issues,
     unknownEventTypes,
