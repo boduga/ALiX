@@ -36,6 +36,14 @@ barrel preserving public import paths.
   no-tool verification/repair and explicit-done/shell completion routes;
   shared `CompletionState` returns iteration counters on every exit.
   `coordinationRunIsVerified` checks persisted coordination completion evidence.
+- `refine-strategies.ts` + `strategy-learner.ts` — repair-loop refine
+  strategies (moved from the dead `src/orchestrator/` in R3.1).
+  `buildRefinePrompt`/`selectStrategy` are the entry points used by
+  `completion-phase.ts`. Strategy templates live in the sibling
+  `refine-strategies/*.md` directory, resolved MODULE-RELATIVE (never
+  `process.cwd()`) and copied to dist by `scripts/copy-build-artifacts.mjs`;
+  `strategy-learner.ts` reads repair history from
+  `~/.config/alix/repair-history.jsonl` and falls back to heuristics.
 - `pending-action-phase.ts` — `gatePendingAgentAction`: shared bounded rejection
   of final prose promising unfinished operator-authorized work.
 - `continuation.ts` — dependency-free `isContinuationMessage` and
