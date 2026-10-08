@@ -50,7 +50,7 @@ one snapshot contract shared TUI + browser.
 
 # Resume here (fresh session)
 
-**Branch:** `refactor/r2-ledger` · **HEAD:** `6c650e84` (R4.3) · worktree clean · 36 commits ahead of `origin/main`.
+**Branch:** `refactor/r2-ledger` · **HEAD:** `e0db20be` (R4.4) · worktree clean · 38 commits ahead of `origin/main`.
 **Tags:** `r3-complete`, `r3-consolidation`, `r3-graph-executor-adapt` (rollback points).
 **Gates green after R4.3:** `pnpm test:node` (only the known `governance-report` spawn-budget flake — passes solo) · `pnpm test:vitest` 7133 pass / 0 fail · `npx tsc -p tsconfig.json --noEmit` · `npx tsc -p tsconfig.unused.json --noEmit` · `node scripts/check-dead-modules.mjs` · `node scripts/check-dox-claims.mjs --base origin/main`.
 
