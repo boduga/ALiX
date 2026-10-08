@@ -102,29 +102,53 @@ export async function handleApprovalsRoot(args: string[]): Promise<void> {
   }
 
   if (args[0] === "reconcile") {
-    // R2.4: read-only comparison of the approvals projection against the
-    // transactional ledger. Exit 1 on drift so scripts/CI can gate on it.
+    // R2.4/R2.8: read-only comparison of the approvals + continuations
+    // projections against the transactional ledger. Exit 1 on ANY drift so
+    // scripts/CI can gate on it.
     const { reconcileApprovalLedger } = await import("../../approvals/approval-ledger-reconcile.js");
-    const report = await reconcileApprovalLedger(cwd);
+    const { reconcileContinuationLedger } = await import("../../runtime/continuation-ledger-reconcile.js");
+
+    const approvals = await reconcileApprovalLedger(cwd);
     console.log(`Approvals ledger reconciliation`);
-    console.log(`  projection records: ${report.scannedRecords}`);
-    console.log(`  ledger entities:    ${report.ledgerEntities}`);
-    console.log(`  ledger events:      ${report.ledgerEventsRead}`);
-    console.log(`  truncated reads:    ${report.truncated}`);
-    const unknown = Object.entries(report.unknownEventTypes);
-    if (unknown.length > 0) {
+    console.log(`  projection records: ${approvals.scannedRecords}`);
+    console.log(`  ledger entities:    ${approvals.ledgerEntities}`);
+    console.log(`  ledger events:      ${approvals.ledgerEventsRead}`);
+    console.log(`  truncated reads:    ${approvals.truncated}`);
+    const approvalsUnknown = Object.entries(approvals.unknownEventTypes);
+    if (approvalsUnknown.length > 0) {
       console.log(`  unknown event types:`);
-      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+      for (const [type, count] of approvalsUnknown) console.log(`    ${type}: ${count}`);
     }
-    if (report.issues.length === 0) {
+    if (approvals.issues.length === 0) {
       console.log(`  issues:             none`);
-      process.exit(0);
+    } else {
+      console.log(`  issues:             ${approvals.issues.length}`);
+      for (const issue of approvals.issues) {
+        console.log(`    [${issue.kind}] ${issue.approvalId}: ${issue.detail}`);
+      }
     }
-    console.log(`  issues:             ${report.issues.length}`);
-    for (const issue of report.issues) {
-      console.log(`    [${issue.kind}] ${issue.approvalId}: ${issue.detail}`);
+
+    const continuations = await reconcileContinuationLedger(cwd);
+    console.log(`\nContinuations ledger reconciliation`);
+    console.log(`  projection records: ${continuations.scannedRecords}`);
+    console.log(`  ledger entities:    ${continuations.ledgerEntities}`);
+    console.log(`  ledger events:      ${continuations.ledgerEventsRead}`);
+    console.log(`  truncated reads:    ${continuations.truncated}`);
+    const contUnknown = Object.entries(continuations.unknownEventTypes);
+    if (contUnknown.length > 0) {
+      console.log(`  unknown event types:`);
+      for (const [type, count] of contUnknown) console.log(`    ${type}: ${count}`);
     }
-    process.exit(1);
+    if (continuations.issues.length === 0) {
+      console.log(`  issues:             none`);
+    } else {
+      console.log(`  issues:             ${continuations.issues.length}`);
+      for (const issue of continuations.issues) {
+        console.log(`    [${issue.kind}] ${issue.approvalId}: ${issue.detail}`);
+      }
+    }
+
+    process.exit(approvals.ok && continuations.ok ? 0 : 1);
   }
 
   console.log("Usage: alix approvals [list|pending|show|approve|deny|reconcile]");

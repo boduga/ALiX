@@ -560,6 +560,13 @@
     "rule": "status-store-writes"
   },
   {
+    "imported": "src/runtime/continuation-store.ts",
+    "importer": "src/runtime/continuation-ledger-reconcile.ts",
+    "reason": "R0 B5 \u2014 reconciliation reads the R0-flagged continuation store for comparison; drops when the ledger projection replaces store reads",
+    "removalPhase": "R2",
+    "rule": "status-store-writes"
+  },
+  {
     "imported": "src/runtime/execution-state/execution-state-store.ts",
     "importer": "src/runtime/execution-state/execution-ledger-reconcile.ts",
     "reason": "R0 B7 \u2014 reconciliation reads the R0-flagged snapshot store for comparison; drops when the ledger projection replaces snapshot reads",
