@@ -19,6 +19,15 @@ Durable append-only audit trail for policy decisions, approval lifecycle, and ru
 ## Local Contracts
 
 - Append-only JSONL — no mutation, no deletion.
+- **Audit stores are intentionally NOT mirrored to the R2 runtime ledger.**
+  The hash-chained append-only JSONL (v2 chain / governance chain) IS the
+  integrity authority for audit facts; a second SQLite copy would be a third
+  truth source, not consolidation. Ledger migration for this domain means
+  eventually READING audit through one projection (`readUnifiedAudit` already
+  merges for consumers) — never dual-writing it. R2.11 recorded this as a
+  deliberate exception to the strangler pattern used by coordination,
+  approvals, execution-state, graphs, continuations, daemon tasks,
+  collaboration, replays, and evidence.
 - Persistence contract: every audit event store implements `AuditEventStore` (`audit-contract.ts`); the JSONL I/O primitive is `../storage/jsonl-store.ts`. Domain stores are adapters (record shaping/validation/chain), not separate persistence engines.
 - Runtime decision audit failures must never alter gate outcomes. Inspector authentication mutations are the explicit exception: an audit append failure rejects the mutation without persisting it.
 - Audit events emitted from RuntimeGate, ApprovalStore (request/resolve), graph continue, and policy eval.

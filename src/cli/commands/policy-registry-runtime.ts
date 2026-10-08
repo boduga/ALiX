@@ -301,29 +301,70 @@ export async function handleRuntimeRoot(args: string[]): Promise<void> {
   }
 
   if (args[0] === "reconcile-executions") {
-    // R2.6: read-only comparison of execution-state snapshots against the
-    // transactional ledger. Exit 1 on drift so scripts/CI can gate on it.
+    // R2.6/R2.11: read-only comparison of execution-state snapshots, replay
+    // index, and execution evidence against the transactional ledger.
+    // Exit 1 on ANY drift so scripts/CI can gate on it.
     const { reconcileExecutionLedger } = await import("../../runtime/execution-state/execution-ledger-reconcile.js");
-    const report = await reconcileExecutionLedger();
-    console.log(`Execution-state ledger reconciliation`);
-    console.log(`  snapshots scanned: ${report.scannedSnapshots}`);
-    console.log(`  ledger entities:   ${report.ledgerEntities}`);
-    console.log(`  ledger events:     ${report.ledgerEventsRead}`);
-    console.log(`  truncated reads:   ${report.truncated}`);
-    const unknown = Object.entries(report.unknownEventTypes);
-    if (unknown.length > 0) {
-      console.log(`  unknown event types:`);
-      for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
-    }
-    if (report.issues.length === 0) {
-      console.log(`  issues:            none`);
-      process.exit(0);
-    }
-    console.log(`  issues:            ${report.issues.length}`);
-    for (const issue of report.issues) {
-      console.log(`    [${issue.kind}] ${issue.executionId}: ${issue.detail}`);
-    }
-    process.exit(1);
+    const { reconcileReplayLedger, reconcileEvidenceLedger } = await import("../../runtime/runtime-evidence-ledger-reconcile.js");
+
+    const printSection = (
+      title: string,
+      report: {
+        scanned: number; ledgerEntities: number; ledgerEventsRead: number;
+        truncated: boolean; unknownEventTypes: Record<string, number>;
+        issues: Array<{ kind: string; id: string; detail: string }>;
+      },
+    ): boolean => {
+      console.log(`\n${title}`);
+      console.log(`  records scanned:  ${report.scanned}`);
+      console.log(`  ledger entities:  ${report.ledgerEntities}`);
+      console.log(`  ledger events:    ${report.ledgerEventsRead}`);
+      console.log(`  truncated reads:  ${report.truncated}`);
+      const unknown = Object.entries(report.unknownEventTypes);
+      if (unknown.length > 0) {
+        console.log(`  unknown event types:`);
+        for (const [type, count] of unknown) console.log(`    ${type}: ${count}`);
+      }
+      if (report.issues.length === 0) {
+        console.log(`  issues:           none`);
+      } else {
+        console.log(`  issues:           ${report.issues.length}`);
+        for (const issue of report.issues) console.log(`    [${issue.kind}] ${issue.id}: ${issue.detail}`);
+      }
+      return report.issues.length === 0 && !report.truncated;
+    };
+
+    const execReport = await reconcileExecutionLedger();
+    const execOk = printSection("Execution-state ledger reconciliation", {
+      scanned: execReport.scannedSnapshots,
+      ledgerEntities: execReport.ledgerEntities,
+      ledgerEventsRead: execReport.ledgerEventsRead,
+      truncated: execReport.truncated,
+      unknownEventTypes: execReport.unknownEventTypes,
+      issues: execReport.issues.map(i => ({ kind: i.kind, id: i.executionId, detail: i.detail })),
+    });
+
+    const replayReport = await reconcileReplayLedger(cwd);
+    const replayOk = printSection("Replay-index ledger reconciliation", {
+      scanned: replayReport.scannedEntries,
+      ledgerEntities: replayReport.ledgerEntities,
+      ledgerEventsRead: replayReport.ledgerEventsRead,
+      truncated: replayReport.truncated,
+      unknownEventTypes: replayReport.unknownEventTypes,
+      issues: replayReport.issues.map(i => ({ kind: i.kind, id: i.replayId, detail: i.detail })),
+    });
+
+    const evidenceReport = await reconcileEvidenceLedger(cwd);
+    const evidenceOk = printSection("Execution-evidence ledger reconciliation", {
+      scanned: evidenceReport.scannedRecords,
+      ledgerEntities: evidenceReport.ledgerEntities,
+      ledgerEventsRead: evidenceReport.ledgerEventsRead,
+      truncated: evidenceReport.truncated,
+      unknownEventTypes: evidenceReport.unknownEventTypes,
+      issues: evidenceReport.issues.map(i => ({ kind: i.kind, id: i.evidenceId, detail: i.detail })),
+    });
+
+    process.exit(execOk && replayOk && evidenceOk ? 0 : 1);
   }
 
   console.log("Usage: alix runtime [events|timeline|reconcile-executions]");
