@@ -93,21 +93,14 @@ const UI_RULE_TARGETS = [
   "src/ownership/ownership-registry.ts",
 ];
 
-const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string }> = {
+const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string; exempt?: string[] }> = {
   "model-resolver-impls": {
-    files: [
-      "src/config/model-resolver.ts",
-      "src/providers/model-resolver.ts",
-      "src/decision/decisions/model-tier/resolution.ts",
-    ],
-    symbols: [
-      "resolveModelConfig",
-      "tryResolveModelConfig",
-      "selectModelFromDiscovery",
-      "resolveModelSelectionId",
-      "resolveConcreteFreeModel",
-      "resolveTierModel",
-    ],
+    // R5.2 — one canonical resolver module, exposed through the ModelResolver
+    // port. Watch the canonical factory everywhere *except* its home module, so
+    // a second resolver definition anywhere else fails the freeze.
+    files: ["src/config/model-resolver.ts"],
+    symbols: ["createModelResolver"],
+    exempt: ["src/config/model-resolver.ts"],
     marker: "definition:model-resolution",
   },
   "tool-taxonomy-defs": {
@@ -255,6 +248,7 @@ function scanDefinitions(): Violation[] {
     while ((m = defRe.exec(content)) !== null) defined.add(m[1]);
     if (defined.size === 0) continue;
     for (const [rule, cfg] of Object.entries(DEF_RULES)) {
+      if (cfg.exempt?.includes(importer)) continue;
       if (cfg.symbols.some((s) => defined.has(s))) {
         found.set(`${rule}|${importer}|${cfg.marker}`, {
           rule,

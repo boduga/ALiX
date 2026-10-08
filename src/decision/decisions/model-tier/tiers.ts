@@ -12,9 +12,9 @@
  * pass/fail requirement.
  */
 
-import type { ModelCapabilityName, ModelTier } from "../../../config/schema.js";
+import type { ModelCapabilityName, ModelConfig, ModelTier } from "../../../config/schema.js";
 import { MODEL_TIER_VALUES, isModelTier, isValidModelConfig } from "../../../config/schema.js";
-import type { ModelSourceConfig } from "../../../config/model-resolver.js";
+import { createModelResolver, type ModelSourceConfig } from "../../../config/model-resolver.js";
 
 /** Canonical tier candidates, in canonical order. */
 export const TIER_CANDIDATES = MODEL_TIER_VALUES;
@@ -68,4 +68,41 @@ export function filterTiersByCapability(
     const declared = config.models?.[tier]?.capabilities ?? [];
     return required.every((capability) => declared.includes(capability));
   });
+}
+
+/**
+ * Resolve the concrete model for a tier via the canonical configuration.
+ * Fail-closed (arch §11): an unknown or unconfigured tier is rejected here
+ * rather than silently falling back to `models.default`, so a bad tier cannot
+ * reach a provider invocation.
+ */
+export function resolveEnabledTierModel(
+  config: ModelSourceConfig,
+  tier: ModelTier,
+): ModelConfig {
+  assertEnabledTier(tier, listEnabledTiers(config));
+  return createModelResolver(config).require(tier);
+}
+
+/** The concrete model the current routing policy uses. */
+export type CurrentRouting = {
+  tier: ModelTier;
+  provider: string;
+  name: string;
+};
+
+/** What the existing routing policy would use today (the fallback arm). */
+export function describeCurrentRouting(config: ModelSourceConfig): CurrentRouting {
+  const model = resolveEnabledTierModel(config, "default");
+  return { tier: "default", provider: model.provider, name: model.name };
+}
+
+/** Whether a tier resolves to the same concrete model as current routing. */
+export function tierMatchesCurrentRouting(
+  config: ModelSourceConfig,
+  tier: ModelTier,
+): boolean {
+  const current = describeCurrentRouting(config);
+  const target = resolveEnabledTierModel(config, tier);
+  return target.provider === current.provider && target.name === current.name;
 }

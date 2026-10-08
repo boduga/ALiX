@@ -49,7 +49,7 @@ import {
 } from "../../task-classifier.js";
 import "../../repomap/context-compiler.js";
 import "../../config/context-limits.js";
-import { resolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 import "../../config/context-budget.js";
 import "../../utils/tokens.js";
 import "../../skills/dispatcher.js";
@@ -491,7 +491,7 @@ export async function processTurnBody(
   // Build execution context for diagnostic correlation. runId is the
   // turn root established at processTurn entry (R1) — same identity used
   // for the trace and for model-span resolution via getRun(context.runId).
-  const resolved = resolveModelConfig(state.ctx.config);
+  const resolved = createModelResolver(state.ctx.config).require();
   const taskContext: ExecutionContext = {
     runId,
     sessionId: state.ctx.sessionId,
@@ -724,7 +724,7 @@ export async function processTurnBody(
   try {
     result = await runTaskLoop({
       config: {
-        // Canonical `models` only — the loop resolves via resolveModelConfig.
+        // Canonical `models` only — the loop resolves via createModelResolver.
         models: state.ctx.config.models,
         permissions: {
           sessionMode: state.ctx.config.permissions.sessionMode,

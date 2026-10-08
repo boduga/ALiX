@@ -6,8 +6,8 @@ import {
 } from "vitest";
 
 import {
-  selectModelFromDiscovery,
-  resolveConcreteFreeModel,
+  selectDiscoveredModel,
+  resolveConcreteFreeSelection,
 } from "../../src/providers/model-resolver.js";
 
 import type {
@@ -24,7 +24,7 @@ import {
 } from "../../src/providers/access-restriction-registry.js";
 
 import {
-  resolveModelSelectionId,
+  resolveSelectionModelId,
 } from "../../src/providers/model-resolver.js";
 
 const M = (
@@ -57,7 +57,7 @@ const M = (
     : {}),
 });
 
-describe("selectModelFromDiscovery", () => {
+describe("selectDiscoveredModel", () => {
   it("picks the cheapest paid model meeting caps", () => {
     const models = [
       M(
@@ -75,7 +75,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {
           cost: "paid",
           capabilities: ["tools"],
@@ -102,7 +102,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {
           cost: "paid",
           capabilities: ["structured_output"],
@@ -129,7 +129,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {
           cost: "paid",
           capabilities: ["vision"],
@@ -146,7 +146,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { cost: "free" },
         models,
       )?.id,
@@ -160,7 +160,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { cost: "paid" },
         models,
       )?.id,
@@ -178,7 +178,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {
           cost: "paid",
           capabilities: ["tools"],
@@ -195,7 +195,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { minContext: 32_768 },
         models,
       )?.id,
@@ -212,7 +212,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { minContext: 32_768 },
         models,
       )?.id,
@@ -226,7 +226,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {},
         models,
       )?.id,
@@ -241,7 +241,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { cost: "any" },
         models,
       )?.id,
@@ -263,7 +263,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         { cost: "any" },
         models,
       )?.id,
@@ -277,7 +277,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {},
         models,
       )?.id,
@@ -291,7 +291,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {},
         models,
       )?.id,
@@ -305,7 +305,7 @@ describe("selectModelFromDiscovery", () => {
     ];
 
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {},
         models,
         new Set(["b"]),
@@ -315,7 +315,7 @@ describe("selectModelFromDiscovery", () => {
 
   it("returns undefined when nothing is eligible", () => {
     expect(
-      selectModelFromDiscovery(
+      selectDiscoveredModel(
         {
           minContext: 1_000_000,
         },
@@ -327,7 +327,7 @@ describe("selectModelFromDiscovery", () => {
   });
 });
 
-describe("resolveConcreteFreeModel (free-route helper)", () => {
+describe("resolveConcreteFreeSelection (free-route helper)", () => {
   const reqTools = {
     needsTools: true,
     needsStructuredOutput: false,
@@ -340,7 +340,7 @@ describe("resolveConcreteFreeModel (free-route helper)", () => {
       M("b/big:free", 64_000, 0, ["tools"]),
     ];
     expect(
-      resolveConcreteFreeModel(models, reqTools)?.id,
+      resolveConcreteFreeSelection(models, reqTools)?.id,
     ).toBe("b/big:free");
   });
 
@@ -350,7 +350,7 @@ describe("resolveConcreteFreeModel (free-route helper)", () => {
       M("tools", 8_000, 0, ["tools"]),
     ];
     expect(
-      resolveConcreteFreeModel(models, reqTools)?.id,
+      resolveConcreteFreeSelection(models, reqTools)?.id,
     ).toBe("tools");
   });
 
@@ -360,7 +360,7 @@ describe("resolveConcreteFreeModel (free-route helper)", () => {
       M("b", 128_000, 0, ["tools"]),
     ];
     expect(
-      resolveConcreteFreeModel(models, reqTools, new Set(["b"]))?.id,
+      resolveConcreteFreeSelection(models, reqTools, new Set(["b"]))?.id,
     ).toBe("a");
   });
 });
@@ -374,7 +374,7 @@ afterEach(() => {
 });
 
 describe(
-  "resolveModelSelectionId seam",
+  "resolveSelectionModelId seam",
   () => {
     it(
       "defaults provider to openrouter and selects cheapest eligible",
@@ -423,7 +423,7 @@ describe(
         );
 
         await expect(
-          resolveModelSelectionId(
+          resolveSelectionModelId(
             {
               cost: "paid",
               capabilities: [
@@ -481,7 +481,7 @@ describe(
         );
 
         await expect(
-          resolveModelSelectionId(
+          resolveSelectionModelId(
             {
               cost: "free",
               capabilities: [

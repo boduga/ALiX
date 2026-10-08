@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/loader.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { EventLog } from "../events/event-log.js";
 import { ApprovalManager } from "../policy/approvals.js";
 import { buildRepoMapLite } from "../repomap/repomap-lite.js";
@@ -81,11 +81,13 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   }
 
   // Auto-disable streaming in non-TTY environments unless explicitly forced.
-  // Streaming lives on the canonical models.default (§2.8.3); keep the
-  // canonical source consistent so resolveModelConfig() reflects the change.
-  if (shouldAutoDisableStreaming() && config.models?.default?.streaming) {
-    config.models.default.streaming = false;
-  }
+  // Streaming lives on the canonical models.default (§2.8.3). Never mutate the
+  // loaded config: build a local override so the resolver sees the disabled
+  // flag while the persisted/loaded config stays untouched (R5.2).
+  const effectiveConfig =
+    shouldAutoDisableStreaming() && config.models?.default?.streaming
+      ? { ...config, models: { ...config.models, default: { ...config.models.default, streaming: false } } }
+      : config;
 
   // Create approval manager with event log
   new ApprovalManager({
@@ -114,7 +116,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
-  const model = resolveModelConfig(config);
+  const model = createModelResolver(effectiveConfig).require();
   const apiKeyFor = (pid: string): string => config.apiKeys?.[pid] ?? "";
   const provider = await buildRoutingAdapter(model, apiKeyFor);
   const editFormatPolicy = buildEditFormatPolicy({ provider: model.provider, preferred: provider.editFormatPreference });

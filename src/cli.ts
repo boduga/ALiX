@@ -4,7 +4,7 @@ import "node:fs/promises";
 import "node:os";
 import "node:path";
 import { loadConfig } from "./config/loader.js";
-import { resolveModelConfig } from "./config/model-resolver.js";
+import { createModelResolver } from "./config/model-resolver.js";
 import { ALIX_VERSION } from "./index.js";
 import "./run.js";
 import "./agent/session.js";
@@ -344,7 +344,7 @@ if (command === "agent" && agentRole) {
   const prompt = promptWords.join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
   const config = await loadConfig(process.cwd());
-  const resolved = resolveModelConfig(config);
+  const resolved = createModelResolver(config).require();
   const provider = resolved.provider;
   const model = resolved.name;
   const { SubagentCLI } = await import("./agents/subagent-cli.js");

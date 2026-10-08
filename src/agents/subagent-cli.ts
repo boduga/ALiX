@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole, SubagentStyle, ModelSelectionPolicy } from "../config/schema.js";
 import { resolvePolicyPath } from "../policy/policy-gate.js";
 import { ALIX_BUILTIN_EXECUTORS } from "./tool-manifest.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 
 /**
  * §10.3: resolve the effective model for a subagent invocation with
@@ -24,7 +24,7 @@ export function resolveEffectiveModel(
   roleStyle: SubagentStyle | undefined,
   overrides: { provider?: string; name?: string },
 ): { provider: string; name: string; selection?: ModelSelectionPolicy } {
-  const base = resolveModelConfig(config, roleStyle);
+  const base = createModelResolver(config).require(roleStyle);
   // An explicit name override pins a concrete model, so its selection policy
   // no longer applies; otherwise carry the base policy for discovery.
   const selection = overrides.name ? undefined : base.selection;

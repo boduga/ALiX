@@ -19,9 +19,9 @@ export function createPlannerGenerator(config: AlixConfig): PlannerGenerate {
   const getProvider = (): Promise<import("../providers/types.js").ModelAdapter> => {
     if (!providerPromise) {
       providerPromise = (async () => {
-        const { resolveModelConfig } = await import("../config/model-resolver.js");
+        const { createModelResolver } = await import("../config/model-resolver.js");
         const { createProvider } = await import("../providers/registry.js");
-        const resolved = resolveModelConfig(config, "fast");
+        const resolved = createModelResolver(config).require("fast");
         return createProvider({
           provider: resolved.provider,
           name: resolved.name,

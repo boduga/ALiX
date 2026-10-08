@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
-import { tryResolveModelConfig } from "../../config/model-resolver.js";
+import { createModelResolver } from "../../config/model-resolver.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
 import { ApprovalStore } from "../../approvals/approval-store.js";
 import { TuiApp } from "../../tui/app.js";
@@ -313,7 +313,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   } else {
     // Resolve the effective default model from the canonical `models` source
     // (never the derived `model` projection — §10).
-    const configuredModel = tryResolveModelConfig(config);
+    const configuredModel = createModelResolver(config).resolve();
     const braveSearch = webSearchTool();
     const chatSearchTool = async (query: string): Promise<string> => {
       // Brave Search is opt-in via the credential store (`cred://brave/apiKey`).
@@ -354,7 +354,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         // stream tokens live (processTurn's direct-route branch runs BEFORE
         // the context model is resolved, so it can't read streaming there; we
         // resolve it here from the canonical models and pass it through).
-        streaming: tryResolveModelConfig(config)?.streaming !== false,
+        streaming: createModelResolver(config).resolve()?.streaming !== false,
         ...(configuredModel?.provider
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
           : {}),

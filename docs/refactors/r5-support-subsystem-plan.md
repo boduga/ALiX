@@ -1,6 +1,6 @@
 # R5 — Support Subsystem Convergence Plan
 
-**Status:** in progress — R5.0 (plan) ✅, R5.1 (egress redaction) ✅.
+**Status:** in progress — R5.0 (plan) ✅, R5.1 (egress redaction) ✅, R5.2 (`models.*` cutover) ✅.
 **Phase register:** `docs/refactors/r0-findings-r3-plan.md` (R5 row + "R5 security note (do not lose)").
 **Provenance:** four read-only recon passes against HEAD `r4-complete` (`e9008d88`). Line numbers verified in that session.
 
@@ -86,7 +86,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 |---|---|---|
 | R5.0 | Persist this recon/plan | ✅ |
 | R5.1 | **Outbound redaction gate:** remote/local provider predicate + shared redactor applied to every provider-bound `systemPrompt`/`messages` before send; fail-closed for remote. Owner seams: `route-execution.ts`, `run/task-loop/main.ts`, `planner-model.ts`, `subagent-cli.ts` (and siblings). Tests assert a secret in assembled prompt never reaches a remote adapter. | ✅ |
-| R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ⬜ |
+| R5.2 | **`models.*` cutover:** route all reads through the `ModelResolver` port / one resolver; kill flat reads (`hardware-detect.ts`, `providers/registry.ts`, `subagents.enabled` branches) and the post-load `agent.ts` mutation; remove the 3 `model-resolver-impls` allowlist entries. | ✅ |
 | R5.3 | **ONE tool/capability catalogue:** implement the `ToolCapabilityRegistry` port + MCP/manifest adapters; reconcile concrete MCP tools; resolve the 8 `direct-tool-dispatch` executor imports through a tool port; remove the tool-taxonomy + direct-dispatch `R5` allowlist entries. | ⬜ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ⬜ |
 | R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ⬜ |
@@ -116,6 +116,15 @@ Central gate: `withProviderContracts` (the wrapper every `createProvider` adapte
 3. Wired the gate into `withProviderContracts.complete`/`stream`; local providers (keyless + eval mock) pass through unredacted.
 4. Tests: `tests/providers/outbound-redaction.vitest.ts` (locality, request redaction, remote-vs-local through the wrapper for complete + stream) and `redactText` cases in `tests/security/redaction/redactor.test.ts`.
 5. DOX: added the outbound-redaction contract to `src/providers/AGENTS.md`.
+
+## R5.2 (`models.*` cutover) — ✅ done
+The freeze rule `model-resolver-impls` watched six exported symbol names across all of `src` (its `files` field was dead), so entries could only be removed by eliminating those names.
+1. `src/config/model-resolver.ts` now exports the single canonical `createModelResolver(config): ModelResolver` factory (port methods `resolve`/`require`); the old `resolveModelConfig`/`tryResolveModelConfig` free functions are gone. ~20 call sites migrated.
+2. `src/decision/decisions/model-tier/resolution.ts` deleted; the fail-closed helpers (`resolveEnabledTierModel`/`describeCurrentRouting`/`tierMatchesCurrentRouting`) moved into `tiers.ts`. `src/providers/model-resolver.ts` symbols renamed to discovery-flavored names (`selectDiscoveredModel`/`resolveSelectionModelId`/`resolveConcreteFreeSelection`).
+3. Flat reads killed: `config/hardware-detect.ts` reads canonical `models.*` only; the post-load `agent.ts` mutation of `models.default.streaming` is replaced by a local non-mutating override.
+4. Freeze rule: `DEF_RULES` gained an `exempt` list; `model-resolver-impls` now watches `createModelResolver` everywhere except `src/config/model-resolver.ts`, so a second resolver definition fails the freeze. Removed the 3 `model-resolver-impls` allowlist entries.
+5. Tests updated (`tests/config/model-resolver.test.ts`, `tests/decision/model-tier.test.ts`, `tests/config/hardware-detect.test.ts`, provider tests); DOX updated (`src/providers/AGENTS.md`, `src/decision/decisions/model-tier/AGENTS.md`).
+6. Deferred (documented): `providers/registry.ts`'s `config.name ?? config.model` is registry input normalization, not a canonical-`models` read; the `subagents.enabled` projection branches are loader-produced compatibility reads (a caller-facing migration, not a flat source-of-truth read) — left for a follow-up.
 
 ## Resume here (fresh session)
 

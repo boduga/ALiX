@@ -6,7 +6,7 @@ import type { RunResult } from "../run.js";
 import { deriveCoordinationChangedFiles } from "./coordination-evidence.js";
 import { renderWorkerExecutionPrompt } from "./coordination-worker-context.js";
 import { reviewCoordinationResult, type ObjectiveArtifact } from "../agents/coordination-objective-review.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { createProvider } from "../providers/registry.js";
 import { getApiKey } from "../cli/helpers/api-keys.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -46,7 +46,7 @@ export async function reviewDefaultWorkerResult(
   const mutatedPaths = deriveCoordinationChangedFiles({ events: mutationEvents }, { cwd: context.cwd });
   let provider;
   try {
-    const model = resolveModelConfig(context.config, "critic");
+    const model = createModelResolver(context.config).require("critic");
     provider = await createProvider(model, await getApiKey(model.provider));
   } catch (error) {
     return {

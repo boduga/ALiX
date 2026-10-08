@@ -5,7 +5,7 @@ import type { StreamHandler } from "./stream.js";
 import type { ToolDef } from "../providers/types.js";
 import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { createToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -231,7 +231,7 @@ async function runTaskCoreImpl(
 
   	// Resolve context window and tokenizer from config or API, then
 	// derive the authoritative per-turn ContextBudget (B).
-	const resolved = resolveModelConfig(ctx.config);
+	const resolved = createModelResolver(ctx.config).require();
 	const userOverride = resolved.maxContextTokens;
 	let contextBudget: ContextBudget;
 	let tokenizer: TokenizerName;
@@ -469,7 +469,7 @@ ${approvedPlanContent}`);
   // Build task loop deps.
   // Resolve the effective model from the canonical `models` source (single-source
   // invariant) — `model` is a loader projection and is never read directly.
-  const resolvedModel = resolveModelConfig(ctx.config);
+  const resolvedModel = createModelResolver(ctx.config).require();
   // Build execution context for diagnostic correlation. runId is the root
   // established at runTaskCore entry (R1) — same identity used for the trace
   // and for model-span resolution via getRun(context.runId).
@@ -485,7 +485,7 @@ ${approvedPlanContent}`);
   const taskLoopDeps: TaskLoopDeps = {
     config: {
       // Forward the canonical models object so the loop resolves via
-      // resolveModelConfig(models[tier] ?? models.default), not the projection.
+      // createModelResolver(models[tier] ?? models.default).require(), not the projection.
       models: ctx.config.models,
       permissions: {
         sessionMode: ctx.config.permissions.sessionMode,

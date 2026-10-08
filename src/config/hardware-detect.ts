@@ -82,12 +82,13 @@ function detectAPIProviders(config: Record<string, unknown>): Record<string, { c
   const providers: Record<string, { configured: boolean; hasKey: boolean }> = {};
   const known = ["anthropic", "openai", "google", "perplexity", "groq", "mistral", "cohere", "deepseek"];
   const apiKeys = (config.apiKeys as Record<string, string>) || {};
-  const model = config.model as Record<string, unknown> | undefined;
-  const models = config.models as Record<string, Record<string, unknown>> | undefined;
+  // Canonical `models.*` only (R5.2): the derived `model` projection is never
+  // a source of truth for provider configuration.
+  const models = config.models as Record<string, { provider?: unknown }> | undefined;
 
   for (const p of known) {
     const hasKey = !!apiKeys[p];
-    const configured = model?.provider === p || (models && Object.values(models).some((m: any) => m?.provider === p)) || !!apiKeys[p];
+    const configured = (models && Object.values(models).some((m) => m?.provider === p)) || !!apiKeys[p];
     providers[p] = { configured, hasKey };
   }
   return providers;

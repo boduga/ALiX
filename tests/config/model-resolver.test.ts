@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveModelConfig, tryResolveModelConfig } from "../../src/config/model-resolver.js";
+import { createModelResolver } from "../../src/config/model-resolver.js";
 import type { AlixConfig, ModelsConfig } from "../../src/config/schema.js";
 
 function config(models: ModelsConfig | undefined): AlixConfig {
@@ -14,45 +14,44 @@ const NO_MODEL_MSG = "No model configured. Run: alix models set-default";
 // --- §3.1 Resolution rules ---
 
 test("resolves models.default when no tier is given", () => {
-  const resolved = resolveModelConfig(config({ default: VALID }));
+  const resolved = createModelResolver(config({ default: VALID })).require();
   assert.deepEqual(resolved, VALID);
 });
 
 test("tier === 'default' resolves models.default", () => {
-  const resolved = resolveModelConfig(config({ default: VALID }), "default");
+  const resolved = createModelResolver(config({ default: VALID })).require("default");
   assert.deepEqual(resolved, VALID);
 });
 
 test("explicit non-default tier resolves models[tier]", () => {
-  const resolved = resolveModelConfig(
+  const resolved = createModelResolver(
     config({ default: VALID, thinking: THINKING }),
-    "thinking",
-  );
+  ).require("thinking");
   assert.deepEqual(resolved, THINKING);
 });
 
 test("missing tier falls back to models.default", () => {
-  const resolved = resolveModelConfig(config({ default: VALID }), "coding");
+  const resolved = createModelResolver(config({ default: VALID })).require("coding");
   assert.deepEqual(resolved, VALID);
 });
 
 // --- §3.4 Failure ---
 
 test("throws when no models object exists", () => {
-  assert.throws(() => resolveModelConfig(config(undefined)), {
+  assert.throws(() => createModelResolver(config(undefined)).require(), {
     message: NO_MODEL_MSG,
   });
 });
 
 test("throws when models.default is absent", () => {
-  assert.throws(() => resolveModelConfig(config({ thinking: THINKING })), {
+  assert.throws(() => createModelResolver(config({ thinking: THINKING })).require(), {
     message: NO_MODEL_MSG,
   });
 });
 
 test("throws when models.default is invalid (empty provider/name)", () => {
   assert.throws(
-    () => resolveModelConfig(config({ default: { provider: "", name: "" } })),
+    () => createModelResolver(config({ default: { provider: "", name: "" } })).require(),
     { message: NO_MODEL_MSG },
   );
 });
@@ -60,19 +59,17 @@ test("throws when models.default is invalid (empty provider/name)", () => {
 test("throws when an explicit tier is present but invalid (shadows default, never falls back)", () => {
   assert.throws(
     () =>
-      resolveModelConfig(
+      createModelResolver(
         config({ default: VALID, coding: { provider: "", name: "" } }),
-        "coding",
-      ),
+      ).require("coding"),
     { message: NO_MODEL_MSG },
   );
 });
 
 test("resolves a valid explicit tier even when default is invalid", () => {
-  const resolved = resolveModelConfig(
+  const resolved = createModelResolver(
     config({ default: { provider: "", name: "" }, thinking: THINKING }),
-    "thinking",
-  );
+  ).require("thinking");
   assert.deepEqual(resolved, THINKING);
 });
 
@@ -80,7 +77,7 @@ test("resolves a valid explicit tier even when default is invalid", () => {
 
 test("never reads the legacy config.model projection", () => {
   const cfg = { models: undefined, model: VALID } as AlixConfig;
-  assert.throws(() => resolveModelConfig(cfg), { message: NO_MODEL_MSG });
+  assert.throws(() => createModelResolver(cfg).require(), { message: NO_MODEL_MSG });
 });
 
 test("never reads config.subagents projections", () => {
@@ -88,7 +85,7 @@ test("never reads config.subagents projections", () => {
     models: undefined,
     subagents: { enabled: true, roles: [], coding: VALID },
   } as unknown as AlixConfig;
-  assert.throws(() => resolveModelConfig(cfg, "coding"), {
+  assert.throws(() => createModelResolver(cfg).require("coding"), {
     message: NO_MODEL_MSG,
   });
 });
@@ -98,14 +95,14 @@ test("never reads modelProfile", () => {
     models: undefined,
     modelProfile: { name: "pro", version: 1 },
   } as unknown as AlixConfig;
-  assert.throws(() => resolveModelConfig(cfg), { message: NO_MODEL_MSG });
+  assert.throws(() => createModelResolver(cfg).require(), { message: NO_MODEL_MSG });
 });
 
 // --- §3.3 Defensive copy ---
 
 test("returns a copy: mutating the result does not mutate the config", () => {
   const cfg = config({ default: VALID });
-  const resolved = resolveModelConfig(cfg);
+  const resolved = createModelResolver(cfg).require();
   resolved.name = "mutated";
   resolved.temperature = 0.99;
   assert.equal(cfg.models!.default!.name, "gpt-4o");
@@ -124,31 +121,31 @@ test("preserves full ModelConfig metadata through the copy", () => {
       streaming: true,
     },
   });
-  const resolved = resolveModelConfig(cfg);
+  const resolved = createModelResolver(cfg).require();
   assert.deepEqual(resolved, cfg.models!.default);
 });
 
-// --- §3 tryResolveModelConfig (non-throwing variant) ---
+// --- §3 resolve (non-throwing variant) ---
 
-test("tryResolveModelConfig returns undefined when no model resolves", () => {
-  assert.equal(tryResolveModelConfig(config(undefined)), undefined);
-  assert.equal(tryResolveModelConfig(config({})), undefined);
+test("resolve returns undefined when no model resolves", () => {
+  assert.equal(createModelResolver(config(undefined)).resolve(), undefined);
+  assert.equal(createModelResolver(config({})).resolve(), undefined);
 });
 
-test("tryResolveModelConfig resolves default when only default is set", () => {
-  assert.deepEqual(tryResolveModelConfig(config({ default: VALID })), VALID);
+test("resolve resolves default when only default is set", () => {
+  assert.deepEqual(createModelResolver(config({ default: VALID })).resolve(), VALID);
 });
 
-test("tryResolveModelConfig honors the tier fallback (models[tier] ?? models.default)", () => {
+test("resolve honors the tier fallback (models[tier] ?? models.default)", () => {
   assert.deepEqual(
-    tryResolveModelConfig(config({ default: VALID }), "thinking"),
+    createModelResolver(config({ default: VALID })).resolve("thinking"),
     VALID,
     "missing tier falls back to default",
   );
 });
 
-test("tryResolveModelConfig returns a defensive copy", () => {
-  const resolved = tryResolveModelConfig(config({ default: VALID }))!;
+test("resolve returns a defensive copy", () => {
+  const resolved = createModelResolver(config({ default: VALID })).resolve()!;
   resolved.name = "mutated";
   assert.equal(config({ default: VALID }).models?.default?.name, "gpt-4o");
 });

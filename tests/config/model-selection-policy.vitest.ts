@@ -3,8 +3,8 @@
  *
  * Configuration expresses requirements; discovery supplies model identities.
  * Verifies:
- *  - `isValidModelConfig`/`resolveModelConfig` accept a selection-only config
- *  - `selectModelFromDiscovery` selects currently-free models, excludes
+ *  - `isValidModelConfig`/`createModelResolver` accept a selection-only config
+ *  - `selectDiscoveredModel` selects currently-free models, excludes
  *    paid/incompatible/ineligible ones, and honors min-context/capabilities
  *    without hard-coded model ids
  *  - `buildRoutingAdapter` resolves a `selection` into a concrete model primary
@@ -13,10 +13,10 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildRoutingAdapter, RoutingModelAdapter } from "../../src/providers/routing-adapter.js";
-import { selectModelFromDiscovery, resolveModelSelectionId } from "../../src/providers/model-resolver.js";
+import { selectDiscoveredModel, resolveSelectionModelId } from "../../src/providers/model-resolver.js";
 import { createProvider } from "../../src/providers/registry.js";
 import { isValidModelConfig } from "../../src/config/schema.js";
-import { tryResolveModelConfig } from "../../src/config/model-resolver.js";
+import { createModelResolver } from "../../src/config/model-resolver.js";
 import {
   _setOpenRouterDiscoveryFetch,
   _resetOpenRouterDiscoveryCache,
@@ -47,7 +47,7 @@ afterEach(() => {
   _setOpenRouterDiscoveryFetch(globalThis.fetch);
 });
 
-describe("isValidModelConfig / resolveModelConfig with selection", () => {
+describe("isValidModelConfig / createModelResolver with selection", () => {
   it("accepts a selection-only config (provider + selection, no name)", () => {
     expect(isValidModelConfig({ provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } })).toBe(true);
   });
@@ -60,8 +60,8 @@ describe("isValidModelConfig / resolveModelConfig with selection", () => {
     expect(isValidModelConfig({ provider: "openrouter", name: "" })).toBe(false);
   });
 
-  it("tryResolveModelConfig returns a selection-only default", () => {
-    const resolved = tryResolveModelConfig({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free" } } } });
+  it("resolve returns a selection-only default", () => {
+    const resolved = createModelResolver({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free" } } } }).resolve();
     expect(resolved).toEqual({ provider: "openrouter", name: "", selection: { cost: "free" } });
   });
 });
@@ -72,7 +72,7 @@ describe("policy resolver is fed by catalog fixture", () => {
       M("qwen/qwen3-14b:free", 32_000, ["tools"]),
       M("z/other:free", 16_000, ["tools"]),
     ];
-    const picked = selectModelFromDiscovery({ provider: "openrouter", cost: "free", capabilities: ["tools"] }, catalogModels);
+    const picked = selectDiscoveredModel({ provider: "openrouter", cost: "free", capabilities: ["tools"] }, catalogModels);
     expect(picked?.id).toBe("qwen/qwen3-14b:free"); // largest context wins
   });
 
@@ -81,7 +81,7 @@ describe("policy resolver is fed by catalog fixture", () => {
       M("new/vendor-bravo:free", 64_000, ["tools"]),
       M("old/vendor-alpha:free", 8_000, ["tools"]),
     ];
-    const picked = selectModelFromDiscovery({ cost: "free", capabilities: ["tools"] }, catalogModels);
+    const picked = selectDiscoveredModel({ cost: "free", capabilities: ["tools"] }, catalogModels);
     expect(picked?.id).toBe("new/vendor-bravo:free");
   });
 
@@ -90,7 +90,7 @@ describe("policy resolver is fed by catalog fixture", () => {
       M("a/no-tools:free", 200_000, []),
       M("b/with-tools:free", 16_000, ["tools"]),
     ];
-    const picked = selectModelFromDiscovery({ cost: "free", capabilities: ["tools"] }, catalogModels);
+    const picked = selectDiscoveredModel({ cost: "free", capabilities: ["tools"] }, catalogModels);
     expect(picked?.id).toBe("b/with-tools:free");
   });
 
@@ -99,21 +99,21 @@ describe("policy resolver is fed by catalog fixture", () => {
       M("small:free", 8_000, ["tools"]),
       M("big:free", 64_000, ["tools"]),
     ];
-    const picked = selectModelFromDiscovery({ cost: "free", capabilities: ["tools"], minContext: 32_768 }, catalogModels);
+    const picked = selectDiscoveredModel({ cost: "free", capabilities: ["tools"], minContext: 32_768 }, catalogModels);
     expect(picked?.id).toBe("big:free");
   });
 
   it("returns undefined for cost: paid (not served by the free catalog)", () => {
-    expect(selectModelFromDiscovery({ provider: "openrouter", cost: "paid" }, [])).toBeUndefined();
+    expect(selectDiscoveredModel({ provider: "openrouter", cost: "paid" }, [])).toBeUndefined();
   });
 
   it("returns undefined for a non-openrouter provider", () => {
-    expect(selectModelFromDiscovery({ provider: "anthropic", cost: "free" }, [])).toBeUndefined();
+    expect(selectDiscoveredModel({ provider: "anthropic", cost: "free" }, [])).toBeUndefined();
   });
 
   it("returns undefined when no eligible model satisfies the policy", () => {
     const catalogModels: DiscoveredModel[] = [M("small:free", 4_000, ["tools"])];
-    expect(selectModelFromDiscovery({ cost: "free", minContext: 128_000 }, catalogModels)).toBeUndefined();
+    expect(selectDiscoveredModel({ cost: "free", minContext: 128_000 }, catalogModels)).toBeUndefined();
   });
 });
 
@@ -150,19 +150,19 @@ describe("buildRoutingAdapter resolves a selection policy", () => {
   });
 });
 
-describe("resolveModelSelectionId (shared discovery seam)", () => {
+describe("resolveSelectionModelId (shared discovery seam)", () => {
   it("fetches the catalog and returns the highest-context eligible free model id", async () => {
     _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
       { id: "a/small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
-    await expect(resolveModelSelectionId({ cost: "free", capabilities: ["tools"] }))
+    await expect(resolveSelectionModelId({ cost: "free", capabilities: ["tools"] }))
       .resolves.toEqual({ id: "qwen/qwen3-14b:free" });
   });
 
   it("returns undefined when the policy is unsatisfiable", async () => {
     _setOpenRouterDiscoveryFetch(async () => catalogResponse([]));
-    await expect(resolveModelSelectionId({ provider: "openrouter", cost: "paid" }))
+    await expect(resolveSelectionModelId({ provider: "openrouter", cost: "paid" }))
       .resolves.toBeUndefined();
   });
 
@@ -173,7 +173,7 @@ describe("resolveModelSelectionId (shared discovery seam)", () => {
       { id: "small:free", name: "Small", context_length: 4_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
     recordAccessRestricted("big:free");
-    await expect(resolveModelSelectionId({ cost: "free", capabilities: ["tools"] }))
+    await expect(resolveSelectionModelId({ cost: "free", capabilities: ["tools"] }))
       .resolves.toEqual({ id: "small:free" });
   });
 });
@@ -206,11 +206,11 @@ describe("createProvider resolves a selection policy at the registry choke point
     expect(adapter.id).toBe("mock");
   });
 
-  it("honors resolveModelConfig output (ModelConfig with .name/.selection) directly through the registry", async () => {
+  it("honors createModelResolver output (ModelConfig with .name/.selection) directly through the registry", async () => {
     _setOpenRouterDiscoveryFetch(async () => catalogResponse([
       { id: "qwen/qwen3-14b:free", name: "Qwen", context_length: 64_000, pricing: { prompt: "0", completion: "0" }, supported_parameters: ["tools"] },
     ]));
-    const model = tryResolveModelConfig({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } } } });
+    const model = createModelResolver({ models: { default: { provider: "openrouter", name: "", selection: { cost: "free", capabilities: ["tools"] } } } }).resolve();
     expect(model).toBeDefined();
     const adapter = await createProvider({ provider: model!.provider, name: model!.name, selection: model!.selection });
     expect(adapter.id).toBe("openrouter");

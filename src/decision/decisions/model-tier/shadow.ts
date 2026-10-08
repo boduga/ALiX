@@ -20,12 +20,7 @@ import { DEFAULT_DECISION_CONFIG } from "../../config.js";
 import { observedEngineId } from "../shared/attempts.js";
 import { journalAttempts, type JournalContext } from "../shared/journaling.js";
 import { projectModelTier, type ModelTierRequestFeatures } from "./projection.js";
-import { isModelTierValue, listEnabledTiers } from "./tiers.js";
-import {
-  describeCurrentRouting,
-  tierMatchesCurrentRouting,
-  type CurrentRouting,
-} from "./resolution.js";
+import { isModelTierValue, listEnabledTiers, describeCurrentRouting, tierMatchesCurrentRouting, type CurrentRouting } from "./tiers.js";
 
 export type ModelTierShadowDeps = {
   config: AlixConfig;

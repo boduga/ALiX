@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { lstat, mkdir, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy, type EditFormatPolicy, type EditFormat } from "../patch/edit-format-policy.js";
-import { resolveModelConfig } from "../config/model-resolver.js";
+import { createModelResolver } from "../config/model-resolver.js";
 import { extractPatchPaths } from "../patch/patch-paths.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
@@ -473,7 +473,7 @@ export class PatchToolRouter implements ToolRouter {
       return { kind: "error", message: "Access denied: patch root override is outside the configured workspace", retryable: false };
     }
     const patchRoot = this.root;
-    const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: resolveModelConfig(this.config).provider });
+    const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: createModelResolver(this.config).require().provider });
     const requestedFormat = format as EditFormat;
     // Patch syntax is authoritative when a model labels an unmistakable
     // unified/Aider payload as another supported format.
