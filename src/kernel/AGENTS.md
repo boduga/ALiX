@@ -150,6 +150,15 @@
   Production schedulers must use `createCoordinationScheduler`, which injects
   `CoordinationCompletionService`; direct scheduler construction in source is
   a wiring defect. Test-only omission is explicit.
+- **One completion-service assembly (R3.5).** `createCompletionService`
+  (`coordination-completion-service.ts`) is the ONLY place a
+  `CoordinationCompletionService` is constructed; the scheduler factory, the
+  `alix_coordination_results` tool, and the `alix coordination` CLI all build
+  through it (a construction-wiring test fails on a stray `new`). Idempotency
+  itself lives at the store/lock boundary (`attachAggregateIfUnfinalized` +
+  `CoordinationFinalizationLock`), pinned by
+  `tests/kernel/coordination-finalization.test.ts` — a double finalize emits
+  exactly one aggregate event.
 - `maybeFinalizeRun` is idempotent at the store boundary.
   `CoordinationStore.attachAggregateIfUnfinalized` checks and attaches under
   the per-run lock and source fingerprint. Concurrent finalizers return the

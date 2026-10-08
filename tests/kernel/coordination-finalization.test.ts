@@ -379,6 +379,28 @@ describe("scheduler construction wiring", () => {
     walk("src");
     assert.deepEqual(offenders, []);
   });
+
+  it("assembles the completion service only inside its own module (R3.5)", () => {
+    // R0: four finalize paths each assembled the aggregator/store wiring by
+    // hand. `createCompletionService` is THE assembly site; a stray
+    // `new CoordinationCompletionService(...)` elsewhere can drift from it.
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "node_modules" || entry.name === "dist") continue;
+          walk(path);
+          continue;
+        }
+        if (!entry.name.endsWith(".ts")) continue;
+        if (path.endsWith("coordination-completion-service.ts")) continue; // the factory itself
+        if (readFileSync(path, "utf8").includes("new CoordinationCompletionService(")) offenders.push(path);
+      }
+    };
+    walk("src");
+    assert.deepEqual(offenders, []);
+  });
 });
 
 /**
