@@ -54,13 +54,14 @@ interface LedgerEventRow {
   ledgerSeq: number;
 }
 
-function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
+function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
   const ledger = getSharedLedger(cwd);
   const events: LedgerEventRow[] = [];
   let cursor = 0;
   for (let page = 0; page < maxPages; page++) {
     const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
     for (const r of rows) {
+      if (!entityTypes.has(r.entityType)) continue;
       events.push({
         eventType: r.eventType,
         entityType: r.entityType ?? "unknown",
@@ -114,7 +115,7 @@ export async function reconcileGraphLedger(cwd: string): Promise<GraphReconcileR
   const unknownEventTypes: Record<string, number> = {};
 
   const projections = await readGraphProjection(cwd);
-  const { events, truncated } = drainLedgerEvents(cwd);
+  const { events, truncated } = drainLedgerEvents(cwd, new Set(["graph", "graphAttempt"]));
 
   const graphsByEntity = new Map<string, LedgerEventRow[]>();
   const attemptsByEntity = new Map<string, LedgerEventRow>();

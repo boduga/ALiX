@@ -47,21 +47,24 @@ const KNOWN_TYPES = new Set<string>(CONTINUATION_LEDGER_EVENT_TYPES);
 
 interface LedgerEventRow {
   eventType: string;
+  entityType: string;
   entityId: string;
   entityVersion: number;
   payload: unknown;
   ledgerSeq: number;
 }
 
-function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
+function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
   const ledger = getSharedLedger(cwd);
   const events: LedgerEventRow[] = [];
   let cursor = 0;
   for (let page = 0; page < maxPages; page++) {
     const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
     for (const r of rows) {
+      if (!entityTypes.has(r.entityType)) continue;
       events.push({
         eventType: r.eventType,
+        entityType: r.entityType,
         entityId: r.entityId,
         entityVersion: r.entityVersion,
         payload: r.payload,
@@ -83,7 +86,7 @@ export async function reconcileContinuationLedger(cwd: string): Promise<Continua
     ? (JSON.parse(await readFile(filePath, "utf-8")) as PendingContinuation[])
     : [];
 
-  const { events, truncated } = drainLedgerEvents(cwd);
+  const { events, truncated } = drainLedgerEvents(cwd, new Set(["continuation"]));
   const byEntity = new Map<string, LedgerEventRow[]>();
   for (const e of events) {
     if (!KNOWN_TYPES.has(e.eventType)) {

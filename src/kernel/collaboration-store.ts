@@ -16,10 +16,35 @@ import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
 import { validatePublishFindingInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
+import { getSharedLedger } from "../storage/runtime-ledger.js";
 import type {
   SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
   CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput,
 } from "./collaboration-types.js";
+
+// ─── R2.10 dual-write status (per workspace) ─────────────────────────
+type CollaborationLedgerStatus = { appends: number; failures: number; lastError?: string };
+const statusByCwd = new Map<string, CollaborationLedgerStatus>();
+
+function statusFor(cwd: string): CollaborationLedgerStatus {
+  let s = statusByCwd.get(cwd);
+  if (!s) {
+    s = { appends: 0, failures: 0 };
+    statusByCwd.set(cwd, s);
+  }
+  return s;
+}
+
+/** Observable dual-write health (R2: failures must never be silent). */
+export function collaborationLedgerStatus(cwd: string): CollaborationLedgerStatus {
+  const s = statusFor(cwd);
+  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+}
+
+/** Reset counters (tests). */
+export function resetCollaborationLedgerStatus(cwd: string): void {
+  statusByCwd.delete(cwd);
+}
 
 const DEFAULT_STATE: CollaborationState = {
   schemaVersion: "1.0",
@@ -98,6 +123,50 @@ export class CollaborationStore {
     await renameFile(tmpPath, this.statePath);
   }
 
+  /**
+   * R2.10 mirror the committed state to the transactional ledger — called
+   * AFTER the durable file write, inside the per-run lock (same
+   * serialization as JSON). JSON stays authoritative in this phase;
+   * failures are counted, never thrown into worker coordination.
+   */
+  private mirrorState(): void {
+    const s = statusFor(this.cwd);
+    try {
+      const ledger = getSharedLedger(this.cwd);
+      // Namespaced entity id: runtime_entities is keyed by entity_id alone,
+      // and collaboration shares its runId with the coordination domain —
+      // an unqualified id would collide on version CAS.
+      const entityId = `collab:${this.runId}`;
+      const expected = ledger.entityVersion(entityId);
+      const eventType = expected === 0 ? "collaboration.state_created" : "collaboration.state_updated";
+      const res = ledger.append({
+        event: {
+          eventId: randomUUID(),
+          eventType,
+          schemaVersion: 1,
+          entityType: "collaborationState",
+          entityId,
+          entityVersion: expected + 1,
+          coordinationRunId: this.runId,
+          correlationId: this.runId,
+          actor: { type: "system", id: "collaboration-store" },
+          occurredAt: this.state.updatedAt,
+          recordedAt: new Date().toISOString(),
+          payload: { state: this.state },
+        },
+        expectedVersion: expected,
+      });
+      if (res.ok) s.appends += 1;
+      else {
+        s.failures += 1;
+        s.lastError = `${res.reason}: ${res.detail}`;
+      }
+    } catch (err) {
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
   async mutate<T>(fn: (state: CollaborationState) => T | Promise<T>): Promise<T> {
     const lock = new CollaborationRunLock(this.cwd, this.runId);
     const acquired = await lock.acquire();
@@ -107,6 +176,7 @@ export class CollaborationStore {
       const result = await fn(this.state);
       this.state.revision++;
       await this.saveState();
+      this.mirrorState();
       return result;
     } finally {
       lock.release();

@@ -59,6 +59,7 @@ const KNOWN_TYPES = new Set<string>(COORDINATION_LEDGER_EVENT_TYPES);
 
 interface LedgerEventRow {
   eventType: string;
+  entityType: string;
   entityId: string;
   entityVersion: number;
   payload: unknown;
@@ -69,15 +70,17 @@ interface LedgerEventRow {
  * Drain ledger events with a bounded cursor walk so a huge ledger cannot
  * stall the caller; `truncated` becomes true if the cap is hit.
  */
-function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
+function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
   const ledger = getSharedLedger(cwd);
   const events: LedgerEventRow[] = [];
   let cursor = 0;
   for (let page = 0; page < maxPages; page++) {
     const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
     for (const r of rows) {
+      if (!entityTypes.has(r.entityType)) continue;
       events.push({
         eventType: r.eventType,
+        entityType: r.entityType,
         entityId: r.entityId,
         entityVersion: r.entityVersion,
         payload: r.payload,
@@ -117,7 +120,7 @@ export async function reconcileCoordinationLedger(cwd: string): Promise<Reconcil
   const unknownEventTypes: Record<string, number> = {};
 
   const projections = await readProjectionRuns(cwd);
-  const { events, truncated } = drainLedgerEvents(cwd);
+  const { events, truncated } = drainLedgerEvents(cwd, new Set(["coordinationRun"]));
 
   const byEntity = new Map<string, LedgerEventRow[]>();
   for (const e of events) {

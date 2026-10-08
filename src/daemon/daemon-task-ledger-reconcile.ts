@@ -50,21 +50,24 @@ const KNOWN_TYPES = new Set<string>(DAEMON_TASK_LEDGER_EVENT_TYPES);
 
 interface LedgerEventRow {
   eventType: string;
+  entityType: string;
   entityId: string;
   entityVersion: number;
   payload: unknown;
   ledgerSeq: number;
 }
 
-function drainLedgerEvents(cwd: string, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
+function drainLedgerEvents(cwd: string, entityTypes: ReadonlySet<string>, maxPages = 50, pageSize = 2000): { events: LedgerEventRow[]; truncated: boolean } {
   const ledger = getSharedLedger(cwd);
   const events: LedgerEventRow[] = [];
   let cursor = 0;
   for (let page = 0; page < maxPages; page++) {
     const rows = ledger.readEvents({ sinceSeq: cursor, limit: pageSize });
     for (const r of rows) {
+      if (!entityTypes.has(r.entityType)) continue;
       events.push({
         eventType: r.eventType,
+        entityType: r.entityType,
         entityId: r.entityId,
         entityVersion: r.entityVersion,
         payload: r.payload,
@@ -88,7 +91,7 @@ export async function reconcileDaemonTaskLedger(
     ? JSON.parse(await readFile(registryPath, "utf-8"))
     : [];
 
-  const { events, truncated } = drainLedgerEvents(ledgerCwd);
+  const { events, truncated } = drainLedgerEvents(ledgerCwd, new Set(["daemonTask"]));
   const byEntity = new Map<string, LedgerEventRow[]>();
   for (const e of events) {
     if (!KNOWN_TYPES.has(e.eventType)) {
