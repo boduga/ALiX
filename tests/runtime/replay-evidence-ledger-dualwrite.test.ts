@@ -3,7 +3,7 @@
 
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -59,7 +59,7 @@ function evidence(id: string): ExecutionEvidence {
   return { ...base, evidenceHash: computeEvidenceChecksum(base as ExecutionEvidence) };
 }
 
-describe("replay-index ledger dual-write (R2.11)", () => {
+describe("replay-index ledger authority (R2.17)", () => {
   it("setStatus mirrors created + updated; reconcile clean", async () => {
     const dir = tmp();
     const index = new ReplayStatusIndex(dir);
@@ -115,24 +115,59 @@ describe("replay-index ledger dual-write (R2.11)", () => {
     assert.match(mismatch!.detail, /status: json=locked ledger=capturing/);
   });
 
-  it("ledger failure never breaks setStatus and is observable", async () => {
+  it("append failure fails setStatus — no JSON-only state (R2.17 authority)", async () => {
     const dir = tmp();
     closeSharedLedger(dir);
     mkdirSync(runtimeLedgerPath(dir), { recursive: true });
 
     const index = new ReplayStatusIndex(dir);
-    await index.setStatus(`replay_${randomUUID()}`, "capturing"); // must not throw
-    assert.equal(replayLedgerStatus(dir).failures, 1);
+    await assert.rejects(() => index.setStatus(`replay_${randomUUID()}`, "capturing"), /SQLITE|unable|not a database|ledger append failed/i);
+    assert.equal(replayLedgerStatus(dir).failures >= 1, true);
     assert.ok(replayLedgerStatus(dir).lastError);
+    assert.ok(!existsSync(join(dir, ".alix", "replays", "index.json")));
 
     rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("projection write failure is tolerated; load still returns authority entries", async () => {
+    const dir = tmp();
+    // Occupy index.json with a DIRECTORY so save() fails.
+    mkdirSync(join(dir, ".alix", "replays", "index.json"), { recursive: true });
+
+    const index = new ReplayStatusIndex(dir);
+    const replayId = `replay_${randomUUID()}`;
+    await index.setStatus(replayId, "capturing"); // must NOT throw
+    assert.equal(replayLedgerStatus(dir).projectionFailures, 1);
+    assert.equal(getSharedLedger(dir).entityVersion(replayId), 1);
+
+    const fresh = new ReplayStatusIndex(dir);
+    const data = await fresh.load(); // authority read
+    assert.equal(data.entries.find(e => e.replayId === replayId)?.status, "capturing");
+
+    rmSync(join(dir, ".alix", "replays", "index.json"), { recursive: true, force: true });
     const report = await reconcileReplayLedger(dir);
     const kinds = report.issues.map(i => i.kind);
-    assert.ok(kinds.includes("missing_in_ledger"), JSON.stringify(report.issues));
+    assert.ok(kinds.includes("projection_missing"), JSON.stringify(report.issues));
+  });
+
+  it("load prefers the LEDGER over a tampered index file", async () => {
+    const dir = tmp();
+    const index = new ReplayStatusIndex(dir);
+    const replayId = `replay_${randomUUID()}`;
+    await index.setStatus(replayId, "capturing");
+
+    const path = join(dir, ".alix", "replays", "index.json");
+    const data = JSON.parse(readFileSync(path, "utf-8")) as { entries: Array<{ replayId: string; status: string }> };
+    data.entries.find(e => e.replayId === replayId)!.status = "locked";
+    writeFileSync(path, JSON.stringify(data, null, 2));
+
+    const fresh = new ReplayStatusIndex(dir);
+    const loaded = await fresh.load();
+    assert.equal(loaded.entries.find(e => e.replayId === replayId)?.status, "capturing");
   });
 });
 
-describe("execution-evidence ledger dual-write (R2.11)", () => {
+describe("execution-evidence ledger authority (R2.17)", () => {
   it("append mirrors recorded; reconcile clean", async () => {
     const dir = tmp();
     const storeDir = join(dir, ".alix", "governance");
@@ -145,9 +180,11 @@ describe("execution-evidence ledger dual-write (R2.11)", () => {
     const ledger = getSharedLedger(dir);
     assert.equal(ledger.entityVersion("ev_1"), 1);
     assert.equal(ledger.lastEvent("ev_1")?.eventType, "evidence.recorded");
-    // Immutable — a second append of the same id is an idempotent skip.
+    // Append-only contract: duplicate evidenceIds are legal (callers own
+    // deduplication) and each physical append mirrors.
     await store.append(e1);
-    assert.equal(ledger.entityVersion("ev_1"), 1);
+    assert.equal(ledger.entityVersion("ev_1"), 2);
+    assert.equal((await store.list()).length, 3); // ev_1, ev_2, ev_1 — line order preserved
 
     assert.equal(evidenceLedgerStatus(dir).failures, 0);
     const report = await reconcileEvidenceLedger(dir);
@@ -156,6 +193,35 @@ describe("execution-evidence ledger dual-write (R2.11)", () => {
     assert.equal(report.issues.length, 0, JSON.stringify(report.issues));
     assert.equal(report.ok, true);
     assert.deepEqual(report.unknownEventTypes, {});
+  });
+
+  it("append failure fails evidence append — no JSON-only state (R2.17 authority)", async () => {
+    const dir = tmp();
+    closeSharedLedger(dir);
+    mkdirSync(runtimeLedgerPath(dir), { recursive: true });
+
+    const store = new ExecutionEvidenceStore(join(dir, ".alix", "governance"));
+    await assert.rejects(() => store.append(evidence("ev_blocked")), /SQLITE|unable|not a database|ledger append failed/i);
+    assert.equal(evidenceLedgerStatus(dir).failures >= 1, true);
+
+    rmSync(runtimeLedgerPath(dir), { recursive: true, force: true });
+  });
+
+  it("list prefers the LEDGER over a tampered JSONL record", async () => {
+    const dir = tmp();
+    const storeDir = join(dir, ".alix", "governance");
+    const store = new ExecutionEvidenceStore(storeDir);
+    const e = evidence("ev_1");
+    await store.append(e);
+
+    const path = join(storeDir, "execution-evidence.jsonl");
+    const lines = readFileSync(path, "utf-8").trim().split("\n").map(l => JSON.parse(l) as ExecutionEvidence);
+    lines[0] = { ...lines[0], summary: "tampered" };
+    writeFileSync(path, lines.map(l => JSON.stringify(l)).join("\n") + "\n");
+
+    const fresh = new ExecutionEvidenceStore(storeDir);
+    const records = await fresh.list();
+    assert.equal(records.find(r => r.evidenceId === "ev_1")?.summary, "did the thing"); // ledger truth
   });
 
   it("legacy JSONL record reported missing_in_ledger", async () => {

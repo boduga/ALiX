@@ -23,22 +23,26 @@ export const EVIDENCE_LEDGER_EVENT_TYPES = [
 ] as const;
 
 // ─── R2.11 dual-write status (per workspace root) ────────────────────
-type EvidenceLedgerStatus = { appends: number; failures: number; lastError?: string };
+type EvidenceLedgerStatus = { appends: number; failures: number; projectionFailures: number; lastError?: string; lastProjectionError?: string };
 const statusByCwd = new Map<string, EvidenceLedgerStatus>();
 
 function statusFor(cwd: string): EvidenceLedgerStatus {
   let s = statusByCwd.get(cwd);
   if (!s) {
-    s = { appends: 0, failures: 0 };
+    s = { appends: 0, failures: 0, projectionFailures: 0 };
     statusByCwd.set(cwd, s);
   }
   return s;
 }
 
-/** Observable dual-write health (R2: failures must never be silent). */
+/** Observable authority health (R2: failures must never be silent). */
 export function evidenceLedgerStatus(cwd: string): EvidenceLedgerStatus {
   const s = statusFor(cwd);
-  return { ...s, ...(s.lastError !== undefined ? { lastError: s.lastError } : {}) };
+  return {
+    ...s,
+    ...(s.lastError !== undefined ? { lastError: s.lastError } : {}),
+    ...(s.lastProjectionError !== undefined ? { lastProjectionError: s.lastProjectionError } : {}),
+  };
 }
 
 /** Reset counters (tests). */
@@ -83,18 +87,20 @@ export class ExecutionEvidenceStore {
    * Append-only — never overwrites existing records.
    * Preserves insertion order. Callers own deduplication.
    */
+  /**
+   * R2.17 authority: append the evidence fact FIRST (the commit — throws on
+   * failure; immutable evidence means an already-mirrored id is an idempotent
+   * skip), then the JSONL projection (tolerated + counted).
+   */
   async append(evidence: ExecutionEvidence): Promise<void> {
-    this.ensureStoreDir();
-    await this.store.appendRecord(evidence);
-    // R2.11 dual-write: mirror after the durable JSONL append (JSONL stays
-    // authoritative this phase); evidence is immutable, so an existing
-    // entity means the record was already mirrored (idempotent skip).
     const cwd = ledgerCwdFor(this.storeDir);
     const s = statusFor(cwd);
     try {
       const ledger = getSharedLedger(cwd);
+      // Append-only contract: EVERY physical append mirrors (duplicate
+      // evidenceIds are legal — callers own deduplication), so the ledger
+      // preserves line-level history too.
       const expected = ledger.entityVersion(evidence.evidenceId);
-      if (expected > 0) return;
       const res = ledger.append({
         event: {
           eventId: randomUUID(),
@@ -102,23 +108,34 @@ export class ExecutionEvidenceStore {
           schemaVersion: 1,
           entityType: "executionEvidence",
           entityId: evidence.evidenceId,
-          entityVersion: 1,
+          entityVersion: expected + 1,
           correlationId: evidence.intentId,
           actor: { type: "system", id: "execution-evidence-store" },
           occurredAt: (evidence as { verifiedAt?: string }).verifiedAt ?? new Date().toISOString(),
           recordedAt: new Date().toISOString(),
           payload: { evidence },
         },
-        expectedVersion: 0,
+        expectedVersion: expected,
       });
-      if (res.ok) s.appends += 1;
-      else {
+      if (!res.ok) {
         s.failures += 1;
         s.lastError = `${res.reason}: ${res.detail}`;
+        throw new Error(`evidence ledger append failed (${res.reason}): ${res.detail}`);
       }
+      s.appends += 1;
     } catch (err) {
+      if (err instanceof Error && err.message.startsWith("evidence ledger append failed")) throw err;
       s.failures += 1;
       s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
+    }
+
+    try {
+      this.ensureStoreDir();
+      await this.store.appendRecord(evidence);
+    } catch (err) {
+      s.projectionFailures += 1;
+      s.lastProjectionError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -161,11 +178,54 @@ export class ExecutionEvidenceStore {
    * checksum does not match the calculated checksum are skipped.
    * Malformed JSON lines are also skipped with a warning.
    */
+  /**
+   * R2.17 authority read: latest ledger fact per evidence id, merged with
+   * JSONL records that have no ledger facts (legacy). Ledger db errors count
+   * and THROW — never masked by a file fallback.
+   */
   async list(): Promise<ExecutionEvidence[]> {
-    if (!existsSync(this.filePath())) {
-      return [];
+    const cwd = ledgerCwdFor(this.storeDir);
+    // ALL events (not latest-per-entity): append-only contract preserves
+    // duplicate evidenceIds line-for-line, in ledger-seq order.
+    let rows: Array<{ entityId: string; payload: unknown; ledgerSeq: number }>;
+    try {
+      const ledger = getSharedLedger(cwd);
+      const collected: typeof rows = [];
+      let cursor = 0;
+      for (let page = 0; page < 50; page++) {
+        const batch = ledger.readEvents({ sinceSeq: cursor, limit: 2000 });
+        for (const r of batch) {
+          if (r.entityType === "executionEvidence") {
+            collected.push({ entityId: r.entityId, payload: r.payload, ledgerSeq: r.ledgerSeq });
+          }
+          cursor = r.ledgerSeq;
+        }
+        if (batch.length < 2000) break;
+      }
+      rows = collected;
+    } catch (err) {
+      const s = statusFor(cwd);
+      s.failures += 1;
+      s.lastError = err instanceof Error ? err.message : String(err);
+      throw err;
     }
-    return this.readAll();
+
+    const ledgerIds = new Set(rows.map(r => r.entityId));
+    const records: ExecutionEvidence[] = [];
+    if (existsSync(this.filePath())) {
+      for (const record of await this.readAll()) {
+        if (ledgerIds.has(record.evidenceId)) continue; // covered below, in order
+        records.push(record);
+      }
+    }
+    for (const row of rows) {
+      const payload = row.payload as { evidence?: ExecutionEvidence } | null;
+      if (!payload?.evidence) {
+        throw new Error(`evidence ledger event for ${row.entityId} missing evidence payload`);
+      }
+      records.push(payload.evidence);
+    }
+    return records;
   }
 
   // ---------------------------------------------------------------------------
