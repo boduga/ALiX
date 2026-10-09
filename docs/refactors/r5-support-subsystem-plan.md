@@ -1,6 +1,6 @@
 # R5 — Support Subsystem Convergence Plan
 
-**Status:** in progress — R5.0 ✅, R5.1 ✅, R5.2 ✅, R5.3a ✅, R5.3b ✅, R5.4 ✅.
+**Status:** R5 complete — R5.0–R5.6 ✅; tag `r5-complete`. All `R5` allowlist entries removed (models, tool taxonomy, tool dispatch, metrics, executive reclassified to R6).
 **Phase register:** `docs/refactors/r0-findings-r3-plan.md` (R5 row + "R5 security note (do not lose)").
 **Provenance:** four read-only recon passes against HEAD `r4-complete` (`e9008d88`). Line numbers verified in that session.
 
@@ -91,7 +91,7 @@ Python/psutil runtime path exists (`psutil` is doc-only). The daemon path hardco
 | R5.3b | **Tool dispatch:** move `hashArgs` out of `executor.ts` and route `ToolExecutor` construction through a sanctioned seam; remove the 8 `direct-tool-dispatch` entries. Agent-execution path — separate sub-step. | ✅ |
 | R5.4 | **One metric vocabulary:** implement the `MetricsSink` port; reconcile `MinimalMetrics`/`MetricRegistry`/tracing/TUI; only then remove the 4 `metrics-vocabs` entries. | ✅ |
 | R5.5 | Resolve/reclassify the 4 `status-store-writes` `R5` entries (`src/cli/commands/adaptation/main.ts`, `executive-evaluate-handler.ts`, `executive-orchestrate-handler.ts`, `executive.ts` → `src/executive/execution-state-store.ts`) — decide whether they belong to R5 or move to R6. | ✅ |
-| R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ⬜ |
+| R5.6 | DOX (`src/config`, `src/providers`, `src/tools`, `src/capability`, `src/security`, `src/observability` + ports) + full gates + `check:dox --base origin/main` + `detect_changes` + tag `r5-*`. | ✅ |
 
 ### Order / rationale
 
@@ -152,6 +152,12 @@ Same freeze-rule shape as R5.2: `tool-taxonomy-defs` watched five symbol names a
 
 ## R5.5 (executive read paths) — ✅ done
 The 4 remaining `R5` entries were CLI commands read-importing `src/executive/execution-state-store.ts` — executive read-path consolidation, outside R5's models/tools/redaction/metrics scope. Reclassified to `R6` with an explanatory reason. **0 R5 entries remain.**
+
+## R5.6 (closeout) — ✅ done
+Full gates at the R5 closeout commit: `pnpm test:node` 8492 pass / 0 fail · `pnpm test:vitest` 7160 pass / 0 fail · `npx tsc -p tsconfig.json --noEmit` · `npx tsc -p tsconfig.unused.json --noEmit` · `node scripts/check-dead-modules.mjs` · `node scripts/check-dox-claims.mjs --base origin/main`. `detect_changes` clean. Tag `r5-complete`.
+
+## Next phase
+**R6** — physical directory moves into the 12-subsystem layout (mechanical, last), plus the reclassified executive read-path entries.
 
 ## Resume here (fresh session)
 
