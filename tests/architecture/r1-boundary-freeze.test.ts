@@ -74,7 +74,6 @@ const IMPORT_RULE_TARGETS: Record<string, string[]> = {
   "eventlog-append-producers": ["src/events/event-log.ts"],
   "ownership-registry-construction": [
     "src/ownership/ownership-registry.ts",
-    "src/agents/ownership-registry.ts",
   ],
 };
 
@@ -92,7 +91,6 @@ const UI_RULE_TARGETS = [
   "src/tools/executor.ts",
   "src/events/event-log.ts",
   "src/ownership/ownership-registry.ts",
-  "src/agents/ownership-registry.ts",
 ];
 
 const DEF_RULES: Record<string, { files: string[]; symbols: string[]; marker: string }> = {

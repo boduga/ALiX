@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix } from "../../src/ownership/path-scope.js";
+import { pathScopesOverlap, scopeContains, pathInScope, normalizePathScope, resolveOwnedScopePrefix, claimScopesOverlap } from "../../src/ownership/path-scope.js";
 import { resolve } from "node:path";
 import type { PathScope } from "../../src/ownership/ownership-types.js";
 
@@ -274,6 +274,56 @@ describe("resolveOwnedScopePrefix — parity table", () => {
         undefined,
         `expected ${JSON.stringify(input)} to authorize nothing`,
       );
+    }
+  });
+});
+
+/**
+ * Planning-claim overlap lives in path-scope.ts (R3.2: ONE matcher module)
+ * so planner serialization, lease conflicts, and runtime authorization
+ * cannot drift into three disagreeing answers. This table pins the exact
+ * semantics the planner relied on before the move — a changed row is a
+ * visible authority diff in review.
+ */
+describe("claimScopesOverlap — planning-side parity table", () => {
+  /** [claimA, claimB, expected overlap] */
+  const CASES: Array<[{ path: string; recursive: boolean }, { path: string; recursive: boolean }, boolean]> = [
+    // workspace-wide claim overlaps everything (both directions)
+    [{ path: ".", recursive: true }, { path: "src/a.ts", recursive: false }, true],
+    [{ path: "src/a.ts", recursive: false }, { path: ".", recursive: true }, true],
+    [{ path: ".", recursive: false }, { path: "docs/x.md", recursive: false }, true],
+    // identical path overlaps regardless of recursive flag
+    [{ path: "src/a.ts", recursive: false }, { path: "src/a.ts", recursive: false }, true],
+    [{ path: "src", recursive: true }, { path: "src", recursive: false }, true],
+    // recursive claim covers strict descendants only (segment boundary, no prefix bleed)
+    [{ path: "src", recursive: true }, { path: "src/a.ts", recursive: false }, true],
+    [{ path: "src", recursive: true }, { path: "src/deep/b.ts", recursive: false }, true],
+    [{ path: "src", recursive: true }, { path: "srcx/b.ts", recursive: false }, false],
+    // non-recursive claim never covers a different path
+    [{ path: "src", recursive: false }, { path: "src/a.ts", recursive: false }, false],
+    // disjoint trees
+    [{ path: "src", recursive: true }, { path: "docs", recursive: true }, false],
+    [{ path: "src/a.ts", recursive: false }, { path: "src/b.ts", recursive: false }, false],
+    // either side recursive is enough for containment
+    [{ path: "src/a.ts", recursive: false }, { path: "src", recursive: true }, true],
+  ];
+
+  for (const [a, b, expected] of CASES) {
+    it(`${JSON.stringify(a)} vs ${JSON.stringify(b)} -> ${expected}`, () => {
+      assert.equal(claimScopesOverlap(a, b), expected);
+      // Symmetric: argument order must never change the answer.
+      assert.equal(claimScopesOverlap(b, a), expected, "overlap must be symmetric");
+    });
+  }
+
+  it("parity table anchors workspace-wide, segment-boundary, and disjoint forms", () => {
+    const covered = new Set(CASES.map(([a, b]) => `${a.path}|${a.recursive}~${b.path}|${b.recursive}`));
+    for (const anchor of [
+      ".|true~src/a.ts|false",
+      "src|true~srcx/b.ts|false",
+      "src|true~docs|true",
+    ]) {
+      assert.ok(covered.has(anchor), `parity table must cover ${anchor}`);
     }
   });
 });

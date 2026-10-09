@@ -6,7 +6,7 @@ import type { createContextPressureTracker } from '../context-pressure.js';
 import type { resolveModelConfig } from '../../config/model-resolver.js';
 import type { runHook } from '../../hooks/runner.js';
 import { shouldRunVerification, discoverVerification, requiresRepositoryVerification, runVerification, type VerificationCheck, type VerificationResult } from '../../verifier/verifier.js';
-import { buildRefinePrompt, selectStrategy } from '../../orchestrator/refine-strategies.js';
+import { buildRefinePrompt, selectStrategy } from './refine-strategies.js';
 import { DEFAULT_FACTORY_CONFIG } from '../../skills/dispatcher.js';
 import { evaluatePattern } from './context-helpers.js';
 import { gatePendingAgentAction } from './pending-action-phase.js';
@@ -77,7 +77,7 @@ function parseCoordinationRunId(output: string | undefined): string | undefined 
 export async function coordinationRunIsVerified(
   toolResult: unknown,
   cwd: string,
-  sessionId: string,
+  _sessionId: string,
 ): Promise<boolean> {
   const result = (toolResult ?? {}) as { coordinationRunId?: string; output?: string };
   const runId = result.coordinationRunId
@@ -85,17 +85,10 @@ export async function coordinationRunIsVerified(
   if (!runId) return false;
   try {
     const { CoordinationStore } = await import("../../kernel/coordination-store.js");
-    const { deriveCoordinationCompletion, matchesAttachedAggregateEvent } =
-      await import("../../kernel/coordination-types.js");
-    const { computeAggregationSourceFingerprint } =
-      await import("../../kernel/coordination-aggregation-fingerprint.js");
-    const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
+    const { deriveRunCompletion } = await import("../../kernel/coordination-view.js");
     const run = await new CoordinationStore(cwd).load(runId);
     if (!run) return false;
-    const completion = deriveCoordinationCompletion(run, {
-      currentFingerprint: computeAggregationSourceFingerprint(run),
-      aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, sessionId)),
-    });
+    const { completion } = await deriveRunCompletion(cwd, run);
     return completion.execution === "completed"
       && completion.aggregation === "generated"
       && completion.outcome !== "unknown"

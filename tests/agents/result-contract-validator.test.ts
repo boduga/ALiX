@@ -28,3 +28,26 @@ test("validateResult: partial behaves identically to success for no-findings war
   assert.deepEqual(partial.warnings, success.warnings);
   assert.equal(partial.valid, success.valid);
 });
+
+test("validateResult: valid when no expected output", () => {
+  const v = validateResult(makeResult("success", "Found X"));
+  assert.equal(v.valid, true);
+  assert.equal(v.warnings.length, 0);
+});
+
+test("validateResult: warns when expected output not found", () => {
+  const v = validateResult(makeResult("success", "No matches"), "specific keyword");
+  assert.equal(v.valid, false);
+  assert.ok(v.warnings[0].includes("specific keyword"));
+});
+
+test("validateResult: warns on success with empty findings", () => {
+  const v = validateResult(makeResult("success"));
+  assert.equal(v.valid, false);
+  assert.ok(v.warnings.some(w => w.includes("no findings")));
+});
+
+test("validateResult: skips expected check on failed result", () => {
+  const v = validateResult(makeResult("failed"), "anything");
+  assert.equal(v.valid, true);
+});

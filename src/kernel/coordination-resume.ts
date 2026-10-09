@@ -4,15 +4,17 @@
  * A run executes in the process that started it (Inspector server, TUI
  * tool, CLI). If that process restarts, its `running` workers keep a dead
  * `executionOwnerId` and nothing ticks them. This module reclaims exactly
- * those workers — and only those, since an unknown owner is treated as
- * alive — resetting them to `pending` so a fresh scheduler re-dispatches
- * them. Retries stay bounded by `maxAttempts`.
+ * those workers — via the shared `shouldReclaimWorker` verdict (R3.3):
+ * provably dead PID owners, plus ownerless workers whose heartbeat went
+ * stale; unknown owners are treated as alive and never stolen — resetting
+ * them to `pending` so a fresh scheduler re-dispatches them. Retries stay
+ * bounded by `maxAttempts`.
  */
 
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
-import { isOwnerAlive } from "./owner-liveness.js";
-import { releaseWorkerOwnership } from "./coordination-ownership.js";
+import { DEFAULT_ORPHAN_THRESHOLD_MS, shouldReclaimWorker } from "./owner-liveness.js";
+import { releaseWorkerLeases } from "./coordination-ownership.js";
 import type { CoordinationStore } from "./coordination-store.js";
 import type { CoordinationRun } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
@@ -48,20 +50,35 @@ export type ReclaimResult = {
 
 /**
  * Reclaim dead-owner workers for one run. Returns the worker ids reset to
- * `pending` (empty when nothing was reclaimable).
+ * `pending` (empty when nothing was reclaimable). Uses the ONE liveness
+ * verdict (`shouldReclaimWorker`): provably dead owner, or ownerless with a
+ * stale heartbeat — same rule reconciliation applies (R3.3).
+ *
+ * R3.4: the registry is REQUIRED. The old signature cleared `leaseIds`
+ * without releasing them, leaving active records that blocked later runs in
+ * the workspace until the TTL expired.
  */
 export async function reclaimDeadOwnerWorkers(
   store: CoordinationStore,
   runId: string,
+  ownershipRegistry: OwnershipRegistry,
+  orphanThresholdMs: number = DEFAULT_ORPHAN_THRESHOLD_MS,
 ): Promise<ReclaimResult> {
   const run = await store.load(runId);
   if (!run) return { runId, reclaimedWorkerIds: [] };
 
   const reclaimedWorkerIds: string[] = [];
   for (const worker of run.workers) {
-    if (worker.status !== "running") continue;
-    if (isOwnerAlive(worker.executionOwnerId)) continue;
-    // Owner process is provably gone: reset for a bounded retry.
+    if (!shouldReclaimWorker({
+      status: worker.status,
+      lastHeartbeatAt: worker.lastHeartbeatAt,
+      executionOwnerId: worker.executionOwnerId,
+      locallyActive: false,
+      orphanThresholdMs,
+    })) continue;
+    // Owner provably gone (or ownerless + stale): release its leases BEFORE
+    // clearing them, then reset for a bounded retry.
+    await releaseWorkerLeases(ownershipRegistry, worker);
     await store.patchWorker(runId, worker.id, {
       status: "pending",
       executionOwnerId: undefined,
@@ -107,6 +124,7 @@ export async function cancelDeadOwnerRuns(
   store: CoordinationStore,
   hostKinds: readonly string[],
   ownershipRegistry?: OwnershipRegistry,
+  orphanThresholdMs: number = DEFAULT_ORPHAN_THRESHOLD_MS,
 ): Promise<string[]> {
   const runs = await store.list();
   const cancelled: string[] = [];
@@ -115,14 +133,23 @@ export async function cancelDeadOwnerRuns(
     if (hostKinds.length > 0 && (run.hostKind === undefined || !hostKinds.includes(run.hostKind))) continue;
     const runningWorkers = run.workers.filter(w => w.status === "running");
     if (runningWorkers.length === 0) continue;
-    if (!runningWorkers.every(w => !isOwnerAlive(w.executionOwnerId))) continue;
+    // Same ONE verdict as reconciliation/reclaim (R3.3): every running
+    // worker must be reclaimable — provably dead owner, or ownerless+stale.
+    if (!runningWorkers.every(w => shouldReclaimWorker({
+      status: w.status,
+      lastHeartbeatAt: w.lastHeartbeatAt,
+      executionOwnerId: w.executionOwnerId,
+      locallyActive: false,
+      orphanThresholdMs,
+    }))) continue;
     const deadOwner = runningWorkers[0]?.executionOwnerId ?? "unknown";
-    // Release the leases the dead host held. Clearing `leaseIds` without
-    // releasing them leaves active registry records behind, and every later
-    // run in the workspace collides with them until the TTL expires.
+    // Release the leases the dead host held through the single release path
+    // (R3.4). Clearing `leaseIds` without releasing them leaves active
+    // registry records behind, and every later run in the workspace collides
+    // with them until the TTL expires.
     if (ownershipRegistry) {
       for (const worker of run.workers) {
-        if (worker.leaseIds?.length) await releaseWorkerOwnership(ownershipRegistry, worker.leaseIds);
+        await releaseWorkerLeases(ownershipRegistry, worker);
       }
     }
     const updated = await store.updateRun(run.id, (current) => {

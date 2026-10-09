@@ -7,7 +7,7 @@
 ## Ownership
 
 - `task-graph.ts` — TaskNode/TaskGraph types, status transitions, risk levels
-- `graph-executor.ts` — Sequential multi-node executor with capability resolution, policy enforcement, approval integration
+- `graph-executor.ts` — Sequential graph-CLI adapter (`alix graph run`/`rerun`/`continue`, `sop run`) with capability coverage, policy enforcement, approval integration. NOT a scheduling authority — `CoordinationScheduler` is; node authorization goes through the one `ExecutionAuthorization` boundary via `evaluateRuntimeGate`.
 - `graph-ledger.ts` — R2.7/R2.13 graph-domain ledger writes (`.alix/runtime-ledger.db`): `mirrorGraphToLedger` (entityType `graph`, events `graph.created`/`graph.persisted`, full TaskGraph payload) + `mirrorGraphAttemptToLedger` (entityType `graphAttempt`, `graph.attempt_recorded`, per-attempt entity, idempotent) — the ledger is AUTHORITATIVE, append failure counts then THROWS; `graphLedgerStatus(cwd)` surfaces counted appends/failures, and `countGraphProjectionFailure` counts tolerated JSON projection failures. `graphAttemptEntityId`/`parseGraphAttemptEntityId` are the one place the attempt entity id is encoded/decoded.
 - `graph-ledger-reconcile.ts` — read-only comparison of `.alix/graphs/*.json` + `*.runs.json` against the ledger (`missing_in_ledger` / `record_mismatch` / `projection_missing` / `version_behind` / `ledger_payload_invalid`); counts unknown event types, reports truncated reads. CLI: `alix graph reconcile` (exit 1 on drift).
 - `graph-projection.ts` — Reconstruct run state from events and graph JSON
@@ -19,10 +19,21 @@
   coverage of an in-flight worker and the handler's awaited finalization.
 - `subagent-worker-executor.ts` — Workers as subagent child processes (caps→role map, ownedPaths, result map)
 - `worker-role.ts` — Capability → role classification shared by planner (ownership) and executor (mode)
-- `owner-liveness.ts` — `<kind>-<pid>` execution-owner liveness probe (unknown owners read alive)
+- `owner-liveness.ts` — the ONE worker-liveness module (R3.3): `<kind>-<pid>`
+  execution-owner liveness probe (unknown owners read alive), heartbeat
+  staleness (`heartbeatStale`; missing/unparseable = no evidence), and the
+  shared reclaim verdict `shouldReclaimWorker` — a `running`, not-locally-active
+  worker is reclaimable only when its owner is PROVABLY dead, or it is
+  ownerless with a stale heartbeat. `DEFAULT_ORPHAN_THRESHOLD_MS` lives here.
+  Reconciliation, resume, and dead-host sweeps all use this verdict; never
+  reintroduce a second liveness rule.
 - `coordination-resume.ts` — Reclaim provably dead owners, find Inspector-hosted
   active runs, and cancel dead-host runs while releasing ownership leases and
   marking the persisted TaskGraph cancelled through `markRunGraphCancelled`.
+  `reclaimDeadOwnerWorkers` REQUIRES the ownership registry and releases each
+  reclaimed worker's leases through `releaseWorkerLeases` BEFORE clearing
+  `leaseIds` (R3.4 — the old signature cleared them and left live records
+  blocking later runs until TTL).
 - `replan-proposal-store.ts` — Atomic durable proposal lifecycle at
   `.alix/coordination/replans/<runId>/<proposalId>.json`; its injected clock
   keeps timestamp assertions deterministic.
@@ -32,7 +43,12 @@
 
 ## Local Contracts
 
-- GraphExecutor runs nodes sequentially, stops on first failure.
+- GraphExecutor runs nodes sequentially, stops on first failure. It is the
+  sequential graph-CLI adapter (R3.7), not a second scheduler: scheduling is
+  `CoordinationScheduler` alone, and graph-node authorization flows through the
+  one `ExecutionAuthorization` boundary (`evaluateRuntimeGate` adapts it to the
+  graph approval lifecycle). Capability coverage is computed once per node and
+  passed into the gate — never resolved twice.
 - **The coordination ledger is authoritative (R2.3); JSON is a compatibility
   projection.** Every mutation (`save`, `updateRun`,
   `updateRunWithRevisionCheck`, `attachAggregateIfUnfinalized`, `delete`)
@@ -60,6 +76,19 @@
   the run, and persisted TaskGraph cancelled and releases ownership leases.
   Set run status explicitly; do not re-derive an idle cancelled run as blocked.
   Scheduler `tick` and `runUntilIdle` treat cancelled runs as final.
+- **Worker liveness is ONE verdict (R3.3).** `shouldReclaimWorker` in
+  `owner-liveness.ts` merges the two pre-R3 rules (heartbeat staleness in
+  reconciliation, PID probe in resume) that disagreed: reconciliation used to
+  reclaim any stale different-owner worker — including a live-but-slow foreign
+  host's — while resume refused unknown owners and never reclaimed ownerless
+  workers. The merged rule requires a provably dead owner (or ownerless +
+  stale heartbeat) and never touches locally-active executions;
+  `ReconciliationDeps` no longer carries `daemonInstanceId` for orphan checks.
+- **Leases release through ONE path (R3.4).** `releaseWorkerLeases`
+  (`coordination-ownership.ts`) releases a worker's leases and clears its
+  `leaseIds`; completion, cancellation, orphan recovery, and dead-owner
+  reclaim all call it. Clearing `leaseIds` without releasing leaves active
+  registry records that block every later run in the workspace until TTL.
 - `alix_coordination_run` threads operator abort into cancellation and awaits
   finalization before throwing `ExecutionCancelledError`. `createCancelGuard`
   and `createCancelFailureRecorder` own this path. Bind recorder inputs before
@@ -126,6 +155,15 @@
   Production schedulers must use `createCoordinationScheduler`, which injects
   `CoordinationCompletionService`; direct scheduler construction in source is
   a wiring defect. Test-only omission is explicit.
+- **One completion-service assembly (R3.5).** `createCompletionService`
+  (`coordination-completion-service.ts`) is the ONLY place a
+  `CoordinationCompletionService` is constructed; the scheduler factory, the
+  `alix_coordination_results` tool, and the `alix coordination` CLI all build
+  through it (a construction-wiring test fails on a stray `new`). Idempotency
+  itself lives at the store/lock boundary (`attachAggregateIfUnfinalized` +
+  `CoordinationFinalizationLock`), pinned by
+  `tests/kernel/coordination-finalization.test.ts` — a double finalize emits
+  exactly one aggregate event.
 - `maybeFinalizeRun` is idempotent at the store boundary.
   `CoordinationStore.attachAggregateIfUnfinalized` checks and attaches under
   the per-run lock and source fingerprint. Concurrent finalizers return the
@@ -141,6 +179,12 @@
   event across loop, tools, view, collaboration context, and CLI; no stored
   verified flag or session-terminal prerequisite is allowed. The session gate
   yields `completed_unverified` for missing evidence.
+- **One completion derivation (R3.6).** `deriveRunCompletion`
+  (`coordination-view.ts`) reads the run's session events and pairs the
+  aggregate-event match with the current source fingerprint; the task-loop
+  gate, coordination tools/CLI, collaboration context, and the run view all
+  call it. A site that assembles its own evidence pair can silently drop the
+  fingerprint check or read a stale event set — do not.
 - `deriveCoordinationEvidence` takes file.created/file.deleted/patch.changed_files
   events and worker-reported mutation paths; worker status and ownership grants
   are not evidence. Keep

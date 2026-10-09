@@ -11,7 +11,8 @@ import "node:crypto";
 import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { loadWorkerDependencyResults } from "./coordination-worker-context.js";
-import { acquireWorkerOwnership, releaseWorkerOwnership, renewWorkerOwnership } from "./coordination-ownership.js";
+import { acquireWorkerOwnership, releaseWorkerOwnership, releaseWorkerLeases, renewWorkerOwnership } from "./coordination-ownership.js";
+import { DEFAULT_ORPHAN_THRESHOLD_MS } from "./owner-liveness.js";
 import { markRunGraphCancelled } from "./coordination-resume.js";
 import { reconcileCoordinationRun } from "./coordination-reconciliation.js";
 import type { ReconciliationResult as ReconcileResult } from "./coordination-reconciliation.js";
@@ -23,10 +24,7 @@ import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
-import { CoordinationCompletionService as CompletionService } from "./coordination-completion-service.js";
-import { CoordinationResultStore as CompletionResultStore } from "./coordination-result-store.js";
-import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
-import { ResultAggregator } from "./coordination-result-aggregator.js";
+import { createCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
 import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
@@ -46,7 +44,9 @@ import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaborati
 export const MAX_COORDINATION_CONCURRENCY = 8;
 export const DEFAULT_OWNERSHIP_TTL_MS = 30 * 60_000;
 export const DEFAULT_OWNERSHIP_RENEW_INTERVAL_MS = 5 * 60_000;
-export const DEFAULT_ORPHAN_THRESHOLD_MS = 90_000;
+// R3.3: the orphan threshold is a liveness concern — owner-liveness.ts owns it;
+// re-exported here for existing scheduler consumers.
+export { DEFAULT_ORPHAN_THRESHOLD_MS };
 export const DEFAULT_MAX_DISPATCH_PER_TICK = 5;
 export const DEFAULT_RUN_POLL_INTERVAL_MS = 1_000;
 export const DEFAULT_MAX_IDLE_TICKS = 5;
@@ -176,7 +176,6 @@ export class CoordinationScheduler {
     const result = await reconcileCoordinationRun({
       store: this.deps.store,
       ownershipRegistry: this.deps.ownershipRegistry,
-      daemonInstanceId: this.deps.daemonInstanceId,
       orphanThresholdMs: this.options.orphanThresholdMs,
       clock: this.deps.clock,
       isApproved: async (worker: WorkerAssignment, run: CoordinationRun) => {
@@ -655,7 +654,7 @@ export class CoordinationScheduler {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
-        await releaseWorkerOwnership(this.deps.ownershipRegistry, finalWorker.leaseIds);
+        await releaseWorkerLeases(this.deps.ownershipRegistry, finalWorker);
         await this.patchWorkerWithRetry(runId, workerId, { leaseIds: [] });
       }
       // Check if run is now terminal
@@ -1025,7 +1024,7 @@ export class CoordinationScheduler {
     for (const worker of run.workers) {
       if (worker.status === "running" || worker.status === "pending" || worker.status === "ready") {
         if (worker.leaseIds && worker.leaseIds.length > 0) {
-          await releaseWorkerOwnership(this.deps.ownershipRegistry, worker.leaseIds);
+          await releaseWorkerLeases(this.deps.ownershipRegistry, worker);
         }
         await this.deps.store.patchWorker(runId, worker.id, {
           status: "cancelled", blockReason: "cancelled", leaseIds: [],
@@ -1075,10 +1074,8 @@ export function createCoordinationScheduler(
   deps: Omit<CoordinationSchedulerDeps, "completionService">,
   options?: SchedulerOptions,
 ): CoordinationScheduler {
-  const completionService = new CompletionService({
-    coordinationStore: deps.store,
-    resultAggregator: new ResultAggregator(new CompletionResultStore(deps.cwd)),
-    aggregateStore: new CoordinationAggregateStore(deps.cwd),
+  const completionService = createCompletionService(deps.cwd, {
+    store: deps.store,
     ...(deps.eventLog ? { eventLog: deps.eventLog } : {}),
   });
   return new CoordinationScheduler({ ...deps, completionService }, options);

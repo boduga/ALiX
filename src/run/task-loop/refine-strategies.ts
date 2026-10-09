@@ -9,7 +9,8 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { recommendStrategy } from "./strategy-learner.js";
 
 export type RefineStrategyName = "retry" | "decompose" | "simplify" | "verify_only" | "analyze" | "escalate";
@@ -22,7 +23,10 @@ export interface RefineStrategy {
   temperature: number;
 }
 
-const STRATEGIES_DIR = join(process.cwd(), "src", "orchestrator", "refine-strategies");
+// Module-relative, never process.cwd(): the strategy .md files ship next to
+// this module (copied into dist by scripts/copy-build-artifacts.mjs), so a
+// workspace cwd outside the repo root must not change which strategies load.
+const STRATEGIES_DIR = join(dirname(fileURLToPath(import.meta.url)), "refine-strategies");
 
 /**
  * Load a refine strategy from file

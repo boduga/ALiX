@@ -2,7 +2,9 @@
  * coordination-reconciliation.ts — Restart-safe reconciliation for coordination runs.
  *
  * Responsibilities:
- *   - Orphan recovery (stale heartbeat + different execution owner)
+ *   - Orphan recovery via the ONE liveness verdict
+ *     (`owner-liveness.shouldReclaimWorker`: provably dead owner, or
+ *     ownerless + stale heartbeat; never locally active workers)
  *   - Transitive dependency failure propagation
  *   - Approval resolution (resume workers when approved)
  *   - Ownership conflict retry state reset
@@ -14,6 +16,8 @@
 import type { CoordinationStore } from "./coordination-store.js";
 import type { CoordinationRun, WorkerAssignment, WorkerFailureProvenance } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
+import { shouldReclaimWorker } from "./owner-liveness.js";
+import { releaseWorkerLeases } from "./coordination-ownership.js";
 
 export interface Clock {
   now(): Date;
@@ -30,7 +34,6 @@ export type ReconciliationResult = {
 export type ReconciliationDeps = {
   store: CoordinationStore;
   ownershipRegistry: OwnershipRegistry;
-  daemonInstanceId: string;
   orphanThresholdMs: number;
   clock?: Clock;
   isApproved?: (worker: WorkerAssignment, run: CoordinationRun) => Promise<boolean>;
@@ -53,30 +56,36 @@ export async function reconcileCoordinationRun(
   };
 
   const now = deps.clock?.now() ?? new Date();
-  const staleCutoff = new Date(now.getTime() - deps.orphanThresholdMs).toISOString();
 
-  // Orphan recovery: workers running with stale heartbeat and not locally active
+  // Orphan recovery — ONE shared liveness verdict (R3.3). The pre-R3 rule
+  // ("stale heartbeat + any other owner") reclaimed workers from live-but-
+  // slow foreign hosts; shouldReclaimWorker requires a provably dead owner
+  // (or ownerless + stale heartbeat), matching coordination-resume.
   const run = await deps.store.load(runId);
   if (!run) { result.status = "not_found"; return result; }
 
   for (const worker of run.workers) {
-    if (worker.status !== "running") continue;
-    if (!worker.lastHeartbeatAt || worker.lastHeartbeatAt >= staleCutoff) continue;
-
     const locallyActive = deps.activeExecutionIds?.has(worker.id) ?? false;
-    if (locallyActive) continue;
+    if (!shouldReclaimWorker({
+      status: worker.status,
+      lastHeartbeatAt: worker.lastHeartbeatAt,
+      executionOwnerId: worker.executionOwnerId,
+      locallyActive,
+      orphanThresholdMs: deps.orphanThresholdMs,
+      now,
+    })) continue;
 
-    // No execution owner or different execution owner — orphaned
-    if (!worker.executionOwnerId || worker.executionOwnerId !== deps.daemonInstanceId) {
-      result.orphaned.push(worker.id);
-      await releaseWorkerLeases(deps, runId, worker);
-      await deps.store.patchWorker(runId, worker.id, {
-        status: "failed",
-        blockReason: "orphaned" as any,
-        failureKind: "orphaned" as any,
-        error: `Worker orphaned — heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
-      });
-    }
+    result.orphaned.push(worker.id);
+    await releaseWorkerLeases(deps.ownershipRegistry, worker);
+    await deps.store.patchWorker(runId, worker.id, {
+      status: "failed",
+      blockReason: "orphaned" as any,
+      failureKind: "orphaned" as any,
+      leaseIds: [],
+      error: worker.executionOwnerId
+        ? `Worker orphaned — host ${worker.executionOwnerId} is dead`
+        : `Worker orphaned — heartbeat ${worker.lastHeartbeatAt} exceeded threshold`,
+    });
   }
 
   // Transitive dependency failure propagation — fixpoint loop
@@ -150,12 +159,4 @@ export async function reconcileCoordinationRun(
   const finalRun = await deps.store.load(runId);
   result.status = finalRun?.status ?? "unknown";
   return result;
-}
-
-async function releaseWorkerLeases(deps: ReconciliationDeps, runId: string, worker: WorkerAssignment): Promise<void> {
-  if (worker.leaseIds && worker.leaseIds.length > 0) {
-    const { releaseWorkerOwnership } = await import("./coordination-ownership.js");
-    await releaseWorkerOwnership(deps.ownershipRegistry, worker.leaseIds);
-    await deps.store.patchWorker(runId, worker.id, { leaseIds: [] } as any);
-  }
 }

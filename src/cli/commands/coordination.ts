@@ -311,16 +311,9 @@ async function handleStatus(args: string[]): Promise<void> {
   // Derived completion. `Status` above is the terminal execution state only:
   // it does not imply the results were aggregated, that the outcome was
   // success, or that anything was verified.
-  const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
-    await import("../../kernel/coordination-types.js");
-  const { computeAggregationSourceFingerprint } =
-    await import("../../kernel/coordination-aggregation-fingerprint.js");
-  const { readRunSessionEvents } = await import("../../kernel/coordination-view.js");
-  const completion = deriveCoordinationCompletion(run, {
-    currentFingerprint: computeAggregationSourceFingerprint(run),
-    aggregateEventMatches: matchesAttachedAggregateEvent(run, await readRunSessionEvents(cwd, run.sessionId)),
-  });
-  console.log(`Completion: ${coordinationCompletionLabel(completion)}`);
+  const { deriveRunCompletion } = await import("../../kernel/coordination-view.js");
+  const { completion, label } = await deriveRunCompletion(cwd, run);
+  console.log(`Completion: ${label}`);
   console.log(
     `  execution=${completion.execution} aggregation=${completion.aggregation} ` +
     `outcome=${completion.outcome} verification=${completion.verification}`,
@@ -372,8 +365,7 @@ async function handleResults(args: string[]): Promise<void> {
   const { CoordinationStore } = await import("../../kernel/coordination-store.js");
   const { CoordinationResultStore } = await import("../../kernel/coordination-result-store.js");
   const { CoordinationAggregateStore } = await import("../../kernel/coordination-aggregate-store.js");
-  const { ResultAggregator } = await import("../../kernel/coordination-result-aggregator.js");
-  const { CoordinationCompletionService } = await import("../../kernel/coordination-completion-service.js");
+  const { createCompletionService } = await import("../../kernel/coordination-completion-service.js");
   const { ModelRunSynthesizer } = await import("../../kernel/coordination-run-synthesizer.js");
 
   const store = new CoordinationStore(cwd);
@@ -394,12 +386,11 @@ async function handleResults(args: string[]): Promise<void> {
   const run = await store.load(runId);
   if (!run) { console.error(`Run not found: ${runId}`); process.exit(1); }
 
-  const aggregator = new ResultAggregator(resultStore);
-  const completionService = new CoordinationCompletionService({
-    coordinationStore: store,
-    resultAggregator: aggregator,
+  const completionService = createCompletionService(cwd, {
+    store,
+    resultStore,
     aggregateStore,
-    synthesizer: synthesize ? new ModelRunSynthesizer() : undefined,
+    ...(synthesize ? { synthesizer: new ModelRunSynthesizer() } : {}),
   });
 
   const summary = await completionService.finalize(runId);

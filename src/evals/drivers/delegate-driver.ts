@@ -50,6 +50,7 @@ export function createSubagentExecutor(
     const { SubagentManager } = await import("../../agents/subagent-manager.js");
     const manager = new SubagentManager({
       sessionId: opts?.sessionId ?? `eval-${task.id}`,
+      cwd,
       config,
     });
     try {

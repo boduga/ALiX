@@ -10,6 +10,13 @@ Own model-facing built-in tool names, worker tool policy, and subagent dispatch.
 - `tool-name-resolver.ts` resolves ONLY the exact names offered in the current turn. Executor IDs are never accepted from a caller.
 - `tool-policy.ts` applies role-based tool access.
 - `subagent-cli.ts` builds and runs worker turns.
+- `subagent-manager.ts` — subagent lifecycle (spawn/cancel/shutdown) and the
+  chat-path ownership lease point: write tasks with `ownedPaths` acquire
+  durable `src/ownership/ownership-registry.ts` leases at spawn (workspace root
+  captured at construction via the `cwd` option; per-task `task.cwd` wins),
+  release them before `spawn` resolves, and renew them while running.
+  Coordination tasks (`coordinationRunId`/`assignedAgentId` set) skip
+  acquisition — the scheduler pre-claims those leases before dispatch.
 - `coordination-objective-review.ts` checks worker evidence and persisted outputs against the assigned objective before coordination reports success.
 - Collaboration handlers live in `src/tools/collaboration-tools.ts` and are exposed to workers through bound tool definitions.
 

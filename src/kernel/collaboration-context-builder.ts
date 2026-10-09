@@ -430,23 +430,14 @@ export class CollaborationContextBuilder {
 
     // Derived completion, so a worker reading this context can tell an attached
     // aggregate from a verified run (status alone means neither).
-    const { deriveCoordinationCompletion, coordinationCompletionLabel, matchesAttachedAggregateEvent } =
-      await import("./coordination-types.js");
-    const { computeAggregationSourceFingerprint } = await import("./coordination-aggregation-fingerprint.js");
-    const { readRunSessionEvents } = await import("./coordination-view.js");
-    const completion = deriveCoordinationCompletion(run, {
-      currentFingerprint: computeAggregationSourceFingerprint(run),
-      aggregateEventMatches: matchesAttachedAggregateEvent(
-        run,
-        await readRunSessionEvents(this.coordinationStore.cwd, run.sessionId),
-      ),
-    });
+    const { deriveRunCompletion } = await import("./coordination-view.js");
+    const { completion, label } = await deriveRunCompletion(this.coordinationStore.cwd, run);
     const completionInfo = {
       execution: completion.execution,
       aggregation: completion.aggregation,
       outcome: completion.outcome,
       verification: completion.verification,
-      label: coordinationCompletionLabel(completion),
+      label,
     };
 
     // Build model-friendly structures

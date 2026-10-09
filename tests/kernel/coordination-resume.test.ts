@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { parseOwnerPid, isPidAlive, isOwnerAlive } from "../../src/kernel/owner-liveness.js";
+import { parseOwnerPid, isPidAlive, isOwnerAlive, heartbeatStale, shouldReclaimWorker, DEFAULT_ORPHAN_THRESHOLD_MS } from "../../src/kernel/owner-liveness.js";
 import { reclaimDeadOwnerWorkers, findResumableRuns, cancelDeadOwnerRuns } from "../../src/kernel/coordination-resume.js";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "../../src/kernel/coordination-types.js";
@@ -35,6 +35,35 @@ describe("owner liveness", () => {
     assert.equal(isOwnerAlive("named-daemon"), true);
     assert.equal(isOwnerAlive(`web-${process.pid}`), true);
     assert.equal(isOwnerAlive(`web-${DEAD_PID}`), false);
+  });
+
+  it("heartbeatStale treats missing/unparseable timestamps as no evidence", () => {
+    const now = new Date();
+    assert.equal(heartbeatStale(undefined, 100, now), false);
+    assert.equal(heartbeatStale(null, 100, now), false);
+    assert.equal(heartbeatStale("not-a-date", 100, now), false);
+    assert.equal(heartbeatStale(new Date(now.getTime() - 1000).toISOString(), 100, now), true);
+    assert.equal(heartbeatStale(new Date(now.getTime()).toISOString(), 100, now), false);
+  });
+
+  it("shouldReclaimWorker is the ONE verdict: prove dead, or ownerless+stale", () => {
+    const stale = new Date(Date.now() - 2 * DEFAULT_ORPHAN_THRESHOLD_MS).toISOString();
+    const fresh = new Date().toISOString();
+    const base = { orphanThresholdMs: DEFAULT_ORPHAN_THRESHOLD_MS };
+    // not running → never
+    assert.equal(shouldReclaimWorker({ ...base, status: "pending", executionOwnerId: `web-${DEAD_PID}` }), false);
+    // locally active → never, regardless of owner/heartbeat
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", locallyActive: true, executionOwnerId: `web-${DEAD_PID}` }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", locallyActive: true, lastHeartbeatAt: stale }), false);
+    // owned worker: provably dead owner reclaims even with fresh heartbeat
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: `web-${DEAD_PID}`, lastHeartbeatAt: fresh }), true);
+    // owned worker: live or unknown owner never reclaims, however stale
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: `web-${process.pid}`, lastHeartbeatAt: stale }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", executionOwnerId: "other-daemon", lastHeartbeatAt: stale }), false);
+    // ownerless: stale reclaims, fresh/missing does not
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", lastHeartbeatAt: stale }), true);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running", lastHeartbeatAt: fresh }), false);
+    assert.equal(shouldReclaimWorker({ ...base, status: "running" }), false);
   });
 });
 
@@ -71,7 +100,7 @@ describe("coordination resume", () => {
     const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}` });
     await store.addWorker(run.id, dead);
 
-    const result = await reclaimDeadOwnerWorkers(store, run.id);
+    const result = await reclaimDeadOwnerWorkers(store, run.id, new OwnershipRegistry(cwd));
     assert.deepEqual(result.reclaimedWorkerIds, [dead.id]);
     const loaded = await store.load(run.id);
     const worker = loaded!.workers[0];
@@ -79,6 +108,32 @@ describe("coordination resume", () => {
     assert.equal(worker.attempt, 1);
     assert.equal(worker.executionOwnerId, undefined);
     assert.match(worker.error ?? "", /Reclaimed/);
+  });
+
+  it("releases held leases when reclaiming a dead-owner worker (R3.4)", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "g", coordinatorAgentId: "alix" });
+    run.hostKind = "inspector";
+    await store.save(run);
+    const registry = new OwnershipRegistry(cwd);
+    const acquired = await registry.acquire({
+      agentId: "alix#1",
+      scope: { kind: "path", root: join(cwd, "src"), recursive: true },
+      mode: "exclusive-write",
+      ttlMs: 60_000,
+    });
+    assert.equal(acquired.acquired, true);
+    const leaseId = acquired.record!.id;
+    const dead = addWorker(run.id, { executionOwnerId: `web-${DEAD_PID}`, leaseIds: [leaseId] });
+    await store.addWorker(run.id, dead);
+
+    await reclaimDeadOwnerWorkers(store, run.id, registry);
+
+    // Releasing, not just forgetting: the registry record is terminal...
+    await registry.refresh();
+    assert.equal(registry.get(leaseId)?.status, "released");
+    // ...and the worker record no longer claims it.
+    const loaded = await store.load(run.id);
+    assert.deepEqual(loaded!.workers[0].leaseIds, []);
   });
 
   it("leaves live-owner and unknown-owner workers alone", async () => {
@@ -89,7 +144,7 @@ describe("coordination resume", () => {
     await store.addWorker(run.id, live);
     await store.addWorker(run.id, unknown);
 
-    const result = await reclaimDeadOwnerWorkers(store, run.id);
+    const result = await reclaimDeadOwnerWorkers(store, run.id, new OwnershipRegistry(cwd));
     assert.deepEqual(result.reclaimedWorkerIds, []);
     const loaded = await store.load(run.id);
     assert.ok(loaded!.workers.every(w => w.status === "running"));
